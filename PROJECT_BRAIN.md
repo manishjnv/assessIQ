@@ -82,6 +82,9 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | 2026-04-29 | Subdomain on automateedge.cloud | Existing infra; white-label capability via tenant-level domain mapping in v2 |
 | 2026-04-29 | Help system as separate module | First-class concern, not bolt-on; centralized authoring + i18n-ready |
 | 2026-04-30 | UI template at `modules/17-ui-system/AccessIQ_UI_Template/` adopted as the brand base; canonical guideline distilled to `docs/10-branding-guideline.md` | Reuse over redesign; the editorial typography (Newsreader serif + Geist sans + JetBrains Mono), OKLCH palette around hue 258, density-via-`--u` mechanic, and pill-button + editorial-card idioms are intentional and reusable. Future pages inherit from this guideline. |
+| 2026-05-01 | **Phase 1 `attempt.status` enum confirmed:** `draft → in_progress → submitted → pending_admin_grading → graded → released`; `auto_submitted` and `cancelled` are terminals. Value `grading` is reserved for Phase 2 async worker. | Resolves ambiguity between data-model.md:368 and ai-pipeline.md. Supersedes api-contract.md:217 which erroneously had `status:'grading'` for Phase 1. See PHASE_1_KICKOFF.md D2-D3. |
+| 2026-05-01 | **`help_content` RLS uses `tenant_id IS NULL OR tenant_id = current_setting('app.current_tenant')::uuid`** — standard RLS fails-closed on global-default rows. RLS linter updated to accept this variant for nullable `tenant_id` columns. | See PHASE_1_KICKOFF.md D11. |
+| 2026-05-01 | **Phase 1 module dependency order:** 04 (standalone) → 05 (needs 04) → 06+11 (parallel, need 05); 16 (parallel from 17, day 1). Tooltip primitive ships in 16's first PR. | Kickoff plan G1.A/G1.B/G1.C groupings. Docs: `docs/plans/PHASE_1_KICKOFF.md`. |
 
 ## Working agreements (for Claude Code sessions)
 
