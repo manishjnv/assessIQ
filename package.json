@@ -1,0 +1,33 @@
+{
+  "name": "assessiq",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:rls": "tsx tools/lint-rls-policies.ts"
+  },
+  "dependencies": {
+    "pino": "^9.0.0",
+    "uuidv7": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "eslint": "^9.13.0",
+    "pino-pretty": "^11.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.13.0",
+    "vitest": "^2.1.0"
+  }
+}

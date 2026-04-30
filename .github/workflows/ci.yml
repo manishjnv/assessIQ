@@ -1,0 +1,202 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. pnpm setup
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15"
+
+      # 3. Node setup with pnpm cache
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      # 4. Install dependencies
+      # NOTE: using --no-frozen-lockfile until the first stable lockfile is committed.
+      # Tighten to --frozen-lockfile once pnpm-lock.yaml is checked in.
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      # 5. Type-check all workspaces
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      # 6. Lint
+      - name: Lint
+        run: pnpm lint
+
+      # 7. Test
+      - name: Test
+        run: pnpm test
+
+      # 8. RLS policy linter
+      - name: RLS policy lint
+        run: pnpm lint:rls
+
+      # 9. RLS linter self-test (validates the linter itself without real migrations)
+      - name: RLS linter self-test
+        run: pnpm tsx tools/lint-rls-policies.ts --self-test
+
+      # 10. Secrets scan — exact regex set from .claude/hooks/precommit-gate.sh lines 40-51
+      # plus the hardcoded-credential-literal pattern. Runs on all files (not just diff)
+      # so CI catches anything the precommit hook might have missed.
+      - name: Secrets scan
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          FOUND=0
+
+          patterns=(
+            'AKIA[0-9A-Z]{16}'
+            'ASIA[0-9A-Z]{16}'
+            'sk-[A-Za-z0-9]{20,}'
+            'xai-[A-Za-z0-9]{20,}'
+            'hf_[A-Za-z0-9]{30,}'
+            'github_pat_[A-Za-z0-9_]{20,}'
+            'gh[pousr]_[A-Za-z0-9]{20,}'
+            'AIza[A-Za-z0-9_-]{30,}'
+            'GOCSPX-[A-Za-z0-9_-]{20,}'
+            'xox[bp]-[A-Za-z0-9-]{20,}'
+          )
+
+          for pat in "${patterns[@]}"; do
+            matches=$(grep -rE "$pat" \
+              --exclude-dir=node_modules \
+              --exclude-dir=.git \
+              --exclude-dir=dist \
+              --exclude-dir=coverage \
+              --exclude='*.lock' \
+              . 2>/dev/null || true)
+            if [ -n "$matches" ]; then
+              echo "::error::Secrets scan: pattern /$pat/ matched:"
+              echo "$matches"
+              FOUND=1
+            fi
+          done
+
+          # Hardcoded credential literal: (password|secret|token|api_key) = "value" or 'value'
+          cred_matches=$(grep -rE \
+            '(password|secret|token|api_key)[[:space:]]*=[[:space:]]*["'"'"'][^"'"'"']{8,}["'"'"']' \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git \
+            --exclude-dir=dist \
+            --exclude-dir=coverage \
+            --exclude='*.lock' \
+            --exclude='.env.example' \
+            . 2>/dev/null || true)
+          if [ -n "$cred_matches" ]; then
+            echo "::error::Secrets scan: hardcoded credential literal matched:"
+            echo "$cred_matches"
+            FOUND=1
+          fi
+
+          if [ "$FOUND" -eq 1 ]; then
+            echo "Secrets scan FAILED — remove or rotate any leaked credentials."
+            exit 1
+          fi
+          echo "Secrets scan: clean"
+
+      # 11. No-Anthropic / no-Claude check
+      # Mirrors precommit-gate.sh patterns. We block:
+      #   - imports of @anthropic-ai/* or claude-agent-sdk packages (Phase 0 grading-free)
+      #   - spawn('claude', ...) / spawn("claude", ...) calls — ambient AI invocations
+      #   - hardcoded Anthropic-style API-key literals (sk-ant-*)
+      # We do NOT block legitimate references like the AI_PIPELINE_MODE enum values
+      # ("claude-code-vps" / "anthropic-api") or the ANTHROPIC_API_KEY env-var name
+      # appearing in a Zod schema — those are part of the rule-#1 enforcement itself.
+      # Allow list: modules/07-ai-grading/runtimes/anthropic-api.ts (CLAUDE.md rule #2).
+      - name: No-Anthropic / no-Claude check
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          FOUND=0
+          ALLOW_PATH='modules/07-ai-grading/runtimes/anthropic-api\.ts'
+
+          patterns=(
+            '@anthropic-ai/(claude-agent-sdk|sdk)'
+            "from[[:space:]]+[\"']claude-agent-sdk[\"']"
+            "require[[:space:]]*\\([[:space:]]*[\"']claude-agent-sdk[\"']"
+            "spawn[[:space:]]*\\([[:space:]]*[\"']claude[\"']"
+            'sk-ant-[A-Za-z0-9_-]{20,}'
+          )
+
+          for pat in "${patterns[@]}"; do
+            raw=$(grep -rE "$pat" \
+              modules/ packages/ apps/ infra/ tools/ \
+              --include='*.ts' \
+              --include='*.tsx' \
+              --include='*.js' \
+              --include='*.jsx' \
+              --include='*.json' \
+              --include='*.yaml' \
+              --include='*.yml' \
+              --include='*.sh' \
+              --include='*.sql' \
+              --exclude-dir=node_modules \
+              --exclude-dir=.git \
+              --exclude-dir=dist \
+              --exclude-dir=coverage \
+              2>/dev/null || true)
+            filtered=$(echo "$raw" | grep -v -e "$ALLOW_PATH" || true)
+            # `grep -v` returns empty string when input is empty; guard for that
+            if [ -n "$raw" ] && [ -n "$filtered" ]; then
+              echo "::error::No-Anthropic check: pattern /$pat/ matched:"
+              echo "$filtered"
+              FOUND=1
+            fi
+          done
+
+          if [ "$FOUND" -eq 1 ]; then
+            echo ""
+            echo "claude/anthropic package imports + spawn('claude') + sk-ant-* literals"
+            echo "are forbidden outside modules/07-ai-grading/runtimes/anthropic-api.ts."
+            echo "See CLAUDE.md rules #1 and #2."
+            exit 1
+          fi
+          echo "No-Anthropic check: clean"
+
+      # 12. No-TODO grep — parity with precommit gate
+      - name: No-TODO / FIXME / XXX check
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          matches=$(grep -rE 'TODO|FIXME|XXX' \
+            modules/ packages/ apps/ infra/ tools/ \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git \
+            --exclude-dir=dist \
+            --exclude-dir=coverage \
+            --exclude='*.md' \
+            2>/dev/null || true)
+
+          if [ -n "$matches" ]; then
+            echo "::error::TODO/FIXME/XXX markers found in source:"
+            echo "$matches"
+            echo ""
+            echo "Resolve markers before merging, or move context to docs/RCA_LOG.md."
+            exit 1
+          fi
+          echo "No-TODO check: clean"

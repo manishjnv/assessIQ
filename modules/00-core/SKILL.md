@@ -55,3 +55,8 @@ None directly. Other modules' help content references config-derived limits (e.g
 
 ## Open questions
 - Telemetry tracer (OpenTelemetry) — defer to Phase 3 unless we hit perf debugging needs earlier.
+
+## Status
+
+- 2026-05-01: implemented in Phase 0 G0.A. Vitest suite green. Public surface frozen at the contract above.
+- Open question (telemetry tracer / OpenTelemetry) remains deferred to Phase 3 unless perf debugging needs arise earlier.
