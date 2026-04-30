@@ -38,12 +38,12 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
 | --- | --- | --- |
 | "Have we solved this before?" | `claude-mem:mem-search` | Run *before* Phase 0 reads if the goal sounds familiar |
 | "Where is X defined?" / structural exploration | `claude-mem:smart-explore` | AST-based; cheaper than multi-file Read sweeps |
-| Planning a non-trivial feature | `claude-mem:make-plan` | Pick this OR Superpowers `/write-plan` — never both. `make-plan` wins because it's project-aware via the memory DB |
-| Brainstorm a fuzzy idea (no contract yet) | Superpowers `/brainstorm` | Skip when the contract is already specified |
+| Planning a non-trivial feature | `claude-mem:make-plan` | Pick this OR `/superpowers:write-plan` — never both. `make-plan` wins because it's project-aware via the memory DB |
+| Brainstorm a fuzzy idea (no contract yet) | `/superpowers:brainstorm` | Skip when the contract is already specified |
 | Implementation with contract | Global Phase 1 → Sonnet subagent | Do NOT use `claude-mem:do` here — it bypasses the Opus/Sonnet/Haiku routing matrix |
-| Code review of a diff | Global Phase 3 (Opus diff critique) | If Superpowers `requesting-code-review` auto-fires, treat as advisory; the final review is Opus |
+| Code review of a diff | Global Phase 3 (Opus diff critique) | If `superpowers:requesting-code-review` auto-fires, treat as advisory; the final review is Opus |
 | Architecture audit before refactor | `claude-mem:pathfinder` | Run before any cross-module refactor |
-| Worktrees | Global rule (load-bearing *writes* only) | Override Superpowers' worktree-by-default tendency |
+| Worktrees | Global rule (load-bearing *writes* only) | Override `superpowers:using-git-worktrees`' worktree-by-default tendency |
 | Adversarial review of security/auth/classifier diffs | `codex:rescue` | Required before push for any change in `01-auth`, `02-tenancy`, `07-ai-grading`, `14-audit-log`, infra |
 | Bulk live-prod verification (curl grids, header sweeps) | Global Phase 5 → Haiku subagent | Returns checkmark table; Opus approves |
 
@@ -60,7 +60,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
 
 2. **No Agent SDK in Phase 1 runtime.** `@anthropic-ai/claude-agent-sdk` is allowed in `modules/07-ai-grading/runtimes/anthropic-api.ts` only and is gated behind `AI_PIPELINE_MODE=anthropic-api`. Never import it from anywhere else.
 
-3. **Superpowers `dispatching-parallel-agents` and `subagent-driven-development` are dev-workflow only.** Their patterns assume Agent SDK at runtime — do not let them shape the grading runtime architecture. If a Superpowers skill suggests a parallel-agents pattern for grading, ignore it.
+3. **`superpowers:dispatching-parallel-agents` and `superpowers:subagent-driven-development` are dev-workflow only.** Their patterns assume Agent SDK at runtime — do not let them shape the grading runtime architecture. If a Superpowers skill suggests a parallel-agents pattern for grading, ignore it.
 
 4. **Multi-tenancy guard (Phase 3 bounce conditions).** Diffs that:
    - Add a domain table without `tenant_id` and an RLS policy → bounce
@@ -150,4 +150,4 @@ Phase 0 reads this. Phase 3 critique uses recurring patterns as guardrails.
 
 - A literal directory named `{docs,modules,infra}/` exists at the repo root — almost certainly a brace-expansion accident from a `mkdir` shell quoting bug. **Confirm with the user before removing it** in case it shadows real work.
 - The Phase 1 architecture is *intentional* — the temptation to "fix" sync-on-click grading by adding a worker means you're solving the wrong problem. Re-read `docs/05-ai-pipeline.md` § Compliance frame before suggesting any async grading.
-- Three plugins (Superpowers, claude-mem, your global playbook) all want to drive workflow. The table above is the tiebreaker. If two skills auto-fire on the same trigger, the table wins; otherwise prefer the global playbook over Superpowers.
+- Three plugins (Superpowers, claude-mem, your global playbook) all want to drive workflow. Skills are namespaced — `superpowers:*`, `claude-mem:*`, `codex:*`; the global playbook has none. The table above is the tiebreaker. If two skills auto-fire on the same trigger, the table wins; otherwise prefer the global playbook over Superpowers.
