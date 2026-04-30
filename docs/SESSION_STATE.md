@@ -50,3 +50,33 @@ The G0.C-4 pre-flight handoff (Window 4 `01-auth` decisions) is preserved in git
 - `tools/migrate.ts` not yet shipped (G0.C-4 acceptance criterion). Phase 1 G1.A Session 1 will be the first session writing 5 migrations at once; either Window 4 ships `tools/migrate.ts` first, or G1.A Session 1 inherits the `docker compose exec` ad-hoc apply pattern.
 
 The G0.B-3 (`17-ui-system`) handoff at commit `f21ac4d` and the G0.B-2 (`02-tenancy`) handoff at commit `7923492` are preserved in git history per their respective `docs/SESSION_STATE.md` snapshots — `git show <sha>:docs/SESSION_STATE.md` retrieves them.
+
+
+---
+
+## Phase 1 Planning Session — 2026-05-01
+
+**Goal:** Draft Phase 1 kickoff plan (`docs/plans/PHASE_1_KICKOFF.md`) from discovery through commit + push.
+
+**Commits this session:**
+- `7573f68` — `docs(plans): phase 1 kickoff plan`
+
+**What happened:**
+- Dispatched 3 parallel Haiku Explore agents (Clusters A/B/C) against 37 sources.
+- Surfaced 25 structured gaps; resolved 14 decisions (D1–D14).
+- Synthesized into `docs/plans/PHASE_1_KICKOFF.md` (37,975 bytes) covering 5 modules, 4 session groups, 9 per-session blocks, 22-entry help-ID seed catalog.
+- Committed + pushed via git plumbing (observer session had no direct FS write access to project).
+
+**Open items blocking Phase 1 start:**
+- Pre-P1: Author `log_analysis` content JSONB schema + bulk-import schema into docs/02-data-model.md + docs/03-api-contract.md (BLOCKS G1.A-04)
+- Pre-P2: Author `assessments.settings` JSONB shape + update api-contract.md:217 to `pending_admin_grading` (BLOCKS G1.B-05)
+- Pre-P3: Author magic-link JIT-vs-pre-existing user policy in docs/04-auth-flows.md (BLOCKS G1.C-06)
+- G0.B Session 2 (02-tenancy): still uncommitted with 3 lint + 4 typecheck errors — needs resolution before Phase 1 G1.B.
+- G0.C (01-auth + 03-users): not yet started.
+- `tools/migrate.ts` not yet shipped — G1.A Session 1 will need ad-hoc apply pattern.
+
+**Agent utilization:**
+- Opus: Discovery synthesis, decision adjudication, git-plumbing session coordination — main session
+- Sonnet: n/a this session (planning-only; no implementation subagents dispatched)
+- Haiku: 3 parallel Explore agents — Clusters A (04+05), B (06+11), C (16+cross-cuts) — 37 sources, ~20 min wall time
+- codex:rescue: n/a — no security/auth/classifier diffs this session
