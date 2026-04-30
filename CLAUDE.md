@@ -84,6 +84,29 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
    - **Bypass-permissions does NOT authorize destructive ops on this VPS.** Local bypass skips local prompts; it does not excuse touching shared infra. STOP and ask the user before any `rm`, `docker rm/stop` of non-`assessiq-*` containers, `systemctl stop` of non-`assessiq-*` units, or rewrites of shared nginx/cron/systemd configs.
    - Any deploy diff or shell sequence that fails the additive-only check gets bounced in Phase 3 (or routed through `codex:rescue` for shared-infra-touching changes).
 
+9. **Definition of Done — commit, deploy, document, handoff.** No implementation is complete until all four steps are done. Treat each as a Phase 5 verification gate; do not claim success to the user if any step is missing.
+
+    1. **Commit** to `manishjnv/assessIQ`. Conventional message; references the relevant module/doc; uses the noreply env-var pattern from global CLAUDE.md.
+    2. **Deploy** to `assessiq-vps` per rule #8 (additive-only, namespaced, enumerate-before-touch). Skip *only* for genuinely deploy-irrelevant edits (docs-only, IDE config).
+    3. **Document in detail** in the right doc:
+
+       | Change type | Doc to update |
+       | --- | --- |
+       | Schema | `docs/02-data-model.md` |
+       | API | `docs/03-api-contract.md` |
+       | Auth | `docs/04-auth-flows.md` |
+       | AI grading | `docs/05-ai-pipeline.md` |
+       | Deployment | `docs/06-deployment.md` |
+       | Help text | `modules/16-help-system` |
+       | UI / theme | `docs/08-ui-system.md` and/or `docs/10-branding-guideline.md` |
+       | Module-internal | that module's `SKILL.md` |
+       | Bug fix | append to `docs/RCA_LOG.md` |
+
+       "Detail" means the doc update lets a future session resume the change **without reading the diff.** Cover all five: (a) what changed, (b) **why** it changed, (c) what was considered and rejected, (d) what is explicitly NOT included, (e) downstream impact on other modules/docs. Bare "added endpoint X" lines fail the requirement.
+    4. **Handoff** via `docs/SESSION_STATE.md` per global Phase 6 — headline, commits, tests, next, open questions, plus the 4-line agent-utilization footer.
+
+    Order matters: **commit → deploy → document → handoff.** Commit before deploy so the deploy is reproducible from a known SHA; deploy before final docs so docs reflect what's actually live; handoff last so it summarizes a completed loop. For multi-session features, each session produces its own commit / deploy / doc / handoff — never batch four sessions of work into one mega-handoff.
+
 ## Session-state doc — `docs/SESSION_STATE.md`
 
 Top section ≤ 30 lines, detail sections below as long as needed.
