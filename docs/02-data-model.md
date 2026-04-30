@@ -86,6 +86,12 @@ CREATE TABLE tenant_settings (
 
 ## Users & auth
 
+> **Schema note (2026-05-01) — `tenant_id` denormalization on auth tables.** `oauth_identities`, `user_credentials`, and `totp_recovery_codes` originally reached tenancy transitively via `user_id → users.tenant_id`. Per CLAUDE.md hard rule #4 ("Add a domain table without `tenant_id` and an RLS policy → bounce") and `tools/lint-rls-policies.ts`, every domain table must carry a direct `tenant_id` and the standard two-policy RLS template. These three tables now do.
+>
+> *Why:* defense-in-depth (transitive RLS via JOIN-subquery is silent-failure prone — a missed JOIN reads cross-tenant rows with no error); linter compliance; consistency with `sessions`, `embed_secrets`, `api_keys` which already carry `tenant_id`. *Considered and rejected:* RLS-via-JOIN-subquery on `user_id` — the linter doesn't catch the missing direct policy and every read pays a subquery cost. *Not included:* changes to `UNIQUE (provider, subject)` on `oauth_identities` (still globally unique by product decision: cross-tenant contractors need separate Google accounts). *Downstream impact:* none on app code; `01-auth` migrations `010_oauth_identities.sql`, `012_totp.sql`, `013_recovery_codes.sql` carry the new column + policies; `tools/lint-rls-policies.ts` validates in CI.
+>
+> See `modules/01-auth/SKILL.md` § Decisions captured (2026-05-01) for the full implementation contract. The `sessions` table block below also notes a `role` column + `last_totp_at` added in the same Window-4 migration to support role-discriminated middleware and step-up MFA without an extra users-table JOIN.
+
 ```sql
 CREATE TABLE users (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -104,18 +110,20 @@ CREATE INDEX users_tenant_role_idx ON users (tenant_id, role) WHERE deleted_at I
 
 CREATE TABLE oauth_identities (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
+  tenant_id       UUID NOT NULL REFERENCES tenants(id),  -- denormalized from users.tenant_id; see § Schema note
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   provider        TEXT NOT NULL CHECK (provider IN ('google','microsoft','okta','saml','custom_oidc')),
   subject         TEXT NOT NULL,                -- the 'sub' claim from the IdP
   email_verified  BOOLEAN NOT NULL DEFAULT false,
   raw_profile     JSONB,
   linked_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (provider, subject)
+  UNIQUE (provider, subject)              -- global; one IdP identity = one user across all tenants
 );
 
 CREATE TABLE user_credentials (
   user_id              UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  totp_secret_enc      BYTEA,                  -- AES-256-GCM encrypted with master key
+  tenant_id            UUID NOT NULL REFERENCES tenants(id),  -- denormalized; see § Schema note
+  totp_secret_enc      BYTEA,                  -- AES-256-GCM envelope of a 20-byte SHA-1 TOTP secret (RFC 4226 §4)
   totp_enrolled_at     TIMESTAMPTZ,
   totp_last_used_at    TIMESTAMPTZ,
   password_hash        TEXT,                   -- argon2id, only if password auth enabled
@@ -124,11 +132,14 @@ CREATE TABLE user_credentials (
 
 CREATE TABLE totp_recovery_codes (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
+  tenant_id       UUID NOT NULL REFERENCES tenants(id),  -- denormalized; see § Schema note
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  code_hash       TEXT NOT NULL,               -- argon2id of the code
-  used_at         TIMESTAMPTZ,
+  code_hash       TEXT NOT NULL,               -- argon2id (m=65536, t=3, p=4) of the 8-char Crockford base32 code
+  used_at         TIMESTAMPTZ,                 -- atomic single-use marker; consumed via UPDATE … RETURNING
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Partial index for the "live codes for user X" lookup
+CREATE INDEX totp_recovery_codes_user_live_idx ON totp_recovery_codes (user_id) WHERE used_at IS NULL;
 
 CREATE TABLE user_invitations (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -146,8 +157,10 @@ CREATE TABLE sessions (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   tenant_id       UUID NOT NULL REFERENCES tenants(id),
+  role            TEXT NOT NULL CHECK (role IN ('admin','reviewer','candidate')),  -- copied from users.role at session create; saves a JOIN in middleware hot path
   token_hash      TEXT NOT NULL UNIQUE,        -- sha256 of the cookie value
   totp_verified   BOOLEAN NOT NULL DEFAULT false,
+  last_totp_at    TIMESTAMPTZ,                 -- powers requireFreshMfa(maxAgeMinutes) per docs/04-auth-flows.md flow 1b
   ip              INET,
   user_agent      TEXT,
   expires_at      TIMESTAMPTZ NOT NULL,

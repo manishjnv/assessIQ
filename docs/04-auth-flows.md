@@ -101,7 +101,7 @@ The strict path. Every admin must clear both factors.
 ```
 1. Server generates random 20-byte secret, base32-encodes for QR
 2. Encrypts with AES-256-GCM using MASTER_KEY env var, stores in user_credentials.totp_secret_enc
-3. Generates `otpauth://totp/AssessIQ:user@x.com?secret=...&issuer=AssessIQ&period=30&digits=6`
+3. Generates `otpauth://totp/AssessIQ:user@x.com?secret=...&issuer=AssessIQ&period=30&digits=6&algorithm=SHA1` (SHA-1 explicit — Google Authenticator / Authy / 1Password default but ambiguous if omitted)
 4. Renders QR code + manual entry code
 5. User scans with Authy / Google Authenticator / 1Password
 6. User enters first 6-digit code → server verifies with ±1 time step tolerance
