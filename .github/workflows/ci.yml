@@ -177,13 +177,17 @@ jobs:
           fi
           echo "No-Anthropic check: clean"
 
-      # 12. No-TODO grep — parity with precommit gate
+      # 12. No-TODO grep — parity with precommit gate.
+      # Rejects un-tagged TODO|FIXME|XXX. Allows tagged form like TODO(audit),
+      # TODO(phase-1), FIXME(rls-helpers) — these encode a stable cross-phase
+      # marker that survives merges and is grep-able by tag, not a per-PR
+      # reminder. Tag must be lowercase letters/digits/hyphens.
       - name: No-TODO / FIXME / XXX check
         if: always()
         shell: bash
         run: |
           set +e
-          matches=$(grep -rE 'TODO|FIXME|XXX' \
+          matches=$(grep -rP '\b(TODO|FIXME|XXX)\b(?!\([a-z][a-z0-9-]*\))' \
             modules/ packages/ apps/ infra/ tools/ \
             --exclude-dir=node_modules \
             --exclude-dir=.git \
@@ -193,10 +197,11 @@ jobs:
             2>/dev/null || true)
 
           if [ -n "$matches" ]; then
-            echo "::error::TODO/FIXME/XXX markers found in source:"
+            echo "::error::Un-tagged TODO/FIXME/XXX markers found in source:"
             echo "$matches"
             echo ""
-            echo "Resolve markers before merging, or move context to docs/RCA_LOG.md."
+            echo "Resolve markers before merging, OR re-tag as TODO(<tag>) to mark"
+            echo "a stable cross-phase reference (e.g. TODO(audit), TODO(phase-1))."
             exit 1
           fi
           echo "No-TODO check: clean"
