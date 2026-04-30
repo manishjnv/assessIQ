@@ -55,4 +55,13 @@ Component APIs in this module stay stable; visual fidelity to the branding guide
 
 ## Open questions
 - Internal vs publishable component library — keep internal for v1; consider extraction if external partners build on AssessIQ
-- Tailwind utilities + design tokens overlap — use Tailwind `@apply` referencing CSS vars; no fight between systems
+- Tailwind utilities + design tokens overlap — Phase 0 resolution: editorial styling lives on `aiq-*` global classes from `src/styles/tokens.css`; Tailwind is for layout/spacing utilities only and reads font + radius vars via the theme extension. `@apply` not needed.
+
+## Status
+
+- **2026-05-01 — Phase 0 G0.B Session 3 shipped.** Workspace package `@assessiq/ui-system` live. Token namespace ported (`--*` → `--aiq-*`; utility classes prefixed `aiq-`). Components ported: `Button` (pill; primary/outline/ghost × sm/md/lg + leftIcon/rightIcon/loading), `Card` (no shadow at rest; interactive/floating flags), `Field` + `Input` + `Label` + `FieldHelp` (label-above, focus halo, aria wiring), `Chip` (default/accent/success; success defaults to a `check` icon), `Icon` (22-name typed SVG sprite with aria-label/aria-hidden), `Logo` (mark + halo + serif "AssessIQ" wordmark — case-sensitive; template's "AccessIQ" typo is not propagated), `Num` + `useCountUp` (cubic-out RAF loop respecting `prefers-reduced-motion`), `ThemeProvider` (reads `fixtures/tenants.ts`; toggles `data-theme`/`data-density` and injects `--aiq-color-accent{,-soft,-hover}`; SSR-safe `matchMedia`).
+- **Light + dark + density variants** all token-driven; verified via Storybook stories and the `apps/web` smoke page.
+- **Storybook 8** scaffold at `apps/storybook/` with `@storybook/react-vite`. One story per component covering main variants; `withThemeByDataAttribute` decorators add `data-theme` and `data-density` toolbars.
+- **Vite SPA** at `apps/web/` builds clean (`pnpm --filter @assessiq/web build` → 156 KB JS / 12 KB CSS gzipped to 50/3 KB). No public route until G0.C Session 5 ships `/admin/login`.
+- **Deferred to Phase 1+:** `ScoreRing`, `Sparkline`, `QuestionNavigator`, domain composites (`AnchorChip`, `BandPicker`, `RubricEditor`, `QuestionCard`, etc.), `Sidebar`/`NavItem`/`StatCard`, server-side theme resolver, visual-regression baseline, self-hosted fonts.
+- **Enforcement:** ESLint `no-restricted-imports` blocks `**/AccessIQ_UI_Template/**` everywhere. The template folder is reference only — copy idioms, never import.

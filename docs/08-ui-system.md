@@ -220,21 +220,24 @@ Dark mode toggle:
 
 The UI template arrived on 2026-04-30 and has been adopted as the brand base. It lives at `modules/17-ui-system/AccessIQ_UI_Template/` (folder name is a typo — product is *AssessIQ*) and the canonical visual contract — typography, palette, component idioms, screen-layout templates, motion, voice — is captured in `docs/10-branding-guideline.md`. **Read that guideline before designing or coding any new page.**
 
-What's done:
-- Token namespace + values reconciled (this doc, above).
-- OKLCH palette, density mechanic (`--u`), editorial type system codified.
-- Reference files preserved under `modules/17-ui-system/AccessIQ_UI_Template/`.
+What's live (Phase 0 G0.B Session 3 — 2026-05-01):
 
-What still needs to happen, on demand as Phase 0–2 work lands (not up front):
+1. **Token namespace ported.** `styles.css` → `modules/17-ui-system/src/styles/tokens.css` with all `--*` custom properties renamed to `--aiq-*` and all utility classes prefixed `aiq-` (`.aiq-screen`, `.aiq-serif`, `.aiq-mono`, `.aiq-num`, `.aiq-btn{,-primary,-outline,-ghost,-sm,-lg}`, `.aiq-input`, `.aiq-card`, `.aiq-chip{,-accent,-success}`, `.aiq-mark` + `.aiq-mark-dot`, `.aiq-grid-bg`, `.aiq-divider`). Light + dark mode + density variants (`compact` / `cozy` / `comfortable`). `prefers-reduced-motion` override included.
+2. **Phase-0 component library** at `modules/17-ui-system/src/components/`: `Button` (pill; `primary`/`outline`/`ghost` × `sm`/`md`/`lg` + `leftIcon`/`rightIcon`/`loading`), `Card` (no shadow at rest; `interactive` and `floating` flags), `Field` plus `Input`/`Label`/`FieldHelp` (label-above, focus halo, `aria-invalid`/`aria-describedby` wiring), `Chip` (`default`/`accent`/`success` with `success` defaulting to a `check` icon), `Icon` (22-name typed SVG sprite with aria-label/aria-hidden conditional), `Logo` (mark + halo + serif "AssessIQ" wordmark — case-sensitive; the template's "AccessIQ" typo is intentionally not propagated), `Num` + `useCountUp` (cubic-out RAF loop, reduced-motion respected). All exported from the package barrel `@assessiq/ui-system`.
+3. **`ThemeProvider`** at `modules/17-ui-system/src/theme/ThemeProvider.tsx`. Reads a static fixture (`fixtures/tenants.ts`) for Phase 0; injects `--aiq-color-accent{,-soft,-hover}` overrides on a wrapper `<div>` and toggles `data-theme`/`data-density`. SSR-safe `matchMedia` for `system` theme. Live tenant wiring to `tenants.branding` JSONB lands in Phase 1 alongside `02-tenancy`.
+4. **Vite + React 18 + TypeScript SPA** at `apps/web/`. Token css imported via `@assessiq/ui-system/styles/tokens.css`. Tailwind installed for layout utilities only — editorial styling stays on the `aiq-*` classes; Tailwind theme reads `--aiq-font-*` and `--aiq-radius-*` from the same vars. `tsc -b && vite build` green.
+5. **Storybook 8** at `apps/storybook/` with `@storybook/react-vite`. One story per component covering the main variants. `withThemeByDataAttribute` decorators for `data-theme` and `data-density` toolbars. Stories live next to components (`<Component>.stories.tsx`).
 
-1. **Port `styles.css` → `tokens/tokens.css`** with the renamed `--aiq-*` namespace from this doc.
-2. **Extract atoms** (`Logo`, `Icon`, `Placeholder`, `useCountUp`) from the template's `screens/atoms.jsx` into typed components under `components/primitives/`.
-3. **Extract reusable composites** referenced by the layout templates: `Sidebar`, `NavItem`, `StatCard`, `Sparkline`, `ScoreRing`, `QuestionNav`, `Chip`. Keep visual fidelity 1:1.
-4. **Map domain composites** — `QuestionCard`, `KqlEditor`, `RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard` — onto the branding component idioms.
-5. **Storybook + visual-regression baseline** as components land, not retroactively at the end.
-6. **Update help-drawer screenshots** as the visuals stabilize.
+What still needs to happen, on demand as Phase 1–2 work lands:
 
-The reference template files (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `.design-canvas.state.json`) are the omelette/Claude design-canvas wrapper that produced the template — useful for visual reference (open the HTML to see all screens) but **must not be imported by production code**.
+1. **Phase 1 components** — `ScoreRing` (animated stroke-dashoffset fill), `Sparkline`, `QuestionNav` (8-col grid with current/answered/flagged/unseen states). Brand-signature animations (count-up + ring-fill) preserved.
+2. **Domain composites** — `QuestionCard`, `KqlEditor`, `RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard`. Map onto the existing branding idioms.
+3. **Layout primitives** — `Sidebar`, `NavItem`, `StatCard` for the sidebar+main shell.
+4. **Visual regression baseline** as components land (per `docs/08-ui-system.md` § Storybook).
+5. **Self-host fonts** if Phase 1 perf budget needs it — Phase 0 uses the Google Fonts `<link>` in `apps/web/index.html`.
+6. **Live tenant theme resolver** wired to `tenants.branding` JSONB once `02-tenancy` exposes the API.
+
+The reference template files (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `.design-canvas.state.json`) are the omelette/Claude design-canvas wrapper that produced the template — useful for visual reference (open the HTML to see all screens) but **must not be imported by production code**. Enforcement: ESLint flat config has `no-restricted-imports` blocking `**/AccessIQ_UI_Template/**` globally; CI's no-template grep verifies.
 
 ## Storybook
 
@@ -278,14 +281,45 @@ Use **lucide-react**. Centralize via `<Icon name="alert-triangle" size="md" />` 
 ```
 modules/17-ui-system/
 ├── SKILL.md
-├── tokens/
-│   ├── tokens.css            # The :root + [data-theme="dark"] above
-│   ├── tokens.ts             # TS export of token names for typesafe usage
-│   └── theme-resolver.ts     # Server-side resolver (tenant.branding → token map)
-├── components/               # As above
-├── stories/                  # Storybook
-├── tests/                    # Visual regression + a11y
-└── README.md                 # Component usage examples
+├── package.json                       # @assessiq/ui-system (workspace)
+├── tsconfig.json                      # excludes *.stories.tsx (typechecked by storybook app)
+├── AccessIQ_UI_Template/              # reference only — never imported
+└── src/
+    ├── index.ts                       # barrel — public surface
+    ├── styles/
+    │   └── tokens.css                 # :root + [data-theme="dark"] + density variants + base classes
+    ├── components/
+    │   ├── Button.tsx + .stories.tsx
+    │   ├── Card.tsx + .stories.tsx
+    │   ├── Chip.tsx + .stories.tsx
+    │   ├── Field.tsx + .stories.tsx   # exports Field, Input, Label, FieldHelp
+    │   ├── Icon.tsx + .stories.tsx
+    │   ├── Logo.tsx + .stories.tsx
+    │   └── Num.tsx + .stories.tsx
+    ├── hooks/
+    │   └── useCountUp.ts              # RAF cubic-out; respects prefers-reduced-motion
+    ├── theme/
+    │   └── ThemeProvider.tsx + .stories.tsx
+    └── fixtures/
+        └── tenants.ts                 # Phase-0 static fixture; replaced by live tenant API in Phase 1
+
+apps/web/                              # Vite + React 18 + TS SPA host (not yet routed)
+├── index.html                         # Google Fonts link for Newsreader / Geist / JetBrains Mono
+├── tsconfig.{json,app.json,node.json} # references-style; bundler module resolution
+├── vite.config.ts
+├── tailwind.config.ts                 # reads --aiq-font-*, --aiq-radius-*
+├── postcss.config.js
+└── src/
+    ├── main.tsx                       # imports tokens.css + globals.css; mounts <App />
+    ├── App.tsx                        # Phase-0 smoke page exercising every component
+    └── styles/globals.css             # Tailwind base/components/utilities
+
+apps/storybook/                        # Storybook 8 + @storybook/react-vite host
+├── package.json                       # @assessiq/storybook
+├── tsconfig.json                      # picks up modules/17-ui-system/src/**/*.stories.tsx
+└── .storybook/
+    ├── main.ts                        # framework: @storybook/react-vite; addons: essentials, themes
+    └── preview.tsx                    # tokens.css import + theme/density data-attribute decorators
 ```
 
-When the user-supplied UI template lands, drop it in `modules/17-ui-system/templates/<vendor-name>/` and follow the integration plan above.
+Server-side theme resolver (`theme-resolver.ts`) lands in Phase 1 alongside `02-tenancy`, when the `tenants.branding` JSONB query becomes available; the Phase-0 `ThemeProvider` reads `fixtures/tenants.ts` instead. A future `tokens.ts` (TS export of token names for typesafe usage) is deferred until a consumer actually needs it.
