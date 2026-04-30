@@ -71,3 +71,41 @@ Owns: `assessments`, `assessment_invitations`.
 ## Open questions
 - Re-attempts (one user, multiple attempts) — v1 caps at 1 per assessment via DB UNIQUE; v2 may allow with new `attempt_number` column
 - Cohort-based scheduling (different windows per group) — defer to v2
+
+## Decisions captured (2026-05-01)
+
+Pinned ahead of Phase 1 G1.B Session 3 per `docs/plans/PHASE_1_KICKOFF.md` § Decisions captured.
+
+### `13-notifications` Phase 1 scope: real SMTP via Hostinger relay (decision #12)
+
+Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps in a thin SMTP driver — invitation emails must actually reach candidates, otherwise `inviteUsers` is a write-only op.
+
+**Implementation:**
+
+- Add `tenants.smtp_config` JSONB column (migration in G1.B Session 3, additive). Shape:
+  ```json
+  {
+    "host": "smtp.hostinger.com",
+    "port": 465,
+    "secure": true,
+    "user": "no-reply@<tenant-domain>",
+    "password_enc": "<base64 AES-256-GCM ciphertext, encrypted with ASSESSIQ_MASTER_KEY>",
+    "from_address": "no-reply@<tenant-domain>",
+    "from_name": "AssessIQ"
+  }
+  ```
+- Driver: `nodemailer` with `pool: true` (single shared connection per tenant per worker process).
+- **Fail-closed:** if a tenant's `smtp_config` is null, `inviteUsers` returns `503 SmtpNotConfigured` — the admin sees a clear "configure SMTP first" error rather than silent send-to-nowhere.
+- The `13-notifications` module owns the driver + template rendering. `05-assessment-lifecycle` calls `notifications.sendInvitationEmail(invitation)` and never touches SMTP directly.
+- Inbound webhooks + outbound webhook delivery still deferred to Phase 3.
+
+**`assessment_invitations.token_hash` generation:** `randomBytes(32).toString('base64url')` → sha256, stored in `token_hash`. TTL 72 hours (decided by parallel session — see prior observation 147 in claude-mem). The plaintext token goes ONLY into the email body, never logged.
+
+**Magic-link flow assumption:** invitations target users that ALREADY exist in `users` (decision #19 in Phase 1 plan). JIT user creation from magic link is explicitly out of Phase 1 scope; defer to Phase 4 embed where host apps mint user records via JWT claims.
+
+### Other decisions baked in (#5, #19, #20, #22)
+
+- `assessments.settings` JSONB stays empty in Phase 1 (decision #5). Schema declares the column for forward-compat; Zod validates as `z.object({}).passthrough()`.
+- Magic-link requires pre-existing user (decision #19) — see above.
+- Question selection RNG uses `crypto.randomUUID()`-seeded Fisher-Yates shuffle, no playback (decision #20). Acceptable trade-off; reproducibility costs more than it gains in v1.
+- Re-attempts capped at 1 per `(assessment_id, user_id)` via UNIQUE constraint on `attempts` (decision #22). v2+ may add an `attempt_number` column — explicitly out of Phase 1 scope.
