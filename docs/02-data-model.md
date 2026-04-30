@@ -334,6 +334,25 @@ With `rubric` column:
 }
 ```
 
+**Log_analysis** (mirrors `kql` shape — `log_excerpt` replaces `tables`, `expected_findings` replaces `expected_keywords`. Pinned 2026-05-01 per Phase 1 plan decision #3.)
+```json
+{
+  "question": "Analyze the following Azure AD sign-in logs and identify the suspicious activity. List your findings.",
+  "log_excerpt": "2026-04-30T22:14:01Z user=jane.doe@x.com src_ip=185.220.101.42 result=success mfa=skipped\n2026-04-30T22:14:38Z user=jane.doe@x.com src_ip=185.220.101.42 action=role_assignment role=GlobalAdmin\n2026-04-30T22:15:02Z user=jane.doe@x.com src_ip=185.220.101.42 action=token_mint scope=full",
+  "log_format": "syslog",
+  "expected_findings": [
+    "TOR exit node source IP",
+    "MFA was skipped on a privileged sign-in",
+    "Privilege escalation via role_assignment",
+    "Token minted with full scope minutes after escalation"
+  ],
+  "hint": "Cross-reference src_ip reputation, MFA enforcement gaps, and the timing between events.",
+  "sample_solution": "..."
+}
+```
+
+`log_format` is one of `syslog | json | csv | freeform` — used by the candidate UI to pick a syntax-aware viewer. `expected_findings` is a list of distinct concepts the candidate's answer must surface; matching is fuzzy (anchor-style, similar to the `subjective` rubric — see `08-rubric-engine`). The Phase 1 importer JSON schema validates this shape via Zod (`modules/04-question-bank/src/types.ts`).
+
 ## Assessment lifecycle
 
 ```sql

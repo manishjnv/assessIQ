@@ -80,3 +80,19 @@ The G0.B-3 (`17-ui-system`) handoff at commit `f21ac4d` and the G0.B-2 (`02-tena
 - Sonnet: n/a this session (planning-only; no implementation subagents dispatched)
 - Haiku: 3 parallel Explore agents — Clusters A (04+05), B (06+11), C (16+cross-cuts) — 37 sources, ~20 min wall time
 - codex:rescue: n/a — no security/auth/classifier diffs this session
+
+---
+
+## Follow-up — 2026-05-01 (decisions pinned at orchestrator defaults)
+
+**Context:** User responded "all default" to the four user-blocking decisions surfaced in the Phase 1 kickoff plan (#3 `log_analysis` content shape, #4 bulk-import format, #12 `13-notifications` real SMTP, #13 bulk-import UX scope).
+
+**Files updated this follow-up:**
+- `docs/02-data-model.md` — added the **Log_analysis** content shape after the Scenario block in § "questions.content shapes by type" (decision #3).
+- `modules/04-question-bank/SKILL.md` — appended `## Decisions captured (2026-05-01)` covering decisions #3 (log_analysis), #4 + #13 (JSON-only bulk import format with full canonical shape + CLI helper), #11 (`generateDraft()` deferred to Phase 2), #21 (publish-snapshot semantics — both metadata flip and content snapshot).
+- `modules/05-assessment-lifecycle/SKILL.md` — appended `## Decisions captured (2026-05-01)` covering decision #12 (real SMTP via Hostinger relay + `tenants.smtp_config` JSONB shape, fail-closed if no config) plus baked-in #5/#19/#20/#22.
+- `docs/plans/PHASE_1_KICKOFF.md` — bumped to v1.1; removed `[USER]` markers from rows #3/#4/#12/#13 (each now reads "RESOLVED 2026-05-01 at orchestrator default" with a pointer to the SKILL/data-model addendum); rewrote the "User-blocking questions" subsection to reflect resolution; updated Status section ("Open questions outstanding: none. All 23 decisions captured at orchestrator defaults.").
+
+**Outcome:** Phase 1 G1.A is no longer blocked on user input. It remains blocked only on the two outstanding Phase 0 predecessors: G0.C-4 `01-auth` implementation and G0.C-5 `03-users` + admin login screen.
+
+**Agent utilization (follow-up):** Opus only — small, targeted edit pass across 4 files, all hot in cache from the prior turn. No subagent dispatch warranted.
