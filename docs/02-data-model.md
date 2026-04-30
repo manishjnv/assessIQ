@@ -32,9 +32,11 @@
 
 ## Tenancy
 
+> **Status:** live as of 2026-05-01 (Phase 0 Session 2 / G0.B-2). Migrations at `modules/02-tenancy/migrations/0001_tenants.sql` (tables + tenant_settings RLS) and `0003_tenants_rls.sql` (tenants-table RLS, special-cased on `id`).
+
 ```sql
 CREATE TABLE tenants (
-  id              UUID PRIMARY KEY DEFAULT uuidv7(),
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),  -- see "uuidv7 vs gen_random_uuid" below
   slug            TEXT NOT NULL UNIQUE,         -- 'wipro-soc'
   name            TEXT NOT NULL,
   domain          TEXT,                         -- 'wipro.com' for SSO domain restriction
@@ -55,6 +57,18 @@ CREATE TABLE tenant_settings (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+### `uuidv7` vs `gen_random_uuid()` — column DEFAULT
+
+**What changed:** the canonical `DEFAULT uuidv7()` shown elsewhere in this doc is implemented at the migration level as `DEFAULT gen_random_uuid()` (from the `pgcrypto` extension, enabled in the same migration).
+
+**Why:** Postgres 16 has no native `uuidv7()` function. Adding a SQL/PL-pgSQL `uuidv7()` to the database would mean writing one ourselves and trusting it across every backup/restore. Application code already generates UUIDv7 via `@assessiq/core`'s `uuidv7()` — every INSERT from the API passes an explicit `id`. The column DEFAULT is only a fallback for raw inserts (psql, ad-hoc tooling) where time-ordered ids aren't load-bearing.
+
+**Considered and rejected:** (a) shipping a SQL-level uuidv7 implementation — adds a maintenance surface for a fallback path; (b) using `uuid_generate_v4()` from `uuid-ossp` — random, still not v7, no benefit over `gen_random_uuid()` which is already in the lighter-weight `pgcrypto`.
+
+**Not included:** retroactive change to other tables in this doc that show `DEFAULT uuidv7()` — those will be migrated to `gen_random_uuid()` at their CREATE TABLE migration time, with the same justification copied near each `CREATE EXTENSION pgcrypto`.
+
+**Downstream impact:** none on the application. App code never relies on the DEFAULT. Migrations linter (`tools/lint-rls-policies.ts`) is unaffected — it scans for `tenant_id` column presence and the two RLS policies.
 
 `branding` JSONB shape: `{ "logo_url": "...", "primary": "#5eead4", "favicon_url": "...", "product_name_override": "Wipro SOC Skills" }`
 

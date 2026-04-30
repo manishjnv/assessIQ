@@ -21,6 +21,19 @@ export default tseslint.config(
       // Code must use pino logger — never console
       "no-console": ["error"],
 
+      // Allow `_`-prefixed unused params/vars/caught-errors. Common when a
+      // function signature must match an external contract (Fastify hooks,
+      // future-stub APIs) but the body doesn't yet need every arg.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
+
       // Block Anthropic / Claude SDK imports everywhere (CLAUDE.md hard rule #1).
       // The only allowlisted import site is modules/07-ai-grading/runtimes/anthropic-api.ts,
       // enforced by the no-ambient-claude CI lint script (tools/lint-no-ambient-claude.ts).

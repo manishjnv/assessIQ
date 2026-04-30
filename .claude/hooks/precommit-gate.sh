@@ -61,8 +61,11 @@ if printf '%s' "$ADDED" | grep -qE '(password|secret|token|api_key)[[:space:]]*=
 fi
 
 # --- TODO / FIXME / XXX markers added in this commit ---
-if printf '%s' "$ADDED" | grep -qE '(TODO|FIXME|XXX)'; then
-  errors+=("todo-marker: TODO/FIXME/XXX added — resolve, or move to docs/RCA_LOG.md before commit")
+# Rejects un-tagged markers. Allows tagged form like TODO(audit), TODO(phase-1)
+# to encode stable cross-phase references that survive merges. Tag must be
+# lowercase letters/digits/hyphens. CI workflow uses the same regex.
+if printf '%s' "$ADDED" | grep -qP '\b(TODO|FIXME|XXX)\b(?!\([a-z][a-z0-9-]*\))'; then
+  errors+=("todo-marker: un-tagged TODO/FIXME/XXX added — resolve, or re-tag as TODO(<lowercase-tag>) for stable cross-phase markers")
 fi
 
 # --- AssessIQ-specific: Phase 1 invariants ---
