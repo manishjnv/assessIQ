@@ -1,0 +1,122 @@
+# AssessIQ — infra Compose file (Phase 0+)
+# On the VPS this is symlinked or copied to /srv/assessiq/docker-compose.yml.
+# Only assessiq-frontend publishes a host port (9091:80).
+# Caddy on the box (owned by ti-platform) handles TLS edge; do NOT add nginx or certbot here.
+# Secrets dir (secrets/pg_password.txt) lives at repo root, one level above this file.
+# Build contexts are set to repo root (..); Dockerfiles are under infra/docker/.
+
+name: assessiq
+
+x-defaults: &svc-defaults
+  restart: unless-stopped
+  init: true
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+networks:
+  assessiq-net:
+    name: assessiq-net
+    driver: bridge
+
+volumes:
+  assessiq_pgdata:
+  assessiq_redis:
+
+secrets:
+  pg_password:
+    file: ../secrets/pg_password.txt
+
+services:
+  assessiq-postgres:
+    <<: *svc-defaults
+    image: postgres:16-alpine
+    container_name: assessiq-postgres
+    networks: [assessiq-net]
+    environment:
+      POSTGRES_DB: assessiq
+      POSTGRES_USER: assessiq
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    volumes:
+      - assessiq_pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    secrets: [pg_password]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U assessiq -d assessiq"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  assessiq-redis:
+    <<: *svc-defaults
+    image: redis:7-alpine
+    container_name: assessiq-redis
+    networks: [assessiq-net]
+    command: ["redis-server", "--appendonly", "yes", "--save", "60 1000"]
+    volumes:
+      - assessiq_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+
+  assessiq-api:
+    <<: *svc-defaults
+    image: assessiq/api:${IMAGE_TAG:-latest}
+    container_name: assessiq-api
+    build:
+      context: ..
+      dockerfile: ./infra/docker/api.Dockerfile
+    networks: [assessiq-net]
+    env_file:
+      # required:false lets `docker compose config` succeed in CI / local
+      # validation without a populated .env. At runtime on the VPS the .env
+      # MUST exist at /srv/assessiq/.env or the API will fail Zod validation
+      # in modules/00-core/src/config.ts.
+      - path: ../.env
+        required: false
+    depends_on:
+      assessiq-postgres: { condition: service_healthy }
+      assessiq-redis: { condition: service_healthy }
+    expose: ["3000"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      retries: 3
+
+  assessiq-worker:
+    <<: *svc-defaults
+    image: assessiq/api:${IMAGE_TAG:-latest}
+    container_name: assessiq-worker
+    command: ["node", "dist/worker.js"]
+    networks: [assessiq-net]
+    env_file:
+      # required:false lets `docker compose config` succeed in CI / local
+      # validation without a populated .env. At runtime on the VPS the .env
+      # MUST exist at /srv/assessiq/.env or the API will fail Zod validation
+      # in modules/00-core/src/config.ts.
+      - path: ../.env
+        required: false
+    depends_on:
+      assessiq-postgres: { condition: service_healthy }
+      assessiq-redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "dist/worker-health.js"]
+      interval: 30s
+      retries: 3
+
+  assessiq-frontend:
+    <<: *svc-defaults
+    image: assessiq/frontend:${IMAGE_TAG:-latest}
+    container_name: assessiq-frontend
+    build:
+      context: ..
+      dockerfile: ./infra/docker/frontend.Dockerfile
+    networks: [assessiq-net]
+    # Only host port published. ti-platform-caddy-1 (on a different Docker network)
+    # reaches this via the bridge gateway 172.17.0.1:9091. No other service
+    # publishes a host port — API, worker, postgres, and redis are internal only.
+    ports:
+      - "9091:80"
+    depends_on:
+      assessiq-api: { condition: service_healthy }

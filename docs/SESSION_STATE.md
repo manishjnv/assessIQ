@@ -1,95 +1,93 @@
-# Session — 2026-04-30
+# Session — 2026-05-01
 
-**Headline:** Phase 0 prerequisites complete — TLS reachable end-to-end via Caddy + Cloudflare, all 7 plan decisions captured, three execution prompts ready for parallel Windows 1-3.
+**Headline:** Phase 0 G0.A shipped — pnpm monorepo scaffold, `modules/00-core` (config/logger/errors/request-context/ids/time) with 93/93 vitest passing, infra Compose (5-service, Caddy-aware) validating, RLS-policy linter with self-test, CI workflow with secrets/no-Anthropic/no-TODO/RLS gates. Bootstrap blocker for Phase 0 cleared; Windows 2 (02-tenancy) and 3 (17-ui-system) can now open in parallel.
 
 **Commits:**
 
-- `887a906` — docs: pivot Phase 0 deploy to Caddy + Cloudflare; capture decisions
-- `e6fed9a` — docs: add Definition-of-Done hard rule (#9) to project CLAUDE.md
+- HEAD on push — `feat(core): bootstrap repo + 00-core module` (run `git log` for the SHA)
 
-**Tests:** skipped — planning + infra session; no code shipped this session.
+**Tests:** 93/93 passing (5 vitest files: config 17, errors 49, request-context 9, ids 7, time 11). Typecheck green. ESLint green. RLS linter self-test green.
 
-**Next:** Open Window 1 (G0.A — repo bootstrap + `00-core`) using the prompt prepared in chat. Once its commit lands on `origin/main`, fire Windows 2 (02-tenancy) and 3 (17-ui-system) in parallel.
+**Next:** Open Window 2 (G0.B / Session 2 — `02-tenancy`) and Window 3 (G0.B / Session 3 — `17-ui-system`) in parallel from a fresh `git pull`. Both depend on the scaffold + `00-core` shipped here. Window 2 is load-bearing per CLAUDE.md rule and will require `codex:rescue` adversarial sign-off before push.
 
 **Open questions:**
 
-- Append the cert paste-with-tab gotcha (leading-tab + CRLF strip via `sed`) as a one-liner under `docs/06-deployment.md` § cert procurement? Offered, awaiting confirmation.
-- DMARC record recommended by Cloudflare for `automateedge.cloud` — out of scope for AssessIQ; flag if email deliverability becomes an issue.
-- Sentry DSN, SMTP provider — placeholders in `.env`, deferred to Phase 3 per plan.
+- Should the CI's `pnpm install` move from `--no-frozen-lockfile` → `--frozen-lockfile` once `pnpm-lock.yaml` is committed and stable? (Recommended: yes, in G0.B-1's PR after the lockfile has cycled through one CI run.)
+- Local Node is 20.11.1; `engines.node >= 22` produces a warning but no failure. Should we tighten with `pnpm config set engine-strict true` or wait until VPS deploys force the upgrade? (Recommended: leave for now; CI runs Node 22.)
+- `docs/06-deployment.md` still has the docker-compose YAML inlined in the doc. Truth source is now `infra/docker-compose.yml`; future drift risk. Pivot to a pointer (rather than a copy) in G0.B-1's documentation pass.
 
 ---
 
 ## Agent utilization
 
-- **Opus:** orchestrator throughout — authored the phase-list table + parallel-session grouping, the Phase 0 kickoff plan synthesis, the `docs/06-deployment.md` rewrite, the Caddyfile block design, all final tool calls (SCP, cert verify, Caddy validate/reload, TLS probe), the three Window prompts, and this handoff.
-- **Sonnet:** n/a — no implementation work this session. First Sonnet delegation lands in Window 1 for the `00-core` module scaffold.
-- **Haiku:** 6 read-only Explore agents in 2 parallel bursts. Burst 1 (4 agents) discovered the Phase 0 module contracts: 00-core+02-tenancy+03-users specs, 01-auth + auth flows, 17-ui-system + branding template, scaffold + deploy audit. Burst 2 (2 agents) enumerated the shared VPS — first general inventory (apps + paths + ports + Postgres/Redis status), second drilling Caddy specifically (mount paths, Caddyfile structure, port survey for clash-free upstream).
-- **codex:rescue:** n/a — no security/auth/classifier code touched. First invocation gates Window 2 (02-tenancy RLS) before its push.
+- **Opus:** orchestrator throughout — Phase 0 warm-start reads, plan synthesis, three subagent prompts (root scaffold / 00-core / infra+CI), Phase 3 diff critique that surfaced 6 distinct issues, Phase 4 direct revisions (faster than spawning Sonnet for ≤ 50 lines across 7 cached files), Phase 2 deterministic gates, Phase 5 docker compose validate, Phase 6 docs + handoff.
+- **Sonnet:** 3 parallel subagents in Phase 1.
+  - **A (root scaffold):** `package.json` (pnpm@9.15.0, ESM, type:module, Node ≥22), `pnpm-workspace.yaml`, `tsconfig.base.json` (strict + `verbatimModuleSyntax` + `exactOptionalPropertyTypes` + `noUncheckedIndexedAccess`), `vitest.config.ts`, `eslint.config.js` flat config (no-console + no-restricted-imports against `@anthropic-ai/*` and the UI template), `.editorconfig`, `.env.example` with the explicit ANTHROPIC_API_KEY refusal block.
+  - **B (00-core):** 6 source files + 5 vitest files + `package.json` + `tsconfig.json` + SKILL.md Status footer. Resolved logger ↔ request-context cycle one-way (logger imports `getRequestId` from request-context). Used Zod `.superRefine` for the cross-field `AI_PIPELINE_MODE` ↔ `ANTHROPIC_API_KEY` validation. Crockford `shortId` from `crypto.randomBytes(12)` masked to 5-bit values.
+  - **C (infra + CI + tools):** `infra/docker-compose.yml` (5 services, `assessiq-net` bridge, only frontend publishes 9091, paths adjusted for new `infra/` location), `infra/postgres/init/.gitkeep`, `tools/lint-rls-policies.ts` (regex over `**/migrations/*.sql` with `--self-test` mode and tenants-table special case), `.github/workflows/ci.yml` (12 steps: install/typecheck/lint/test/RLS/RLS-self-test/secrets-scan/no-Anthropic/no-TODO).
+- **Haiku:** n/a — no bulk read-only sweeps required this session; plan was pre-loaded from prior session and the diff fit in Opus's hot read cache.
+- **codex:rescue:** n/a — Phase 0 G0.A is grading-free, no auth code, no RLS migrations. First mandatory invocation lands in Window 2 (02-tenancy RLS) before push.
 
 ---
 
-## Decisions captured (all 7 plan open-questions resolved)
+## Phase 3 critique — issues found and fixed (Phase 4)
 
-1. **Google OAuth client provisioned.** Credentials placed in repo-root `.env.local` (gitignored via `.env.*` rule). Redirect URI `https://assessiq.automateedge.cloud/api/auth/google/cb`. Specific values never seen by Claude — local-only.
-2. **VPS path = `/srv/assessiq/`.** Matches the `/srv/roadmap/` precedent on the box. `docs/06-deployment.md` rewritten to align (was `/opt/assessiq` in the stale draft).
-3. **Recovery codes:** 8-char Crockford base32 (excludes I/L/O/U), 10 codes/user, argon2id `m=65536, t=3, p=4`. Single-use.
-4. **Tailwind kept.** `--aiq-*` CSS tokens are source of truth for color/typography; Tailwind theme reads from them; utilities accelerate layout/spacing.
-5. **Redis session key:** `aiq:sess:<sha256(token)>` → JSON `{userId, tenantId, totpVerified, expiresAt, createdAt, ip, ua}`, EXPIRE 8h, sliding refresh on each authenticated request.
-6. **Rate limits:** 10/min/IP on `/api/auth/*`, 60/min/user, 600/min/tenant aggregate. Token bucket in Redis. Client IP extracted from Caddy-normalized request (CF-Connecting-IP via Caddy's existing `trusted_proxies`), NOT raw `X-Forwarded-For`.
-7. **Dedicated `assessiq-postgres` + `assessiq-redis` containers.** Not shared with ti-platform's TimescaleDB (which has hardcoded `ti`/`ti_secret` creds). Daily logical dump to `/var/backups/assessiq/`.
+Six distinct issues caught by reading actual files (not subagent summaries) against the strict tsconfig and CI grep gates. All fixed by Opus directly:
 
----
+1. **`errors.ts`** — `exactOptionalPropertyTypes: true` rejected `this.details = opts?.details` (rhs `undefined` not assignable to optional field). Re-declaring `readonly cause?: unknown` also conflicted with `Error.cause` under `noImplicitOverride: true`. Fix: pass `cause` to `super(message, { cause })`, drop the field re-declaration; conditionally assign `details` only when defined.
+2. **`config.ts`** — eager `export const config = loadConfig()` evaluated at module load. Tests for any module that transitively imports `config` (via `logger.ts`) failed because vitest's `process.env` lacked the required vars. Fix: added `vitest.setup.ts` that injects deterministic env fixtures via `??=` before any test loads; wired into `vitest.config.ts` via `setupFiles`.
+3. **`logger.ts`** — caught during typecheck rerun: `transport: buildTransport()` cannot accept `undefined` under `exactOptionalPropertyTypes`. Fix: spread `transport` conditionally (`...(transportOpt !== undefined ? { transport: transportOpt } : {})`).
+4. **CI no-Anthropic grep** — original `\b(claude|anthropic|ANTHROPIC_API_KEY|claude-agent-sdk|@anthropic-ai)\b` regex matched the legitimate `AI_PIPELINE_MODE` enum values and the `ANTHROPIC_API_KEY` field name in `config.ts` (which exist precisely to enforce CLAUDE.md rule #1 at runtime). Fix: tightened to mirror precommit-gate.sh — package-import patterns + `spawn('claude'…)` + `sk-ant-*` literal — with the `modules/07-ai-grading/runtimes/anthropic-api.ts` allowlist.
+5. **`tools/lint-rls-policies.ts`** — `import * as fs from "node:fs"` used only for the `Dirent` type → `verbatimModuleSyntax: true` violation; multiple `match[N]` accesses unsafe under `noUncheckedIndexedAccess`; `console.log` calls would fail eslint `no-console: error`. Fix: `import { type Dirent }`, non-null assertions on guaranteed-defined regex groups, `process.stdout.write` / `process.stderr.write` instead of console.
+6. **`ids.ts`** — `CROCKFORD[bytes[i]! & 0x1f]` returns `string | undefined` under `noUncheckedIndexedAccess`. Fix: use `.charAt()` which always returns `string`.
 
-## Deploy reality — pivot recorded
-
-The original draft assumed nginx + Let's Encrypt + certbot in our Compose stack. Read-only VPS scan (2 Haiku agents) revealed:
-
-- **Caddy already owns 80/443** (container `ti-platform-caddy-1`). Caddyfile at `/opt/ti-platform/caddy/Caddyfile` already lists Cloudflare IPs in `trusted_proxies` and uses bridge-gateway upstreams (`172.17.0.1:<port>`) to reach roadmap and accessbridge across Docker networks.
-- **Cloudflare orange-cloud fronts** `automateedge.cloud`. HTTP-01 would fail through CF; DNS-01 would need a Caddy image rebuild.
-- **Three other apps share the box:** `ti-platform` (Next.js + FastAPI + TimescaleDB + OpenSearch + Redis + Caddy itself), `accessbridge-*` (ports 8080/8100/8200/8300/9090), `roadmap-*` (port 8090). Resource headroom comfortable: 4.3 GB available, AssessIQ adds ~1 GB.
-
-**Resolved deploy plan:**
-
-- AssessIQ on its own `assessiq-net` Docker network at `/srv/assessiq/`. Only `assessiq-frontend` publishes a host port: **9091** (chosen because nothing on the box uses 90xx).
-- One additive server block appended to ti-platform's Caddyfile, upstream `172.17.0.1:9091` — matches the established roadmap/accessbridge pattern. **Zero edits to ti-platform's `docker-compose.yml`** (rejected the alternative `extra_hosts` option that would have touched ti-platform's compose).
-- Origin TLS via **Cloudflare Origin Certificate** (RSA 2048, wildcard `*.automateedge.cloud`, 15-year, valid → 2041-04-26), placed at `/opt/ti-platform/caddy/ssl/assessiq.automateedge.cloud.{pem,key}` with perms `0644`/`0600`, root-owned. CF zone SSL/TLS mode = **Full (Strict)** (user upgraded mid-session).
+A 7th issue surfaced post-fix during the `docker compose config` run — the env_file `../.env` did not exist. Fix: declared the env_file with `required: false` so validation works on a fresh clone; runtime Zod validation in `config.ts` is the safety net.
 
 ---
 
-## Infrastructure brought up this session
+## Phase 2 deterministic gates — outcomes
 
-| Step | Outcome |
+| Gate | Result |
 | --- | --- |
-| Cloudflare DNS A record `assessiq` → `72.61.227.64` (Proxied) | ✅ Verified via PowerShell `Resolve-DnsName` — returns CF anycast IPs `172.67.151.188`, `104.21.1.12` |
-| CF Origin Cert generated (user) | ✅ Wildcard `*.automateedge.cloud`, RSA 2048, expiry 2041-04-26 |
-| Cert + key SCP'd to VPS, perms set | ✅ Matching accessbridge precedent (`0644`/`0600`, root) |
-| Cert/key paste artifact fixed | ✅ `sed -i 's/\r$//; s/^[[:space:]]*//'` on both files (CF dashboard pastes with leading tabs + CRLF; OpenSSL refuses to parse). Local copies cleaned too. |
-| Cert/key match | ✅ Modulus md5 verified |
-| Caddyfile backup | ✅ `/opt/ti-platform/caddy/Caddyfile.bak.20260430-182219` |
-| AssessIQ server block appended | ✅ 8 lines, modeled on the accessbridge precedent (static `tls`, `import security-headers`, `reverse_proxy 172.17.0.1:9091`, `encode zstd gzip`) |
-| `caddy validate` | ✅ "Valid configuration" (one non-blocking format warning at line 38) |
-| `caddy reload` (graceful) | ✅ All 13 sibling containers preserved (uptime unchanged) |
-| Public TLS probe | ✅ `curl https://assessiq.automateedge.cloud/` → `502 Bad Gateway` from Caddy via CF Mumbai POP (`cf-ray: 9f489308da097ea4-MAA`). 502 is correct intermediate — TLS handshake works end-to-end; 502 will turn to real responses the moment Window 1's bootstrap deploys the AssessIQ stack on port 9091. |
-| CF zone SSL/TLS = Full (Strict) | ✅ User toggled mid-session |
-| Memory updated | ✅ `vps-shared-host.md` now records Caddy reality, port 9091, the 3 coexisting apps, additive Caddyfile-edit exception, and CF Origin Cert path |
+| `pnpm install` | ✅ 238 packages, no peer-warnings beyond engine-version (Node 20 vs ≥22 spec) |
+| `pnpm -r typecheck` | ✅ green after Phase 4 fixes |
+| `pnpm lint` | ✅ green after Phase 4 fixes |
+| `pnpm test` | ✅ 93/93 vitest |
+| `pnpm lint:rls` | ✅ 0 migrations scanned (none yet) |
+| `pnpm tsx tools/lint-rls-policies.ts --self-test` | ✅ 3/3 fixtures (valid / invalid / tenants-special-case) |
+| Secrets-scan over tracked files | ✅ clean (the gitignored `.env.local` is not in `git ls-files`) |
+| No-Anthropic grep (tightened) | ✅ clean |
+| No-TODO grep | ✅ clean |
+| `docker compose -f infra/docker-compose.yml config` | ✅ exit 0 — 5 services with `assessiq-*` container names; only `assessiq-frontend` publishes 9091:80 |
+
+---
+
+## Files shipped (24)
+
+**Root scaffold (7):**
+- `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `vitest.config.ts`, `vitest.setup.ts`, `eslint.config.js`, `.editorconfig`, `.env.example`
+
+**Module `00-core` (14):**
+- `modules/00-core/{package.json, tsconfig.json}`
+- `modules/00-core/src/{config, logger, errors, request-context, ids, time, index}.ts`
+- `modules/00-core/src/__tests__/{config, errors, request-context, ids, time}.test.ts`
+- `modules/00-core/SKILL.md` (Status footer appended)
+
+**Infra + tools + CI (4):**
+- `infra/docker-compose.yml`, `infra/postgres/init/.gitkeep`
+- `tools/lint-rls-policies.ts`
+- `.github/workflows/ci.yml`
+
+**Doc updates (1):**
+- `docs/06-deployment.md` (compose-location + `env_file required:false` note appended above the inlined YAML block)
 
 ---
 
 ## Sharp edges for next session
 
-1. **Cert paste-with-tab gotcha.** When pasting a CF Origin Cert (or any PEM) from the CF dashboard, every line gets a leading tab + CRLF. OpenSSL fails to parse silently with "Could not read certificate". Fix in place: `sed -i 's/\r$//; s/^[[:space:]]*//' file.pem file.key`. Worth pinning into `docs/06-deployment.md` if confirmed.
-2. **Caddyfile format warning at line 38** is non-blocking (`caddy fmt --overwrite` would fix). Do **not** run `caddy fmt` in any future session — it would rewrite the entire ti-platform-owned Caddyfile, violating CLAUDE.md rule #8 additive-only constraint.
-3. **`assessiq-frontend` not running yet.** `https://assessiq.automateedge.cloud/` returns 502 until Window 1 (G0.A) deploys the stack. This is the success state for the bootstrap, not a bug.
-4. **Three windows are sequential-then-parallel, not all-three-parallel.** Window 1 (G0.A) must merge to `main` before Windows 2 and 3 start — both depend on the repo scaffold + `00-core` module that Window 1 produces. The Window 2 and Window 3 prompts both include a `git pull` gate that stops if the bootstrap commit is not present.
-
----
-
-## Phase 0 execution prompts ready
-
-Three self-contained prompts prepared in this session's chat for parallel-window execution:
-
-- **Window 1 (G0.A):** repo bootstrap + `00-core` module. Blocker for the rest of Phase 0.
-- **Window 2 (G0.B Session 2):** `02-tenancy` — migrations, RLS policies, middleware, BYPASSRLS role. **Load-bearing**, requires `codex:rescue` adversarial pass before push (CLAUDE.md rule #4 + load-bearing-paths). First real VPS deploy lands here.
-- **Window 3 (G0.B Session 3):** `17-ui-system` — Vite + React 18 + Tailwind SPA scaffold; component port from `AccessIQ_UI_Template/` (Button, Card, Input, Chip, Icon, Logo, Num); Storybook; ThemeProvider stub.
-
-Each prompt mandates the Phase 0 reading list, gates on prior commits where appropriate, names anti-patterns to refuse, and ends with the four-step DoD requirement (commit → deploy → document → handoff).
+1. **Compose lives at `infra/docker-compose.yml`** — not repo root. All compose commands need the explicit `-f infra/docker-compose.yml` flag, run from repo root or `/srv/assessiq/`.
+2. **`env_file: required: false`** on api/worker means `docker compose config` won't catch a missing `.env`. Runtime Zod validation in `modules/00-core/src/config.ts` will throw clearly on first import — that's the safety net.
+3. **Local Node is 20.11.1, spec is ≥22.** `engines.node` warning only; tests pass on 20. CI uses 22. If you start hitting Node-22-only API errors locally, install via `nvm`.
+4. **Lockfile (`pnpm-lock.yaml`) is now committed.** CI uses `--no-frozen-lockfile` until lockfile-stability burns in over a session or two; tighten in G0.B-1.
+5. **`vitest.setup.ts`** injects test fixtures for the Zod-validated env. Tests that need to drive `loadConfig` with custom inputs use the function form (`loadConfig({...})`) directly and ignore these defaults.
+6. **`ANTHROPIC_API_KEY` cross-field validation** at the schema level is a defense-in-depth for CLAUDE.md rule #1 (in addition to the precommit hook + CI grep). If Phase 2 ever switches `AI_PIPELINE_MODE` to `anthropic-api`, that env var will be REQUIRED — and the absence of a budget switch would fail the schema.

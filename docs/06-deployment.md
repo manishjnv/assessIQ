@@ -100,7 +100,11 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
-## docker-compose.yml — `/srv/assessiq/docker-compose.yml`
+## docker-compose.yml — `infra/docker-compose.yml` (in repo) → `/srv/assessiq/infra/docker-compose.yml` (on VPS)
+
+> **Layout note (Phase 0 G0.A, 2026-05-01):** the compose file lives in the repo at `infra/docker-compose.yml`, not at the repo root. On the VPS clone it sits at `/srv/assessiq/infra/docker-compose.yml`. All commands are run from `/srv/assessiq/` with the explicit `-f` flag, e.g. `docker compose -f infra/docker-compose.yml up -d`. Relative paths inside the compose are resolved from the compose file location: `../.env` → `/srv/assessiq/.env`, `../secrets/pg_password.txt` → `/srv/assessiq/secrets/pg_password.txt`, `./postgres/init` → `/srv/assessiq/infra/postgres/init`, build context `..` → `/srv/assessiq/`.
+>
+> **`env_file` is declared with `required: false`** so `docker compose config` validates cleanly on a fresh clone before secrets are provisioned. Runtime safety is preserved by `modules/00-core/src/config.ts` — Zod validation throws on the first request if any required env var is missing.
 
 ```yaml
 name: assessiq
