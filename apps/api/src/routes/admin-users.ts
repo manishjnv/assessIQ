@@ -8,15 +8,18 @@ import {
   softDelete,
   restore,
 } from '@assessiq/users';
-import { requireRole } from '../middleware/dev-auth.js';
+import { authChain } from '../middleware/auth-chain.js';
 
-const adminOnly = requireRole(['admin']);
+// Admin gate: full @assessiq/auth chain (rateLimit → sessionLoader →
+// apiKeyAuth → syncCtx → requireAuth({roles:['admin']}) → extendOnPass).
+// Replaces the pre-W4 dev-auth shim that read x-aiq-test-tenant headers.
+const adminOnly = authChain({ roles: ['admin'] });
 
 export async function registerAdminUserRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/admin/users
   app.get(
     '/api/admin/users',
-    { preHandler: [adminOnly] },
+    { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const q = req.query as Record<string, string | undefined>;
@@ -55,7 +58,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
   // GET /api/admin/users/:id
   app.get(
     '/api/admin/users/:id',
-    { preHandler: [adminOnly] },
+    { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -66,7 +69,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
   // POST /api/admin/users
   app.post(
     '/api/admin/users',
-    { preHandler: [adminOnly] },
+    { preHandler: adminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const body = req.body as {
@@ -83,7 +86,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
   // PATCH /api/admin/users/:id
   app.patch(
     '/api/admin/users/:id',
-    { preHandler: [adminOnly] },
+    { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -100,7 +103,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
   // DELETE /api/admin/users/:id
   app.delete(
     '/api/admin/users/:id',
-    { preHandler: [adminOnly] },
+    { preHandler: adminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -112,7 +115,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
   // POST /api/admin/users/:id/restore
   app.post(
     '/api/admin/users/:id/restore',
-    { preHandler: [adminOnly] },
+    { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -125,7 +128,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
   // Fastify matches static segments before parameterized ones, so order is a safety net.
   app.post(
     '/api/admin/users/import',
-    { preHandler: [adminOnly] },
+    { preHandler: adminOnly },
     async (_req, reply) => {
       return reply.code(501).send({
         error: {

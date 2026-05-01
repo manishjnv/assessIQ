@@ -2,14 +2,20 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, Chip } from '@assessiq/ui-system';
 import { api, ApiCallError } from '../lib/api';
-import { saveSession } from '../lib/session';
+import { fetchWhoami } from '../lib/session';
 
+// Server response shape for POST /api/invitations/accept.
+// The session is set via Set-Cookie (httpOnly+Secure+SameSite=Lax); the
+// SPA does NOT receive a session token in the body — that's the codex:rescue
+// HIGH finding from W5. We just navigate to /admin/mfa and let the cookie
+// + whoami round-trip drive RequireSession.
 interface AcceptResponse {
-  // FIXME(post-01-auth): real response will include a sessionToken / set-cookie.
-  // Phase 0 mock: server returns userId, tenantId, role so we can seed the dev session.
-  userId: string;
-  tenantId: string;
-  role: 'admin' | 'reviewer';
+  user: {
+    id: string;
+    email: string;
+    role: 'admin' | 'reviewer';
+  };
+  expiresAt: string;
 }
 
 export function InviteAccept(): JSX.Element {
@@ -34,15 +40,10 @@ export function InviteAccept(): JSX.Element {
       body: JSON.stringify({ token }),
       signal: controller.signal,
     })
-      .then((data) => {
-        // FIXME(post-01-auth): swap dev session seeding for cookie-based auth set by server.
-        // Do NOT store the original invitation token — only the server-issued session identity.
-        saveSession({
-          userId: data.userId,
-          tenantId: data.tenantId,
-          role: data.role,
-          totpVerified: false,
-        });
+      .then(async () => {
+        // Cookie is set; refresh whoami so RequireSession sees the session
+        // immediately on /admin/mfa, then redirect.
+        await fetchWhoami(true);
         nav('/admin/mfa', { replace: true });
       })
       .catch((err: unknown) => {

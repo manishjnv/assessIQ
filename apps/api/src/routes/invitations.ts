@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { config, ValidationError } from '@assessiq/core';
 import { inviteUser, acceptInvitation } from '@assessiq/users';
-import { requireRole } from '../middleware/dev-auth.js';
+import { authChain } from '../middleware/auth-chain.js';
 
-const adminOnly = requireRole(['admin']);
+// Admin gate: full @assessiq/auth chain. Replaces the pre-W4 dev-auth shim.
+const adminOnly = authChain({ roles: ['admin'] });
 
 // Invitation tokens are 32 bytes encoded as base64url → exactly 43 chars.
 // Bound the schema tightly so brute-force attempts don't get to do hash work.
@@ -15,7 +16,7 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
   app.post(
     '/api/admin/invitations',
     {
-      preHandler: [adminOnly],
+      preHandler: adminOnly,
       schema: {
         body: {
           type: 'object',
