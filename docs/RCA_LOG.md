@@ -20,3 +20,34 @@
 
 **Order-of-operations note:** the Definition-of-Done order (commit → deploy → document → handoff) was inverted for this incident — production was returning 502, so the Caddyfile fix was deployed before the documenting commit. The deploy is captured in this RCA + the deployment doc + the SESSION_STATE handoff in the same commit, so the live state is reproducible from this SHA. For non-incident work the standard order applies.
 
+## 2026-04-30 — CF Origin Cert paste artifact silently failed `openssl x509` parse
+
+**Symptom:** During first-time TLS bootstrap on the VPS, `openssl x509 -noout -subject -in /opt/ti-platform/caddy/ssl/assessiq.automateedge.cloud.pem` exited with `Could not read certificate from <path>` and a non-zero status. The cert file was non-empty, the BEGIN/END markers were present, and the file appeared visually correct in `cat`. No error from `scp`, no error from `chmod`. The same artifact would have caused `openssl rsa -modulus -noout` on the key to fail identically; modulus-MD5 cert↔key matching could not even be attempted until the parse succeeded.
+
+**Cause:** The Cloudflare dashboard renders the cert and key inside a copy-able `<textarea>` whose contents include a leading horizontal-tab character on every line plus CRLF (`\r\n`) line endings. Browser copy-then-paste preserves both. PEM is whitespace-strict at the line boundary — leading whitespace inside a cert block invalidates the base64 decode, and CRLF is not consistently tolerated by OpenSSL's PEM reader (the failure mode is a silent "Could not read certificate" rather than a precise parser diagnostic). Origin file: cert + key as pasted into `/opt/ti-platform/caddy/ssl/assessiq.automateedge.cloud.{pem,key}` from the CF Zero Trust → Origin Server → Create Certificate dialog on 2026-04-30.
+
+**Fix:** Strip both artifacts in place before any verify step:
+
+```bash
+sed -i 's/\r$//; s/^[[:space:]]*//' \
+  /opt/ti-platform/caddy/ssl/assessiq.automateedge.cloud.pem \
+  /opt/ti-platform/caddy/ssl/assessiq.automateedge.cloud.key
+```
+
+Then re-verify:
+
+```bash
+openssl x509 -noout -subject -in <pem>                         # expect: subject=CN=*.automateedge.cloud
+openssl rsa  -noout -modulus -in <key> | openssl md5           # cert/key modulus-MD5 must match
+openssl x509 -noout -modulus -in <pem> | openssl md5           # ↑ confirms pair
+```
+
+Caddy itself was tolerant of the leading whitespace in this case — `caddy validate` returned `Valid configuration` and `caddy reload` was clean — so the gotcha was caught only because the deploy procedure runs `openssl` verification BEFORE the Caddy reload. If the verify step had been skipped, Caddy would have served the file but a future cert-rotation step (or any tool that re-parses the PEM with stricter parsers — `step certificate inspect`, OpenSSL ≥ 3.x in some configs, certain monitoring exporters) could have failed unpredictably. The recorded session also cleaned the local desktop copies, since they would have re-introduced the artifact on any future re-paste. Captured in `docs/SESSION_STATE.md @ 5f5aa99` § "Sharp edges" and the deploy infrastructure table.
+
+**Prevention:**
+
+1. Documentation: `docs/06-deployment.md` § "Apply procedure (Phase 0 G0.A deploy step)" cert procurement step gets a one-line note inserted between steps 2 and 3 — "After `scp`, immediately run `sed -i 's/\\r$//; s/^[[:space:]]*//' <pem> <key>` to strip CF dashboard paste artifacts, then verify with `openssl x509 -noout -subject` before Caddy reload." The same note covers any future cert rotation. This is the highest-leverage prevention because the gotcha re-arises on every CF dashboard paste, not just first-time bootstrap.
+2. Process rule: **`openssl x509 -noout -subject` + cert/key modulus-MD5 match must succeed BEFORE any `caddy validate` or `caddy reload`.** Caddy's PEM reader is more forgiving than OpenSSL's, and a Caddy-only validation can mask a cert that other tooling can't parse. Treat "cert installed but openssl verify not run" as a Phase 3 bounce condition for any deploy diff that touches `/opt/ti-platform/caddy/ssl/`.
+3. Manual discipline (no lint/hook): there is no good way to enforce this from inside the repo because the cert is pasted on the VPS, not committed. The deploy doc note + the Phase 3 bounce rule are the available levers. A possible future hook is a VPS-side `pre-reload` wrapper around `caddy reload` that runs the openssl checks against any `*.pem` newer than the last reload; out of scope for this entry.
+
+**Cross-reference:** `docs/06-deployment.md` § Disaster recovery → § Failure modes & runbooks "VPS dead" branch references this RCA, since rebuilding from a fresh CF Origin Cert paste re-exposes the same artifact.
