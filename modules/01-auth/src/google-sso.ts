@@ -422,7 +422,16 @@ export async function handleGoogleCallback(input: {
     throw new AuthnError("user account has been deleted");
   }
 
-  // --- 7. Mint pre-MFA session (totpVerified: false per SKILL.md § 10) ---
+  // --- 7. Mint session ---
+  // totpVerified semantics:
+  //   - candidate:                always true (magic-link-issued; no admin gate)
+  //   - admin/reviewer + MFA_REQUIRED=true:  false (pre-MFA; user must enrol/verify TOTP)
+  //   - admin/reviewer + MFA_REQUIRED=false: false on the row (the user genuinely
+  //     hasn't done TOTP), but requireAuth bypasses the gate when MFA_REQUIRED=false
+  //     so the false-state still grants full access. Keeping the row "honest" means
+  //     flipping MFA_REQUIRED to true later doesn't grandfather existing sessions
+  //     past the gate — they'll re-prompt for TOTP enrolment, which is the right
+  //     re-hardening behaviour.
   const { token: sessionToken } = await sessions.create({
     userId: resolvedUser.id,
     tenantId: resolvedUser.tenant_id,
@@ -433,14 +442,19 @@ export async function handleGoogleCallback(input: {
   });
 
   // --- 8. Determine redirect target ---
-  // Candidates skip MFA; admins/reviewers go to /admin/mfa (pre-MFA session).
-  // If returnTo is embedded in state and is a safe path, honour it post-MFA.
+  // Candidates skip MFA. Admins/reviewers:
+  //   - MFA_REQUIRED=true  → /admin/mfa (pre-MFA enrolment / step-up)
+  //   - MFA_REQUIRED=false → safeReturnTo(embedded) || /admin/users (skip MFA hop)
+  // safeReturnTo handles whitelisting; embeddedReturnTo is from the state token.
+  const adminLanding = config.MFA_REQUIRED
+    ? "/admin/mfa"
+    : "/admin/users";
   const redirectTo =
     resolvedUser.role === "candidate"
       ? "/"
       : embeddedReturnTo !== undefined
         ? safeReturnTo(embeddedReturnTo)
-        : "/admin/mfa";
+        : adminLanding;
 
   return {
     sessionToken,

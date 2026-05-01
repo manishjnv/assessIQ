@@ -66,6 +66,18 @@ const ConfigSchema = z
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_OAUTH_REDIRECT: z.string().url().optional(),
+    // MFA gate. true (default) = admins/reviewers must complete TOTP after
+    // Google SSO before accessing protected routes. false = Google SSO is
+    // the sole auth factor; pre-MFA sessions are accepted by requireAuth
+    // and the SSO callback redirects past /admin/mfa to returnTo. The flag
+    // is read by modules/01-auth/src/middleware/require-auth.ts and
+    // modules/01-auth/src/google-sso.ts. Flip to true for production
+    // hardening; until then, /admin/mfa remains reachable for opt-in
+    // enrollment from a future account-settings page.
+    MFA_REQUIRED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((s) => s === "true"),
     SMTP_URL: z.string().optional(),
     EMAIL_FROM: z
       .string()

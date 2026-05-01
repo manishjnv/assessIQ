@@ -1,4 +1,4 @@
-import { AuthnError, AuthzError, parseIso } from "@assessiq/core";
+import { AuthnError, AuthzError, parseIso, config } from "@assessiq/core";
 import { sessions } from "../sessions.js";
 import { apiKeys } from "../api-keys.js";
 import type { AuthHook } from "./types.js";
@@ -27,20 +27,28 @@ export function requireAuth(opts: RequireAuthOptions = {}): AuthHook {
         throw new AuthzError(`role ${sess.role} not authorized`);
       }
 
-      // TOTP-verified gate.
-      const requireTotp = opts.requireTotpVerified ?? (sess.role !== "candidate");
-      if (requireTotp && !sess.totpVerified) {
-        throw new AuthnError("totp verification required");
-      }
-
-      // Fresh-MFA gate (step-up).
-      if (opts.freshMfaWithinMinutes !== undefined) {
-        if (sess.lastTotpAt === null) {
-          throw new AuthnError("fresh totp required");
+      // TOTP-verified gate. config.MFA_REQUIRED short-circuits the check —
+      // when MFA is opt-in (Phase 0 default for early stage), every gate
+      // that would otherwise demand TOTP becomes a no-op. Role gates above
+      // remain authoritative; this only relaxes the second-factor demand.
+      // Flip MFA_REQUIRED=true in env to re-harden without code changes.
+      if (config.MFA_REQUIRED) {
+        const requireTotp = opts.requireTotpVerified ?? (sess.role !== "candidate");
+        if (requireTotp && !sess.totpVerified) {
+          throw new AuthnError("totp verification required");
         }
-        const ageMs = Date.now() - parseIso(sess.lastTotpAt).getTime();
-        if (ageMs > opts.freshMfaWithinMinutes * 60 * 1000) {
-          throw new AuthnError("fresh totp required");
+
+        // Fresh-MFA gate (step-up). Only meaningful when MFA is enforced
+        // — when MFA_REQUIRED=false the freshness check has nothing to
+        // measure (lastTotpAt would always be null) and is skipped.
+        if (opts.freshMfaWithinMinutes !== undefined) {
+          if (sess.lastTotpAt === null) {
+            throw new AuthnError("fresh totp required");
+          }
+          const ageMs = Date.now() - parseIso(sess.lastTotpAt).getTime();
+          if (ageMs > opts.freshMfaWithinMinutes * 60 * 1000) {
+            throw new AuthnError("fresh totp required");
+          }
         }
       }
 
