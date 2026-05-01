@@ -19,3 +19,10 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/aiq_test";
 process.env.REDIS_URL ??= "redis://localhost:6379";
 process.env.ASSESSIQ_MASTER_KEY ??= BASE64_32_BYTES;
 process.env.SESSION_SECRET ??= BASE64_32_BYTES;
+
+// Google SSO test fixtures — safe placeholders so config validation passes when
+// the real credentials are not set in the environment. Tests that actually call
+// Google endpoints mock fetch() and are not affected by these values.
+process.env.GOOGLE_CLIENT_ID ??= "test-client-id";
+process.env.GOOGLE_CLIENT_SECRET ??= "test-client-secret";
+process.env.GOOGLE_OAUTH_REDIRECT ??= "https://assessiq.automateedge.cloud/api/auth/google/cb";

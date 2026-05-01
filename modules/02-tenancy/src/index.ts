@@ -1,4 +1,4 @@
-export { getPool, closePool } from "./pool.js";
+export { getPool, closePool, setPoolForTesting } from "./pool.js";
 export { withTenant } from "./with-tenant.js";
 export { tenantContextMiddleware } from "./middleware.js";
 export {

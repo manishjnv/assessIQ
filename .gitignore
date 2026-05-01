@@ -53,6 +53,9 @@ desktop.ini
 # Claude Code — personal overrides only; project settings.json IS committed
 .claude/settings.local.json
 
+# claude-mem auto-generated context dump (per-session; not source)
+AGENTS.md
+
 # Local working notes / scratch
 .scratch/
 TODO.local.md

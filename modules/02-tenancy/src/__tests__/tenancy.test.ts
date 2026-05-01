@@ -17,7 +17,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { setPoolForTesting, closePool, getPool } from "../pool.js";
+import { closePool, getPool } from "../pool.js";
+import { setPoolForTesting } from "../pool.js"; // also exported from index — kept here for parity with the original test pattern
 import { withTenant } from "../with-tenant.js";
 import { tenantContextMiddleware } from "../middleware.js";
 import type { TenantRequest, TenantReply, TenantContextHooks } from "../middleware.js";
