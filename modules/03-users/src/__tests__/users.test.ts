@@ -25,6 +25,12 @@ import { randomUUID } from 'node:crypto';
 // the testcontainer URL causes all service calls to use the test DB.
 import { setPoolForTesting, closePool } from '../../../02-tenancy/src/pool.js';
 
+// setRedisForTesting / closeRedis swap the @assessiq/auth singleton Redis client
+// against the local testcontainer's URL. Required because acceptInvitation
+// transitively calls sessions.create() which writes to Redis after the
+// Postgres mirror lands.
+import { setRedisForTesting, closeRedis } from '@assessiq/auth';
+
 // The service + invitations under test
 import {
   listUsers,
@@ -59,7 +65,9 @@ vi.mock('@assessiq/notifications', () => ({
 // ---------------------------------------------------------------------------
 
 let container: StartedTestContainer;
+let redisContainer: StartedTestContainer;
 let containerUrl: string;
+let redisUrl: string;
 let tenantA: string;
 let tenantB: string;
 
@@ -78,6 +86,7 @@ const USERS_MODULE_ROOT = join(THIS_DIR, '..', '..');         // .../modules/03-
 const MODULES_ROOT = join(USERS_MODULE_ROOT, '..');           // .../modules/
 
 const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, '02-tenancy', 'migrations');
+const AUTH_MIGRATIONS_DIR = join(MODULES_ROOT, '01-auth', 'migrations');
 const USERS_MIGRATIONS_DIR = join(USERS_MODULE_ROOT, 'migrations');
 
 // ---------------------------------------------------------------------------
@@ -107,30 +116,60 @@ async function insertTenant(client: Client, id: string, slug: string, name: stri
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
-  // 1. Spin up postgres:16-alpine
-  container = await new GenericContainer('postgres:16-alpine')
-    .withEnvironment({
-      POSTGRES_USER: 'test',
-      POSTGRES_PASSWORD: 'test',
-      POSTGRES_DB: 'aiq_test',
-    })
-    .withExposedPorts(5432)
-    .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
-    .withStartupTimeout(60_000)
-    .start();
+  // 1. Spin up postgres:16-alpine and redis:7-alpine in parallel.
+  [container, redisContainer] = await Promise.all([
+    new GenericContainer('postgres:16-alpine')
+      .withEnvironment({
+        POSTGRES_USER: 'test',
+        POSTGRES_PASSWORD: 'test',
+        POSTGRES_DB: 'aiq_test',
+      })
+      .withExposedPorts(5432)
+      .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
+      .withStartupTimeout(60_000)
+      .start(),
+    new GenericContainer('redis:7-alpine')
+      .withExposedPorts(6379)
+      .withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/))
+      .withStartupTimeout(60_000)
+      .start(),
+  ]);
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
+  redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
-  // 2. Apply migrations lexically across both directories.
-  const [tenancyFiles, usersFiles] = await Promise.all([
+  // 2. Apply migrations in dependency order across three directories.
+  //
+  // Lexical order WOULD be 0001-0003 (tenancy) → 010-015 (auth) → 020-021
+  // (users/invitations) — but the auth migrations 010-013, 015 FK to
+  // users(id) which is created in 020. So we apply per-directory in
+  // dependency-resolved order: tenancy → users (020) → auth → invitations
+  // (021). The runtime tools/migrate.ts has the same latent ordering issue
+  // for fresh DBs; production deploys have applied 0001-0003 + 020-021 via
+  // psql -f, and W4 deploys 010-015 against an already-populated DB so the
+  // ordering bug never bites in production. Recorded as a Phase 1 follow-up.
+  const [tenancyFiles, authFiles, usersFiles] = await Promise.all([
     readdir(TENANCY_MIGRATIONS_DIR),
+    readdir(AUTH_MIGRATIONS_DIR),
     readdir(USERS_MIGRATIONS_DIR),
   ]);
 
+  const tenancySorted = tenancyFiles.filter((f) => f.endsWith('.sql')).sort()
+    .map((f) => ({ dir: TENANCY_MIGRATIONS_DIR, file: f }));
+  const authSorted = authFiles.filter((f) => f.endsWith('.sql')).sort()
+    .map((f) => ({ dir: AUTH_MIGRATIONS_DIR, file: f }));
+  const usersSorted = usersFiles.filter((f) => f.endsWith('.sql')).sort();
+  const usersTable = usersSorted.filter((f) => f.startsWith('020_'))
+    .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
+  const usersInvitations = usersSorted.filter((f) => !f.startsWith('020_'))
+    .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
+
   const allFiles = [
-    ...tenancyFiles.filter((f) => f.endsWith('.sql')).map((f) => ({ dir: TENANCY_MIGRATIONS_DIR, file: f })),
-    ...usersFiles.filter((f) => f.endsWith('.sql')).map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f })),
-  ].sort((a, b) => a.file.localeCompare(b.file));
+    ...tenancySorted,        // 0001-0003: tenants + RLS helpers + tenant RLS
+    ...usersTable,           // 020: users (auth FKs target this)
+    ...authSorted,           // 010-015: auth tables (FK users + tenants)
+    ...usersInvitations,     // 021: user_invitations
+  ];
 
   await withSuperClient(async (client) => {
     for (const { dir, file } of allFiles) {
@@ -139,8 +178,9 @@ beforeAll(async () => {
     }
   });
 
-  // 3. Point pool at testcontainer
+  // 3. Point pool + Redis client at testcontainers
   await setPoolForTesting(containerUrl);
+  await setRedisForTesting(redisUrl);
 
   // 4. Seed two tenants
   tenantA = randomUUID();
@@ -153,7 +193,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await closePool();
-  if (container !== undefined) await container.stop();
+  await closeRedis();
+  await Promise.all([
+    container !== undefined ? container.stop() : Promise.resolve(),
+    redisContainer !== undefined ? redisContainer.stop() : Promise.resolve(),
+  ]);
 });
 
 beforeEach(() => {
@@ -511,7 +555,7 @@ it('inviteUser with candidate role throws CANDIDATE_INVITATION_PHASE_1', async (
 // ---------------------------------------------------------------------------
 
 describe('acceptInvitation', () => {
-  it('happy path: invite → accept → user active, sessionToken prefixed mock_', async () => {
+  it('happy path: invite → accept → user active, real session token minted', async () => {
     const tid = randomUUID();
     await withSuperClient(async (client) => {
       await insertTenant(client, tid, `tenant-accept-${tid.slice(0, 8)}`, 'Accept Tenant');
@@ -531,7 +575,9 @@ describe('acceptInvitation', () => {
 
     expect(result.user.email).toBe('newrev@accept.com');
     expect(result.user.status).toBe('active');
-    expect(result.sessionToken).toMatch(/^mock_/);
+    // Real session token: 43-char base64url (32 bytes of entropy via
+    // randomTokenBase64Url(32)) — distinct from the legacy mock prefix.
+    expect(result.sessionToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(result.expiresAt).toBeTruthy();
   });
 
