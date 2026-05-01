@@ -46,6 +46,16 @@ Owns: `users`, `user_invitations` (record-only fields; auth-bound fields like `t
 - SCIM 2.0 provisioning — Phase 3, when first enterprise client requires it (the IntelWatch pattern applies here)
 - Role granularity — keep coarse for v1; add capability-based permissions in v2 only if needed
 
+## Status
+
+**Implemented — 2026-05-01 (Phase 0 G0.C-5 / Window 5).** Workspace package `@assessiq/users` live.
+
+- **Migrations applied to `assessiq-postgres` on the VPS:** `020_users.sql` (users table + 2 RLS policies + 2 indexes including `users_email_lower_idx (tenant_id, lower(email)) text_pattern_ops` for the addendum § 9 prefix-search hot path), `021_user_invitations.sql` (user_invitations + 2 RLS policies + partial index on `(tenant_id, lower(email)) WHERE accepted_at IS NULL` for re-invite lookup). RLS-policy linter passes (11 migrations, 9 tenant-bearing tables matched).
+- **Public surface:** `listUsers`, `getUser`, `createUser`, `updateUser`, `softDelete`, `restore`, `inviteUser`, `acceptInvitation`, `bulkImport` (501 stub), `sweepUserSessions` (Redis), `normalizeEmail`. All match the addendum-pinned contract; `bulkImport` and candidate-role `inviteUser` are Phase-1 stubs that throw with `details.code` = `BULK_IMPORT_PHASE_1` / `CANDIDATE_INVITATION_PHASE_1` / `ASSESSMENT_INVITATION_PHASE_1` and `details.httpStatus = 501`.
+- **Tests:** 27 vitest cases pass against a `postgres:16-alpine` testcontainer (covers cross-tenant isolation, last-admin invariant, status-transition matrix, case-insensitive uniqueness, soft-delete cascade to invitations, invitation token shape, accept happy + expired + already-used + not-found, candidate-role 501). 1 `test.todo` for Redis sweep integration (deferred to Phase 1).
+- **Cross-module mock seam.** `acceptInvitation` mints sessions via `modules/03-users/src/__mocks__/auth-sessions.ts` (matches the `01-AUTH-DEC` § 10 signature exactly). `FIXME(post-01-auth)` marker + an addendum-§-12 doc comment make the swap site grep-findable. The 5-line follow-up commit lands once `modules/01-auth/src/index.ts` exports `sessions` on `origin/main`.
+- **codex:rescue verdict — revised + accepted.** Adversarial review (2026-05-01) found 4 must-fix issues that were applied before push: (1) cookie-only session token in `POST /api/invitations/accept` response (no body bearer leak), (2) `sessions.create` moved AFTER the user-state transaction commits (no orphaned session on commit failure), (3) tight Fastify request schema on `/api/invitations/accept` (token length 43–64), (4) error-handler maps Fastify schema/parser errors to 4xx instead of 500. The HIGH "swap mock for real `@assessiq/auth.sessions`" finding is intentionally deferred because Window 4 (01-auth) is not yet on `origin/main`; the swap is the documented post-merge follow-up.
+
 ---
 
 ## Decisions captured (2026-05-01)

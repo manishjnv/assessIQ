@@ -1,0 +1,26 @@
+{
+  "name": "@assessiq/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/server.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@assessiq/core": "workspace:*",
+    "@assessiq/tenancy": "workspace:*",
+    "@assessiq/users": "workspace:*",
+    "@assessiq/notifications": "workspace:*",
+    "fastify": "^5.0.0",
+    "@fastify/cookie": "^11.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
