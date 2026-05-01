@@ -19,6 +19,8 @@ A `users` row exists *before* the first login. Admins create users (or import vi
 
 ## Flow 1 — Admin login (Google SSO + TOTP)
 
+> **Status (2026-05-01, Phase 0 Window 5):** the admin-facing UI for this flow is live in `apps/web` — `/admin/login` (Google SSO start screen with editorial split-hero, "Continue with Google" pill button, port of the `AccessIQ_UI_Template/screens/login.jsx` idioms — template is read-only reference, not a runtime import) and `/admin/mfa` (TOTP enrollment QR via `qrcode` + verification form). Routing in `apps/web` uses react-router v6 with a `RequireSession` guard that redirects unauthenticated requests to `/admin/login` and force-promotes through `/admin/mfa` until `totpVerified=true`. The session-mint backend (`POST /api/auth/google/start`, `POST /api/auth/totp/verify`) lands with 01-auth Window 4. Until that ships, the UI uses the Phase-0 dev-auth path: `aiq:dev-auth` sessionStorage entry → `x-aiq-test-tenant` / `x-aiq-test-user-id` / `x-aiq-test-user-role` headers (production hard-fails per `apps/api/src/middleware/dev-auth.ts`). The `/admin/invite/accept?token=...` landing page is also live and consumes `POST /api/invitations/accept` (pre-auth, see § Flow 2 Mode B and `docs/03-api-contract.md` for the cookie-only response contract). Every dev-mode bypass is grep-tagged `FIXME(post-01-auth)`.
+
 The strict path. Every admin must clear both factors.
 
 ```

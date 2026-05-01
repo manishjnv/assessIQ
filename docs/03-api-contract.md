@@ -35,18 +35,41 @@
 
 ### Admin — Tenants & users
 
-| Method | Path | Purpose |
+> **Status (2026-05-01, Phase 0 / Window 5):** the user-management slice is live in `apps/api`. The invitation-accept route is pre-auth. The `import` route is a 501 stub returning `details.code = 'BULK_IMPORT_PHASE_1'` per `modules/03-users/SKILL.md` § Decisions captured § 1; full CSV/JSON bulk import is Phase 1 work. `/admin/tenant`, `/admin/invitations` GET, and `/admin/users/:id/totp/reset` are deferred (`/admin/tenant` is 02-tenancy Phase 1; the rest live behind 01-auth Window 4's middleware once it lands on `origin/main`).
+
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `GET`  | `/admin/tenant`        | Current tenant settings + branding | Phase 1 |
+| `PATCH`| `/admin/tenant`        | Update tenant name, branding, settings | Phase 1 |
+| `GET`  | `/admin/users`         | List users (filter by role, status, search; pageSize cap 100 — stricter than the global 200 cap per `03-users` SKILL § 9) | live |
+| `POST` | `/admin/users`         | Create user record (status defaults to `pending`; no email sent — see `inviteUser` for the happy path) | live |
+| `GET`  | `/admin/users/:id`     | Get user detail | live |
+| `PATCH`| `/admin/users/:id`     | Update role, status, name, metadata; enforces last-admin invariant (HTTP 409 `LAST_ADMIN`) and status-state-machine (HTTP 422 `INVALID_STATUS_TRANSITION`); sweeps Redis sessions on disable | live |
+| `DELETE` | `/admin/users/:id`   | Soft delete; cascades to pending invitations for the user's email; sweeps Redis sessions; enforces last-admin invariant | live |
+| `POST` | `/admin/users/:id/restore` | Restore a soft-deleted user (clears `deleted_at`); does NOT recreate invitations or sessions | live |
+| `POST` | `/admin/users/import`  | **501 stub** — body ignored; returns `details.code = 'BULK_IMPORT_PHASE_1'` | stub |
+| `POST` | `/admin/invitations`   | Issue admin/reviewer invitation (candidate role → 501 `CANDIDATE_INVITATION_PHASE_1`); response carries the invitation row ID + email + role + expires_at but **never** the plaintext token (per `03-users` SKILL § 2) | live |
+| `POST` | `/invitations/accept`  | **Pre-auth** (no session required). Body: `{token: string}` (43–64 char base64url). Validates → marks invitation accepted (atomic single-use) → flips user `pending → active` → mints a session via `01-auth` (currently mocked — see `03-users` SKILL § 12). Sets `aiq_sess` cookie (httpOnly, sameSite=lax, secure in prod). Response body is `{user, expiresAt}` — sessionToken is cookie-only (no body bearer leak) | live |
+| `GET`  | `/admin/invitations`   | List invitations | Phase 1 |
+| `POST` | `/admin/users/:id/totp/reset` | Force TOTP re-enrollment | Phase 1 (after 01-auth) |
+
+#### Error contracts (live endpoints)
+
+| `details.code` | HTTP | Where |
 |---|---|---|
-| `GET`  | `/admin/tenant`        | Current tenant settings + branding |
-| `PATCH`| `/admin/tenant`        | Update tenant name, branding, settings |
-| `GET`  | `/admin/users`         | List users (filter by role, status, search) |
-| `POST` | `/admin/users`         | Create user record (no self-reg) |
-| `GET`  | `/admin/users/:id`     | Get user detail |
-| `PATCH`| `/admin/users/:id`     | Update role, status |
-| `DELETE`| `/admin/users/:id`    | Soft delete |
-| `POST` | `/admin/invitations`   | Send magic-link invite |
-| `GET`  | `/admin/invitations`   | List invitations |
-| `POST` | `/admin/users/:id/totp/reset` | Force TOTP re-enrollment |
+| `LAST_ADMIN` | 409 | `PATCH /admin/users/:id` (demote/disable last admin); `DELETE /admin/users/:id` (delete last admin) |
+| `INVALID_STATUS_TRANSITION` | 422 | `PATCH /admin/users/:id` (e.g. disabled→pending, active→pending) |
+| `USER_EMAIL_EXISTS` | 409 | `POST /admin/users` (collision on `(tenant_id, lower(email))`) |
+| `USER_DISABLED` / `USER_DELETED` | 409 | `POST /admin/invitations` (re-invite hits disabled or soft-deleted user) |
+| `INVITATION_NOT_FOUND` | 404 | `POST /invitations/accept` |
+| `INVITATION_EXPIRED` | 409 | `POST /invitations/accept` (expires_at < now AND not yet accepted) |
+| `INVITATION_ALREADY_USED` | 409 | `POST /invitations/accept` (atomic mark-accepted returned zero rows) |
+| `BULK_IMPORT_PHASE_1` | 501 | `POST /admin/users/import` |
+| `CANDIDATE_INVITATION_PHASE_1` | 501 | `POST /admin/invitations` with `role: 'candidate'` |
+| `ASSESSMENT_INVITATION_PHASE_1` | 501 | `POST /admin/invitations` with non-empty `assessmentIds` |
+| `VALIDATION_FAILED` | 400 | Schema validation (Fastify `validation` array surfaced under `details.validation`) |
+
+`AUTHN_FAILED` (401) and `AUTHZ_FAILED` (403) come from the dev-auth shim today (`x-aiq-test-tenant` / `x-aiq-test-user-id` / `x-aiq-test-user-role` headers; production hard-fails until 01-auth Window 4 lands).
 
 ### Admin — Question bank
 
