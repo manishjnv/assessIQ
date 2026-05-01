@@ -1,0 +1,74 @@
+# Per-Dockerfile dockerignore for assessiq-frontend.
+# OVERRIDES the repo-root .dockerignore (BuildKit `<dockerfile>.dockerignore`
+# semantics — when present, this file is used INSTEAD of, not merged with,
+# the root .dockerignore). The root .dockerignore excludes apps/web,
+# apps/storybook, and modules/17-ui-system to keep the api build context
+# small; the frontend NEEDS apps/web + modules/17-ui-system, so we maintain
+# a separate exclude list here.
+
+# Node + build outputs
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+
+# Git + IDE
+.git
+.github
+.vscode
+.idea
+.claude
+
+# Env + secrets — never bake into images
+.env
+.env.*
+!.env.example
+secrets/
+
+# Tests + dev fixtures (the runtime image ships production code only)
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+vitest.setup.ts
+**/vitest.config.ts
+
+# Apps NOT in the @assessiq/web closure
+apps/api
+apps/storybook
+
+# Modules NOT in the @assessiq/web closure (web depends on workspace pkg
+# @assessiq/ui-system in modules/17-ui-system; nothing else from modules/).
+modules/00-core
+modules/01-auth
+modules/02-tenancy
+modules/03-users
+modules/04-question-bank
+modules/13-notifications
+modules/16-help-system
+
+# Operational state
+data/
+infra/postgres/init/*.local.sql
+*.log
+**/*.log
+infra/logrotate.d/
+
+# Editor + OS scratch
+.DS_Store
+Thumbs.db
+*.swp
+.editorconfig
+
+# Stash / backup files
+*.bak
+*.bak.*
+*.orig
+
+# Markdown docs are not consumed by the build.
+docs/
+modules/**/SKILL.md
+PROJECT_BRAIN.md
+RCA_LOG.md
+README.md

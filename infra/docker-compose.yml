@@ -91,7 +91,12 @@ services:
       - "9092:3000"
     expose: ["3000"]
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      # Use 127.0.0.1 not localhost — Alpine resolves `localhost` to ::1 (IPv6)
+      # first, while Fastify binds 0.0.0.0 (IPv4 only) by default. wget's `:: 1`
+      # attempt fails with Connection refused before falling back, marking the
+      # container `unhealthy` even though the service is fully responsive on
+      # external 9092 → 3000. Fixed 2026-05-01 in the assessiq-frontend session.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 15s
       retries: 3
 
@@ -126,7 +131,7 @@ services:
     container_name: assessiq-frontend
     build:
       context: ..
-      dockerfile: ./infra/docker/frontend.Dockerfile
+      dockerfile: ./infra/docker/assessiq-frontend/Dockerfile
     networks: [assessiq-net]
     # Only host port published. ti-platform-caddy-1 (on a different Docker network)
     # reaches this via the bridge gateway 172.17.0.1:9091. No other service
@@ -134,4 +139,13 @@ services:
     ports:
       - "9091:80"
     depends_on:
-      assessiq-api: { condition: service_healthy }
+      # service_started (not service_healthy): the frontend is purely static
+      # nginx and does not need the API up to start. Caddy splits /api/* to
+      # 9092 separately; if the API is down the frontend still serves the SPA
+      # shell with whatever fetch failures the SPA's error UI displays.
+      assessiq-api: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      retries: 3
+      start_period: 5s
