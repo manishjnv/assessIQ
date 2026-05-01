@@ -119,3 +119,49 @@ AI-assisted question generation is the only AI-touching surface in this module's
 ### Pack publish snapshot semantics (decision #21)
 
 `publishPack(id)` flips `question_packs.status` to `published` AND writes a `question_versions` row for every question in the pack at the current `(content, rubric)`, **even if no edit happened since the last publish**. This guarantees a permanent immutable snapshot keyed by `(question_id, version)` for the published pack version. Subsequent question edits create new `question_versions` rows but do NOT alter the published snapshot — until `publishPack` is called again, which bumps `question_packs.version` and re-snapshots. Resolves the SKILL.md ambiguity about whether publish is a metadata-only flip or a content snapshot. (It's both.)
+
+---
+
+## Status
+
+**Implemented and live — 2026-05-01 (Phase 1 G1.A Session 1).**
+
+- 6 migrations applied to `assessiq-postgres` on production: `0010_question_packs.sql` (standard RLS), `0011_levels.sql`, `0012_questions.sql`, `0013_question_versions.sql`, `0014_tags.sql` (+ `question_tags`), `0015_questions_level_pack_fk.sql` (defense-in-depth composite FK).
+- 50/50 vitest cases passing against `postgres:16-alpine` testcontainer with full migration apply (tenancy 0001-0003 → users 020 → qb 0010-0015).
+- Public surface (16 functions): `listPacks`, `createPack`, `getPack`, `getPackWithLevels`, `updatePack`, `publishPack`, `archivePack`, `addLevel`, `updateLevel`, `listQuestions`, `getQuestion`, `createQuestion`, `updateQuestion`, `listVersions`, `restoreVersion`, `bulkImport`, plus `generateDraft` 501-stub deferred to Phase 2 per decision #11.
+- Route layer (15 admin endpoints) shipped at `modules/04-question-bank/src/routes.ts`, registered into `apps/api/src/server.ts` via `registerQuestionBankRoutes(app, { adminOnly: authChain({roles:['admin']}) })`. Smoke verified 2026-05-01 16:26 GMT+5:30: `GET /api/admin/packs` returns 401 AUTHN_FAILED without session (was 404 pre-deploy), confirming routes registered + auth chain firing.
+- CLI helper `tools/aiq-import-pack.ts` shipped — `pnpm tsx tools/aiq-import-pack.ts --tenant <slug> <pack.json>`. BYPASSRLS used for slug→tenantId + first-active-admin lookup, then `bulkImport` runs through `withTenant` (RLS-on).
+- RLS lint extended (`tools/lint-rls-policies.ts` `JOIN_RLS_TABLES`): `levels`, `questions`, `question_versions`, `question_tags` now structurally enforced; `attempt_questions` / `attempt_answers` / `attempt_events` forward-declared for G1.C.
+- Sonnet-takeover adversarial review: REVISED → ACCEPTED after must-fix #1 (composite FK + 2 tests) and must-fix #2 (`fastify.d.ts` comment). codex:rescue subagent not used per user "sonnet takeover" directive.
+
+### Why this design (decisions captured during the ship)
+
+- **publishPack bumps q.version after snapshotting.** Original implementation snapshot-only would UNIQUE-violate on the next `updateQuestion` (which also snapshots at `q.version` before bumping). Bump-after-snapshot keeps the canonical history monotonic. Trade-off: a publish-then-immediate-edit produces two snapshot rows with identical content (v1 from publish, v2 from edit-before-bump). Acceptable — real-world publish-edit gaps are minutes/hours, not zero.
+- **getPackWithLevels added to service surface** to match the API contract's "Pack with levels" response shape for `GET /admin/packs/:id`. Avoids two `withTenant` round-trips at the route layer.
+- **Composite FK `(level_id, pack_id) → levels(id, pack_id)` (migration 0015) is defense-in-depth.** The service-layer `findLevelById` guard already rejects cross-pack `level_id` via RLS-scoped lookup. The composite FK adds DB-layer enforcement so a future direct-SQL caller, migration script, or service-layer regression cannot silently cross tenants. Cost: one redundant `UNIQUE (id, pack_id)` on `levels` (id is already PK, but Postgres requires the unique target match for the composite FK).
+- **`archivePack` lazy assessments-table check** (`hasAssessmentsTable` + `countAssessmentsReferencingPack`) means archive is unconditionally allowed in Phase 1 (no `assessments` table yet). Once G1.B ships the table the gate auto-engages with no code change.
+- **JSON-only bulk import (decision #4 + #13).** CSV deferred to Phase 2; browser upload UI deferred to Phase 2 admin-dashboard. Phase 1 ships CLI helper + endpoint that accepts JSON body or file.
+
+### Considered and rejected
+
+- **Adding fastify as a peer dep** (vs regular dep). Routes.ts uses type-only imports from fastify — runtime cost is zero. But the question-bank package imports fastify types, so calling it a "peer" misrepresents the dep relationship. Regular dep is honest.
+- **Inline FastifyRequest augmentation in routes.ts** (vs separate `fastify.d.ts`). Co-locating the augmentation with the consumer is briefer but couples module-internal type plumbing to a route file. Separate `fastify.d.ts` matches the pattern 01-auth uses.
+- **Generating routes from an OpenAPI schema.** Postponed — Phase 1's route count is small enough to hand-author. Phase 4+ (when 50+ endpoints across multiple modules) would benefit from contract-first generation.
+- **Re-publishing a published pack** (transition published → published with re-snapshot). The current gate only allows draft → published. Re-publish would re-snapshot every question at its current version, useful when an admin wants to "freeze a new edition." Deferred to Phase 2 once authoring workflows mature; the SKILL.md decision #21 hints at this but explicit re-publish UX isn't in Phase 1.
+
+### Not included (Phase 1 boundary)
+
+- `generateDraft()` — 501 stub (decision #11). Lands when 07-ai-grading runtime is in place.
+- CSV bulk import — JSON only in Phase 1 (decision #4).
+- Browser-based pack upload UI — Phase 2 admin-dashboard (decision #13).
+- DELETE endpoints on packs/levels/questions — soft-delete via `status='archived'` is the only path. Hard delete is a Phase 3 admin tool.
+- `attempt_questions`, `attempt_answers`, `attempt_events` migrations — those land in G1.C (`06-attempt-engine`). The RLS lint already forward-declares them.
+- Cross-pack reuse of questions, question marketplace — Phase 4 if multi-client demand emerges.
+
+### Downstream impact
+
+- `05-assessment-lifecycle` (G1.B): consumes published packs + frozen `question_versions` snapshots when a candidate starts an attempt. The snapshot-at-publish guarantee is what makes this safe under concurrent admin edits.
+- `06-attempt-engine` (G1.C): pulls a question set from `(pack_id, level_id, status='active')` at attempt-start. RLS scopes everything to the candidate's tenant.
+- `07-ai-grading` (Phase 2): reads `questions.rubric` JSONB for subjective/scenario grading. Admin-triggered, never ambient.
+- `10-admin-dashboard` (Phase 2): replaces the CLI helper with a browser upload widget against `POST /api/admin/questions/import`.
+- `tools/lint-rls-policies.ts`: now structurally protects 4 join-based child tables; extending it for `06-attempt-engine` is a one-line addition to `JOIN_RLS_TABLES`.
