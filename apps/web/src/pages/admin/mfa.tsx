@@ -1,5 +1,37 @@
-import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Field, Chip } from '@assessiq/ui-system';
+// Admin MFA — TOTP enrolment + verification.
+//
+// Ported from modules/17-ui-system/AccessIQ_UI_Template/screens/mfa.jsx
+// per the canonical-template rule in docs/10-branding-guideline.md § 0.
+//
+// Translation notes (intentional divergences from screens/mfa.jsx):
+//
+// 1. NO design-canvas mode toggle — the template's top bar carries
+//    enroll/verify/lockout buttons for the design canvas only. Live
+//    routing decides the mode from API responses (409 ALREADY_ENROLLED
+//    → verify, 423 → lockout, otherwise enrol).
+//
+// 2. NO Logo or top-bar in the live page — the SPA shell currently
+//    has no global header (App.tsx renders routes only). Phase 1+
+//    will add an admin shell with Logo + nav; until then the centred
+//    card stands on its own. The mono page footer IS preserved
+//    (template idiom).
+//
+// 3. Recovery-code link only shown on verify mode — matches template
+//    behaviour. Hidden on enrol because no recovery codes exist yet.
+//
+// 4. QR is rendered into a real <canvas> via the qrcode library
+//    instead of the template's <Placeholder /> — the placeholder is
+//    a designer-tool stand-in; the live canvas is the actual scan
+//    target. Same surface background + radius + manual-entry mono
+//    microcopy beneath, matching screens/mfa.jsx structurally.
+//
+// 5. The lockout (423) state is a transient form-level error message,
+//    not the dedicated mode the template demos. The button label and
+//    field-error styling match the template's lockout idiom; future
+//    hardening could surface a separate "locked until <time>" panel.
+
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Button, Card, Chip } from '@assessiq/ui-system';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { api, ApiCallError } from '../../lib/api';
@@ -10,6 +42,14 @@ interface EnrollStartResponse {
   secretBase32: string;
 }
 
+const META_LABEL: CSSProperties = {
+  fontFamily: 'var(--aiq-font-mono)',
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'var(--aiq-color-fg-muted)',
+};
+
 export function AdminMfa(): JSX.Element {
   const { session, loading } = useSession();
   const nav = useNavigate();
@@ -19,17 +59,15 @@ export function AdminMfa(): JSX.Element {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   // Phase 0 doesn't expose a "have you enrolled?" endpoint — the heuristic
   // is: try /api/auth/totp/enroll/start; if it succeeds, we're enrolling
   // (returns the otpauth URI to render). If TOTP is already enrolled the
-  // library re-stages a fresh secret + URI (idempotent), so the UX is just
-  // "show QR every visit while pre-MFA." Future hardening will surface a
-  // /whoami flag for "totp_enrolled".
+  // server returns 409 ALREADY_ENROLLED → skip QR, go to verify form.
   useEffect(() => {
     if (loading || session === null) return;
     if (session.mfaStatus === 'verified') {
-      // Already verified — bounce to /admin/users.
       nav('/admin/users', { replace: true });
       return;
     }
@@ -41,22 +79,20 @@ export function AdminMfa(): JSX.Element {
         setSecretBase32(data.secretBase32);
         setEnrolled(false);
         if (canvasRef.current) {
-          QRCode.toCanvas(canvasRef.current, data.otpauthUri, { width: 240 }, (err) => {
+          QRCode.toCanvas(canvasRef.current, data.otpauthUri, { width: 180 }, (err) => {
             if (err) setError(err.message);
           });
         }
       })
       .catch((err: unknown) => {
         if (err instanceof ApiCallError) {
-          // If the server says we're already enrolled (409 ALREADY_ENROLLED),
-          // skip the QR and go straight to the verify form.
           if (err.status === 409 || err.apiError.code === 'ALREADY_ENROLLED') {
             setEnrolled(true);
           } else {
             setError(err.apiError.message);
           }
         } else {
-          setError('Could not start TOTP enrollment.');
+          setError('Could not start TOTP enrolment.');
         }
       });
     return () => {
@@ -72,7 +108,6 @@ export function AdminMfa(): JSX.Element {
     setSubmitting(true);
     setError(null);
     try {
-      // If we showed the QR (enrolling), call confirm; otherwise verify.
       const path = enrolled === false
         ? '/auth/totp/enroll/confirm'
         : '/auth/totp/verify';
@@ -80,12 +115,12 @@ export function AdminMfa(): JSX.Element {
         method: 'POST',
         body: JSON.stringify({ code }),
       });
-      // Refresh whoami so RequireSession sees mfaStatus='verified'.
       await fetchWhoami(true);
       nav('/admin/users', { replace: true });
     } catch (err) {
       if (err instanceof ApiCallError) {
         if (err.status === 423) {
+          setLocked(true);
           setError('Too many attempts; locked for 15 minutes.');
         } else if (err.apiError.code === 'INVALID_CODE') {
           setError('Invalid code. Try again.');
@@ -103,86 +138,230 @@ export function AdminMfa(): JSX.Element {
     return (
       <div
         className="aiq-screen"
-        style={{ padding: 32, fontFamily: 'var(--aiq-font-mono)', fontSize: 12 }}
+        style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', ...META_LABEL }}
       >
         Loading…
       </div>
     );
   }
   if (session === null) {
-    return <div className="aiq-screen" style={{ padding: 32 }}>No session.</div>;
+    return (
+      <div className="aiq-screen" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 32 }}>
+        No session.
+      </div>
+    );
   }
+
+  // Title / body copy — three modes from screens/mfa.jsx
+  const title = locked
+    ? 'Verify your authenticator.'
+    : enrolled === false
+      ? 'Enrol your authenticator.'
+      : 'Verify your authenticator.';
+  const body = locked
+    ? 'Too many failed attempts. Try again in 15 minutes.'
+    : enrolled === false
+      ? 'Scan the QR code with Google Authenticator, Authy, or 1Password, then enter the 6-digit code below.'
+      : 'Enter the 6-digit code from your authenticator app.';
 
   return (
     <div
       className="aiq-screen"
-      style={{
-        minHeight: '100vh',
-        padding: '64px 32px',
-        display: 'grid',
-        placeItems: 'center',
-      }}
+      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}
     >
-      <Card padding="lg" style={{ width: '100%', maxWidth: 480 }}>
-        <Chip variant="accent">Step 2 of 2</Chip>
-        <h1 className="aiq-serif" style={{ fontSize: 32, margin: '16px 0 8px' }}>
-          {enrolled === false ? 'Enroll your authenticator.' : 'Verify your authenticator.'}
-        </h1>
-        <p
-          style={{
-            fontSize: 14,
-            color: 'var(--aiq-color-fg-secondary)',
-            marginBottom: 24,
-          }}
+      <main
+        style={{
+          flex: 1,
+          display: 'grid',
+          placeItems: 'center',
+          padding: '48px 32px',
+        }}
+      >
+        <Card
+          padding="lg"
+          style={{ width: '100%', maxWidth: 480 }}
+          data-help-id="admin.auth.mfa.enroll_vs_verify"
         >
-          {enrolled === false
-            ? 'Scan the QR code with Google Authenticator, Authy, or 1Password, then enter the 6-digit code below.'
-            : 'Enter the 6-digit code from your authenticator app.'}
-        </p>
-        {enrolled === false && (
-          <div
+          <div style={{ marginBottom: 16 }}>
+            <Chip variant="accent" leftIcon="sparkle">Step 2 of 2</Chip>
+          </div>
+
+          <h1
+            className="aiq-serif"
             style={{
-              display: 'grid',
-              placeItems: 'center',
-              marginBottom: 24,
-              padding: 16,
-              background: 'var(--aiq-color-bg-elevated)',
-              borderRadius: 12,
+              fontSize: 32,
+              lineHeight: 1.1,
+              margin: '0 0 10px',
+              fontWeight: 400,
+              letterSpacing: '-0.015em',
             }}
           >
-            <canvas ref={canvasRef} aria-label="TOTP enrollment QR code" />
-            {secretBase32 !== null && (
-              <p
+            {title}
+          </h1>
+          <p
+            style={{
+              fontSize: 14,
+              color: 'var(--aiq-color-fg-secondary)',
+              margin: '0 0 24px',
+              lineHeight: 1.5,
+            }}
+          >
+            {body}
+          </p>
+
+          {/* QR + manual-entry block — only on enrol */}
+          {enrolled === false && !locked && (
+            <div
+              style={{
+                display: 'grid',
+                placeItems: 'center',
+                marginBottom: 20,
+                padding: 20,
+                background: 'var(--aiq-color-bg-elevated)',
+                border: '1px solid var(--aiq-color-border)',
+                borderRadius: 'var(--aiq-radius-lg)',
+              }}
+            >
+              <canvas ref={canvasRef} aria-label="TOTP enrolment QR code" />
+              {secretBase32 !== null && (
+                <>
+                  <p
+                    style={{
+                      ...META_LABEL,
+                      marginTop: 14,
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    Or enter manually
+                  </p>
+                  <p
+                    style={{
+                      marginTop: 4,
+                      fontFamily: 'var(--aiq-font-mono)',
+                      fontSize: 13,
+                      color: 'var(--aiq-color-fg-secondary)',
+                      letterSpacing: '0.05em',
+                      wordBreak: 'break-all',
+                      textAlign: 'center',
+                      maxWidth: 320,
+                    }}
+                  >
+                    <strong>{secretBase32}</strong>
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 6-digit code input. Mono font, large character spacing
+              (template idiom — letter-spacing 0.4em, centred). */}
+          <label
+            htmlFor="totp-code"
+            style={{ ...META_LABEL, display: 'block', marginBottom: 6 }}
+          >
+            6-digit code
+          </label>
+          <input
+            id="totp-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={locked ? '' : code}
+            onChange={(e) => {
+              setCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+              setError(null);
+            }}
+            disabled={locked || submitting}
+            placeholder="••••••"
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              fontFamily: 'var(--aiq-font-mono)',
+              fontSize: 22,
+              letterSpacing: '0.4em',
+              textAlign: 'center',
+              color: 'var(--aiq-color-fg-primary)',
+              background: 'var(--aiq-color-bg-base)',
+              border: `1px solid ${error ? 'var(--aiq-color-danger, #b85450)' : 'var(--aiq-color-border-strong)'}`,
+              borderRadius: 'var(--aiq-radius-md)',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          {error !== null && (
+            <p
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: 'var(--aiq-color-danger, #b85450)',
+              }}
+            >
+              {error}
+            </p>
+          )}
+
+          {/* Primary verify button — full-width per template idiom */}
+          <Button
+            size="lg"
+            onClick={verify}
+            disabled={code.length !== 6 || submitting || locked}
+            style={{ width: '100%', marginTop: 16, justifyContent: 'center' }}
+            rightIcon="arrow"
+          >
+            {locked
+              ? 'Locked — try again later'
+              : submitting
+                ? 'Verifying…'
+                : enrolled === false
+                  ? 'Confirm and continue'
+                  : 'Verify and continue'}
+          </Button>
+
+          {/* Secondary recovery-code link — only on verify mode (template).
+              Hidden during enrol because no recovery codes exist yet. */}
+          {enrolled !== false && (
+            <p
+              style={{
+                marginTop: 18,
+                fontSize: 13,
+                color: 'var(--aiq-color-fg-secondary)',
+                textAlign: 'center',
+              }}
+            >
+              Lost your authenticator?{' '}
+              <a
+                href="#recovery"
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Recovery flow — Phase 1+ wires this to /api/auth/totp/recovery
+                }}
                 style={{
-                  marginTop: 12,
-                  fontFamily: 'var(--aiq-font-mono)',
-                  fontSize: 11,
-                  color: 'var(--aiq-color-fg-muted)',
+                  color: 'var(--aiq-color-accent)',
+                  textDecoration: 'none',
+                  fontWeight: 500,
                 }}
               >
-                Or enter manually: <strong>{secretBase32}</strong>
-              </p>
-            )}
-          </div>
-        )}
-        <Field
-          label="6-digit code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value);
-            setError(null);
-          }}
-          {...(error ? { error } : {})}
-        />
-        <div style={{ marginTop: 24 }}>
-          <Button size="lg" onClick={verify} disabled={code.length !== 6 || submitting}>
-            {submitting ? 'Verifying…' : 'Verify and continue'}
-          </Button>
-        </div>
-      </Card>
+                Use a recovery code
+              </a>
+            </p>
+          )}
+        </Card>
+      </main>
+
+      {/* Mono footer — template idiom (matches login.tsx). */}
+      <footer
+        style={{
+          ...META_LABEL,
+          padding: '16px 32px',
+          display: 'flex',
+          gap: 16,
+          borderTop: '1px solid var(--aiq-color-border)',
+        }}
+      >
+        <span>Phase 0 · 2026</span>
+        <span style={{ flex: 1 }} />
+        <span>Google SSO · TOTP-ready</span>
+      </footer>
     </div>
   );
 }
