@@ -2,6 +2,20 @@
 
 > Design tokens + component library + theming, all in one module. **You said you'll share a UI template** — when you drop it in, the integration plan in this doc tells us how to wire it into the token system without touching the rest of the platform.
 
+## 0. Working agreement — UI template is the canonical reference
+
+**Every UI change starts at [`modules/17-ui-system/AccessIQ_UI_Template/`](../modules/17-ui-system/AccessIQ_UI_Template/) — *consult the template, don't lift-and-shift it*.** This rule binds in three places:
+
+1. **The template is reference-only.** Per [`modules/17-ui-system/SKILL.md:47`](../modules/17-ui-system/SKILL.md#L47): *"The designer-tool harness must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land."* No `import` from `AccessIQ_UI_Template/`, no `cp` of its `.jsx` files into `apps/web/`. Phase 3 bounce condition.
+
+2. **The translation pattern is one-way: template → typed components → live page.** When a screen exists in [`AccessIQ_UI_Template/screens/`](../modules/17-ui-system/AccessIQ_UI_Template/screens/) for what you're building (today: `login.jsx`, `dashboard.jsx`, `library.jsx`, `assessment.jsx`, `results.jsx`, `atoms.jsx`), port its structure into typed `modules/17-ui-system/src/components/` primitives first, then author the live page in `apps/web/src/pages/...` using only those typed imports + `--aiq-*` tokens. Visual fidelity to the screen is the contract; the API of the typed components stays stable across visual updates.
+
+3. **If no screen exists for what you're building, STOP.** Surface the gap to the user before composing from primitives. Silently inventing a layout (the `apps/web/src/pages/admin/users.tsx` gap surfaced 2026-05-01 — no `users.jsx` in the template, page assembled ad-hoc from atoms) is a Phase 3 bounce condition because it produces drift across admin-side surfaces.
+
+The actionable, sectioned visual guideline lives at [`docs/10-branding-guideline.md`](./10-branding-guideline.md) § 0 — it codifies the same rule with the four-step translation pattern. This doc covers the *system architecture* (tokens, theming, embed posture); `10-branding-guideline.md` covers the *visual decisions* (colors, type, spacing, idioms). When the two disagree, the template wins, the branding guideline updates next, and this doc tracks the system-level implications last.
+
+This rule is encoded in memory at `feedback-ui-template-canonical.md` so it survives across sessions.
+
 ## Architecture goals
 
 1. **Token-driven** — colors, spacing, type, shadows, motion all defined as CSS custom properties. Components reference tokens, never hard-coded values.

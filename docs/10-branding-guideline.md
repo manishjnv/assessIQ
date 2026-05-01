@@ -4,6 +4,28 @@
 >
 > The template folder name has a typo — the product is **AssessIQ**, not AccessIQ. In all production code, copy, and titles, use *AssessIQ*.
 
+## 0. Working agreement — UI template is the canonical reference
+
+**Every UI change — new page, new layout, new composite, new variant of an existing component — starts at [`modules/17-ui-system/AccessIQ_UI_Template/`](../modules/17-ui-system/AccessIQ_UI_Template/).** That folder is the canonical visual identity. This guideline (`docs/10-branding-guideline.md`) is the *actionable, sectioned distillation* of what the template encodes; the template itself is the *normative reference* — when this doc and the template disagree, the template wins and this doc gets updated.
+
+The rules:
+
+1. **Consult [`AccessIQ_UI_Template/screens/`](../modules/17-ui-system/AccessIQ_UI_Template/screens/) first.** Available reference screens today: `login.jsx`, `dashboard.jsx`, `library.jsx`, `assessment.jsx`, `results.jsx`, plus `atoms.jsx` for the design primitives. If a screen exists for what you're building, **port its structure, spacing, type ramp, and component composition** into the live page using only typed `@assessiq/ui-system` imports + `--aiq-*` tokens + `aiq-*` global classes.
+
+2. **Never lift-and-shift template code.** Files under `AccessIQ_UI_Template/` are reference, not production — `modules/17-ui-system/SKILL.md:47` is explicit: *"The designer-tool harness must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land."* Importing `screens/login.jsx` directly into `apps/web/...` is a Phase 3 bounce condition.
+
+3. **If no screen exists for what you're building, STOP and surface the gap.** Either request the user add a `screens/<name>.jsx` reference to `AccessIQ_UI_Template/` first, or get explicit approval to compose from existing atoms. Do NOT silently invent a layout from primitives — that's how admin-side pages drift apart visually (the `apps/web/src/pages/admin/users.tsx` gap, surfaced 2026-05-01: no `users.jsx` template existed, so the page was assembled ad-hoc from atoms with no canonical reference to anchor future admin-list pages).
+
+4. **Phase 3 critique of any UI diff includes a "does this match the template?" gate.** Subagents (Sonnet, Haiku) proposing UI code without citing the screen template they referenced get bounced back. The diff review reads the relevant `AccessIQ_UI_Template/screens/<name>.jsx` alongside the diff.
+
+5. **Translation pattern (the four steps for porting a screen):**
+   1. Read the relevant `screens/<name>.jsx` and `atoms.jsx` for the primitives it uses.
+   2. Identify which `@assessiq/ui-system` typed components already cover those atoms; build any missing primitives in `modules/17-ui-system/src/components/` first (with Storybook story + a11y test + dark-mode story per the module's component contract).
+   3. Author the live page using ONLY the typed `@assessiq/ui-system` imports + `--aiq-*` tokens + `aiq-*` global classes from `modules/17-ui-system/src/styles/tokens.css`.
+   4. Match the template's visual hierarchy, spacing, and prose voice exactly. Document any deliberate divergence (accessibility, route-specific behavior, addendum decision) in the page's header comment as `// Diverges from screens/<name>.jsx because: <reason>`.
+
+This rule is encoded in memory at `feedback-ui-template-canonical.md` so future sessions honour it at warm-start.
+
 ## 1. Visual identity in one paragraph
 
 AssessIQ reads like an editorial publication that happens to grade you. **Newsreader** (serif) carries headlines, hero numbers, and quotes. **Geist** (sans) carries everything you click and read in passing. **JetBrains Mono** (mono) carries microcopy — labels, IDs, kbd hints, timestamps — letter-spaced and uppercase. Color is restrained: white-on-white surfaces, a confident accent in the indigo-violet 258 hue, status colors used sparingly. Density adjusts via a single `--u` spacing unit. Components are pill-shaped buttons, low-shadow cards with thin borders, and animated numbers (count-up, ring fill, sparklines) that reward completion. Nothing shouts.
