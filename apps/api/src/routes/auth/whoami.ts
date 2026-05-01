@@ -9,13 +9,20 @@ import { authChain } from '../../middleware/auth-chain.js';
 // Allowed for any role with a session OR an API key. API-key-backed requests
 // surface a synthetic `user.id = api-key:<id>` so dashboards can render a
 // who-am-I panel for service tokens too without leaking internal structure.
+//
+// `requireTotpVerified: false` — whoami MUST accept pre-MFA sessions so the
+// frontend can detect "you're authenticated but need to enroll/verify TOTP"
+// and route to /admin/mfa. Without this flag, requireAuth defaults to
+// requireTotpVerified=true for admin/reviewer (per require-auth.ts:31), the
+// preHandler 401's, and the SPA bounces back to /login — making MFA
+// enrollment unreachable on first login.
 
 export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     '/api/auth/whoami',
     {
       config: { skipAuth: true },
-      preHandler: authChain(),
+      preHandler: authChain({ requireTotpVerified: false }),
     },
     async (req) => {
       if (req.session !== undefined) {

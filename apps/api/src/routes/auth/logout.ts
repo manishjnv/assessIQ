@@ -8,13 +8,19 @@ import { authChain } from '../../middleware/auth-chain.js';
 // Available to any session-backed request (admin, reviewer, candidate).
 // API-key requests see 401 — there is no "logout" for a server-to-server token;
 // admins revoke API keys via DELETE /api/admin/api-keys/:id instead.
+//
+// `requireTotpVerified: false` — pre-MFA sessions must be able to log out
+// (cancel half-completed sign-in, abandon TOTP enrollment, etc.). Without
+// this flag, requireAuth defaults to requireTotpVerified=true for admins
+// (per require-auth.ts:31) and the user is stuck — can't proceed past
+// /admin/mfa AND can't bail out either.
 
 export async function registerLogoutRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/api/auth/logout',
     {
       config: { skipAuth: true },
-      preHandler: authChain(),
+      preHandler: authChain({ requireTotpVerified: false }),
     },
     async (req, reply) => {
       const token = req.cookies?.[config.SESSION_COOKIE_NAME];
