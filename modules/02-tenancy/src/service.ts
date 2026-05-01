@@ -1,5 +1,6 @@
 import { NotFoundError, streamLogger } from "@assessiq/core";
 import { withTenant } from "./with-tenant.js";
+import { getPool } from "./pool.js";
 import * as repo from "./repository.js";
 import type { Tenant, TenantSettings } from "./types.js";
 
@@ -15,17 +16,37 @@ export async function getTenantById(tenantId: string): Promise<Tenant> {
   return tenant;
 }
 
-export async function getTenantBySlug(_slug: string): Promise<Tenant> {
-  // Slug lookup needs the tenant context to be set, but we don't know the
-  // tenant id yet. Slug lookup is therefore a system-level read that bypasses
-  // RLS — used at the auth/login path before tenant context is established.
-  // See modules/02-tenancy/SKILL.md § System-level escapes for the full design.
-  // For Phase 0, we don't yet have a withSystemRole helper; slug lookup is
-  // exposed only for the test harness and the future sessionLoader. Document
-  // this in the SKILL.md "Status" section.
-  // TODO(phase-1): replace with withSystemRole(...) once 14-audit-log lands
-  //                and we can audit every system-role read.
-  throw new Error("getTenantBySlug requires withSystemRole — Phase 1 work");
+// Slug lookup happens BEFORE tenant context is set (auth/login path needs
+// to resolve tenant id from a slug query param). It bypasses RLS via the
+// `assessiq_system` role inside an explicit transaction — same pattern as
+// `apiKeys.authenticate` in @assessiq/auth. The system role is BYPASSRLS,
+// so the slug lookup returns the tenant row regardless of current_tenant.
+//
+// Returns null on miss; throws on DB failure. Callers (Google SSO start,
+// invitation accept) gate on null → AuthnError("unknown tenant"). When
+// 14-audit-log lands in Phase 3, every system-role read will write an
+// audit entry; for Phase 0 the operational JSONL log captures the call.
+//
+// SET LOCAL ROLE must be inside BEGIN/COMMIT (transaction-scoped). Outside
+// a transaction it's a no-op + warning.
+export async function getTenantBySlug(slug: string): Promise<Tenant | null> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE assessiq_system");
+    const tenant = await repo.findTenantBySlug(client, slug);
+    await client.query("COMMIT");
+    return tenant;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {
+      // Secondary rollback failure — connection is likely dead. Swallow and
+      // re-throw the original error so the caller sees the real cause.
+    });
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateTenantSettings(
