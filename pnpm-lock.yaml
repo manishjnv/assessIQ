@@ -54,6 +54,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@assessiq/auth':
+        specifier: workspace:*
+        version: link:../../modules/01-auth
       '@assessiq/core':
         specifier: workspace:*
         version: link:../../modules/00-core

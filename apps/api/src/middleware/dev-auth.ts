@@ -41,7 +41,19 @@ export async function devAuthHook(req: FastifyRequest, _reply: FastifyReply): Pr
     throw new AuthnError(`invalid role in ${DEV_ROLE_HEADER}: ${role}`);
   }
 
-  req.session = { tenantId, userId, role };
+  // Populate the full Pick<Session, ...> shape so the augmented FastifyRequest
+  // type (apps/api/src/types.d.ts) typechecks. Synthetic fields (id, expiresAt,
+  // lastTotpAt, totpVerified) are dev-only — devAuthHook is a development /
+  // test convenience that hard-fails in production. Commit B deletes this file.
+  req.session = {
+    id: 'dev-session',
+    tenantId,
+    userId,
+    role,
+    totpVerified: true,
+    expiresAt: new Date(Date.now() + 8 * 3600 * 1000).toISOString(),
+    lastTotpAt: new Date().toISOString(),
+  };
   req.assessiqCtx.tenantId = tenantId;
   req.assessiqCtx.userId = userId;
 }
