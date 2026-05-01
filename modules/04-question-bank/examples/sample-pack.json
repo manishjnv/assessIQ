@@ -1,0 +1,296 @@
+{
+  "$schema": "https://assessiq.automateedge.cloud/schemas/import-pack.v1.json",
+  "pack": {
+    "slug": "soc-skills-sample-2026q2",
+    "name": "SOC Skills Sample 2026 Q2",
+    "domain": "soc",
+    "description": "Sample assessment fixture covering SOC L1 + L2 readiness signals across triage, KQL hunting, scenario investigation, and log analysis."
+  },
+  "levels": [
+    {
+      "position": 1,
+      "label": "L1",
+      "description": "Triage analyst: alert validation, basic enrichment, escalation criteria.",
+      "duration_minutes": 30,
+      "default_question_count": 4,
+      "passing_score_pct": 60
+    },
+    {
+      "position": 2,
+      "label": "L2",
+      "description": "Investigation analyst: hypothesis-driven hunting, multi-source correlation, escalation decisions, and RCA authorship.",
+      "duration_minutes": 45,
+      "default_question_count": 3,
+      "passing_score_pct": 65
+    }
+  ],
+  "questions": [
+    {
+      "level_position": 1,
+      "type": "mcq",
+      "topic": "edr-alert-triage",
+      "points": 5,
+      "content": {
+        "question": "An EDR alert fires showing the process chain `winword.exe → powershell.exe -enc <base64>`. The PowerShell process exits in under two seconds and no outbound network connection is logged. What is your immediate next action?",
+        "options": [
+          "Close the alert as a false positive — no network connection means no impact.",
+          "Pivot to DeviceProcessEvents to decode the base64 payload and check for child process creation or file-write events before making a triage decision.",
+          "Immediately isolate the endpoint and open a P1 incident without further investigation.",
+          "Notify the user to restart Microsoft Word and monitor for recurrence."
+        ],
+        "correct": 1,
+        "rationale": "A two-second PowerShell execution with an encoded command is a classic fileless-loader pattern (T1059.001). The absence of an outbound connection does not mean no impact — the payload may have written a scheduled task, a registry run key, or a staged binary. The correct first action is to decode the payload and check for artifact creation before deciding on isolation or closure. Closing on 'no network' violates the triage principle of validating impact across all telemetry sources."
+      },
+      "rubric": null,
+      "tags": ["mitre:T1059.001", "tactic:execution", "tool:edr"]
+    },
+    {
+      "level_position": 1,
+      "type": "subjective",
+      "topic": "phishing-triage-first-five-minutes",
+      "points": 10,
+      "content": {
+        "question": "Describe the first 5 minutes of triaging an unknown phishing-email-delivered malware alert. What signals do you check, in what order, and why? Assume you have access to your email gateway, SIEM, EDR, and a URL detonation sandbox."
+      },
+      "rubric": {
+        "anchors": [
+          {
+            "id": "a1",
+            "concept": "validate sender domain",
+            "weight": 15,
+            "synonyms": ["sender domain", "email header", "SPF", "DKIM", "DMARC", "spoofed domain", "envelope-from"]
+          },
+          {
+            "id": "a2",
+            "concept": "check URL detonation",
+            "weight": 15,
+            "synonyms": ["URL sandbox", "detonate", "detonation sandbox", "urlscan", "any.run", "malicious URL", "link analysis"]
+          },
+          {
+            "id": "a3",
+            "concept": "pivot to endpoint telemetry",
+            "weight": 15,
+            "synonyms": ["endpoint telemetry", "EDR", "process tree", "DeviceProcessEvents", "clicked the link", "payload execution", "file write"]
+          }
+        ],
+        "reasoning_bands": {
+          "band_4": "All three anchors present, correct sequential ordering (email gateway → sandbox → EDR), explicit rationale for each pivot, and identifies blast-radius (how many recipients received the same email).",
+          "band_3": "All three anchors present with correct ordering but rationale for at least one pivot is vague or the blast-radius step is missing.",
+          "band_2": "Two of three anchors present, or all three present but in a confused order that would slow triage in practice.",
+          "band_1": "One or more anchor keywords mentioned but no coherent ordering or rationale — indicates surface familiarity without process understanding.",
+          "band_0": "Incorrect direction (e.g. immediately escalating to IR without any triage), or no substantive answer."
+        },
+        "anchor_weight_total": 45,
+        "reasoning_weight_total": 55
+      },
+      "tags": ["mitre:T1566", "tactic:initial-access", "tool:siem"]
+    },
+    {
+      "level_position": 1,
+      "type": "kql",
+      "topic": "suspicious-dns-tld-detection",
+      "points": 10,
+      "content": {
+        "question": "Write a KQL query against `DeviceNetworkEvents` to detect outbound DNS queries to suspicious top-level domains (.xyz, .top, .lol) initiated by processes that are NOT common browser executables (msedge.exe, chrome.exe, firefox.exe). Return the device name, initiating process, remote URL, and timestamp. Limit to the last 24 hours.",
+        "tables": [
+          "DeviceNetworkEvents (Timestamp, DeviceName, RemoteUrl, RemoteIP, RemotePort, InitiatingProcessFileName, InitiatingProcessId)"
+        ],
+        "hint": "Use a dynamic array for browser exclusions and a second dynamic array for suspicious TLDs. The `has_any()` function works on string fields; for TLD suffix matching consider `endswith` inside a `where` with `or`. Filter RemotePort == 53 to scope to DNS traffic.",
+        "expected_keywords": [
+          "DeviceNetworkEvents",
+          "InitiatingProcessFileName",
+          "endswith",
+          "RemoteUrl",
+          "dynamic",
+          "ago(24h)"
+        ],
+        "sample_solution": "let SuspiciousTLDs = dynamic([\".xyz\", \".top\", \".lol\"]);\nlet BrowserProcs = dynamic([\"msedge.exe\", \"chrome.exe\", \"firefox.exe\"]);\nDeviceNetworkEvents\n| where Timestamp > ago(24h)\n| where RemotePort == 53\n| where not(InitiatingProcessFileName in~ (BrowserProcs))\n| where RemoteUrl endswith \".xyz\"\n    or RemoteUrl endswith \".top\"\n    or RemoteUrl endswith \".lol\"\n| project Timestamp, DeviceName, InitiatingProcessFileName, RemoteUrl, RemoteIP\n| order by Timestamp desc"
+      },
+      "rubric": null,
+      "tags": ["mitre:T1071", "tactic:command-and-control", "tool:dns"]
+    },
+    {
+      "level_position": 1,
+      "type": "log_analysis",
+      "topic": "cloudflare-access-log-suspicious-activity",
+      "points": 10,
+      "content": {
+        "question": "Analyze the following Cloudflare Access logs and identify all suspicious activity. List each distinct finding and explain why it is suspicious.",
+        "log_excerpt": "{\"ts\":\"2026-04-30T03:12:44Z\",\"user\":\"anya.patel@corp.example\",\"src_ip\":\"198.51.100.77\",\"action\":\"login\",\"result\":\"success\",\"mfa\":\"totp\",\"app\":\"vpn-portal\",\"country\":\"US\"}\n{\"ts\":\"2026-04-30T03:13:02Z\",\"user\":\"anya.patel@corp.example\",\"src_ip\":\"198.51.100.77\",\"action\":\"download\",\"result\":\"success\",\"bytes\":94371840,\"app\":\"sharepoint-proxy\",\"country\":\"US\"}\n{\"ts\":\"2026-04-30T03:13:58Z\",\"user\":\"anya.patel@corp.example\",\"src_ip\":\"185.220.101.34\",\"action\":\"login\",\"result\":\"success\",\"mfa\":\"skipped\",\"app\":\"admin-console\",\"country\":\"NL\"}\n{\"ts\":\"2026-04-30T03:14:22Z\",\"user\":\"anya.patel@corp.example\",\"src_ip\":\"185.220.101.34\",\"action\":\"role_change\",\"result\":\"success\",\"new_role\":\"org-admin\",\"app\":\"admin-console\",\"country\":\"NL\"}\n{\"ts\":\"2026-04-30T03:15:05Z\",\"user\":\"anya.patel@corp.example\",\"src_ip\":\"185.220.101.34\",\"action\":\"export\",\"result\":\"success\",\"bytes\":210763776,\"app\":\"admin-console\",\"country\":\"NL\"}",
+        "log_format": "json",
+        "expected_findings": [
+          "Concurrent sessions from two geographically distinct IPs (US and NL) within 76 seconds — impossible travel",
+          "MFA was skipped on the admin-console login from the NL IP",
+          "Privilege escalation via role_change to org-admin immediately after login",
+          "Large data export (201 MB) within 43 seconds of privilege escalation"
+        ],
+        "hint": "Check for impossible travel by comparing source IPs and timestamps. Note which applications require MFA and whether it was enforced. Pay attention to the sequence and timing of actions after the second login.",
+        "sample_solution": "Finding 1 — Impossible travel: anya.patel authenticated from 198.51.100.77 (US) at 03:12:44Z and then from 185.220.101.34 (NL) at 03:13:58Z — only 74 seconds apart. Legitimate travel is impossible; this indicates either credential compromise or a concurrent attacker session.\n\nFinding 2 — MFA bypass: The NL login to admin-console has mfa=skipped. If MFA is policy-required for the admin-console app, this indicates a policy gap or a bypass by the attacker.\n\nFinding 3 — Privilege escalation: Within 24 seconds of the unauthenticated (MFA-skipped) admin-console login, a role_change to org-admin was recorded. This is an account takeover privilege escalation pattern (T1078).\n\nFinding 4 — Data exfiltration: A 201 MB export occurred 43 seconds after privilege escalation, consistent with an attacker staging or exfiltrating sensitive org data (T1530)."
+      },
+      "rubric": null,
+      "tags": ["mitre:T1078", "tactic:credential-access", "tool:cloudflare"]
+    },
+    {
+      "level_position": 2,
+      "type": "scenario",
+      "topic": "mfa-fatigue-account-takeover",
+      "points": 15,
+      "content": {
+        "title": "MFA Fatigue Attack on an IT Administrator Account",
+        "intro": "At 02:47 UTC your SIEM fires a medium-severity alert: 'Repeated MFA push notifications for user it-admin@corp.example — 23 push requests in 8 minutes, 1 approved.' The user has not been reached yet. Your EDR shows no process anomalies on the admin's workstation. The approved push came from a mobile device registered to the account. You are the L2 analyst on call.",
+        "steps": [
+          {
+            "id": "s1",
+            "type": "subjective",
+            "prompt": "Before pulling any logs, state your initial hypothesis. What attack technique does this alert pattern represent? What is the most likely adversary goal given the target is an IT admin account? What are the two outcomes you need to rule out first?",
+            "rubric_ref": "hypothesis-mfa-fatigue"
+          },
+          {
+            "id": "s2",
+            "type": "kql",
+            "prompt": "Write a KQL query against `SigninLogs` to retrieve all sign-in events for 'it-admin@corp.example' in the 30 minutes surrounding the alert window (02:17–03:17 UTC on 2026-04-30). Return: timestamp, source IP, city, country, app, MFA result, conditional access result, and risk level.",
+            "expected_keywords": [
+              "SigninLogs",
+              "UserPrincipalName",
+              "TimeGenerated",
+              "MfaDetail",
+              "ConditionalAccessStatus",
+              "RiskLevelDuringSignIn",
+              "ago"
+            ]
+          },
+          {
+            "id": "s3",
+            "type": "mcq",
+            "prompt": "The sign-in logs confirm the approved push came from an IP in Eastern Europe; the admin's registered device is normally used in London. Conditional access policy evaluated to 'success' because the policy does not enforce location. The admin is unreachable by phone. Which action do you take NOW?",
+            "options": [
+              "Document the finding and wait 30 minutes for the admin to respond before escalating.",
+              "Revoke all active sessions for it-admin@corp.example, disable the account, and immediately escalate to the on-call security lead.",
+              "Reset the admin's password and send a password-reset email to their corporate inbox.",
+              "Block the Eastern European IP in the firewall and continue monitoring."
+            ],
+            "correct": 1,
+            "trap": true
+          },
+          {
+            "id": "s4",
+            "type": "subjective",
+            "prompt": "The account has been contained. Write a concise RCA (Root Cause Analysis) covering: (1) the attack technique and entry vector, (2) what defensive control failed or was absent, (3) immediate remediation steps taken, and (4) two long-term prevention recommendations.",
+            "rubric_ref": "rca-mfa-fatigue"
+          }
+        ],
+        "step_dependency": "linear"
+      },
+      "rubric": {
+        "anchors": [
+          {
+            "id": "hyp-a1",
+            "concept": "MFA fatigue / MFA push bombing",
+            "weight": 10,
+            "synonyms": ["MFA fatigue", "MFA bombing", "push fatigue", "adversary-in-the-middle", "AiTM", "T1621"]
+          },
+          {
+            "id": "hyp-a2",
+            "concept": "account takeover goal",
+            "weight": 10,
+            "synonyms": ["account takeover", "privileged access", "lateral movement", "IT admin compromise", "T1078"]
+          },
+          {
+            "id": "rca-a1",
+            "concept": "missing number-matching or additional context MFA",
+            "weight": 10,
+            "synonyms": ["number matching", "additional context", "MFA policy gap", "push-based MFA weakness"]
+          },
+          {
+            "id": "rca-a2",
+            "concept": "session revocation and account disable",
+            "weight": 10,
+            "synonyms": ["revoke sessions", "disable account", "containment", "CAE", "continuous access evaluation"]
+          }
+        ],
+        "reasoning_bands": {
+          "band_4": "Hypothesis correctly names T1621 or 'MFA fatigue', identifies privileged access as goal, names both failure modes (user approved under fatigue vs. compromised device). RCA covers all four required elements with actionable prevention (e.g., number matching, FIDO2 key enforcement).",
+          "band_3": "Hypothesis correct but one failure mode missing. RCA covers 3 of 4 elements or prevention recommendations are generic ('train users').",
+          "band_2": "Hypothesis partially correct (identifies account takeover but not the MFA fatigue technique specifically). RCA covers 2 of 4 elements.",
+          "band_1": "Hypothesis focuses on wrong technique (e.g., phishing, brute force) without recognizing the MFA push pattern. RCA is superficial.",
+          "band_0": "No coherent hypothesis or RCA."
+        },
+        "anchor_weight_total": 40,
+        "reasoning_weight_total": 60
+      },
+      "tags": ["mitre:T1621", "mitre:T1078", "tactic:credential-access"]
+    },
+    {
+      "level_position": 2,
+      "type": "subjective",
+      "topic": "unsolicited-mfa-push-investigation",
+      "points": 10,
+      "content": {
+        "question": "An analyst reports that their MFA authenticator app showed an unsolicited push notification at 11:34 UTC — they did not approve it. They have not noticed any other anomalies. Walk through the full investigation path you would follow as an L2 analyst. What hypothesis tree do you build at the outset, and what evidence causes you to promote or demote each branch?"
+      },
+      "rubric": {
+        "anchors": [
+          {
+            "id": "b1",
+            "concept": "credential compromise hypothesis",
+            "weight": 12,
+            "synonyms": ["credential compromise", "stolen password", "password spray", "leaked credentials", "T1110", "T1078"]
+          },
+          {
+            "id": "b2",
+            "concept": "sign-in log analysis",
+            "weight": 12,
+            "synonyms": ["sign-in logs", "AAD sign-ins", "Entra ID", "SigninLogs", "failed sign-in", "successful sign-in", "source IP"]
+          },
+          {
+            "id": "b3",
+            "concept": "impossible travel or anomalous geolocation",
+            "weight": 12,
+            "synonyms": ["impossible travel", "geolocation", "unfamiliar IP", "foreign country", "location anomaly"]
+          },
+          {
+            "id": "b4",
+            "concept": "blast radius scoping",
+            "weight": 9,
+            "synonyms": ["blast radius", "other accounts", "password reuse", "same attacker IP", "lateral movement", "scope of compromise"]
+          }
+        ],
+        "reasoning_bands": {
+          "band_4": "Builds a structured hypothesis tree with at least three branches (credential theft, MFA misconfiguration/test, benign app re-authentication), correctly maps each branch to falsifying evidence, and scopes blast radius by searching for the same source IP against other accounts.",
+          "band_3": "Two hypothesis branches with correct evidence mapping; blast radius scoping present but shallow (e.g., only checks the affected user).",
+          "band_2": "Single hypothesis (typically credential theft) without alternative branches; some sign-in log analysis described but evidence-to-hypothesis mapping is missing.",
+          "band_1": "Describes actions (check logs, notify user) without a hypothesis-driven structure; essentially a checklist rather than an investigation.",
+          "band_0": "No investigation structure or wrong starting action (e.g., immediately wiping the analyst's device)."
+        },
+        "anchor_weight_total": 45,
+        "reasoning_weight_total": 55
+      },
+      "tags": ["mitre:T1110", "tactic:credential-access", "tool:siem"]
+    },
+    {
+      "level_position": 2,
+      "type": "kql",
+      "topic": "pass-the-hash-detection",
+      "points": 15,
+      "content": {
+        "question": "Write a KQL query against the `SecurityEvent` table to detect likely Pass-the-Hash (PtH) attempts. PtH is characterised by network logon events (LogonType 3) where the authentication package is NTLM and the account name is not a computer account (does not end in '$'). Exclude known service accounts by filtering out accounts in the `NT AUTHORITY` namespace. Return device name, target account, source workstation name, source IP, and event timestamp. Limit to the last 48 hours.",
+        "tables": [
+          "SecurityEvent (TimeGenerated, Computer, EventID, AccountName, LogonType, AuthenticationPackageName, WorkstationName, IpAddress, SubjectUserName)"
+        ],
+        "hint": "Focus on EventID 4624 (successful logon). Filter LogonType == 3 for network logons. Use `AuthenticationPackageName == 'NTLM'`. Exclude computer accounts with `not(AccountName endswith '$')` and service accounts with `not(AccountName startswith 'NT AUTHORITY')`. Consider also surfacing EventID 4625 (failed logon) with the same filters to detect spray attempts that precede a successful PtH.",
+        "expected_keywords": [
+          "SecurityEvent",
+          "EventID",
+          "LogonType",
+          "AuthenticationPackageName",
+          "NTLM",
+          "endswith",
+          "ago(48h)"
+        ],
+        "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(48h)\n| where EventID == 4624\n| where LogonType == 3\n| where AuthenticationPackageName == \"NTLM\"\n| where not(AccountName endswith \"$\")\n| where not(AccountName startswith \"NT AUTHORITY\")\n| project TimeGenerated, Computer, AccountName, WorkstationName, IpAddress\n| order by TimeGenerated desc"
+      },
+      "rubric": null,
+      "tags": ["mitre:T1550.002", "tactic:lateral-movement", "tool:siem"]
+    }
+  ]
+}
