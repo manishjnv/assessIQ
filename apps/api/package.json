@@ -13,6 +13,7 @@
   "dependencies": {
     "@assessiq/core": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
+    "@assessiq/auth": "workspace:*",
     "@assessiq/users": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "fastify": "^5.0.0",

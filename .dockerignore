@@ -1,0 +1,63 @@
+# Build context filter for infra/docker/* Dockerfiles. Build context is the
+# repo root (`build.context: ..` in infra/docker-compose.yml). Excluding heavy
+# / irrelevant trees keeps the docker daemon transfer small and prevents
+# secrets from leaking in.
+
+# Node + build outputs
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+
+# Git + IDE
+.git
+.github
+.vscode
+.idea
+.claude
+
+# Env + secrets — never bake into images
+.env
+.env.*
+!.env.example
+secrets/
+
+# Tests + dev fixtures (the runtime image runs production code only)
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+vitest.setup.ts
+**/vitest.config.ts
+
+# Apps NOT included in the assessiq-api closure
+apps/web
+apps/storybook
+modules/17-ui-system
+
+# Operational state
+data/
+infra/postgres/init/*.local.sql
+*.log
+**/*.log
+infra/logrotate.d/
+
+# Editor + OS scratch
+.DS_Store
+Thumbs.db
+*.swp
+.editorconfig
+
+# Stash / backup files
+*.bak
+*.bak.*
+*.orig
+
+# Markdown docs are not consumed by the runtime — keep the image lean.
+# (Top-level README and CLAUDE.md exempted via not being globbed.)
+docs/
+modules/**/SKILL.md
+PROJECT_BRAIN.md
+RCA_LOG.md
+README.md

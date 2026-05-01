@@ -11,6 +11,7 @@ import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
+import { registerAuthRoutes } from './routes/auth/index.js';
 import { devAuthHook } from './middleware/dev-auth.js';
 
 const requestLog = streamLogger('request');
@@ -121,6 +122,12 @@ export async function buildServer() {
   await registerLogIngestRoutes(app);
   await registerAdminUserRoutes(app);
   await registerInvitationRoutes(app);
+  // Auth routes install their own per-route preHandler chain (rateLimit →
+  // sessionLoader → apiKeyAuth → syncCtx → requireAuth → extendOnPass).
+  // All auth routes are config:{skipAuth:true} so the legacy global
+  // devAuthHook short-circuits — Commit B (the dev-auth shim deletion +
+  // global chain swap) is a follow-on refactor.
+  await registerAuthRoutes(app);
 
   return app;
 }

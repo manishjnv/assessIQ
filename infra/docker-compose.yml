@@ -66,7 +66,7 @@ services:
     container_name: assessiq-api
     build:
       context: ..
-      dockerfile: ./infra/docker/api.Dockerfile
+      dockerfile: ./infra/docker/assessiq-api/Dockerfile
     networks: [assessiq-net]
     env_file:
       # required:false lets `docker compose config` succeed in CI / local
@@ -83,6 +83,12 @@ services:
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
+    # Host port 9092 is the Caddy split-route target on the shared VPS:
+    # `handle /api/* /embed* { reverse_proxy 172.17.0.1:9092 }`. The default
+    # route still hits 9091 (frontend placeholder until assessiq-frontend ships).
+    # See docs/06-deployment.md § Reverse-proxy plan + § Phase 0 closure.
+    ports:
+      - "9092:3000"
     expose: ["3000"]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
