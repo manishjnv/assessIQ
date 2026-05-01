@@ -209,6 +209,9 @@ importers:
 
   modules/03-users:
     dependencies:
+      '@assessiq/auth':
+        specifier: workspace:*
+        version: link:../01-auth
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core

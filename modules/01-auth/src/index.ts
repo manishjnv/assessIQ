@@ -5,6 +5,11 @@
 export { sessions } from "./sessions.js";
 export type { Session, CreateSessionInput, CreateSessionOutput, Role } from "./sessions.js";
 
+// Test escape hatches — mirrors @assessiq/tenancy's setPoolForTesting export.
+// Cross-module tests (e.g. 03-users.acceptInvitation) need to swap the
+// singleton against the local testcontainer's URL. NOT for production code.
+export { setRedisForTesting, closeRedis } from "./redis.js";
+
 export { totp } from "./totp.js";
 export type { EnrollStartOutput } from "./totp.js";
 

@@ -188,7 +188,7 @@ export async function inviteUser(
  *   2. Check expiry and accepted_at.
  *   3. Atomic mark-accepted.
  *   4. Flip user status pending → active.
- *   5. Mint session via the auth-sessions mock (FIXME(post-01-auth)).
+ *   5. Mint session via @assessiq/auth.sessions.create (post-01-auth merge).
  *
  * ip and ua are read from the request context; defaults to safe fallbacks
  * when invoked outside a request context (e.g. CLI / tests).
@@ -239,11 +239,10 @@ export async function acceptInvitation(token: string): Promise<AcceptInvitationR
     return repo.updateUserRow(client, user.id, { status: 'active' });
   });
 
-  // Step 5: mint session OUTSIDE the tenant transaction (post-commit).
-  // FIXME(post-01-auth): swap mock import for real @assessiq/auth.sessions once
-  // Window 4's index.ts is on origin/main. Today, modules/01-auth/src/index.ts
-  // is still `export {}` on main; the mock satisfies the pinned § 12 contract.
-  const { sessions } = await import('./__mocks__/auth-sessions.js');
+  // Step 5: mint session OUTSIDE the tenant transaction (post-commit) per
+  // codex:rescue MEDIUM (the user-state tx must commit before any session
+  // exists; otherwise an aborted commit leaves an orphan session).
+  const { sessions } = await import('@assessiq/auth');
 
   // Read ip/ua from request context; fall back to safe defaults for CLI/test invocations.
   const ctx = getRequestContext();
