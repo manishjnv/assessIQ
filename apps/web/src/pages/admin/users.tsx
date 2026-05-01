@@ -19,7 +19,11 @@ interface AdminUser {
 }
 
 interface UsersResponse {
-  users: AdminUser[];
+  // GET /api/admin/users returns the @assessiq/users service's PaginatedUsers
+  // shape with `items` (matching api-keys list and the rest of the workspace
+  // convention), not `users`. Aligning the type avoids accessing
+  // `data.users.length` on undefined → blank render.
+  items: AdminUser[];
   total: number;
   page: number;
   pageSize: number;
@@ -152,7 +156,10 @@ function InviteForm({
           onChange={(e) => { setEmail(e.target.value); setError(null); }}
           {...(error ? { error } : {})}
         />
-        <div>
+        {/* data-help-id marks this field for the help system. HelpTip
+            wrapping + HelpProvider wiring lands when the assessiq-frontend
+            container is built (Phase 1+ deferral). */}
+        <div data-help-id="admin.users.role">
           <Label>Role</Label>
           <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
             {(['admin', 'reviewer'] as UserRole[]).map((r) => (
@@ -243,7 +250,7 @@ export function AdminUsers(): JSX.Element {
       signal: controller.signal,
     })
       .then((data) => {
-        setUsers(data.users);
+        setUsers(data.items);
         setTotal(data.total);
       })
       .catch((err: unknown) => {
