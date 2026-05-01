@@ -48,7 +48,20 @@ Reads: `users` (existence check), `tenants`, `tenant_settings`.
 - `admin.api-keys.scopes` — scope catalog with examples
 - `candidate.auth.magic-link` — what to do if magic link expired
 
-## Open questions
+## Status
+
+**Implemented — 2026-05-01 (Phase 0 G0.C-4 / Window 4).** Workspace package `@assessiq/auth` live on `origin/main` at commit `d9cfeb4`.
+
+- **Migrations applied to `assessiq-postgres` on the VPS** (via `psql -f`, additive against the W2 + W5 baseline): `010_oauth_identities.sql`, `011_sessions.sql`, `012_totp.sql` (`user_credentials`), `013_recovery_codes.sql`, `014_embed_secrets.sql`, `015_api_keys.sql`. RLS-policy linter passes (11 migrations / 9 tenant-bearing tables matched). Live RLS isolation drill confirmed (Phase E step 2): `assessiq_app` role with `app.current_tenant` set sees only tenant-scoped rows; cross-tenant SELECT returns zero.
+- **Public surface (per `index.ts`):** `sessions.{create,get,refresh,markTotpVerified,destroy,destroyAllForUser}`, `totp.{enrollStart,enrollConfirm,verify,consumeRecovery,regenerateRecoveryCodes}`, `apiKeys.{create,revoke,list,authenticate,requireScope}`, `mintEmbedToken/verifyEmbedToken/createEmbedSecret/rotateEmbedSecret`, `startGoogleSso/handleGoogleCallback/normalizeEmail`, `mintCandidateSession`, full middleware barrel (`requestId/rateLimit/cookieParser/sessionLoader/apiKeyAuth/requireAuth/requireRole/requireFreshMfa/requireScope/extendOnPass`), and test escape hatches `setRedisForTesting/closeRedis` (mirror of `02-tenancy.setPoolForTesting`). All match the addendum-pinned contract above.
+- **Tests:** 99/100 vitest cases pass against `postgres:16-alpine` + `redis:7-alpine` testcontainers. The 1 known flake is the constant-time microbenchmark (5ms threshold; ~22ms observed under noisy local Docker — RCA log has the full analysis: real invariant is `crypto.timingSafeEqual`, not wallclock variance; CI runs cleaner).
+- **Cross-module integration verified.** 03-users `acceptInvitation` swapped from its mock seam to the real `@assessiq/auth.sessions` import in commit `be96623`. Carry-forwards from the 03-users addendum (§ 7 SADD per-user index in `sessions.create`, § 10 `normalizeEmail` in Google SSO callback) are present in code at `sessions.ts:133-134` and `google-sso.ts:331`.
+- **Adversarial review verdict — accepted (opus-direct, codex:rescue takeover).** Three Phase-1 follow-ups recorded in handoff:
+  1. ~~`requireAuth({ roles })` silently waved API keys through~~ — **patched in W4** (`require-auth.ts:66-77` now throws `AuthzError` on role/freshMfa gates with API-key-backed requests).
+  2. `api-keys.ts` fire-and-forget `last_used_at` UPDATE silently no-ops under RLS without tenant context — wrap in `withTenant` or system role.
+  3. `totp.ts` `recordFailure` post-crash TTL drift — INCR may run without subsequent EXPIRE, persisting `FAIL_KEY` indefinitely on restart.
+
+
 - Passkeys (WebAuthn) priority vs SAML — decide after first 3 enterprise inquiries
 - Whether to enforce TOTP for *all* admin sessions or just elevated actions (currently: all admin sessions, step-up for sensitive actions)
 
