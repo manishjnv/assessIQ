@@ -1,0 +1,324 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://assessiq.automateedge.cloud/schemas/import-pack.v1.json",
+  "title": "AssessIQ Pack Import",
+  "description": "One-file-per-pack bulk import format for AssessIQ question packs. Runtime validation uses the Zod schema in modules/04-question-bank/src/types.ts; this file is for documentation and JSON-schema-aware tooling.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pack", "levels", "questions"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slug", "name", "domain"],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{3,80}$",
+          "description": "URL-safe pack identifier, unique per tenant+version. Example: soc-skills-2026q2"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Assessment domain, e.g. soc, devops, cloud-architect"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "levels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["position", "label", "duration_minutes", "default_question_count"],
+        "properties": {
+          "position": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based ordinal; must be unique within the pack"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display label, e.g. L1, Junior, Senior"
+          },
+          "description": {
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "default_question_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "passing_score_pct": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Default 60 when omitted"
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["level_position", "type", "topic", "points", "content"],
+        "properties": {
+          "level_position": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Must match a position declared in the levels array above"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["mcq", "subjective", "kql", "scenario", "log_analysis"]
+          },
+          "topic": {
+            "type": "string",
+            "minLength": 1
+          },
+          "points": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "content": {
+            "description": "Type-specific content shape; validated against the per-type Zod schema at import time",
+            "oneOf": [
+              { "$ref": "#/$defs/McqContent" },
+              { "$ref": "#/$defs/SubjectiveContent" },
+              { "$ref": "#/$defs/KqlContent" },
+              { "$ref": "#/$defs/ScenarioContent" },
+              { "$ref": "#/$defs/LogAnalysisContent" }
+            ]
+          },
+          "rubric": {
+            "description": "Required for subjective and scenario; null or omitted for deterministic types",
+            "oneOf": [
+              { "$ref": "#/$defs/Rubric" },
+              { "type": "null" }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Tag names; upserted by (tenant_id, name) at import time"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "McqContent": {
+      "title": "MCQ content",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "options", "correct", "rationale"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "options": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 2,
+          "maxItems": 8
+        },
+        "correct": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based index into the options array"
+        },
+        "rationale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "SubjectiveContent": {
+      "title": "Subjective content",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 }
+      }
+    },
+    "KqlContent": {
+      "title": "KQL content",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "tables", "expected_keywords"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "tables": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "hint": { "type": "string" },
+        "expected_keywords": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "sample_solution": { "type": "string" }
+      }
+    },
+    "ScenarioStep": {
+      "title": "Scenario step",
+      "oneOf": [
+        {
+          "title": "MCQ step",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "prompt", "options", "correct"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "type": { "type": "string", "const": "mcq" },
+            "prompt": { "type": "string", "minLength": 1 },
+            "options": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 2
+            },
+            "correct": { "type": "integer", "minimum": 0 },
+            "trap": { "type": "boolean" }
+          }
+        },
+        {
+          "title": "Subjective step",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "prompt"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "type": { "type": "string", "const": "subjective" },
+            "prompt": { "type": "string", "minLength": 1 },
+            "rubric_ref": { "type": "string" }
+          }
+        },
+        {
+          "title": "KQL step",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "prompt", "expected_keywords"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "type": { "type": "string", "const": "kql" },
+            "prompt": { "type": "string", "minLength": 1 },
+            "expected_keywords": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    },
+    "ScenarioContent": {
+      "title": "Scenario content",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "intro", "steps", "step_dependency"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "intro": { "type": "string", "minLength": 1 },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ScenarioStep" },
+          "minItems": 1
+        },
+        "step_dependency": {
+          "type": "string",
+          "enum": ["linear", "parallel"]
+        }
+      }
+    },
+    "LogAnalysisContent": {
+      "title": "Log_analysis content",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "log_excerpt", "log_format", "expected_findings"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "log_excerpt": { "type": "string", "minLength": 1 },
+        "log_format": {
+          "type": "string",
+          "enum": ["syslog", "json", "csv", "freeform"]
+        },
+        "expected_findings": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "hint": { "type": "string" },
+        "sample_solution": { "type": "string" }
+      }
+    },
+    "Anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "concept", "weight", "synonyms"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "concept": { "type": "string", "minLength": 1 },
+        "weight": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "synonyms": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "Rubric": {
+      "title": "Rubric",
+      "description": "Required for subjective and scenario question types. anchor_weight_total + reasoning_weight_total must equal 100.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchors", "reasoning_bands", "anchor_weight_total", "reasoning_weight_total"],
+      "properties": {
+        "anchors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Anchor" },
+          "minItems": 1
+        },
+        "reasoning_bands": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["band_4", "band_3", "band_2", "band_1", "band_0"],
+          "properties": {
+            "band_4": { "type": "string" },
+            "band_3": { "type": "string" },
+            "band_2": { "type": "string" },
+            "band_1": { "type": "string" },
+            "band_0": { "type": "string" }
+          }
+        },
+        "anchor_weight_total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reasoning_weight_total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}

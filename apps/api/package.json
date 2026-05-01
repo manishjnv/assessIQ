@@ -15,6 +15,7 @@
     "@assessiq/tenancy": "workspace:*",
     "@assessiq/auth": "workspace:*",
     "@assessiq/users": "workspace:*",
+    "@assessiq/question-bank": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "fastify": "^5.0.0",
     "@fastify/cookie": "^11.0.0"
