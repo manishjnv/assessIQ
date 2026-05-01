@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { config } from '@assessiq/core';
 import { getUser } from '@assessiq/users';
 import { getTenantById } from '@assessiq/tenancy';
 import { authChain } from '../../middleware/auth-chain.js';
@@ -31,6 +32,16 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
           getUser(sess.tenantId, sess.userId),
           getTenantById(sess.tenantId),
         ]);
+        // mfaStatus reflects "the MFA gate is satisfied" not "the user has done TOTP".
+        // When MFA_REQUIRED=false the gate is bypassed for everyone, so report
+        // 'verified'. Otherwise the SPA's RequireSession guard at
+        // apps/web/src/lib/RequireSession.tsx:44 would treat the still-false
+        // totpVerified row as 'pending' and force-redirect to /admin/mfa, which
+        // is exactly the loop we set MFA_REQUIRED=false to avoid.
+        // When MFA_REQUIRED=true, fall back to the row's own totpVerified value.
+        const mfaStatus = config.MFA_REQUIRED
+          ? sess.totpVerified ? 'verified' : 'pending'
+          : 'verified';
         return {
           user: {
             id: user.id,
@@ -41,7 +52,7 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
           tenant: tenant === null
             ? { id: sess.tenantId, slug: null }
             : { id: tenant.id, slug: tenant.slug },
-          mfaStatus: sess.totpVerified ? 'verified' : 'pending',
+          mfaStatus,
         };
       }
 
