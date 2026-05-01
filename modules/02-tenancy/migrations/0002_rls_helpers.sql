@@ -59,3 +59,18 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO assessiq_app, assessiq_system;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO assessiq_app, assessiq_system;
+
+-- assessiq_app needs membership in assessiq_system so that `SET LOCAL ROLE
+-- assessiq_system` works inside the system-role transaction pattern used by
+-- apiKeys.authenticate (modules/01-auth/src/api-keys.ts) and getTenantBySlug
+-- (modules/02-tenancy/src/queries.ts). Without this GRANT the SET LOCAL ROLE
+-- call fails with "permission denied to set role" and authenticated requests
+-- carrying an API key (or pre-tenant-context lookups) cannot resolve.
+--
+-- Originally absent — applied directly on production via `psql -c 'GRANT
+-- assessiq_system TO assessiq_app'` on 2026-05-01 as a deploy-day hotfix
+-- (see docs/RCA_LOG.md 2026-05-01 entry). Backfilled here so fresh-VPS
+-- bootstrap reproduces the production grant set without a manual step.
+-- GRANT … TO ROLE is idempotent in PostgreSQL: re-applying on a host that
+-- already has the membership is a silent no-op.
+GRANT assessiq_system TO assessiq_app;
