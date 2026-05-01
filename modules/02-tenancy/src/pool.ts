@@ -1,5 +1,7 @@
 import { Pool } from "pg";
-import { config, logger } from "@assessiq/core";
+import { config, streamLogger } from "@assessiq/core";
+
+const log = streamLogger('app');
 
 let pool: Pool | undefined;
 
@@ -19,7 +21,7 @@ export function getPool(): Pool {
     pool.on("error", (err) => {
       // pg.Pool emits 'error' on idle clients that fail. Log and let the next
       // checkout attempt re-establish. Do NOT crash the process here.
-      logger.error({ err }, "pg pool idle-client error");
+      log.error({ err }, "pg pool idle-client error");
     });
   }
   return pool;
@@ -55,7 +57,7 @@ export async function setPoolForTesting(connectionString: string): Promise<Pool>
     application_name: "assessiq-test",
   });
   pool.on("error", (err) => {
-    logger.error({ err }, "pg pool idle-client error (test pool)");
+    log.error({ err }, "pg pool idle-client error (test pool)");
   });
   return pool;
 }

@@ -1,11 +1,20 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
-import { logger, AppError, uuidv7 } from '@assessiq/core';
+import {
+  AppError,
+  enterWithRequestContext,
+  streamLogger,
+  uuidv7,
+} from '@assessiq/core';
 import { tenantContextMiddleware } from '@assessiq/tenancy';
 import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerLogIngestRoutes } from './routes/_log.js';
 import { devAuthHook } from './middleware/dev-auth.js';
+
+const requestLog = streamLogger('request');
+const appLog = streamLogger('app');
 
 export async function buildServer() {
   const app = Fastify({
@@ -17,23 +26,22 @@ export async function buildServer() {
 
   await app.register(cookie);
 
-  // Request context — wraps every request in withRequestContext
+  // Request context — populates AsyncLocalStorage for the lifetime of this
+  // request so streamLogger() / childLogger() / getRequestContext() see the
+  // correct correlation fields without each handler having to opt in.
+  //
+  // `req.assessiqCtx` aliases the same object that lives in ALS, so existing
+  // hooks (devAuthHook, tenantContextMiddleware) can still mutate fields via
+  // the req reference and the changes are visible to log mixin callers.
   app.addHook('onRequest', async (req) => {
-    // Hand off to AsyncLocalStorage so child code can call getRequestContext()
-    // Note: Fastify's hook chain awaits async; we await `withRequestContext`
-    // but the run-block must not return until the request completes. Pattern:
-    // we set a per-request done-promise that resolves in onResponse.
-    // Simpler approach: pre-populate the ALS in onRequest by stashing the
-    // store on req, then inside route handlers call withRequestContext() lazily.
-    // For Phase 0 we just attach the ctx to `req` and provide a small helper
-    // that handlers can call. Avoids the await-around-handler trap.
-    req.assessiqCtx = {
+    const ctx = {
       requestId: String(req.id),
-      // tenantId/userId populated by dev-auth hook below
-      ip: (req.headers['cf-connecting-ip'] as string | undefined)
-          ?? req.ip,
+      // tenantId/userId populated by dev-auth + tenant hooks below
+      ip: (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip,
       ua: req.headers['user-agent'] ?? 'unknown',
     };
+    req.assessiqCtx = ctx;
+    enterWithRequestContext(ctx);
   });
 
   // Dev-only auth: read x-aiq-test-tenant + x-aiq-test-user-id + x-aiq-test-user-role,
@@ -88,11 +96,29 @@ export async function buildServer() {
       });
       return;
     }
-    logger.error({ err }, 'unhandled error');
+    appLog.error({ err }, 'unhandled error');
     reply.code(500).send({ error: { code: 'INTERNAL', message: 'internal error' } });
   });
 
+  // One structured line per HTTP response → request.log.
+  // Mixin auto-attaches requestId/tenantId/userId from ALS.
+  app.addHook('onResponse', async (req, reply) => {
+    requestLog.info(
+      {
+        method: req.method,
+        url: req.url,
+        route: req.routeOptions?.url,
+        status: reply.statusCode,
+        latencyMs: Math.round(reply.elapsedTime),
+        ip: (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip,
+        ua: req.headers['user-agent'] ?? 'unknown',
+      },
+      'http.request',
+    );
+  });
+
   await registerHealthRoutes(app);
+  await registerLogIngestRoutes(app);
   await registerAdminUserRoutes(app);
   await registerInvitationRoutes(app);
 
@@ -105,5 +131,5 @@ if (isCliEntry) {
   const app = await buildServer();
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen({ host: '0.0.0.0', port });
-  logger.info({ port }, 'assessiq-api listening');
+  appLog.info({ port }, 'assessiq-api listening');
 }

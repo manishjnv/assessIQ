@@ -99,6 +99,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
        | Deployment | `docs/06-deployment.md` |
        | Help text | `modules/16-help-system` |
        | UI / theme | `docs/08-ui-system.md` and/or `docs/10-branding-guideline.md` |
+       | Logging / observability | `docs/11-observability.md` |
        | Module-internal | that module's `SKILL.md` |
        | Bug fix | append to `docs/RCA_LOG.md` |
 

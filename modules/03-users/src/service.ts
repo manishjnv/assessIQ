@@ -1,4 +1,4 @@
-import { logger, NotFoundError, ValidationError, ConflictError, uuidv7 } from '@assessiq/core';
+import { streamLogger, NotFoundError, ValidationError, ConflictError, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import type {
   User,
@@ -13,6 +13,8 @@ import { normalizeEmail } from './normalize.js';
 import { assertNotLastAdmin, assertValidStatusTransition } from './invariants.js';
 import * as repo from './repository.js';
 import { sweepUserSessions } from './redis-sweep.js';
+
+const log = streamLogger('app');
 
 // ---------------------------------------------------------------------------
 // Validation helpers
@@ -121,7 +123,7 @@ export async function createUser(tenantId: string, input: CreateUserInput): Prom
   assertValidRole(input.role);
 
   const id = uuidv7();
-  logger.info({ tenantId, id, role: input.role }, 'createUser');
+  log.info({ tenantId, id, role: input.role }, 'createUser');
 
   try {
     return await withTenant(tenantId, (client) =>
@@ -175,7 +177,7 @@ export async function updateUser(
     }
   }
 
-  logger.info({ tenantId, id }, 'updateUser');
+  log.info({ tenantId, id }, 'updateUser');
 
   let shouldSweepRedis = false;
 
@@ -235,7 +237,7 @@ export async function updateUser(
 // ---------------------------------------------------------------------------
 
 export async function softDelete(tenantId: string, id: string): Promise<void> {
-  logger.info({ tenantId, id }, 'softDelete');
+  log.info({ tenantId, id }, 'softDelete');
 
   await withTenant(tenantId, async (client) => {
     const target = await repo.findUserById(client, id);
@@ -264,7 +266,7 @@ export async function softDelete(tenantId: string, id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function restore(tenantId: string, id: string): Promise<User> {
-  logger.info({ tenantId, id }, 'restore');
+  log.info({ tenantId, id }, 'restore');
 
   // restore does NOT touch invitations or sessions per addendum § 5.
   return withTenant(tenantId, async (client) => {

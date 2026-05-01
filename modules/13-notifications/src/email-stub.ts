@@ -9,12 +9,12 @@
  *   tail -f ~/.assessiq/dev-emails.log | jq '.body'
  */
 
-import { createLogger, config } from '@assessiq/core';
+import { streamLogger, config } from '@assessiq/core';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const emailLogger = createLogger().child({ module: 'email-stub' });
+const emailLogger = streamLogger('app').child({ module: 'email-stub' });
 
 /** Shape of one JSONL record (addendum § 8 — exact field set). */
 interface DevEmail {

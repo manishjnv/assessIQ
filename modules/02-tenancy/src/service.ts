@@ -1,7 +1,9 @@
-import { NotFoundError, logger } from "@assessiq/core";
+import { NotFoundError, streamLogger } from "@assessiq/core";
 import { withTenant } from "./with-tenant.js";
 import * as repo from "./repository.js";
 import type { Tenant, TenantSettings } from "./types.js";
+
+const log = streamLogger('app');
 
 export async function getTenantById(tenantId: string): Promise<Tenant> {
   const tenant = await withTenant(tenantId, async (client) => {
@@ -32,7 +34,7 @@ export async function updateTenantSettings(
 ): Promise<TenantSettings> {
   // Do NOT log the patch contents at INFO — TenantSettings JSONB may include
   // tenant-private branding URLs, webhook URLs, etc. CLAUDE.md hard rule #4.
-  logger.info({ tenantId }, "updateTenantSettings");
+  log.info({ tenantId }, "updateTenantSettings");
   return withTenant(tenantId, async (client) => {
     return repo.updateTenantSettingsRow(client, patch);
   });
@@ -43,7 +45,7 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<v
   // tenant.suspended event with actor + reason here. For Phase 0 we only
   // record the reason via warn-level log so a future migration can
   // backfill from log archives if needed.
-  logger.warn({ tenantId, reason }, "tenant suspended (audit log pending)");
+  log.warn({ tenantId, reason }, "tenant suspended (audit log pending)");
   await withTenant(tenantId, async (client) => {
     await repo.setTenantStatus(client, tenantId, "suspended");
   });

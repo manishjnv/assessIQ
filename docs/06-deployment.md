@@ -53,11 +53,39 @@ The shared Hostinger VPS (`srv1150121.hstgr.cloud`, alias `assessiq-vps`) runs t
 | --- | --- | --- |
 | `/srv/assessiq/` | this repo | docker-compose.yml, .env, Dockerfiles, migrations seed dir |
 | `/srv/assessiq/data/` | this app | bind mounts for `pgdata`, `redis-data`, `uploads/` (named volumes preferred; bind only if a host-side tool needs to read) |
-| `/var/log/assessiq/` | this app | application logs that don't fit in Docker json-file |
+| `/var/log/assessiq/` | this app | per-stream JSONL operational logs (`app.log`, `request.log`, `auth.log`, `grading.log`, `migration.log`, `webhook.log`, `frontend.log`, `error.log` mirror). Schema, redaction, retention and triage runbooks live in [docs/11-observability.md](11-observability.md) — this doc only documents disk topology. Owner `assessiq:assessiq`, mode `0750`. Bind-mounted into containers at the same host path. Rotated daily by system `logrotate` with `copytruncate` (config at `infra/logrotate.d/assessiq` — symlinked into `/etc/logrotate.d/`; see § "Log directory + rotation — apply procedure" below). |
 | `/var/backups/assessiq/` | this app | nightly pg_dump destination |
 | `/opt/ti-platform/caddy/Caddyfile` | **ti-platform (shared!)** | Global Caddy config; AssessIQ adds **one server block** here, never edits anything else |
 
 **Hard rule (CLAUDE.md #8 reaffirmed):** AssessIQ's deploy diff is allowed to (a) create files under the four `assessiq`-prefixed paths above and (b) **append** one server block to the ti-platform Caddyfile. Anything else on this box is off-limits without explicit user approval.
+
+### Log directory + rotation — apply procedure
+
+One-time, additive on a fresh VPS or first observability-enabled deploy:
+
+```bash
+# 1. Create the namespaced log dir (operator-owned, AssessIQ-prefixed).
+sudo mkdir -p /var/log/assessiq
+sudo chown assessiq:assessiq /var/log/assessiq
+sudo chmod 0750 /var/log/assessiq
+
+# 2. Symlink the committed logrotate config into /etc/logrotate.d/.
+#    Linking (vs copying) means future repo changes apply on next pull.
+sudo ln -sfn /srv/assessiq/infra/logrotate.d/assessiq /etc/logrotate.d/assessiq
+
+# 3. Validate the config (dry-run; prints what would happen).
+sudo logrotate -d /etc/logrotate.d/assessiq
+
+# 4. Force a first rotation (creates the empty rotation state file).
+sudo logrotate -f /etc/logrotate.d/assessiq
+
+# 5. Confirm the assessiq-api / assessiq-worker containers see the bind mount.
+docker exec assessiq-api ls -la /var/log/assessiq      # expect: writable by container user
+```
+
+`copytruncate` is load-bearing — pino holds open file descriptors, and rotation without `copytruncate` results in the rotated file continuing to receive writes while the new file stays empty. Same trap class as the Caddy bind-mount inode RCA (`docs/RCA_LOG.md` 2026-04-30). See `docs/11-observability.md § 7` for the rationale and the in-config explanation.
+
+Set `LOG_DIR=/var/log/assessiq` in `/srv/assessiq/.env` so `00-core` activates the on-disk JSONL fan-out (without it, all logs only go to stdout / Docker json-file). Restart the `assessiq-api` and `assessiq-worker` containers after first set: `docker compose -f /srv/assessiq/docker-compose.yml up -d assessiq-api assessiq-worker`.
 
 ## Reverse-proxy plan — additive Caddyfile block
 
@@ -287,6 +315,10 @@ EMAIL_FROM="AssessIQ <noreply@automateedge.cloud>"
 
 # Observability
 LOG_LEVEL=info
+# LOG_DIR activates per-stream JSONL files in 00-core's logger. Set in
+# production; leave UNSET in dev/test (stdout-only). Bind-mounted to the
+# host at the same path. See docs/11-observability.md § 3.
+LOG_DIR=/var/log/assessiq
 SENTRY_DSN=
 
 # Phase 1 AI grading runs as Claude Code CLI on this VPS under the admin's Max account.
