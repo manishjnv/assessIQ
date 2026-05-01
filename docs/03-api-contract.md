@@ -73,20 +73,25 @@
 
 ### Admin — Question bank
 
+> **Status: live as of 2026-05-01 (Phase 1 G1.A Session 1).** All 15 routes registered into `apps/api/src/server.ts` via `registerQuestionBankRoutes(app, { adminOnly: authChain({roles:['admin']}) })`. Smoke verified live: `GET /api/admin/packs` returns 401 AUTHN_FAILED without session. JSON import is the Phase 1 format; CSV deferred to Phase 2. The `archive`, `levels/:id` PATCH, and `questions/:id/restore` rows are Phase 1 service-method extensions added in the same PR — same admin-only auth gate.
+
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/admin/packs`                    | List question packs |
-| `POST` | `/admin/packs`                    | Create pack |
-| `GET`  | `/admin/packs/:id`                | Pack with levels |
-| `PATCH`| `/admin/packs/:id`                | Update pack metadata |
-| `POST` | `/admin/packs/:id/publish`        | Transition draft → published |
-| `POST` | `/admin/packs/:id/levels`         | Add level (L1/L2/L3) |
-| `GET`  | `/admin/questions`                | List questions (filter by pack, level, type, tag) |
-| `POST` | `/admin/questions`                | Create question |
-| `GET`  | `/admin/questions/:id`            | Get question (latest version) |
-| `PATCH`| `/admin/questions/:id`            | Update — creates new version automatically |
-| `GET`  | `/admin/questions/:id/versions`   | List versions |
-| `POST` | `/admin/questions/import`         | Bulk import from JSON/CSV |
+| `GET`  | `/admin/packs`                       | List question packs (paginated; filter by `domain`, `status`) |
+| `POST` | `/admin/packs`                       | Create pack (returns 201) |
+| `GET`  | `/admin/packs/:id`                   | Pack with levels (`{ pack, levels }`) |
+| `PATCH`| `/admin/packs/:id`                   | Update pack metadata (name, domain, description) |
+| `POST` | `/admin/packs/:id/publish`           | Transition draft → published; snapshots all questions; bumps `pack.version` and each `question.version` |
+| `POST` | `/admin/packs/:id/archive`           | Transition published → archived (rejected if any active assessment references the pack — `PACK_HAS_ASSESSMENTS`) |
+| `POST` | `/admin/packs/:id/levels`            | Add level (returns 201) |
+| `PATCH`| `/admin/levels/:id`                  | Update level fields (label, description, duration, default_question_count, passing_score_pct) |
+| `GET`  | `/admin/questions`                   | List questions (filter by `pack_id`, `level_id`, `type`, `status`, `tag`, `search`) |
+| `POST` | `/admin/questions`                   | Create question (returns 201) |
+| `GET`  | `/admin/questions/:id`               | Get question (latest version) |
+| `PATCH`| `/admin/questions/:id`               | Update — creates new version automatically (snapshot-before-update) |
+| `GET`  | `/admin/questions/:id/versions`      | List version snapshots (most-recent first) |
+| `POST` | `/admin/questions/:id/restore`       | Restore from a prior version (body: `{ version: number }`); snapshots current then bumps |
+| `POST` | `/admin/questions/import`            | Bulk import from JSON (Phase 1) — CSV deferred to Phase 2 |
 
 ### Admin — Assessments & invitations
 

@@ -197,6 +197,12 @@ CREATE TABLE embed_secrets (
 
 ## Question bank
 
+> **Status: live as of 2026-05-01 (Phase 1 G1.A Session 1).** Migrations at `modules/04-question-bank/migrations/`: `0010_question_packs.sql` (standard tenant_id RLS), `0011_levels.sql`, `0012_questions.sql`, `0013_question_versions.sql`, `0014_tags.sql` (`tags` standard + `question_tags` JOIN-based), `0015_questions_level_pack_fk.sql` (defense-in-depth composite FK). All 6 tables on production `assessiq-postgres`; `tools/lint-rls-policies.ts` enforces both standard and JOIN-based RLS variants in CI.
+>
+> **JOIN-based RLS for child tables** — `levels`, `questions`, `question_versions`, `question_tags` carry no `tenant_id` column. RLS derives tenancy through the parent `pack_id` FK chain via an `EXISTS (SELECT 1 FROM question_packs p WHERE p.id = child.pack_id AND p.tenant_id = current_setting('app.current_tenant', true)::uuid)` predicate. Two-hop variant (`question_versions`, `question_tags`) joins through `questions → question_packs`. Same fail-closed guarantee: NULL GUC → `tenant_id = NULL` → FALSE → zero rows visible. *Why:* a denormalized `tenant_id` on every child would risk drift (a question moved between packs would need its tenant_id updated; a forgotten update silently leaks rows). The JOIN version is structurally consistent with the FK chain. *Considered and rejected:* (a) denormalized `tenant_id` columns on each child table — drift risk; (b) RLS-via-trigger that updates tenant_id on insert — adds a per-row write path with no defense-in-depth gain. *Not included:* attempt-engine child tables (`attempt_questions`/`attempt_answers`/`attempt_events`) — those use the same JOIN pattern but ship with G1.C.
+>
+> **Defense-in-depth composite FK** (migration 0015) — `questions.(level_id, pack_id)` references `levels.(id, pack_id)`. Without this FK, a service-layer regression could silently let a question reference a level in a different pack (different tenant). The service guard (`findLevelById` RLS-scoped lookup) is the first line of defense; the composite FK is the structural backstop. Cost: a redundant `UNIQUE (id, pack_id)` on `levels` (id is already PK).
+
 ```sql
 CREATE TABLE question_packs (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
