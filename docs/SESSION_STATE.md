@@ -1,19 +1,22 @@
-# Session — 2026-05-01 (assessiq-frontend ships — site is browseable)
+# Session — 2026-05-01 (assessiq-frontend ships + Google SSO live — Drill A unblocked end-to-end)
 
-**Headline:** `https://assessiq.automateedge.cloud/` is now browseable. Multi-stage Vite SPA → nginx:alpine container live on host port 9091, Caddy default-route swapped from placeholder body to reverse_proxy, four assessiq-* containers all healthy. Drill A automated portion green; user-driven portion (Google login click-through) blocked on user-side OAuth client provisioning.
+**Headline:** `https://assessiq.automateedge.cloud/` is browseable AND Google SSO is live. Frontend Vite SPA → nginx:alpine container on 9091, Caddy default-route swapped from placeholder, four assessiq-* containers healthy, OAuth credentials populated from user's `.env.local`, `GET /api/auth/google/start?tenant=wipro-soc` returns **302 Found** to `accounts.google.com/o/oauth2/v2/auth` with proper `aiq_oauth_state` + `aiq_oauth_nonce` cookies (HttpOnly + Secure + SameSite=Lax per addendum §1). Drill A is **unblocked end-to-end** — the user can complete login → MFA → /admin/users in a browser.
 
 **Commits this session:**
 
 - `3ef4e25` — feat(infra): assessiq-frontend Dockerfile + Caddy default-route prep (4 files: Dockerfile, nginx.conf, Dockerfile.dockerignore, compose edits)
-- `<docs-sha>` — docs(phase-0): frontend deploy + IPv6 healthcheck RCA + Drill A handoff (this commit)
+- `900af76` — docs(phase-0): assessiq-frontend live + IPv6 healthcheck RCA + Drill A handoff
+- `<docs-sha-2>` — docs(phase-0): Google SSO live + env_file recreate RCA + .env.local key-name RCA (this commit, no code change)
 
 **Tests:** Local docker build verified — Vite 130 modules, 211KB JS / 12.5KB CSS / 70KB gzipped, image **73.9 MB**. Smoke: `curl localhost:4174/healthz → 200`, `curl localhost:4174/ → 200` with `<title>AssessIQ</title>`. No new vitest suite this session.
 
-**Next:** Provision Google OAuth client in Google Cloud Console (redirect URI `https://assessiq.automateedge.cloud/api/auth/google/cb`), populate `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `/srv/assessiq/.env`, restart `assessiq-api` (`docker compose -f infra/docker-compose.yml restart assessiq-api` from `/srv/assessiq`). Then complete Drill A user-driven portion: visit `/admin/login` in browser, click Google SSO, complete MFA enrollment, land on `/admin/users`.
+**Next:** User completes Drill A user-driven portion in browser — `/admin/login` → Google SSO → `/admin/mfa` (TOTP enrollment) → `/admin/users`. After that, Phase 1 G1.A (`04-question-bank` + `16-help-system` + Tooltip primitive) work is on deck per the prior session's stash.
 
 **Open questions / explicit deferrals:**
 
-- **Drill A user portion DEFERRED — same DEFERRED-CLEAN state as the prior Phase 0 closure session.** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` confirmed empty (0 chars) in `/srv/assessiq/.env`. Earlier mid-session claim that creds were "already set" was a false positive — the `sed s/=.*/=<set>/` pipeline matched the variable line existing, not its value being non-empty. Direct length check via `awk -F= '{print length($2)}'` gave `0`. Provisioning is a user-side task (involves Google Cloud Console + secret handling); not something the orchestrator should do.
+- **`.env.local` key name mismatch (user-side cleanup).** Local file uses `GOOGLE_REDIRECT_URI` but the schema in [`modules/00-core/src/config.ts:68`](../modules/00-core/src/config.ts#L68) and `.env.example:40` expect `GOOGLE_OAUTH_REDIRECT`. Prod is fixed (canonical key now set with the right URL); the user's local `.env.local` should be renamed to match for future deploys. RCA logged.
+- **`docker compose restart` ≠ recreate.** First attempt to apply the new OAuth values used `docker compose restart assessiq-api`, which is process-only (env vars baked at container *creation*, not on restart). `up -d --force-recreate --no-deps assessiq-api` was the correct recipe. RCA logged with prevention rule for future `.env`-touching deploys.
+- **Brief api-recreate outage.** The `--force-recreate` cycle dropped in-flight requests for ~5–10 s. Acceptable at zero-traffic; would matter once paid customers are on the box. Phase 1+ should investigate blue/green or rolling-recreate options (compose lacks native support; would need a minimal nginx upstream or HAProxy in front).
 - **API recreate caused brief outage.** The healthcheck IPv6 fix in compose required recreating `assessiq-api` to pick up the new config. ~5–10 s gap during which `/api/*` returned 502 from Caddy. Acceptable for the current zero-traffic state; would matter once paid customers are on the box.
 - **Caddy `caddy fmt` warning.** `docker exec ti-platform-caddy-1 caddy reload` emitted `"Caddyfile input is not formatted; run 'caddy fmt --overwrite' to fix inconsistencies"` on line 38 (the `etip_nginx` block, NOT AssessIQ). Pre-existing in the shared file; not caused by our edit. Out of scope (shared infra; running `caddy fmt --overwrite` would reformat unrelated site blocks).
 - **`assessiq-frontend` does not currently set `X-Forwarded-Proto`-aware redirects.** Not needed at this layer (nginx serves only static assets; no upstream redirects); flagged here in case Phase 1+ moves the API reverse-proxy from Caddy into the frontend nginx (per `docs/06-deployment.md` § Compose layout note about "frontend's nginx reverse-proxies /api to assessiq-api").

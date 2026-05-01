@@ -4,6 +4,40 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-01 — `docker compose restart` does NOT reload `env_file` — empty CLIENT_ID/SECRET in container after `.env` edit
+
+**Symptom:** After populating `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `/srv/assessiq/.env` and running `docker compose -f infra/docker-compose.yml restart assessiq-api`, `GET /api/auth/google/start` continued to return 401 `"Google SSO is not configured"`. `python3` reading `/srv/assessiq/.env` confirmed the values were written (72 + 35 chars). `docker exec assessiq-api sh -c 'echo "$GOOGLE_CLIENT_ID"'` showed both vars EMPTY in the running container — the old (empty) values from before the merge.
+
+**Cause:** `docker compose restart <svc>` is a **process-level restart** of the existing container — it sends SIGTERM, waits, sends SIGKILL, then re-runs the entrypoint *inside the same container instance*. Container env vars are baked at **container creation time** from `env_file:` + `environment:` directives; they are NOT re-read on restart. `env_file:` changes only take effect when the container is **recreated** (via `up -d` detecting a config diff, or `up -d --force-recreate`).
+
+**Fix:** Replaced `docker compose restart assessiq-api` with `docker compose up -d --force-recreate --no-deps assessiq-api`. After recreate, `docker exec assessiq-api sh -c 'echo -n "$GOOGLE_CLIENT_ID" | wc -c'` returned 72 (matching the merged `.env`); the SSO start endpoint flipped from 401 to **302 Found** with proper Google OAuth `Location:` and `aiq_oauth_state` + `aiq_oauth_nonce` cookies.
+
+**Prevention:**
+
+1. **Repo-wide rule:** any time `/srv/assessiq/.env` (or any `env_file:` reference) changes, the affected service MUST be recreated, not just restarted. Recipe:
+
+   ```bash
+   ssh assessiq-vps "cd /srv/assessiq && docker compose -f infra/docker-compose.yml up -d --force-recreate --no-deps <service>"
+   ```
+
+   Add to `docs/06-deployment.md` § Operational recipes.
+2. **Sanity check post-deploy:** after any `.env`-touching deploy, run `docker exec <container> sh -c 'echo -n "$KEY" | wc -c'` against the keys that should have changed; mismatch vs the file's value means the container wasn't recreated.
+3. **Cross-reference for next session:** the issue is documented here so future "I changed .env and the service didn't pick it up" debugging skips the wrong rabbit holes (was it sed? is the file readable? is the python merge wrong?). The answer is almost always: `restart` ≠ `recreate`.
+
+## 2026-05-01 — `.env.local` key name `GOOGLE_REDIRECT_URI` does not match config schema `GOOGLE_OAUTH_REDIRECT`
+
+**Symptom:** Local `.env.local` had `GOOGLE_REDIRECT_URI=https://assessiq.automateedge.cloud/api/auth/google/cb` set. After scp'ing into `/srv/assessiq/.env` and recreating the api, the SSO start endpoint still 401'd. Container env showed `GOOGLE_OAUTH_REDIRECT=<EMPTY>` (the canonical name) while `GOOGLE_REDIRECT_URI` was set with the value the user provided. Code at [`modules/01-auth/src/google-sso.ts:126`](../modules/01-auth/src/google-sso.ts#L126) and `:192` reads `config.GOOGLE_OAUTH_REDIRECT`, fails on missing redirect, returns 401.
+
+**Cause:** Two different conventions for the OAuth redirect-URI env-var name. The `.env.example` template + Zod schema in [`modules/00-core/src/config.ts:68`](../modules/00-core/src/config.ts#L68) standardised on `GOOGLE_OAUTH_REDIRECT`. The user's local `.env.local` uses `GOOGLE_REDIRECT_URI` (the more common Google OAuth convention name). The merge script faithfully copied each key by exact name — `GOOGLE_REDIRECT_URI` ≠ `GOOGLE_OAUTH_REDIRECT`, so the canonical key remained empty.
+
+**Fix:** Appended `GOOGLE_OAUTH_REDIRECT=https://assessiq.automateedge.cloud/api/auth/google/cb` to `/srv/assessiq/.env` (canonical key per schema). Recreated the api; SSO start returned 302.
+
+**Prevention:**
+
+1. **Local file convention:** the user's `.env.local` should rename `GOOGLE_REDIRECT_URI` → `GOOGLE_OAUTH_REDIRECT` to match the schema. Documented in the next SESSION_STATE handoff.
+2. **Future merge scripts** should validate keys against the Zod schema in `modules/00-core/src/config.ts` and surface mismatches BEFORE writing. A simple "keys in .env.local that aren't in the schema" warning would have caught this.
+3. **`.env.example` is the canonical key list.** Any local `.env*` file should use exactly those keys; rename-aliasing is anti-pattern.
+
 ## 2026-05-01 — `assessiq-api` container marked `(unhealthy)` despite serving 200 externally
 
 **Symptom:** `docker ps` showed `assessiq-api ... Up 2 hours (unhealthy)` after the Phase 0 closure deploy. External requests via Caddy → `127.0.0.1:9092` returned 200 on `/api/health`. `docker inspect assessiq-api --format '{{json .State.Health.Log}}'` revealed every healthcheck attempt had failed with `wget: can't connect to remote host: Connection refused`. The unhealthy badge was blocking `assessiq-frontend.depends_on: condition: service_healthy` from satisfying when the frontend container was about to ship.
