@@ -16,6 +16,10 @@ export class ApiCallError extends Error {
   }
 }
 
+// Cookie-based auth via @assessiq/auth's sessionLoader. The aiq_sess cookie
+// is set httpOnly+Secure+SameSite=Lax by /api/auth/google/cb (and the
+// invitation accept path); credentials:'include' sends it on every request.
+// The legacy dev-auth-headers shim was removed in Phase 0 closure (Commit B).
 export async function api<T = unknown>(
   path: string,
   init: RequestInit = {},
@@ -26,10 +30,6 @@ export async function api<T = unknown>(
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      // FIXME(post-01-auth): swap dev-auth headers for cookie-only auth via 01-auth sessionLoader.
-      // Phase 0 dev mode pulls dev-auth values from sessionStorage so the mock
-      // login flow can populate them.
-      ...devAuthHeaders(),
     },
   });
 
@@ -42,19 +42,4 @@ export async function api<T = unknown>(
 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
-}
-
-function devAuthHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const raw = window.sessionStorage.getItem('aiq:dev-auth');
-  if (!raw) return {};
-  try {
-    const v = JSON.parse(raw) as { tenantId?: string; userId?: string; role?: string };
-    if (!v.tenantId || !v.userId || !v.role) return {};
-    return {
-      'x-aiq-test-tenant': v.tenantId,
-      'x-aiq-test-user-id': v.userId,
-      'x-aiq-test-user-role': v.role,
-    };
-  } catch { return {}; }
 }

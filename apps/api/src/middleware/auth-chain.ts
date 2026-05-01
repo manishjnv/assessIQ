@@ -2,9 +2,10 @@
 //
 // Composes the @assessiq/auth middleware stack into a Fastify-shaped array
 // the auth route layer drops into `{ preHandler: [...] }`. Each route owns
-// its chain — the routes are marked `config: { skipAuth: true }` so the
-// legacy global devAuthHook short-circuits, leaving these per-route hooks
-// authoritative for the new /api/auth/* surface.
+// its chain. The route definitions also carry `config: { skipAuth: true }`
+// — that flag is preserved for future global-hook opt-outs (e.g. legacy
+// audit hooks that want to ignore /api/auth/*). The per-route chain is
+// authoritative for /api/auth/* and /embed.
 //
 // Stack order — modules/01-auth/SKILL.md § Decisions captured § 9:
 //   1. rateLimit         (per-IP for /api/auth/*; per-user/tenant for authed)

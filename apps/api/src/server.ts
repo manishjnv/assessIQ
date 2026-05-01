@@ -12,7 +12,6 @@ import { registerInvitationRoutes } from './routes/invitations.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
-import { devAuthHook } from './middleware/dev-auth.js';
 
 const requestLog = streamLogger('request');
 const appLog = streamLogger('app');
@@ -31,9 +30,10 @@ export async function buildServer() {
   // request so streamLogger() / childLogger() / getRequestContext() see the
   // correct correlation fields without each handler having to opt in.
   //
-  // `req.assessiqCtx` aliases the same object that lives in ALS, so existing
-  // hooks (devAuthHook, tenantContextMiddleware) can still mutate fields via
-  // the req reference and the changes are visible to log mixin callers.
+  // `req.assessiqCtx` aliases the same object that lives in ALS, so per-route
+  // auth hooks (sessionLoaderMiddleware via auth-chain.ts) and the global
+  // tenantContextMiddleware can mutate fields via the req reference and the
+  // changes are visible to log mixin callers.
   app.addHook('onRequest', async (req) => {
     const ctx = {
       requestId: String(req.id),
@@ -44,10 +44,6 @@ export async function buildServer() {
     req.assessiqCtx = ctx;
     enterWithRequestContext(ctx);
   });
-
-  // Dev-only auth: read x-aiq-test-tenant + x-aiq-test-user-id + x-aiq-test-user-role,
-  // populates req.session. Hard-fails in production (NODE_ENV === 'production').
-  app.addHook('preHandler', devAuthHook);
 
   // Tenant context (RLS pin). Skips when req.session is absent (e.g. /health, /invitations/accept pre-auth).
   // 02-tenancy is structurally typed against minimal TenantRequest/TenantReply shapes
@@ -123,10 +119,10 @@ export async function buildServer() {
   await registerAdminUserRoutes(app);
   await registerInvitationRoutes(app);
   // Auth routes install their own per-route preHandler chain (rateLimit →
-  // sessionLoader → apiKeyAuth → syncCtx → requireAuth → extendOnPass).
-  // All auth routes are config:{skipAuth:true} so the legacy global
-  // devAuthHook short-circuits — Commit B (the dev-auth shim deletion +
-  // global chain swap) is a follow-on refactor.
+  // sessionLoader → apiKeyAuth → syncCtx → requireAuth → extendOnPass)
+  // via apps/api/src/middleware/auth-chain.ts. Routes are config:{skipAuth:true}
+  // (legacy convention preserved so any future global hook can opt out
+  // uniformly), but the per-route chain is authoritative.
   await registerAuthRoutes(app);
 
   return app;

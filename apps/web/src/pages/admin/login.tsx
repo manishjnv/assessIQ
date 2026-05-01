@@ -1,7 +1,5 @@
-import type { CSSProperties } from 'react';
-import { Button, Chip, Logo } from '@assessiq/ui-system';
-import { saveSession } from '../../lib/session';
-import { useNavigate } from 'react-router-dom';
+import { useState, type CSSProperties } from 'react';
+import { Button, Chip, Field, Logo } from '@assessiq/ui-system';
 
 const META_LABEL: CSSProperties = {
   fontFamily: 'var(--aiq-font-mono)',
@@ -11,20 +9,20 @@ const META_LABEL: CSSProperties = {
   color: 'var(--aiq-color-fg-secondary)',
 };
 
+// Default tenant slug for Phase 0 (single-tenant bootstrap). The slug is
+// validated server-side; an unknown slug returns 401. Future phases will
+// support per-tenant subdomain or a tenant picker.
+const DEFAULT_TENANT_SLUG = 'wipro-soc';
+
 export function AdminLogin(): JSX.Element {
-  const nav = useNavigate();
+  const [tenantSlug, setTenantSlug] = useState(DEFAULT_TENANT_SLUG);
 
   const startGoogleSso = (): void => {
-    // Real path (Window 4): window.location.href = '/api/auth/google/start';
-    // FIXME(post-01-auth): swap dev mock for real Google SSO redirect once 01-auth ships.
-    // Phase 0 dev mock: synthesize a bootstrap admin session and route to MFA.
-    saveSession({
-      tenantId: window.prompt('DEV: tenant id (uuid)') ?? '',
-      userId: window.prompt('DEV: user id (uuid)') ?? '',
-      role: 'admin',
-      totpVerified: false,
-    });
-    nav('/admin/mfa');
+    // Server-side OIDC: /api/auth/google/start?tenant=<slug> sets state +
+    // nonce cookies and 302's to accounts.google.com. The callback at
+    // /api/auth/google/cb sets aiq_sess and 302's to /admin/mfa.
+    const url = `/api/auth/google/start?tenant=${encodeURIComponent(tenantSlug)}`;
+    window.location.href = url;
   };
 
   return (
@@ -65,13 +63,21 @@ export function AdminLogin(): JSX.Element {
           Continue with the Google account tied to your tenant.
           You will be asked to verify a one-time code from your authenticator app on the next step.
         </p>
+        <div style={{ marginBottom: 24, maxWidth: 320 }}>
+          <Field
+            label="Tenant"
+            value={tenantSlug}
+            onChange={(e) => setTenantSlug(e.target.value)}
+            placeholder="wipro-soc"
+          />
+        </div>
         <div>
-          <Button size="lg" leftIcon="google" onClick={startGoogleSso}>
+          <Button size="lg" leftIcon="google" onClick={startGoogleSso} disabled={tenantSlug.length === 0}>
             Continue with Google
           </Button>
         </div>
         <p style={{ ...META_LABEL, marginTop: 48 }}>
-          Phase 0 dev build · 01-auth Window 4 swaps in real Google SSO
+          Phase 0 closure · Google SSO + TOTP · live end-to-end
         </p>
       </main>
 
