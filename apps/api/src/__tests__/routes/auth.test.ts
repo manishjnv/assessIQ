@@ -432,6 +432,15 @@ describe('AssessIQ auth routes — security-critical', () => {
       // Cleared cookie has Max-Age=0 or Expires in the past.
       expect(cleared!).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
     });
+
+    it('accepts pre-MFA admin session (must allow logout to bail out of half-completed sign-in)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/logout',
+        headers: ADMIN_PRE_MFA_HEADERS,
+      });
+      expect(res.statusCode).toBe(204);
+    });
   });
 
   // ─── Whoami ────────────────────────────────────────────────────────────
@@ -446,6 +455,22 @@ describe('AssessIQ auth routes — security-critical', () => {
       const body = res.json() as { user: { role: string }; mfaStatus: string };
       expect(body.user.role).toBe('admin');
       expect(body.mfaStatus).toBe('verified');
+    });
+
+    it('returns mfaStatus="pending" for pre-MFA admin session (post-Google-SSO, pre-TOTP)', async () => {
+      // Without `requireTotpVerified: false` on the whoami chain, this would
+      // 401 — making the post-SSO redirect to /admin/mfa unreachable because
+      // RequireSession on the SPA can't tell "valid pre-MFA session" from
+      // "no session" and bounces back to /login. Regression test.
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/whoami',
+        headers: ADMIN_PRE_MFA_HEADERS,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { user: { role: string }; mfaStatus: string };
+      expect(body.user.role).toBe('admin');
+      expect(body.mfaStatus).toBe('pending');
     });
 
     it('returns 401 when no session and no apiKey', async () => {
