@@ -128,18 +128,17 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
-### Current live state — Phase 0 closure split-route (2026-05-01)
+### Current live state — Phase 0 closure split-route + frontend (2026-05-01)
 
-`assessiq-api` is live. `assessiq-frontend` is NOT yet shipped (Phase 1+ deliverable: `infra/docker/assessiq-frontend/Dockerfile` + `apps/web` static build + Caddy default-route swap). The Caddy block now does a split-route: API + embed paths reach the API container; the default route still serves the placeholder body.
+`assessiq-api` and `assessiq-frontend` are both live. The frontend container ships at SHA `3ef4e25` — multi-stage Vite SPA build (apps/web) on `nginx:alpine`, 73.9 MB image, exposing host port 9091. The Caddy block does a split-route: API + embed paths reach the API container on 9092; the default route reverse-proxies to the frontend container on 9091.
 
 Live block at `/opt/ti-platform/caddy/Caddyfile`:
 
 ```caddy
 # ═══ AssessIQ — assessiq.automateedge.cloud ═══
 # Phase 0 closure: split-route /api/* + /embed* → assessiq-api on 9092.
-# Default route still serves the placeholder body until assessiq-frontend
-# ships (Phase 1+ deliverable). Swap-back to a full reverse_proxy once the
-# frontend container is bound to host port 9091.
+# Default route now reverse-proxies to assessiq-frontend on 9091
+# (swap completed 2026-05-01 at SHA 3ef4e25).
 # Backup before any edit: /opt/ti-platform/caddy/Caddyfile.bak.<UTC-ts>.
 # Edits MUST use truncate-write (cat >), NEVER mv — bind-mount inode trap
 # from RCA 2026-04-30.
@@ -156,13 +155,10 @@ assessiq.automateedge.cloud {
         }
     }
 
-    # Default route — placeholder body until assessiq-frontend ships.
+    # Default route — assessiq-frontend container on host port 9091.
     handle {
-        header Content-Type "text/html; charset=utf-8"
-        header Cache-Control "no-store"
-        respond 200 {
-            body "<!DOCTYPE html><meta charset='utf-8'><title>AssessIQ</title>...<h1>AssessIQ</h1><p>API live at /api. Frontend coming soon.</p>..."
-            close
+        reverse_proxy 172.17.0.1:9091 {
+            header_up X-Forwarded-Proto https
         }
     }
 }
@@ -170,21 +166,16 @@ assessiq.automateedge.cloud {
 
 **What's live (verified `2026-05-01`):**
 
+- `GET https://assessiq.automateedge.cloud/` → 200 SPA shell (`<title>AssessIQ</title>`, hashed asset `/assets/index-<hash>.js`). SPA fallback verified — any deep route (e.g. `/admin/login`, `/admin/users`, `/some-non-existent-route`) returns the same index.html so react-router-dom can take over.
 - `GET https://assessiq.automateedge.cloud/api/health` → 200 `{"status":"ok"}` — confirms split-route + container reachability.
 - `GET https://assessiq.automateedge.cloud/embed?token=...` → exercise of the addendum §5 HS256-only verify path. `alg=none` rejected with 401 INVALID_TOKEN; replay rejected with 401 INVALID_TOKEN (Redis cache populated).
-- `GET https://assessiq.automateedge.cloud/api/auth/google/start?tenant=wipro-soc` → 401 AUTHN_FAILED `"Google SSO is not configured"` because `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are empty in `/srv/assessiq/.env` (route layer + tenant resolution all proven correct; provisioning the OAuth client and restarting `assessiq-api` is the only remaining step).
-- `GET https://assessiq.automateedge.cloud/` → 200 placeholder body (default route).
+- `GET https://assessiq.automateedge.cloud/api/auth/google/start?tenant=wipro-soc` → **401 AUTHN_FAILED `"Google SSO is not configured"`** — `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are still empty (0 chars) in `/srv/assessiq/.env`. Route layer + tenant resolution proven correct (latency ~100 ms hitting tenant DB lookup); provisioning the OAuth client and restarting `assessiq-api` is the only remaining step. **DEFERRED — user-side task.**
+- **Cache headers:** `index.html` returns `Cache-Control: no-cache, no-store, must-revalidate` (clients pick up new asset hashes after a deploy); hashed assets (`/assets/index-<hash>.js`, `.css`) return `Cache-Control: public, max-age=31536000, immutable`.
+- **Security headers (from Caddy `security-headers` snippet):** HSTS, X-Frame-Options DENY, CSP `frame-ancestors 'none'`, X-Content-Type-Options nosniff.
 
-**To swap the default route to the real frontend** (when `assessiq-frontend` is deployed and listening on host:9091):
+**Historical — Phase 0 default-route swap (resolved 2026-05-01 at SHA 3ef4e25):** Earlier in Phase 0 closure the default route served a `respond 200` placeholder body until the frontend container shipped. The swap procedure (Python regex substitution against the existing `handle { ... respond 200 ... }` block, truncate-write of the new Caddyfile to preserve the bind-mount inode, validate-then-reload via `docker exec ti-platform-caddy-1 caddy ...`) is captured in the SHA-3ef4e25 deploy log; subsequent Caddyfile edits for AssessIQ should mirror that procedure.
 
-1. Backup the current Caddyfile: `cp /opt/ti-platform/caddy/Caddyfile /opt/ti-platform/caddy/Caddyfile.bak.$(date -u +%Y%m%d-%H%M%S)`.
-2. Replace the `handle { ... respond 200 ... }` default block with `handle { reverse_proxy 172.17.0.1:9091 { header_up X-Forwarded-Proto https } }`. Leave the `@api` matcher and its handle block UNCHANGED — that's now the load-bearing part for the API surface.
-3. **In-place truncate-write** to preserve the inode (`/opt/ti-platform/caddy/Caddyfile -> /etc/caddy/Caddyfile` is a single-file bind mount; `mv` detaches it). Use `cat new > /opt/ti-platform/caddy/Caddyfile` — never `mv` (RCA 2026-04-30).
-4. Validate: `docker exec ti-platform-caddy-1 caddy validate --config /etc/caddy/Caddyfile`.
-5. Graceful reload: `docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile`.
-6. Smoke: `curl -sS -D - https://assessiq.automateedge.cloud/` → expect 200 from the frontend SPA, not the placeholder body.
-
-**Historical — Phase 0 G0.A initial placeholder (resolved 2026-04-30 502 RCA):** Before the API container shipped, the entire AssessIQ block was a `respond 200` placeholder serving "We are building." That state was the resolution of the 502 incident on 2026-04-30 (DNS + Caddy wired ahead of any container). The block above is the Phase 0 closure successor: split-route, API live, default still placeholder until frontend container.
+**Historical — Phase 0 G0.A initial placeholder (resolved 2026-04-30 502 RCA):** Before the API container shipped, the entire AssessIQ block was a `respond 200` placeholder serving "We are building." That state was the resolution of the 502 incident on 2026-04-30 (DNS + Caddy wired ahead of any container).
 
 ## docker-compose.yml — `infra/docker-compose.yml` (in repo) → `/srv/assessiq/infra/docker-compose.yml` (on VPS)
 
@@ -287,7 +278,7 @@ services:
     container_name: assessiq-frontend
     build:
       context: .
-      dockerfile: ./infra/docker/frontend.Dockerfile
+      dockerfile: ./infra/docker/assessiq-frontend/Dockerfile
     networks: [assessiq-net]
     # Bound to all interfaces on host port 9091 so ti-platform-caddy-1 (on a different
     # Docker network) can reach it via the bridge gateway 172.17.0.1:9091.

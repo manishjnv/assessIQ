@@ -4,6 +4,20 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-01 — `assessiq-api` container marked `(unhealthy)` despite serving 200 externally
+
+**Symptom:** `docker ps` showed `assessiq-api ... Up 2 hours (unhealthy)` after the Phase 0 closure deploy. External requests via Caddy → `127.0.0.1:9092` returned 200 on `/api/health`. `docker inspect assessiq-api --format '{{json .State.Health.Log}}'` revealed every healthcheck attempt had failed with `wget: can't connect to remote host: Connection refused`. The unhealthy badge was blocking `assessiq-frontend.depends_on: condition: service_healthy` from satisfying when the frontend container was about to ship.
+
+**Cause:** The compose healthcheck at [`infra/docker-compose.yml:94`](../infra/docker-compose.yml#L94) (pre-fix) used `wget -q --spider http://localhost:3000/api/health`. In `node:22-alpine` (the `assessiq-api` runtime base) the `/etc/hosts` entry for `localhost` resolves to `::1` (IPv6) first; `wget`'s default behaviour is to try the first address-family entry, fail, and surface `Connection refused` without falling back. Fastify (the API server) defaults to listening on `0.0.0.0` — IPv4 only — so the IPv6 `::1` connect attempt has nothing to connect to. External traffic worked because Docker's port mapping `9092:3000` forwards explicitly to the IPv4 listener; only the in-container loopback healthcheck saw the IPv6/IPv4 family mismatch.
+
+**Fix:** Swap `localhost` → `127.0.0.1` in the healthcheck (commit `3ef4e25`). The IPv4 literal forces the connect to the family Fastify is actually listening on. Recreating the container picked up the new healthcheck definition; `(unhealthy)` flipped to `(healthy)` within one healthcheck interval (15 s).
+
+**Prevention:**
+
+1. **Repo-wide policy:** for any future Alpine-based service that performs an in-container loopback healthcheck against a Node/Fastify/Express upstream, prefer `127.0.0.1` over `localhost` in compose `healthcheck.test` lines. If IPv6 dual-stack is genuinely required, listen on `::` in the application AND verify the healthcheck. Add to `docs/06-deployment.md` § Dockerfile authoring conventions when that section grows.
+2. **Avoid the symptomatic mitigation of `condition: service_started`:** that band-aid lets dependent services start without the health gate but masks real outages. Fix the healthcheck instead.
+3. **Cross-reference:** the `assessiq-frontend` `depends_on` was relaxed to `service_started` in the same commit because the static SPA does not require the API up to start (Caddy splits `/api/*` to a separate host port). That decision is independent of this fix and remains correct on its own merits.
+
 ## 2026-05-01 — Postgres role membership missing: `assessiq_app` cannot SET ROLE `assessiq_system`
 
 **Symptom:** During Phase 0 closure live drills, `GET /api/auth/google/start?tenant=wipro-soc` returned `HTTP 500 INTERNAL` instead of the expected 302 (or the deferred 401 "Google SSO is not configured" when OAuth credentials are absent). API container logs surfaced `DatabaseError: permission denied to set role "assessiq_system"` thrown from `getTenantBySlug` at [modules/02-tenancy/src/service.ts:37](../modules/02-tenancy/src/service.ts#L37) when it executed `SET LOCAL ROLE assessiq_system` inside the system-role transaction. The same pattern is also load-bearing in `apiKeys.authenticate` at [modules/01-auth/src/api-keys.ts:182](../modules/01-auth/src/api-keys.ts#L182) — meaning every API-key-authenticated request would have failed identically the moment it reached production. Drill C (alg=none) and Drill D (replay) had not yet exposed this because `verifyEmbedToken` runs inside `withTenant(...)` which uses the application role's normal RLS path, not the system-role escape.
