@@ -57,6 +57,12 @@ jobs:
       - name: RLS linter self-test
         run: pnpm tsx tools/lint-rls-policies.ts --self-test
 
+      # 9b. Logging-discipline lint — enforces the convention from
+      # docs/11-observability.md § 8 (no console.*, modules use streamLogger,
+      # object-form logging, no bare-error args).
+      - name: Logging-discipline lint
+        run: pnpm tsx tools/lint-logging-discipline.ts
+
       # 10. Secrets scan — exact regex set from .claude/hooks/precommit-gate.sh lines 40-51
       # plus the hardcoded-credential-literal pattern. Runs on all files (not just diff)
       # so CI catches anything the precommit hook might have missed.

@@ -1,5 +1,7 @@
 # 14-audit-log — Append-only audit trail
 
+> **Distinct from operational logs.** Operational logs (`/var/log/assessiq/*.log`) live for 14 days and answer "what did the app do today?". This module's `audit_log` table lives for 7 years and answers "what state changed, by whom, when?" — a compliance auditor's view. A single event sometimes writes to both (e.g., a failed login appears in `auth.log` *and* `audit_log`); they answer different questions and have different retention. See [docs/11-observability.md § 2](../../docs/11-observability.md) for the boundary.
+
 ## Purpose
 Record every state-changing action with actor, before/after, IP, UA, timestamp. Required for HR/L&D-grade defensibility, compliance audits, and forensic investigation.
 

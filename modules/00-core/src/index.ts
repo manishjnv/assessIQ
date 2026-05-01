@@ -1,5 +1,11 @@
 export { config, loadConfig, type Config } from "./config.js";
-export { logger, createLogger, childLogger } from "./logger.js";
+export {
+  logger,
+  createLogger,
+  childLogger,
+  streamLogger,
+  LOG_REDACT_PATHS,
+} from "./logger.js";
 export {
   AppError,
   ValidationError,
@@ -11,6 +17,8 @@ export {
 } from "./errors.js";
 export {
   withRequestContext,
+  enterWithRequestContext,
+  updateRequestContext,
   getRequestContext,
   getRequestContextOrThrow,
   type RequestContext,

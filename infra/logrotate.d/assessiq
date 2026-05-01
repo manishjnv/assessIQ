@@ -1,0 +1,27 @@
+# AssessIQ operational log rotation.
+#
+# Apply on the VPS by symlinking into /etc/logrotate.d/:
+#   sudo ln -sfn /srv/assessiq/infra/logrotate.d/assessiq /etc/logrotate.d/assessiq
+#
+# Force a rotation (testing): sudo logrotate -f /etc/logrotate.d/assessiq
+# Verify scheduling:          sudo logrotate -d /etc/logrotate.d/assessiq
+#
+# `copytruncate` is LOAD-BEARING. Pino holds open file descriptors via its
+# multistream WriteStream targets. Without copytruncate, the rotated file
+# (`*.log.1`) keeps receiving writes and the new `*.log` stays empty —
+# silent, on-disk, hard to diagnose. Same trap class as the Caddy bind-mount
+# inode RCA in docs/RCA_LOG.md.
+#
+# See docs/11-observability.md § 7 for retention rationale.
+
+/var/log/assessiq/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su assessiq assessiq
+    create 0640 assessiq assessiq
+}

@@ -75,6 +75,11 @@ services:
       # in modules/00-core/src/config.ts.
       - path: ../.env
         required: false
+    # Operational logs: bind /var/log/assessiq from host so logrotate (system
+    # daemon, on host) and pino (in container) share the file inodes. Path
+    # MUST match the LOG_DIR env var. See docs/11-observability.md § 7.
+    volumes:
+      - /var/log/assessiq:/var/log/assessiq
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
@@ -97,6 +102,10 @@ services:
       # in modules/00-core/src/config.ts.
       - path: ../.env
         required: false
+    # Operational logs: same bind as assessiq-api. Worker logs go to the same
+    # JSONL files (stream binding distinguishes per-process emitters).
+    volumes:
+      - /var/log/assessiq:/var/log/assessiq
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }

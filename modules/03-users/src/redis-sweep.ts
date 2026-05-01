@@ -23,7 +23,9 @@
 // TypeScript so neither default nor named imports satisfy the constructor
 // constraint. createRequire is the documented escape hatch for CJS interop.
 import { createRequire } from 'node:module';
-import { config, logger } from '@assessiq/core';
+import { config, streamLogger } from '@assessiq/core';
+
+const log = streamLogger('app');
 
 const cjsRequire = createRequire(import.meta.url);
 type RedisCtor = new (url: string, opts?: Record<string, unknown>) => {
@@ -59,7 +61,7 @@ async function getRedis(): Promise<RedisClient | null> {
     return client;
   } catch (err) {
     redisInitFailed = true;
-    logger.warn({ err }, 'redis-sweep: failed to connect to Redis — session sweep disabled');
+    log.warn({ err }, 'redis-sweep: failed to connect to Redis — session sweep disabled');
     return null;
   }
 }
@@ -85,7 +87,7 @@ async function getRedis(): Promise<RedisClient | null> {
 export async function sweepUserSessions(userId: string): Promise<void> {
   const redis = await getRedis();
   if (redis === null) {
-    logger.warn({ userId }, 'redis-sweep: Redis unavailable, skipping session sweep');
+    log.warn({ userId }, 'redis-sweep: Redis unavailable, skipping session sweep');
     return;
   }
 
@@ -97,9 +99,9 @@ export async function sweepUserSessions(userId: string): Promise<void> {
       await redis.del(...sessionKeys);
     }
     await redis.del(indexKey);
-    logger.info({ userId, swept: sessionKeys.length }, 'redis-sweep: user sessions swept');
+    log.info({ userId, swept: sessionKeys.length }, 'redis-sweep: user sessions swept');
   } catch (err) {
     // Log and continue — Postgres sessionLoader is the belt for these suspenders.
-    logger.warn({ err, userId }, 'redis-sweep: error during session sweep');
+    log.warn({ err, userId }, 'redis-sweep: error during session sweep');
   }
 }

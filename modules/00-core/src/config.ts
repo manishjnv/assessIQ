@@ -19,6 +19,14 @@ const ConfigSchema = z
     LOG_LEVEL: z
       .enum(["trace", "debug", "info", "warn", "error", "fatal"])
       .default("info"),
+    /**
+     * Absolute directory where per-stream JSONL log files are written.
+     * When unset, logger writes only to stdout (test/dev default).
+     * When set (typically `/var/log/assessiq` in production), logger fans
+     * out to `<LOG_DIR>/<stream>.log` plus `<LOG_DIR>/error.log` mirror.
+     * See docs/11-observability.md § Streams & paths.
+     */
+    LOG_DIR: z.string().optional(),
     ASSESSIQ_BASE_URL: z
       .string()
       .url()

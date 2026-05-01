@@ -16,10 +16,20 @@ None. This is the leaf — every other module imports from here.
 ```ts
 // config.ts
 export const config = loadConfig();   // throws on invalid env
+// LOG_DIR is optional — when set (e.g. /var/log/assessiq), per-stream JSONL
+// files are written there alongside stdout. See docs/11-observability.md § 3.
 
 // logger.ts
-export const logger = createLogger();
+export const logger: Logger;                          // alias of streamLogger('app')
+export function streamLogger(name: string): Logger;   // memoized per stream
 export function childLogger(bindings: object): Logger;
+export function createLogger(opts?: LoggerOptions): Logger;
+export const LOG_REDACT_PATHS: readonly string[];     // see docs/11-observability.md § 4
+// Known stream names with dedicated files: app, request, auth, grading,
+// migration, webhook, frontend. Anything else falls through to app.log.
+// Mixin auto-attaches requestId/tenantId/userId from AsyncLocalStorage —
+// callers must NOT pass these manually. Convention + triage runbooks live
+// in docs/11-observability.md.
 
 // errors.ts
 export class AppError extends Error { code: string; status: number; details?: object; }
@@ -32,6 +42,8 @@ export class RateLimitError extends AppError {}
 
 // context.ts (AsyncLocalStorage-backed)
 export function withRequestContext<T>(ctx: RequestContext, fn: () => Promise<T>): Promise<T>;
+export function enterWithRequestContext(ctx: RequestContext): void;  // for HTTP onRequest hooks
+export function updateRequestContext(patch: Partial<RequestContext>): void;
 export function getRequestContext(): RequestContext;
 // RequestContext = { requestId, tenantId, userId, roles, ip, ua }
 

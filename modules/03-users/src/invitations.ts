@@ -1,10 +1,12 @@
 import { randomBytes, createHash } from 'node:crypto';
-import { logger, NotFoundError, ConflictError, ValidationError, uuidv7, getRequestContext, config } from '@assessiq/core';
+import { streamLogger, NotFoundError, ConflictError, ValidationError, uuidv7, getRequestContext, config } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { sendInvitationEmail } from '@assessiq/notifications';
 import type { InviteUserInput, InviteUserResult, AcceptInvitationResult } from './types.js';
 import { normalizeEmail } from './normalize.js';
 import * as repo from './repository.js';
+
+const log = streamLogger('auth');
 
 // ---------------------------------------------------------------------------
 // Token helpers
@@ -64,7 +66,7 @@ export async function inviteUser(
   }
 
   const normalizedEmail = normalizeEmail(input.email);
-  logger.info({ tenantId, email: normalizedEmail, role: input.role }, 'inviteUser');
+  log.info({ tenantId, email: normalizedEmail, role: input.role }, 'inviteUser');
 
   // Generate token OUTSIDE the transaction so we can pass it to email after commit.
   const plaintextToken = generateInvitationToken();
@@ -257,7 +259,7 @@ export async function acceptInvitation(token: string): Promise<AcceptInvitationR
     ua,
   });
 
-  logger.info(
+  log.info(
     { userId: activeUser.id, tenantId: activeUser.tenant_id },
     'acceptInvitation: user activated, session minted',
   );
