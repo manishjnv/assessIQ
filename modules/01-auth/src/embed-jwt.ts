@@ -323,6 +323,55 @@ export async function createEmbedSecret(
 }
 
 /**
+ * Lists embed-secret metadata rows for the tenant. Admin rotation panel uses
+ * this to surface which secrets are active vs rotated. The encrypted envelope
+ * (`secret_enc`) is NEVER returned — admins do not need plaintext, and the
+ * column is excluded from the SELECT to make leak-by-typo impossible.
+ *
+ * Tenant scoping: withTenant sets app.current_tenant; the embed_secrets RLS
+ * policy filters cross-tenant rows out at the DB layer (fail-closed via
+ * current_setting('app.current_tenant', true)).
+ */
+export interface EmbedSecretRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  algorithm: string;
+  status: "active" | "rotated" | "revoked";
+  rotatedAt: string | null;
+  createdAt: string;
+}
+
+interface EmbedSecretListRow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  algorithm: string;
+  status: "active" | "rotated" | "revoked";
+  rotated_at: string | null;
+  created_at: string;
+}
+
+export async function listEmbedSecrets(tenantId: string): Promise<EmbedSecretRecord[]> {
+  const result = await withTenant(tenantId, async (client: PoolClient) => {
+    return client.query<EmbedSecretListRow>(
+      `SELECT id, tenant_id, name, algorithm, status, rotated_at, created_at
+       FROM embed_secrets
+       ORDER BY created_at DESC`,
+    );
+  });
+  return result.rows.map((row) => ({
+    id: row.id,
+    tenantId: row.tenant_id,
+    name: row.name,
+    algorithm: row.algorithm,
+    status: row.status,
+    rotatedAt: row.rotated_at,
+    createdAt: row.created_at,
+  }));
+}
+
+/**
  * Rotates the active embed secret for a tenant. Marks the current 'active'
  * row as 'rotated' and creates a new 'active' row. Returns the new plaintext
  * secret ONCE.

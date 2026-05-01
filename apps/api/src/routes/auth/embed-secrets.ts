@@ -1,17 +1,17 @@
 import type { FastifyInstance } from 'fastify';
-import { createEmbedSecret, rotateEmbedSecret } from '@assessiq/auth';
+import {
+  createEmbedSecret,
+  rotateEmbedSecret,
+  listEmbedSecrets,
+} from '@assessiq/auth';
 import { authChain } from '../../middleware/auth-chain.js';
 
 // Embed-secret admin endpoints. Library handles AES-256-GCM envelope under
-// ASSESSIQ_MASTER_KEY; plaintext secret shown ONCE on POST.
+// ASSESSIQ_MASTER_KEY; plaintext secret shown ONCE on POST. GET never decrypts
+// the envelope — listEmbedSecrets returns metadata only.
 //
-// Spec: docs/03-api-contract.md:132-134; modules/01-auth/SKILL.md § Decisions §5.
-// All mutations require fresh MFA — these are tenant-scoped signing keys.
-//
-// NOTE: GET /api/admin/embed-secrets is intentionally NOT shipped this pass —
-// the library has no `listEmbedSecrets` helper yet. Phase 0 closure scope is
-// the route layer + closure drills; the list helper is a Phase 1 add when
-// admin UI surfaces a rotation panel. (Plan §2d Open Q #6.)
+// Spec: docs/03-api-contract.md § Embed; modules/01-auth/SKILL.md § Decisions §5.
+// Mutations require fresh MFA — these are tenant-scoped signing keys.
 
 const createBodySchema = {
   type: 'object',
@@ -23,6 +23,20 @@ const createBodySchema = {
 const FRESH_MFA_MINUTES = 15;
 
 export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<void> {
+  // GET /api/admin/embed-secrets — list metadata; envelope is never decrypted.
+  app.get(
+    '/api/admin/embed-secrets',
+    {
+      config: { skipAuth: true },
+      preHandler: authChain({ roles: ['admin'] }),
+    },
+    async (req) => {
+      const sess = req.session!;
+      const items = await listEmbedSecrets(sess.tenantId);
+      return { items };
+    },
+  );
+
   // POST /api/admin/embed-secrets
   app.post(
     '/api/admin/embed-secrets',

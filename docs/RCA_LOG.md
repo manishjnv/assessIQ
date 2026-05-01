@@ -14,7 +14,7 @@
 
 **Prevention:**
 
-1. **Append the GRANT to the migration:** add `GRANT assessiq_system TO assessiq_app;` to `modules/02-tenancy/migrations/0002_rls_helpers.sql` so a fresh-VPS bootstrap doesn't re-hit this. The GRANT is idempotent (re-running silently no-ops); safe to add to an already-applied migration as long as the migration runner re-applies it on a fresh DB.
+1. ~~**Append the GRANT to the migration:**~~ — **landed 2026-05-01 in the same closure carry-over commit that shipped `listEmbedSecrets`.** `modules/02-tenancy/migrations/0002_rls_helpers.sql` now ends with `GRANT assessiq_system TO assessiq_app;` plus a comment block documenting the prod-hotfix history and idempotency. Fresh-VPS bootstrap will reproduce the production grant set without manual `psql -c`.
 2. **Integration test:** `modules/01-auth/src/__tests__/api-keys.test.ts` should add a test that exercises `apiKeys.authenticate` against a Postgres bootstrapped *without* manually-applied role grants — i.e., from the migration alone. Same shape for a future `02-tenancy/__tests__/service.test.ts` covering `getTenantBySlug`. If either test fails, the migration is missing the GRANT.
 3. **Deploy-time smoke:** the first-boot bootstrap procedure in `docs/06-deployment.md` § first-boot bootstrap should grow a verification step: after migrations apply, run `psql -c "SET ROLE assessiq_system; SELECT 1;"` as `assessiq_app` to assert membership before bringing up the API container. Catches the gap pre-traffic rather than at first auth attempt.
 

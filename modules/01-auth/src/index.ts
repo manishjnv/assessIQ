@@ -21,8 +21,13 @@ export {
   verifyEmbedToken,
   createEmbedSecret,
   rotateEmbedSecret,
+  listEmbedSecrets,
 } from "./embed-jwt.js";
-export type { EmbedTokenPayload, VerifiedEmbedToken } from "./embed-jwt.js";
+export type {
+  EmbedTokenPayload,
+  VerifiedEmbedToken,
+  EmbedSecretRecord,
+} from "./embed-jwt.js";
 
 export {
   startGoogleSso,

@@ -31,6 +31,7 @@ import {
   verifyEmbedToken,
   createEmbedSecret,
   rotateEmbedSecret,
+  listEmbedSecrets,
 } from "../embed-jwt.js";
 import { AuthnError } from "@assessiq/core";
 
@@ -532,4 +533,62 @@ it("JTI cache TTL: after verify, Redis TTL for jti key is positive and ≤ (exp 
   // Allow 10s slop for test execution time.
   const minExpected = result.payload.exp - after - 10;
   expect(ttl).toBeGreaterThanOrEqual(Math.max(1, minExpected));
+});
+
+// ---------------------------------------------------------------------------
+// Test 11 — listEmbedSecrets: order, status mix, no envelope leak
+// ---------------------------------------------------------------------------
+
+describe("listEmbedSecrets", () => {
+  it("returns metadata-only rows in created_at DESC order, no secret_enc leak", async () => {
+    const tenantId = await createTenant();
+
+    // Empty tenant returns [].
+    expect(await listEmbedSecrets(tenantId)).toEqual([]);
+
+    // Create S1, rotate (S1 -> rotated, S2 -> active "rotated-secret").
+    await createEmbedSecret(tenantId, "first");
+    await rotateEmbedSecret(tenantId);
+
+    const items = await listEmbedSecrets(tenantId);
+    expect(items).toHaveLength(2);
+
+    // Most recent (the rotated-secret S2) first.
+    expect(items[0]!.status).toBe("active");
+    expect(items[0]!.algorithm).toBe("HS256");
+    expect(items[0]!.tenantId).toBe(tenantId);
+    expect(items[0]!.rotatedAt).toBeNull();
+
+    // Original S1 second, now rotated with rotated_at set.
+    expect(items[1]!.status).toBe("rotated");
+    expect(items[1]!.name).toBe("first");
+    expect(items[1]!.rotatedAt).not.toBeNull();
+
+    // Critically: the encrypted envelope MUST NOT appear on the record shape —
+    // both camelCase (secretEnc) and snake_case (secret_enc) variants checked
+    // because the row mapper is the only line preventing a leak-by-typo.
+    for (const item of items) {
+      expect(Object.keys(item)).not.toContain("secretEnc");
+      expect(Object.keys(item)).not.toContain("secret_enc");
+    }
+  });
+
+  it("RLS isolation: tenant A sees only its own embed-secret rows", async () => {
+    const tenantA = await createTenant();
+    const tenantB = await createTenant();
+
+    await createEmbedSecret(tenantA, "A-secret");
+    await createEmbedSecret(tenantB, "B-secret");
+
+    const aItems = await listEmbedSecrets(tenantA);
+    const bItems = await listEmbedSecrets(tenantB);
+
+    expect(aItems).toHaveLength(1);
+    expect(aItems[0]!.name).toBe("A-secret");
+    expect(aItems[0]!.tenantId).toBe(tenantA);
+
+    expect(bItems).toHaveLength(1);
+    expect(bItems[0]!.name).toBe("B-secret");
+    expect(bItems[0]!.tenantId).toBe(tenantB);
+  });
 });

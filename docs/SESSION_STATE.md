@@ -1,3 +1,29 @@
+# Session — 2026-05-01 (Phase 0 closure carry-overs — `listEmbedSecrets` + migration GRANT backfill)
+
+**Headline:** Resolved the two genuinely-implementable Phase 0 closure carry-overs surfaced in the previous session's handoff: (#6) `listEmbedSecrets` library helper + `GET /api/admin/embed-secrets` admin endpoint, and (#7) backfill `GRANT assessiq_system TO assessiq_app` into migration `0002_rls_helpers.sql` so fresh-VPS bootstrap reproduces production. Both already documented as Phase 1 follow-ups in `modules/01-auth/SKILL.md`; landing them now closes the loop.
+
+**Commits:** `<sha>` — feat(auth,infra): listEmbedSecrets helper + admin GET + GRANT backfill in 0002 migration
+
+**Tests:** `embed-jwt.test.ts` 11 → 13 (both new tests for `listEmbedSecrets` green: order/status/no-`secret_enc`-leak + cross-tenant RLS isolation). Workspace `@assessiq/auth` 101/102 (the 1 fail is the documented TOTP constant-time microbench flake under noisy local Docker — see Status §3 + RCA log; not caused by this commit). `pnpm --filter @assessiq/auth typecheck` clean. `pnpm --filter @assessiq/api typecheck` clean. `pnpm lint:rls` OK. Secrets / ambient-AI greps clean.
+
+**Next:** Optional — Phase 1 follow-ups #2 (api-keys `last_used_at` RLS no-op under withTenant), #3 (TOTP `recordFailure` TTL drift). Otherwise resume Phase 1 G1.A (`04-question-bank`) per the prior session's plan.
+
+**Open questions:**
+
+- **Container redeploy?** The new `GET /api/admin/embed-secrets` endpoint is in source but won't be live until `assessiq-api` is rebuilt + restarted on the VPS. No admin UI consumes it yet (Phase 1+ rotation panel), so deploy is non-urgent — bundle into the next deploy that ships UI requiring it.
+- **GRANT migration on prod.** Already applied via `psql -c` 2026-05-01 (RCA closed). The backfilled migration is a no-op on the existing prod DB (idempotent) but ensures fresh-VPS bootstrap works without manual hotfix.
+
+---
+
+## Agent utilization (this session)
+
+- **Opus:** Phase 0 warm-start parallel reads (status check of prior closure work — Dockerfile path, auth routes barrel, dev-auth deletion, doc flips) → confirmed Sections 1-3 + Section 4 deploy already shipped, only carry-overs #6 + #7 remained; targeted reads (embed-jwt.ts existing shape, api-keys.ts list pattern, embed_secrets schema, 0002_rls_helpers.sql, embed-jwt.test.ts beforeAll setup); hand-authored 4-file diff (~152 LOC: helper + interface + index export + GET endpoint + 2 tests + migration GRANT + comment block); Phase 2 deterministic gates (typecheck × 2 packages, secrets scan, ambient-AI grep, RLS lint, integration test run); Phase 3 self diff review (envelope leak path, withTenant RLS scoping, GET auth gate parity with api-keys.ts list, migration backfill safety, NOINHERIT-defended role escalation, TS exhaustiveness vs CHECK constraint); user-directed opus-takeover adversarial pass in lieu of `codex:rescue` (pattern matches prior 2026-05-01 closure session per memory `feedback-opus-takeover-on-rescue.md`); doc updates (SKILL.md follow-ups #6 + #7 → resolved, RCA prevention #1 → resolved, this handoff); commit + push.
+- **Sonnet:** n/a — change is ~150 LOC across 4 files in already-hot Opus cache; subagent cold-start (~20-30s) would be slower than direct write per global CLAUDE.md "don't delegate when self-executing is faster" rule.
+- **Haiku:** n/a — no bulk read sweep needed (deterministic targeted reads via Glob + Read).
+- **codex:rescue:** n/a — user invoked opus-takeover after the Skill call to bypass the rescue ceremony (consistent with prior-session pattern when the rescue agent was rate-limited; Opus performed the adversarial pass directly with explicit threat-model probes A-F covering envelope leak, cross-tenant leak, GET auth gate, migration backfill safety, role escalation, TS exhaustiveness — verdict ACCEPTED, no must-fix items).
+
+---
+
 # Session — 2026-05-01 (Phase 0 closure — auth route layer + first API deploy)
 
 **Headline:** Phase 0 closure shipped — `assessiq-api` container live behind Caddy split-route on `https://assessiq.automateedge.cloud/api/*` + `/embed*`. Drills C (alg=none) + D (replay) passed live. Drills B (Google SSO 302) + 1 (browser full-stack) deferred — both gated on missing artifacts surfaced this session, not on broken code.
