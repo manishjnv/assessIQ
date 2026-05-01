@@ -100,6 +100,43 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
+### Current live state — Phase 0 placeholder (2026-05-01)
+
+The block above documents the **target** topology (Caddy → `assessiq-frontend` on host:9091). Until `assessiq-frontend` ships and is started via `docker compose up -d`, the live block on the VPS uses a `respond` placeholder so the public domain returns a 200 "We are building" page instead of a 502.
+
+Live block currently at `/opt/ti-platform/caddy/Caddyfile`:
+
+```caddy
+# ═══ AssessIQ — assessiq.automateedge.cloud ═══
+# Phase-0 placeholder. Replace with `reverse_proxy 172.17.0.1:9091` when
+# assessiq-frontend ships. See docs/06-deployment.md § Phase-0 placeholder.
+# To revert: restore from /opt/ti-platform/caddy/Caddyfile.bak.<timestamp>.
+assessiq.automateedge.cloud {
+    tls /etc/caddy/ssl/assessiq.automateedge.cloud.pem /etc/caddy/ssl/assessiq.automateedge.cloud.key
+    import security-headers
+    encode zstd gzip
+    header Content-Type "text/html; charset=utf-8"
+    header Cache-Control "no-store"
+    respond 200 {
+        body "<!DOCTYPE html>...<h1>AssessIQ</h1><p>We are building. Check back soon.</p>..."
+        close
+    }
+}
+```
+
+**Why a placeholder, not a deploy:** Phase 0 G0.A shipped the pnpm scaffold + `00-core` only; G0.B-3 shipped the Vite SPA scaffold; G0.C (`01-auth` + `03-users`) and the rest of the product are still ahead. The `assessiq-frontend` image is not built yet. Deploying the smoke-page scaffold to production would expose an unauthenticated, unfinished surface. The 200 placeholder is the smallest additive change that resolves the 502 without standing up incomplete services.
+
+**Cache-Control: no-store** is set so Cloudflare does not cache the placeholder; when the swap-back happens, the first reverse-proxied response is served immediately.
+
+**To swap back to the real frontend** (when `assessiq-frontend` is deployed and listening on host:9091):
+
+1. Backup the current Caddyfile: `cp /opt/ti-platform/caddy/Caddyfile /opt/ti-platform/caddy/Caddyfile.bak.$(date -u +%Y%m%d-%H%M%S)`.
+2. Replace the AssessIQ block with the **target** block at lines 68-89 above (`reverse_proxy 172.17.0.1:9091 { ... }`).
+3. **In-place truncate-write** to preserve the inode — the Caddyfile is bind-mounted as a single file (`/opt/ti-platform/caddy/Caddyfile -> /etc/caddy/Caddyfile`), so any `mv` over the path detaches the mount and Caddy continues to see the old contents. Use `cat new > /opt/ti-platform/caddy/Caddyfile` (truncate + write, same inode), never `mv`.
+4. Validate: `docker exec ti-platform-caddy-1 caddy validate --config /etc/caddy/Caddyfile`.
+5. Graceful reload: `docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile`.
+6. Smoke: `curl -sS -D - https://assessiq.automateedge.cloud/ -o /dev/null` → expect 200 from the frontend with the AssessIQ SPA, not the placeholder body.
+
 ## docker-compose.yml — `infra/docker-compose.yml` (in repo) → `/srv/assessiq/infra/docker-compose.yml` (on VPS)
 
 > **Layout note (Phase 0 G0.A, 2026-05-01):** the compose file lives in the repo at `infra/docker-compose.yml`, not at the repo root. On the VPS clone it sits at `/srv/assessiq/infra/docker-compose.yml`. All commands are run from `/srv/assessiq/` with the explicit `-f` flag, e.g. `docker compose -f infra/docker-compose.yml up -d`. Relative paths inside the compose are resolved from the compose file location: `../.env` → `/srv/assessiq/.env`, `../secrets/pg_password.txt` → `/srv/assessiq/secrets/pg_password.txt`, `./postgres/init` → `/srv/assessiq/infra/postgres/init`, build context `..` → `/srv/assessiq/`.
