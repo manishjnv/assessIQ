@@ -35,7 +35,7 @@
 
 ### Admin — Tenants & users
 
-> **Status (2026-05-01, Phase 0 / Window 5):** the user-management slice is live in `apps/api`. The invitation-accept route is pre-auth. The `import` route is a 501 stub returning `details.code = 'BULK_IMPORT_PHASE_1'` per `modules/03-users/SKILL.md` § Decisions captured § 1; full CSV/JSON bulk import is Phase 1 work. `/admin/tenant`, `/admin/invitations` GET, and `/admin/users/:id/totp/reset` are deferred (`/admin/tenant` is 02-tenancy Phase 1; the rest live behind 01-auth Window 4's middleware once it lands on `origin/main`).
+> **Status (2026-05-01, Phase 0 closure — W4 + W5 both shipped):** the user-management slice + 01-auth library surface are live in code. Routes-on-Fastify wiring under `apps/api/src/routes/auth/*.ts` (Google SSO, TOTP enroll/confirm/verify, embed verify, API-key admin) is the next deliverable; the library functions they wrap (`@assessiq/auth.{startGoogleSso, handleGoogleCallback, totp.*, verifyEmbedToken, apiKeys.*}`) are implemented and tested at commit `d9cfeb4`. The `/admin/users/*` slice and `/admin/invitations` POST are LIVE today; `acceptInvitation` mints real sessions via `@assessiq/auth.sessions.create` (post-W4 mock-seam swap, commit `be96623`). The `import` route remains a 501 stub returning `details.code = 'BULK_IMPORT_PHASE_1'`. `/admin/tenant` is 02-tenancy Phase 1 work. Deploy of `assessiq-api` + `assessiq-worker` containers needs Dockerfiles at `infra/docker/` — Phase 1+.
 
 | Method | Path | Purpose | Status |
 |---|---|---|---|
