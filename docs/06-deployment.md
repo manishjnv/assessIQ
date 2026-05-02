@@ -128,17 +128,23 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
-### Current live state — Phase 0 closure split-route + frontend (2026-05-01)
+### Current live state — Phase 1 G1.A Session 2 split-route + frontend (2026-05-02)
 
-`assessiq-api` and `assessiq-frontend` are both live. The frontend container ships at SHA `3ef4e25` — multi-stage Vite SPA build (apps/web) on `nginx:alpine`, 73.9 MB image, exposing host port 9091. The Caddy block does a split-route: API + embed paths reach the API container on 9092; the default route reverse-proxies to the frontend container on 9091.
+`assessiq-api` and `assessiq-frontend` are both live. The frontend container ships at SHA `3ef4e25` — multi-stage Vite SPA build (apps/web) on `nginx:alpine`, 73.9 MB image, exposing host port 9091. The Caddy block does a split-route: API + embed + public-help paths reach the API container on 9092; the default route reverse-proxies to the frontend container on 9091.
+
+**What changed 2026-05-02 (Phase 1 G1.A Session 2):** the `@api` matcher gained `/help/*` so that `modules/16-help-system`'s anonymous public route `GET /help/:key` (registered without an `/api` prefix by design — embed-friendly short URL, parallel to `/embed*`) reaches `assessiq-api`. Pre-fix, `/help/...` fell through to the SPA `handle` and returned `index.html` with HTTP 200 instead of the JSON envelope. Caught in Phase 5 deploy smoke; see RCA `2026-05-02 — Caddy /help/* not forwarded`. The edit was additive only — no existing path was redirected away from anything.
 
 Live block at `/opt/ti-platform/caddy/Caddyfile`:
 
 ```caddy
 # ═══ AssessIQ — assessiq.automateedge.cloud ═══
-# Phase 0 closure: split-route /api/* + /embed* → assessiq-api on 9092.
-# Default route now reverse-proxies to assessiq-frontend on 9091
-# (swap completed 2026-05-01 at SHA 3ef4e25).
+# Phase 1 G1.A Session 2: /api/* + /embed* + /help/* → assessiq-api on 9092.
+# /help/* is the anonymous embed-friendly help endpoint shipped by
+# modules/16-help-system (registerHelpPublicRoutes mounts /help/:key directly,
+# without the /api prefix, so embed contexts can use a short public URL —
+# matches the /embed* convention for the same reason).
+# Default route → assessiq-frontend container on host port 9091 (live 2026-05-02).
+# See docs/06-deployment.md § Reverse-proxy plan.
 # Backup before any edit: /opt/ti-platform/caddy/Caddyfile.bak.<UTC-ts>.
 # Edits MUST use truncate-write (cat >), NEVER mv — bind-mount inode trap
 # from RCA 2026-04-30.
@@ -147,8 +153,8 @@ assessiq.automateedge.cloud {
     import security-headers
     encode zstd gzip
 
-    # API + embed routes → assessiq-api on host port 9092.
-    @api path /api/* /embed*
+    # API + embed + public-help routes → assessiq-api on host port 9092.
+    @api path /api/* /embed* /help/*
     handle @api {
         reverse_proxy 172.17.0.1:9092 {
             header_up X-Forwarded-Proto https
@@ -168,6 +174,7 @@ assessiq.automateedge.cloud {
 
 - `GET https://assessiq.automateedge.cloud/` → 200 SPA shell (`<title>AssessIQ</title>`, hashed asset `/assets/index-<hash>.js`). SPA fallback verified — any deep route (e.g. `/admin/login`, `/admin/users`, `/some-non-existent-route`) returns the same index.html so react-router-dom can take over.
 - `GET https://assessiq.automateedge.cloud/api/health` → 200 `{"status":"ok"}` — confirms split-route + container reachability.
+- `GET https://assessiq.automateedge.cloud/help/admin.assessments.close.early?locale=en` → 200 with JSON envelope `{key, audience, locale, shortText, longMd}` — confirms the 2026-05-02 `/help/*` matcher addition; `GET /help/nonexistent.key` returns 404 `{"error":{"code":"NOT_FOUND",...}}` from the API (not the SPA fallback).
 - `GET https://assessiq.automateedge.cloud/embed?token=...` → exercise of the addendum §5 HS256-only verify path. `alg=none` rejected with 401 INVALID_TOKEN; replay rejected with 401 INVALID_TOKEN (Redis cache populated).
 - `GET https://assessiq.automateedge.cloud/api/auth/google/start?tenant=wipro-soc` → **401 AUTHN_FAILED `"Google SSO is not configured"`** — `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are still empty (0 chars) in `/srv/assessiq/.env`. Route layer + tenant resolution proven correct (latency ~100 ms hitting tenant DB lookup); provisioning the OAuth client and restarting `assessiq-api` is the only remaining step. **DEFERRED — user-side task.**
 - **Cache headers:** `index.html` returns `Cache-Control: no-cache, no-store, must-revalidate` (clients pick up new asset hashes after a deploy); hashed assets (`/assets/index-<hash>.js`, `.css`) return `Cache-Control: public, max-age=31536000, immutable`.
