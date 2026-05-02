@@ -14,6 +14,7 @@ import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
+import { registerAttemptCandidateRoutes } from '@assessiq/attempt-engine';
 import {
   registerHelpPublicRoutes,
   registerHelpAuthRoutes,
@@ -141,6 +142,11 @@ export async function buildServer() {
   // Assessment-lifecycle admin routes — same admin-gated authChain DI shape.
   // Registers /api/admin/assessments/* and /api/admin/invitations/:id (DELETE).
   await registerAssessmentLifecycleRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
+  // Attempt-engine candidate routes — registers /api/me/assessments and
+  // /api/me/attempts/* under the candidate authChain. Admin-side attempt
+  // routes (/api/admin/attempts/*) ship with module 07 in Phase 2.
+  await registerAttemptCandidateRoutes(app, { candidateOnly: authChain({ roles: ['candidate'] }) });
 
   // Help-system routes. Public + track are anonymous (no preHandler chain
   // needed; the global tenancy hook auto-skips when req.session is absent).
