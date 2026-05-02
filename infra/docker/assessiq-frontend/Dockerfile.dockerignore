@@ -38,15 +38,27 @@ vitest.setup.ts
 apps/api
 apps/storybook
 
-# Modules NOT in the @assessiq/web closure (web depends on workspace pkg
-# @assessiq/ui-system in modules/17-ui-system; nothing else from modules/).
-modules/00-core
+# Modules NOT in the @assessiq/web closure.
+# Phase 1 G1.D added: @assessiq/web depends on @assessiq/candidate-ui (new) +
+# @assessiq/help-system (existing). help-system depends on @assessiq/{core,
+# tenancy,ui-system}. So the closure is now:
+#   apps/web → @assessiq/{ui-system, candidate-ui, help-system}
+#                → @assessiq/{core, tenancy, ui-system}
+# i.e. modules/{00-core, 02-tenancy, 11-candidate-ui, 16-help-system, 17-ui-system}.
+# Everything else under modules/ is server-side and excluded here.
 modules/01-auth
-modules/02-tenancy
 modules/03-users
 modules/04-question-bank
+modules/05-assessment-lifecycle
+modules/06-attempt-engine
+modules/07-ai-grading
+modules/08-rubric-engine
+modules/09-scoring
+modules/10-admin-dashboard
+modules/12-embed-sdk
 modules/13-notifications
-modules/16-help-system
+modules/14-audit-log
+modules/15-analytics
 
 # Operational state
 data/
