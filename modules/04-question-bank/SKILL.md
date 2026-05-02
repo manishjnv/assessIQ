@@ -1,5 +1,7 @@
 # 04-question-bank — Packs, levels, questions
 
+> **Status update 2026-05-02:** `activateAllQuestionsForPack(tenantId, packId)` shipped — admin "activate all" affordance closing the question-status workflow gap RCA'd earlier today. Surfaced as `POST /api/admin/packs/:id/activate-questions`. `publishPack` deliberately does NOT auto-flip questions to `active`; admins explicitly call activate-all to promote draft → active. See `docs/RCA_LOG.md` 2026-05-02 § "Question status workflow gap" prevention #1 for the rationale.
+
 ## Purpose
 Author and version the content of assessments. Multi-domain by design: SOC ships first, every future domain (DevOps, Cloud, IAM, IR, Data) plugs in as a new pack with its own levels and question types. The engine is content-agnostic.
 

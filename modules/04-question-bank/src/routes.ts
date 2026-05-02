@@ -34,6 +34,7 @@ import {
   updatePack,
   publishPack,
   archivePack,
+  activateAllQuestionsForPack,
   addLevel,
   updateLevel,
   listQuestions,
@@ -179,6 +180,20 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
       return archivePack(tenantId, id);
+    },
+  );
+
+  // POST /api/admin/packs/:id/activate-questions
+  // Bulk-flip every draft question in this pack to status='active' so the
+  // assessment-lifecycle pool-size pre-flight and module 06's startAttempt
+  // pool can see them. Closes the workflow gap RCA'd 2026-05-02.
+  app.post(
+    "/api/admin/packs/:id/activate-questions",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const { id } = req.params as { id: string };
+      return activateAllQuestionsForPack(tenantId, id);
     },
   );
 

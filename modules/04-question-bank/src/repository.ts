@@ -691,6 +691,47 @@ export async function updateQuestionRow(
 }
 
 /**
+ * Bulk-activate every `status='draft'` question in a pack — the admin
+ * "activate all" affordance that closes the question-status workflow gap
+ * RCA'd 2026-05-02. `archived` questions are skipped (they were intentionally
+ * pulled from circulation); `active` questions are skipped (already active,
+ * idempotent). Returns the counts so the route layer can surface them to the
+ * admin UI.
+ *
+ * No tenant_id filter is added — RLS scopes the UPDATE to the current tenant
+ * via the JOIN through `question_packs.tenant_id`.
+ */
+export async function bulkActivateDraftQuestionsForPack(
+  client: PoolClient,
+  packId: string,
+): Promise<{ activated: number; alreadyActive: number; archived: number }> {
+  // First read counts so we can return the breakdown for the admin UI.
+  const counts = await client.query<{ status: string; count: string }>(
+    `SELECT status, count(*)::text AS count FROM questions
+     WHERE pack_id = $1
+     GROUP BY status`,
+    [packId],
+  );
+  let alreadyActive = 0;
+  let archived = 0;
+  for (const row of counts.rows) {
+    if (row.status === "active") alreadyActive = parseInt(row.count, 10);
+    else if (row.status === "archived") archived = parseInt(row.count, 10);
+  }
+
+  const result = await client.query(
+    `UPDATE questions SET status = 'active', updated_at = now()
+     WHERE pack_id = $1 AND status = 'draft'`,
+    [packId],
+  );
+  return {
+    activated: result.rowCount ?? 0,
+    alreadyActive,
+    archived,
+  };
+}
+
+/**
  * Count questions belonging to a pack. Used by publishPack to confirm the
  * pack has at least one question before transitioning to 'published'.
  */

@@ -386,6 +386,69 @@ export async function archivePack(tenantId: string, id: string): Promise<Questio
   });
 }
 
+// ---------------------------------------------------------------------------
+// activateAllQuestionsForPack — admin "activate all" affordance
+// ---------------------------------------------------------------------------
+//
+// Closes the workflow gap RCA'd 2026-05-02 (publishPack does NOT auto-flip
+// questions to status='active'; assessments + attempts both require active
+// questions to load the pool). Per the RCA's prevention note option (b), this
+// service surfaces an explicit admin click rather than coupling activation to
+// publishPack — admins who want pre-activation can call this immediately
+// after publishPack; admins who want graduated activation can leave some
+// questions as draft and only activate the curated subset.
+//
+// Guards:
+//   - Pack must exist (RLS-scoped lookup).
+//   - Pack must be in 'published' status — activating questions in a draft
+//     pack is meaningless (the pack itself isn't visible to assessments yet)
+//     and activating in an archived pack would resurrect work the admin
+//     intentionally retired.
+//   - At least one draft question must exist; the call is otherwise a no-op
+//     and we return NO_DRAFT_QUESTIONS_TO_ACTIVATE so the admin UI can
+//     surface "nothing to do" instead of misleading 200-with-zero.
+//
+// Idempotent in practice: re-calling on a pack with all-active questions
+// throws NO_DRAFT_QUESTIONS_TO_ACTIVATE; the admin UI treats that as "already
+// done". Calling on a partially-active pack flips only the remaining draft
+// rows and returns the counts.
+export async function activateAllQuestionsForPack(
+  tenantId: string,
+  packId: string,
+): Promise<{ activated: number; alreadyActive: number; archived: number }> {
+  log.info({ tenantId, packId }, "activateAllQuestionsForPack");
+
+  return withTenant(tenantId, async (client) => {
+    const pack = await repo.findPackById(client, packId);
+    if (pack === null) {
+      throw new NotFoundError(`Pack not found: ${packId}`, {
+        details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
+      });
+    }
+    if (pack.status !== "published") {
+      throw new ConflictError(
+        `Pack '${packId}' must be 'published' to activate questions (current: '${pack.status}')`,
+        { details: { code: QB_ERROR_CODES.PACK_NOT_PUBLISHED, status: pack.status } },
+      );
+    }
+
+    const result = await repo.bulkActivateDraftQuestionsForPack(client, packId);
+    if (result.activated === 0) {
+      throw new ConflictError(
+        `No draft questions to activate in pack '${packId}' (active: ${result.alreadyActive}, archived: ${result.archived})`,
+        {
+          details: {
+            code: QB_ERROR_CODES.NO_DRAFT_QUESTIONS_TO_ACTIVATE,
+            alreadyActive: result.alreadyActive,
+            archived: result.archived,
+          },
+        },
+      );
+    }
+    return result;
+  });
+}
+
 // ===========================================================================
 // LEVEL OPERATIONS
 // ===========================================================================
