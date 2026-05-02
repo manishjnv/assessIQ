@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
+    "worker": "tsx src/worker.ts",
+    "worker:dev": "tsx watch src/worker.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -21,7 +23,9 @@
     "@assessiq/help-system": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "fastify": "^5.0.0",
-    "@fastify/cookie": "^11.0.0"
+    "@fastify/cookie": "^11.0.0",
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

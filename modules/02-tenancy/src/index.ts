@@ -4,6 +4,7 @@ export { tenantContextMiddleware } from "./middleware.js";
 export {
   getTenantById,
   getTenantBySlug,
+  listActiveTenantIds,
   updateTenantSettings,
   suspendTenant,
 } from "./service.js";

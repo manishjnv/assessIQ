@@ -104,7 +104,11 @@ services:
     <<: *svc-defaults
     image: assessiq/api:${IMAGE_TAG:-latest}
     container_name: assessiq-worker
-    command: ["node", "dist/worker.js"]
+    # Same image as assessiq-api; second entrypoint runs the BullMQ scheduler.
+    # tsx is in the apps/api devDependency closure (carried into the runtime
+    # image by the deps stage's tree copy). No separate compile needed —
+    # consistent with apps/api which also runs `pnpm exec tsx src/server.ts`.
+    command: ["pnpm", "exec", "tsx", "src/worker.ts"]
     networks: [assessiq-net]
     env_file:
       # required:false lets `docker compose config` succeed in CI / local
@@ -120,10 +124,10 @@ services:
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "node", "dist/worker-health.js"]
-      interval: 30s
-      retries: 3
+    # No healthcheck — Phase 1 worker is fail-loud (exits non-zero on Redis
+    # connect or boot error) and Docker `restart: unless-stopped` covers
+    # transient failures. Add a Redis-ping probe in Phase 2 if monitoring
+    # signals warrant it.
 
   assessiq-frontend:
     <<: *svc-defaults
