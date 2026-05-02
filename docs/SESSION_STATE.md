@@ -1,12 +1,14 @@
-# Session — 2026-05-02 (Phase 1 G1.C Session 4a — `06-attempt-engine` candidate-side core)
+# Session — 2026-05-02 (Phase 1 G1.C Session 4a + activate-all side-quest)
 
-**Headline:** Phase 1 G1.C Session 4a shipped end-to-end — `modules/06-attempt-engine` candidate-side core (4 migrations + repository + service + 7 candidate routes + EVENTS.md + 18 testcontainer integration tests). 4 migrations applied to production Postgres, assessiq-api rebuilt and serving 8 new endpoints under `/api/me/{assessments,attempts}` with 401 envelopes confirming auth-gating + global error handler wired. Full DoD loop closed (commit → deploy → docs → handoff).
+**Headline:** Phase 1 G1.C Session 4a shipped end-to-end — `modules/06-attempt-engine` candidate-side core (4 migrations + 8 candidate routes + 18 integration tests) + side-quest `activateAllQuestionsForPack` admin affordance closing the question-status workflow gap RCA'd earlier today. Both shipped commit→deploy→docs→handoff.
 
 **Commits this session:**
 
 - `4b86753` — feat(attempt-engine): module 06 candidate-side core — start, autosave, events, submit (24 files, +3471/-98)
+- `545c74a` — docs(session): handoff for Phase 1 G1.C Session 4a — 06-attempt-engine deployed
+- `4c7d28d` — feat(question-bank): admin activate-all questions affordance — closes RCA workflow gap (9 files, +258/-6)
 
-**Tests:** 18 / 18 passing in `modules/06-attempt-engine/src/__tests__/attempt-engine.test.ts` (vitest + testcontainers postgres:16-alpine, ~9s wall). `pnpm -r typecheck` clean across all 13 packages. `pnpm tsx tools/lint-rls-policies.ts` clean (28 migrations scanned, 14 tenant-bearing + 8 JOIN-based, all policies present including the 3 new attempt_* tables).
+**Tests:** 18 / 18 passing in `modules/06-attempt-engine` (testcontainer integration), 55 / 55 passing in `modules/04-question-bank` (was 50; +5 for activate-all). `pnpm -r typecheck` clean across all 13 packages. `pnpm tsx tools/lint-rls-policies.ts` clean (28 migrations scanned, 14 tenant-bearing + 8 JOIN-based, all policies present including the 3 new attempt_* tables).
 
 **Live verification:** `https://assessiq.automateedge.cloud/api/health → 200`. All 7 candidate routes return `401 AUTHN_FAILED` envelopes confirming registration + auth chain + error handler:
 
@@ -20,11 +22,12 @@
 
 Postgres schema verified directly: `\dt attempts`, `\dt attempt_questions`, `\dt attempt_answers`, `\dt attempt_events` all present.
 
+**Live verification:** `https://assessiq.automateedge.cloud/api/health → 200`. Module 06 candidate routes all `401 AUTHN_FAILED` envelopes confirming registration + auth chain + error handler. New `POST /api/admin/packs/:id/activate-questions` also returns `401 AUTHN_FAILED` envelope (auth-gated, route registered).
+
 **Next:**
 
-1. **Session 4b** — embed routes + magic-link `/take/:token` flow + apps/worker creation + BullMQ scheduler wiring for `sweepStaleTimersForTenant` + Redis-backed rate cap. Session 4b touches embed JWT verification + magic-link sessions + multi-tab concurrency = `codex:rescue` mandatory before push per Session 4 DoD.
-2. **Side-quest** — module 04 `auto-activate questions on publishPack` (or admin "activate all" affordance) to close the question-status workflow gap RCA'd 2026-05-02. Now that module 06 is wired, this gap matters for production candidates.
-3. **Side-quest** — apps/worker creation + BullMQ scheduler wiring covers BOTH module 05's `processBoundariesForTenant` and module 06's `sweepStaleTimersForTenant` in one go.
+1. **Session 4b** — embed routes + magic-link `/take/:token` flow + apps/worker creation + BullMQ scheduler wiring for both module 05's `processBoundariesForTenant` AND module 06's `sweepStaleTimersForTenant` + Redis-backed rate cap. Session 4b touches embed JWT verification + magic-link sessions + multi-tab concurrency = `codex:rescue` mandatory before push per Session 4 DoD.
+2. **End-to-end candidate flow validation** — now that module 04 has activate-all and module 06 is live, run a full live drill on production: SSO admin → createPack → addLevel → createQuestion ×N → publishPack → activate-questions → createAssessment → publishAssessment → activate (boundary or manual SQL) → inviteUsers → candidate session → startAttempt → saveAnswer → submitAttempt. Catches any deployment-state gaps (missing user_id flows, candidate-session minting paths, frontend console errors) before Phase 2 grading lands.
 
 **Open questions / explicit deferrals:**
 
