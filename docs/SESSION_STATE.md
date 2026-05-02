@@ -1,22 +1,33 @@
 # Session — 2026-05-02 (Phase 1 G1.C Session 4a — `06-attempt-engine` candidate-side core)
 
-**Headline:** Phase 1 G1.C Session 4a shipped — `modules/06-attempt-engine` candidate-side core (4 migrations + repository + service + 7 candidate routes + EVENTS.md + integration test scaffold + apps/api wiring). Full workspace `pnpm -r typecheck` green across 13 packages; `tools/lint-rls-policies.ts` green at 28 migrations / 14 tenant-bearing + 8 JOIN-RLS. **Tests not yet executed** — Docker Desktop is stopped; the testcontainer suite needs Docker to run. Source is ready; verification gate is open.
+**Headline:** Phase 1 G1.C Session 4a shipped end-to-end — `modules/06-attempt-engine` candidate-side core (4 migrations + repository + service + 7 candidate routes + EVENTS.md + 18 testcontainer integration tests). 4 migrations applied to production Postgres, assessiq-api rebuilt and serving 8 new endpoints under `/api/me/{assessments,attempts}` with 401 envelopes confirming auth-gating + global error handler wired. Full DoD loop closed (commit → deploy → docs → handoff).
 
 **Commits this session:**
 
-- *(pending — single feat commit covers all module 06 changes + the doc updates)*
+- `4b86753` — feat(attempt-engine): module 06 candidate-side core — start, autosave, events, submit (24 files, +3471/-98)
 
-**Tests:** scaffold written (8 describe blocks, ~16 `it` cases) but unrun — Docker Desktop not running on this Windows host. `pnpm --filter @assessiq/attempt-engine typecheck` green; `pnpm -r typecheck` green across 13 packages; `pnpm tsx tools/lint-rls-policies.ts` green (28 migrations scanned, 14 tenant-bearing + 8 JOIN-based, all policies present including the 3 new attempt_* tables).
+**Tests:** 18 / 18 passing in `modules/06-attempt-engine/src/__tests__/attempt-engine.test.ts` (vitest + testcontainers postgres:16-alpine, ~9s wall). `pnpm -r typecheck` clean across all 13 packages. `pnpm tsx tools/lint-rls-policies.ts` clean (28 migrations scanned, 14 tenant-bearing + 8 JOIN-based, all policies present including the 3 new attempt_* tables).
+
+**Live verification:** `https://assessiq.automateedge.cloud/api/health → 200`. All 7 candidate routes return `401 AUTHN_FAILED` envelopes confirming registration + auth chain + error handler:
+
+- `GET /api/me/assessments` → 401
+- `POST /api/me/assessments/:id/start` → 401
+- `GET /api/me/attempts/:id` → 401
+- `POST /api/me/attempts/:id/answer` → 401
+- `POST /api/me/attempts/:id/event` → 401
+- `POST /api/me/attempts/:id/submit` → 401
+- `GET /api/me/attempts/:id/result` → 401
+
+Postgres schema verified directly: `\dt attempts`, `\dt attempt_questions`, `\dt attempt_answers`, `\dt attempt_events` all present.
 
 **Next:**
 
-1. **Start Docker Desktop**, then run `pnpm --filter @assessiq/attempt-engine test` to validate the integration test suite. Bug-fix any failures + append RCA entries before commit.
-2. After tests green: commit + deploy + apply migrations 0030-0033 on the production VPS + smoke `/api/me/*` returning 401 envelopes + this SESSION_STATE handoff. Mirror the additive deploy procedure from session 3 (git archive + scp + `docker exec assessiq-postgres psql -v ON_ERROR_STOP=1`).
-3. **Session 4b** — embed routes + magic-link `/take/:token` flow + apps/worker creation + BullMQ scheduler wiring for `sweepStaleTimersForTenant` + Redis-backed rate cap. Session 4b touches embed JWT verification + magic-link sessions + multi-tab concurrency = `codex:rescue` mandatory before push per Session 4 DoD.
+1. **Session 4b** — embed routes + magic-link `/take/:token` flow + apps/worker creation + BullMQ scheduler wiring for `sweepStaleTimersForTenant` + Redis-backed rate cap. Session 4b touches embed JWT verification + magic-link sessions + multi-tab concurrency = `codex:rescue` mandatory before push per Session 4 DoD.
+2. **Side-quest** — module 04 `auto-activate questions on publishPack` (or admin "activate all" affordance) to close the question-status workflow gap RCA'd 2026-05-02. Now that module 06 is wired, this gap matters for production candidates.
+3. **Side-quest** — apps/worker creation + BullMQ scheduler wiring covers BOTH module 05's `processBoundariesForTenant` and module 06's `sweepStaleTimersForTenant` in one go.
 
 **Open questions / explicit deferrals:**
 
-- **Docker Desktop down on the workstation** — testcontainer suite written but unverified. Either start Docker locally or rely on CI to gate the merge. Phase 2 gate "tests pass" is currently unverified; treat as blocker for the commit step until tests run.
 - **BullMQ scheduler runtime** — `sweepStaleTimersForTenant` ships pure (mirroring session 3's `processBoundariesForTenant`); apps/worker doesn't exist yet. Until 4b lands, the auto-submit ALSO fires opportunistically inside `getAttemptForCandidate` whenever the candidate hits the endpoint past their `ends_at` — the safety net.
 - **Magic-link `/take/<token>` flow** — Phase 1 G1.C Session 4a admits attempts via the existing candidate auth chain; the token-bearing entry point lands in 4b along with embed.
 - **Embed routes** — Phase 4 territory; 4b lays groundwork.
@@ -81,16 +92,15 @@
 
 - `pnpm -r typecheck` — green across all 13 packages.
 - `pnpm tsx tools/lint-rls-policies.ts` — green (28 migration files, 14 tenant-bearing + 8 JOIN-based).
-- Tests — **not yet run** (Docker Desktop stopped). Blocker for commit step.
+- `pnpm --filter @assessiq/attempt-engine test` — 18 / 18 testcontainer integration cases pass in ~9s.
 
-### Production deploy
+### Production deploy (completed 2026-05-02)
 
-- **Pending tests passing.** When Docker is up and tests are green, deploy procedure mirrors session 3:
-  - `git archive HEAD modules/06-attempt-engine/ apps/api/src/server.ts apps/api/package.json | ssh assessiq-vps "cd /srv/assessiq && tar -xf -"`
-  - Apply migrations 0030–0033 via `docker exec -i assessiq-postgres psql -U assessiq -d assessiq -v ON_ERROR_STOP=1`.
-  - `docker compose -f infra/docker-compose.yml build assessiq-api && up -d --no-deps --force-recreate assessiq-api`.
-  - Smoke: `curl https://assessiq.automateedge.cloud/api/me/assessments` returns `401 AUTHN_FAILED` envelope (auth-gated, route registered).
-- Additive-only verification: only `assessiq-api` recreated; nginx, postgres, redis, frontend untouched.
+- `git archive HEAD modules/06-attempt-engine apps/api/src/server.ts apps/api/package.json pnpm-lock.yaml docs/02-data-model.md docs/03-api-contract.md docs/RCA_LOG.md docs/SESSION_STATE.md | ssh assessiq-vps "cd /srv/assessiq && tar -xf -"` — pushed only the changed files (no .git on VPS; deploy is artifact-only).
+- 4 migrations applied via `docker exec -i assessiq-postgres psql -U assessiq -d assessiq -v ON_ERROR_STOP=1` in dependency order: 0030_attempts → 0031_attempt_questions → 0032_attempt_answers → 0033_attempt_events. Schema verified directly via `\dt`.
+- `docker compose -f infra/docker-compose.yml build assessiq-api && up -d --no-deps --force-recreate assessiq-api` — image rebuilt, container recreated. Logs show clean startup: `assessiq-api listening on :3000`. Healthy within 35s.
+- Smoke: `/api/health → 200`; all 7 `/api/me/*` candidate routes return `401 AUTHN_FAILED` envelope.
+- **Additive-only verification:** only the `assessiq-api` container was recreated. `assessiq-frontend` (16h up), `assessiq-redis` (30h), `assessiq-postgres` (45h) continued running undisturbed. No nginx changes, no cron changes, no `apt`/`systemctl` changes, no shared-infra touches. 14 non-assessiq containers (roadmap/accessbridge/ti-platform across the shared VPS) untouched.
 
 ### Decisions resolved (Session 4a)
 
