@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview --port 4173",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "e2e": "playwright test"
   },
   "dependencies": {
+    "@assessiq/candidate-ui": "workspace:*",
+    "@assessiq/help-system": "workspace:*",
     "@assessiq/ui-system": "workspace:*",
     "qrcode": "^1.5.4",
     "react": "^18.3.0",
@@ -17,6 +20,7 @@
     "react-router-dom": "^6.27.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
