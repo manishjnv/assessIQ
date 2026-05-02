@@ -4,7 +4,7 @@
 
 **Commits this session:**
 
-- `<sha>` — docs(plans): phase 2 kickoff plan
+- `53a881e` — docs(plans): phase 2 kickoff plan
 
 **Tests:** skipped — pure docs session, no code touched.
 
