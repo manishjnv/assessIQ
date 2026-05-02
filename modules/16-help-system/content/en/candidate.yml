@@ -1,0 +1,221 @@
+# AssessIQ help content — candidate audience, en locale.
+# Edit this file, then run:  pnpm tsx tools/generate-help-seed.ts
+# to regenerate modules/16-help-system/migrations/0011_seed_help_content.sql.
+
+# ─── Pre-attempt intro ───
+
+candidate.intro.integrity:
+  audience: candidate
+  short_text: "AssessIQ measures judgment and reasoning, not memory. Use any reference you would in a real workday."
+  long_md: |
+    ## Integrity expectations
+
+    This assessment is not a closed-book exam. AssessIQ is built to measure
+    how you think on the job, not what you can recall under pressure. Use:
+
+    - **Documentation** for the tools and languages you would normally
+      reference at work.
+    - **Search engines** to look up syntax or operators.
+    - **Notes** you would normally have open.
+
+    Do **not** ask another person to answer for you, share screens, or paste
+    answers from another candidate's attempt. AssessIQ records timing
+    signals, edit patterns, and behavioral fingerprints; identical or
+    near-identical answers across candidates are flagged for review.
+
+    Once you click **Begin Assessment**, the timer starts and cannot be
+    paused. If your network drops, your answers are saved every 5 seconds —
+    you can refresh and continue.
+
+# ─── During the attempt ───
+
+candidate.attempt.timer:
+  audience: candidate
+  short_text: "Wall-clock time remaining. Auto-submits at zero. Pausing is not supported."
+  long_md: |
+    ## Timer
+
+    The countdown shows time remaining for the entire assessment, not the
+    current question. When it reaches zero, AssessIQ auto-submits whatever
+    answers you have entered.
+
+    **The timer keeps running even if you close the tab.** Network dropouts
+    do not pause it. If you genuinely cannot continue (power outage,
+    medical emergency), close the tab and contact your administrator
+    immediately — they can grant a one-time extension before submission.
+
+    Behavioral signals recorded by AssessIQ include time spent per question,
+    number of edits, and navigation pattern. None of these signals affect
+    your score directly; they inform the admin's review.
+
+candidate.attempt.flag:
+  audience: candidate
+  short_text: "Bookmark the question to revisit before final submit. Flags have no scoring impact."
+  long_md: |
+    ## Flag for review
+
+    Use this when you want to come back to a question before final submission —
+    for instance, if you are not sure of your answer or want to verify a query.
+
+    Flagged questions appear with a star in the navigation panel. You can flag
+    multiple questions; the **Review** screen lists all flagged + unanswered
+    items together so you do not miss anything.
+
+    Flagging has no scoring impact. It is just a personal bookmark.
+
+candidate.attempt.kql.editor:
+  audience: candidate
+  short_text: "Write your KQL query. Syntax highlighting + autocomplete. Press Ctrl+Enter to validate."
+  long_md: |
+    ## KQL editor
+
+    The editor offers:
+
+    - **Syntax highlighting** for KQL keywords, operators, and built-in
+      functions.
+    - **Autocomplete** for table names referenced in the question scenario.
+    - **Bracket / paren matching** to spot mismatches early.
+    - **Format on save** (Ctrl+Shift+F) — opinionated, optional.
+
+    **Validation** (Ctrl+Enter) checks for:
+
+    - Parse errors (red underline).
+    - Required keyword presence — the question lists tokens that must appear
+      somewhere in your query for it to score above band 0.
+
+    Validation does not run your query against real data. The grader judges
+    correctness by combining keyword presence with AI rubric review.
+
+candidate.attempt.scenario.steps:
+  audience: candidate
+  short_text: "Multi-step incident. Some steps may unlock only after submitting earlier steps."
+  long_md: |
+    ## Scenario steps
+
+    Scenario questions describe a developing incident across multiple steps.
+    Each step asks for a decision or analysis given the evidence so far.
+
+    **Two modes:**
+
+    - **Free navigation** (default): jump between steps freely. You may
+      revise earlier steps as later evidence arrives.
+    - **Locked progression**: each step unlocks only after you submit the
+      previous one. Look for a small lock icon on later steps.
+
+    Once you submit a step in locked mode, you cannot edit it. In free mode
+    every step stays editable until you submit the assessment.
+
+    Behavioral note: AssessIQ records the order you visited the steps. There
+    is no "correct" order — exploring later evidence first is a valid
+    strategy.
+
+candidate.attempt.subjective.length:
+  audience: candidate
+  short_text: "Recommended 80–200 words per answer. Quality of reasoning beats word count."
+  long_md: |
+    ## Subjective answer length
+
+    Subjective questions are graded on the rubric (anchors and bands), not on
+    length. A 60-word answer that nails the tradeoff scores higher than a
+    300-word answer that meanders.
+
+    **Rough guide:**
+
+    - **Below 40 words:** rarely enough to demonstrate reasoning.
+    - **80–200 words:** the sweet spot for most rubrics.
+    - **Above 300 words:** law of diminishing returns; you are using time
+      that other questions need.
+
+    Markdown formatting (bullets, **bold**, `code`) renders in the grader's
+    review. Use it when it clarifies; do not use it as filler.
+
+candidate.attempt.disconnect:
+  audience: candidate
+  short_text: "Your answers autosave every 5 seconds. Refresh and continue — the timer keeps running."
+  long_md: |
+    ## If your connection drops
+
+    AssessIQ saves your in-progress answers to the server every 5 seconds and
+    shows a small green check next to "Saved" when the latest save completed.
+    A red dot means the last save attempt failed; AssessIQ will retry on the
+    next interval.
+
+    **If you lose connectivity:**
+
+    1. **The timer keeps running** — wall-clock time, not connected time.
+    2. **Reconnect and refresh** — your most recent autosaved state loads.
+    3. **Anything typed during the offline window is lost** — only saved
+       state survives a refresh.
+
+    For a genuinely-blocking outage (power, hardware failure), close the tab
+    and contact your administrator. They can grant a one-time extension
+    before final submission, but cannot extend after auto-submit fires.
+
+candidate.attempt.submit.confirm:
+  audience: candidate
+  short_text: "Once submitted, you cannot reopen the attempt. Verify your flagged questions first."
+  long_md: |
+    ## Submitting your attempt
+
+    Submission is **final**. AssessIQ does not allow editing answers after
+    submit, and there is no second attempt unless your administrator
+    explicitly grants one.
+
+    Before clicking the final **Submit** button, the **Review** screen shows:
+
+    - Flagged questions you wanted to revisit.
+    - Unanswered questions (a blank textarea or empty MCQ counts).
+    - Questions whose autosave is stale (rare — usually only seconds old).
+
+    Walk through any starred or unanswered items. When you are ready, click
+    **Submit**. AssessIQ confirms submission with a final dialog and the
+    candidate timer freezes immediately.
+
+# ─── Final-submit dialog & results ───
+
+candidate.submit.confirm:
+  audience: candidate
+  short_text: "Final confirmation — clicking Submit ends the attempt and starts the grading queue."
+  long_md: |
+    ## Final submit dialog
+
+    This dialog is the last step. Once you confirm, AssessIQ:
+
+    1. Freezes your answers and the timer.
+    2. Records all behavioral signals.
+    3. Queues the attempt for grading.
+    4. Emails your administrator that the attempt is ready for review.
+
+    **You will not see your score immediately.** AI grading runs synchronously
+    when an admin opens your attempt for review (Phase 1). Your administrator
+    will email you once the score is released; depending on their workflow,
+    that can be the same day or several days later.
+
+    There is no "save and continue later" option from this dialog — once you
+    are here, you have committed to submitting.
+
+candidate.result.bands:
+  audience: candidate
+  short_text: "Bands 0/25/50/75/100 represent your performance vs the rubric, not a raw percentage."
+  long_md: |
+    ## Understanding your score
+
+    AssessIQ does not report raw percentages for subjective and scenario
+    questions. Instead, every answer lands on a **band**:
+
+    | Band | Meaning |
+    |---|---|
+    | **0** | Missing, off-topic, or fundamentally incorrect |
+    | **25** | Touched the right area but missed the key point |
+    | **50** | Partial credit — covered some of the rubric, missed the rest |
+    | **75** | Substantially correct, with one notable gap |
+    | **100** | Complete and well-reasoned per the rubric anchors |
+
+    **Why bands and not percentages?** Subjective work is not millimetric.
+    Two graders comparing "73% vs 76%" learn nothing useful; comparing band
+    50 vs band 75 forces a clear judgement call. AssessIQ surfaces the AI's
+    band, the AI's justification, and any admin override side-by-side — so
+    your record is transparent end-to-end.
+
+    MCQ and KQL questions also map to bands so the final score has a
+    consistent shape.

@@ -147,8 +147,9 @@
 | Method | Path | Purpose |
 |---|---|---|
 | `GET`  | `/admin/audit`                   | Audit log (filter by actor, action, entity) |
-| `GET`  | `/admin/help`                    | List help content keys |
-| `PATCH`| `/admin/help/:key`               | Update help text per locale (creates new version) |
+| `GET`  | `/admin/help/export?locale=`     | Export all help rows for translation (admin only) — **live 2026-05-02** |
+| `PATCH`| `/admin/help/:key`               | Update help text per locale (creates new version) — **live 2026-05-02** |
+| `POST` | `/admin/help/import?locale=`     | Bulk upsert help rows from translation (admin only) — **live 2026-05-02** |
 
 ### Candidate
 
@@ -176,7 +177,10 @@
 |---|---|---|
 | `GET`  | `/health`        | Liveness — returns `{ status: "ok" }` |
 | `GET`  | `/ready`         | Readiness — checks DB + Redis + queue |
-| `GET`  | `/help/:key`     | Public help content fetch (anonymous, for embed help drawer) |
+| `GET`  | `/help/:key`     | Public help content fetch (anonymous, globals-only) — **live 2026-05-02** |
+| `GET`  | `/api/help`      | Authenticated page-batch fetch (any role) — **live 2026-05-02** |
+| `GET`  | `/api/help/:key` | Authenticated single-key fetch with locale fallback — **live 2026-05-02** |
+| `POST` | `/api/help/track`| Telemetry (anonymous, deterministic 10% sample) — **live 2026-05-02** |
 
 ---
 

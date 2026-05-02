@@ -2,6 +2,8 @@
 
 > Tooltip + inline help is a **first-class module**, not a bolt-on. Every UI element with non-obvious meaning carries a `help_id`. Centralized authoring means we change copy in one place; localization comes for free.
 
+**Status (2026-05-02):** Phase 1 G1.A Session 2 shipped. `@assessiq/help-system` is live (server-side: routes for public/auth/admin/track + service + repository + 25 seeded globals; client-side: `HelpProvider` / `HelpTip` / `HelpDrawer` / `HelpDrawerTrigger` React components). 17/17 integration tests pass against testcontainers postgres including cross-tenant override invariants. Frontend wiring on existing admin pages lands with the assessiq-frontend container deploy (Phase 1+ deferral); `data-help-id` attrs are already on login.tsx, mfa.tsx, users.tsx.
+
 ## Goals
 
 1. Tooltip on every non-obvious UI control.

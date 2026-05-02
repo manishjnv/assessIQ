@@ -562,9 +562,11 @@ CREATE TABLE help_content (
   version         INT NOT NULL DEFAULT 1,
   status          TEXT NOT NULL DEFAULT 'active',
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, key, locale, version)
+  UNIQUE NULLS NOT DISTINCT (tenant_id, key, locale, version)
 );
 ```
+
+**Status: live (2026-05-02).** Migration at `modules/16-help-system/migrations/0010_help_content.sql`. RLS uses the **nullable-tenant variant** split into 4 scoped policies (`SELECT` / `UPDATE` / `DELETE` / `INSERT`) — a single `FOR ALL` policy contributes its `USING` clause as implicit `WITH CHECK` for INSERT, which would have allowed the app role to insert global rows (`NULL IS NULL` = TRUE passes the check). See `docs/RCA_LOG.md` 2026-05-02 entry. `NULLIF(current_setting('app.current_tenant', true), '')::uuid` handles the pg.Pool empty-string GUC leak. `UNIQUE NULLS NOT DISTINCT` (Postgres 15+) is required because nullable `tenant_id` in default `NULLS DISTINCT` mode would let the seed migration insert duplicate global rows on re-runs.
 
 ## Row-Level Security policies
 

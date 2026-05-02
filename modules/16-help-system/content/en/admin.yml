@@ -1,0 +1,352 @@
+# AssessIQ help content — admin audience, en locale.
+# Edit this file, then run:  pnpm tsx tools/generate-help-seed.ts
+# to regenerate modules/16-help-system/migrations/0011_seed_help_content.sql.
+#
+# Per-entry shape:
+#   <help_id>:
+#     audience: admin | reviewer | candidate | all
+#     short_text: ≤120 chars (tooltip / inline)
+#     long_md: optional markdown for the drawer
+#     related_keys: optional sibling links
+#
+# Help-id convention: <audience>.<area>.<page>.<element> — see docs/07-help-system.md.
+
+# ─── Admin auth surfaces (retroactive audit, Phase 1 G1.A Session 2) ───
+
+admin.auth.login.tenant_slug:
+  audience: admin
+  short_text: "Your organization's slug — the unique URL-safe ID we issued during onboarding (e.g. wipro-soc)."
+  long_md: |
+    ## Tenant slug
+
+    Each AssessIQ tenant has a short, URL-safe identifier you'll use at every
+    sign-in. It usually mirrors your team or product name (e.g. `wipro-soc`,
+    `acme-secops`). Your AssessIQ administrator received the slug at onboarding;
+    if you don't have it, ask them — it is not the same as your email domain.
+
+    The slug is also used in webhook payloads and embed-iframe URLs, so once it
+    is set it stays stable. Renaming a tenant is a manual operation that
+    requires support.
+
+admin.auth.mfa.enroll_vs_verify:
+  audience: admin
+  short_text: "First-time admins enroll an authenticator app here; returning admins enter their 6-digit code to sign in."
+  long_md: |
+    ## TOTP enrollment vs verification
+
+    The first time an admin signs in, AssessIQ shows a QR code and asks you to
+    scan it with an authenticator app (Google Authenticator, Authy, 1Password,
+    Microsoft Authenticator). After scanning, enter the 6-digit code shown in
+    the app to confirm the secret matches.
+
+    Returning admins skip the QR code and only enter the 6-digit code. Codes
+    rotate every 30 seconds; AssessIQ accepts the previous, current, and next
+    code to absorb small clock drifts.
+
+    Lockout policy: five wrong codes in a row locks the account for 15 minutes.
+    Recovery codes are not yet supported in Phase 1 — if you lose access,
+    another admin must reset your TOTP enrollment.
+
+admin.users.role:
+  audience: admin
+  short_text: "admin = full access · reviewer = grade and override only · candidate = take assessments only."
+  long_md: |
+    ## User roles
+
+    | Role | Can do |
+    |---|---|
+    | **admin** | Everything: tenant settings, packs, assessments, grading, exports, billing |
+    | **reviewer** | Grade and override AI verdicts; view assessment results; cannot edit packs or invite users |
+    | **candidate** | Take assigned assessments; view their own past scores |
+
+    Role changes take effect on the next sign-in for that user. Demoting an
+    admin to reviewer revokes their fresh-MFA gates immediately. There is no
+    "owner" or "billing" role — that is a Phase 2 concern.
+
+# ─── Pack & question authoring ───
+
+admin.packs.create.domain:
+  audience: admin
+  short_text: "The role-readiness domain this pack covers (SOC analyst, DevOps, etc.). Set once; choose carefully."
+  long_md: |
+    ## Pack domain
+
+    A *pack* is a collection of leveled questions for a single role-readiness
+    domain. The domain is metadata only — AssessIQ has no domain-specific
+    code paths — but it controls the default rubric anchors, the example UI
+    copy, and how packs sort in the admin browser.
+
+    Common values: `soc-analyst`, `devops-engineer`, `cloud-architect`,
+    `identity-engineer`, `incident-responder`. Use lowercase, dash-separated.
+
+    You cannot rename a pack's domain after questions exist under it — clone
+    the pack into a new domain instead.
+
+admin.questions.generate.draft:
+  audience: admin
+  short_text: "AI-assisted question drafts are a Phase 2 feature; for now, author by hand or import from JSON."
+  long_md: |
+    ## AI-assisted question generation
+
+    Phase 2 will add a **Generate draft** button that takes a one-line prompt
+    ("design a tier-2 SOC scenario about phishing escalation") and returns a
+    fully-shaped question with anchors, rubric bands, and example responses,
+    using the same AI-grading pipeline that scores attempts.
+
+    For Phase 1 you have two paths:
+
+    1. **Author by hand** — fill the question form (type, body, expected
+       answers, rubric) directly.
+    2. **Import JSON** — paste or upload a JSON document conforming to the
+       schema in `modules/04-question-bank/import.schema.json`.
+
+    The hand-authored path supports every question type the engine understands;
+    JSON import is convenient for migrating from spreadsheets.
+
+admin.questions.import.format:
+  audience: admin
+  short_text: "JSON only in Phase 1 (CSV is Phase 2). Schema: modules/04-question-bank/import.schema.json."
+  long_md: |
+    ## Question import format
+
+    Bulk import accepts a single JSON document in this Phase. The document
+    schema is published at
+    `modules/04-question-bank/import.schema.json`; in summary:
+
+    ```jsonc
+    {
+      "pack": "soc-analyst-v1",
+      "level": "L2",
+      "questions": [
+        {
+          "type": "mcq | kql | scenario | subjective",
+          "body": "...",
+          "answers": [...],          // shape varies by type
+          "rubric": { ... },         // for subjective / scenario
+          "tags": ["phishing", "triage"]
+        }
+      ]
+    }
+    ```
+
+    CSV import is on the Phase 2 roadmap. Until then, convert spreadsheets to
+    JSON with a script of your choice — the schema is plain enough to template.
+
+admin.questions.type.kql.expected_keywords:
+  audience: admin
+  short_text: "Tokens that MUST appear (case-insensitive) for the answer to score above band 0. Add 1–5 per question."
+  long_md: |
+    ## KQL expected keywords
+
+    KQL questions are graded on a hybrid: **deterministic keyword presence**
+    plus AI judgement on syntactic and semantic correctness. The keyword list
+    is the deterministic floor — if none of the listed tokens appear in the
+    candidate's query, the answer can score at most band 0 regardless of how
+    elegant the rest of the query is.
+
+    **Recommendations:**
+
+    - Pick tokens that are *necessary*, not sufficient: a query that lacks
+      `where` or the target table cannot be correct.
+    - 1–5 keywords per question. More than 5 makes scoring brittle.
+    - Use case-insensitive matching (`Where`, `where`, `WHERE` all match).
+    - Quoted identifiers (`"My Table"`) are matched literally; bare tokens
+      are matched as whole words (`time` will not match `timestamp`).
+
+    The AI grader sees the keyword list as a hint and uses it to anchor its
+    own judgement — admin can still override.
+
+admin.questions.type.scenario.step_dependency:
+  audience: admin
+  short_text: "Lock a step so it can't be answered until the previous step is submitted. Use sparingly."
+  long_md: |
+    ## Step dependency
+
+    Scenario questions present a multi-step incident. By default, candidates
+    can navigate freely — they may answer step 3 before step 1 if they want
+    to think non-linearly. Setting **step dependency** locks each step until
+    the previous one is submitted.
+
+    **When to enable:**
+
+    - The branching narrative (we tell the candidate "the alert escalated
+      because…") would spoil the answer to an earlier step.
+    - You want to measure pure decision speed without back-tracking.
+
+    **When not to:**
+
+    - Standard triage workflows. Real analysts revisit earlier conclusions.
+    - Investigation-style scenarios where evidence accumulates.
+
+    The candidate sees a small lock icon on dependent steps and a clear
+    "Submit step N to continue" prompt.
+
+admin.questions.type.subjective.rubric:
+  audience: admin
+  short_text: "Anchors describe each band (0/25/50/75/100). Write band 100 first, then 0, then fill the middle."
+  long_md: |
+    ## Subjective rubric anchors
+
+    AI grading uses the rubric anchors as the *one* shared truth between the
+    AI's judgement and your override. Every grading record stores the anchors
+    that were active at grade time, so an audit trail survives even if you
+    later refine the rubric.
+
+    **Authoring approach that works:**
+
+    1. Write **band 100** first — what does an obviously correct, complete
+       answer look like? Be specific: which terms, structures, or tradeoffs
+       must appear.
+    2. Write **band 0** second — what is missing, vague, or wrong enough to
+       score zero? The AI uses this as the negative anchor.
+    3. Fill **band 50** — the middle: partial credit, missing one of two
+       required elements, correct intuition with weak rationale.
+    4. Fill **band 25** and **band 75** by interpolation.
+
+    **Anti-patterns:**
+
+    - "It depends" or "looks reasonable" — too vague for the AI to ground on.
+    - Numeric thresholds the AI can't verify (e.g. "discusses at least three
+      mitigations" works; "scores 7/10 on accuracy" doesn't).
+    - More than ~80 words per band — the rubric is a contract, not an essay.
+
+    Override the AI verdict any time. Your override sits *beside* the AI's
+    record, never replaces it.
+
+# ─── Assessment lifecycle ───
+
+admin.assessments.create.duration:
+  audience: admin
+  short_text: "Total wall-clock minutes from candidate start to auto-submit. L1: 30–45, L2: 45–60, L3: 60–90."
+  long_md: |
+    ## Duration
+
+    The total time a candidate has from clicking **Begin Assessment** to the
+    auto-submit. Once started, the timer cannot be paused.
+
+    **Recommendations:**
+
+    - **L1 / triage-style:** 30–45 minutes
+    - **L2 / investigation:** 45–60 minutes
+    - **L3 / detection engineering:** 60–90 minutes
+
+    Candidates can navigate freely between questions during this window.
+    Auto-submit fires the moment the timer hits zero — partial answers are
+    saved.
+
+    > **Note:** Time-based behavioral signals (per-question time spent, edits)
+    > are captured regardless of duration. Do not compress duration to "force
+    > speed"; the platform measures speed separately.
+
+  related_keys:
+    - admin.assessments.create.question_count
+
+admin.assessments.create.question_count:
+  audience: admin
+  short_text: "How many questions to draw from the pack/level pool. Must be ≤ active questions in the pool."
+  long_md: |
+    ## Question count
+
+    AssessIQ samples this many questions from the pack + level you chose. If
+    randomization is on, every candidate sees a different draw; if off, all
+    candidates see the same set in the same order.
+
+    **Constraints:**
+
+    - Must be ≤ the number of `active` questions in the pool. Publish fails
+      if not.
+    - Pool size is shown live next to this input as you author.
+    - Recommended ratio: ~1 question per 4 minutes of duration. Higher density
+      is fine for MCQ-heavy assessments; lower for scenario or subjective
+      heavy ones.
+
+admin.assessments.create.randomize:
+  audience: admin
+  short_text: "Each candidate sees a different sample + order. Off = identical assessment for everyone."
+  long_md: |
+    ## Randomize question selection
+
+    With randomization on, every candidate's attempt:
+
+    - Draws a fresh sample from the pool (size = question count).
+    - Shuffles question order.
+    - Shuffles MCQ answer order on a per-question basis.
+
+    The seed is stable per attempt, so refreshing the page does not re-shuffle.
+
+    **When to turn it off:**
+
+    - Calibrating a new pack against a fixed reference set.
+    - Live training events where everyone sees the same screen.
+    - Anti-cheat is **not** the right reason — randomization is not a
+      meaningful integrity control. Use real-time monitoring or proctoring
+      tools instead.
+
+admin.assessments.publish:
+  audience: admin
+  short_text: "Locks the question set, opens invitations, and starts the schedule. Pre-flight checks run automatically."
+  long_md: |
+    ## Publish assessment
+
+    Publishing flips the assessment from `draft` to `published` and runs three
+    pre-flight checks:
+
+    1. **Pool size** — the active question pool ≥ the requested question
+       count.
+    2. **Open window** — `opens_at` is in the future or already past with a
+       valid `closes_at`.
+    3. **Notification config** — if invitations are scheduled, the tenant has
+       a working SMTP config.
+
+    Once published, the question set is **frozen** for that assessment. Edits
+    to questions in the underlying pack do not affect already-published
+    assessments — that is by design (HR auditability).
+
+    To change a published assessment, **close** it and create a new one.
+
+admin.assessments.close.early:
+  audience: admin
+  short_text: "Sends auto-submit to every in-progress attempt. Cannot be undone — closes the schedule immediately."
+  long_md: |
+    ## Close assessment early
+
+    Forces the assessment from `active` to `closed` immediately, regardless of
+    `closes_at`. Effects:
+
+    - Every in-progress attempt is auto-submitted with whatever answers exist.
+    - Pending invitations are revoked; their links return a "this assessment
+      is closed" page if used.
+    - Notifications fire as if the schedule had ended naturally.
+
+    **You cannot reopen** a closed assessment whose `closes_at` has passed.
+    Re-opening before `closes_at` is allowed but rare — see
+    `assessment.reopen` (admin-only, audited).
+
+    Use this for: an emergency stop (compromised question content, vendor
+    incident). Do **not** use this to "give one candidate extra time" — that
+    is a per-attempt extension, not an assessment-level action.
+
+admin.assessments.invite.bulk:
+  audience: admin
+  short_text: "Paste up to 500 emails (one per line). Existing users are linked; new users get a magic-link signup."
+  long_md: |
+    ## Bulk invite
+
+    Paste up to 500 candidate emails — one per line. AssessIQ:
+
+    1. **De-duplicates** within the input list and against existing
+       invitations on this assessment.
+    2. **Links existing users** by email. They receive a sign-in invitation
+       only.
+    3. **Creates pending users** for new emails. They receive a magic-link
+       sign-up + assessment invitation in one email.
+
+    **Rate-limited:** 500 emails per hour per tenant per admin. The UI shows
+    a progress bar; if you hit the limit, the remaining emails queue and send
+    over the next hour automatically.
+
+    **Email content:** uses the tenant's branded template if configured, the
+    default template otherwise. Editing templates is an admin-settings page.
+
+  related_keys:
+    - admin.assessments.publish

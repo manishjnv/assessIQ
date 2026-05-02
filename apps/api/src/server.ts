@@ -13,6 +13,12 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
+import {
+  registerHelpPublicRoutes,
+  registerHelpAuthRoutes,
+  registerHelpAdminRoutes,
+  registerHelpTrackRoutes,
+} from '@assessiq/help-system';
 import { authChain } from './middleware/auth-chain.js';
 
 const requestLog = streamLogger('request');
@@ -130,6 +136,22 @@ export async function buildServer() {
   // accepts the chain as an injected dep so the library stays Fastify-shape-
   // compatible without a hard apps/api import.
   await registerQuestionBankRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
+  // Help-system routes. Public + track are anonymous (no preHandler chain
+  // needed; the global tenancy hook auto-skips when req.session is absent).
+  // Auth + admin routes use DI authChain — the help-system package stays
+  // framework-agnostic (no fastify dep) so apps/api passes its own factory.
+  await registerHelpPublicRoutes(app);
+  await registerHelpTrackRoutes(app);
+  // Cast through `unknown` to satisfy strictFunctionTypes parameter
+  // contravariance: apps/api's authChain returns FastifyHook[] (req:
+  // FastifyRequest), but the library's DI shape uses (req: unknown) to
+  // avoid coupling. Param shapes overlap exactly on the fields the chain
+  // reads (headers, cookies, session, apiKey, log), so the cast is sound.
+  const authChainAdapter: Parameters<typeof registerHelpAuthRoutes>[1]['authChain'] =
+    authChain as unknown as Parameters<typeof registerHelpAuthRoutes>[1]['authChain'];
+  await registerHelpAuthRoutes(app, { authChain: authChainAdapter });
+  await registerHelpAdminRoutes(app, { authChain: authChainAdapter });
 
   return app;
 }
