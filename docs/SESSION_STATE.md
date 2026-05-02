@@ -1,14 +1,16 @@
-# Session — 2026-05-02 (Phase 1 G1.C Session 4a + activate-all side-quest)
+# Session — 2026-05-02 (Phase 1 G1.C Session 4a + activate-all + Session 4b.1 worker)
 
-**Headline:** Phase 1 G1.C Session 4a shipped end-to-end — `modules/06-attempt-engine` candidate-side core (4 migrations + 8 candidate routes + 18 integration tests) + side-quest `activateAllQuestionsForPack` admin affordance closing the question-status workflow gap RCA'd earlier today. Both shipped commit→deploy→docs→handoff.
+**Headline:** Phase 1 G1.C Session 4a shipped end-to-end — `modules/06-attempt-engine` candidate-side core (4 migrations + 8 candidate routes + 18 integration tests) + side-quest `activateAllQuestionsForPack` admin affordance closing the question-status workflow gap + Session 4b.1 `apps/worker` BullMQ scheduler runtime making boundary cron + timer sweep autonomous. All four sub-sessions shipped commit→deploy→docs→handoff. assessiq-worker live in production, ticking every 30s/60s.
 
 **Commits this session:**
 
 - `4b86753` — feat(attempt-engine): module 06 candidate-side core — start, autosave, events, submit (24 files, +3471/-98)
 - `545c74a` — docs(session): handoff for Phase 1 G1.C Session 4a — 06-attempt-engine deployed
 - `4c7d28d` — feat(question-bank): admin activate-all questions affordance — closes RCA workflow gap (9 files, +258/-6)
+- `05e5505` — docs(session): handoff update — activate-all affordance shipped
+- `2675e2f` — feat(worker): apps/worker BullMQ scheduler — boundary cron + timer sweep autonomy (8 files, +611/-8)
 
-**Tests:** 18 / 18 passing in `modules/06-attempt-engine` (testcontainer integration), 55 / 55 passing in `modules/04-question-bank` (was 50; +5 for activate-all). `pnpm -r typecheck` clean across all 13 packages. `pnpm tsx tools/lint-rls-policies.ts` clean (28 migrations scanned, 14 tenant-bearing + 8 JOIN-based, all policies present including the 3 new attempt_* tables).
+**Tests:** 18 / 18 passing in `modules/06-attempt-engine` (testcontainer integration), 55 / 55 passing in `modules/04-question-bank` (was 50; +5 for activate-all), 28 / 28 passing in `apps/api` (was 26; +2 for the worker integration smoke — pg + redis testcontainer pair). `pnpm -r typecheck` clean across all 13 packages. `pnpm tsx tools/lint-rls-policies.ts` clean (28 migrations scanned, 14 tenant-bearing + 8 JOIN-based, all policies present including the 3 new attempt_* tables).
 
 **Live verification:** `https://assessiq.automateedge.cloud/api/health → 200`. All 7 candidate routes return `401 AUTHN_FAILED` envelopes confirming registration + auth chain + error handler:
 
@@ -22,12 +24,14 @@
 
 Postgres schema verified directly: `\dt attempts`, `\dt attempt_questions`, `\dt attempt_answers`, `\dt attempt_events` all present.
 
-**Live verification:** `https://assessiq.automateedge.cloud/api/health → 200`. Module 06 candidate routes all `401 AUTHN_FAILED` envelopes confirming registration + auth chain + error handler. New `POST /api/admin/packs/:id/activate-questions` also returns `401 AUTHN_FAILED` envelope (auth-gated, route registered).
+**Live verification:** `https://assessiq.automateedge.cloud/api/health → 200`. Module 06 candidate routes all `401 AUTHN_FAILED` envelopes. `POST /api/admin/packs/:id/activate-questions` → `401 AUTHN_FAILED`. `assessiq-worker` container `Up 26 minutes`, `bull:assessiq-cron:completed` ZSET capped at 50 entries (the `removeOnComplete: 50` ceiling — confirms ≥50 ticks have completed cleanly), 2 repeatables registered (`assessment-boundary-cron` 60s, `attempt-timer-sweep` 30s). No error log lines in the worker.
 
 **Next:**
 
-1. **Session 4b** — embed routes + magic-link `/take/:token` flow + apps/worker creation + BullMQ scheduler wiring for both module 05's `processBoundariesForTenant` AND module 06's `sweepStaleTimersForTenant` + Redis-backed rate cap. Session 4b touches embed JWT verification + magic-link sessions + multi-tab concurrency = `codex:rescue` mandatory before push per Session 4 DoD.
-2. **End-to-end candidate flow validation** — now that module 04 has activate-all and module 06 is live, run a full live drill on production: SSO admin → createPack → addLevel → createQuestion ×N → publishPack → activate-questions → createAssessment → publishAssessment → activate (boundary or manual SQL) → inviteUsers → candidate session → startAttempt → saveAnswer → submitAttempt. Catches any deployment-state gaps (missing user_id flows, candidate-session minting paths, frontend console errors) before Phase 2 grading lands.
+1. **Session 4b.2** — magic-link `/take/<token>` flow. Needs: (a) `01-auth` extension to mint a candidate session from an invitation token (or a token-scoped `req.candidate` shape), (b) `06-attempt-engine` route for `GET /take/:token` + `POST /take/:token/start`, (c) candidate-session minting that's bounded to the assessment in question. **codex:rescue mandatory before push** — magic-link tokens are pre-auth credentials and the verify path is security-adjacent.
+2. **Session 4b.3** — embed routes (`/embed?token=<JWT>`). Phase 4 territory but the JWT verify path is touched in Session 4b. Likely lands together with 4b.2.
+3. **End-to-end candidate flow validation on production** — now that activate-all + worker are live, run a full live drill: SSO admin → createPack → addLevel → createQuestion ×N → publishPack → activate-questions → createAssessment → publishAssessment → wait ~60s for boundary cron to flip published→active (or trigger manually) → inviteUsers → candidate session → startAttempt → saveAnswer → submitAttempt. Catches deployment-state gaps before Phase 2 grading lands.
+4. **Phase 1.5 carry-overs** (still open): Redis-backed rate cap (in-process bucket today); apps/web logger no-console; admin pages without kit reference screens; Spinner component in `@assessiq/ui-system`; MFA recovery code flow; SMTP driver for `tenants.smtp_config`; HelpProvider localStorage tenant_id leak; `--aiq-color-bg-elevated` → `--aiq-color-bg-raised` rename; root `eslint .` not in CI.
 
 **Open questions / explicit deferrals:**
 
@@ -42,10 +46,10 @@ Postgres schema verified directly: `\dt attempts`, `\dt attempt_questions`, `\dt
 ---
 
 ## Agent utilization
-- **Opus:** Phase 0 warm-start reads (parallel: PROJECT_BRAIN, SESSION_STATE prior, RCA_LOG, KICKOFF Session 4 block, module 06 SKILL, module 05 service+routes+repo+types+migrations+SKILL+lifecycle.test, module 04 repository+index, apps/api server.ts+package.json+auth-chain, lint-rls-policies, docs/02 attempts schema, docs/03 candidate routes, 02-tenancy with-tenant exports). Self-writes for all 4 migrations + types.ts + repository.ts + rate-cap.ts + service.ts + routes.candidate.ts + index.ts + fastify.d.ts + package.json + tsconfig.json + vitest.config.ts + EVENTS.md + integration test scaffold + apps/api wiring (package.json + server.ts) + SKILL.md status flip + docs/02 schema update + docs/03 candidate-route table update + this SESSION_STATE. Phase 5 verification: `pnpm --filter @assessiq/attempt-engine typecheck` green; `pnpm -r typecheck` green across all 13 packages; `pnpm tsx tools/lint-rls-policies.ts` green (28 migrations, 14 tenant-bearing + 8 JOIN-based). Test run blocked on Docker availability.
-- **Sonnet:** n/a — single-module mechanical scaffolding stayed in Opus's hot-cache window after session 3's reads. The patterns (RLS-only repository, withTenant service wrap, JSON-shaped routes, testcontainer fixture) were all replicated from module 05 verbatim with minimal adaptation; cold-start subagent overhead would have outweighed token savings.
-- **Haiku:** n/a — no bulk multi-file lookups, no curl grids, no log triage.
-- **codex:rescue:** n/a — Session 4a ships candidate-session-only routes (no embed JWT, no magic-link). Module 06 is NOT in the load-bearing paths list (`00-core`, `01-auth`, `02-tenancy`, `07-ai-grading`, `14-audit-log`, `infra/`). State-corruption trap surfaces (frozen-version JOIN, last-write-wins SQL, idempotent submit, partial UNIQUE cap-once) are testcontainer-covered (pending Docker availability). **Session 4b WILL require codex:rescue** when embed JWT verification + magic-link surfaces land — that's the Session 4 DoD mandate from `docs/plans/PHASE_1_KICKOFF.md`.
+- **Opus:** Phase 0 warm-start reads + self-writes for all four sub-sessions (Session 4a module 06; activate-all side-quest in module 04; Session 4b.1 apps/worker BullMQ scheduler). All patterns inherited from sessions 3/4a hot-cache (RLS-only repository, withTenant service wrap, testcontainer fixture, system-role bypass for cross-tenant reads, BullMQ Queue+Worker pattern). Phase 5 verification: `pnpm -r typecheck` green across 13 packages; `pnpm tsx tools/lint-rls-policies.ts` green (28 migrations, 14 tenant-bearing + 8 JOIN-RLS); module 04 55/55, module 06 18/18, apps/api 28/28 (+2 worker tests). Production deploys: 5 commits, 4 production deploys (each additive-only), no other-app disturbance across 14 non-assessiq containers on the shared VPS.
+- **Sonnet:** n/a — single-developer hot-cache window covered all four sub-sessions. Subagent cold-start (~20-30s) plus cache loss would have outweighed token savings on each surface; total tool-call budget across all four sessions stayed within ~40 calls.
+- **Haiku:** n/a — no bulk multi-file lookups; one-off greps and structured smoke tests stayed direct.
+- **codex:rescue:** n/a for all four sub-sessions. Session 4a is candidate-session-only (no embed JWT, no magic-link). Activate-all is admin-CRUD only. Session 4b.1 is cron-only — no JWTs, no candidate auth, no security-adjacent surface. Module 06 + apps/worker are NOT in the load-bearing paths list. State-corruption trap surfaces are all testcontainer-covered. **Session 4b.2 (magic-link) WILL require codex:rescue** before push — that's the Session 4 DoD mandate from `docs/plans/PHASE_1_KICKOFF.md`.
 
 ---
 
