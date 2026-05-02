@@ -42,11 +42,13 @@ Every primitive has:
 - Dark-mode story
 
 ## Branding base
-The UI template at `modules/17-ui-system/AccessIQ_UI_Template/` is the **canonical visual identity** for AssessIQ. The actionable, sectioned guideline lives in `docs/10-branding-guideline.md` — every new page, layout, and component must follow it. The token namespace + values in `docs/08-ui-system.md` mirror the template's palette and type system in the `--aiq-*` namespace.
+The folder `AccessIQ_UI_Template/` is the **complete design-system kit** for AssessIQ — the canonical brand contract, not just a visual reference. Entry point is [`AccessIQ_UI_Template/CLAUDE.md`](./AccessIQ_UI_Template/CLAUDE.md); detail lives in [`AccessIQ_UI_Template/design-system/`](./AccessIQ_UI_Template/design-system/) (`README.md` for philosophy + Do/Don't, `tokens.md` for exact values, `components.md` for primitive recipes, `patterns.md` for page layouts, `copy-and-voice.md` for tone). Reference JSX implementations live in [`AccessIQ_UI_Template/screens/`](./AccessIQ_UI_Template/screens/); browse them via `AccessIQ.html` or `component-gallery.html`.
 
-Files under `AccessIQ_UI_Template/` are reference, not production code. The designer-tool harness (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `.design-canvas.state.json`) must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land.
+The production-translation companion lives at `docs/10-branding-guideline.md` — it explains how the kit's un-prefixed tokens (`--accent`, `--bg`, `.btn`) map to the production `--aiq-*` namespace and `aiq-*` classes, plus AssessIQ-specific deltas (banded score model, multi-tenant accent override, light-mode-only lock, accessibility deltas). The system architecture (token catalog, theming pipeline, embed posture) lives in `docs/08-ui-system.md`. **When the three disagree the kit wins, then the branding guideline, then 08.**
 
-Component APIs in this module stay stable; visual fidelity to the branding guideline is the contract.
+Files under `AccessIQ_UI_Template/` are reference, not production code. The designer-tool harness (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `component-gallery.html`, `.design-canvas.state.json`) must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land. ESLint `no-restricted-imports` blocks `**/AccessIQ_UI_Template/**` globally.
+
+Component APIs in this module stay stable; visual fidelity to the kit is the contract.
 
 ## Help/tooltip surface
 - `admin.settings.tenant.branding.preview` — live preview of brand changes
