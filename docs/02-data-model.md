@@ -412,50 +412,69 @@ CREATE TABLE assessment_invitations (
 
 ## Attempts
 
+> **Status: live** as of Phase 1 G1.C Session 4a (2026-05-02). Migrations 0030-0033 in `modules/06-attempt-engine/migrations/`. Diff vs the original sketch below: (a) `status` CHECK aligns with PROJECT_BRAIN decision (`'draft','in_progress','submitted','auto_submitted','cancelled','pending_admin_grading','graded','released'`); (b) added `ends_at`, `duration_seconds` columns to make the timer server-pinned at start; (c) added `client_revision INT NOT NULL DEFAULT 0` on `attempt_answers` (decision #7); (d) added `saved_at` on `attempt_answers` and dropped `updated_at`; (e) `integrity` and `client_meta` columns on `attempts` deferred — those signals live in `attempt_events` rows for now (Phase 2 may aggregate into a denormalized column on the row); (f) added partial UNIQUE index on `(attempt_id) WHERE event_type='event_volume_capped'` enforcing the cap-once invariant (decision #23); (g) RLS for `attempts` is the standard variant (tenant-bearing), JOIN-RLS for the three child tables.
+
+Live schema (after migrations apply):
+
 ```sql
 CREATE TABLE attempts (
-  id              UUID PRIMARY KEY DEFAULT uuidv7(),
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID NOT NULL REFERENCES tenants(id),
   assessment_id   UUID NOT NULL REFERENCES assessments(id),
   user_id         UUID NOT NULL REFERENCES users(id),
-  status          TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','submitted','auto_submitted','abandoned','grading','graded','reviewed','released')),
-  started_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (
+    'draft','in_progress','submitted','auto_submitted','cancelled',
+    'pending_admin_grading','graded','released'
+  )),
+  started_at      TIMESTAMPTZ,
+  ends_at         TIMESTAMPTZ,                            -- pinned at start = started_at + level.duration_minutes
   submitted_at    TIMESTAMPTZ,
-  time_used_seconds INT,
-  integrity       JSONB NOT NULL DEFAULT '{}'::jsonb,    -- {visibilityBlurs,copyEvents,...}
-  client_meta     JSONB,                                  -- {ip, ua, screen}
+  duration_seconds INT,                                    -- snapshot of level.duration_minutes * 60
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (assessment_id, user_id)                         -- one attempt per user per assessment v1
 );
+CREATE INDEX attempts_user_idx ON attempts (tenant_id, user_id);
+CREATE INDEX attempts_timer_sweep_idx ON attempts (ends_at) WHERE status = 'in_progress';
+CREATE INDEX attempts_assessment_status_idx ON attempts (assessment_id, status);
 
 CREATE TABLE attempt_questions (
   attempt_id      UUID NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
   question_id     UUID NOT NULL REFERENCES questions(id),
   position        INT NOT NULL,
-  question_version INT NOT NULL,                          -- frozen at attempt start
+  question_version INT NOT NULL,                          -- frozen at attempt start (JOINs question_versions)
   PRIMARY KEY (attempt_id, question_id)
 );
 
 CREATE TABLE attempt_answers (
   attempt_id      UUID NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
   question_id     UUID NOT NULL REFERENCES questions(id),
-  answer          JSONB,                                  -- shape depends on q type
+  answer          JSONB,                                  -- shape depends on questions.type
   flagged         BOOLEAN NOT NULL DEFAULT false,
   time_spent_seconds INT NOT NULL DEFAULT 0,
   edits_count     INT NOT NULL DEFAULT 0,
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  client_revision INT NOT NULL DEFAULT 0,                 -- decision #7: monotonic via SQL GREATEST + 1
+  saved_at        TIMESTAMPTZ,
   PRIMARY KEY (attempt_id, question_id)
 );
 
 CREATE TABLE attempt_events (
   id              BIGSERIAL PRIMARY KEY,
   attempt_id      UUID NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
-  event_type      TEXT NOT NULL,                          -- 'question_view','answer_save','flag','tab_blur','copy','paste'
+  event_type      TEXT NOT NULL,                          -- catalog in modules/06-attempt-engine/EVENTS.md
   question_id     UUID,
   payload         JSONB,
   at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX attempt_events_attempt_idx ON attempt_events (attempt_id, at);
+CREATE UNIQUE INDEX attempt_events_capped_unique_idx
+  ON attempt_events (attempt_id) WHERE event_type = 'event_volume_capped';
 ```
+
+**Frozen-version contract:** `attempt_questions.question_version` snapshots `questions.version` at startAttempt time. Reading the candidate's view JOINs `question_versions ON (question_id, version)` so admin edits to the live `questions.content` after start are invisible to the in-flight attempt. Verified by `modules/06-attempt-engine/src/__tests__/attempt-engine.test.ts § getAttemptForCandidate "returns frozen content even after admin edits live question"`.
+
+**Phase 1 grading-free contract** (CLAUDE.md AssessIQ-specific rule #1, decision #6): `submitAttempt` transitions `status` to `'submitted'` and stops. The values `'pending_admin_grading'`, `'graded'`, `'released'` are accepted by the CHECK constraint for forward-compat but never written by Phase 1 code. The candidate's `/api/me/attempts/:id/result` endpoint returns `202 grading_pending` until Phase 2 wires module 07 + 08.
+
+**`integrity` / `client_meta` columns** (in the original sketch above) — explicitly dropped from the live schema. Behavioural signals live in `attempt_events` rows; if Phase 2 wants a denormalized aggregate, the read path can compute it from events in `attempt_scores`.
 
 ## Grading & scoring
 

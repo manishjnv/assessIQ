@@ -160,16 +160,18 @@
 
 ### Candidate
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET`  | `/me/assessments`             | List assessments invited to |
-| `POST` | `/me/assessments/:id/start`   | Begin attempt — creates `attempt`, freezes question set |
-| `GET`  | `/me/attempts/:id`            | Current attempt state (questions + answers + remaining time) |
-| `POST` | `/me/attempts/:id/answer`     | Save/update one answer (auto-save) |
-| `POST` | `/me/attempts/:id/flag`       | Toggle flag on a question |
-| `POST` | `/me/attempts/:id/event`      | Push behavioral event (tab blur, etc.) |
-| `POST` | `/me/attempts/:id/submit`     | Final submit — triggers grading |
-| `GET`  | `/me/attempts/:id/result`     | View result if released |
+All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requireAuth({ roles: ['candidate'] })`). RLS scopes every read/write to the candidate's own tenant; service-layer ownership check denies cross-user reads with `AUTHZ_FAILED { code: AE_NOT_OWNED_BY_USER }`.
+
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `GET`  | `/api/me/assessments`             | List active assessments the candidate is invited to | **live 2026-05-02** |
+| `POST` | `/api/me/assessments/:id/start`   | Begin attempt — creates `attempt`, freezes question set into `attempt_questions`, returns `201 Attempt` (idempotent — re-call returns existing) | **live 2026-05-02** |
+| `GET`  | `/api/me/attempts/:id`            | Server-authoritative attempt view — `{ attempt, questions[], answers[], remaining_seconds }`. Auto-submits the attempt if `ends_at` has passed. | **live 2026-05-02** |
+| `POST` | `/api/me/attempts/:id/answer`     | Autosave one answer (last-write-wins, decision #7) — body `{ question_id, answer, client_revision?, edits_count?, time_spent_seconds? }`; returns `204` + `X-Client-Revision` header | **live 2026-05-02** |
+| `POST` | `/api/me/attempts/:id/flag`       | Toggle flag on a question — body `{ question_id, flagged }`; returns `200 { flagged }` | **live 2026-05-02** |
+| `POST` | `/api/me/attempts/:id/event`      | Push behavioral event (catalog: `modules/06-attempt-engine/EVENTS.md`) — body `{ event_type, question_id?, payload? }`; returns `201 AttemptEvent` or `204` if rate-cap dropped | **live 2026-05-02** |
+| `POST` | `/api/me/attempts/:id/submit`     | Final submit (idempotent terminal) — Phase 1 stops at `submitted`; returns `202 { attempt_id, status: 'submitted', estimated_grading_seconds: null }` | **live 2026-05-02** |
+| `GET`  | `/api/me/attempts/:id/result`     | View result — Phase 1 returns `202 { status: 'grading_pending' }` until module 07/08 land in Phase 2 | **live (placeholder) 2026-05-02** |
 
 ### Embed
 

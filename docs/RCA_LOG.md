@@ -4,6 +4,77 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-02 — `publishPack` version bump leaves attempt_questions JOIN empty when pinning to `questions.version`
+
+**Symptom:** Phase 1 G1.C Session 4a integration tests failed in 6 of 18 cases — every test that relied on `getAttemptForCandidate` or any downstream function that resolves the frozen question set returned `view.questions.length === 0`. The failure cascaded as `TypeError: Cannot read properties of undefined (reading 'question_id')` on `view.questions[0]!.question_id`. The earliest failing case was `startAttempt > happy path`, where `repo.listFrozenQuestionsForAttempt(client, attempt.id)` returned an empty array even though `attempt_questions` had 5 rows and `question_versions` had 5 published snapshots — the JOIN simply didn't match.
+
+**Cause:** Two distinct version columns mean different things in the data model:
+
+1. `questions.version` — the version number the **next** save will assign. Bumped at the END of `publishPack` (after the snapshot is inserted) and at the END of `updateQuestion` (after the snapshot of the OLD content is inserted). So at any moment, `questions.version` is **one higher** than the most recent snapshot that actually exists in `question_versions`.
+2. `question_versions.version` — the historical snapshot, written BEFORE `questions.version` is bumped.
+
+Module 06's `listActiveQuestionPoolForPick` was reading `q.version` from the live questions table. The service then pinned `attempt_questions.question_version = q.version` (e.g., 2 right after publishPack). But the only snapshot that exists is `question_versions(version = 1)` — the one publishPack wrote *before* bumping. The JOIN `qv ON qv.question_id = aq.question_id AND qv.version = aq.question_version` looked for `version = 2`, found nothing, and returned an empty result set.
+
+**Fix:** Changed `listActiveQuestionPoolForPick` (in `modules/06-attempt-engine/src/repository.ts`) to return the **latest existing snapshot version per question** via `MAX(qv.version)` with an INNER JOIN to `question_versions`:
+
+```sql
+SELECT q.id, MAX(qv.version)::int AS version
+FROM questions q
+JOIN question_versions qv ON qv.question_id = q.id
+WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'
+GROUP BY q.id
+ORDER BY q.id ASC
+```
+
+Result: 18/18 tests pass. The semantic guarantee is preserved — the candidate sees the content as it was in the most recent committed snapshot. Admin edits-in-progress (which write new content to `questions.content` but do NOT yet write a snapshot for the new version — `updateQuestion` only snapshots the OLD content) remain invisible to in-flight attempts. The candidate sees the pre-edit content until the admin **re-publishes** the pack, which is the only operation that creates a snapshot of the now-current content.
+
+**Prevention:**
+
+1. **Pattern guard for any module that consumes `question_versions`:** never read `questions.version` and use it as a key into `question_versions`. The two columns have different semantics — `questions.version` is the *next* version to assign, while `question_versions.version` is the most recent committed historical snapshot. The two are always off by one in the steady state. Future modules (07-ai-grading needs frozen content for grading; 09-scoring needs frozen rubrics for archetype) MUST resolve via `MAX(qv.version)` or via the latest snapshot the same way module 06 now does. Add to `modules/04-question-bank/SKILL.md` § "Versioning model" when that section is next touched.
+2. **Integration tests against real Postgres are the only reliable gate** — the unit-level service test would have looked correct because the test's mock pool returned whatever `q.version` was. The testcontainer suite caught this immediately with a real database where `publishPack`'s SQL bump and `question_versions`'s SQL insert actually committed. Every future module that reads `question_versions` MUST ship integration tests that exercise the full publish → resolve-snapshot path against a real container.
+3. **No automatic enforcement is feasible** — the SQL pattern is too permissive to catch with a lint. The pattern guard above is manual discipline backed by integration tests. The most concrete safeguard: a comment block at the top of `repository.ts` for any module that consumes `question_versions`, calling out the off-by-one rule explicitly. Module 06's `listActiveQuestionPoolForPick` now has that block (`WHY MAX(qv.version), not q.version`).
+
+**Cross-reference:** `modules/06-attempt-engine/src/repository.ts:listActiveQuestionPoolForPick`, `modules/04-question-bank/src/service.ts:publishPack` (version-bump trap site), `modules/06-attempt-engine/src/__tests__/attempt-engine.test.ts § getAttemptForCandidate "returns frozen content even after admin edits live question"` (regression guard).
+
+## 2026-05-02 — vitest `expect(() => fn()).toSatisfy(predicate)` runs predicate against the function reference, not the thrown error
+
+**Symptom:** During Phase 1 G1.B Session 3 verification of `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts`, three illegal-state-transition tests reported as **passing** in early iterations even though the code under test was not yet wired up correctly. When the production code was confirmed to throw the right `ValidationError`, the same three tests began failing with `expected [Function] to satisfy <predicate>`. The pattern was hiding both false negatives (tests passing without actually exercising the throw) and false positives (failing on the predicate's view of a function reference rather than the error).
+
+**Cause:** The three tests used the shape:
+
+```ts
+expect(() => assertCanTransition('draft', 'closed')).toSatisfy(
+  (e: unknown) => e instanceof ValidationError && (e as ValidationError).code === 'INVALID_STATE_TRANSITION'
+);
+```
+
+`toSatisfy` from vitest's `expect` API runs the predicate against **the value passed to `expect`**, not against the result of calling that value or any error it throws. So the predicate received `() => assertCanTransition(...)` (a function reference) every time, and `(function instanceof ValidationError)` is always `false` — but vitest does not raise on a predicate returning false unless the actual throw reaches it. The interaction with `() => ...` (a thunk) plus the truthy/falsy quirks of how `toSatisfy` was being misused produced a confusing mix of passes and failures depending on whether the thunk threw.
+
+The intended idiom for asserting *the shape of a thrown error* in vitest is either `expect(...).toThrow(matcher)` or an explicit `try/catch` with assertions on the caught value. `toSatisfy` is for asserting on a value that is already in hand, not for unwrapping thrown errors.
+
+**Fix:** Replaced all three call-sites with explicit `try/catch`:
+
+```ts
+let caught: unknown;
+try {
+  assertCanTransition('draft', 'closed');
+} catch (e) {
+  caught = e;
+}
+expect(caught).toBeInstanceOf(ValidationError);
+expect(caught).toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
+```
+
+Single replace pass over the three failing tests in `lifecycle.test.ts`'s state-machine `describe` block. After the fix, all 28 state-machine tests pass and the assertions actually exercise the thrown error.
+
+**Prevention:**
+
+1. **Pattern guard for vitest assertions on thrown errors:** Never combine `expect(() => ...).toSatisfy(predicate)` for error-shape checks. Two acceptable patterns only — (a) `expect(() => fn()).toThrow(/regex/)` or `expect(() => fn()).toThrowError(ErrorClass)` for *type-or-message* checks, (b) explicit `try/catch` + `expect(caught).toBeInstanceOf(...)` + `expect(caught).toMatchObject({ code: ... })` for *structured-error* checks (the AssessIQ `ValidationError` always carries a `code`, so this is the canonical shape). Add to module SKILL.md test-authoring sections when a new module starts shipping testcontainer integration tests.
+2. **Phase 3 critique bounce condition:** Diffs that introduce `expect(() => ...).toSatisfy(...)` against thrown errors should bounce back to Sonnet with a "use try/catch + toMatchObject" instruction. The pattern is a soft-fail trap — it can produce both false-negative passes (test green, code broken) and false-positive failures (test red, code correct), so it actively hides regressions.
+3. **No automatic enforcement is feasible** — vitest's `toSatisfy` is a legitimate API for non-throw assertions, so a blanket lint would over-trigger. A targeted ESLint rule like `no-toSatisfy-on-thunk` could pattern-match `toSatisfy` on an arrow function expression and warn; recorded for the future-infra backlog. Until then this is manual discipline backed by the Phase 3 bounce rule.
+
+**Cross-reference:** `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts` state-machine `describe` block; SESSION_STATE.md 2026-05-02 § "Test bugs surfaced + fixed during verification" line 88.
+
 ## 2026-05-02 — `13-notifications` email-stub `appendDevEmailLog` silently drops writes on Windows
 
 **Symptom:** Module 05's `lifecycle.test.ts` "Dev-email log" tests failed with `ENOENT: no such file or directory, open 'C:\Users\manis\AppData\Local\Temp\aiq-test-emails-...log'` even though the test had set `process.env.ASSESSIQ_DEV_EMAILS_LOG` to a `path.join(os.tmpdir(), ...)` value (pure-backslash Windows path) and `inviteUsers` ran successfully — the dev-emails log was never written.

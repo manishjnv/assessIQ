@@ -60,6 +60,9 @@ importers:
       '@assessiq/assessment-lifecycle':
         specifier: workspace:*
         version: link:../../modules/05-assessment-lifecycle
+      '@assessiq/attempt-engine':
+        specifier: workspace:*
+        version: link:../../modules/06-attempt-engine
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../../modules/01-auth
@@ -269,6 +272,30 @@ importers:
       '@assessiq/notifications':
         specifier: workspace:*
         version: link:../13-notifications
+      '@assessiq/question-bank':
+        specifier: workspace:*
+        version: link:../04-question-bank
+      '@assessiq/tenancy':
+        specifier: workspace:*
+        version: link:../02-tenancy
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.5
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
+  modules/06-attempt-engine:
+    dependencies:
+      '@assessiq/assessment-lifecycle':
+        specifier: workspace:*
+        version: link:../05-assessment-lifecycle
+      '@assessiq/auth':
+        specifier: workspace:*
+        version: link:../01-auth
+      '@assessiq/core':
+        specifier: workspace:*
+        version: link:../00-core
       '@assessiq/question-bank':
         specifier: workspace:*
         version: link:../04-question-bank
