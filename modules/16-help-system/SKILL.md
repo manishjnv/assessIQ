@@ -39,6 +39,8 @@ GET  /api/admin/help/export?locale=             # bulk export for translation
 POST /api/admin/help/import?locale=             # bulk upsert
 ```
 
+**Edge routing note:** the bare-root `GET /help/:key` is mounted **without** the `/api` prefix by design (anonymous embed-friendly URL, parallel to `/embed*`). Production Caddy must forward `/help/*` to `assessiq-api` — captured in `docs/06-deployment.md` § "Current live state" and RCA `2026-05-02 — Caddy /help/* not forwarded`. Any future Phase 1+ module that mounts a non-`/api/*` route must add itself to the same Caddy `@api` matcher.
+
 ## Default content seeding
 On first migration: load `modules/16-help-system/content/en/*.yml` into `help_content` table with `tenant_id=NULL` (global default). Per-tenant overrides written by admin take precedence at read time.
 
