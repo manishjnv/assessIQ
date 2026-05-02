@@ -11,8 +11,16 @@ const tenant = TENANT_FIXTURES['wipro-soc'];
 export function App(): JSX.Element {
   return (
     <BrowserRouter>
+      {/* theme="light" pinned per docs/10-branding-guideline.md § 0 + § 1 —
+          AccessIQ_UI_Template/screens/* ship light-mode tokens only; the
+          canonical visual identity is "white-on-white surfaces" with the
+          indigo-violet accent. Auto-system would resolve dark on a Windows
+          11 box and override --aiq-color-bg-base via [data-theme="dark"]
+          (tokens.css:93+), giving the SPA a black background that diverges
+          from the template. Dark mode is opt-in per-user (Phase 1+) and
+          only after the template adds dark variants of every screen. */}
       <ThemeProvider
-        theme="system"
+        theme="light"
         density="cozy"
         {...(tenant?.branding ? { branding: tenant.branding } : {})}
       >
