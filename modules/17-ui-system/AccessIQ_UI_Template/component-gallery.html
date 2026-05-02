@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AccessIQ — Component Gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+    .gallery { max-width: 1100px; margin: 0 auto; padding: 64px 48px 120px; }
+    .eyebrow { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint);
+               text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    h1.display { font-family: var(--font-serif); font-size: 56px; font-weight: 400;
+                 letter-spacing: -0.025em; line-height: 1.05; margin: 0 0 12px; }
+    p.lede { font-size: 17px; color: var(--text-muted); margin: 0 0 48px; max-width: 640px; }
+    h2.section { font-family: var(--font-serif); font-size: 32px; font-weight: 400;
+                 letter-spacing: -0.02em; margin: 64px 0 8px; padding-top: 32px;
+                 border-top: 1px solid var(--border); }
+    h2.section:first-of-type { border-top: 0; padding-top: 0; }
+    .section-lede { color: var(--text-muted); margin: 0 0 32px; max-width: 560px; }
+    .group { display: grid; grid-template-columns: 200px 1fr; gap: 32px; padding: 24px 0;
+             border-bottom: 1px solid var(--border); }
+    .group:last-child { border-bottom: 0; }
+    .group h3 { font-family: var(--font-serif); font-size: 20px; font-weight: 400; margin: 0 0 4px; }
+    .group p { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+    .demo { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .demo-stack { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+    .swatch { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+              border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+    .swatch-chip { width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0; }
+    .swatch-meta { display: flex; flex-direction: column; }
+    .swatch-meta .name { font-weight: 500; }
+    .swatch-meta .val { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+    .colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+    .type-row { display: grid; grid-template-columns: 140px 1fr; align-items: baseline;
+                gap: 24px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .type-row:last-child { border-bottom: 0; }
+    .type-row .meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint);
+                      text-transform: uppercase; letter-spacing: 0.06em; }
+    .icon-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; max-width: 480px; }
+    .icon-cell { display: flex; flex-direction: column; align-items: center; gap: 6px;
+                 padding: 12px 4px; border-radius: 8px; }
+    .icon-cell:hover { background: var(--surface); }
+    .icon-cell .label { font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); }
+    .radii { display: flex; gap: 16px; align-items: flex-end; }
+    .radius-box { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .radius-box .box { width: 64px; height: 64px; background: var(--surface); border: 1px solid var(--border-strong); }
+    .radius-box .lbl { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+    .shadow-box { width: 120px; height: 80px; background: var(--bg); border: 1px solid var(--border);
+                  border-radius: 12px; display: flex; align-items: center; justify-content: center;
+                  font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+    code.kbd { background: var(--surface); padding: 1px 5px; border-radius: 4px;
+               font-family: var(--font-mono); font-size: 11px; }
+    .toc { position: fixed; right: 32px; top: 64px; width: 200px; padding: 16px;
+           background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+           font-size: 12px; }
+    .toc .eyebrow { margin-bottom: 12px; }
+    .toc a { display: block; padding: 4px 0; color: var(--text-muted); text-decoration: none; }
+    .toc a:hover { color: var(--accent); }
+    @media (max-width: 1280px) { .toc { display: none; } }
+  </style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="eyebrow">On this page</div>
+  <a href="#colors">Colors</a>
+  <a href="#type">Typography</a>
+  <a href="#radii">Radii &amp; shadow</a>
+  <a href="#buttons">Buttons</a>
+  <a href="#inputs">Inputs</a>
+  <a href="#cards">Cards</a>
+  <a href="#chips">Chips</a>
+  <a href="#icons">Icons</a>
+  <a href="#data">Data &amp; numbers</a>
+  <a href="#progress">Progress</a>
+  <a href="#nav">Navigation</a>
+</nav>
+
+<main class="gallery">
+  <div class="eyebrow">AccessIQ · Design system v1.0 · 2026</div>
+  <h1 class="display">Component gallery.</h1>
+  <p class="lede">Every primitive AccessIQ uses, on a single page. Build new screens by composing what's here — don't reinvent. Read <code class="kbd">design-system/</code> for the rules.</p>
+
+  <!-- Colors -->
+  <h2 class="section" id="colors">Colors</h2>
+  <p class="section-lede">White / gray / black, plus a single Google-blue accent. No other hues, ever.</p>
+
+  <div class="group">
+    <div>
+      <h3>Surfaces</h3>
+      <p>Borders do most of the structural work; surfaces only differentiate sidebars and recessed areas.</p>
+    </div>
+    <div class="colors">
+      <div class="swatch"><div class="swatch-chip" style="background:#fff;border:1px solid var(--border)"></div><div class="swatch-meta"><span class="name">--bg</span><span class="val">#ffffff</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--surface);border:1px solid var(--border)"></div><div class="swatch-meta"><span class="name">--surface</span><span class="val">#fafafa</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--surface-2);border:1px solid var(--border)"></div><div class="swatch-meta"><span class="name">--surface-2</span><span class="val">#f5f5f5</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--border)"></div><div class="swatch-meta"><span class="name">--border</span><span class="val">#e8e8e8</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--border-strong)"></div><div class="swatch-meta"><span class="name">--border-strong</span><span class="val">#d4d4d4</span></div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div>
+      <h3>Text</h3>
+      <p>Three levels — primary, muted (descriptions), faint (metadata).</p>
+    </div>
+    <div class="colors">
+      <div class="swatch"><div class="swatch-chip" style="background:var(--text)"></div><div class="swatch-meta"><span class="name">--text</span><span class="val">#1a1a1a</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--text-muted)"></div><div class="swatch-meta"><span class="name">--text-muted</span><span class="val">#5f6368</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--text-faint)"></div><div class="swatch-meta"><span class="name">--text-faint</span><span class="val">#9aa0a6</span></div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div>
+      <h3>Accent &amp; signal</h3>
+      <p>One accent (Google blue). Success / warn / danger only for status — never decoration.</p>
+    </div>
+    <div class="colors">
+      <div class="swatch"><div class="swatch-chip" style="background:var(--accent)"></div><div class="swatch-meta"><span class="name">--accent</span><span class="val">oklch(0.58 .17 258)</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--accent-soft);border:1px solid var(--border)"></div><div class="swatch-meta"><span class="name">--accent-soft</span><span class="val">12% accent on white</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--success)"></div><div class="swatch-meta"><span class="name">--success</span><span class="val">oklch(0.65 .15 150)</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--warn)"></div><div class="swatch-meta"><span class="name">--warn</span><span class="val">oklch(0.72 .15 70)</span></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--danger)"></div><div class="swatch-meta"><span class="name">--danger</span><span class="val">oklch(0.62 .20 25)</span></div></div>
+    </div>
+  </div>
+
+  <!-- Type -->
+  <h2 class="section" id="type">Typography</h2>
+  <p class="section-lede">Newsreader (serif) for display, Geist (sans) for body, JetBrains Mono for metadata. Numbers go in serif.</p>
+
+  <div class="group">
+    <div>
+      <h3>Scale</h3>
+      <p>Editorial sizing. Display sizes use serif, weight 400 — never bold the headlines.</p>
+    </div>
+    <div style="width:100%">
+      <div class="type-row"><span class="meta">Display H1 · 52</span><span class="serif" style="font-size:52px;letter-spacing:-0.025em;line-height:1.05">The library.</span></div>
+      <div class="type-row"><span class="meta">Page H1 · 36</span><span class="serif" style="font-size:36px;letter-spacing:-0.02em">Good afternoon, Alex.</span></div>
+      <div class="type-row"><span class="meta">Section H2 · 28</span><span class="serif" style="font-size:28px;letter-spacing:-0.015em">Competency breakdown</span></div>
+      <div class="type-row"><span class="meta">Card H3 · 22</span><span class="serif" style="font-size:22px">Continue where you left off</span></div>
+      <div class="type-row"><span class="meta">Body-large · 17</span><span style="font-size:17px;color:var(--text-muted)">Strong overall performance with standout reasoning.</span></div>
+      <div class="type-row"><span class="meta">Body · 14</span><span style="font-size:14px">The default size for everything that isn't a label or a heading.</span></div>
+      <div class="type-row"><span class="meta">Label · 12</span><span style="font-size:12px;font-weight:500">Save &amp; exit</span></div>
+      <div class="type-row"><span class="meta">Mono meta · 11</span><span class="mono" style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.08em">cognitive · adaptive</span></div>
+      <div class="type-row"><span class="meta">.num · 56</span><span class="num" style="font-size:56px;letter-spacing:-0.03em;line-height:1">132</span></div>
+    </div>
+  </div>
+
+  <!-- Radii & shadow -->
+  <h2 class="section" id="radii">Radii &amp; shadow</h2>
+  <p class="section-lede">Four radii, period. One layer of shadow at most.</p>
+  <div class="group">
+    <div><h3>Radii</h3><p>sm = chips · default = buttons/inputs · lg = cards · pill = primary buttons.</p></div>
+    <div class="radii">
+      <div class="radius-box"><div class="box" style="border-radius:6px"></div><span class="lbl">6 · sm</span></div>
+      <div class="radius-box"><div class="box" style="border-radius:10px"></div><span class="lbl">10 · default</span></div>
+      <div class="radius-box"><div class="box" style="border-radius:16px"></div><span class="lbl">16 · lg</span></div>
+      <div class="radius-box"><div class="box" style="border-radius:999px"></div><span class="lbl">999 · pill</span></div>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Shadow</h3><p>Borders are the default. Shadow only on floating cards and search bars.</p></div>
+    <div class="demo">
+      <div class="shadow-box" style="box-shadow:var(--shadow-sm)">--shadow-sm</div>
+      <div class="shadow-box" style="box-shadow:var(--shadow)">--shadow</div>
+      <div class="shadow-box" style="box-shadow:var(--shadow-lg)">--shadow-lg</div>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <h2 class="section" id="buttons">Buttons</h2>
+  <p class="section-lede">Pill-shaped, three variants, three sizes. Only one <code class="kbd">btn-primary</code> per visible region.</p>
+
+  <div class="group">
+    <div><h3>Variants</h3><p>Primary · outline · ghost.</p></div>
+    <div class="demo">
+      <button class="btn btn-primary">Continue
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 5 7 7-7 7"/></svg>
+      </button>
+      <button class="btn btn-outline">Preview</button>
+      <button class="btn btn-ghost">View all →</button>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Sizes</h3><p>btn-sm in cards/toolbars · default · btn-lg on auth screens.</p></div>
+    <div class="demo">
+      <button class="btn btn-primary btn-sm">Start</button>
+      <button class="btn btn-primary">Start assessment</button>
+      <button class="btn btn-primary btn-lg">Create account</button>
+    </div>
+  </div>
+
+  <!-- Inputs -->
+  <h2 class="section" id="inputs">Inputs</h2>
+  <p class="section-lede">10px radius, 1px <code class="kbd">--border-strong</code>, accent ring on focus.</p>
+  <div class="group">
+    <div><h3>Standard</h3><p>For forms.</p></div>
+    <div class="demo-stack" style="width:100%;max-width:380px">
+      <input class="input" placeholder="Email address" />
+      <input class="input" placeholder="Password" type="password" value="••••••••" />
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Pill search</h3><p>Used in library hero. Composed, not a single input.</p></div>
+    <div style="width:100%;max-width:540px;background:var(--bg);border:1px solid var(--border-strong);border-radius:999px;padding:8px 8px 8px 20px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input style="flex:1;border:0;outline:0;background:transparent;font-family:inherit;font-size:14px" placeholder="Search by skill, role, or domain…" />
+      <button class="btn btn-primary btn-sm">Search</button>
+    </div>
+  </div>
+
+  <!-- Cards -->
+  <h2 class="section" id="cards">Cards</h2>
+  <p class="section-lede">16px radius, 1px border, 20–28px padding. Surface-recessed for sidebars; dashed for "build your own".</p>
+
+  <div class="group">
+    <div><h3>Default</h3><p>Border-only. Hover darkens border.</p></div>
+    <div class="card" style="padding:24px;width:280px">
+      <div class="mono" style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px">COGNITIVE · ADAPTIVE</div>
+      <h3 class="serif" style="margin:0 0 6px;font-size:20px;font-weight:400">Logical Reasoning Pro</h3>
+      <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.5">Validated, adaptive assessment with detailed reporting.</p>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Recessed</h3><p>Surface background — for build-your-own, side panels.</p></div>
+    <div class="card" style="padding:24px;width:280px;background:var(--surface);border-style:dashed">
+      <div class="mono" style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px">CUSTOM · FROM SCRATCH</div>
+      <h3 class="serif" style="margin:0 0 6px;font-size:20px;font-weight:400">Build your own.</h3>
+      <p style="margin:0;font-size:13px;color:var(--text-muted)">Mix MCQ, code, and open-ended.</p>
+    </div>
+  </div>
+
+  <!-- Chips -->
+  <h2 class="section" id="chips">Chips</h2>
+  <p class="section-lede">Mono uppercase metadata. Never for body content.</p>
+  <div class="group">
+    <div><h3>Variants</h3><p>Default · accent · success.</p></div>
+    <div class="demo">
+      <span class="chip">30 days</span>
+      <span class="chip chip-accent">In progress</span>
+      <span class="chip chip-success">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg>
+        Passed
+      </span>
+      <span class="chip">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--success)"></span>
+        Welcome back
+      </span>
+    </div>
+  </div>
+
+  <!-- Icons -->
+  <h2 class="section" id="icons">Icons</h2>
+  <p class="section-lede">24px viewBox, 1.5 stroke, round caps/joins. All defined in <code class="kbd">screens/atoms.jsx</code>.</p>
+  <div class="group">
+    <div><h3>Set</h3><p>Add new icons by extending the <code class="kbd">paths</code> map. Match weight.</p></div>
+    <div class="icon-grid" id="icon-grid"></div>
+  </div>
+
+  <!-- Data -->
+  <h2 class="section" id="data">Data &amp; numbers</h2>
+  <p class="section-lede">The editorial signature. Tiny mono uppercase label above, big serif <code class="kbd">.num</code> below.</p>
+  <div class="group">
+    <div><h3>Stat block</h3><p>Universal recipe for KPIs.</p></div>
+    <div class="card" style="padding:22px;width:200px">
+      <div class="mono" style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Avg. completion</div>
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span class="num" style="font-size:40px;color:var(--accent);letter-spacing:-0.03em;line-height:1">84</span>
+        <span class="mono" style="font-size:11px;color:var(--success)">+6%</span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">of 41 candidates</div>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Score + denominator</h3><p>Big serif number with muted /max. Optional chip.</p></div>
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span class="num" style="font-size:56px;letter-spacing:-0.03em;line-height:1">132</span>
+      <span style="color:var(--text-muted);font-size:14px">/ 160</span>
+      <span class="chip chip-success" style="margin-left:8px">Above average</span>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <h2 class="section" id="progress">Progress</h2>
+  <p class="section-lede">Three heights. Accent for in-progress, success for complete, text for neutral metric.</p>
+  <div class="group">
+    <div><h3>Bars</h3><p>2px page-top · 4px in cards · 6px breakdown rows.</p></div>
+    <div class="demo-stack" style="width:100%;max-width:420px">
+      <div style="width:100%;height:2px;background:var(--surface-2);border-radius:1px;overflow:hidden"><div style="width:64%;height:100%;background:var(--accent)"></div></div>
+      <div style="width:100%;height:4px;background:var(--surface-2);border-radius:2px;overflow:hidden"><div style="width:38%;height:100%;background:var(--accent)"></div></div>
+      <div style="width:100%;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="width:88%;height:100%;background:var(--text)"></div></div>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Question option</h3><p>Selectable card with radio. Mono letter affordance for keyboard shortcuts.</p></div>
+    <div class="demo-stack" style="width:100%;max-width:480px">
+      <button style="text-align:left;padding:18px 20px;background:var(--bg);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:16px;font:inherit;font-size:15px;color:var(--text);cursor:pointer">
+        <span style="width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border-strong)"></span>
+        <span class="mono" style="font-size:11px;color:var(--text-faint);width:14px">A</span>
+        <span style="flex:1">96 minutes</span>
+      </button>
+      <button style="text-align:left;padding:18px 20px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;display:flex;align-items:center;gap:16px;font:inherit;font-size:15px;color:var(--text);cursor:pointer">
+        <span style="width:22px;height:22px;border-radius:50%;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></span></span>
+        <span class="mono" style="font-size:11px;color:var(--text-faint);width:14px">C</span>
+        <span style="flex:1">102 minutes (240 ÷ 140 × 60)</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <h2 class="section" id="nav">Navigation item</h2>
+  <p class="section-lede">Sidebar row. Active state uses surface background and weight 500.</p>
+  <div class="group">
+    <div><h3>States</h3><p>Default muted; active filled.</p></div>
+    <div class="demo-stack" style="width:200px">
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:10px;color:var(--text);background:var(--surface);font-size:13px;font-weight:500">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg>
+        Overview
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:10px;color:var(--text-muted);font-size:13px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Library
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // Render every icon from the spec (mirrors screens/atoms.jsx)
+  const ICONS = {
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    arrow: '<path d="M5 12h14"/><path d="m13 5 7 7-7 7"/>',
+    arrowLeft: '<path d="M19 12H5"/><path d="m11 19-7-7 7-7"/>',
+    check: '<path d="m4 12 5 5L20 6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    home: '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    chart: '<path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-7"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/>',
+    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    flag: '<path d="M4 21V4"/><path d="M4 4h13l-2 4 2 4H4"/>',
+    book: '<path d="M4 4v16a2 2 0 0 0 2 2h14V2H6a2 2 0 0 0-2 2z"/><path d="M8 2v18"/>',
+    code: '<path d="m8 8-5 4 5 4"/><path d="m16 8 5 4-5 4"/><path d="m14 4-4 16"/>',
+    bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+    sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
+    play: '<path d="M6 4v16l14-8z"/>',
+    pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+    drag: '<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  };
+  const grid = document.getElementById("icon-grid");
+  Object.entries(ICONS).forEach(([name, paths]) => {
+    const cell = document.createElement("div");
+    cell.className = "icon-cell";
+    cell.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>
+      <span class="label">${name}</span>
+    `;
+    grid.appendChild(cell);
+  });
+</script>
+
+</body>
+</html>
