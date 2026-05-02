@@ -105,12 +105,8 @@ The schema docblock at `modules/04-question-bank/migrations/0012_questions.sql:5
 
 **Prevention:**
 
-1. **Phase 1.5 should ship one of two fixes (decide once a real admin uses the system):**
-   a. **Auto-flip on publish** — extend `04-question-bank.publishPack` to set every question's status to `active` as part of the publish transaction. Aligned with the docblock contract; surprises no one.
-   b. **Admin "activate all" affordance** — explicit "promote pack questions to active" button in the admin UI. More auditable; matches "draft" being a real workflow state.
-
-   The bias is toward (a) — `publishPack` already snapshots questions; activating them is a small extension of an existing transactional write.
-2. **Phase 1 G1.C should re-validate** the pool-size assumption when module 06-attempt-engine starts pulling questions for `attempt.start`. If candidates ever see questions while `pack.status='published'` AND `question.status='draft'`, the contract is broken.
+1. **~~Phase 1.5 should ship one of two fixes~~ — landed 2026-05-02 via option (b).** `modules/04-question-bank.activateAllQuestionsForPack(tenantId, packId)` ships as the explicit admin "activate all" affordance, surfaced as `POST /api/admin/packs/:id/activate-questions`. Picked (b) over (a) because: (i) pre-activation surprises admins who want to curate which questions go live; (ii) "draft" is a real workflow state — admins author, review, then promote a curated subset. Idempotency surface: re-calling on an all-active pack throws `NO_DRAFT_QUESTIONS_TO_ACTIVATE` so the admin UI can render "already done" instead of misleading 200-with-zero. Tests at `modules/04-question-bank/src/__tests__/question-bank.test.ts § activateAllQuestionsForPack` (5 cases — happy path + draft/active/archived mix + draft-pack rejection + idempotency surface + cross-tenant invisibility).
+2. **Phase 1 G1.C re-validation: complete (2026-05-02).** Module 06's `startAttempt` pool query (`listActiveQuestionPoolForPick`) and module 05's `publishAssessment` pool-size pre-flight both correctly require `status='active'`. The activate-all affordance closes the gap end-to-end: createPack → addLevel → createQuestion → publishPack → activateAllQuestions → createAssessment → publishAssessment → inviteUsers → candidate.startAttempt is now a clean workflow with no surprise `POOL_TOO_SMALL` errors hiding a status mismatch.
 
 
 

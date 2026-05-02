@@ -33,6 +33,7 @@ import {
   updatePack,
   publishPack,
   archivePack,
+  activateAllQuestionsForPack,
   addLevel,
   updateLevel,
   listQuestions,
@@ -1422,6 +1423,137 @@ describe("JSON bulk import (decision #4)", () => {
       return r.rows;
     });
     expect(orphanRows).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+// 8.5. activateAllQuestionsForPack (admin "activate all" affordance)
+// ===========================================================================
+
+describe("activateAllQuestionsForPack", () => {
+  async function buildPackWith(
+    questionStatuses: Array<"draft" | "active" | "archived">,
+  ): Promise<{ packId: string }> {
+    const pack = await createPack(
+      tenantA,
+      { slug: `act-${randomUUID().slice(0, 8)}`, name: "Activate Test", domain: "soc" },
+      adminA,
+    );
+    const level = await addLevel(tenantA, pack.id, {
+      position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
+    });
+    for (let i = 0; i < questionStatuses.length; i++) {
+      await createQuestion(
+        tenantA,
+        {
+          pack_id: pack.id,
+          level_id: level.id,
+          type: "mcq",
+          topic: `act-q-${i}`,
+          points: 5,
+          content: mcqContent(),
+        },
+        adminA,
+      );
+    }
+    await publishPack(tenantA, pack.id, adminA);
+
+    // Apply per-question status overrides via the superuser client. After
+    // publishPack, every question is still 'draft' (publishPack does NOT
+    // auto-flip — that gap is exactly what this affordance fixes). Flip the
+    // ones the test wants to be 'active' or 'archived' upfront.
+    await withSuperClient(async (client) => {
+      const ids = await client.query<{ id: string }>(
+        `SELECT id FROM questions WHERE pack_id = $1 ORDER BY created_at ASC, id ASC`,
+        [pack.id],
+      );
+      for (let i = 0; i < ids.rows.length; i++) {
+        const target = questionStatuses[i];
+        if (target !== "draft") {
+          await client.query(
+            `UPDATE questions SET status = $1 WHERE id = $2`,
+            [target, ids.rows[i]!.id],
+          );
+        }
+      }
+    });
+    return { packId: pack.id };
+  }
+
+  it("happy path — flips all draft questions to active and returns counts", async () => {
+    const { packId } = await buildPackWith(["draft", "draft", "draft"]);
+    const result = await activateAllQuestionsForPack(tenantA, packId);
+    expect(result.activated).toBe(3);
+    expect(result.alreadyActive).toBe(0);
+    expect(result.archived).toBe(0);
+
+    const { items } = await listQuestions(tenantA, { pack_id: packId });
+    expect(items).toHaveLength(3);
+    expect(items.every((q) => q.status === "active")).toBe(true);
+  });
+
+  it("flips only draft rows; preserves already-active and archived", async () => {
+    const { packId } = await buildPackWith(["draft", "active", "archived"]);
+    const result = await activateAllQuestionsForPack(tenantA, packId);
+    expect(result.activated).toBe(1);
+    expect(result.alreadyActive).toBe(1);
+    expect(result.archived).toBe(1);
+
+    // After: 2 active (the original active + the just-flipped draft) + 1 archived.
+    const { items } = await listQuestions(tenantA, { pack_id: packId });
+    const byStatus: Record<string, number> = {};
+    for (const q of items) byStatus[q.status] = (byStatus[q.status] ?? 0) + 1;
+    expect(byStatus["active"]).toBe(2);
+    expect(byStatus["archived"]).toBe(1);
+  });
+
+  it("rejects with PACK_NOT_PUBLISHED when pack is in 'draft' status", async () => {
+    const pack = await createPack(
+      tenantA,
+      { slug: `act-draft-${randomUUID().slice(0, 8)}`, name: "Draft Pack", domain: "soc" },
+      adminA,
+    );
+
+    let caught: unknown;
+    try {
+      await activateAllQuestionsForPack(tenantA, pack.id);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ConflictError);
+    expect(caught).toMatchObject({ details: { code: "PACK_NOT_PUBLISHED" } });
+  });
+
+  it("rejects with NO_DRAFT_QUESTIONS_TO_ACTIVATE when re-called on an all-active pack (idempotency surface)", async () => {
+    const { packId } = await buildPackWith(["draft", "draft"]);
+    // First call: flips both to active.
+    const r1 = await activateAllQuestionsForPack(tenantA, packId);
+    expect(r1.activated).toBe(2);
+
+    // Second call: nothing to flip. Throws so the admin UI can render
+    // "already done" rather than misleading 200-with-zero.
+    let caught: unknown;
+    try {
+      await activateAllQuestionsForPack(tenantA, packId);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ConflictError);
+    expect(caught).toMatchObject({
+      details: { code: "NO_DRAFT_QUESTIONS_TO_ACTIVATE", alreadyActive: 2, archived: 0 },
+    });
+  });
+
+  it("rejects with PACK_NOT_FOUND for unknown packId (cross-tenant invisibility)", async () => {
+    const { packId } = await buildPackWith(["draft"]);
+    let caught: unknown;
+    try {
+      await activateAllQuestionsForPack(tenantB, packId);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(NotFoundError);
+    expect(caught).toMatchObject({ details: { code: "PACK_NOT_FOUND" } });
   });
 });
 
