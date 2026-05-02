@@ -30,6 +30,18 @@ This rule is encoded in memory at `feedback-ui-template-canonical.md` so future 
 
 AssessIQ reads like an editorial publication that happens to grade you. **Newsreader** (serif) carries headlines, hero numbers, and quotes. **Geist** (sans) carries everything you click and read in passing. **JetBrains Mono** (mono) carries microcopy — labels, IDs, kbd hints, timestamps — letter-spaced and uppercase. Color is restrained: white-on-white surfaces, a confident accent in the indigo-violet 258 hue, status colors used sparingly. Density adjusts via a single `--u` spacing unit. Components are pill-shaped buttons, low-shadow cards with thin borders, and animated numbers (count-up, ring fill, sparklines) that reward completion. Nothing shouts.
 
+### 1.1 Light mode is canonical; dark mode is opt-in
+
+`AccessIQ_UI_Template/screens/*.jsx` ship **light-mode tokens only**. The visual identity in the paragraph above is *the* identity — white-on-white, restrained colour, low contrast, editorial calm. The dark-mode block in `modules/17-ui-system/src/styles/tokens.css` exists as **infrastructure** for a future opt-in (per `modules/17-ui-system/SKILL.md` Help/tooltip surface: `admin.profile.theme` — light/dark/system explanation), but is NOT the brand and must NOT render by default.
+
+**Hard rule**: `apps/web` mounts `<ThemeProvider theme="light">` — never `"system"`. `"system"` resolves to dark on any OS in dark mode (Windows 11 default, macOS evening, etc.) and applies `data-theme="dark"` to the wrapping div, which overrides `--aiq-color-bg-base` to `#0e0e10` and gives the SPA a black background that diverges from every template screen. Dark mode adoption is gated on:
+
+1. The template ships dark-mode variants of every screen in `AccessIQ_UI_Template/screens/`, demonstrating the brand survives the inversion.
+2. An explicit user-toggle UI lands at `admin.profile.theme` (Phase 1+).
+3. Both `light` and `dark` variants pass the same accessibility audit (axe, contrast ≥ 4.5:1).
+
+Until all three land, the SPA is locked to light. This decision is encoded in the page-mount comment at [apps/web/src/App.tsx](../apps/web/src/App.tsx) so future sessions don't silently flip back to `"system"`.
+
 ## 2. Typography
 
 ### 2.1 Font stack
