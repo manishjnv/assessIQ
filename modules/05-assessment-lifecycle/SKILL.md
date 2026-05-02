@@ -109,3 +109,31 @@ Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps 
 - Magic-link requires pre-existing user (decision #19) — see above.
 - Question selection RNG uses `crypto.randomUUID()`-seeded Fisher-Yates shuffle, no playback (decision #20). Acceptable trade-off; reproducibility costs more than it gains in v1.
 - Re-attempts capped at 1 per `(assessment_id, user_id)` via UNIQUE constraint on `attempts` (decision #22). v2+ may add an `attempt_number` column — explicitly out of Phase 1 scope.
+
+## Status
+
+**Phase 1 G1.B Session 3 shipped — 2026-05-02.** Full module live: migrations applied, service surface implemented, Fastify routes registered, 69 testcontainer integration tests green.
+
+### What's live
+
+- **Migrations** — `0020_assessment_status_enum.sql`, `0021_assessments.sql` (with `pack_version` frozen-contract column + window CHECK + `(tenant_id,status)` and partial-index pair for boundary cron), `0022_assessment_invitations.sql` (JOIN-based RLS through `assessments.tenant_id`). Plus additive `02-tenancy/migrations/0004_tenants_smtp_config.sql` (column only; SMTP driver swap-in deferred).
+- **Source** — 9 files in `src/`: `types.ts` (Zod settings + domain types + `AL_ERROR_CODES`), `state-machine.ts` (pure functions: `canTransition`, `assertCanTransition`, `nextStateOnTimeBoundary`, `assertValidWindow`, `assertReopenAllowed`), `tokens.ts` (CSPRNG + sha256), `email.ts` (shim over `13-notifications.sendAssessmentInvitationEmail`), `repository.ts` (RLS-aware pg queries — 13 functions), `service.ts` (full public surface), `routes.ts` (11 admin Fastify endpoints), `boundaries.ts` (`processBoundariesForTenant` — pure idempotent logic), `index.ts` (barrel).
+- **Wiring** — `apps/api/package.json` adds `@assessiq/assessment-lifecycle` workspace dep; `apps/api/src/server.ts` calls `registerAssessmentLifecycleRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) })`. `tools/lint-rls-policies.ts` extends `JOIN_RLS_TABLES` with `assessment_invitations`.
+- **Tests** — `src/__tests__/lifecycle.test.ts` covers every KICKOFF verification item: state-machine exhaustive transitions (legal + illegal), pool-size pre-flight (POOL_TOO_SMALL + exact-match success), illegal close-on-draft, time-boundary reject on past-closes_at reopen, boundary cron (activate, close, idempotency, stale-window-skip-active, draft/cancelled untouched), invitation flow (token uniqueness, INVITATION_EXISTS skip, USER_NOT_CANDIDATE skip, USER_NOT_FOUND skip, draft-assessment reject, revoke + idempotent revoke, sha256 verify), cross-tenant RLS (assessments + JOIN-RLS on invitations), dev-emails.log assertion (template_id, plaintext-token-only-in-body), preview smoke. 69 it / 69 passing.
+
+### What's deferred to follow-up sessions
+
+- **BullMQ repeating job** runtime — `boundaries.ts` is pure logic; an `apps/worker/` Node process to host the BullMQ scheduler does not exist yet (apps/api is the only application; no BullMQ in any package.json). Follow-up: create `apps/worker/`, add `bullmq` + `ioredis` deps, schedule `processBoundariesForTenant(tenant.id, new Date())` per active tenant every 60s. Until then admins must trigger close/reopen manually via the routes; assessments with `opens_at <= now` stay in `published` until processed.
+- **SMTP driver** in `13-notifications` — the dev-emails.log stub still handles all sends. The `tenants.smtp_config` column is in place for Phase 1.5 nodemailer wiring (decision #12).
+- **`tenantName`** is passed as empty string in `service.inviteUsers`'s call to `email.sendInvitationEmail` — `02-tenancy` does not yet expose a `getTenantName(client, tenantId)` helper. Phase 1.5: add the helper + populate the field.
+- **Cross-module repository import**: `service.ts` reaches into `../../04-question-bank/src/repository.js` for `findPackById`/`findLevelById`. Architectural smell, deliberately documented; the cleanup is to add an internal `/repository` export entry to 04's `package.json` `exports` map.
+- **Inline SQL** in `service.ts` (`countActiveQuestionsForLevel`, `listActiveQuestionsForPreview`) — direct `client.query` against `questions`. Should be moved to `04-question-bank`'s repository as `countActiveQuestionsForLevel(client, packId, levelId)` + `listActiveQuestionsForLevel(client, packId, levelId, limit)`.
+- **Question status workflow gap (discovered during testing)**: `04-question-bank.createQuestion` defaults to `status='draft'`; module 04's `publishPack` does NOT auto-flip questions to `status='active'`. The pool-size pre-flight in `publishAssessment` looks for `status='active'` questions per the spec (`docs/02-data-model.md:362` schema docblock), so an admin must explicitly PATCH each question to `status='active'` (or bulk via tooling) before an assessment over that pack/level can publish. Phase 1.5 should either (a) auto-activate questions on publishPack, or (b) ship an admin "activate all" UI affordance. RCA entry appended.
+
+### Decisions resolved this session
+
+- **#5** — `settings` JSONB stays empty (Zod `passthrough` schema; column live).
+- **#12** — `tenants.smtp_config` column live (driver swap-in deferred; dev-emails.log stub continues for now).
+- **#19** — magic-link requires pre-existing user (`findUserForInvitation` returns null → `USER_NOT_FOUND` skip; no JIT user creation).
+- **#20** — RNG / no playback — Phase 1 lands on attempt.start in module 06; the lifecycle module does not perform selection.
+- **#22** — `(assessment_id, user_id)` UNIQUE constraint on `assessment_invitations` enforces v1's "one invitation per user per assessment" cap.

@@ -1,1 +1,6 @@
-export { sendInvitationEmail, type SendInvitationEmailInput } from './email-stub.js';
+export {
+  sendInvitationEmail,
+  type SendInvitationEmailInput,
+  sendAssessmentInvitationEmail,
+  type SendAssessmentInvitationEmailInput,
+} from './email-stub.js';
