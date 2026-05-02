@@ -72,8 +72,11 @@ export type {
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// 5. Route registrar
+// 5. Route registrars
 // ---------------------------------------------------------------------------
 
 export { registerAttemptCandidateRoutes } from "./routes.candidate.js";
 export type { RegisterAttemptCandidateRoutesOptions } from "./routes.candidate.js";
+
+export { registerAttemptTakeRoutes } from "./routes.take.js";
+export type { RegisterAttemptTakeRoutesOptions } from "./routes.take.js";
