@@ -4,6 +4,39 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-03 — `assessiq-frontend` Docker build TS2307 cascade after Phase 1 G1.D module additions
+
+**Symptom:** During Phase 1 G1.D deploy, `docker compose build assessiq-frontend` failed with 9 TypeScript errors:
+
+- `TS2307: Cannot find module '@assessiq/candidate-ui' or its corresponding type declarations` (TokenLanding.tsx, Submitted.tsx, Attempt.tsx)
+- `TS2307: Cannot find module '@assessiq/help-system/components'` (TakeRoot.tsx)
+- 7 × `TS18046: 'err' is of type 'unknown'` (TokenLanding.tsx + Attempt.tsx catch blocks)
+
+The TS18046 errors were CASCADING noise — `useUnknownInCatchVariables: true` (default under `strict: true`) requires narrowing on `catch (err)` blocks before accessing `err.status`. The narrowing IS present (`if (err instanceof CandidateApiError) ...`) but TS treats `CandidateApiError` as `any` when the import resolution fails, so the narrowing erases. Identical local typecheck (`pnpm --filter @assessiq/web typecheck`) had passed — the missing modules were only absent in the **Docker build context**, not on disk.
+
+**Cause:** Two-layer filtering issue.
+
+1. **`infra/docker/assessiq-frontend/Dockerfile`** copies workspace package metadata one module at a time in the `deps` stage and source in the `builder` stage. It only listed `apps/web` and `modules/17-ui-system`. Phase 1 G1.D added `@assessiq/candidate-ui` and `@assessiq/help-system` as workspace deps of `apps/web` (in `apps/web/package.json` commit `da62760`), and `@assessiq/help-system` transitively pulls `@assessiq/{core, tenancy}`. None of those four were in the Dockerfile's COPY list.
+2. **`infra/docker/assessiq-frontend/Dockerfile.dockerignore`** (a per-Dockerfile dockerignore introduced earlier — BuildKit 1.7+ honors it INSTEAD OF the repo-root `.dockerignore`) had explicit excludes for `modules/{00-core, 01-auth, 02-tenancy, 03-users, 04-question-bank, 13-notifications, 16-help-system}` — which would have stripped them from the build context even if the Dockerfile had COPY'd them.
+
+The two layers compounded: the COPY missed them AND the dockerignore would have hidden them.
+
+**Fix:** Two coordinated edits in commit `93a9e50`:
+
+1. `Dockerfile` — added COPY for `modules/{00-core, 02-tenancy, 11-candidate-ui, 16-help-system}` package.json in the `deps` stage and full source tree in the `builder` stage. Both stages preserve cache-layer ordering: package.json copies before `pnpm install`; source copies after.
+2. `Dockerfile.dockerignore` — replaced the blanket exclude block with an allowlist matching the @assessiq/web workspace closure (`{00-core, 02-tenancy, 11-candidate-ui, 16-help-system, 17-ui-system}`) and explicit excludes for the rest of the Phase 1 server-side modules (`{01-auth, 03-users, 04-question-bank, 05-assessment-lifecycle, 06-attempt-engine, 07-ai-grading, 08-rubric-engine, 09-scoring, 10-admin-dashboard, 12-embed-sdk, 13-notifications, 14-audit-log, 15-analytics}`). Comment block calls out the closure rationale so future module additions are obvious.
+
+After the two edits + `docker compose build` + `up -d --no-deps --force-recreate assessiq-frontend`: image built clean (Vite output `dist/assets/index-DnhSiNoW.js   386.60 kB │ gzip: 121.19 kB`), container healthy in <15 s, smoke tests `/take/INVALID_TOKEN`, `/take/expired`, `/take/error`, `/api/health` all returned `200`. 14 co-tenant containers untouched.
+
+**Prevention:**
+
+1. **Pattern guard for any new workspace dep added to apps/web:** the FIRST commit that adds a `workspace:*` dep MUST also include the corresponding COPY lines in `infra/docker/assessiq-frontend/Dockerfile` AND any necessary changes to `infra/docker/assessiq-frontend/Dockerfile.dockerignore`. Same rule applies to any other Dockerfile that filters its workspace closure manually (`infra/docker/assessiq-api/Dockerfile`, `apps/worker/Dockerfile` if/when it grows). Add a checklist row to module SKILL.md "Status" sections for any module that becomes a workspace dep of a built image.
+2. **`pnpm --filter @assessiq/web typecheck` is NOT a substitute for `docker compose build`** when the diff adds new workspace deps. Local typecheck reads the actual file system; Docker build reads the filtered context. The two diverge whenever a Dockerfile / dockerignore needs updating. **Recommended addition to Phase 2 deterministic gates:** if `git diff` touches `apps/web/package.json` or `pnpm-lock.yaml` (entries under `apps/web` or `modules/`), trigger a `docker compose build assessiq-frontend` smoke as part of the Phase 2 gate sweep. Same rule for the API Dockerfile when backend module deps change.
+3. **TS18046 cascading from TS2307 is a known-loud-but-noisy pattern** — when seeing TS18046 errors on `catch (err)` blocks where the narrowing IS clearly correct, look UPSTREAM for TS2307 first. The `useUnknownInCatchVariables` lint behaves as if the imported type is `any` when the import resolution fails. Future Phase 3 critique should flag "TS18046 + TS2307 in same diff" as the trigger to re-check Dockerfile workspace closure.
+4. **No automatic enforcement is feasible today** — there is no lint that knows the relationship between `apps/web/package.json`'s workspace deps and the Dockerfile's COPY closure. A future `tools/lint-docker-closure.ts` could parse both and assert COPY coverage; recorded for the future-infra backlog.
+
+**Cross-reference:** commit `da62760` (Phase 1 G1.D code), commit `93a9e50` (this fix), `infra/docker/assessiq-frontend/Dockerfile`, `infra/docker/assessiq-frontend/Dockerfile.dockerignore`, `modules/11-candidate-ui/SKILL.md` § Status banner.
+
 ## 2026-05-02 — `publishPack` version bump leaves attempt_questions JOIN empty when pinning to `questions.version`
 
 **Symptom:** Phase 1 G1.C Session 4a integration tests failed in 6 of 18 cases — every test that relied on `getAttemptForCandidate` or any downstream function that resolves the frozen question set returned `view.questions.length === 0`. The failure cascaded as `TypeError: Cannot read properties of undefined (reading 'question_id')` on `view.questions[0]!.question_id`. The earliest failing case was `startAttempt > happy path`, where `repo.listFrozenQuestionsForAttempt(client, attempt.id)` returned an empty array even though `attempt_questions` had 5 rows and `question_versions` had 5 published snapshots — the JOIN simply didn't match.
