@@ -32,7 +32,10 @@ export {
   listInvitations,
   revokeInvitation,
   previewAssessment,
+  resolveInvitationToken,
+  markInvitationViewedByToken,
 } from "./service.js";
+export type { ResolvedInvitation } from "./service.js";
 
 // ---------------------------------------------------------------------------
 // 2. Boundary advancement (cron-callable; BullMQ scheduling deferred)
