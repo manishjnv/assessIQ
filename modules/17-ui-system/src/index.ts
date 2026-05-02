@@ -25,5 +25,8 @@ export type { UseCountUpOptions } from "./hooks/useCountUp";
 export { ThemeProvider } from "./theme/ThemeProvider";
 export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from "./theme/ThemeProvider";
 
+export { Tooltip } from "./components/Tooltip";
+export type { TooltipProps, TooltipPlacement } from "./components/Tooltip";
+
 export { TENANT_FIXTURES } from "./fixtures/tenants";
 export type { TenantFixture } from "./fixtures/tenants";
