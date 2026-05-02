@@ -5,6 +5,14 @@ import { AdminMfa } from './pages/admin/mfa';
 import { AdminUsers } from './pages/admin/users';
 import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
+import {
+  TokenLanding,
+  Expired,
+  ErrorPage as TakeError,
+  AttemptPage,
+  Submitted,
+  TakeRoot,
+} from './pages/take';
 
 const tenant = TENANT_FIXTURES['wipro-soc'];
 
@@ -30,6 +38,24 @@ export function App(): JSX.Element {
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
           <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
+
+          {/* Candidate /take/* subtree.
+              <TakeRoot> mounts <HelpProvider> over the entire candidate flow.
+              Static literal routes (expired/error) are listed BEFORE the
+              dynamic :token route — RR v6's specificity match would prefer
+              the literal anyway, but explicit ordering keeps the intent
+              obvious to future readers.
+              The candidate session is minted server-side by POST /api/take/start
+              (Session 4b deliverable) — no <RequireSession> wrapper here. */}
+          <Route path="/take" element={<TakeRoot />}>
+            <Route index element={<Navigate to="/" replace />} />
+            <Route path="expired" element={<Expired />} />
+            <Route path="error" element={<TakeError />} />
+            <Route path="attempt/:id" element={<AttemptPage />} />
+            <Route path="attempt/:id/submitted" element={<Submitted />} />
+            <Route path=":token" element={<TokenLanding />} />
+          </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ThemeProvider>
