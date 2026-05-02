@@ -76,6 +76,8 @@ const JOIN_RLS_TABLES: ReadonlySet<string> = new Set([
   "questions",             // pack_id → question_packs.tenant_id
   "question_versions",     // question_id → questions.pack_id → question_packs.tenant_id
   "question_tags",         // question_id → questions.pack_id → question_packs.tenant_id
+  // Phase 1 G1.B — modules/05-assessment-lifecycle
+  "assessment_invitations", // assessment_id → assessments.tenant_id
   // Phase 1 G1.C — modules/06-attempt-engine (forward-declared so the lint
   // gate is in place when those migrations land; until they exist this
   // entry is inert).

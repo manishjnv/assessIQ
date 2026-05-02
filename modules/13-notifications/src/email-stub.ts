@@ -12,7 +12,7 @@
 import { streamLogger, config } from '@assessiq/core';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const emailLogger = streamLogger('app').child({ module: 'email-stub' });
 
@@ -38,7 +38,11 @@ function resolveLogPath(): string {
 
 async function appendDevEmailLog(record: DevEmail): Promise<void> {
   const logPath = resolveLogPath();
-  const dir = logPath.substring(0, logPath.lastIndexOf('/'));
+  // Use path.dirname() — the previous lastIndexOf('/') hand-roll silently broke
+  // on Windows paths (pure backslash separators returned -1 → empty dir → mkdir
+  // failed → write was swallowed by the catch). path.dirname handles both
+  // separators correctly.
+  const dir = dirname(logPath);
   try {
     await mkdir(dir, { recursive: true });
     await appendFile(logPath, JSON.stringify(record) + '\n', 'utf-8');
@@ -85,5 +89,61 @@ export async function sendInvitationEmail(input: SendInvitationEmailInput): Prom
   };
 
   emailLogger.info({ to: input.to, role: input.role }, 'email-stub: invitation email sent');
+  await appendDevEmailLog(record);
+}
+
+// ---------------------------------------------------------------------------
+// Assessment-invitation email — Phase 1 G1.B Session 3
+// ---------------------------------------------------------------------------
+//
+// Used by modules/05-assessment-lifecycle/email.ts to notify candidates of a
+// new assessment they've been invited to. Same dev-emails.log stub path as
+// sendInvitationEmail — Phase 1.5+ swap-in points the candidate-side flow
+// at the per-tenant SMTP driver behind tenants.smtp_config.
+//
+// IMPORTANT — the plaintext token lives inside `body` (in the
+// invitationLink). Do not surface it in any other field, do not log it
+// outside of the JSONL record write, do not echo it through INFO logs.
+
+export interface SendAssessmentInvitationEmailInput {
+  to: string;
+  candidateName: string;
+  assessmentName: string;
+  invitationLink: string;
+  expiresAt: Date;
+  tenantName: string;
+}
+
+export async function sendAssessmentInvitationEmail(
+  input: SendAssessmentInvitationEmailInput,
+): Promise<void> {
+  const subject = `You've been invited to take "${input.assessmentName}" on AssessIQ`;
+  const body = [
+    `Hi ${input.candidateName},`,
+    ``,
+    `You've been invited to take the assessment "${input.assessmentName}" on AssessIQ (${input.tenantName}).`,
+    ``,
+    `Start the assessment by clicking the link below:`,
+    input.invitationLink,
+    ``,
+    `This invitation expires on ${input.expiresAt.toISOString()}.`,
+    ``,
+    `If you did not expect this email, you can safely ignore it.`,
+  ].join('\n');
+
+  const record: DevEmail = {
+    ts: new Date().toISOString(),
+    to: input.to,
+    subject,
+    body,
+    template_id: 'invitation.assessment',
+  };
+
+  // Note: assessmentName is fine to log (admin-authored), but never echo
+  // input.invitationLink at INFO level — it contains the plaintext token.
+  emailLogger.info(
+    { to: input.to, assessment: input.assessmentName, template_id: record.template_id },
+    'email-stub: assessment invitation sent',
+  );
   await appendDevEmailLog(record);
 }

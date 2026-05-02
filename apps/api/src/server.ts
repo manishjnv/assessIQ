@@ -13,6 +13,7 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
+import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
 import {
   registerHelpPublicRoutes,
   registerHelpAuthRoutes,
@@ -136,6 +137,10 @@ export async function buildServer() {
   // accepts the chain as an injected dep so the library stays Fastify-shape-
   // compatible without a hard apps/api import.
   await registerQuestionBankRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
+  // Assessment-lifecycle admin routes — same admin-gated authChain DI shape.
+  // Registers /api/admin/assessments/* and /api/admin/invitations/:id (DELETE).
+  await registerAssessmentLifecycleRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
 
   // Help-system routes. Public + track are anonymous (no preHandler chain
   // needed; the global tenancy hook auto-skips when req.session is absent).

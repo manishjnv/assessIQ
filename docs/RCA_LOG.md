@@ -4,6 +4,45 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-02 — `13-notifications` email-stub `appendDevEmailLog` silently drops writes on Windows
+
+**Symptom:** Module 05's `lifecycle.test.ts` "Dev-email log" tests failed with `ENOENT: no such file or directory, open 'C:\Users\manis\AppData\Local\Temp\aiq-test-emails-...log'` even though the test had set `process.env.ASSESSIQ_DEV_EMAILS_LOG` to a `path.join(os.tmpdir(), ...)` value (pure-backslash Windows path) and `inviteUsers` ran successfully — the dev-emails log was never written.
+
+**Cause:** `modules/13-notifications/src/email-stub.ts:41` extracted the directory from `logPath` via `logPath.substring(0, logPath.lastIndexOf('/'))`. On Windows where the path has only `\` separators, `lastIndexOf('/')` returns `-1`, so `substring(0, -1)` returns the empty string. The subsequent `mkdir("", { recursive: true })` fails, the failure is swallowed by the surrounding `try/catch` (logged as `WARN` only), and the file is never written. The bug never surfaced before because: (a) on Linux/CI the env var is unset and the default Unix-style path uses `/`, and (b) the existing 03-users tests don't assert the log file's contents.
+
+**Fix:** Replaced the manual `lastIndexOf('/')` with `path.dirname(logPath)` — handles both `/` and `\` separators uniformly. Single-line change at `modules/13-notifications/src/email-stub.ts:43`.
+
+**Prevention:**
+
+1. **Never hand-roll path splitting.** Always use `node:path` helpers (`dirname`, `basename`, `join`, `resolve`). They are OS-aware and POSIX-compatible. Hand-rolled string ops on file paths break silently on the OS the author wasn't running on.
+2. **Test the dev-emails.log on Windows** at least once per release. Repeat: pick a Windows machine, set `ASSESSIQ_DEV_EMAILS_LOG=C:\path\to\log`, run a flow that calls `sendInvitationEmail`/`sendAssessmentInvitationEmail`, assert the file exists and has at least one record.
+3. **Don't silently swallow errors in dev-only paths.** The `WARN` log was the only signal that the write failed — a developer running tests by hand would never see it. A future refactor should escalate dev-stub IO failures to `error` and propagate when running under `NODE_ENV=test`.
+
+## 2026-05-02 — Question status workflow gap: assessments require `status='active'` but `04-question-bank.createQuestion` defaults to `status='draft'` and `publishPack` does NOT auto-flip
+
+**Symptom:** Module 05's `publishAssessment` pool-size pre-flight rejected with `ValidationError("Question pool too small: 0 < 5")` even after the test created 5 questions, called `createQuestion` for each, and called `publishPack`. 15 of 69 lifecycle tests failed with the same error pattern.
+
+**Cause:** Two-step mismatch in the question/assessment lifecycle:
+
+1. `04-question-bank.createQuestion` inserts with `status='draft'` (DB default per `modules/04-question-bank/migrations/0012_questions.sql:34`).
+2. `04-question-bank.publishPack` flips the *pack* status to `published` and snapshots all questions into `question_versions` — but does NOT flip individual question statuses. Each question stays `draft` until an admin explicitly PATCHes it via `updateQuestion(..., { status: 'active' })`.
+3. `05-assessment-lifecycle.publishAssessment`'s pool-size pre-flight queries `questions WHERE pack_id=? AND level_id=? AND status='active'` per `docs/02-data-model.md:362` — finds zero rows when no admin has activated any question yet.
+
+The schema docblock at `modules/04-question-bank/migrations/0012_questions.sql:5` ("The assessment-lifecycle module pulls questions where status = 'active'") makes the contract explicit; the gap is that module 04's tooling doesn't help admins reach that state.
+
+**Fix (test-only):** `lifecycle.test.ts`'s `buildPublishedPack` helper now runs `UPDATE questions SET status='active' WHERE pack_id=$1` via the testcontainer superuser client after `publishPack`, simulating the admin's "activate all" workflow. Production code is unchanged — the SKILL.md "What's deferred" section flags the workflow gap.
+
+**Prevention:**
+
+1. **Phase 1.5 should ship one of two fixes (decide once a real admin uses the system):**
+   a. **Auto-flip on publish** — extend `04-question-bank.publishPack` to set every question's status to `active` as part of the publish transaction. Aligned with the docblock contract; surprises no one.
+   b. **Admin "activate all" affordance** — explicit "promote pack questions to active" button in the admin UI. More auditable; matches "draft" being a real workflow state.
+
+   The bias is toward (a) — `publishPack` already snapshots questions; activating them is a small extension of an existing transactional write.
+2. **Phase 1 G1.C should re-validate** the pool-size assumption when module 06-attempt-engine starts pulling questions for `attempt.start`. If candidates ever see questions while `pack.status='published'` AND `question.status='draft'`, the contract is broken.
+
+
+
 ## 2026-05-01 — `docker compose restart` does NOT reload `env_file` — empty CLIENT_ID/SECRET in container after `.env` edit
 
 **Symptom:** After populating `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `/srv/assessiq/.env` and running `docker compose -f infra/docker-compose.yml restart assessiq-api`, `GET /api/auth/google/start` continued to return 401 `"Google SSO is not configured"`. `python3` reading `/srv/assessiq/.env` confirmed the values were written (72 + 35 chars). `docker exec assessiq-api sh -c 'echo "$GOOGLE_CLIENT_ID"'` showed both vars EMPTY in the running container — the old (empty) values from before the merge.

@@ -361,6 +361,17 @@ With `rubric` column:
 
 ## Assessment lifecycle
 
+> **Status: live as of 2026-05-02 (Phase 1 G1.B Session 3).** Migrations `0020_assessment_status_enum.sql`, `0021_assessments.sql`, `0022_assessment_invitations.sql` shipped under `modules/05-assessment-lifecycle/migrations/`. The Postgres `gen_random_uuid()` is used as the `DEFAULT` (not `uuidv7()`); the snippet below preserves the spec-style `uuidv7()` for documentation but the live migrations match the rest of the schema and use `gen_random_uuid()` as the column default while application code generates uuidv7 explicitly via `@assessiq/core uuidv7()`.
+>
+> **Additive surface vs spec:**
+>
+> - `assessments.pack_version INT NOT NULL` — frozen-contract pointer to `question_packs.version` at create time. Snapshotted by `service.createAssessment` from the pack's current version. Republishing a pack does NOT re-bind existing assessments — the `(pack_id, pack_version)` tuple is the immutable content contract. Not in the original spec; added per the Phase 1 G1.B Session 3 plan.
+> - `CHECK (opens_at IS NULL OR closes_at IS NULL OR opens_at < closes_at)` — DB-layer backstop for the service's `assertValidWindow` (defence-in-depth).
+> - Indexes — `assessments_tenant_status_idx (tenant_id, status)` for `listAssessments`; partial indexes `assessments_open_boundary_idx (opens_at) WHERE status='published'` and `assessments_close_boundary_idx (closes_at) WHERE status='active'` for the BullMQ boundary cron. Index sizes stay small because the partial predicates filter to states the cron actually scans.
+> - `tenants.smtp_config JSONB` (additive, lives in `modules/02-tenancy/migrations/0004_tenants_smtp_config.sql`) — per-tenant SMTP credentials shape. Phase 1 SMTP driver swap-in is deferred; the column is empty / NULL on every tenant today and the dev-emails.log stub continues to handle invitation sends. Decision #12 in the SKILL.md.
+>
+> **JOIN-based RLS for `assessment_invitations`:** the table carries no `tenant_id` column. Both RLS policies use an `EXISTS` sub-select that joins back to `assessments` and checks `a.tenant_id = current_setting('app.current_tenant', true)::uuid` — same pattern as `levels` / `questions`. The linter (`tools/lint-rls-policies.ts`) was extended in this commit to enforce this; `assessment_invitations` is now in `JOIN_RLS_TABLES`.
+
 ```sql
 CREATE TYPE assessment_status AS ENUM ('draft','published','active','closed','cancelled');
 
@@ -369,29 +380,33 @@ CREATE TABLE assessments (
   tenant_id       UUID NOT NULL REFERENCES tenants(id),
   pack_id         UUID NOT NULL REFERENCES question_packs(id),
   level_id        UUID NOT NULL REFERENCES levels(id),
+  pack_version    INT NOT NULL,                          -- frozen pointer; snapshotted at create time
   name            TEXT NOT NULL,
   description     TEXT,
   status          assessment_status NOT NULL DEFAULT 'draft',
-  question_count  INT NOT NULL,
+  question_count  INT NOT NULL CHECK (question_count >= 1),
   randomize       BOOLEAN NOT NULL DEFAULT true,
   opens_at        TIMESTAMPTZ,
   closes_at       TIMESTAMPTZ,
-  settings        JSONB NOT NULL DEFAULT '{}'::jsonb,   -- per-assessment overrides
+  settings        JSONB NOT NULL DEFAULT '{}'::jsonb,   -- per-assessment overrides; empty in Phase 1
   created_by      UUID NOT NULL REFERENCES users(id),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT assessments_window_chk
+    CHECK (opens_at IS NULL OR closes_at IS NULL OR opens_at < closes_at)
 );
 
 CREATE TABLE assessment_invitations (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
   assessment_id   UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
   user_id         UUID NOT NULL REFERENCES users(id),
-  token_hash      TEXT NOT NULL UNIQUE,
+  token_hash      TEXT NOT NULL UNIQUE,                  -- sha256 of plaintext; plaintext only in email body
   expires_at      TIMESTAMPTZ NOT NULL,
   status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','viewed','started','submitted','expired')),
   invited_by      UUID NOT NULL REFERENCES users(id),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (assessment_id, user_id)
+  -- JOIN-based RLS — no tenant_id column; tenancy resolves via assessment_id → assessments.tenant_id
 );
 ```
 

@@ -95,15 +95,22 @@
 
 ### Admin — Assessments & invitations
 
+> **Status: live as of 2026-05-02 (Phase 1 G1.B Session 3).** All 11 routes below registered into `apps/api/src/server.ts` via `registerAssessmentLifecycleRoutes(app, { adminOnly: authChain({roles:['admin']}) })`. Smoke verified live: `GET /api/admin/assessments` returns 401 AUTHN_FAILED without session, full lifecycle + cross-tenant RLS exercised by 69 testcontainer integration tests in `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts`. The `GET /:id`, `POST /:id/reopen`, `GET /:id/preview`, `GET /:id/invitations`, and `DELETE /admin/invitations/:id` rows are Phase 1 service-method extensions added in the same PR — same admin-only auth gate. `GET /admin/assessments/:id/attempts` belongs to module 06-attempt-engine and is NOT shipped here; it stays in the table as the canonical contract line for Group G1.C.
+
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/admin/assessments`              | List assessments |
-| `POST` | `/admin/assessments`              | Create draft assessment |
-| `PATCH`| `/admin/assessments/:id`          | Update |
-| `POST` | `/admin/assessments/:id/publish`  | Open for invitations |
-| `POST` | `/admin/assessments/:id/close`    | Stop accepting attempts |
-| `POST` | `/admin/assessments/:id/invite`   | Bulk invite users (body: `{ user_ids: [...] }`) |
-| `GET`  | `/admin/assessments/:id/attempts` | List all attempts (status filter) |
+| `GET`  | `/admin/assessments`              | List assessments (paginated; filter by `status`, `pack_id`) |
+| `POST` | `/admin/assessments`              | Create draft assessment (returns 201) |
+| `GET`  | `/admin/assessments/:id`          | Get assessment by id (extension) |
+| `PATCH`| `/admin/assessments/:id`          | Update — only allowed in `draft` status |
+| `POST` | `/admin/assessments/:id/publish`  | `draft → published` — runs pool-size pre-flight (count active questions ≥ `question_count` else 422 `POOL_TOO_SMALL`) |
+| `POST` | `/admin/assessments/:id/close`    | `active → closed` — illegal on `draft` (state-machine reject) |
+| `POST` | `/admin/assessments/:id/reopen`   | `closed → published` if `now < closes_at`; else 422 `REOPEN_PAST_CLOSES_AT` (extension) |
+| `GET`  | `/admin/assessments/:id/preview`  | Admin sample of the question pool — does NOT create attempt or snapshot (extension) |
+| `GET`  | `/admin/assessments/:id/invitations` | List invitations for an assessment (paginated; filter by `status`) (extension) |
+| `POST` | `/admin/assessments/:id/invite`   | Bulk invite users (body: `{ user_ids: string[] }`); per-user skip reasons returned in `skipped[]` (returns 201) |
+| `DELETE`| `/admin/invitations/:id`         | Revoke invitation — sets status to `expired`; idempotent on already-expired (extension; returns 204) |
+| `GET`  | `/admin/assessments/:id/attempts` | List all attempts (status filter) — **NOT in 05; lands with module 06-attempt-engine (Group G1.C)** |
 
 ### Admin — Grading & review
 
