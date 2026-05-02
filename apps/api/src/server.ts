@@ -14,13 +14,14 @@ import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
-import { registerAttemptCandidateRoutes } from '@assessiq/attempt-engine';
+import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes } from '@assessiq/attempt-engine';
 import {
   registerHelpPublicRoutes,
   registerHelpAuthRoutes,
   registerHelpAdminRoutes,
   registerHelpTrackRoutes,
 } from '@assessiq/help-system';
+import { registerAdminWorkerRoutes } from './routes/admin-worker.js';
 import { authChain } from './middleware/auth-chain.js';
 
 const requestLog = streamLogger('request');
@@ -148,10 +149,19 @@ export async function buildServer() {
   // routes (/api/admin/attempts/*) ship with module 07 in Phase 2.
   await registerAttemptCandidateRoutes(app, { candidateOnly: authChain({ roles: ['candidate'] }) });
 
+  // Attempt-engine take routes — bare-root /take/:token magic-link surface.
+  // Pre-auth (token IS the credential), so uses the public chain. Caddy must
+  // forward /take/* to assessiq-api — see RCA 2026-05-02 § Caddy /help/* fix
+  // for the additive-matcher procedure.
+  await registerAttemptTakeRoutes(app, { publicChain: authChain({ requireSession: false }) });
+
   // Help-system routes. Public + track are anonymous (no preHandler chain
   // needed; the global tenancy hook auto-skips when req.session is absent).
   // Auth + admin routes use DI authChain — the help-system package stays
   // framework-agnostic (no fastify dep) so apps/api passes its own factory.
+  // Worker observability routes — queue stats + failed-job inspection + retry.
+  await registerAdminWorkerRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
   await registerHelpPublicRoutes(app);
   await registerHelpTrackRoutes(app);
   // Cast through `unknown` to satisfy strictFunctionTypes parameter
