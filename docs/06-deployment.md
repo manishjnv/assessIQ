@@ -451,6 +451,8 @@ rclone copy $DEST/assessiq-$TS.dump.gz remote:assessiq-backups/ || true
 | Postgres connections | `pg_stat_activity` | > 80% of max |
 | Redis memory | `INFO memory` | > 80% of maxmemory |
 | Grading job age | `grading_jobs` query | oldest queued > 10 min (Phase 2+) |
+| **Worker queue depth** | `GET /api/admin/worker/stats` (admin auth, 5s TTL cache) — see [docs/03-api-contract.md § Admin — Worker observability](03-api-contract.md) and [docs/11-observability.md § 13](11-observability.md) | `counts.waiting > 50` **OR** `counts.failed > 10`, sustained over 10 min — both indicate the BullMQ scheduler is unable to drain (Redis stall, Postgres saturation, downstream service exhaustion). Phase 1 — single-replica worker on a 60s/30s cadence; sustained depth > 50 is well outside steady state where both queues should be empty between ticks. |
+| **Worker permanent failures** | `worker.log` — `jq 'select(.msg == "worker.job.failed.permanent")' /var/log/assessiq/worker.log` | any line in the last 30 min — every entry means a job exhausted its 5 retries (per [JOB_RETRY_POLICY](../apps/api/src/worker.ts)). Investigate via `GET /api/admin/worker/failed` for the redacted payload + stack tail; manual recover via `POST /api/admin/worker/failed/:id/retry` after fixing root cause. |
 | Disk free | `df -h /` | < 20% on the volume holding `assessiq_pgdata` |
 | TLS expiry | `openssl s_client -showcerts` against the origin | < 60 days remaining (CF Origin Cert is 15y, but watch CF edge cert too) |
 | CF Origin pull errors | Cloudflare dashboard → Analytics | sustained 5xx from origin |

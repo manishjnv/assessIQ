@@ -29,7 +29,7 @@
  * in-flight jobs), close the Redis connection, then close the pg pool.
  */
 
-import { Queue, Worker } from "bullmq";
+import { Queue, Worker, type Job } from "bullmq";
 import { Redis } from "ioredis";
 import { config, streamLogger } from "@assessiq/core";
 import { listActiveTenantIds, closePool } from "@assessiq/tenancy";
@@ -49,6 +49,22 @@ const TIMER_SWEEP_JOB_NAME = "attempt-timer-sweep";
 const BOUNDARY_INTERVAL_MS = 60_000;
 const TIMER_SWEEP_INTERVAL_MS = 30_000;
 
+/**
+ * Per-job retry policy. Both current jobs are idempotent at the SQL level
+ * (bulk UPDATE WHERE status IN (...) — re-running on already-transitioned
+ * rows is a no-op), so retries are safe.
+ *
+ * If a future job is NOT idempotent (e.g. an outbound webhook that the
+ * receiver doesn't dedupe), set `attempts: 1` here and document why.
+ */
+export const JOB_RETRY_POLICY: Record<
+  string,
+  { attempts: number; backoff: { type: "exponential"; delay: number } }
+> = {
+  [BOUNDARY_JOB_NAME]: { attempts: 5, backoff: { type: "exponential", delay: 1000 } },
+  [TIMER_SWEEP_JOB_NAME]: { attempts: 5, backoff: { type: "exponential", delay: 1000 } },
+};
+
 // ---------------------------------------------------------------------------
 // Connection lifecycle
 // ---------------------------------------------------------------------------
@@ -61,6 +77,94 @@ function buildRedis(): Redis {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Logging wrapper
+// ---------------------------------------------------------------------------
+
+/**
+ * Result shape emitted in the success log. Contains only integer counts —
+ * never raw row data — so the redaction layer at pino is purely defence-in-depth.
+ *
+ * `tenant_id` is null at this wrapper level because boundary-cron and
+ * timer-sweep iterate ALL tenants in a single tick rather than targeting one.
+ * Future per-tenant jobs will populate this field.
+ */
+type JobResult = Record<string, number>;
+
+/**
+ * Wraps a job processor `fn` with structured start/end log lines and
+ * rethrows on failure so BullMQ's retry/failed-job machinery still fires.
+ *
+ * Emits exactly two lines per execution:
+ *   - worker.job.start  (level=info)  immediately before fn() is called
+ *   - worker.job.finished (level=info|error) after fn() resolves or throws
+ */
+export async function runJobWithLogging(
+  job: Job,
+  fn: () => Promise<JobResult>,
+): Promise<JobResult> {
+  const startedAt = new Date().toISOString();
+
+  log.info({
+    msg: "worker.job.start",
+    job_id: job.id,
+    job_name: job.name,
+    queue: QUEUE_NAME,
+    started_at: startedAt,
+    // tenant_id is null at the wrapper level — these jobs iterate all tenants.
+    // Future per-tenant jobs will populate this field.
+    tenant_id: null,
+    retry_count: job.attemptsMade,
+  });
+
+  const startMs = Date.now();
+
+  try {
+    const result = await fn();
+    const finishedAt = new Date().toISOString();
+
+    log.info({
+      msg: "worker.job.finished",
+      job_id: job.id,
+      job_name: job.name,
+      queue: QUEUE_NAME,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      duration_ms: Date.now() - startMs,
+      status: "succeeded",
+      // tenant_id: null — see note on start line above.
+      tenant_id: null,
+      retry_count: job.attemptsMade,
+      result,
+    });
+
+    return result;
+  } catch (err: unknown) {
+    const finishedAt = new Date().toISOString();
+    const error = err instanceof Error ? err : new Error(String(err));
+
+    log.error({
+      msg: "worker.job.finished",
+      job_id: job.id,
+      job_name: job.name,
+      queue: QUEUE_NAME,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      duration_ms: Date.now() - startMs,
+      status: "failed",
+      // tenant_id: null — see note on start line above.
+      tenant_id: null,
+      retry_count: job.attemptsMade,
+      error_class: error.constructor.name,
+      error_message: error.message,
+      stack: error.stack,
+    });
+
+    // Rethrow so BullMQ's retry and failed-job machinery still fires.
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -154,11 +258,22 @@ async function start(): Promise<void> {
     }
   }
 
+  // Both keys are guaranteed present in JOB_RETRY_POLICY — the Record type
+  // with noUncheckedIndexedAccess makes them T|undefined at the call site, so
+  // we assert non-null here. A missing entry is a programmer error caught at
+  // startup, not a runtime edge case.
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const boundaryPolicy = JOB_RETRY_POLICY[BOUNDARY_JOB_NAME]!;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const timerSweepPolicy = JOB_RETRY_POLICY[TIMER_SWEEP_JOB_NAME]!;
+
   await queue.add(
     BOUNDARY_JOB_NAME,
     {},
     {
       repeat: { every: BOUNDARY_INTERVAL_MS },
+      attempts: boundaryPolicy.attempts,
+      backoff: boundaryPolicy.backoff,
       removeOnComplete: 50,
       removeOnFail: 50,
     },
@@ -168,6 +283,8 @@ async function start(): Promise<void> {
     {},
     {
       repeat: { every: TIMER_SWEEP_INTERVAL_MS },
+      attempts: timerSweepPolicy.attempts,
+      backoff: timerSweepPolicy.backoff,
       removeOnComplete: 50,
       removeOnFail: 50,
     },
@@ -178,12 +295,12 @@ async function start(): Promise<void> {
   // bulk UPDATE) or two timer sweeps (same reason).
   const worker = new Worker(
     QUEUE_NAME,
-    async (job) => {
+    async (job: Job) => {
       switch (job.name) {
         case BOUNDARY_JOB_NAME:
-          return processBoundaryTick();
+          return runJobWithLogging(job, processBoundaryTick);
         case TIMER_SWEEP_JOB_NAME:
-          return processTimerSweepTick();
+          return runJobWithLogging(job, processTimerSweepTick);
         default:
           throw new Error(`Unknown job name: ${job.name}`);
       }
@@ -191,8 +308,16 @@ async function start(): Promise<void> {
     { connection: redis, concurrency: 1 },
   );
 
+  // Fires only when ALL retries are exhausted — distinct from the per-retry
+  // failure log emitted by runJobWithLogging which fires on every failed attempt.
   worker.on("failed", (job, err) => {
-    log.error({ err, jobName: job?.name, jobId: job?.id }, "worker job failed");
+    log.error({
+      msg: "worker.job.failed.permanent",
+      jobName: job?.name,
+      jobId: job?.id,
+      attemptsMade: job?.attemptsMade,
+      err,
+    });
   });
 
   log.info("assessiq-worker ready");

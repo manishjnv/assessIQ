@@ -37,7 +37,7 @@ A single event sometimes hits two channels (e.g., a failed login writes to `auth
 
 ## 3. Streams & paths
 
-Six application streams plus one error mirror, all under `LOG_DIR` (default `/var/log/assessiq` in production; unset in dev/test → stdout-only).
+Seven application streams plus one error mirror, all under `LOG_DIR` (default `/var/log/assessiq` in production; unset in dev/test → stdout-only).
 
 | File | Who writes | Operator question it answers | Approx volume/day |
 |---|---|---|---|
@@ -48,6 +48,7 @@ Six application streams plus one error mirror, all under `LOG_DIR` (default `/va
 | `migration.log` | `tools/migrate.ts` (self-contained JSONL writer) | "Which migrations applied to prod, when, in what order, hash matches?" | tiny |
 | `webhook.log` | `13-notifications` outbound HTTP *(Phase 3)* | "Did our webhook to host X fire? What did they return?" | varies |
 | `frontend.log` | `apps/api/routes/_log.ts` ingest, fed by `apps/web/src/lib/logger.ts` | "What broke in the browser? Which client saw it?" | varies |
+| `worker.log` | `apps/api/src/worker.ts` BullMQ scheduler (`runJobWithLogging` wrapper) — see § 13 | "Did the cron tick? How long did it take? What failed and how many retries?" | ~200 KB at the current 60s + 30s cadence; one start + one finished line per tick |
 | `error.log` *(mirror)* | every stream, level ≥ error only | **"What broke?"** — single file to scan first, regardless of source | ~1 MB |
 
 ### Common shape
@@ -300,6 +301,7 @@ export async function createSession(input) {
 | Migration apply / drift detection | `migration` |
 | Outbound webhooks / email send | `webhook` (Phase 3 — currently goes to `app`) |
 | Frontend ingest endpoint | `frontend` |
+| BullMQ scheduler / cron job lifecycle | `worker` (see § 13) |
 | Anything else | `app` |
 
 ---
@@ -384,3 +386,181 @@ The Phase-1 grading runtime invokes the `claude` CLI as a subprocess (sync, on a
 - [modules/00-core/SKILL.md](../modules/00-core/SKILL.md) § Public surface — `streamLogger`, `childLogger`, `LOG_REDACT_PATHS`, `enterWithRequestContext`.
 - [docs/RCA_LOG.md](RCA_LOG.md) — bind-mount inode RCA pattern is what drives `copytruncate` in § 7.
 - [CLAUDE.md](../CLAUDE.md) Definition-of-Done table — "Logging/observability change → docs/11-observability.md" is the canonical doc target.
+
+---
+
+## 13. Worker observability
+
+> **Read this when:** triaging a stuck cron tick, investigating why a tenant's assessment didn't auto-close, designing a new BullMQ job.
+> **Read this before:** adding any new repeating job to `apps/api/src/worker.ts`.
+
+The BullMQ scheduler at [apps/api/src/worker.ts](../apps/api/src/worker.ts) runs as a separate container (`assessiq-worker`, second entrypoint on the `assessiq-api` image) and emits one `worker.job.start` + one `worker.job.finished` JSONL line per job execution to `worker.log`. Per-tenant errors emitted by the inner job processors (e.g. one tenant's `processBoundariesForTenant` throwing while others succeed) emit additional context lines under the same stream — those are operational signals, not part of the per-job lifecycle schema.
+
+This subsection inherits the conventions in §§ 4 (redaction) and 5 (correlation) — every line includes `requestId` (synthesized per tick by BullMQ's job context), `pid`, `time`, and `stream: "worker"`. It does NOT inherit the request-context ALS chain because no HTTP request is in flight.
+
+### 13.1 Per-execution schema
+
+Every job execution produces exactly two log lines emitted by `runJobWithLogging` in [apps/api/src/worker.ts](../apps/api/src/worker.ts).
+
+**`worker.job.start`** (level=info) — emitted immediately before the inner processor runs:
+
+```jsonc
+{
+  "level": 30,
+  "stream": "worker",
+  "msg": "worker.job.start",
+  "job_id": "1234",                          // BullMQ job id (string)
+  "job_name": "assessment-boundary-cron",    // matches JOB_RETRY_POLICY key
+  "queue": "assessiq-cron",
+  "started_at": "2026-05-03T00:01:00.000Z",  // ISO8601 UTC
+  "tenant_id": null,                         // null at the wrapper level — see § 13.2
+  "retry_count": 0                           // BullMQ attemptsMade BEFORE this run (0 on first attempt, 1 on second, etc.)
+}
+```
+
+**`worker.job.finished`** (level=info on success, level=error on failure) — emitted after the inner processor resolves or throws:
+
+```jsonc
+// Success case
+{
+  "level": 30,
+  "stream": "worker",
+  "msg": "worker.job.finished",
+  "job_id": "1234",
+  "job_name": "assessment-boundary-cron",
+  "queue": "assessiq-cron",
+  "started_at": "2026-05-03T00:01:00.000Z",
+  "finished_at": "2026-05-03T00:01:00.123Z",
+  "duration_ms": 123,
+  "status": "succeeded",
+  "tenant_id": null,
+  "retry_count": 0,
+  "result": { "tenants": 12, "activated": 1, "closed": 0 }
+                  // ↑ structured per-tick counts only — never raw row data
+}
+
+// Failure case
+{
+  "level": 50,
+  "stream": "worker",
+  "msg": "worker.job.finished",
+  "job_id": "1234",
+  "job_name": "assessment-boundary-cron",
+  "queue": "assessiq-cron",
+  "started_at": "2026-05-03T00:01:00.000Z",
+  "finished_at": "2026-05-03T00:01:00.456Z",
+  "duration_ms": 456,
+  "status": "failed",
+  "tenant_id": null,
+  "retry_count": 0,
+  "error_class": "TypeError",
+  "error_message": "Redis connection lost",
+  "stack": "TypeError: Redis connection lost\n    at processBoundaryTick (..."
+}
+```
+
+**`worker.job.failed.permanent`** (level=error) — emitted by the BullMQ `worker.on("failed", ...)` handler **only when ALL retries are exhausted**. Distinct from the per-attempt `worker.job.finished status: "failed"` line:
+
+```jsonc
+{
+  "level": 50,
+  "stream": "worker",
+  "msg": "worker.job.failed.permanent",
+  "jobName": "assessment-boundary-cron",
+  "jobId": "1234",
+  "attemptsMade": 5,                         // total attempts before giving up
+  "err": { /* serialized Error */ }
+}
+```
+
+For each truly-failed tick at `attempts: 5`: 5 `worker.job.start` + 5 `worker.job.finished status: failed` + 1 `worker.job.failed.permanent` = 11 lines. The wrapper line is the diagnostic surface (full schema with stack); the permanent line is the bookkeeping signal.
+
+### 13.2 Why `tenant_id` is null at the wrapper level
+
+Both currently-shipped jobs (`assessment-boundary-cron`, `attempt-timer-sweep`) iterate ALL active tenants in a single tick rather than targeting one. The per-tenant inner work emits its own context line on tenant-specific errors:
+
+```jsonc
+{
+  "level": 50,
+  "stream": "worker",
+  "msg": "boundary-cron tenant error",
+  "tenantId": "wipro-soc",
+  "job": "assessment-boundary-cron",
+  "err": { /* serialized Error */ }
+}
+```
+
+When a future job ships that targets one tenant per `Queue.add()` call (e.g. a per-tenant export, a per-tenant grading job), the wrapper schema's `tenant_id` field MUST be populated from `job.data.tenant_id` so triage queries by tenant work uniformly. The `tenant_id: null` field is intentionally present on every line so a `jq 'select(.tenant_id == "X")'` query has consistent shape regardless of job type.
+
+### 13.3 Retry policy
+
+Defined per-job-name in `JOB_RETRY_POLICY` at [apps/api/src/worker.ts](../apps/api/src/worker.ts). The current table:
+
+| Job name | `attempts` | `backoff` | Idempotency basis |
+|---|---|---|---|
+| `assessment-boundary-cron` | 5 | exponential, base 1000 ms | Bulk `UPDATE WHERE status IN ('published', 'active') AND boundary < now()` — re-running on already-transitioned rows is a SQL no-op. No external side effects (no audit, no notifications, no webhooks). |
+| `attempt-timer-sweep` | 5 | exponential, base 1000 ms | Bulk `UPDATE WHERE status='in_progress' AND ends_at < now()` + per-attempt `time_milestone` event insert, all wrapped in a single `withTenant(...)` transaction. Either the whole tick commits (retry sees nothing left to process) or it rolls back (retry processes the same rows fresh). No partial-commit risk. |
+
+BullMQ's exponential backoff with `delay: 1000` produces approximate retry delays of 1s, 2s, 4s, 8s (with jitter). The total worst-case time from first failure to permanent-fail mark is ~15s, well under either job's interval (30s for timer-sweep, 60s for boundary).
+
+**Adding a new job — checklist:**
+
+1. Add the job-name constant + add a `JOB_RETRY_POLICY[NAME]` entry. **`attempts` MUST reflect actual idempotency**, not "5 by default".
+2. If the job is NOT idempotent (e.g. an outbound webhook the receiver doesn't dedupe), set `attempts: 1` and document the rationale in the JOB_RETRY_POLICY comment block.
+3. If the job is per-tenant (`job.data.tenant_id` populated), the wrapper's `tenant_id: null` field stays the schema; populate it from `job.data` in a small follow-up to `runJobWithLogging` rather than in the inner processor.
+4. Update the table in this section in the same PR.
+
+### 13.4 Admin observability surface
+
+Three admin-gated routes in [apps/api/src/routes/admin-worker.ts](../apps/api/src/routes/admin-worker.ts) expose the queue's runtime state without requiring access to `worker.log` files:
+
+- `GET /api/admin/worker/stats` — current `{waiting, active, delayed, completed, failed}` counts via `Queue.getJobCounts()`. Server-side 5-second TTL cache so a misbehaving dashboard polling every 1s can't hammer Redis.
+- `GET /api/admin/worker/failed` — last 50 failed jobs with redacted payload + truncated stack tail.
+- `POST /api/admin/worker/failed/:id/retry` — re-enqueue a failed job by id (admin manual recovery).
+
+Full route shapes + error contracts in [docs/03-api-contract.md § Admin — Worker observability](03-api-contract.md). The admin auth chain (`authChain({ roles: ['admin'] })`) gates all three.
+
+The redaction blacklist on `/failed`'s `data` payload is a key-substring match mirroring `LOG_REDACT_PATHS`. **It is not a substitute for §4's primary control** — never put a sensitive field into a job's `data` payload in the first place.
+
+### 13.5 Triage runbook — "the cron stopped advancing"
+
+```bash
+# 1. Are jobs running at all? Look for any worker.job.start in the last 10m.
+jq 'select(.msg == "worker.job.start" and (now - (.time | fromdateiso8601)) < 600)' \
+   /var/log/assessiq/worker.log | head -10
+
+# 2. If yes — are they finishing?
+jq 'select(.msg == "worker.job.finished" and (now - (.time | fromdateiso8601)) < 600)
+    | { job_name, status, duration_ms, retry_count }' \
+   /var/log/assessiq/worker.log
+
+# 3. Any permanent fails in the last hour?
+jq 'select(.msg == "worker.job.failed.permanent" and (now - (.time | fromdateiso8601)) < 3600)' \
+   /var/log/assessiq/worker.log
+
+# 4. Per-tenant errors masking the headline result?
+jq 'select(.msg == "boundary-cron tenant error" or .msg == "timer-sweep tenant error")' \
+   /var/log/assessiq/worker.log | tail -20
+
+# 5. Queue depth — is the worker drowning?
+curl -sS -b "aiq_sess=<admin-session>" \
+  https://assessiq.automateedge.cloud/api/admin/worker/stats | jq
+# `waiting > 50` sustained over 10 minutes is the alert threshold per
+# docs/06-deployment.md § Monitoring.
+
+# 6. Inspect failed jobs by id, then retry:
+curl -sS -b "aiq_sess=<admin-session>" \
+  https://assessiq.automateedge.cloud/api/admin/worker/failed | jq '.jobs[] | { id, name, failed_reason }'
+curl -sS -X POST -b "aiq_sess=<admin-session>" \
+  https://assessiq.automateedge.cloud/api/admin/worker/failed/<job-id>/retry | jq
+```
+
+If `worker.log` is empty but the container is running, the `LOG_DIR` env var was not set when the container booted — `docker exec assessiq-worker env | grep LOG_DIR` and recreate the container per the `restart` ≠ `recreate` rule in [docs/RCA_LOG.md](RCA_LOG.md) `2026-05-01 — env_file reload`.
+
+### 13.6 What changed in this revision (2026-05-03)
+
+- **Why:** the worker shipped at SHA `2675e2f` with a working scheduler but no per-job structured logging, no retry policy beyond BullMQ defaults (which is "no retry"), no admin introspection surface. Triaging a stuck cron required SSHing into the container and reading docker logs — no on-disk JSONL trail, no admin UI affordance, no way to retry a failed job without redeploying.
+- **What:** added the `runJobWithLogging` wrapper + `JOB_RETRY_POLICY` table in [apps/api/src/worker.ts](../apps/api/src/worker.ts), added `"worker"` to `KNOWN_STREAMS` in [modules/00-core/src/logger.ts](../modules/00-core/src/logger.ts), shipped three admin routes in [apps/api/src/routes/admin-worker.ts](../apps/api/src/routes/admin-worker.ts).
+- **Considered and rejected:** (a) emitting per-tenant `worker.job.start` lines from inside the boundary/timer-sweep loop — rejected because it would 10–100× the log volume and obscure the single-tick lifecycle; tenant-specific errors are emitted as separate context lines instead. (b) BullMQ's `Queue.getMetrics()` for the stats endpoint — rejected because it requires the metrics collector worker which would add a second BullMQ subscription; `getJobCounts()` is one round-trip. (c) Per-tenant queue stats — rejected because BullMQ has no per-tenant column on the queue; would require iterating all jobs which doesn't scale.
+- **Explicitly NOT included:** alerting wire-up (still per § 11 — alerting comes with metrics in Phase 3); per-tenant filtering on `/failed` (deferred until a per-tenant job ships, see § 13.4); a UI panel for the admin routes (Phase 2 G2.C — module 10 admin dashboard); a CI lint forbidding new jobs without `JOB_RETRY_POLICY` entries (manual discipline + the checklist in § 13.3).
+- **Downstream impact on other modules:** [docs/03-api-contract.md § Admin — Worker observability](03-api-contract.md) gains 3 endpoints + an error-contract table; [docs/06-deployment.md § Monitoring](06-deployment.md) gains a queue-depth row reading from `/api/admin/worker/stats`; [infra/logrotate.d/assessiq](../infra/logrotate.d/assessiq) needs no change (the `*.log` glob already covers `worker.log`). When [modules/07-ai-grading](../modules/07-ai-grading/SKILL.md) ships its Phase 2 BullMQ grading worker, it will use the same `runJobWithLogging` wrapper + `JOB_RETRY_POLICY` table and emit to the same `worker.log` — single triage surface for all background work.

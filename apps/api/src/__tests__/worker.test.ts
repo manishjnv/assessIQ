@@ -7,9 +7,12 @@
  * the production cron tick, just driven directly via Queue.add (rather than
  * the repeating-job machinery; we exercise the processor logic, not BullMQ
  * itself).
+ *
+ * Unit tests at the bottom (runJobWithLogging, JOB_RETRY_POLICY) run without
+ * containers and are fast.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { Queue, Worker, type Job } from "bullmq";
@@ -26,6 +29,12 @@ import {
 } from "@assessiq/tenancy";
 import { processBoundariesForTenant } from "@assessiq/assessment-lifecycle";
 import { sweepStaleTimersForTenant } from "@assessiq/attempt-engine";
+
+// Worker internals exported for testing.
+import { runJobWithLogging, JOB_RETRY_POLICY } from "../worker.js";
+
+// Logger — we spy on the memoized instance that worker.ts already created.
+import { streamLogger } from "@assessiq/core";
 
 function toFsPath(url: URL): string {
   return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
@@ -196,5 +205,114 @@ describe("BullMQ smoke — Queue.add → Worker.process → result", () => {
     } finally {
       await connection.quit();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests — runJobWithLogging + JOB_RETRY_POLICY (no containers required)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal BullMQ-shaped Job stub sufficient for runJobWithLogging.
+ * We only need the fields the wrapper reads: id, name, attemptsMade.
+ */
+function makeStubJob(name: string, opts?: { id?: string; attemptsMade?: number }): Job {
+  return {
+    id: opts?.id ?? randomUUID(),
+    name,
+    attemptsMade: opts?.attemptsMade ?? 0,
+  } as unknown as Job;
+}
+
+describe("runJobWithLogging — structured log output", () => {
+  it("emits start + finished-success lines with all required schema fields", async () => {
+    const workerLog = streamLogger("worker");
+    const infoSpy = vi.spyOn(workerLog, "info");
+    const errorSpy = vi.spyOn(workerLog, "error");
+
+    const job = makeStubJob("assessment-boundary-cron", { id: "job-001", attemptsMade: 0 });
+    const fakeResult = { tenants: 3, activated: 1, closed: 0 };
+
+    await runJobWithLogging(job, async () => fakeResult);
+
+    // infoSpy should have been called at least twice: start + finished.
+    // (The wrapper itself makes 2 info calls; filter by msg to be precise.)
+    const calls = infoSpy.mock.calls.map((c) => c[0] as Record<string, unknown>);
+
+    const startLine = calls.find((c) => c["msg"] === "worker.job.start");
+    const finishedLine = calls.find((c) => c["msg"] === "worker.job.finished");
+
+    expect(startLine).toBeDefined();
+    expect(startLine?.["job_id"]).toBe("job-001");
+    expect(startLine?.["job_name"]).toBe("assessment-boundary-cron");
+    expect(startLine?.["queue"]).toBe("assessiq-cron");
+    expect(typeof startLine?.["started_at"]).toBe("string");
+    expect(startLine?.["retry_count"]).toBe(0);
+    // tenant_id is null at wrapper level for these all-tenant jobs.
+    expect(startLine?.["tenant_id"]).toBeNull();
+
+    expect(finishedLine).toBeDefined();
+    expect(finishedLine?.["job_id"]).toBe("job-001");
+    expect(finishedLine?.["job_name"]).toBe("assessment-boundary-cron");
+    expect(finishedLine?.["queue"]).toBe("assessiq-cron");
+    expect(typeof finishedLine?.["started_at"]).toBe("string");
+    expect(typeof finishedLine?.["finished_at"]).toBe("string");
+    expect(typeof finishedLine?.["duration_ms"]).toBe("number");
+    expect(finishedLine?.["status"]).toBe("succeeded");
+    expect(finishedLine?.["retry_count"]).toBe(0);
+    expect(finishedLine?.["tenant_id"]).toBeNull();
+    expect(finishedLine?.["result"]).toEqual(fakeResult);
+
+    // No error line should have been emitted.
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    infoSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it("emits finished-failure line with error_class / error_message / stack on throw", async () => {
+    const workerLog = streamLogger("worker");
+    const errorSpy = vi.spyOn(workerLog, "error");
+
+    const job = makeStubJob("attempt-timer-sweep", { id: "job-002", attemptsMade: 2 });
+    const boom = new TypeError("Redis connection lost");
+
+    await expect(
+      runJobWithLogging(job, async () => { throw boom; }),
+    ).rejects.toThrow("Redis connection lost");
+
+    // errorSpy should have exactly one call from the wrapper.
+    const calls = errorSpy.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const failedLine = calls.find((c) => c["msg"] === "worker.job.finished");
+
+    expect(failedLine).toBeDefined();
+    expect(failedLine?.["job_id"]).toBe("job-002");
+    expect(failedLine?.["job_name"]).toBe("attempt-timer-sweep");
+    expect(failedLine?.["queue"]).toBe("assessiq-cron");
+    expect(failedLine?.["status"]).toBe("failed");
+    expect(failedLine?.["retry_count"]).toBe(2);
+    expect(failedLine?.["error_class"]).toBe("TypeError");
+    expect(failedLine?.["error_message"]).toBe("Redis connection lost");
+    expect(typeof failedLine?.["stack"]).toBe("string");
+    expect(failedLine?.["tenant_id"]).toBeNull();
+
+    errorSpy.mockRestore();
+  });
+});
+
+describe("JOB_RETRY_POLICY — retry table shape", () => {
+  it("includes both job names with attempts:5 and exponential backoff", () => {
+    const boundaryPolicy = JOB_RETRY_POLICY["assessment-boundary-cron"];
+    const timerPolicy = JOB_RETRY_POLICY["attempt-timer-sweep"];
+
+    expect(boundaryPolicy).toBeDefined();
+    expect(boundaryPolicy?.attempts).toBe(5);
+    expect(boundaryPolicy?.backoff.type).toBe("exponential");
+    expect(typeof boundaryPolicy?.backoff.delay).toBe("number");
+
+    expect(timerPolicy).toBeDefined();
+    expect(timerPolicy?.attempts).toBe(5);
+    expect(timerPolicy?.backoff.type).toBe("exponential");
+    expect(typeof timerPolicy?.backoff.delay).toBe("number");
   });
 });

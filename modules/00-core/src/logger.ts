@@ -56,6 +56,7 @@ const KNOWN_STREAMS = new Set([
   "migration",
   "webhook",
   "frontend",
+  "worker",
 ]);
 
 function buildBaseOptions(streamName: string): LoggerOptions {
