@@ -737,3 +737,40 @@ A second prevention: every revert commit must explicitly enumerate "what was rev
 **Prevention:**
 - Any repository function that touches a table governed by a `current_setting('app.current_tenant', true)::uuid` RLS policy MUST either run inside `withTenant` (tenant-scoped) or inside a transaction with `SET LOCAL ROLE assessiq_system` (BYPASSRLS). A raw pool client without a transaction is safe ONLY on tables with no RLS, which is none of the production tables.
 - The regression test that checks `current_user = assessiq_system` will fail immediately if the `SET LOCAL ROLE` line is removed or the `BEGIN` is removed, catching any future reversion.
+
+
+## 2026-05-04 — POST /api/admin/questions 500 `null value in column `topic`"
+
+**Symptom:** Creating a question from the admin UI returned HTTP 500 at `2026-05-03T22:02:14Z`. Postgres error: `null value in column 'topic' of relation 'questions' violates not-null constraint` (DatabaseError 23502). Admin could not add any questions to packs via the UI.
+
+**Cause:** `POST /api/admin/questions` had no Fastify JSON-schema body validator. The React form did not include a `topic` field, so `req.body.topic` arrived as `undefined`. In `createQuestion()` in `modules/04-question-bank/src/service.ts`, the value was forwarded directly to the INSERT statement without a guard. `undefined` was serialized as NULL by `pg`, violating the NOT NULL constraint.
+
+**Fix (commit `f390083`):**
+- Added `QB_ERROR_CODES.INVALID_TOPIC` to `modules/04-question-bank/src/types.ts`.
+- Added guard in `createQuestion()`: checks topic is non-empty string before proceeding.
+- Added Fastify body schema to `POST /api/admin/questions`: requires `topic` (string, minLength 1, maxLength 200).
+- Regression test added: `createQuestion with topic omitted throws ValidationError INVALID_TOPIC`. 61/61 tests pass.
+
+**Prevention:**
+- Every POST/PUT/PATCH route writing to Postgres MUST have a Fastify body schema covering all NOT NULL columns the UI might omit.
+- DB constraint errors (23502) at the API layer are a symptom of missing route-layer validation. Phase 3 critique should bounce route handlers that modify tables without a body JSON schema declaration.
+
+---
+
+## 2026-05-04 — Admin cohort report page crashes on load (TypeError: API shape mismatch)
+
+**Symptom:** Navigating to `/admin/reports/cohort/:assessmentId` threw `TypeError: Cannot convert undefined or null to object` in `Object.entries(report.band_distribution)`. Error surfaced in `frontend.log` at `2026-05-03T22:08:30Z`. The page was completely unusable.
+
+**Cause:** `AdminCohortReport` in `modules/10-admin-dashboard/src/pages/cohort-report.tsx` was written against a stale API shape from an early design pass. It expected `{ band_distribution, candidates, assessment_name, total_candidates, median_band, pass_count, fail_count }`. The actual `GET /api/admin/reports/cohort/:assessmentId` (modules/09-scoring/src/routes.ts) returns `{ stats: { attempt_count, average_pct, p50, p75, p90, archetype_distribution } }`. `setReport(data)` stored the whole envelope; every access of `report.band_distribution` read `undefined`. `Object.entries(undefined)` threw immediately on render.
+
+**Fix (commit `f160431`):**
+- Replaced `CandidateRow`, `CohortReport` interfaces with `CohortStats`, `CohortResponse` matching actual API.
+- Replaced `adminApi<CohortReport>(..)` / `setReport(data)` with `adminApi<CohortResponse>(..)` / `setStats(data.stats)`.
+- Replaced band chart + leaderboard with: KPI cards (attempt count, avg%, p50/p75/p90), archetype bar chart, `ArchetypeRadar`.
+- Removed anonymize toggle (no PII in stats payload).
+- 17/17 admin-dashboard tests pass.
+
+**Prevention:**
+- Frontend component interfaces must be derived from the backend type export or from `docs/03-api-contract.md`, never assumed from early design docs.
+- PRs shipping both a backend route and a frontend consumer must cross-check the response shape in the PR description.
+- Phase 3 critique: when a frontend component uses `adminApi<T>()` with a locally-declared `T`, verify `T` matches the corresponding route handler's reply type.

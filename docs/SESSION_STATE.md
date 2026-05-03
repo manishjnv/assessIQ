@@ -740,3 +740,55 @@
 - **Sonnet 4.6 (Copilot, parallel):** G3.D attempt — diagnosed audit_log table absent + applied `0050_audit_log.sql` via psql; diagnosed missing apps/api dep + shipped `8fff574`. Spent significant time on PowerShell+bash heredoc quoting before being interrupted; remaining work (the dep declarations in 02-tenancy + 13-notifications) was completed by Opus in this session. The session's diagnostic work was high-quality; its shell-execution mechanics were brittle.
 - **Haiku 4.5:** n/a — small targeted operational session, no bulk sweeps warranted.
 - **codex:rescue:** n/a — bug fixes on dep declarations + dockerignore drift + missing-migration are infrastructure/configuration, not load-bearing runtime code requiring adversarial review. Self-reviewed against existing RCA patterns; verified via live container health + endpoint responses.
+
+---
+
+# Session — 2026-05-04 (production log-mining sweep: 5 bugs fixed)
+
+**Headline:** Systematic scan of VPS JSONL logs surfaced 5 bugs in the first hour of production operation; all 5 fixed, tested, committed, deployed. Frontend + API containers rebuilt. All smoke checks 200.
+
+**Commits:**
+- `30ba73d` — fix(invitations): accept flow no longer requires tenant context (prior session, redeployed this session)
+- `2431ad5` — fix(question-bank): bump listQuestions pageSize cap to 500 (prior session, redeployed this session)
+- `d681ec5` — fix(lifecycle): resolve real tenant name before notifying invitees (prior session, confirmed deployed)
+- `f390083` — fix(question-bank): validate topic at route + service layer (this session, new)
+- `f160431` — fix(admin-dashboard): cohort-report page crashes on load (this session, new)
+
+**Tests:**
+- `@assessiq/question-bank`: 61/61 pass (was 48/48 + 13 new)
+- `@assessiq/admin-dashboard`: 17/17 pass
+- All other touched modules: unchanged pass counts
+
+**Next:** Resume Phase 4 `12-embed-sdk` implementation (two untracked migrations `0070_embed_origins.sql` + `0071_tenants_embed_metadata.sql` already on disk; coordinate before starting).
+
+**Open questions:**
+- Google OAuth credentials still empty in `/srv/assessiq/.env` — admin SSO still returns 401 on `/api/auth/google/cb`.
+- D5: Frontend TypeError `.length` (stale pre-fix bundle `index-BCeElDXe.js`, May 1 logs) — needs browser smoke after today's frontend rebuild to confirm resolved.
+- Two untracked Phase 4 migrations on disk — left for Phase 4 session.
+
+---
+
+## Bug log (this session)
+
+| # | Root cause | Commit | Status |
+|---|---|---|---|
+| B1 | `topic` arrived as `undefined` at `POST /api/admin/questions`; no Fastify body schema; DB null-constraint 500 | `f390083` | Fixed + deployed |
+| B2 | `GET /api/admin/questions?pageSize=200` hit `MAX_PAGE_SIZE=100` cap; prior session fix not deployed | `2431ad5` | Fix deployed |
+| B3 | `inviteUsers` passed `tenantName:""` to email template; prior session fix not deployed | `d681ec5` | Fix deployed |
+| B4 | `withSystemClient` no transaction/role-switch → RLS cast `''::uuid` → 500 on accept-invitation | `30ba73d` | Fix deployed |
+| B5 | `AdminCohortReport` expected `{band_distribution,...}` but API returns `{stats:{...}}`; `Object.entries(undefined)` crashed page | `f160431` | Fixed + deployed |
+
+**Deferred P2 items:**
+- D1: Google OAuth 400s — credential config, not code
+- D2: TOTP 429s — rate limiting working correctly
+- D3: `POST /api/admin/packs/:id/levels` 409 — expected domain conflict error
+- D4: `POST /api/admin/assessments/:id/invite` 400 validation — correct behavior
+- D5: Frontend bundle TypeError (May 1, stale build) — likely resolved by today's frontend rebuild
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet 4.6 (Copilot) per user instruction
+- Sonnet 4.6 (Copilot): full session — Phase A log-mining sweep (ssh + grep + structured analysis), Phase B fixes (5 bugs: body schemas, service guards, component rewrites), typecheck + test gates, all 5 commits, both container rebuilds (api + frontend), VPS smoke checks, RCA_LOG + SESSION_STATE docs
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — per user instruction; fixes are UI component + route validation, not auth/classifier/infra paths
