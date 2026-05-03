@@ -22,6 +22,7 @@
     "@assessiq/attempt-engine": "workspace:*",
     "@assessiq/ai-grading": "workspace:*",
     "@assessiq/scoring": "workspace:*",
+    "@assessiq/analytics": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",
     "@assessiq/help-system": "workspace:*",
     "@assessiq/notifications": "workspace:*",

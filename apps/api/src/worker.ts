@@ -42,6 +42,10 @@ import {
   type WebhookDeliverJobData,
   webhookBackoffStrategy,
 } from "@assessiq/notifications";
+import {
+  processRefreshMvJob,
+  ANALYTICS_REFRESH_MV_JOB_NAME,
+} from "@assessiq/analytics";
 
 const log = streamLogger("worker");
 
@@ -54,6 +58,10 @@ const BOUNDARY_JOB_NAME = "assessment-boundary-cron";
 const TIMER_SWEEP_JOB_NAME = "attempt-timer-sweep";
 const EMAIL_SEND_JOB_NAME = "email.send";
 const WEBHOOK_DELIVER_JOB_NAME = "webhook.deliver";
+// Phase 3 G3.C — nightly MV refresh at 02:00 UTC
+const MV_REFRESH_JOB_NAME = ANALYTICS_REFRESH_MV_JOB_NAME; // 'analytics:refresh_mv'
+// 02:00 UTC daily, expressed as a cron string (BullMQ uses cron-parser)
+const MV_REFRESH_CRON = "0 2 * * *";
 
 const BOUNDARY_INTERVAL_MS = 60_000;
 const TIMER_SWEEP_INTERVAL_MS = 30_000;
@@ -81,6 +89,9 @@ export const JOB_RETRY_POLICY: Record<
   [TIMER_SWEEP_JOB_NAME]: { attempts: 5, backoff: { type: "exponential", delay: 1000 } },
   [EMAIL_SEND_JOB_NAME]: { attempts: 5, backoff: { type: "exponential", delay: 5000 } },
   [WEBHOOK_DELIVER_JOB_NAME]: { attempts: 5, backoff: { type: "custom" } },
+  // analytics:refresh_mv — 3 attempts, exponential base 60s.
+  // CONCURRENTLY refresh is idempotent; retry on transient DB errors is safe.
+  [MV_REFRESH_JOB_NAME]: { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
 };
 
 // ---------------------------------------------------------------------------
@@ -271,7 +282,7 @@ async function start(): Promise<void> {
   // because the old repeatable is still ticking on the old cadence".
   const existing = await queue.getRepeatableJobs();
   for (const r of existing) {
-    if (r.name === BOUNDARY_JOB_NAME || r.name === TIMER_SWEEP_JOB_NAME) {
+    if (r.name === BOUNDARY_JOB_NAME || r.name === TIMER_SWEEP_JOB_NAME || r.name === MV_REFRESH_JOB_NAME) {
       await queue.removeRepeatableByKey(r.key);
     }
   }
@@ -308,6 +319,23 @@ async function start(): Promise<void> {
     },
   );
 
+  // Phase 3 G3.C — nightly MV refresh at 02:00 UTC.
+  // REFRESH MATERIALIZED VIEW CONCURRENTLY is safe to run while readers are
+  // active (needs the UNIQUE index on attempt_summary_mv which 0060 creates).
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const mvRefreshPolicy = JOB_RETRY_POLICY[MV_REFRESH_JOB_NAME]!;
+  await queue.add(
+    MV_REFRESH_JOB_NAME,
+    {},
+    {
+      repeat: { pattern: MV_REFRESH_CRON },
+      attempts: mvRefreshPolicy.attempts,
+      backoff: mvRefreshPolicy.backoff,
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  );
+
   // Consumer: processes any job that lands on the queue.
   // Concurrency: cron jobs run at 1 (never two boundary/timer ticks simultaneously
   // — would race on the bulk UPDATE). Email + webhook jobs can run at higher
@@ -334,6 +362,8 @@ async function start(): Promise<void> {
               status: r.httpStatus ?? 0,
             })),
           );
+        case MV_REFRESH_JOB_NAME:
+          return runJobWithLogging(job, processRefreshMvJob);
         default:
           throw new Error(`Unknown job name: ${job.name}`);
       }
