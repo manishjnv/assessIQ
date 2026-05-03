@@ -6,6 +6,8 @@
 
 - `b20858b` — feat(12-embed-sdk): Phase 4 — embed JWT ingestion, session minting, and admin surface (34 files, 1743 insertions)
 - `3dd4bd3` — docs(phase-4): update data-model, api-contract, auth-flows, deployment for embed-sdk live state
+- `428d017` — docs(session): fix placeholder SHA in SESSION_STATE.md
+- `ea5b66d` — fix(01-auth): tenant-scope embed JTI replay cache key (codex:rescue item 14)
 
 **Tests:** 12/12 unit tests pass (origin-csp: 7, session-mint: 1, embed-verify: 4). Phase 2 gates all clean: typecheck ✅, RLS linter ✅, edge-routing linter ✅, no ambient AI ✅, no secrets ✅.
 
@@ -39,9 +41,9 @@
 
 ## Agent utilization
 - Opus: n/a — multi-model orchestration per user request (Sonnet 4.6 as primary author this session per VS Code Copilot)
-- Sonnet 4.6: Phase 4 full implementation (34 files, 1743 insertions); Phase 2 gates; 4 migrations + container rebuild + smoke tests + docs updates
+- Sonnet 4.6: Phase 4 full implementation (34 files, 1743 insertions); Phase 2 gates; 4 migrations + container rebuild + smoke tests + docs updates; codex:rescue REVISED fix applied (ea5b66d)
 - Haiku 4.5: 3 parallel Phase 0 discovery sweeps (prior session, Cluster A/B/C); VPS smoke-test checkmark table
-- codex:rescue: SUBSTITUTED by Copilot GPT-5/Codex per user instruction; 12-item adversarial checklist presented; verdict ACCEPTED (user: "ok")
+- codex:rescue: SUBSTITUTED by Copilot GPT-5/Codex per user instruction; 16-item adversarial checklist; verdict REVISED — item 14 (bare JTI replay key) flagged as MUST-FIX; fix applied at ea5b66d, re-review implicit ACCEPTED (items 1-13, 15-16 all PASS; item 15 advisory flag noted in SKILL.md).
 
 ---
 
