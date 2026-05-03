@@ -543,7 +543,7 @@ export async function addLevel(
   packId: string,
   input: AddLevelInput,
 ): Promise<Level> {
-  log.info({ tenantId, packId, position: input.position }, "addLevel");
+  log.info({ tenantId, packId }, "addLevel");
 
   try {
     return await withTenant(tenantId, async (client) => {
@@ -555,14 +555,24 @@ export async function addLevel(
         });
       }
 
+      // Auto-assign position as max(position)+1 when caller omits it.
+      let position = input.position;
+      if (position === undefined || position === null) {
+        const maxRes = await client.query<{ max: number | null }>(
+          `SELECT MAX(position) AS max FROM levels WHERE pack_id = $1`,
+          [packId],
+        );
+        position = (maxRes.rows[0]?.max ?? 0) + 1;
+      }
+
       return repo.insertLevel(client, {
         id: uuidv7(),
         packId,
-        position: input.position,
+        position,
         label: input.label,
         ...(input.description !== undefined ? { description: input.description } : {}),
-        durationMinutes: input.duration_minutes,
-        defaultQuestionCount: input.default_question_count,
+        durationMinutes: input.duration_minutes ?? 30,
+        defaultQuestionCount: input.default_question_count ?? 10,
         ...(input.passing_score_pct !== undefined ? { passingScorePct: input.passing_score_pct } : {}),
       });
     });
@@ -570,7 +580,7 @@ export async function addLevel(
     rethrowUnique(
       err,
       QB_ERROR_CODES.LEVEL_POSITION_EXISTS,
-      `A level at position ${input.position} already exists in pack '${packId}'.`,
+      `A level at position ${input.position ?? "auto"} already exists in pack '${packId}'.`,
     );
   }
 }
