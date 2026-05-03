@@ -5,7 +5,7 @@
 **Commits (both on `origin/main`):**
 
 - `b20858b` — feat(12-embed-sdk): Phase 4 — embed JWT ingestion, session minting, and admin surface (34 files, 1743 insertions)
-- `<docs-sha>` — docs(phase-4): update data-model, api-contract, auth-flows, deployment for embed-sdk live state
+- `3dd4bd3` — docs(phase-4): update data-model, api-contract, auth-flows, deployment for embed-sdk live state
 
 **Tests:** 12/12 unit tests pass (origin-csp: 7, session-mint: 1, embed-verify: 4). Phase 2 gates all clean: typecheck ✅, RLS linter ✅, edge-routing linter ✅, no ambient AI ✅, no secrets ✅.
 
