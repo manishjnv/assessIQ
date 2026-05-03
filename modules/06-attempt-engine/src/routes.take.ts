@@ -113,121 +113,38 @@ export async function registerAttemptTakeRoutes(
   const { publicChain } = opts;
 
   // -------------------------------------------------------------------------
-  // GET /take/:token  — anonymous intro fetch
+  // POST /take/start  — body { token } → session + attempt
   // -------------------------------------------------------------------------
   //
-  // Returns 200 with the assessment + level + candidate identity if the
-  // invitation is live. Returns 404 (generic envelope) for every failure
-  // mode. Side effect: marks invitation status='viewed' on first GET.
+  // Single endpoint matching the candidate-ui contract at
+  // modules/11-candidate-ui/src/api.ts § takeStart and the
+  // TakeStartResponseWire shape at .../src/types.ts.
   //
-  // NOTE: this route does NOT mint a session — the candidate must POST to
-  // /take/:token/start to receive a session cookie. The GET is a preview
-  // surface (so the candidate UI can render "Welcome, Name — ready to
-  // begin?" without committing the candidate to a session yet).
+  // Atomic: resolve token → mark viewed → mint candidate session → create
+  // or return existing attempt → Set-Cookie aiq_sess → return JSON.
+  //
+  // Idempotent on retry: a second call for the same (token, user) returns
+  // the existing attempt (startAttempt is idempotent on (assessment, user)).
+  // The session cookie is re-issued each time — the candidate may have
+  // closed the tab and clicked the email link again; we want them resumed,
+  // not 401'd out. The token stays "live" until the attempt status leaves
+  // 'in_progress' (then `already_submitted` returns 410).
+  //
+  // The bare-root `/take/<token>` GET is OWNED BY THE SPA (React Router
+  // renders TokenLanding which calls this endpoint). The Caddy `@api`
+  // matcher must include `/take/start` (specific path) but NOT `/take/*`
+  // — otherwise the SPA's GET gets routed to the API and broken.
 
-  app.get<{ Params: { token: string } }>(
-    "/take/:token",
+  interface TakeStartBody {
+    token?: unknown;
+  }
+
+  app.post<{ Body: TakeStartBody }>(
+    "/take/start",
     { preHandler: publicChain },
     async (req, reply) => {
-      const { token } = req.params;
-      if (typeof token !== "string" || token.length < TOKEN_MIN_LEN) {
-        return reply.code(404).send(NOT_FOUND_ENVELOPE);
-      }
-
-      let resolved: ResolvedInvitation | null;
-      try {
-        resolved = await resolveInvitationToken(token);
-      } catch (err) {
-        // Don't surface internal errors as 500 — same generic 404 keeps the
-        // surface uniform. The error is logged for ops triage with the
-        // hash-prefix trace; a 5xx counter on the @api Caddy block would
-        // flag persistent infra failures separately.
-        log.error(
-          { err, tokenTrace: tokenLogTrace(token) },
-          "/take/:token: resolveInvitationToken threw",
-        );
-        return reply.code(404).send(NOT_FOUND_ENVELOPE);
-      }
-
-      if (resolved === null) {
-        log.info(
-          { tokenTrace: tokenLogTrace(token), outcome: "not_found_or_expired" },
-          "/take/:token GET",
-        );
-        return reply.code(404).send(NOT_FOUND_ENVELOPE);
-      }
-
-      if (resolved.already_submitted) {
-        log.info(
-          { tokenTrace: tokenLogTrace(token), outcome: "already_submitted" },
-          "/take/:token GET",
-        );
-        return reply.code(410).send(ALREADY_SUBMITTED_ENVELOPE);
-      }
-
-      // Mark viewed (idempotent — only flips pending → viewed). RLS-scoped.
-      try {
-        await markInvitationViewedByToken(
-          resolved.assessment.tenant_id,
-          resolved.invitation.id,
-        );
-      } catch (err) {
-        // Mark-viewed is observability-grade; if it fails, the candidate
-        // experience is unaffected. Log and continue.
-        log.warn(
-          { err, tokenTrace: tokenLogTrace(token) },
-          "/take/:token: markInvitationViewedByToken threw",
-        );
-      }
-
-      log.info(
-        {
-          tokenTrace: tokenLogTrace(token),
-          assessmentId: resolved.assessment.id,
-          status: resolved.invitation.status,
-        },
-        "/take/:token GET ok",
-      );
-
-      // Return the minimum metadata needed for the candidate UI to render
-      // the intro screen. Token is NOT echoed back.
-      return reply.code(200).send({
-        assessment: {
-          id: resolved.assessment.id,
-          name: resolved.assessment.name,
-          description: resolved.assessment.description,
-          question_count: resolved.assessment.question_count,
-        },
-        level: {
-          label: resolved.level.label,
-          duration_minutes: resolved.level.duration_minutes,
-        },
-        candidate: {
-          email: resolved.candidate.email,
-          name: resolved.candidate.name,
-        },
-        invitation: {
-          status: resolved.invitation.status,
-          expires_at: resolved.invitation.expires_at,
-        },
-        can_start: resolved.can_start,
-      });
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // POST /take/:token/start  — token → session + attempt
-  // -------------------------------------------------------------------------
-  //
-  // Atomic: resolve token → mint candidate session → create-or-return attempt.
-  // Returns 201 with attempt + Set-Cookie aiq_sess. Idempotent on second call
-  // for the same (assessment, user) — startAttempt itself is idempotent.
-
-  app.post<{ Params: { token: string } }>(
-    "/take/:token/start",
-    { preHandler: publicChain },
-    async (req, reply) => {
-      const { token } = req.params;
+      const body = (req.body ?? {}) as TakeStartBody;
+      const token = body.token;
       if (typeof token !== "string" || token.length < TOKEN_MIN_LEN) {
         return reply.code(404).send(NOT_FOUND_ENVELOPE);
       }
@@ -235,30 +152,52 @@ export async function registerAttemptTakeRoutes(
       const resolved = await resolveInvitationToken(token).catch((err: unknown) => {
         log.error(
           { err, tokenTrace: tokenLogTrace(token) },
-          "/take/:token/start: resolveInvitationToken threw",
+          "/take/start: resolveInvitationToken threw",
         );
         return null;
       });
 
       if (resolved === null) {
+        log.info(
+          { tokenTrace: tokenLogTrace(token), outcome: "not_found_or_expired" },
+          "/take/start",
+        );
         return reply.code(404).send(NOT_FOUND_ENVELOPE);
       }
 
       if (resolved.already_submitted) {
+        log.info(
+          { tokenTrace: tokenLogTrace(token), outcome: "already_submitted" },
+          "/take/start",
+        );
         return reply.code(410).send(ALREADY_SUBMITTED_ENVELOPE);
       }
 
+      // Mark viewed (idempotent — only flips pending → viewed). Best-effort;
+      // observability-grade write that doesn't gate the response.
+      try {
+        await markInvitationViewedByToken(
+          resolved.assessment.tenant_id,
+          resolved.invitation.id,
+        );
+      } catch (err) {
+        log.warn(
+          { err, tokenTrace: tokenLogTrace(token) },
+          "/take/start: markInvitationViewedByToken threw",
+        );
+      }
+
       // Derive client IP + UA — same fields the SSO + invitation-accept
-      // flows record. Falls back to the 'unknown' sentinel rather than null
-      // to keep downstream session-row schema clean.
+      // flows record. Falls back to a sentinel rather than null to keep
+      // downstream session-row schema clean.
       const ip =
         (req.headers["cf-connecting-ip"] as string | undefined) ?? req.ip ?? "0.0.0.0";
       const ua = (req.headers["user-agent"] as string | undefined) ?? "unknown";
 
       // Mint candidate session BEFORE startAttempt so the session_id is
-      // available if we later wire attempt rows to a session_id (Phase 2
-      // could). totpVerified=true per the magic-link contract — the token
-      // IS the auth factor.
+      // available if we later wire attempt rows to a session_id. The
+      // `totpVerified=true` flag inside `mintCandidateSession` reflects the
+      // magic-link contract — the token IS the auth factor.
       const sessionResult = await mintCandidateSession({
         userId: resolved.candidate.id,
         tenantId: resolved.assessment.tenant_id,
@@ -266,7 +205,7 @@ export async function registerAttemptTakeRoutes(
         ua,
       });
 
-      // Create or return existing attempt — idempotent.
+      // Create or return existing attempt — idempotent on (assessment, user).
       let attempt;
       try {
         attempt = await startAttempt(resolved.assessment.tenant_id, {
@@ -274,11 +213,9 @@ export async function registerAttemptTakeRoutes(
           assessmentId: resolved.assessment.id,
         });
       } catch (err) {
-        // If startAttempt rejects (assessment not active, pool too small,
-        // etc.), the candidate-facing message is "we can't start your
-        // attempt right now" — but we DON'T leak the specific failure
-        // beyond what the @assessiq/core error handler already provides.
-        // Translate NotFoundError / ValidationError into a 404+code.
+        // Translate domain failures (assessment not active, pool too small,
+        // etc.) into the same generic 404 so the candidate UI doesn't have
+        // to enumerate states. The internal log captures the specific code.
         if (err instanceof NotFoundError || err instanceof ValidationError) {
           log.warn(
             {
@@ -286,23 +223,17 @@ export async function registerAttemptTakeRoutes(
               tokenTrace: tokenLogTrace(token),
               assessmentId: resolved.assessment.id,
             },
-            "/take/:token/start: startAttempt rejected",
+            "/take/start: startAttempt rejected",
           );
           return reply.code(404).send(NOT_FOUND_ENVELOPE);
         }
         throw err;
       }
 
-      // Issue the session cookie ONLY now — after both the token verified
-      // and the attempt was successfully created. If startAttempt threw
-      // before this point, we don't ship a cookie and the candidate sees
-      // a 404; the session row is now orphaned in Postgres+Redis and will
-      // expire naturally. (A future cleanup could DELETE it inline on the
-      // throw path.)
-      //
-      // Using `reply.header('Set-Cookie', ...)` rather than @fastify/cookie's
-      // setCookie helper so this module stays free of an apps/api-specific
-      // plugin dep — same structural-typing rationale as routes.candidate.ts.
+      // Set-Cookie ONLY after both the token verified AND the attempt was
+      // successfully created/resumed. Using `reply.header('Set-Cookie', ...)`
+      // rather than @fastify/cookie's setCookie helper so this module stays
+      // free of an apps/api-specific plugin dep.
       const cookieParts = [
         `${config.SESSION_COOKIE_NAME}=${sessionResult.token}`,
         "HttpOnly",
@@ -313,6 +244,13 @@ export async function registerAttemptTakeRoutes(
       if (config.NODE_ENV === "production") cookieParts.push("Secure");
       reply.header("Set-Cookie", cookieParts.join("; "));
 
+      // duration_seconds: server-pinned at startAttempt time on the attempt
+      // row itself; we surface the canonical value (not level.duration_minutes
+      // re-derived) so a future admin extension to attempt-specific durations
+      // is one schema bump away.
+      const durationSeconds =
+        attempt.duration_seconds ?? resolved.level.duration_minutes * 60;
+
       log.info(
         {
           tokenTrace: tokenLogTrace(token),
@@ -320,17 +258,20 @@ export async function registerAttemptTakeRoutes(
           attemptId: attempt.id,
           sessionId: sessionResult.id,
         },
-        "/take/:token/start ok",
+        "/take/start ok",
       );
 
+      // Shape MUST match modules/11-candidate-ui/src/types.ts §
+      // TakeStartResponseWire. SPA navigates to /take/attempt/<attempt_id>
+      // after success; with the session cookie now set, /api/me/attempts/:id
+      // succeeds on the next request.
       return reply.code(201).send({
         attempt_id: attempt.id,
-        assessment_id: resolved.assessment.id,
-        status: attempt.status,
-        ends_at: attempt.ends_at,
-        // SPA navigates here next — the candidate's session cookie is now set
-        // so /api/me/attempts/:id will succeed.
-        next: `/me/attempts/${attempt.id}`,
+        assessment: {
+          id: resolved.assessment.id,
+          name: resolved.assessment.name,
+          duration_seconds: durationSeconds,
+        },
       });
     },
   );
