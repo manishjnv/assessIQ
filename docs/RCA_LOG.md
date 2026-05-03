@@ -658,3 +658,23 @@ Additionally, `modules/02-tenancy/package.json` was missing `@assessiq/audit-log
 1. **Git-clone-on-VPS pattern is the deploy contract going forward.** Once landed, every Phase 4+ session uses `git pull && docker compose ... up -d --build`. No more rsync. No more multi-hour deploys. No more lockfile-bleed.
 2. **`/srv/assessiq/.git` health check.** Add to the VPS additive-deploy enumeration step in `CLAUDE.md` rule #8: `test -d /srv/assessiq/.git || echo "WARNING: /srv/assessiq is not a git clone — see RCA 2026-05-03"`. If the warning fires, the next session is responsible for converting before any deploy.
 3. **`docs/06-deployment.md` § Deploy procedure** must enumerate the standard 3-command flow + flag rsync as deprecated for any post-Phase-0 work.
+
+---
+
+## 2026-05-03 — Missing `@assessiq/audit-log` dep declarations: recurring pattern (3rd instance), prod restart-loop
+
+**Symptom:** After 8fff574 added `@assessiq/audit-log` to apps/api/package.json (correct fix for ONE issue, partial), assessiq-api + assessiq-worker containers entered restart-loop on the next deploy with `ERR_MODULE_NOT_FOUND: Cannot find package '@assessiq/audit-log' imported from /app/modules/02-tenancy/src/service.ts`. /api/health → 502 Bad Gateway via Caddy.
+
+**Cause:** `modules/02-tenancy/src/service.ts` and `modules/13-notifications/src/*` both import `@assessiq/audit-log` (the former added during G3.A 43c0e45 cross-module hook expansion, the latter during G3.B 13-notifications integration), but neither module's `package.json` declared the dep. pnpm's `--filter '@assessiq/api...'` selective install in the Docker builder honors only declared workspace deps; undeclared imports survive `pnpm typecheck` (TypeScript resolves across the workspace virtual store regardless of declarations) but FAIL at runtime when Node's ESM resolver looks for the package in the per-module `node_modules/`. Earlier `639cb22 revert(deps)` had legitimately reverted a stale dep declaration in modules/05-assessment-lifecycle (which doesn't import audit-log), but the rationale ("G3.A intentionally leaves audit-log undeclared") was overgeneralized — it correctly applied to 05-lifecycle but should NOT have inhibited the obviously-needed declarations in 02-tenancy + 13-notifications.
+
+**Fix:** Commit `81da5db fix(deps): declare @assessiq/audit-log in 02-tenancy + 13-notifications` — added `"@assessiq/audit-log": "workspace:*"` to both `modules/02-tenancy/package.json` and `modules/13-notifications/package.json`; ran `pnpm install --no-frozen-lockfile` to regenerate the lockfile (4.5s; 6 lockfile lines added). Verified locally that `node_modules/@assessiq/audit-log` symlinks now resolve to `modules/14-audit-log/` in both modules. Redeployed via git-archive flow; assessiq-api + assessiq-worker rebuilt in 40s, both came up healthy on first try.
+
+**Prevention:** This is the **third** documented instance of the "module imports `@assessiq/X` without declaring it in package.json" RCA pattern. Prior instances:
+
+1. `73ad0b2` (Phase 1 closure fix) — modules/02-tenancy/src/service.ts already importing `@assessiq/audit-log` undeclared at G3.A ship time; surfaced when lifecycle test suite invoked the cross-module call path.
+2. `8fff574` (G3.D session) — apps/api/package.json missing `@assessiq/audit-log`; surfaced when assessiq-api container tried to boot.
+3. **This entry** — modules/02-tenancy + modules/13-notifications still missing after #1 was reverted by 639cb22 over-correction.
+
+**Promote `tools/lint-cross-module-deps.ts` from "Phase 4+ tooling task" to immediate next-session priority.** The lint asserts every `import from "@assessiq/Y"` in a module has a corresponding `"@assessiq/Y": "workspace:*"` in that module's package.json. Run via `pnpm tsx tools/lint-cross-module-deps.ts` in the deterministic gates phase + as a CI step. Also catches the inverse class (declared deps that aren't imported — bloat). Today's incident lost ~3 hours across two sessions to a class of bug that the lint catches in 50ms. Worth a 30-min Sonnet session before any further deploys.
+
+A second prevention: every revert commit must explicitly enumerate "what was reverted, what was NOT reverted, why." `639cb22`'s body said "premature dep declarations" (plural) but the diff was 1 line in 1 file (singular). The vague subject contributed to the over-correction interpretation that left the legitimate declarations missing.
