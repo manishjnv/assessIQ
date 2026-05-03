@@ -401,13 +401,57 @@ AI_PIPELINE_MODE=claude-code-vps
 
 Client IPs reach Caddy via the `CF-Connecting-IP` header. Caddy's global `trusted_proxies` already lists Cloudflare's IP ranges; the auth module's rate-limiter must read client IP via Caddy's normalized request, NOT via raw `X-Forwarded-For`. Confirm in `01-auth` middleware tests.
 
+## Deploy key — `assessiq-vps`
+
+The VPS authenticates to GitHub using an Ed25519 deploy key at `~/.ssh/github_deploy` (read-only access to `manishjnv/assessIQ`).
+
+| Field | Value |
+| --- | --- |
+| Key file | `~/.ssh/github_deploy` (private), `~/.ssh/github_deploy.pub` (public) |
+| Fingerprint | `SHA256:HXZm4e6xgZjd1h++/CxJUpl8mcH4/raA1kg/Ci+peYk` |
+| GitHub URL | https://github.com/manishjnv/assessIQ/settings/keys |
+| SSH config stanza | `Host github.com-assessiq` → `~/.ssh/config` on the VPS |
+| Access | **Read-only** — sufficient for `git pull`; write access intentionally NOT granted |
+| Added | 2026-05-03 via `gh repo deploy-key add` (RCA closure — see `docs/RCA_LOG.md` 2026-05-03) |
+
+**Rotation:** generate a new ed25519 key (`ssh-keygen -t ed25519 -f ~/.ssh/assessiq_deploy_new -N ''`), add to GitHub Settings → Deploy Keys, update `~/.ssh/config` `IdentityFile` line, verify `ssh -T git@github.com-assessiq`, remove old key from GitHub, delete old key file.
+
+## Deploy procedure (steady-state, post-2026-05-03)
+
+As of 2026-05-03 `/srv/assessiq` is a `git clone` of `manishjnv/assessIQ`. The old `git archive + scp + tar-extract` rsync flow is **deprecated** — see RCA 2026-05-03 "Architectural debt: /srv/assessiq is not a git clone". All future deploys use:
+
+```bash
+# 1. Pull latest main
+ssh assessiq-vps 'cd /srv/assessiq && git pull'
+
+# 2. Rebuild the changed service image
+ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml build <service> 2>&1 | tail -10'
+# <service> is one of: assessiq-api, assessiq-frontend (rebuild both if in doubt)
+
+# 3. Recreate the container
+ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <service>'
+```
+
+**If `.env` changes:** use `up -d --force-recreate` (NOT `restart`) — see RCA 2026-05-01 "docker compose restart does NOT reload env_file".
+
+**Smoke after every deploy:**
+```bash
+ssh assessiq-vps 'docker ps --format "{{.Names}} {{.Status}}" | grep assessiq'
+curl -sI https://assessiq.automateedge.cloud/api/health  # expect HTTP/2 200
+# Verify no restart-loop: docker logs --tail 20 assessiq-api 2>&1 | grep -i 'syntaxerror\|module.*does not provide'
+```
+
+**NOTE:** `/srv/assessiq.old` (pre-conversion rsync copy) preserved at `/srv/assessiq.old` until 2026-05-10 for rollback safety. Safe to `rm -rf` after that date.
+
 ## First-boot bootstrap (`/srv/assessiq/`)
 
 Run as a non-root user with Docker group membership.
 
 ```bash
-# 1. Clone (the SSH key for manishjnv@github is already on the box)
-cd /srv && git clone git@github.com:manishjnv/assessIQ.git assessiq && cd assessiq
+# 1. Clone via the deploy key (SSH config stanza must exist at ~/.ssh/config on the VPS)
+#    SSH config Host stanza: Host github.com-assessiq → ~/.ssh/github_deploy (read-only deploy key)
+#    See § Deploy key above for fingerprint and registration URL.
+cd /srv && git clone git@github.com-assessiq:manishjnv/assessIQ.git assessiq && cd assessiq
 
 # 2. Generate secrets
 mkdir -p secrets infra/postgres/init

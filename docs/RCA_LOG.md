@@ -645,13 +645,18 @@ Additionally, `modules/02-tenancy/package.json` was missing `@assessiq/audit-log
 
 **Cause:** Initial Phase 0 deploy procedure (`docs/06-deployment.md` § first-boot bootstrap) used `git archive | scp | tarball-extract` instead of `git clone`. The `.git` directory was never seeded on the VPS, so subsequent deploy sessions defaulted to rsync-from-local because `git pull` wasn't possible. This was viable when the repo was small (< 10 MB source) but degrades sharply as the workspace grows (~14 modules each with their own `node_modules`). Compounding: every parallel session that ran `pnpm install` on local Windows polluted its lockfile + node_modules tree, making the rsync surface even larger and triggering the lockfile-bleed RCA pattern (G1.A handoff `f0b5ad9` documented this).
 
-**Fix:** **NOT YET APPLIED — deferred to a dedicated Sonnet session.** Today's incident was unblocked by manual `git archive HEAD | scp | tar -xz | docker build` (5-minute path) instead of rsync. The architectural fix is:
+**Fix:** Converted 2026-05-03 in a dedicated Sonnet/Copilot session. Steps taken:
 
-1. Add a deploy SSH key on `assessiq-vps` with read access to `manishjnv/assessIQ` (GitHub Deploy Keys, single repo, read-only).
-2. `ssh assessiq-vps 'cd /srv && rm -rf assessiq.old && mv assessiq assessiq.old && git clone git@github.com:manishjnv/assessIQ.git assessiq && cp assessiq.old/.env assessiq/ && cp -r assessiq.old/secrets assessiq/'`. Preserve `.env`, `secrets/`, and any other untracked operational state.
-3. Verify `cd /srv/assessiq && git log -1` returns a recent commit.
-4. Update `docs/06-deployment.md` § first-boot bootstrap to use `git clone` instead of rsync; add a § "Deploy procedure (steady-state)" with the new commands: `ssh assessiq-vps 'cd /srv/assessiq && git pull && docker compose -f infra/docker-compose.yml up -d --build <service>'`.
-5. Once verified, `rm -rf assessiq.old`.
+1. VPS already had `~/.ssh/github_deploy` (ed25519) + `Host github.com-assessiq` stanza in `~/.ssh/config`, but the key was not registered on GitHub. Registered via `gh repo deploy-key add` from local machine — fingerprint `SHA256:HXZm4e6xgZjd1h++/CxJUpl8mcH4/raA1kg/Ci+peYk`, read-only access only.
+2. Verified `ssh -T git@github.com-assessiq` → `Hi manishjnv/assessIQ! You've successfully authenticated`.
+3. `mv /srv/assessiq /srv/assessiq.old` (atomic, instant, reversible).
+4. `cd /srv && git clone git@github.com-assessiq:manishjnv/assessIQ.git assessiq` — clean clone at `0b35faa`.
+5. `cp /srv/assessiq.old/.env /srv/assessiq/.env && chmod 0600` + `cp -r /srv/assessiq.old/secrets /srv/assessiq/secrets && chmod -R go-rwx` — `.env` (1060 bytes) + 3 secret files restored.
+6. `docker compose -f infra/docker-compose.yml build assessiq-api` — built successfully from the git clone.
+7. All 5 containers healthy (unchanged — they kept running throughout); `/api/health` → HTTP/2 200.
+8. `/srv/assessiq.old/.delete-after.txt` pinned: "safe to remove after 2026-05-10".
+
+**Prevention applied 2026-05-03:** Conversion shipped at `<commit-SHA-TBD>`. `/srv/assessiq` is now a git clone with deploy key fingerprint `SHA256:HXZm4e6xgZjd1h++/CxJUpl8mcH4/raA1kg/Ci+peYk`. Future deploys: `ssh assessiq-vps 'cd /srv/assessiq && git pull && docker compose -f infra/docker-compose.yml build <svc> && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <svc>'`. `/srv/assessiq.old` preserved until 2026-05-10 for rollback safety. See `docs/06-deployment.md` § "Deploy procedure (steady-state, post-2026-05-03)".
 
 **Prevention:**
 

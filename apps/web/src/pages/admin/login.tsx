@@ -53,7 +53,7 @@ export function AdminLogin(): JSX.Element {
   const startGoogleSso = (): void => {
     // Server-side OIDC: /api/auth/google/start?tenant=<slug> sets state +
     // nonce cookies and 302's to accounts.google.com. The callback at
-    // /api/auth/google/cb sets aiq_sess and 302's to /admin/users (when
+    // /api/auth/google/cb sets aiq_sess and 302's to /admin (when
     // MFA_REQUIRED=false) or /admin/mfa (when MFA_REQUIRED=true).
     const url = `/api/auth/google/start?tenant=${encodeURIComponent(tenantSlug)}`;
     window.location.href = url;

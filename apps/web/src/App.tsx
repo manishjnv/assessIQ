@@ -13,6 +13,7 @@ import {
   AdminQuestionEditor,
   AdminBilling,
   AdminHelpContent,
+  AdminShell,
 } from '@assessiq/admin-dashboard';
 import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
@@ -47,7 +48,7 @@ export function App(): JSX.Element {
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
-          <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
+          <Route path="/admin/users" element={<RequireSession role="admin"><AdminShell><AdminUsers /></AdminShell></RequireSession>} />
           <Route path="/admin" element={<RequireSession role="admin"><AdminDashboard /></RequireSession>} />
           <Route path="/admin/attempts" element={<RequireSession role="admin"><AdminAttempts /></RequireSession>} />
           <Route path="/admin/attempts/:id" element={<RequireSession role="admin"><AdminAttemptDetail /></RequireSession>} />
