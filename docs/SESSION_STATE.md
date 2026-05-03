@@ -106,6 +106,57 @@
 
 ---
 
+# Session — 2026-05-04 (candidate help drawer + overview block)
+
+**Headline:** `d7246af` — inline `CandidateHelp` FAQ drawer live on Attempt page; "Before you begin" overview block live on TokenLanding.
+
+**Commits:**
+- `d7246af` — feat(candidate-ui): inline help drawer on Attempt + overview block on TokenLanding
+
+**Tests:** 29/29 candidate-ui tests pass (all 5 new CandidateHelp tests green). Vite build: 352 modules clean (up from 351). TypeScript typecheck clean on `@assessiq/candidate-ui`. Pre-existing `07-ai-grading routes.ts` session augmentation errors unchanged.
+
+**Next:** Phase 1 closure audit Finding C fix — `inviteUsers` sends `tenantName:""` → `13-notifications` Zod `.min(1)` 500. Fix: fetch `tenant.name` from DB before email call in `05-lifecycle/src/service.ts:749`.
+
+**Open questions:**
+- Google OAuth credentials still empty in production — admin SSO still returns 401 on Google provider.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C, still outstanding).
+- Browser smoke: confirm "Before you begin" block on TokenLanding + "?" Help button on Attempt + drawer opens/closes cleanly. Requires a real magic-link session in private browser — user to verify.
+
+---
+
+## What changed — d7246af
+
+**What changed:**
+- New `modules/11-candidate-ui/src/components/CandidateHelp.tsx` — self-contained FAQ drawer component. Uses `Drawer` from `@assessiq/ui-system`. Two render modes: circular `(?)` icon button (for Attempt top bar) and text-link trigger (for TokenLanding "Before you begin" block). Closes on Escape / backdrop click / Close button. Fully a11y: `role="dialog"`, `aria-modal`, `aria-label="Help"`, focus-on-open.
+- `modules/11-candidate-ui/src/components/index.ts` + `src/index.ts` — `CandidateHelp` and `CandidateHelpProps` exported from the package barrel.
+- `apps/web/src/pages/take/TokenLanding.tsx` — `SuccessContent` now shows a "Before you begin" card (4 bullets: duration, autosave, crash-resume, finality) + "Need more help?" text trigger above the Begin button. Duration computed from `durationSeconds` prop.
+- `apps/web/src/pages/take/Attempt.tsx` — removed `HelpDrawer`/`HelpDrawerTrigger` from `@assessiq/help-system/components` (were no-ops without a `HelpProvider`). Replaced with `<CandidateHelp />` in the top bar.
+- `modules/11-candidate-ui/src/__tests__/components.test.tsx` — 5 new CandidateHelp tests added: open on click, close on Escape, close on Close button, all FAQ section headings render, trigger not inside a form.
+
+**Why:** Candidates need contextual help during the attempt (and orientation before starting) without navigating away. The existing `HelpDrawerTrigger`+`HelpProvider` wiring in `Attempt.tsx` was dead code (no `HelpProvider` mounted on the take route tree). The standalone approach avoids the `16-help-system` fetch path, is simpler for Phase 1, and ships faster.
+
+**Content verified against shipped code:**
+- Next/Prev nav: ✓ bottom bar buttons in `Attempt.tsx`
+- Flag to revisit: ✓ flag toggle in bottom bar + `QuestionNavigator` shows flagged squares
+- AutosaveIndicator text: ✓ shows "Saved" / "Saved · X min ago" — copy matches
+- Timer auto-submit: ✓ `handleExpire` → navigate to `/submitted` — copy matches
+- Submit location: CORRECTED — spec draft said "top"; actual implementation has Submit in the **bottom** bar; copy reads "at the bottom"
+- Magic-link TTL: ✓ 7 days per 01-auth addendum
+
+**What is NOT included:** Connecting content to `16-help-system` store (Phase 4+ TODO documented in SKILL.md). Adding help drawer to error/expired pages. Any take-flow business logic changes.
+
+**Downstream impact:** `@assessiq/help-system/components` is no longer imported by `Attempt.tsx`. No other files import `HelpDrawer`/`HelpDrawerTrigger` from the take route.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet 4.6 (Copilot): full session — Phase 0 warm-start, verification checks, all implementation, all gates, commit/deploy
+- Haiku: n/a
+- codex:rescue: n/a — non-load-bearing UI surface
+
+---
+
 # Session — 2026-05-04 (admin guide: verbatim content fix + claude ref removal)
 
 **Headline:** `02b42a3` — admin-guide content updated to verbatim spec; "Claude Code CLI" references removed (hard rule violation in prior commit `6c28a29`).

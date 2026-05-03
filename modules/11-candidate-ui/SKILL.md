@@ -123,6 +123,11 @@ Run locally: `pnpm --filter @assessiq/web e2e` (after `pnpm --filter @assessiq/w
 
 ### Phase 1 deferred (Phase 1+ / Phase 2 follow-ups)
 
+- **CandidateHelp content connected to 16-help-system store** — Phase 4+ TODO. The
+  `CandidateHelp` component (2026-05-04) ships with hardcoded JSX copy for speed.
+  Phase 4 will connect it to `@assessiq/help-system` for i18n + admin-overridable
+  content, matching the same `help_id` pattern as admin-side tooltips.
+
 - **Monaco-based `<KqlEditor>`** with KQL grammar + lazy import — decision #11; Phase 1 ships textarea fallback.
 - **Scenario stepper + log_analysis renderer** — Phase 2 (need rubric-engine context).
 - **Modal primitive in `@assessiq/ui-system`** — Phase 1 uses `window.confirm` for submit confirmation; Phase 2 will replace with a proper Modal that shows a per-question summary + "are you sure" UX.
