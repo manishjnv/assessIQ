@@ -244,11 +244,11 @@ export interface CreatePackInput {
 }
 
 export interface AddLevelInput {
-  position: number;
+  position?: number;               // auto-assigned as max(position)+1 when omitted
   label: string;
   description?: string;
-  duration_minutes: number;
-  default_question_count: number;
+  duration_minutes?: number;        // defaults to 30 when omitted
+  default_question_count?: number;  // defaults to 10 when omitted
   passing_score_pct?: number;
 }
 
