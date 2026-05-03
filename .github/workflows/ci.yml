@@ -63,6 +63,15 @@ jobs:
       - name: Logging-discipline lint
         run: pnpm tsx tools/lint-logging-discipline.ts
 
+      # 9c. Edge-routing lint — RCA-prevention against /help/* + /take/* fallthrough.
+      # Asserts every non-/api/* Fastify route mount is in the canonical Caddy
+      # @api matcher in docs/06-deployment.md. See RCA_LOG.md 2026-05-02 + 2026-05-03.
+      - name: Edge-routing lint (self-test)
+        run: pnpm tsx tools/lint-edge-routing.ts --self-test
+
+      - name: Edge-routing lint (repo scan)
+        run: pnpm lint:edge-routing
+
       # 10. Secrets scan — exact regex set from .claude/hooks/precommit-gate.sh lines 40-51
       # plus the hardcoded-credential-literal pattern. Runs on all files (not just diff)
       # so CI catches anything the precommit hook might have missed.
