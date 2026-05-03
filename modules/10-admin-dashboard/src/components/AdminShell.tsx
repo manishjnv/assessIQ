@@ -64,19 +64,21 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   interface NavEntry {
     label: string;
     href: string;
-    icon: "home" | "chart" | "grid" | "user" | "settings" | "book" | "bell" | "eye";
+    icon: "home" | "chart" | "grid" | "user" | "settings" | "book" | "bell" | "eye" | "clock" | "sparkle";
     adminOnly?: boolean;
   }
 
+  // Nav order: Dashboard → Assessments → Attempts → Grading → Reports →
+  //            Question Bank → Users → Help guide → Settings
+  // Workflow rationale: create (Assessments/QB) → run (Attempts/Grading) →
+  //                     review (Reports) → manage (Users/Settings)
   const navEntries: NavEntry[] = [
     { label: "Dashboard", href: "/admin", icon: "home" },
+    { label: "Assessments", href: "/admin/assessments", icon: "clock", adminOnly: true },
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
     { label: "Grading", href: "/admin/grading-jobs", icon: "chart" },
-    // TODO(Phase 3+): Re-add "Reports" → /admin/reports when the cohort-report
-    // list page ships (currently the route requires a dynamic :assessmentId;
-    // a list-first landing page is tracked in SESSION_STATE.md G3.D backlog).
-    // TODO(Phase 3+): Re-add "Question Bank" → /admin/question-bank/packs
-    // when the pack-list page ships (G3.C backlog).
+    { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
+    { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
     { label: "Help guide", href: "/admin/guide", icon: "book" },
     { label: "Settings", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
