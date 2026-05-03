@@ -278,7 +278,26 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/questions
   app.post(
     "/api/admin/questions",
-    { preHandler: adminOnly },
+    {
+      preHandler: adminOnly,
+      schema: {
+        body: {
+          type: "object",
+          required: ["pack_id", "level_id", "type", "topic", "points", "content"],
+          additionalProperties: true,
+          properties: {
+            pack_id: { type: "string", format: "uuid" },
+            level_id: { type: "string", format: "uuid" },
+            type: { type: "string", enum: ["mcq", "subjective", "kql", "scenario", "log_analysis"] },
+            topic: { type: "string", minLength: 1, maxLength: 200 },
+            points: { type: "integer", minimum: 1 },
+            content: {},
+            rubric: {},
+            tags: { type: "array", items: { type: "string", minLength: 1 }, maxItems: 20 },
+          },
+        },
+      },
+    },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
