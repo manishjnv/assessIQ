@@ -128,21 +128,26 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
-### Current live state — Phase 1 G1.A Session 2 split-route + frontend (2026-05-02)
+### Current live state — Phase 1 G1.D split-route + frontend (2026-05-03)
 
-`assessiq-api` and `assessiq-frontend` are both live. The frontend container ships at SHA `3ef4e25` — multi-stage Vite SPA build (apps/web) on `nginx:alpine`, 73.9 MB image, exposing host port 9091. The Caddy block does a split-route: API + embed + public-help paths reach the API container on 9092; the default route reverse-proxies to the frontend container on 9091.
+`assessiq-api` and `assessiq-frontend` are both live. The frontend container ships at SHA `3ef4e25` — multi-stage Vite SPA build (apps/web) on `nginx:alpine`, 73.9 MB image, exposing host port 9091. The Caddy block does a split-route: API + embed + public-help + take/start paths reach the API container on 9092; the default route reverse-proxies to the frontend container on 9091.
 
 **What changed 2026-05-02 (Phase 1 G1.A Session 2):** the `@api` matcher gained `/help/*` so that `modules/16-help-system`'s anonymous public route `GET /help/:key` (registered without an `/api` prefix by design — embed-friendly short URL, parallel to `/embed*`) reaches `assessiq-api`. Pre-fix, `/help/...` fell through to the SPA `handle` and returned `index.html` with HTTP 200 instead of the JSON envelope. Caught in Phase 5 deploy smoke; see RCA `2026-05-02 — Caddy /help/* not forwarded`. The edit was additive only — no existing path was redirected away from anything.
+
+**What changed 2026-05-03 (Phase 1 G1.D):** the `@api` matcher gained `/take/start` (narrowed to the exact POST path, not `/take/*`) so that `modules/06-attempt-engine`'s `POST /take/start` magic-link redemption reaches `assessiq-api`. `GET /take/:token` intentionally falls through to the SPA — the React Router `TokenLanding` page renders for any `/take/<token>` GET, and the SPA's page calls `POST /take/start` in the body. The Caddy container required a restart to pick up the inode-preserved Caddyfile edit (see RCA `2026-05-03 — Caddy @api matcher missing /take/*`).
 
 Live block at `/opt/ti-platform/caddy/Caddyfile`:
 
 ```caddy
 # ═══ AssessIQ — assessiq.automateedge.cloud ═══
-# Phase 1 G1.A Session 2: /api/* + /embed* + /help/* → assessiq-api on 9092.
+# Phase 1 G1.D: /api/* + /embed* + /help/* + /take/start → assessiq-api on 9092.
 # /help/* is the anonymous embed-friendly help endpoint shipped by
 # modules/16-help-system (registerHelpPublicRoutes mounts /help/:key directly,
 # without the /api prefix, so embed contexts can use a short public URL —
 # matches the /embed* convention for the same reason).
+# /take/start is the magic-link POST endpoint (bare-root by design — short URLs
+# in candidate emails). /take/:token GET intentionally falls through to the SPA
+# (React Router TokenLanding renders, then POSTs /take/start).
 # Default route → assessiq-frontend container on host port 9091 (live 2026-05-02).
 # See docs/06-deployment.md § Reverse-proxy plan.
 # Backup before any edit: /opt/ti-platform/caddy/Caddyfile.bak.<UTC-ts>.
@@ -153,8 +158,8 @@ assessiq.automateedge.cloud {
     import security-headers
     encode zstd gzip
 
-    # API + embed + public-help routes → assessiq-api on host port 9092.
-    @api path /api/* /embed* /help/*
+    # API + embed + public-help + take/start routes → assessiq-api on host port 9092.
+    @api path /api/* /embed* /help/* /take/start
     handle @api {
         reverse_proxy 172.17.0.1:9092 {
             header_up X-Forwarded-Proto https

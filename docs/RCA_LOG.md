@@ -4,6 +4,62 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-03 — preventive guardrails added: edge-routing lint + shared-mount sed hook
+
+**Symptom:** Not an incident — this entry is the prevention layer for two RCA-pattern classes that have together produced **five** real incidents in 4 days (well past the "three is a trend, four would be process failure" threshold from RCA 2026-05-03 § Caddy `@api` matcher missing `/take/*`). Every prior prevention section in this log filed both classes as "manual discipline backed by this RCA's existence" or "Phase-2 infra-backlog item." That manual-discipline budget was spent. This session converts the backlog items into shipped tooling.
+
+**Cause classes hardened against:**
+
+1. **Bare-root route mount fallthrough** — modules registering Fastify routes outside the `/api/*` prefix (intentional design — `/help/*`, `/embed*`, `/take/start` for embed-friendly + magic-link short URLs) become unreachable from Cloudflare/Caddy when the AssessIQ block's `@api path` matcher is not updated in the same deploy. Two real incidents:
+   - `2026-05-02 — Caddy /help/* not forwarded` (anonymous embed help endpoint fell through to SPA).
+   - `2026-05-03 — Caddy @api matcher missing /take/*` (magic-link routes fell through to SPA — second occurrence in 24 hours).
+   Both prevention sections explicitly recommend `tools/lint-edge-routing.ts`. Filed as backlog three times in this log.
+
+2. **Bind-mount inode trap from in-place editors** — `sed -i` (and `awk -i inplace`, `perl -pi`, `ruby -pi`, `python -m fileinput -i`) write a temp file then rename it over the original, producing a **new** inode. Single-file Docker bind mounts capture the inode at mount time, so the running container keeps reading the OLD inode (which still exists because the mount holds an open FD even after the directory entry is overwritten). Three real incidents on this VPS:
+   - `2026-04-30 — CF Origin Cert paste artifact silently failed openssl x509 parse` (introduced the inode rule with explicit comments at the top of the Caddyfile).
+   - `2026-05-02 — Caddy /help/* not forwarded` (used the **correct** truncate-write procedure — pattern model for the recovery).
+   - `2026-05-03 — sed -i on the bind-mounted Caddyfile broke the inode binding` (rule was forgotten despite being on disk; required `ti-platform-caddy-1` restart with explicit user approval per CLAUDE.md rule #8).
+   Three occurrences in 4 days. The latest RCA's prevention #1 said verbatim: "The next prevention step is HOOK-level: add a pre-commit / pre-tool guard that refuses `sed -i` against any path under `/opt/ti-platform/caddy/`."
+
+**Fix — shipped this session:**
+
+1. **`tools/lint-edge-routing.ts`** — TypeScript lint, structurally cloned from `tools/lint-rls-policies.ts`. Walks `apps/api/src/server.ts` plus any `apps/api/src/routes/*.ts` and `modules/*/src/{routes,*-routes,*.routes}*.ts` files for `app.<verb>("/<path>", ...)` and `app.route({ method, url })` registrations. Reads the canonical `@api path ...` line from `docs/06-deployment.md` § "Current live state" (so the lint stays in lockstep with whatever's actually deployed — no hardcoded-list duplication). For each non-`/api/*` mount, asserts coverage via either a full Caddy path-match (`/foo/*`, `/foo*`, exact `/foo`) **or** a first-segment overlap with any matcher entry (so `GET /take/:token` is OK when `/take/start` is in the matcher — the codified intent is that the `/take/` segment is intentionally split between API and SPA). Self-test ships 7 fixtures including a regression guard for the 2026-05-03 `/take/*`-missing case. Wired into `.github/workflows/ci.yml` step 9c (self-test + repo scan, both required-pass) and `pnpm lint:edge-routing` / `pnpm lint:edge-routing:self-test` package scripts.
+
+2. **`.claude/hooks/no-sed-shared-mount.sh`** — Bash PreToolUse hook on the Bash tool, structurally cloned from `.claude/hooks/precommit-gate.sh`. Reads tool-input JSON via stdin, extracts `.tool_input.command`. Two-phase AND check: (a) command contains an in-place editor invocation (`sed -i`, `awk -i inplace`, `perl -pi`, `ruby -pi`, `python -m fileinput -i`); (b) command targets a path under a shared-mount root (`/opt/ti-platform/`, `/etc/`, plus `/srv/`, `/var/log/`, `/var/backups/` excluding their `assessiq` sub-namespaces). Both must match → exit 2 (block). Stderr message cites all three RCA dates and shows the truncate-write recovery procedure. Override mechanism: `ALLOW_SHARED_MOUNT_SED=1 <command>` prefix passes through (escape hatch for genuinely necessary in-place edits, must be added intentionally). Wired into `.claude/settings.json` PreToolUse Bash hooks array, after the existing `precommit-gate.sh` (cheaper checks first).
+
+**Why now (vs. earlier):** the manual-discipline gate has fired three times for the inode trap and twice for edge-routing. Each prior RCA closed with "future infra-backlog item." Those tickets paid out at zero — the next session always read the doc, the next session next still re-tripped the trap. Hook-level enforcement is the only mechanism that survives author churn. Per global CLAUDE.md Phase 2 hard rule: "Prefer wiring these as a `PreToolUse` hook on `git commit` (via `/update-config`) so the gate is harness-enforced, not discipline-dependent" — same principle applies to the inode trap.
+
+**Considered and rejected:**
+
+(a) **Lint-edge-routing as a warning-only step.** Rejected. The user's brief explicitly forbids it: "Lint that only WARNS instead of FAILS for Deliverable 1 — must fail CI to actually prevent recurrence." Warnings have a 100% ignore rate over time; the only mechanism that prevents the third incident is exit-1 in CI.
+
+(b) **Hardcoding the canonical `@api path` list inside the lint.** Rejected. The matcher is documented in `docs/06-deployment.md` § "Current live state" and that doc is the source of truth for what's deployed; duplicating the list inside the lint creates a drift surface where the lint and the doc disagree. The lint reads the doc.
+
+(c) **Shared-mount hook as log-only, allow-by-default.** Rejected per the user's brief: "Hook that only logs without blocking for Deliverable 2 — must block by default." Log-only would be even weaker than manual discipline (the log is invisible until you go looking).
+
+(d) **Static-analysis-only edge-routing parser using a TypeScript AST library.** Considered for accuracy on `app.route({ method, url })` object-style registrations. Rejected because: (i) introduces a dependency on `@typescript-eslint/parser` or `ts-morph` solely for this lint, (ii) `tools/lint-rls-policies.ts` uses regex-on-text and is the project pattern, (iii) the regex approach handles the four real-world idioms in this codebase (string-arg, object-with-`url`, route-prefix-via-register, and `app.route` with method-array). Future module patterns that bypass this (e.g. dynamic route construction at runtime) will need the lint to be extended; that's an acceptable cost.
+
+(e) **Linting from inside `precommit-gate.sh` instead of CI.** Rejected. Edge-routing lint needs to scan the whole route surface, not just the staged diff — a pre-commit only sees what's changing in this commit, but the violation is "is the *current* matcher coverage complete given the *current* mount set," which is an invariant of the whole tree. CI is the right enforcement layer; the precommit-gate's job is fast diff-only checks (secrets, ambient-AI calls).
+
+(f) **Restricting the `no-sed-shared-mount` hook to only `/opt/ti-platform/caddy/Caddyfile`.** Considered as the narrowest possible block surface. Rejected because the inode trap class extends to any single-file bind mount on the shared VPS (and `/etc/` configs reloaded by long-running daemons follow an analogous pattern even when not bind-mounted). Broadening to all of `/opt/ti-platform/`, `/etc/`, and the non-assessiq sub-trees of `/srv`, `/var/log`, `/var/backups` covers the trap class without adding false positives — the user's own `assessiq` sub-trees are explicitly carved out.
+
+**NOT included:**
+
+- A linter or hook that touches the running VPS itself. Both deliverables are local — the lint is a dev/CI gate, the hook is a Claude Code PreToolUse guard. Per CLAUDE.md rule #8 the VPS gets only additive deploys; this session ships zero deploys.
+- Modification of `modules/07-ai-grading/ci/lint-no-ambient-claude.ts`. That file is in the load-bearing-paths list and out of scope per the user's brief.
+- A docker-closure linter (`tools/lint-docker-closure.ts`) recommended by RCA `2026-05-03 — assessiq-frontend Docker build TS2307 cascade`. Different RCA pattern class (Dockerfile workspace closure vs. edge-routing matcher); deferred to a future session.
+- An ESLint rule against `expect(() => ...).toSatisfy(predicate)` for thrown-error assertions (recommended by RCA `2026-05-02 — vitest toSatisfy on thunk`). Different RCA pattern class; deferred.
+- Migration of the existing `precommit-gate.sh` checks into the new hook. The two hooks have separate scopes (commit-time vs. arbitrary-bash-time) and run in sequence; merging would couple them unnecessarily.
+
+**Downstream impact:**
+
+- Phase 3 critique sections of future sessions can reference `lint-edge-routing` and `no-sed-shared-mount` as "this is the layer that catches it now" rather than re-deriving the manual rule from prior RCAs.
+- Module SKILL.md files for any future module that mounts non-`/api/*` routes (analogous to module 16's `/help/*` and module 06's `/take/start`) can omit the "remember to update Caddy matcher" reminder; CI will catch it.
+- The `docs/06-deployment.md` § "Current live state" canonical Caddyfile snippet now has an additional load-bearing role: it is the source of truth that `lint-edge-routing` reads. Future edits to that snippet flow through to lint coverage automatically.
+- The `ALLOW_SHARED_MOUNT_SED=1` override remains available for the rare case where in-place edit on a shared path is genuinely needed (e.g., emergency recovery where truncate-write isn't available); use of it should be paired with a comment explaining why and a smoke-check that the bind-mounted container actually picked up the change.
+
+**Cross-reference:** `tools/lint-edge-routing.ts` (new, 671 lines), `.claude/hooks/no-sed-shared-mount.sh` (new), `.github/workflows/ci.yml` step 9c (CI wiring), `.claude/settings.json` PreToolUse Bash hooks (hook wiring), `docs/06-deployment.md` § "Current live state" (canonical matcher snippet, also updated this session to include `/take/start`). Prevented incidents: 2026-05-02 `/help/*` fallthrough, 2026-05-03 `/take/*` fallthrough, 2026-04-30 + 2026-05-02 + 2026-05-03 inode-trap occurrences.
+
 ## 2026-05-03 — `assessiq-api` restart loop from staggered take-backend deploy (`registerAttemptTakeRoutes` import broke before module 06 source landed)
 
 **Symptom:** Production `assessiq-api` container in `Restarting (1)` loop. `docker logs` showed:

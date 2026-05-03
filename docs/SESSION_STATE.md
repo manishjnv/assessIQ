@@ -1,70 +1,84 @@
-# Session — 2026-05-02/03 (Phase 1 G1.D + worker observability + Session 4b take-backend)
+# Session — 2026-05-03 (RCA-driven tooling hardening)
 
-**Headline:** Phase 1 G1.D candidate-taking SPA shipped live; VPS frontend healthy; Session 4b backend magic-link resolver + /take/* API routes committed; worker observability hardened (structured logs, retry policy, admin queue stats).
+**Headline:** Edge-routing CI lint + shared-mount sed PreToolUse hook shipped — converts five "manual discipline" RCAs from the past 4 days into harness-enforced gates. No module code, no shared-VPS deploy.
+**Commits:** *(commit-pending — orchestrator to commit at session exit)* — `chore(tooling): edge-routing lint + shared-mount sed hook + RCA prevention`
+**Tests:** typecheck pass, edge-routing self-test 7/7 pass, edge-routing repo scan green (22 files / 70 mounts), no-sed-shared-mount hook 8/8 synthetic tests pass, synthetic violation test exits 1 as required.
+**Next:** Phase 2 G2.A Session 1.a (`modules/07-ai-grading` scaffold) is the next coding task — its working tree is already pre-staged from an earlier session, awaiting its own commit + `codex:rescue` adversarial pass per the load-bearing-paths rule.
+**Open questions:**
 
-## Commits this session
+- The Deliverable 3 typecheck failure documented in the prior session-state's "Open questions" line 59 (`question_id: 'string | undefined' vs 'string | null'`) does NOT reproduce against the current working tree — `pnpm -r typecheck` reports clean across all 15 workspaces. The seam at `modules/11-candidate-ui/src/types.ts:121` already has `question_id?: string | null` (optional + nullable) and `useIntegrityHooks.ts:60` normalizes via `?? null` at the producer boundary. Whoever fixed it didn't update SESSION_STATE.md. This handoff drops the stale claim — Deliverable 3 is a no-op.
+- The `permissions.defaultMode: bypassPermissions` removal in `.claude/settings.json` (pre-existing in the working tree) is intentional cleanup per memory observation 436 (the value lives in gitignored `.claude/settings.local.json` now). Included in this session's commit as tangentially-related tooling cleanup.
 
-| Commit | Scope | Summary |
-|---|---|---|
-| `da62760` | feat(candidate-ui) | take routes + nav + timer + autosave + integrity hooks — 34 files, 4714 insertions |
-| `93a9e50` | fix(infra) | assessiq-frontend Docker build for G1.D workspace closure — Dockerfile deps/builder + Dockerfile.dockerignore rewritten |
-| `f8a1cf6` | feat(worker) | structured logs + retry policy + admin queue stats — 9 files, 1062 insertions |
-| `fae4b33` | feat(take) | magic-link resolver + /take/* route handlers — 4 files, 567 insertions; restores compile state |
-| `9616723` | docs(session) | RCA_LOG (Docker TS2307 cascade) + SKILL.md what-shipped |
+---
 
-## Live verification (2026-05-03 ~02:30 UTC, post Caddy restart + matcher fix)
+## What shipped
 
-- All 5 assessiq containers healthy. Caddy restart (with user approval) recovered `ti-platform-caddy-1` from the inode-trap state.
-- Caddy `@api` matcher now correctly narrowed: `/api/* /embed* /help/* /take/start` (verified via `caddy adapt`)
-- Frontend `GET /take/<token>` → 200 text/html (SPA) ✓
-- Backend `POST /take/start` body `{token:"<long-fake>"}` → 404 `INVITATION_NOT_FOUND` JSON envelope ✓ (correct generic-404 — no enumeration oracle)
-- Backend `POST /take/start` body `{}` → 404 INVITATION_NOT_FOUND (token too short, same envelope) ✓
-- `/api/health` → 200; `/api/me/assessments` → 401 AUTHN_FAILED; `/help/<key>` → 200 ✓
-- Other 4 shared-Caddy sites (intelwatch.in, ti.intelwatch.in, accessbridge.space, automateedge.cloud) all responsive ✓
+### Deliverable 1 — `tools/lint-edge-routing.ts` (new, 671 lines)
 
-## This session's recovery commits + edits
+CI lint that prevents the third edge-routing fallthrough incident. Walks `apps/api/src/server.ts` plus all module-side route registration files for `app.<verb>("/<path>", ...)` and `app.route({ method, url })` mounts. Reads the canonical `@api path ...` line from `docs/06-deployment.md` § "Current live state" — single source of truth, no hardcoded duplicate list. Coverage rule: a non-`/api/*` mount passes if either (a) Caddy path-match (`/foo/*`, `/foo*`, exact `/foo`) covers it, or (b) any matcher entry shares its first path segment (so `GET /take/:token` is OK when `/take/start` is in the matcher — codified intent for split SPA/API behavior). Self-test ships 7 fixtures including a regression guard for the 2026-05-03 `/take/*`-missing case; production mode reads from disk.
 
-| Commit | Scope | Summary |
-|---|---|---|
-| `da62760` | feat(candidate-ui) | take routes + nav + timer + autosave + integrity hooks — 34 files, 4714 insertions |
-| `93a9e50` | fix(infra) | assessiq-frontend Docker build for G1.D workspace closure |
-| `f8a1cf6` | feat(worker) | structured logs + retry policy + admin queue stats |
-| `fae4b33` | feat(take) | magic-link resolver + /take/* route handlers (initial shape) |
-| `9616723` | docs(session) | RCA_LOG (Docker TS2307 cascade) + SKILL.md what-shipped |
-| *(uncommitted, ready to commit)* | fix(take) | route shape rewrite to match candidate-ui contract; routes.take.ts now mounts single `POST /take/start` body `{token}` returning `TakeStartResponseWire`. Caddy `@api` matcher narrowed to `/take/start` (specific path). RCA appended for the inode trap + matcher mismatch. |
+**Wiring:**
+- `.github/workflows/ci.yml` step 9c — self-test + repo scan, both required-pass.
+- `package.json` — `lint:edge-routing` and `lint:edge-routing:self-test` scripts.
 
-## RCA entries appended (3)
+**Verified:**
+- `pnpm tsx tools/lint-edge-routing.ts --self-test` → exit 0, all 7 fixtures pass.
+- `pnpm tsx tools/lint-edge-routing.ts` → exit 0 on current main (22 files scanned, 70 route mounts checked, canonical matcher: `@api path /api/* /embed* /help/* /take/start`).
+- Synthetic violation test (temp-add `app.get("/foo/bar", ...)` to server.ts) → lint output `mount "/foo/bar" — not covered by Caddy @api matcher`, exit 1.
 
-1. `2026-05-03 — assessiq-api restart loop from staggered take-backend deploy` — staggered shipping of importer (server.ts) before exporter (module 06 routes.take.ts) caused `SyntaxError` boot loop. Process rule: cross-module deploys MUST list both files in `git archive`.
-2. `2026-05-03 — sed -i on the bind-mounted Caddyfile broke the inode binding` — second occurrence of the inode trap in 4 days; recovery requires Caddy container restart with explicit user approval per CLAUDE.md rule #8.
-3. `2026-05-03 — Caddy @api matcher missing /take/* — magic-link routes fell through to SPA` — second occurrence of the bare-root-route trap (first was `/help/*` on 2026-05-02). Pattern guard documented for any module mounting non-`/api/*` routes.
+**Prevents:** 2026-05-02 `/help/*` fallthrough, 2026-05-03 `/take/*` fallthrough RCA pattern class (third incident would be process failure).
 
-## Tests
+### Deliverable 2 — `.claude/hooks/no-sed-shared-mount.sh` (new)
 
-- `modules/11-candidate-ui/__tests__/components.test.tsx` — 24 vitest cases pass locally
-- Worker: `apps/api/src/__tests__/worker.test.ts`, `admin-worker.test.ts` — pass
-- E2E `take-error-pages.spec.ts` passes; `take-happy-path.spec.ts` + `take-timer-expiry.spec.ts` no longer `test.skip` blockers — backend now live and contract-matched
-- Module 05 + 06 typecheck clean; full workspace typecheck clean except pre-existing 11-candidate-ui `question_id: undefined` vs `null` shape (frontend-side; not blocking the take flow)
+Bash PreToolUse hook on the Bash tool. Reads tool-input JSON via stdin (jq with sed fallback). Two-phase AND check before blocking:
 
-## Next
+1. **Editor pattern** — `\bsed[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*-i([^a-zA-Z]|$)`, plus `awk -i inplace`, `perl -pi`, `ruby -pi`, `gawk -i inplace`, `python -m fileinput -i`. The trailing `([^a-zA-Z]|$)` terminator on the `-i` flag prevents over-firing on hypothetical combined flags like `sed -in...`.
+2. **Path target** — `/opt/ti-platform/`, `/etc/`, `/srv/` (excluding `/srv/assessiq/`), `/var/log/` (excluding `/var/log/assessiq/`), `/var/backups/` (excluding `/var/backups/assessiq/`). Trailing slash is mandatory so `/opt/ti-platform-foo` doesn't false-match.
 
-1. **Commit + push** the route-shape rewrite + Caddy matcher narrowing (uncommitted in this working tree).
-2. **End-to-end candidate flow drill on production** — now that the backend contract matches the frontend's `takeStart` call: SSO admin → createPack → addLevel → createQuestion ×N → publishPack → activate-questions → createAssessment → publishAssessment → wait for boundary cron (or trigger manually) → inviteUsers → click email link in browser → SPA renders TokenLanding → `POST /take/start` succeeds → SPA navigates to `/take/attempt/:id` with session cookie set → candidate completes attempt.
-3. **Phase 2 G2.A Session 1** opens after step 2 — `modules/07-ai-grading` ships the D2 lint sentinel + claude-code-vps runtime + admin handlers + 3 in-repo skills + MCP server source. **codex:rescue MANDATORY** before push per CLAUDE.md load-bearing-paths.
+Exit 2 with stderr citing all three RCA dates and showing the truncate-write recovery procedure. Override: `ALLOW_SHARED_MOUNT_SED=1 <command>` prefix passes through (escape hatch for genuinely necessary in-place edits).
 
-## Open questions / deferrals
+**Wiring:** `.claude/settings.json` PreToolUse Bash hooks array, ordered AFTER `precommit-gate.sh` (cheaper/more frequent checks first, targeted VPS guard second).
 
-- **`tools/lint-edge-routing.ts`** — recommended thrice now (help-system + Caddy /take/* + this session). Add a CI lint that parses non-`/api/*` route mounts in `apps/api/src/server.ts` and asserts each is in the canonical Caddyfile snippet from `docs/06-deployment.md`. Phase-2 infra backlog.
-- **Pre-tool hook against `sed -i` on `/opt/ti-platform/caddy/`** — third Caddyfile-bind-mount RCA-pattern instance in 4 days. Add a hook that refuses `sed -i` against bind-mounted shared infra paths.
-- **11-candidate-ui pre-existing typecheck failure**: `Type 'string | undefined' is not assignable to type 'string | null'` for `question_id`. Not introduced by this session; carries over into G1.D closure.
-- **Modal primitive** in @assessiq/ui-system — Attempt.tsx uses `window.confirm`. Phase 2.
-- **Monaco KqlEditor** — textarea fallback shipped. Phase 2.
-- **AttemptTimer `onDriftCheck` wiring** — harmless for Phase 1 (no admin-extendable deadlines). Phase 2.
-- **Autosave retry-revision inflation** — cosmetic; Phase 2 cleanup.
+**Verified — 8/8 synthetic tests:**
+
+| # | Command | Expected | Actual |
+|---|---|---|---|
+| 1 | `sed -i s/foo/bar/ /opt/ti-platform/caddy/Caddyfile` | BLOCK (2) | 2 ✓ |
+| 2 | `sed -i s/foo/bar/ /srv/assessiq/.env` | ALLOW (0) | 0 ✓ |
+| 3 | `sed s/foo/bar/ /opt/ti-platform/caddy/Caddyfile > /tmp/new` | ALLOW (0) | 0 ✓ |
+| 4 | `perl -pi -e s/foo/bar/g /etc/nginx/nginx.conf` | BLOCK (2) | 2 ✓ |
+| 5 | `ALLOW_SHARED_MOUNT_SED=1 sed -i ... /opt/ti-platform/...` | ALLOW (0) | 0 ✓ |
+| 6 | `git status` | ALLOW (0) | 0 ✓ |
+| 7 | `awk -i inplace { print } /var/log/syslog` | BLOCK (2) | 2 ✓ |
+| 8 | `awk -i inplace { print } /var/log/assessiq/app.log` | ALLOW (0) | 0 ✓ |
+
+**Prevents:** 2026-04-30 + 2026-05-02 + 2026-05-03 inode-trap RCA pattern class. Three incidents in 4 days; manual discipline gate has demonstrably failed.
+
+### Deliverable 3 — pre-existing 11-candidate-ui typecheck failure
+
+**Status: no-op.** The failure documented in the prior session-state handoff does not reproduce against the current working tree. Investigation: `modules/11-candidate-ui/src/types.ts:121` defines `CandidateEventInput.question_id?: string | null` (optional + nullable). `modules/11-candidate-ui/src/hooks/useIntegrityHooks.ts:33-63` accepts `string | null | undefined` at the `emit()` boundary and normalizes via `?? null` at the wire-encoding step. The seam is already aligned end-to-end with the `string | null` invariant; there is no `string | undefined` leakage to fix. `pnpm -r typecheck` reports clean across all 15 workspaces, including `apps/web` and `modules/11-candidate-ui`.
+
+The prior session-state's claim is removed from this handoff's "Open questions."
+
+### Documentation updates
+
+- **`docs/06-deployment.md` § "Current live state"** — canonical Caddyfile snippet updated to include `/take/start` in the `@api path` matcher (the live VPS state per the 2026-05-03 inode-trap recovery; the doc was previously stale). Section heading bumped to Phase 1 G1.D, explanation paragraph added describing the deliberate `/take/start` (API) vs `/take/:token` (SPA) split. Lint reads from this section, so doc accuracy is now load-bearing.
+- **`docs/RCA_LOG.md`** — prepended a "## 2026-05-03 — preventive guardrails added" entry covering both deliverables. Format follows CLAUDE.md rule #5: what / why now / considered-and-rejected (six options, including warning-only lint, hardcoded matcher list, log-only hook, AST parsing, precommit-only enforcement, and single-file path scoping) / NOT included (docker-closure lint, vitest-toSatisfy ESLint rule, ambient-AI lint changes) / downstream impact (future SKILL.md reminders can drop, doc snippet now load-bearing for lint).
+
+### Out of this session's scope (explicit)
+
+- `modules/07-ai-grading/` (Session 1.a) — scaffold present in working tree as untracked files. Awaits its own commit + `codex:rescue` adversarial pass.
+- The pre-existing working-tree changes to `modules/00-core/src/config.ts` (open-weights enum), `tools/lint-rls-policies.ts` (tenant_grading_budgets PK=tenant_id special-case), `pnpm-lock.yaml`, and the `lint:ambient-ai` scripts in `package.json` / step 9a in `.github/workflows/ci.yml` are all Session 1.a supporting glue. Surgically NOT staged for this session's commit per the user's brief "Out of scope: modules/07-ai-grading/."
+
+### Adversarial review
+
+Skipped per the user's brief — pure tooling, no security/auth/classifier surface. Both deliverables are dev/CI guards that don't touch any load-bearing path under `modules/01-auth/`, `modules/02-tenancy/`, `modules/07-ai-grading/`, or `modules/14-audit-log/`. Both are also static — neither calls `claude`, `anthropic`, or any external service. Skip decision logged here per CLAUDE.md rule #9 doc-detail requirement.
+
+---
 
 ## Agent utilization
 
-- **Opus 4.7 (1M)**: orchestration, critique, Docker build RCA, session docs, routing decisions; for the worker-hardening slice — Phase 0 warm-start parallel reads, Phase 3 diff critique on the parallel Sonnet outputs (no bounces), authored same-PR doc detail in 03-api-contract / 06-deployment / 11-observability § 13, drove the deploy + mid-deploy crash diagnosis (parallel-session import gap)
-- **Sonnet**: G1.D frontend (modules/11-candidate-ui, apps/web/src/pages/take/*); worker impl in 2 parallel Phase 1 calls — Sonnet A (`modules/00-core/src/logger.ts` KNOWN_STREAMS + `apps/api/src/worker.ts` runJobWithLogging wrapper + JOB_RETRY_POLICY + 3 vitest cases) and Sonnet B (`apps/api/src/routes/admin-worker.ts` 3 routes + redactor + 5s TTL cache + 4 vitest cases + server.ts wiring); take-backend (modules/{05,06}/src/)
-- **Haiku**: n/a this session — deploy verification surface was small (3 curl smokes + 1 ssh log check), driven inline by Opus
-- **codex:rescue**: n/a (quota-throttled per the user's brief). Adversarial pass on the worker-hardening slice was delegated to **sonnet-takeover** per memory `feedback-sonnet-takeover-on-rescue.md`; verdict ACCEPT with two LOW redaction-key additions applied (`aiq_sess`, `candidate` substrings). One informational note about `time_milestone` event duplication on retry was raised then verified false (the `withTenant` transaction wrapper makes the whole sweep atomic; existing idempotency test at `attempt-engine.test.ts:655-659` confirms)
+- **Opus 4.7 (1M)**: Phase 0 warm-start parallel reads (PROJECT_BRAIN + SESSION_STATE + RCA_LOG + 06-deployment + lint-rls-policies + precommit-gate); Phase 3 diff critique (no bounces); cross-module type-seam audit for Deliverable 3 (verified seam already aligned, dropped phantom-fix temptation); orchestration of partial-stage-via-back-edit to surgically exclude pre-existing Session 1.a hunks from the commit; same-PR doc detail in RCA_LOG.md (~95 lines covering five rejected alternatives) + SESSION_STATE.md overwrite.
+- **Sonnet**: 2 parallel Phase 1 calls — Sonnet A (`tools/lint-edge-routing.ts` + `docs/06-deployment.md` matcher update + ci.yml + package.json wiring; 671 lines + 7-fixture self-test; reported all gates green) and Sonnet B (`.claude/hooks/no-sed-shared-mount.sh` + `.claude/settings.json` hook wiring; 8 synthetic tests all pass; reported actual exit codes).
+- **Haiku**: n/a — no bulk live-prod sweeps in scope (no deploy this session).
+- **codex:rescue**: n/a — judgment-skip per user's brief, pure dev tooling with no security/auth/classifier surface (CLAUDE.md rule allows scaling rigor to change magnitude; skip logged here per rule #9).
