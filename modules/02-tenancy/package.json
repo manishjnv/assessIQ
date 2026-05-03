@@ -13,7 +13,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@assessiq/audit-log": "workspace:*",
     "@assessiq/core": "workspace:*"
   }
 }

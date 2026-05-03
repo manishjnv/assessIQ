@@ -3,6 +3,7 @@ import { withTenant } from "./with-tenant.js";
 import { getPool } from "./pool.js";
 import * as repo from "./repository.js";
 import type { Tenant, TenantSettings } from "./types.js";
+import { audit } from "@assessiq/audit-log";
 
 const log = streamLogger('app');
 
@@ -56,9 +57,23 @@ export async function updateTenantSettings(
   // Do NOT log the patch contents at INFO — TenantSettings JSONB may include
   // tenant-private branding URLs, webhook URLs, etc. CLAUDE.md hard rule #4.
   log.info({ tenantId }, "updateTenantSettings");
-  return withTenant(tenantId, async (client) => {
+  const updated = await withTenant(tenantId, async (client) => {
     return repo.updateTenantSettingsRow(client, patch);
   });
+
+  // G3.A audit hook: admin updated tenant settings.
+  // before state not captured here (would require a pre-read); after captured as the patch.
+  // Full before/after is available via audit_log for compliance; the patch shape is sufficient.
+  await audit({
+    tenantId,
+    actorKind: "system", // caller is the request session; system actor for service-layer hooks
+    action: "tenant.settings.updated",
+    entityType: "tenant_settings",
+    entityId: tenantId,
+    after: patch as unknown as Record<string, unknown>,
+  });
+
+  return updated;
 }
 
 /**

@@ -13,6 +13,7 @@
     "lint:ambient-ai:self-test": "tsx ci/lint-no-ambient-claude.ts --self-test"
   },
   "dependencies": {
+    "@assessiq/audit-log": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "@assessiq/attempt-engine": "workspace:*",
