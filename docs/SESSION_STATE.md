@@ -1,3 +1,54 @@
+# Session — 2026-05-04 (pack-detail pageSize 400 + questions error state)
+
+**Headline:** `2431ad5` — `GET /api/admin/questions?pageSize=200` was returning 400; cap raised to 500. Pack-detail now shows a styled error card with Retry when the questions fetch fails.
+
+**Commits:**
+- `2431ad5` — fix(question-bank): bump listQuestions pageSize cap to 500 + clean error state on pack-detail
+
+**Tests:** 60/60 question-bank; 17/17 admin-dashboard. QB tsc clean. Cross-module deps: 0 violations. Secrets/claude scan: 0 hits. Pre-existing web build failure in 07-ai-grading (unrelated, verified on HEAD before changes).
+
+**Smoke (ask user to verify):**
+- Refresh the Pack detail page → question list should render (if questions exist) OR show "No levels yet" empty state instead of the raw "pageSize must be between 1 and 100" error string.
+
+**Deploy:** `2431ad5` pushed, VPS pulled, both `assessiq-api` + `assessiq-frontend` containers recreated. API health 200.
+
+**Next:** Google OAuth credentials wiring into `/srv/assessiq/.env` (unblocks Phase 1 closure audit Drills 1/3/4). Or: Finding C fix (`inviteUsers tenantName:""` 500 in `05-lifecycle`).
+
+**Open questions:**
+- Google OAuth credentials still empty in `/srv/assessiq/.env` — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C and/or missing Google OAuth).
+
+---
+
+## What changed — 2431ad5
+
+**What changed:**
+- `modules/04-question-bank/src/routes.ts`: `parsePagination()` upper bound raised from 100 → 500. Comment explains the question-bank use case (full-pack load) differs from the user-list use case (admin-users.ts stays at 100).
+- `modules/10-admin-dashboard/src/pages/pack-detail.tsx`: Split the combined `Promise.all([packFetch, questionsFetch])` into two sequential fetches. Pack fetch errors still gate the full page. Questions fetch errors populate a new `questionsError` state rendered as a styled card (danger border, "Couldn't load questions", error detail in mono, Retry button that re-runs `fetchPack()`). Frontend pageSize bumped from 200 → 500 to match the new cap.
+- `modules/04-question-bank/SKILL.md`: Status update note prepended.
+- `docs/RCA_LOG.md`: Incident entry appended.
+
+**Why it changed:** Production 400 logged at `2026-05-03T22:00:28Z`. Pack-detail requested `pageSize=200` to load all questions for client-side level grouping; the cap was copied from `admin-users.ts` where 100 is intentional, but questions per pack routinely exceed 100 at L1/L2/L3 scale.
+
+**What was considered and rejected:**
+- Removing the cap entirely (unbounded query is DoS surface — kept capped at 500).
+- Adding server-side pagination UI to pack-detail (scope creep, Phase 4+ concern; not needed until packs reach 500+ questions).
+- Hardcoding pageSize=100 in the frontend (doesn't fix the use case, just masks it at a smaller scale).
+
+**What is NOT included:** Pagination UI on pack-detail. Bumping pageSize on unrelated endpoints.
+
+**Downstream impact:** Only `GET /admin/questions` route is affected. `listPacks` uses the same `parsePagination()` helper — the 500 cap applies there too, but `listPacks` is always called at 20–50 per page in practice, so no behavioral change.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet 4.6 (Copilot) only per user instruction
+- Sonnet 4.6 (Copilot): full session — Phase 0 reads, both code changes, all gates, commit + deploy + docs
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — no security/auth/classifier paths touched
+
+---
+
 # Session — 2026-05-04 (question-bank createPack slug 500 fix)
 
 **Headline:** `baf73cb` — `POST /api/admin/packs` was returning 500 "null value in column slug" because `CreatePackInput.slug` was required in the type but never sent by the UI. Backend now auto-generates slug from name; slug field is optional.

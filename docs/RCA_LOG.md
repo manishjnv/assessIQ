@@ -4,6 +4,23 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-04 — GET /api/admin/questions 400 "pageSize must be between 1 and 100"
+
+**Symptom:** Pack-detail page returned a raw error string "pageSize must be between 1 and 100" at `2026-05-03T22:00:28Z`. Admin could not view questions for any pack.
+
+**Cause:** `parsePagination()` in `modules/04-question-bank/src/routes.ts` capped `pageSize` at 100. The pack-detail frontend requested `pageSize=200` to load all questions for a pack in one shot (so they can be grouped by level client-side). The cap was copied from `admin-users.ts` where 100 is intentional; for questions, 200+ per pack is normal at scale (L1/L2/L3 populated). Additionally, pack fetch and questions fetch ran in `Promise.all`, so a questions-only error surfaced as the entire page error with no Retry affordance.
+
+**Fix (commit `2431ad5`):**
+- `parsePagination()` upper bound raised from 100 → 500 with a comment explaining why the question-bank cap differs from the user-list cap.
+- `pack-detail.tsx` splits the pack fetch from the questions fetch: pack errors still gate the full page; questions errors show a styled error card (danger border, "Couldn't load questions", detail text, Retry button).
+- Frontend `pageSize=200` bumped to `pageSize=500` to match the new cap.
+
+**Prevention:**
+- Pagination caps shared across endpoints via a single helper function should be documented with per-endpoint rationale. Endpoints that load full-pack datasets are not the same use case as paginated user lists.
+- Error states from secondary fetches should never propagate as the primary page error — split `Promise.all` into sequential fetches when the two calls have different criticality.
+
+---
+
 ## 2026-05-04 — POST /api/admin/packs 500 "null value in column slug"
 
 **Symptom:** Two consecutive pack-create attempts by `manishjnvk@gmail.com` at `2026-05-03T22:00:15Z` and `2026-05-03T22:00:53Z` returned HTTP 500 with Postgres error: `null value in column slug of relation question_packs violates not-null constraint`.

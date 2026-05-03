@@ -1,5 +1,7 @@
 # 04-question-bank — Packs, levels, questions
 
+> **Status update 2026-05-04 (2):** `parsePagination()` upper bound raised from 100 → 500. Pack-detail page requests `pageSize=200` to render all questions grouped by level in one shot; the old cap produced a 400. `admin-users.ts` keeps its own 100 cap (user lists don't need full dumps). Frontend `pack-detail.tsx` now splits the pack fetch from the questions fetch so a questions-specific error shows a styled card with Retry instead of raw error text.
+
 > **Status update 2026-05-04:** `createPack()` now auto-generates `slug` from `name` when the caller omits it. Algorithm: NFKD lowercase → strip non-`[a-z0-9\s-]` → hyphenate spaces → collapse → 64-char cap. Collision retry appends `-2`…`-10`; all-emoji names throw `INVALID_NAME_FOR_SLUG`. Explicit slugs still validated against `/^[a-z0-9-]{3,80}$/`. Root cause: UI was omitting slug → `undefined` matched the regex via JS coercion → Postgres NOT NULL 500. See `docs/RCA_LOG.md` 2026-05-04.
 
 > **Status update 2026-05-02:** `activateAllQuestionsForPack(tenantId, packId)` shipped — admin "activate all" affordance closing the question-status workflow gap RCA'd earlier today. Surfaced as `POST /api/admin/packs/:id/activate-questions`. `publishPack` deliberately does NOT auto-flip questions to `active`; admins explicitly call activate-all to promote draft → active. See `docs/RCA_LOG.md` 2026-05-02 § "Question status workflow gap" prevention #1 for the rationale.
