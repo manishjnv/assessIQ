@@ -552,19 +552,44 @@ CREATE TABLE tenant_grading_budgets (
 -- RLS uses `tenant_id = current_setting('app.current_tenant', true)::uuid`
 -- (PK is the discriminator). lint-rls-policies.ts:178-185 carve-out matches.
 
--- attempt_scores belongs to module 09-scoring (ships with G2.B). Listed here
--- for cross-reference; the migration lives in modules/09-scoring/migrations/.
+-- attempt_scores — module 09-scoring. LIVE (shipped G2.B Session 3, 2026-05-01).
+-- Migration: modules/09-scoring/migrations/0050_attempt_scores.sql
+-- What: Stores the aggregated scoring result for one attempt. Single row per
+-- attempt (UPSERT on recompute). Written by computeAttemptScore() after each
+-- admin-accept grading cycle (non-fatal fire-and-forget from handleAdminAccept)
+-- and by GET /api/admin/attempts/:id/score on demand.
+-- Why: Decouples "sum gradings" from "query scores" — the reporting and
+-- leaderboard endpoints read from this table (cheap) rather than re-aggregating
+-- gradings at query time (expensive). Also the home for archetype_signals JSONB.
+-- Considered and rejected: (a) materialised view — rejected because UPSERT
+-- semantics allow recomputation on override without a REFRESH; (b) storing
+-- archetype signals separately — rejected because signals + label are always
+-- read together and JSONB avoids adding 11 nullable float columns.
+-- Not included: per-question score breakdown (that's in `gradings`), section
+-- sub-scores (Phase 3+), threshold pass/fail flag (Phase 3+).
+-- Downstream impact: 10-admin-dashboard reads auto_pct + archetype.
+-- 15-analytics reads auto_pct + computed_at for export CSV.
 CREATE TABLE attempt_scores (
-  attempt_id      UUID PRIMARY KEY REFERENCES attempts(id) ON DELETE CASCADE,
-  tenant_id       UUID NOT NULL REFERENCES tenants(id),
-  total_earned    NUMERIC(8,2) NOT NULL,
-  total_max       NUMERIC(8,2) NOT NULL,
-  auto_pct        NUMERIC(5,2) NOT NULL,
-  pending_review  BOOLEAN NOT NULL DEFAULT false,
-  archetype       TEXT,                                       -- e.g. 'methodical_diligent'
-  archetype_signals JSONB,                                    -- which signals fired
-  computed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  attempt_id        UUID PRIMARY KEY REFERENCES attempts(id) ON DELETE CASCADE,
+  tenant_id         UUID NOT NULL REFERENCES tenants(id),
+  total_earned      NUMERIC(8,2) NOT NULL,
+  total_max         NUMERIC(8,2) NOT NULL,
+  auto_pct          NUMERIC(5,2) NOT NULL,       -- total_earned/total_max * 100
+  pending_review    BOOLEAN NOT NULL DEFAULT false, -- any grading still review_needed
+  archetype         TEXT,                          -- e.g. 'methodical_diligent', null if < 2 prior scored attempts
+  archetype_signals JSONB,                         -- full signal bag (P2.D11), null if archetype=null
+  computed_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Indexes
+CREATE INDEX attempt_scores_tenant_computed_idx ON attempt_scores (tenant_id, computed_at DESC);
+CREATE INDEX attempt_scores_tenant_archetype_idx ON attempt_scores (tenant_id, archetype) WHERE archetype IS NOT NULL;
+-- RLS: direct tenant_id pattern. Two policies — no-FOR clause covers ALL (incl. UPDATE for UPSERT),
+-- INSERT WITH CHECK covers insert writes.
+ALTER TABLE attempt_scores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON attempt_scores
+  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+CREATE POLICY tenant_isolation_insert ON attempt_scores
+  FOR INSERT WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
 ```
 
 ### Phase 2 (deferred) — `prompt_versions`, `grading_jobs`

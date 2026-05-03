@@ -1,5 +1,5 @@
 {
-  "name": "@assessiq/ai-grading",
+  "name": "@assessiq/scoring",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,18 +8,20 @@
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "lint:ambient-ai": "tsx ci/lint-no-ambient-claude.ts",
-    "lint:ambient-ai:self-test": "tsx ci/lint-no-ambient-claude.ts --self-test"
+    "test": "vitest run"
   },
   "dependencies": {
     "@assessiq/core": "workspace:*",
-    "@assessiq/tenancy": "workspace:*",
-    "@assessiq/attempt-engine": "workspace:*",
-    "@assessiq/auth": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",
-    "@assessiq/scoring": "workspace:*",
+    "@assessiq/tenancy": "workspace:*",
     "fastify": "^5.0.0",
+    "pg": "^8.13.0",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "testcontainers": "^10.24.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }

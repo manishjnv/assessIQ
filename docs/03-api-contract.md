@@ -151,14 +151,36 @@
 
 ### Admin — Dashboard & reports
 
-| Method | Path | Purpose |
+> **Status: 4 scoring endpoints LIVE (shipped G2.B Session 3, 2026-05-01 in commit `<G2B_SHA>`).** Registered via `registerScoringRoutes(app, { adminOnly: authChain({roles:['admin']}) })`.
+> The remaining 3 stub endpoints (`summary`, `topic-heatmap`, `export.csv`) are still planned/deferred.
+>
+> **What changed.** `GET /api/admin/attempts/:id/score` computes on demand if no `attempt_scores` row exists; otherwise returns the cached row. The compute path: sums gradings (DISTINCT ON graded_at DESC for overrides), runs `computeSignals()` + `deriveArchetype()`, upserts into `attempt_scores`. `POST /admin/attempts/:id/accept` now also fires `computeAttemptScore(tenantId, attemptId)` non-fatally after committing gradings.
+>
+> **Why.** Separate the "write" path (grading commit) from the "read" path (score queries). Avoids re-aggregating gradings at every leaderboard / cohort-stats query.
+>
+> **Considered and rejected.** (a) Automatic background recompute on every grading write — rejected per D1/ambient-AI lint. (b) Server-sent events for live score updates — deferred Phase 3. (c) Cross-tenant leaderboard — deferred (DPDP review, P2.D13).
+>
+> **Not included.** `summary` (KPI banner), `topic-heatmap` (tag rollup), `export.csv` — all Phase 2/3. Public leaderboard for candidates — DPDP review required.
+>
+> **Downstream impact.** 10-admin-dashboard reads `auto_pct`, `archetype`, `pending_review` from this module. 15-analytics reads `auto_pct + computed_at` for CSV export. 07-ai-grading's `handleAdminAccept` calls `computeAttemptScore` after every accept cycle.
+
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `GET`  | `/admin/attempts/:id/score`           | Return cached `AttemptScore` row or compute on demand. **Does NOT require fresh MFA.** Response: `{ attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, archetype, archetype_signals, computed_at }`. 404 `SCORING_ATTEMPT_NOT_FOUND` if attempt absent / RLS-blocked. | **live 2026-05-01** |
+| `GET`  | `/admin/reports/cohort/:assessmentId` | Cohort-level stats for an assessment from `attempt_scores`. Response: `{ attempt_count, average_pct, p50, p75, p90, archetype_distribution: Record<string,number> }`. `attempt_count=0` → all percentile fields null + `archetype_distribution={}`. | **live 2026-05-01** |
+| `GET`  | `/admin/reports/individual/:userId`   | All scored attempts for a user across assessments. Response: `IndividualScore[]` (each row: `attempt_id, assessment_id, auto_pct, archetype, computed_at`). RLS-scoped to tenant. | **live 2026-05-01** |
+| `GET`  | `/admin/reports/leaderboard/:assessmentId?topN=10&anonymize=false` | Top-N attempts ordered by `auto_pct DESC`. `topN` range: 1–200 (default 10). `anonymize=true` redacts `candidate_name` and `candidate_email` to null. **Admin-only.** No public cross-tenant view (P2.D13). Response: `LeaderboardRow[]` (each: `rank, attempt_id, candidate_name, candidate_email, auto_pct, archetype, computed_at`). | **live 2026-05-01** |
+| `GET`  | `/admin/dashboard/summary`            | Headline KPIs for current tenant | **planned** |
+| `GET`  | `/admin/reports/topic-heatmap`        | Strong/weak topics across team | **planned** |
+| `GET`  | `/admin/reports/export.csv`           | CSV export of attempts (with filters) | **planned** |
+
+#### Scoring endpoints — error contract
+
+| `details.code` | HTTP | Where |
 |---|---|---|
-| `GET`  | `/admin/dashboard/summary`            | Headline KPIs for current tenant |
-| `GET`  | `/admin/dashboard/queue`              | Awaiting-review queue |
-| `GET`  | `/admin/reports/cohort/:assessmentId` | Cohort-level results |
-| `GET`  | `/admin/reports/topic-heatmap`        | Strong/weak topics across team |
-| `GET`  | `/admin/reports/individual/:userId`   | Individual progression |
-| `GET`  | `/admin/reports/export.csv`           | CSV export of attempts (with filters) |
+| `SCORING_ATTEMPT_NOT_FOUND` | 404 | `/admin/attempts/:id/score` — attempt absent / RLS-blocked |
+| `VALIDATION_FAILED` | 400 | `/admin/reports/leaderboard/:id` — invalid `topN` / `anonymize` query params |
+
 
 ### Admin — Webhooks, API keys, embed secrets
 

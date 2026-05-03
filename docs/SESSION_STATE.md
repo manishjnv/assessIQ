@@ -2,7 +2,7 @@
 
 **Headline:** Phase 1 closure audit (5 drills) run against `assessiq.automateedge.cloud`. Drills 2 (RLS isolation) and 5 (VPS additive-deploy) PASS. Drill 3 steps 1-4 PASS (token security — no enumeration oracle). Drill 1 fails at Step 9 (invite → 500: `tenantName:""` × notifications Zod `.min(1)` cross-phase regression). Drills 3 step 5 + Drill 4 BLOCKED pending Drill 1 fix. Phase 1 formally NOT CLOSED — re-audit required after fixing `05-assessment-lifecycle/src/service.ts:749`.
 
-**Commits:** `<pending>` — docs(phase-1): closure verification — PARTIAL; `<pending>` — docs(session): Phase 1 closure handoff. Push pending.
+**Commits:** `d5113dc — docs(phase-1): closure verification — PARTIAL` (3 files, +135/−96). `<session-handoff-sha pending>` — docs(session): Phase 1 closure handoff. Both on `origin/main`.
 
 **Tests:** Operational drills only (no unit tests changed). Drill 1=PARTIAL/FAIL(step9), Drill 2=PASS, Drill 3=PARTIAL(steps1-4 PASS/step5 SKIPPED), Drill 4=BLOCKED, Drill 5=PASS.
 
