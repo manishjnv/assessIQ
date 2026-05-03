@@ -155,7 +155,7 @@ export async function mintEmbedToken(
  *   4. payload.exp - payload.iat <= 600 (10-minute max lifetime).
  *   5. Two-key rotation: try active first; if signature fails try most-recent
  *      rotated row ONCE. Never try more than two keys.
- *   6. Replay cache: SET aiq:embed:jti:<jti> 1 EX (exp - now) NX.
+ *   6. Replay cache: SET aiq:embed:jti:<tenant_id>:<jti> 1 EX (exp - now) NX.
  *
  * On any failure throws AuthnError("invalid embed token").
  * On success returns { payload, tenantId }.
@@ -282,7 +282,7 @@ export async function verifyEmbedToken(token: string): Promise<VerifiedEmbedToke
   }
 
   const redis = getRedis();
-  const cacheKey = `aiq:embed:jti:${jti}`;
+  const cacheKey = `aiq:embed:jti:${verifiedPayload.tenant_id}:${jti}`;
   // SET key 1 EX ttl NX — returns "OK" on success, null if key already exists.
   const setResult = await redis.set(cacheKey, "1", "EX", ttlSeconds, "NX");
   if (setResult === null) {

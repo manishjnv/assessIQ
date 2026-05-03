@@ -22,7 +22,7 @@ import { publicAuthChain, authChain } from '../../middleware/auth-chain.js';
 //   D8  — CSP frame-ancestors per-tenant; X-Frame-Options removed
 //   D11 — sdk-mint gated: ENABLE_EMBED_TEST_MINTER + NODE_ENV ≠ 'production' + admin session
 //
-// Replay cache (aiq:embed:jti:<jti>) and exp-cap enforcement are inside
+// Replay cache (aiq:embed:jti:<tenant_id>:<jti>) and exp-cap enforcement are inside
 // verifyEmbedToken — callers have zero involvement.
 //
 // The aiq_embed_sess bridge in apps/api/src/server.ts promotes the embed cookie
