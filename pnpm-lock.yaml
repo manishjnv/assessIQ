@@ -218,6 +218,9 @@ importers:
 
   modules/01-auth:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
@@ -245,6 +248,9 @@ importers:
 
   modules/02-tenancy:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
@@ -290,6 +296,9 @@ importers:
 
   modules/05-assessment-lifecycle:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth
@@ -341,6 +350,9 @@ importers:
       '@assessiq/attempt-engine':
         specifier: workspace:*
         version: link:../06-attempt-engine
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth
@@ -458,6 +470,46 @@ importers:
       '@types/nodemailer':
         specifier: ^6.4.17
         version: 6.4.23
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.17)(jsdom@25.0.1)
+
+  modules/14-audit-log:
+    dependencies:
+      '@assessiq/core':
+        specifier: workspace:*
+        version: link:../00-core
+      '@assessiq/notifications':
+        specifier: workspace:*
+        version: link:../13-notifications
+      '@assessiq/tenancy':
+        specifier: workspace:*
+        version: link:../02-tenancy
+      bullmq:
+        specifier: ^5.34.0
+        version: 5.76.5
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.10.1
+      pg:
+        specifier: ^8.13.0
+        version: 8.20.0
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      testcontainers:
+        specifier: ^10.24.0
+        version: 10.28.0
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
