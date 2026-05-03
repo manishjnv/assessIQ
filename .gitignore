@@ -13,6 +13,9 @@ out/
 .cache/
 *.tsbuildinfo
 
+# Generated brand-kit mirror (source of truth: modules/17-ui-system/AccessIQ_UI_Template/Logo/)
+apps/web/public/brand/
+
 # Test / coverage
 coverage/
 .nyc_output/
