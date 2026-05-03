@@ -40,6 +40,7 @@ import {
   softDelete,
 } from '../service.js';
 import { inviteUser, acceptInvitation } from '../invitations.js';
+import { withSystemClient } from '../repository.js';
 import { ConflictError, NotFoundError, ValidationError } from '@assessiq/core';
 
 // ---------------------------------------------------------------------------
@@ -732,3 +733,49 @@ it('softDelete cascades: pending invitations for the user are deleted', async ()
 test.todo(
   'Redis sweep: sweepUserSessions removes all session keys from the per-user index [TODO(phase-1): Redis sweep integration test — requires Redis testcontainer]',
 );
+
+// ---------------------------------------------------------------------------
+// Regression: withSystemClient role elevation (2026-05-03 — accept-invitation 500)
+// ---------------------------------------------------------------------------
+// Production failure: pool connects as assessiq_app (RLS active). Without
+// BEGIN + SET LOCAL ROLE assessiq_system, the RLS policy on user_invitations
+// evaluates current_setting('app.current_tenant', true)::uuid = ""::uuid and
+// throws "invalid input syntax for type uuid" on every magic-link click.
+// The fix adds BEGIN + SET LOCAL ROLE assessiq_system inside withSystemClient,
+// which reverts automatically on COMMIT so the pool connection is not polluted.
+//
+// This test catches a regression by asserting current_user inside the callback
+// equals 'assessiq_system'. Without the fix it would return the raw pool user
+// ('test' in testcontainer; 'assessiq_app' in production) — both wrong.
+// ---------------------------------------------------------------------------
+describe('withSystemClient role elevation — regression 2026-05-03', () => {
+  it('executes as assessiq_system (BYPASSRLS), not as pool user', async () => {
+    const roleInsideCallback = await withSystemClient(async (client) => {
+      const r = await client.query<{ current_user: string }>(`SELECT current_user`);
+      return r.rows[0]?.current_user ?? '';
+    });
+    expect(roleInsideCallback).toBe('assessiq_system');
+  });
+
+  it('regression: acceptInvitation with no caller tenant context activates user in invitation tenant', async () => {
+    const tid = randomUUID();
+    await withSuperClient(async (client) => {
+      await insertTenant(client, tid, `tenant-regr-${tid.slice(0, 8)}`, 'Regr Tenant');
+    });
+    const inviter = await createUser(tid, { email: 'boss@regr.com', name: 'Boss', role: 'admin' });
+
+    capturedEmails.length = 0;
+    await inviteUser(tid, { email: 'invitee@regr.com', role: 'reviewer', invited_by: inviter.id });
+    const token = /token=([^&]+)/.exec(capturedEmails[0]?.invitationLink ?? '')?.[1] ?? '';
+    expect(token.length).toBeGreaterThan(0);
+
+    // Call acceptInvitation with NO tenant context from the caller.
+    // The tenant_id must be sourced entirely from the invitation row.
+    const result = await acceptInvitation(token);
+
+    expect(result.user.email).toBe('invitee@regr.com');
+    expect(result.user.status).toBe('active');
+    expect(result.user.tenant_id).toBe(tid);
+    expect(result.sessionToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+});
