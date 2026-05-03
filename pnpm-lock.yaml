@@ -257,6 +257,9 @@ importers:
 
   modules/02-tenancy:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
@@ -503,6 +506,9 @@ importers:
 
   modules/13-notifications:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
