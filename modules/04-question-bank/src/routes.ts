@@ -73,12 +73,15 @@ function parsePagination(q: Record<string, string | undefined>): { page: number;
       details: { code: "INVALID_PARAM", param: "page" },
     });
   }
-  // The service-layer assertPageSize() also enforces the upper bound (100) —
-  // we re-check here so the failure mode is a 400 INVALID_PARAM at parse-time
-  // rather than reaching the service. Keeps the upper bound parity with
-  // admin-users.ts.
-  if (isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
-    throw new ValidationError("pageSize must be between 1 and 100", {
+  // Upper bound 500: pack-detail loads ALL questions for a pack in one request
+  // (GET /admin/questions?pack_id=...&pageSize=200). 200+ questions per pack is
+  // normal at scale with L1/L2/L3 levels populated. 500 is a safe cap that
+  // covers realistic question-bank sizes without unbounded queries; the SQL
+  // LIMIT in repository.ts ensures the DB is always bounded.
+  // (admin-users.ts keeps its own 100 cap — user lists never need a full dump
+  // in one shot, so the tighter limit there is intentional.)
+  if (isNaN(pageSize) || pageSize < 1 || pageSize > 500) {
+    throw new ValidationError("pageSize must be between 1 and 500", {
       details: { code: "INVALID_PARAM", param: "pageSize" },
     });
   }
