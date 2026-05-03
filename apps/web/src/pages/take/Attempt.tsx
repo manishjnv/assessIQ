@@ -48,10 +48,7 @@ import type {
   FrozenQuestionWire,
   AttemptAnswerWire,
 } from '@assessiq/candidate-ui';
-import {
-  HelpDrawer,
-  HelpDrawerTrigger,
-} from '@assessiq/help-system/components';
+import { CandidateHelp } from '@assessiq/candidate-ui';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -99,7 +96,7 @@ const BOTTOM_BAR: CSSProperties = {
 
 const QUESTION_TEXT: CSSProperties = {
   fontFamily: 'var(--aiq-font-serif)',
-  fontSize: 22,
+  fontSize: 'var(--aiq-text-2xl)', // 30px — guideline § 2.3 "question text"
   fontWeight: 400,
   lineHeight: 1.5,
   color: 'var(--aiq-color-fg-primary)',
@@ -659,7 +656,7 @@ export function AttemptPage(): JSX.Element {
           retryCount={autosave.retryCount}
         />
 
-        <HelpDrawerTrigger />
+        <CandidateHelp />
       </header>
 
       {lockedBanner}
@@ -810,8 +807,6 @@ export function AttemptPage(): JSX.Element {
         </Button>
       </footer>
 
-      {/* Help drawer — degrades gracefully if HelpProvider is not mounted above */}
-      <HelpDrawer />
     </div>
   );
 }

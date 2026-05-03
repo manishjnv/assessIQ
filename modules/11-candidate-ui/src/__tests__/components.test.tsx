@@ -5,12 +5,13 @@
 // apps/web/e2e/ (Playwright; mostly skipped pending Session 4b backend).
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import {
   AttemptTimer,
   AutosaveIndicator,
   IntegrityBanner,
   QuestionNavigator,
+  CandidateHelp,
 } from "../components";
 import {
   readBackup,
@@ -203,5 +204,57 @@ describe("localStorage-backup", () => {
     writeBackup("att-4", { questionId: "q1", answer: "x", clientRevision: 1 });
     clearBackup("att-4");
     expect(readBackup("att-4")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CandidateHelp
+// ---------------------------------------------------------------------------
+
+describe("CandidateHelp", () => {
+  it("drawer opens on trigger button click", () => {
+    render(<CandidateHelp />);
+    const trigger = screen.getByRole("button", { name: "Open help" });
+    // Drawer returns null when closed — role="dialog" is absent
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(trigger);
+    // After click the drawer dialog is in the DOM
+    expect(screen.getByRole("dialog")).toBeDefined();
+  });
+
+  it("drawer closes on Escape keydown", () => {
+    render(<CandidateHelp />);
+    fireEvent.click(screen.getByRole("button", { name: "Open help" }));
+    expect(screen.getByRole("dialog")).toBeDefined();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("drawer closes on the Close button inside the drawer", () => {
+    render(<CandidateHelp />);
+    fireEvent.click(screen.getByRole("button", { name: "Open help" }));
+    const closeBtn = screen.getByRole("button", { name: "Close drawer" });
+    expect(closeBtn).toBeDefined();
+    fireEvent.click(closeBtn);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("all FAQ section headings render in the drawer", () => {
+    render(<CandidateHelp />);
+    fireEvent.click(screen.getByRole("button", { name: "Open help" }));
+    expect(screen.getByText("How does this work?")).toBeDefined();
+    expect(screen.getByText("About my answers")).toBeDefined();
+    expect(screen.getByText("Submitting")).toBeDefined();
+    expect(screen.getByText("If something goes wrong")).toBeDefined();
+    expect(screen.getByText("Privacy")).toBeDefined();
+    expect(screen.getByText("Tips")).toBeDefined();
+  });
+
+  it("trigger button is NOT inside a form element", () => {
+    const { container } = render(<CandidateHelp />);
+    const trigger = container.querySelector('[data-test-id="candidate-help-trigger"]');
+    expect(trigger).not.toBeNull();
+    // The help trigger must never be inside the question answer form area
+    expect(trigger!.closest("form")).toBeNull();
   });
 });

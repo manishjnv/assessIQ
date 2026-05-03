@@ -22,7 +22,7 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
-import { takeStart, CandidateApiError } from '@assessiq/candidate-ui';
+import { takeStart, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
 
 // ─── shared style constants (mirrors login.tsx) ───────────────────────────────
 
@@ -160,6 +160,8 @@ function SuccessContent({
   durationSeconds: number;
   onBegin: () => void;
 }): JSX.Element {
+  const totalMinutes = Math.round(durationSeconds / 60);
+
   return (
     <>
       <span style={{ display: 'inline-block', marginBottom: 24 }}>
@@ -168,11 +170,59 @@ function SuccessContent({
       <h1 className="aiq-serif" style={SERIF_H1}>
         Ready when you are.
       </h1>
-      <p style={BODY_P}>
-        <strong>{name}</strong> — this assessment takes about{' '}
-        {formatDuration(durationSeconds)}. Once you begin, the timer starts and
-        cannot be paused.
-      </p>
+
+      {/* ── Before you begin ─────────────────────────────────────────── */}
+      <div
+        style={{
+          marginBottom: 28,
+          padding: '16px 20px',
+          border: '1px solid var(--aiq-color-border)',
+          borderRadius: 'var(--aiq-radius-md)',
+          background: 'var(--aiq-color-bg-raised)',
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 14,
+            fontWeight: 600,
+            margin: '0 0 12px',
+            color: 'var(--aiq-color-fg-primary)',
+          }}
+        >
+          Before you begin
+        </h2>
+        <ul
+          style={{
+            margin: 0,
+            paddingLeft: 20,
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 14,
+            color: 'var(--aiq-color-fg-secondary)',
+            lineHeight: 1.6,
+          }}
+        >
+          <li style={{ marginBottom: 6 }}>
+            <strong>{name}</strong> takes about {totalMinutes} minute{totalMinutes !== 1 ? 's' : ''}.
+            Once you begin, the timer starts and cannot be paused.
+          </li>
+          <li style={{ marginBottom: 6 }}>
+            Your answers save automatically as you type. You don't need to click
+            Save anywhere.
+          </li>
+          <li style={{ marginBottom: 6 }}>
+            If your browser crashes or your internet drops, just open this link
+            again — you'll resume where you left off.
+          </li>
+          <li>
+            Once you click Submit at the end, you can't change your answers.
+          </li>
+        </ul>
+        <div style={{ marginTop: 12 }}>
+          <CandidateHelp triggerLabel="Need more help?" />
+        </div>
+      </div>
+
       <Button
         size="lg"
         variant="primary"
