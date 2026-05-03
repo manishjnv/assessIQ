@@ -1,0 +1,29 @@
+{
+  "name": "@assessiq/audit-log",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@assessiq/core": "workspace:*",
+    "@assessiq/notifications": "workspace:*",
+    "@assessiq/tenancy": "workspace:*",
+    "bullmq": "^5.34.0",
+    "fastify": "^5.0.0",
+    "ioredis": "^5.4.1",
+    "pg": "^8.13.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "testcontainers": "^10.24.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

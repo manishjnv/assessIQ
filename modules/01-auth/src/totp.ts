@@ -23,6 +23,7 @@ import { totpEpochAvailable, totpToken, HashAlgorithms, KeyEncodings } from "@ot
 import type { AuthenticatorOptions } from "@otplib/core";
 import { encryptEnvelope, decryptEnvelope, constantTimeEqual } from "./crypto-util.js";
 import { getRedis } from "./redis.js";
+import { audit } from "@assessiq/audit-log";
 
 // ---------------------------------------------------------------------------
 // Internal constants
@@ -121,8 +122,10 @@ async function insertRecoveryCodes(
   );
 }
 
-/** Increment fail counter and set lockout if threshold reached. */
-async function recordFailure(userId: string): Promise<void> {
+/** Increment fail counter and set lockout if threshold reached.
+ * Returns { wasLocked: true } on the exact call that triggers lockout.
+ */
+async function recordFailure(userId: string): Promise<{ wasLocked: boolean }> {
   const redis = getRedis();
   const count = await redis.incr(FAIL_KEY(userId));
   // Set the 15-min window TTL only on the first failure (NX flag).
@@ -131,7 +134,10 @@ async function recordFailure(userId: string): Promise<void> {
   }
   if (count >= MAX_FAILS) {
     await redis.set(LOCKED_KEY(userId), "1", "EX", FAIL_TTL);
+    // Only the exact triggering call (count === MAX_FAILS) returns wasLocked.
+    return { wasLocked: count === MAX_FAILS };
   }
+  return { wasLocked: false };
 }
 
 /** Throw AuthnError if the user account is locked out. */
@@ -312,7 +318,26 @@ async function verify(
   }
 
   if (!matched) {
-    await recordFailure(userId);
+    const { wasLocked } = await recordFailure(userId);
+    // G3.A audit hook: failed TOTP attempt.
+    await audit({
+      tenantId,
+      actorKind: "user",
+      actorUserId: userId,
+      action: "auth.login.totp_failed",
+      entityType: "user",
+      entityId: userId,
+    });
+    // G3.A audit hook: lockout triggered (only on the exact triggering call).
+    if (wasLocked) {
+      await audit({
+        tenantId,
+        actorKind: "system",
+        action: "auth.login.locked",
+        entityType: "user",
+        entityId: userId,
+      });
+    }
     return false;
   }
 
@@ -327,6 +352,16 @@ async function verify(
     );
   }).catch(() => {
     // Best-effort — last_used_at is an audit field, not a security invariant.
+  });
+
+  // G3.A audit hook: successful TOTP login.
+  await audit({
+    tenantId,
+    actorKind: "user",
+    actorUserId: userId,
+    action: "auth.login.totp_success",
+    entityType: "user",
+    entityId: userId,
   });
 
   return true;
@@ -413,6 +448,48 @@ async function regenerateRecoveryCodes(
 }
 
 // ---------------------------------------------------------------------------
+// Admin TOTP reset (G3.A hook site 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Force-revoke a user's TOTP enrollment — admin action.
+ * Clears totp_secret_enc + all recovery codes, requiring the user to re-enroll.
+ * Emits `auth.totp.reset` audit event.
+ *
+ * Called by: POST /api/admin/users/:id/totp/reset (fresh-MFA gated at route layer).
+ */
+async function adminResetTotp(
+  adminUserId: string,
+  tenantId: string,
+  targetUserId: string,
+): Promise<void> {
+  await withTenant(tenantId, async (client) => {
+    // Clear the TOTP secret.
+    await client.query(
+      `UPDATE user_credentials
+       SET totp_secret_enc = NULL, totp_enrolled_at = NULL, totp_last_used_at = NULL
+       WHERE user_id = $1`,
+      [targetUserId],
+    );
+    // Purge all recovery codes.
+    await client.query(
+      `DELETE FROM totp_recovery_codes WHERE user_id = $1`,
+      [targetUserId],
+    );
+  });
+
+  // G3.A audit hook: admin forced a TOTP reset.
+  await audit({
+    tenantId,
+    actorKind: "user",
+    actorUserId: adminUserId,
+    action: "auth.totp.reset",
+    entityType: "user",
+    entityId: targetUserId,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Public surface
 // ---------------------------------------------------------------------------
 
@@ -422,4 +499,5 @@ export const totp = {
   verify,
   consumeRecovery,
   regenerateRecoveryCodes,
+  adminResetTotp,
 };

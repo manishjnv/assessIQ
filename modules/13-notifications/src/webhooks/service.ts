@@ -86,6 +86,37 @@ export async function createWebhookEndpoint(
     'webhook.endpoint.created',
   );
 
+  // G3.A audit hook — dynamic import to avoid circular dep:
+  // @assessiq/audit-log statically imports @assessiq/notifications (for fanout),
+  // so @assessiq/notifications must dynamically import @assessiq/audit-log.
+  // This is intentionally best-effort: audit failure here does NOT block
+  // webhook creation (the hook is secondary; the audit module's own failures
+  // propagate from its own call sites).
+  await (async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const mod = await (Function('m', 'return import(m)')('@assessiq/audit-log') as Promise<{
+        audit: (input: {
+          tenantId: string; actorKind: 'user' | 'api_key' | 'system';
+          action: string; entityType: string; entityId?: string;
+          after?: Record<string, unknown>;
+        }) => Promise<void>;
+      }>).catch(() => null);
+      if (mod !== null) {
+        await mod.audit({
+          tenantId: input.tenantId,
+          actorKind: 'system',
+          action: 'webhook.created',
+          entityType: 'webhook_endpoint',
+          entityId: endpoint.id,
+          after: { endpointId: endpoint.id, url: endpoint.url, events: endpoint.events },
+        });
+      }
+    } catch (auditErr) {
+      log.warn({ auditErr, endpointId: endpoint.id }, 'webhook.created: audit hook failed (dynamic import)');
+    }
+  })();
+
   return { endpoint, plaintextSecret };
 }
 
@@ -97,6 +128,30 @@ export async function deleteWebhookEndpoint(
     repo.deleteWebhookEndpoint(client, endpointId),
   );
   log.info({ endpointId, tenantId }, 'webhook.endpoint.deleted');
+
+  // G3.A audit hook — dynamic import (see webhook.created comment above).
+  await (async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const mod = await (Function('m', 'return import(m)')('@assessiq/audit-log') as Promise<{
+        audit: (input: {
+          tenantId: string; actorKind: 'user' | 'api_key' | 'system';
+          action: string; entityType: string; entityId?: string;
+        }) => Promise<void>;
+      }>).catch(() => null);
+      if (mod !== null) {
+        await mod.audit({
+          tenantId,
+          actorKind: 'system',
+          action: 'webhook.deleted',
+          entityType: 'webhook_endpoint',
+          entityId: endpointId,
+        });
+      }
+    } catch (auditErr) {
+      log.warn({ auditErr, endpointId }, 'webhook.deleted: audit hook failed (dynamic import)');
+    }
+  })();
 }
 
 export async function sendTestEvent(
