@@ -1,3 +1,54 @@
+# Session — 2026-05-04 (admin guide: 12-step L1→L3 assessment workflow page)
+
+**Headline:** `6c28a29` — `/admin/guide` live on VPS: 12-step end-to-end workflow guide for tenant admins, sidebar "Help guide" link, serif/TOC/status-chip layout.
+
+**Commits:**
+- `6c28a29` — feat(admin-guide): end-to-end assessment workflow guide page (L1→L3)
+
+**Tests:** Vite build 351 modules clean (+1 vs prior); 17/17 admin-dashboard tests pass; 0 secrets hits; cross-module-deps 0 violations; edge-routing OK. Pre-existing failures unchanged: `07-ai-grading routes.ts` req.session augmentation (known), `17-ui-system/src/index.ts` missing .js extensions (known).
+
+**Next:** Phase 1 closure audit Finding C fix (`inviteUsers tenantName:""` 500 — fetch `tenant.name` from DB before email call in `inviteUsers`). Alternatively: lint-dockerignore-vs-copy tooling OR Sentry/SMTP wiring.
+
+**Open questions:**
+- Google OAuth credentials still empty in `/srv/assessiq/.env` — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C).
+- `/admin/guide` step 1–7 content becomes accurate once QB + assessment-lifecycle pages ship (Phase 3+).
+- Option B migration (16-help-system YAML for edit-without-redeploy) tracked in admin-guide.tsx header comment + SKILL.md open questions.
+
+---
+
+## What changed — 6c28a29
+
+**What changed:**
+- `modules/10-admin-dashboard/src/pages/admin-guide.tsx` (new, 1003 lines): 12-step end-to-end workflow guide. Option A hardcoded JSX. Two-column layout (main content + 192px sticky TOC). StepCard components with mono step-number bubbles, Chip status badges (success="Live" / default="Phase 3+"), inline Callout blocks. Four Tip cards (chart/eye/sparkle/grid icons). Four FAQ entries. Serif h1/h2 headings, mono labels, sans body text, pill CTA buttons per branding guideline. No AdminShell import — wrapped externally. Phase 4+ Option B TODO in header comment.
+- `modules/10-admin-dashboard/src/index.ts`: added `export { AdminGuide } from "./pages/admin-guide.js"`.
+- `modules/10-admin-dashboard/src/components/AdminShell.tsx`: added `{ label: "Help guide", href: "/admin/guide", icon: "book" }` NavEntry above Settings (no adminOnly — visible to all admin roles including reviewers).
+- `apps/web/src/App.tsx`: added `AdminGuide` to import; added route `<Route path="/admin/guide" element={<RequireSession role="admin"><AdminShell breadcrumbs={["Help guide"]}><AdminGuide /></AdminShell></RequireSession>} />`.
+- `modules/10-admin-dashboard/SKILL.md`: added `/admin/guide` to page tree; added Status section entry for 2026-05-04 ship.
+- `PROJECT_BRAIN.md`: added "How to conduct an assessment end-to-end (L1→L3)" row to Where-to-look table.
+
+**Why it changed:** Tenant admins need a single authoritative reference for the full assessment workflow. Phase 2 shipped the grading + dashboard surfaces; the guide bridges the gap between "I have the tools" and "I know how to use them in sequence."
+
+**What was considered and rejected:**
+- Option B (16-help-system YAML + API fetch): rejected for v1 — adds Markdown renderer dep, API route, and plumbing overhead. Deferred to Phase 4+ with a TODO in the page header comment.
+- Internal AdminShell wrapping (like AdminDashboard): rejected in favour of the user's explicit external-wrap instruction, matching the /admin/users pattern from commit 473fef1.
+- `adminOnly: true` on the Help guide nav entry: rejected — reviewers benefit from understanding the full workflow (especially steps 10–11 on grading), even if they cannot perform all steps.
+- "Show on first login" sessionStorage banner: deferred (P2 scope, not yet implemented).
+
+**What is NOT included:** Localisation (i18n), print-only CSS, Option B migration, first-login banner, new ui-system primitives.
+
+**Downstream impact:** All future admin pages added in `App.tsx` follow the `<RequireSession role="admin"><AdminShell>...</AdminShell></RequireSession>` pattern (documented in SKILL.md). Steps 1–7 of the guide will become accurate once question-bank and assessment-lifecycle list/create pages ship (Phase 3+ backlog). The `modules/10-admin-dashboard/SKILL.md` Status section now has a dated entry for this page.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction; self-executed (single module, all context in hot read cache)
+- Sonnet 4.6 (Copilot): full session — Phase 0 warm-start (13 files), plan, admin-guide.tsx implementation, wiring (3 files), Phase 2 gates, commit/push, VPS deploy, docs
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — judgment-skipped per user instruction (pure UI surface, no auth/classifier/load-bearing-path changes)
+
+---
+
 # Session — 2026-05-04 (admin nav UX fix: AdminShell + redirect + dead nav links)
 
 **Headline:** `473fef1` — `/admin/users` now wrapped in AdminShell, post-MFA redirects to `/admin`, dead "Reports"/"Question Bank" sidebar links removed. Both containers healthy on VPS after deploy.
