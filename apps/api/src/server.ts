@@ -26,7 +26,10 @@ import { registerAdminWorkerRoutes } from './routes/admin-worker.js';
 import { registerNotificationsRoutes } from '@assessiq/notifications';
 import { registerScoringRoutes } from '@assessiq/scoring';
 import { registerAnalyticsRoutes } from '@assessiq/analytics';
+import { registerEmbedAdminRoutes } from './routes/embed-admin.js';
+import { EMBED_COOKIE_NAME } from '@assessiq/embed-sdk';
 import { authChain } from './middleware/auth-chain.js';
+import { config } from '@assessiq/core';
 
 const requestLog = streamLogger('request');
 const appLog = streamLogger('app');
@@ -40,6 +43,21 @@ export async function buildServer() {
   });
 
   await app.register(cookie);
+
+  // aiq_embed_sess bridge — promotes the embed-session cookie value into the
+  // standard session-loader slot when no standard session cookie is present.
+  // This allows the shared session-loader middleware in auth-chain.ts to treat
+  // embed sessions transparently without any per-route changes.
+  //
+  // Security: embed sessions carry role='candidate', so admin routes reject
+  // them via requireAuth({roles:['admin']}). No privilege escalation is possible.
+  app.addHook('onRequest', async (req) => {
+    const embedCookie = (req.cookies as Record<string, string | undefined> | undefined)?.[EMBED_COOKIE_NAME];
+    const stdCookie = (req.cookies as Record<string, string | undefined> | undefined)?.[config.SESSION_COOKIE_NAME];
+    if (embedCookie !== undefined && stdCookie === undefined) {
+      (req.cookies as Record<string, string | undefined>)[config.SESSION_COOKIE_NAME] = embedCookie;
+    }
+  });
 
   // Request context — populates AsyncLocalStorage for the lifetime of this
   // request so streamLogger() / childLogger() / getRequestContext() see the
@@ -198,6 +216,13 @@ export async function buildServer() {
   //   - /api/admin/reports/exports/topic-heatmap.csv
   // All /api/admin/* → covered by Caddy @api matcher.
   await registerAnalyticsRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
+  // Embed admin routes (Phase 4 — module 12):
+  //   GET    /api/admin/embed-origins
+  //   POST   /api/admin/embed-origins
+  //   DELETE /api/admin/embed-origins
+  //   POST   /api/admin/webhook-secrets/rotate
+  await registerEmbedAdminRoutes(app);
 
   await registerHelpPublicRoutes(app);
   await registerHelpTrackRoutes(app);

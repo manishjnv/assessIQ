@@ -29,7 +29,7 @@ import type {
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at`;
+const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin`;
 
 const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version`;
 
@@ -50,6 +50,7 @@ interface AttemptRow {
   submitted_at: Date | null;
   duration_seconds: number | null;
   created_at: Date;
+  embed_origin: boolean;
 }
 
 interface AttemptQuestionRow {
@@ -105,6 +106,7 @@ function mapAttemptRow(row: AttemptRow): Attempt {
     submitted_at: row.submitted_at,
     duration_seconds: row.duration_seconds,
     created_at: row.created_at,
+    embed_origin: row.embed_origin,
   };
 }
 
@@ -183,13 +185,14 @@ export async function insertAttempt(
     startedAt: Date;
     endsAt: Date | null;
     durationSeconds: number;
+    embedOrigin?: boolean;
   },
 ): Promise<Attempt> {
   // tenant_id is explicitly passed to satisfy the WITH CHECK RLS policy.
   const result = await client.query<AttemptRow>(
     `INSERT INTO attempts
-       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING ${ATTEMPT_COLUMNS}`,
     [
       input.id,
@@ -200,6 +203,7 @@ export async function insertAttempt(
       input.startedAt,
       input.endsAt,
       input.durationSeconds,
+      input.embedOrigin ?? false,
     ],
   );
   const row = result.rows[0];

@@ -57,10 +57,15 @@ export const ACTION_CATALOG = [
   'api_key.revoked',
   'embed_secret.created',
   'embed_secret.rotated',
+  'embed_secret.revoked',
+  // Embed origins (Phase 4 12-embed-sdk)
+  'embed_origin.added',
+  'embed_origin.removed',
   // Webhooks
   'webhook.created',
   'webhook.deleted',
   'webhook.replayed',
+  'webhook_secret.rotated',
   // Help system
   'help.content.updated',
   // Analytics exports (G3.C — admin bulk download is an auditable action)

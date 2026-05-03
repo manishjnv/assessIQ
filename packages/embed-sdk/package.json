@@ -1,0 +1,32 @@
+{
+  "name": "@assessiq/embed",
+  "version": "1.0.0",
+  "private": false,
+  "description": "AssessIQ host-app embed SDK — mount a candidate assessment inside your application.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --out-dir dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.0"
+  },
+  "keywords": ["assessiq", "embed", "sdk", "assessment"],
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/manishjnv/assessIQ.git"
+  }
+}
