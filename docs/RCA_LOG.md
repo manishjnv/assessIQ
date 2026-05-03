@@ -656,7 +656,7 @@ Additionally, `modules/02-tenancy/package.json` was missing `@assessiq/audit-log
 7. All 5 containers healthy (unchanged — they kept running throughout); `/api/health` → HTTP/2 200.
 8. `/srv/assessiq.old/.delete-after.txt` pinned: "safe to remove after 2026-05-10".
 
-**Prevention applied 2026-05-03:** Conversion shipped at `473fef1`. `/srv/assessiq` is now a git clone with deploy key fingerprint `SHA256:HXZm4e6xgZjd1h++/CxJUpl8mcH4/raA1kg/Ci+peYk`. Future deploys: `ssh assessiq-vps 'cd /srv/assessiq && git pull && docker compose -f infra/docker-compose.yml build <svc> && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <svc>'`. `/srv/assessiq.old` preserved until 2026-05-10 for rollback safety. See `docs/06-deployment.md` § "Deploy procedure (steady-state, post-2026-05-03)".
+**Prevention applied 2026-05-03:** Conversion shipped at `be161c5`. `/srv/assessiq` is now a git clone with deploy key fingerprint `SHA256:HXZm4e6xgZjd1h++/CxJUpl8mcH4/raA1kg/Ci+peYk`. Future deploys: `ssh assessiq-vps 'cd /srv/assessiq && git pull && docker compose -f infra/docker-compose.yml build <svc> && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <svc>'`. `/srv/assessiq.old` preserved until 2026-05-10 for rollback safety. See `docs/06-deployment.md` § "Deploy procedure (steady-state, post-2026-05-03)".
 
 **Prevention:**
 

@@ -23,6 +23,8 @@ A `users` row exists *before* the first login. Admins create users (or import vi
 
 The strict path. Every admin must clear both factors.
 
+> **Post-login redirect contract (updated 2026-05-04, commit `473fef1`):** The canonical post-authentication landing is always `/admin` (the dashboard). Previously `MFA_REQUIRED=false` redirected to `/admin/users` and post-TOTP `nav()` calls in `apps/web/src/pages/admin/mfa.tsx` also targeted `/admin/users`. Both are now `/admin`. The `MFA_REQUIRED=false` path is an unusual dev/test mode; in production `MFA_REQUIRED=true` always so the path is: Google callback → `/admin/mfa` → TOTP verify → `/admin`.
+
 ```
 ┌──────────┐                ┌────────────┐                  ┌────────────┐
 │ Browser  │                │ AssessIQ   │                  │  Google    │
