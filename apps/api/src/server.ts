@@ -24,6 +24,7 @@ import {
 } from '@assessiq/help-system';
 import { registerAdminWorkerRoutes } from './routes/admin-worker.js';
 import { registerNotificationsRoutes } from '@assessiq/notifications';
+import { registerScoringRoutes } from '@assessiq/scoring';
 import { authChain } from './middleware/auth-chain.js';
 
 const requestLog = streamLogger('request');
@@ -182,6 +183,10 @@ export async function buildServer() {
     adminOnly: authChain({ roles: ['admin'] }),
     anyRoleAuth: authChain({ roles: ['admin', 'reviewer'] }),
   });
+
+  // Scoring admin routes — /api/admin/attempts/:id/score, /api/admin/reports/*
+  // All /api/* prefix → Caddy @api matcher already covers these.
+  await registerScoringRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
 
   await registerHelpPublicRoutes(app);
   await registerHelpTrackRoutes(app);

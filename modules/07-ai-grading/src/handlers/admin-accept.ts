@@ -26,6 +26,7 @@ import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { AppError, streamLogger } from "@assessiq/core";
 import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
+import { computeAttemptScore } from "@assessiq/scoring";
 
 const log = streamLogger("grading");
 
@@ -222,6 +223,16 @@ export async function handleAdminAccept(
     { attemptId, gradingCount: gradings.length },
     "grading.accept.complete",
   );
+
+  // Kick off scoring rollup now that gradings are committed.
+  // Non-fatal: a scoring failure must not roll back the already-committed
+  // gradings. Admin can recompute via GET /api/admin/attempts/:id/score.
+  try {
+    await computeAttemptScore(tenantId, attemptId);
+    log.info({ attemptId }, "grading.scoring.complete");
+  } catch (scoringErr) {
+    log.error({ attemptId, err: scoringErr }, "grading.scoring.error_after_accept");
+  }
 
   return {
     gradings,
