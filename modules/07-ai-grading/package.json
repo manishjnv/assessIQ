@@ -1,0 +1,20 @@
+{
+  "name": "@assessiq/ai-grading",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint:ambient-ai": "tsx ci/lint-no-ambient-claude.ts",
+    "lint:ambient-ai:self-test": "tsx ci/lint-no-ambient-claude.ts --self-test"
+  },
+  "dependencies": {
+    "@assessiq/core": "workspace:*",
+    "@assessiq/tenancy": "workspace:*",
+    "zod": "^3.23.8"
+  }
+}

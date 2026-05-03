@@ -14,6 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint:rls": "tsx tools/lint-rls-policies.ts",
+    "lint:ambient-ai": "tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts",
+    "lint:ambient-ai:self-test": "tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts --self-test",
     "lint:edge-routing": "tsx tools/lint-edge-routing.ts",
     "lint:edge-routing:self-test": "tsx tools/lint-edge-routing.ts --self-test"
   },
