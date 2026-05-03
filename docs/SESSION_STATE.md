@@ -1,3 +1,104 @@
+# Session — 2026-05-03 (Phase 2 G2.A Session 1.a — lint sentinel + migrations + module skeleton)
+
+**Headline:** `modules/07-ai-grading` structural scaffold landed — D2 lint sentinel (load-bearing), migrations 0040/0041, types + Zod schemas, runtime dispatcher + three runtime stubs. `AI_PIPELINE_MODE` enum extended to all three D1 values. Sonnet adversarial rescue ran, three findings adjudicated. CI now enforces `lint:ambient-ai` on every push.
+**Commits:** `7eea75b — feat(ai-grading): Phase 2 G2.A Session 1.a — lint sentinel + migrations + module skeleton` (16 files, +1012/−3) · *(this commit)* — `docs(ai-grading): same-PR data-model + RCA + handoff for G2.A Session 1.a`
+**Tests:** typecheck (16 workspaces) ✓ · `lint:rls` (30 migrations; 16 tenant-bearing + 8 join-based) ✓ · `lint:ambient-ai` (183 TS files) ✓ · ambient-AI self-test (8 fixtures) ✓ · RLS self-test (6 fixtures) ✓ · secrets + TODO grep ✓
+**Next:** Pick one — (A) production E2E candidate-flow drill (carried, non-implementation; manual browser/email steps); (B) Phase 2 G2.A Session 1.b — real `claude-code-vps` runtime (claude -p spawn + stream-json parse + tool-use extraction + skillSha pinning + score math). Recommend B if continuing G2.A momentum; A if Phase 1 candidate flow needs production confirmation first. Either way, `codex:rescue` mandatory before any push that lands runtime code.
+**Open questions:** see § Carry-forwards.
+
+---
+
+## What shipped (commit `7eea75b`)
+
+`modules/07-ai-grading/` — 12 new files (~1000 LOC):
+
+| File | Role |
+|---|---|
+| `ci/lint-no-ambient-claude.ts` | D2 lint sentinel — 7 rejection patterns + 2 spawn-site / 1 SDK-site allow-list. Load-bearing per CLAUDE.md § Load-bearing paths. Self-test covers 8 fixtures. |
+| `migrations/0040_gradings.sql` | `gradings` table per D4: `prompt_version_sha` / `prompt_version_label` / `model` NOT NULL; `escalation_chosen_stage` CHECK (`'2'`/`'3'`/`'manual'`/NULL); UNIQUE (`attempt_id`, `question_id`, `prompt_version_sha`) WHERE `override_of IS NULL` (D7 idempotency backstop); standard tenant-id RLS. |
+| `migrations/0041_tenant_grading_budgets.sql` | D6 row shape verbatim. PK = `tenant_id` (special-case RLS variant; same shape as `tenants`). `lint-rls-policies.ts:178-185` carve-out already handles this. |
+| `package.json` + `tsconfig.json` | Workspace registration. `tsc --noEmit` typecheck only; no emit (`@assessiq/core`-style direct-source pattern). |
+| `src/index.ts` | Public surface: re-exports types + `gradeSubjective` dispatcher. |
+| `src/types.ts` | Zod schemas (AnchorFinding / BandFinding / GradingProposal) + `GradingsRow` interface + `SkillVersion` + `TenantGradingBudget` + 16 error codes. |
+| `src/runtime-selector.ts` | D1 single static switch on `config.AI_PIPELINE_MODE`. No dynamic import / no string eval. Carries a load-bearing comment for the Session 1.b author about the eager-import startup hazard once the real Agent SDK import lands. |
+| `src/runtimes/{claude-code-vps,anthropic-api,open-weights}.ts` | Stubs throwing 503 `RUNTIME_NOT_IMPLEMENTED`. Allow-list slots reserved. |
+
+Cross-module support included in the same commit (the prior brand-kit handoff flagged these as "pre-existing working-tree changes" — they belonged to G2.A 1.a all along):
+
+| File | Change |
+|---|---|
+| `modules/00-core/src/config.ts:86-88` | Added `"open-weights"` to `AI_PIPELINE_MODE` enum (D1 — three values now match the contract). |
+| `.github/workflows/ci.yml:60-69` | Wired `pnpm lint:ambient-ai:self-test` and `pnpm lint:ambient-ai` as required checks. |
+| `package.json:17-18` | Root `lint:ambient-ai` + `lint:ambient-ai:self-test` scripts. |
+| `tools/lint-rls-policies.ts:178-185` | Special-case carve-out for `tenant_grading_budgets` alongside `tenants` (PK = tenant_id RLS variant). |
+| `pnpm-lock.yaml` | Workspace package linkage for `@assessiq/ai-grading`. |
+
+Out of scope, deferred to subsequent G2.A sessions:
+
+- **Session 1.b** — real `claude-code-vps` runtime body (spawn `claude -p`, parse stream-json, extract `submit_anchors` / `submit_band` tool inputs, compute proposal, compute `skillSha()`, score math).
+- **Session 1.c** — admin handlers (`handleAdminGrade` / `handleAdminAccept` / `handleAdminOverride` / `handleAdminRerun` / queue / claim / release / grading-jobs / budget) + Fastify route registrations + eval-harness skeleton + in-repo `grade-anchors` / `grade-band` / `grade-escalate` skills + `assessiq-mcp` server source.
+
+## Adversarial review — Sonnet rescue verdict
+
+User invoked the "sonnet takeover" pattern (memory: `feedback-sonnet-takeover-on-rescue.md`) instead of `codex:rescue`. Sonnet subagent ran a self-contained adversarial pass against D1-D8 + load-bearing rules + the live diff. Verdict: **REVISE** with three requested changes; Opus adjudicated:
+
+- **R1 — add `apps/api/**` to `BANNED_PATH_PATTERNS` in `lint-no-ambient-claude.ts` so a `setInterval` in `apps/api/src/jobs/` could not import `gradeSubjective` and slip through.** REJECTED. The proposed ban would also block `apps/api/src/server.ts` from importing the admin-grade route once Session 1.c ships it (`@assessiq/ai-grading` substring trips the lint regex). A more nuanced ban (`apps/api/src/jobs/**` only, or carve-out for `routes/admin/**`) is speculative without 1.c's actual file layout. **Deferred to Session 1.c**, which lands the route registrations and can tighten the lint with full knowledge — same-PR `codex:rescue` covers both.
+- **R2 — eager imports of all three runtimes in `runtime-selector.ts` will crash startup with `MODULE_NOT_FOUND` once `runtimes/anthropic-api.ts` ships its real Agent SDK import in Session 1.b (D1 forbids the SDK in `claude-code-vps` mode).** PARTIAL ACCEPT. The crash only surfaces when 1.b adds the SDK import; Session 1.a stubs have zero module-level side effects, so refactoring to dynamic imports now is premature ceremony. Added a load-bearing comment in `runtime-selector.ts:14-27` warning the Session 1.b author of the hazard with two fix options (lazy import in case branches OR `optionalDependencies` + try/catch).
+- **R3 — add inline comment on `CLAUDE_SPAWN_ALLOW_LIST` warning that the Session 1.c filename must match exactly.** REJECTED. The lint already fails loudly with "spawn of claude is forbidden outside the allow-list" on a filename mismatch — that's the lint working correctly. Adding the comment is noise without changing behavior.
+
+Sonnet also surfaced two findings Opus missed (both documented but non-blocking):
+
+- **CI step 11 (`No-Anthropic / no-Claude check`) shares the lint's variable-name spawn blind spot.** Both regexes match only the literal-string form `spawn("claude", ...)`; a `const cmd="claude"; spawn(cmd)` evades both. No exploit exists today; tightening to AST-level requires shipping ESLint rules.
+- **`modules/03-users/migrations/020_users.sql` uses 3-digit numbering vs the `0NNN_` convention everywhere else.** Pre-existing, not introduced here. Latent hazard for any future migration tooling that does purely lexicographic sort across all modules globally.
+
+## Self-inflicted near-miss → RCA appended
+
+Mid-session, Opus added a load-bearing comment to `runtime-selector.ts` that quoted the literal `from "@anthropic-ai/claude-agent-sdk"` import line so a future reader could grep for it. The lint immediately flagged it because Pattern 2's regex matches the substring anywhere in the file's text, including comments. Comment rewritten to describe the import without quoting the literal package path. RCA appended: `docs/RCA_LOG.md` § "2026-05-03 — D2 lint flagged its own runtime-selector comment quoting the SDK import path." Prevention: documentation referencing the SDK import or `claude` spawn site should be descriptive ("the Agent SDK import in runtimes/anthropic-api.ts") rather than quoting. No lint change warranted; the failure is loud and fast.
+
+## Documentation updates same-PR (this docs commit)
+
+- `docs/02-data-model.md` § "Grading & scoring" rewritten — replaces the stale Phase-2-leaning shape with the live D1-D8 schema. Includes a 5-part status note (what / why / considered / excluded / impact) per CLAUDE.md rule #9. Moves `prompt_versions` and `grading_jobs` (Phase 2-only per D3 / D4) to a "Phase 2 (deferred)" subsection. `attempt_scores` cross-referenced as module 09 territory.
+- `docs/RCA_LOG.md` prepended with the lint-traps-own-comment entry.
+- This handoff prepended above the brand-kit entry per the established stacking convention.
+
+`docs/05-ai-pipeline.md` is unchanged — the D1-D8 decisions captured there ARE the source of truth this session implemented against. `docs/06-deployment.md` is unchanged — no deploy artifact in this commit.
+
+## Deploy posture
+
+**No production deploy this session.** Per CLAUDE.md rule #9 ("Skip [deploy] only for genuinely deploy-irrelevant edits"), this commit qualifies:
+
+- All runtime files throw 503 `RUNTIME_NOT_IMPLEMENTED`. Nothing in `apps/api` imports the module yet.
+- Migrations 0040 + 0041 create tables that no live code reads or writes — applying them to prod now would be inert. Defer migration apply to Session 1.b/1.c, which lands the runtime + handler that consume the rows.
+- The lint sentinel runs in CI on the next push automatically (already wired). Live VPS containers are unchanged.
+
+Production state per the brand-kit handoff below: 5 `assessiq-*` containers healthy after the brand-kit deploy; webmanifest MIME fix in `infra/docker/assessiq-frontend/nginx.conf` from `07ab6f2` still needs a redeploy to take effect — flagged for the next session that touches frontend.
+
+## Carry-forwards / open items
+
+| Item | Owner | Notes |
+|---|---|---|
+| Production E2E candidate-flow drill | next session | Carried from prior session's task list. Walks SSO admin → createPack → addLevel → createQuestion ×N → publishPack → activate-questions → createAssessment → publishAssessment → boundary cron → inviteUsers → email link → SPA TokenLanding → `POST /take/start` → `/take/attempt/:id`. Manual browser/email steps; cannot be fully automated by Claude. |
+| Session 1.b — real claude-code-vps runtime | next session | Spawn `claude -p`, parse stream-json, extract `submit_anchors` + `submit_band` tool-use inputs, compute `skillSha()` over `~/.claude/skills/<name>/SKILL.md`, compute proposal score. **codex:rescue mandatory before push.** Plan to handle the eager-import hazard at the same time (R2 fix). |
+| Session 1.c — admin handlers + routes + eval + skills + MCP | after 1.b | Larger surface; consider splitting again into 1.c.1 (handlers + routes) and 1.c.2 (eval + skills + MCP). codex:rescue mandatory each. Tightens the D2 lint with `apps/api` ban + carve-out (R1 deferred from 1.a). |
+| nginx webmanifest MIME redeploy | next frontend session | `07ab6f2` updated `infra/docker/assessiq-frontend/nginx.conf` but the rebuild + container recreate has not happened yet. Browsers tolerate via `<link rel="manifest">` content sniffing; correctness gap, not user-visible. |
+| `gradings.tenant_id` ON DELETE behavior | Phase 2 design | Currently NO ACTION (default). `tenant_grading_budgets` uses CASCADE. NO ACTION is arguably correct for HR-grade audit data. Decide explicitly before tenant-deletion UX ships. |
+| Lint pattern 3/4 AST tightening | Phase 2/3 | Current regex over-approximation works only because no `apps/api` timer or `apps/api` BullMQ worker imports the runtime today. Tighten to ESLint AST when ESLint config gains the rule, or land R1 nuanced ban in Session 1.c. |
+| CI step 11 variable-name spawn blind spot | future RCA hardening | Same evasion shape as the lint sentinel. Same AST tightening covers both. |
+| `modules/03-users/migrations/020_users.sql` numbering | future cleanup | Rename to `0020_users.sql` next time module 03 sees a migration; verify all FK targets still resolve in the renamed file. |
+| OG card domain placeholder + copy + stacked subtagline | next branding/marketing pass | Carried from brand-kit handoff below. |
+| Modal primitive in `@assessiq/ui-system`, Monaco KqlEditor, AttemptTimer `onDriftCheck`, autosave revision-inflation | Phase 2 UI | Carried from prior take-route handoff. |
+
+---
+
+## Agent utilization
+
+- **Opus 4.7 (1M)**: orchestration, Phase 0 reads (PROJECT_BRAIN + 05-ai-pipeline + 07-ai-grading SKILL.md + the 12-file scaffold + cross-module seam files), audit + gap report, one-line `open-weights` enum edit + R2 comment edit, diff critique against D1-D8, adjudication of Sonnet rescue verdict (R1 reject / R2 partial-accept / R3 reject), commit + push, doc rewrites (`02-data-model.md` grading section + `RCA_LOG.md` entry + this handoff prepend).
+- **Sonnet**: adversarial rescue subagent (user invoked "sonnet takeover" memory pattern in lieu of `codex:rescue`). Verified D2 evasion patterns, FK target existence in earlier migrations, runtime-selector eager-import hazard, lint allow-list filename brittleness; surfaced R1/R2/R3 + two new findings (CI step 11 blind spot, `020_` migration numbering). Verdict: REVISE. Adjudicated outcomes: R1 deferred, R2 accepted as comment-only, R3 rejected.
+- **Haiku**: n/a — no bulk live-prod sweep, header audit, or multi-file grep necessary this session.
+- **codex:rescue**: n/a — user redirected to Sonnet via takeover pattern. Memory note `feedback-sonnet-takeover-on-rescue.md` honored; verdict logged here per its protocol.
+
+---
+
 # Session — 2026-05-03 (brand kit shipped to production)
 
 **Headline:** AssessIQ brand kit (mark, lockups, favicons, OG card, web manifest) shipped end-to-end — kit-defect fixes, PNG regen tooling, SPA wiring, and deployed to `https://assessiq.automateedge.cloud`. Definition of Done: commit / deploy / document / handoff all closed in this session.

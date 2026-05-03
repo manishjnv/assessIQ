@@ -478,56 +478,82 @@ CREATE UNIQUE INDEX attempt_events_capped_unique_idx
 
 ## Grading & scoring
 
+> **Status note (2026-05-03) — Phase 2 G2.A Session 1.a redesign.**
+>
+> **What changed.** The `gradings` table shape below is the live shape per migration `modules/07-ai-grading/migrations/0040_gradings.sql`. The `tenant_grading_budgets` table is new per migration `0041_tenant_grading_budgets.sql`. Both ship in commit `7eea75b`. The `prompt_versions` and `grading_jobs` tables are NOT in Phase 1 — they are deferred to Phase 2 with the paid-API runtime, and now appear in the Phase 2 (deferred) subsection at the bottom of this section.
+>
+> **Why.** The 8 pinned decisions in `docs/05-ai-pipeline.md` § "Decisions captured (2026-05-01)" replaced the Phase-2-leaning shape this section originally documented. D4 stores prompt provenance as three NOT NULL columns on `gradings` (`prompt_version_sha`, `prompt_version_label`, `model`) — file-based skill SHA pinning, no FK to a `prompt_versions` table. D3 keeps `grading_jobs` out of Phase 1 entirely (tracked instead by the in-process single-flight mutex + `attempts.status`). D6 introduces `tenant_grading_budgets` as the per-tenant USD ceiling that the Phase 2 anthropic-api runtime checks pre-call.
+>
+> **Considered and rejected.** (a) Keeping `gradings.prompt_version_id` as a FK to `prompt_versions` — rejected because Phase 1 has no `prompt_versions` table and the file-on-disk skill SHA is the durable pin (D4). (b) Adding `grading_jobs` in Phase 1 anyway "for symmetry" — rejected because a synchronous handler writing then reading the same row is ceremony without benefit (D3). (c) Storing budget as a token count instead of USD — rejected because tenants pay in USD; tokens are implementation leakage (D6).
+>
+> **Not included in this session (deferred to G2.A Sessions 1.b / 1.c).** No `prompt_versions` table (Phase 2 only when paid API needs a queryable prompt history). No `grading_jobs` table (Phase 2). No `attempt_scores` schema change here — that table belongs to module 09-scoring and ships with G2.B.
+>
+> **Downstream impact.** Module 09-scoring reads `gradings` for per-attempt aggregation and consumes `escalation_chosen_stage` for stage badges. Module 10-admin-dashboard reads `tenant_grading_budgets` for billing UI and reads `prompt_version_sha` to surface the "skill drift" badge when current `skillSha()` ≠ stored SHA. Module 13-notifications fires a `budget_exhausted` template when D6 enforcement trips (Phase 2). The `lint-rls-policies.ts` linter (`tools/`) was extended to special-case `tenant_grading_budgets` alongside `tenants` (PK=tenant_id RLS variant).
+
 ```sql
-CREATE TABLE prompt_versions (
-  id              UUID PRIMARY KEY DEFAULT uuidv7(),
-  name            TEXT NOT NULL,                          -- 'subjective_grader_v3'
-  version         INT NOT NULL,
-  template        TEXT NOT NULL,
-  model           TEXT NOT NULL,                          -- 'claude-sonnet-4-6'
-  hash            TEXT NOT NULL UNIQUE,                   -- sha256 of template
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (name, version)
-);
-
-CREATE TABLE grading_jobs (
-  id              UUID PRIMARY KEY DEFAULT uuidv7(),
-  tenant_id       UUID NOT NULL REFERENCES tenants(id),
-  attempt_id      UUID NOT NULL REFERENCES attempts(id),
-  status          TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','completed','failed','retrying')),
-  attempt_count   INT NOT NULL DEFAULT 0,
-  prompt_version_id UUID REFERENCES prompt_versions(id),
-  started_at      TIMESTAMPTZ,
-  completed_at    TIMESTAMPTZ,
-  cost_input_tokens  INT,
-  cost_output_tokens INT,
-  error           TEXT,
-  raw_output      JSONB,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
+-- Phase 1 live shape — modules/07-ai-grading/migrations/0040_gradings.sql
 CREATE TABLE gradings (
-  id              UUID PRIMARY KEY DEFAULT uuidv7(),
-  tenant_id       UUID NOT NULL REFERENCES tenants(id),
-  attempt_id      UUID NOT NULL REFERENCES attempts(id),
-  question_id     UUID NOT NULL REFERENCES questions(id),
-  grader          TEXT NOT NULL CHECK (grader IN ('deterministic','pattern','ai','admin_override')),
-  score_earned    NUMERIC(6,2) NOT NULL,
-  score_max       NUMERIC(6,2) NOT NULL,
-  status          TEXT NOT NULL CHECK (status IN ('correct','incorrect','partial','review_needed','overridden')),
-  anchor_hits     JSONB,                                   -- per-anchor evidence
-  reasoning_band  INT,                                     -- 0..4
-  ai_justification TEXT,
-  error_class     TEXT,                                    -- e.g. 'missed_pivot_to_identity'
-  prompt_version_id UUID REFERENCES prompt_versions(id),
-  graded_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  graded_by       UUID REFERENCES users(id),               -- null for AI/automated
-  override_of     UUID REFERENCES gradings(id),            -- self-ref for admin overrides
-  override_reason TEXT,
-  PRIMARY KEY (id)
+  id                       UUID PRIMARY KEY DEFAULT uuidv7(),
+  tenant_id                UUID NOT NULL REFERENCES tenants(id),
+  attempt_id               UUID NOT NULL REFERENCES attempts(id),
+  question_id              UUID NOT NULL REFERENCES questions(id),
+  grader                   TEXT NOT NULL CHECK (grader IN (
+    'deterministic','pattern','ai','admin_override'
+  )),
+  score_earned             NUMERIC(6,2) NOT NULL,
+  score_max                NUMERIC(6,2) NOT NULL,
+  status                   TEXT NOT NULL CHECK (status IN (
+    'correct','incorrect','partial','review_needed','overridden'
+  )),
+  anchor_hits              JSONB,                              -- per-anchor evidence
+  reasoning_band           INT,                                -- 0..4
+  ai_justification         TEXT,
+  error_class              TEXT,                               -- e.g. 'missed_pivot_to_identity'
+  -- D4: per-row prompt SHA pinning. NOT NULL — every AI row reproducible.
+  prompt_version_sha       TEXT NOT NULL,                      -- 'anchors:<8hex>;band:<8hex>;escalate:<8hex|->'
+  prompt_version_label     TEXT NOT NULL,                      -- skill frontmatter `version:`
+  model                    TEXT NOT NULL,                      -- concatenated model ids
+  -- Which stage of the cascade actually produced the row. NULL for deterministic/pattern.
+  escalation_chosen_stage  TEXT CHECK (escalation_chosen_stage IS NULL
+                                       OR escalation_chosen_stage IN ('2','3','manual')),
+  graded_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  graded_by                UUID REFERENCES users(id),          -- null for AI/automated
+  override_of              UUID REFERENCES gradings(id),       -- self-ref for admin overrides
+  override_reason          TEXT
 );
 CREATE INDEX gradings_attempt_idx ON gradings (attempt_id, question_id);
 
+-- D7 idempotency backstop: re-grade with same (attempt, question, sha) returns
+-- the existing row instead of writing a duplicate. Phase 1 single-flight is
+-- the in-process mutex; this UNIQUE protects against a buggy mutex.
+CREATE UNIQUE INDEX gradings_attempt_question_sha_idx
+  ON gradings (attempt_id, question_id, prompt_version_sha)
+  WHERE override_of IS NULL;
+
+-- Standard tenant_id-bearing RLS (CREATE POLICY tenant_isolation +
+-- tenant_isolation_insert per the template at the bottom of this doc).
+
+-- Phase 1 live shape — modules/07-ai-grading/migrations/0041_tenant_grading_budgets.sql
+-- D6: per-tenant USD ceiling for Phase 2 anthropic-api runtime. PK = tenant_id
+-- (special-case RLS variant; same shape as `tenants` itself). Phase 1
+-- claude-code-vps mode does not consume budget; the table ships now so
+-- module 10 billing UI has a stable target and the future runtime's
+-- pre-call gate (D6) can read from a populated row without a separate
+-- migration.
+CREATE TABLE tenant_grading_budgets (
+  tenant_id            UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  monthly_budget_usd   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  used_usd             NUMERIC(10,2) NOT NULL DEFAULT 0,
+  period_start         DATE NOT NULL DEFAULT CURRENT_DATE,
+  alert_threshold_pct  NUMERIC(5,2) NOT NULL DEFAULT 80,
+  alerted_at           TIMESTAMPTZ,
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- RLS uses `tenant_id = current_setting('app.current_tenant', true)::uuid`
+-- (PK is the discriminator). lint-rls-policies.ts:178-185 carve-out matches.
+
+-- attempt_scores belongs to module 09-scoring (ships with G2.B). Listed here
+-- for cross-reference; the migration lives in modules/09-scoring/migrations/.
 CREATE TABLE attempt_scores (
   attempt_id      UUID PRIMARY KEY REFERENCES attempts(id) ON DELETE CASCADE,
   tenant_id       UUID NOT NULL REFERENCES tenants(id),
@@ -535,9 +561,55 @@ CREATE TABLE attempt_scores (
   total_max       NUMERIC(8,2) NOT NULL,
   auto_pct        NUMERIC(5,2) NOT NULL,
   pending_review  BOOLEAN NOT NULL DEFAULT false,
-  archetype       TEXT,                                    -- e.g. 'methodical_diligent'
-  archetype_signals JSONB,                                 -- which signals fired
+  archetype       TEXT,                                       -- e.g. 'methodical_diligent'
+  archetype_signals JSONB,                                    -- which signals fired
   computed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### Phase 2 (deferred) — `prompt_versions`, `grading_jobs`
+
+These tables ship when `AI_PIPELINE_MODE` flips to `anthropic-api` (D1). They are NOT in Phase 1.
+
+```sql
+-- D4 (Phase 2): durable, queryable prompt history for the paid-API runtime.
+-- In Phase 1 this role is filled by the file-on-disk skill SHA; in Phase 2
+-- the skill content moves into a row so the SDK call site can reference it
+-- by FK and so the eval harness can join across runs.
+CREATE TABLE prompt_versions (
+  id              UUID PRIMARY KEY DEFAULT uuidv7(),
+  name            TEXT NOT NULL,                              -- 'grade-band'
+  version         INT NOT NULL,
+  template        TEXT NOT NULL,
+  model           TEXT NOT NULL,                              -- 'claude-sonnet-4-6'
+  hash            TEXT NOT NULL UNIQUE,                       -- sha256 of template
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (name, version)
+);
+
+-- D3 (Phase 2): async queue + state machine for the BullMQ worker.
+-- Phase 1 has NO `grading_jobs` row — in-flight grading is tracked by the
+-- in-process single-flight mutex + `attempts.status = pending_admin_grading
+-- → graded`. Manual re-trigger only.
+CREATE TABLE grading_jobs (
+  id              UUID PRIMARY KEY DEFAULT uuidv7(),
+  tenant_id       UUID NOT NULL REFERENCES tenants(id),
+  attempt_id      UUID NOT NULL REFERENCES attempts(id),
+  status          TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending','in_progress','done','failed')),
+  attempt_count   INT NOT NULL DEFAULT 0,
+  prompt_version_sha TEXT NOT NULL,                           -- D4 idempotency key part
+  worker_id       TEXT,
+  claimed_at      TIMESTAMPTZ,
+  started_at      TIMESTAMPTZ,
+  completed_at    TIMESTAMPTZ,
+  cost_input_tokens  INT,
+  cost_output_tokens INT,
+  error_class     TEXT,
+  error_message   TEXT,
+  raw_output      JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (attempt_id, prompt_version_sha)                     -- D3 idempotency
 );
 ```
 

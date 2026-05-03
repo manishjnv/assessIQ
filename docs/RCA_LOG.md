@@ -4,6 +4,18 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-03 — D2 lint flagged its own runtime-selector comment quoting the SDK import path
+
+**Symptom:** `pnpm lint:ambient-ai` exited 1 immediately after Opus added a load-bearing comment to `modules/07-ai-grading/src/runtime-selector.ts` warning the Session 1.b author about an eager-import startup hazard. The lint had passed cleanly two minutes earlier; the only intervening change was the new comment.
+
+**Cause:** The new comment quoted the literal SDK import line so a future reader could grep for it (`import { query } from "@anthropic-ai/claude-agent-sdk"`). The lint's Pattern 2 regex `RE_AGENT_SDK_IMPORT` at `modules/07-ai-grading/ci/lint-no-ambient-claude.ts:173-174` matches the substring `from "@anthropic-ai/claude-agent-sdk"` anywhere in the file's text — it does not strip comments. `runtime-selector.ts` is not in `SDK_IMPORT_ALLOW_LIST` (only `runtimes/anthropic-api.ts` is), so the substring tripped Pattern 2 in a non-allow-listed file.
+
+**Fix:** Rewrote the comment to describe the import without quoting the literal package path. See `modules/07-ai-grading/src/runtime-selector.ts:14-27` (committed in `7eea75b`). The lint went green again on the next run.
+
+**Prevention:** This is the lint working correctly — text search makes no distinction between code and comments, and a "grace period for comments" would be a real evasion (any spawn could be hidden behind a `// const claude_=` prefix or a `/* */` wrap). Manual discipline: documentation that needs to reference the SDK import path or `claude` spawn site should phrase it descriptively ("the Agent SDK import in runtimes/anthropic-api.ts", "the spawn site in claude-code-vps.ts") rather than quoting the literal package or command. No lint change warranted; the failure is loud and fast.
+
+**Recurrence weight:** First instance. If this happens again with a different load-bearing comment, escalate to a `// lint-allow-comment-quote: <reason>` pragma + lint exception — but only after a second occurrence proves the manual-discipline floor is too low.
+
 ## 2026-05-03 — preventive guardrails added: edge-routing lint + shared-mount sed hook
 
 **Symptom:** Not an incident — this entry is the prevention layer for two RCA-pattern classes that have together produced **five** real incidents in 4 days (well past the "three is a trend, four would be process failure" threshold from RCA 2026-05-03 § Caddy `@api` matcher missing `/take/*`). Every prior prevention section in this log filed both classes as "manual discipline backed by this RCA's existence" or "Phase-2 infra-backlog item." That manual-discipline budget was spent. This session converts the backlog items into shipped tooling.
