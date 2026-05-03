@@ -1,3 +1,53 @@
+# Session — 2026-05-03 (Phase 1 closure fix — tenantName cross-module regression)
+
+**Headline:** Fixed `inviteUsers` 500 regression — `tenantName:""` → Zod `.min(1)` rollback. `POST /admin/assessments/:id/invite` now succeeds. Phase 1 Drill 1 Step 9 unblocked; Drills 3 Step 5 and Drill 4 can now proceed.
+
+**Commits:**
+- `d681ec5 — fix(lifecycle): resolve real tenant name before notifying invitees (closes Phase 1 D1 fail)` — core fix: `tenancyRepo.findTenantById` inside `withTenant`, pass real `tenantName`, update lifecycle.test.ts template_id to `invitation_candidate` (Phase 3 shim format), add tenantName regression test.
+- `73ad0b2 — fix(lifecycle/deps): add audit-log dep decl + notifications regression test + RCA entry` — notifications regression test, RCA_LOG.md entry; dep declarations later partially reverted.
+- `639cb22 — revert(deps): remove premature @assessiq/audit-log dep declarations` — reverted 02-tenancy dep addition (G3.A intentionally leaves it undeclared).
+- `1264fc6 — fix(lifecycle/deps): add @assessiq/audit-log to lifecycle transitive dep chain` — adds dep to 05-assessment-lifecycle only (needed since 02-tenancy/service.ts now imports audit-log after G3.A committed in `43c0e45` in the same session window).
+
+**Tests:** 70/70 lifecycle (`pnpm --filter @assessiq/assessment-lifecycle exec vitest run`). 39/39 notifications (`pnpm --filter @assessiq/notifications exec vitest run`). Full workspace typecheck: 17/17 packages clean.
+
+**Next:** Re-run Phase 1 closure drills 1/3(step5)/4 — invite should now succeed. Drill 1 steps 10-14 (start attempt, autosave, submit) previously blocked by invite failure.
+
+**Open questions:**
+- `@assessiq/audit-log` dep declaration in `02-tenancy/package.json` was intentionally omitted by G3.A. How does `02-tenancy/src/service.ts:audit()` resolve in the VPS Docker build context? (Likely via pnpm workspace virtual store hoisting — needs verification before relying on it.)
+- Phase 1 Drill 4 (autosave + timer) requires a valid invitation token — should now work after this fix.
+- Test entities from closure audit (phase1-closure-test pack + wipro-soc test rows) — leave or clean up?
+
+---
+
+## What shipped
+
+| File | Change |
+|---|---|
+| `modules/05-assessment-lifecycle/src/service.ts` | Replaced `tenantName: ""` with real tenant name fetched via `tenancyRepo.findTenantById(client, tenantId)` inside `withTenant`. Removed stale placeholder comment. Fallback: `name \|\| slug \|\| tenantId`. |
+| `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts` | Section 8 "Dev-email log": updated `template_id` filter from `"invitation.assessment"` (old email-stub format) to `"invitation_candidate"` (Phase 3 Handlebars template name). Added new test: `"tenantName is fetched from DB — body contains real tenant name, NOT empty string"`. |
+| `modules/13-notifications/src/__tests__/notifications.test.ts` | Added regression test: `sendAssessmentInvitationEmail rejects tenantName:""`. Ensures Zod `.min(1)` always catches empty caller values. |
+| `modules/05-assessment-lifecycle/package.json` | Added `@assessiq/audit-log: workspace:*` dep (needed after G3.A added audit-log import to `02-tenancy/src/service.ts`; lifecycle tests resolve the module through the tenancy import chain). |
+| `docs/RCA_LOG.md` | Appended full RCA entry for the cross-phase `tenantName:""` bug. |
+
+## Considered and rejected
+
+- Using `getTenantById` from `@assessiq/tenancy/src/service.ts`: would work but (a) creates a second DB connection/transaction outside the main `withTenant` scope, (b) triggers the `audit-log` transitive import from `service.ts` which broke resolution until `@assessiq/audit-log` was deployed. The auto-commit chose `tenancyRepo.findTenantById(client, tenantId)` (same-client lookup inside the existing `withTenant` scope) — cleaner and avoids the dep chain issue.
+- Adding `@assessiq/audit-log` to `02-tenancy/package.json`: G3.A intentionally omitted it; my commit 73ad0b2 added it, G3.A's commit 43c0e45 removed it. The lifecycle module gets the dep via its own package.json instead.
+
+## Explicitly NOT included
+
+- Any change to `13-notifications` Zod schema (the `.min(1)` stays strict — it caught a real bug).
+- Any new migration, endpoint, or public API surface.
+- Phase 1 Drills 1/3(step5)/4 re-run — this session only fixes the 500; re-audit is the next session.
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet: full session — Phase 0 warm-start reads, implementation, test updates, dep chain debugging, deploy
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — judgment-skipped per user brief (05-lifecycle not on load-bearing paths per CLAUDE.md)
+
+---
+
 # Session — 2026-05-03 (Phase 4 pre-flight — `12-embed-sdk` decision pinning — PURE DOCS)
 
 **Headline:** Phase 4 12-embed-sdk pre-flight complete. 13 frozen decisions appended to `modules/12-embed-sdk/SKILL.md`; Phase 4 migration plan pre-seeded; two spec drifts fixed in `docs/04-auth-flows.md` and `docs/03-api-contract.md`. No code, no deploy, no VPS touches. Implementation session can start immediately against the locked contract.
