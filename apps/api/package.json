@@ -26,6 +26,7 @@
     "@assessiq/rubric-engine": "workspace:*",
     "@assessiq/help-system": "workspace:*",
     "@assessiq/notifications": "workspace:*",
+    "@assessiq/audit-log": "workspace:*",
     "fastify": "^5.0.0",
     "@fastify/cookie": "^11.0.0",
     "bullmq": "^5.34.0",
