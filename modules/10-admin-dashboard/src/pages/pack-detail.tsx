@@ -84,6 +84,7 @@ export function AdminPackDetail(): React.ReactElement {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [questionsError, setQuestionsError] = useState<string | null>(null);
 
   const [showAddLevel, setShowAddLevel] = useState(false);
   const [levelLabel, setLevelLabel] = useState("");
@@ -99,17 +100,24 @@ export function AdminPackDetail(): React.ReactElement {
     if (!id) return;
     setLoading(true);
     setError(null);
+    setQuestionsError(null);
     try {
-      const [detail, qData] = await Promise.all([
-        adminApi<PackDetailResponse>(`/admin/packs/${id}`),
-        adminApi<QuestionsResponse>(`/admin/questions?pack_id=${id}&pageSize=200`),
-      ]);
+      const detail = await adminApi<PackDetailResponse>(`/admin/packs/${id}`);
       setPack(detail.pack);
       setLevels(detail.levels.slice().sort((a, b) => a.order - b.order));
-      setQuestions(qData.items);
     } catch (err) {
       setError(
         err instanceof AdminApiError ? err.apiError.message : "Failed to load pack.",
+      );
+      setLoading(false);
+      return;
+    }
+    try {
+      const qData = await adminApi<QuestionsResponse>(`/admin/questions?pack_id=${id}&pageSize=500`);
+      setQuestions(qData.items);
+    } catch (err) {
+      setQuestionsError(
+        err instanceof AdminApiError ? err.apiError.message : "Failed to load questions.",
       );
     } finally {
       setLoading(false);
@@ -310,6 +318,52 @@ export function AdminPackDetail(): React.ReactElement {
             }}
           >
             {publishError}
+          </div>
+        )}
+
+        {questionsError && (
+          <div
+            style={{
+              border: "1px solid var(--aiq-color-danger-border, var(--aiq-color-danger))",
+              borderRadius: "var(--aiq-radius-md)",
+              padding: "var(--aiq-space-md) var(--aiq-space-lg)",
+              background: "var(--aiq-color-danger-soft, rgba(220,38,38,0.06))",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "var(--aiq-space-md)",
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                  fontWeight: 500,
+                  color: "var(--aiq-color-danger)",
+                  margin: "0 0 2px 0",
+                }}
+              >
+                Couldn&apos;t load questions.
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "var(--aiq-text-xs)",
+                  color: "var(--aiq-color-fg-muted)",
+                  margin: 0,
+                }}
+              >
+                {questionsError}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+              onClick={() => void fetchPack()}
+            >
+              Retry
+            </button>
           </div>
         )}
 
