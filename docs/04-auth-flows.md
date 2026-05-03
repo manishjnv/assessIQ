@@ -92,13 +92,15 @@ The strict path. Every admin must clear both factors.
 - Lifetime: 8 hours sliding (idle 30 min)
 - On every request: middleware reads cookie → looks up Redis → checks `totp_verified` → loads tenant context
 
-**Security middleware order (Fastify):**
+**Security middleware order (Fastify) — updated 2026-05-04:**
 1. `requestId` (correlation)
-2. `rateLimit` (per IP, tighter on `/api/auth/*`)
-3. `cookieParser`
-4. `sessionLoader` (sets `req.session` from Redis)
+2. `cookieParser` (`@fastify/cookie`, registered globally at app startup — runs as `onRequest` before any `preHandler`)
+3. `sessionLoader` (sets `req.session` from Redis — **runs before rateLimit** so the bypass decision can read it; short-circuits in <1 ms when no `aiq_sess` cookie is present)
+4. `rateLimit` (per-IP, per-user, per-tenant; IP bucket skipped on opt-in endpoints for verified admins/reviewers — see § Admin/reviewer IP rate-limit bypass below)
 5. `tenantContext` (sets `app.current_tenant` for the DB connection)
 6. `requireAuth(roles, mfaRequired=true)` — applied per route
+
+> **Chain reorder note (2026-05-04):** The original order was `requestId → rateLimit → cookieParser → sessionLoader → ...`. sessionLoader was moved before rateLimit so the bypass logic can inspect `req.session`. This is safe: `@fastify/cookie` runs as an `onRequest` hook (before all `preHandlers`), so `req.cookies` is always populated when `sessionLoader` runs. Anonymous requests (no `aiq_sess` cookie) incur zero extra overhead — sessionLoader short-circuits on missing cookie without touching Redis.
 
 ## Flow 1a — TOTP enrollment (first admin login)
 
@@ -302,7 +304,85 @@ Master encryption key: 32-byte random, in env var `ASSESSIQ_MASTER_KEY` (base64)
 - [ ] Verify every JWT signature (no `alg: none` ever)
 - [ ] CSRF protection on state-changing routes (double-submit cookie)
 - [ ] Rate limit `/api/auth/*` aggressively (10/min per IP)
+- [x] **Admin/reviewer IP bypass on selected opt-in endpoints** (2026-05-04) — see § below
 - [ ] Account lockout after 5 failed TOTP attempts in 15 min
+
+## Admin/reviewer IP rate-limit bypass
+
+> **Status: LIVE 2026-05-04** (see `modules/01-auth/src/middleware/rate-limit.ts` + `apps/api/src/middleware/auth-chain.ts`).
+
+### What changed
+
+The per-IP rate-limit bucket (`aiq:rl:auth:ip:<ip>`, 10/min) is bypassed for verified admin/reviewer sessions on explicitly opted-in endpoints. The per-user (60/min) and per-tenant (600/min) buckets still apply even when the IP bucket is skipped.
+
+### Why
+
+Admins and reviewers re-click "Sign in with Google" during testing and normal login work. The 10/min per-IP limit is designed to stop anonymous brute-force attackers, not verified staff. Before this change, an admin in an office NAT (shared IP) could exhaust the limit within seconds, causing 429 errors and disrupting their own workflow.
+
+### Bypass conditions (all three must be true simultaneously)
+
+1. **Session loaded:** the request carries a valid `aiq_sess` cookie that `sessionLoader` resolved to a live Redis session.
+2. **Role is admin or reviewer:** `session.role IN ('admin', 'reviewer')` — explicit allowlist, NOT a denylist. Candidates are never bypassed.
+3. **TOTP verified:** `session.totpVerified === true` (strict boolean equality — not truthy coercion). Pre-MFA sessions (`totpVerified=false`) are not bypassed.
+
+If any condition is false, the standard 10/min/IP limit applies.
+
+### Opt-in flag is code-only
+
+The bypass is controlled by an `allowVerifiedAdminBypass: boolean` flag set **in the route definition** (in `authChain({ allowVerifiedAdminBypass: true })`). It is **never** read from `req.headers`, `req.query`, `req.body`, or `req.params`. A reviewer cannot smuggle a flag into the request to bypass the IP limiter.
+
+### Opt-in whitelist (these three endpoints are opted in)
+
+| Endpoint | Reason |
+|---|---|
+| `GET /api/auth/google/start` | Admin re-clicking SSO during testing/normal work |
+| `POST /api/auth/logout` | Admin aborting a session (should never be throttled) |
+| `GET /api/auth/whoami` | Admin SPA polls this frequently to check session state |
+
+### Always-strict blacklist (these are NEVER opted in)
+
+| Endpoint | Reason |
+|---|---|
+| `POST /api/auth/totp/verify` | TOTP brute-force class — must remain unconditionally strict |
+| `POST /api/auth/totp/recovery` | Recovery-code brute-force class |
+| `POST /api/auth/totp/enroll/confirm` | Enrollment confirm is also brute-forceable |
+| `GET /api/auth/google/cb` | OAuth callback — no session exists yet at callback time |
+| `POST /api/take/start` | Magic-link redemption — no session exists yet |
+
+### Response headers when bypass fires
+
+When the IP bucket is bypassed, the response includes:
+
+```
+X-RateLimit-Bypass: admin          (or "reviewer")
+X-RateLimit-Limit-User: 60
+X-RateLimit-Remaining-User: <n>
+X-RateLimit-Limit-Tenant: 600
+X-RateLimit-Remaining-Tenant: <n>
+```
+
+The standard `X-RateLimit-Limit` / `X-RateLimit-Remaining` headers are NOT emitted when bypass fires (they would be misleading — the IP bucket was not checked). The user and tenant headers provide the effective quota the request was counted against.
+
+### What was considered and rejected
+
+- **Option 2 (inline Redis lookup inside rateLimit):** rateLimit reads the session cookie and does its own Redis lookup before the IP check. Rejected — more complex, duplicates session-loading logic, increases Redis calls vs. the simple chain reorder.
+- **Bypass for candidate role:** rejected — candidates don't legitimately re-click `/api/auth/google/start`; adding bypass for them adds attack surface for no UX benefit.
+- **Bypassing user + tenant buckets in addition to IP:** rejected — IP is the attacker-class bucket (anonymous brute force). User and tenant buckets protect against individual abuse and noisy-neighbor, which still apply to verified staff.
+- **Per-environment bypass (e.g., production=strict, dev=permissive):** rejected as out of scope. A separate task can tune bucket sizes per NODE_ENV if needed.
+
+### What is NOT included
+
+- New bypass-eligible endpoints beyond the three listed above.
+- Changing the per-user (60/min) or per-tenant (600/min) thresholds.
+- A UI for admins to view their own rate-limit status.
+- Audit log entry when bypass fires (bypass is a rate-limit decision, not an admin action; debug log is emitted instead with `rate_limit_bypass: true`).
+
+### Downstream impact
+
+- `apps/api/src/middleware/auth-chain.ts`: chain reorder + `allowVerifiedAdminBypass` option added to `AuthChainOpts`.
+- `modules/01-auth/src/middleware/rate-limit.ts`: `allowVerifiedAdminBypass` option + `shouldBypassIpBucket()` helper + new response headers.
+- `modules/01-auth/src/__tests__/middleware.test.ts`: 9 bypass test cases (B1–B9) added.
+- `modules/01-auth/SKILL.md`: addendum decision #7 refinement sub-bullet.
 - [ ] Log every authentication outcome to `audit_log`
 - [ ] Periodic session sweeper (purge expired from Redis + Postgres)
 - [ ] Force re-auth on email change, role change, password reset

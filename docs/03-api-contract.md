@@ -11,6 +11,29 @@
 - **Idempotency:** state-changing endpoints accept `Idempotency-Key` header; repeated keys within 24h return the cached response.
 - **Timestamps:** all returned in ISO 8601 UTC.
 
+## Rate-limit response headers
+
+All `/api/auth/*` endpoints return rate-limit headers. The exact set depends on whether the admin/reviewer IP bypass fired:
+
+**Standard (IP bucket applied — anonymous or non-opt-in endpoint):**
+```
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: <n>
+Retry-After: <seconds>   (only on 429)
+```
+
+**Bypass active (verified admin/reviewer on opt-in endpoint — IP bucket skipped):**
+```
+X-RateLimit-Bypass: admin           (or "reviewer")
+X-RateLimit-Limit-User: 60
+X-RateLimit-Remaining-User: <n>
+X-RateLimit-Limit-Tenant: 600
+X-RateLimit-Remaining-Tenant: <n>
+Retry-After: <seconds>              (only on 429 for user/tenant exhaustion)
+```
+
+The `X-RateLimit-Bypass` header is observable by admin tooling and curl to confirm bypass is active. Its value is always a sanitized enum (`admin` or `reviewer`), never a raw user-controlled string. See `docs/04-auth-flows.md` § Admin/reviewer IP rate-limit bypass for the full opt-in whitelist and always-strict blacklist.
+
 ## Endpoint catalog
 
 ### Auth

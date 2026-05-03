@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { config, AuthnError, ValidationError } from '@assessiq/core';
 import { startGoogleSso, handleGoogleCallback } from '@assessiq/auth';
 import { getTenantBySlug } from '@assessiq/tenancy';
-import { publicAuthChain } from '../../middleware/auth-chain.js';
+import { authChain, publicAuthChain } from '../../middleware/auth-chain.js';
 
 // Google OIDC routes. Library handles RS256 JWKS verify, state+nonce CSRF,
 // JIT-link via oauth_identities, pre-MFA session mint. Route layer wires
@@ -23,11 +23,16 @@ const SAFE_RETURN_RE = /^\/(admin|take)\/[\w\-/.]{0,256}$/;
 
 export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/auth/google/start?tenant=<slug>&returnTo=/admin/...
+  // allowVerifiedAdminBypass=true: verified admins/reviewers re-clicking SSO
+  // during testing are not throttled by the per-IP bucket. The OAuth callback
+  // (/api/auth/google/cb) does NOT get the bypass — no session exists yet at
+  // callback time (it's the endpoint that CREATES the session).
+  const googleStartChain = authChain({ requireSession: false, allowVerifiedAdminBypass: true });
   app.get(
     '/api/auth/google/start',
     {
       config: { skipAuth: true },
-      preHandler: publicAuthChain,
+      preHandler: googleStartChain,
     },
     async (req, reply) => {
       const q = req.query as Record<string, string | undefined>;
