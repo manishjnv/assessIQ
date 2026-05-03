@@ -40,3 +40,8 @@ export { AdminQuestionEditor } from "./pages/question-editor.js";
 export { AdminBilling } from "./pages/billing.js";
 export { AdminHelpContent } from "./pages/help-content.js";
 export { AdminGuide } from "./pages/admin-guide.js";
+export { AdminQuestionBank } from "./pages/question-bank.js";
+export { AdminPackDetail } from "./pages/pack-detail.js";
+export { AdminAssessments } from "./pages/assessments.js";
+export { AdminAssessmentDetail } from "./pages/assessment-detail.js";
+export { AdminReports } from "./pages/reports.js";

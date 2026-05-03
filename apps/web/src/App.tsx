@@ -15,6 +15,11 @@ import {
   AdminHelpContent,
   AdminGuide,
   AdminShell,
+  AdminQuestionBank,
+  AdminPackDetail,
+  AdminAssessments,
+  AdminAssessmentDetail,
+  AdminReports,
 } from '@assessiq/admin-dashboard';
 import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
@@ -60,6 +65,15 @@ export function App(): JSX.Element {
           <Route path="/admin/settings/billing" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
           <Route path="/admin/settings/help-content" element={<RequireSession role="admin"><AdminHelpContent /></RequireSession>} />
           <Route path="/admin/guide" element={<RequireSession role="admin"><AdminShell breadcrumbs={["Help guide"]}><AdminGuide /></AdminShell></RequireSession>} />
+          {/* Question Bank pages (session 2026-05-04) */}
+          <Route path="/admin/question-bank" element={<RequireSession role="admin"><AdminQuestionBank /></RequireSession>} />
+          {/* /admin/question-bank/questions/:id must come before /:id to match literal segment */}
+          <Route path="/admin/question-bank/:id" element={<RequireSession role="admin"><AdminPackDetail /></RequireSession>} />
+          {/* Assessments (Cycles) pages (session 2026-05-04) */}
+          <Route path="/admin/assessments" element={<RequireSession role="admin"><AdminAssessments /></RequireSession>} />
+          <Route path="/admin/assessments/:id" element={<RequireSession role="admin"><AdminAssessmentDetail /></RequireSession>} />
+          {/* Reports landing (session 2026-05-04) */}
+          <Route path="/admin/reports" element={<RequireSession role="admin"><AdminReports /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 
           {/* Candidate /take/* subtree.
