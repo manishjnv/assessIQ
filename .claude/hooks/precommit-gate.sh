@@ -2,6 +2,24 @@
 # PreToolUse gate on Bash. Runs the global playbook's Phase 2 deterministic checks
 # against the staged diff before letting `git commit` through.
 # Exits 0 to allow, exits 2 (with stderr) to block.
+#
+# Checks wired here (diff-scoped, fast):
+#   1. Secrets scan (AKIA*, sk-*, gh*, etc.) — Phase 2 global playbook
+#   2. Hardcoded credential literals
+#   3. Un-tagged TODO/FIXME/XXX markers
+#   4. Phase 1 invariants: no ambient claude spawn, no Agent SDK outside
+#      07-ai-grading/runtimes/anthropic-api.ts, no 'domain === "soc"' hardcode
+#
+# Checks deliberately NOT wired here (whole-tree, run in CI instead):
+#   - RLS policy lint  (tools/lint-rls-policies.ts)
+#   - Edge-routing lint (tools/lint-edge-routing.ts)
+#   - Cross-module dep lint (tools/lint-cross-module-deps.ts) — CI step 13
+#     Reason: the missing-dep invariant is a property of the WHOLE tree
+#     ("does every declared import have a matching package.json entry?"),
+#     not of the staged diff alone. A pre-commit diff-only check would miss
+#     cases where the IMPORT already existed in an earlier commit but the
+#     package.json fix is in THIS commit. CI's whole-tree scan is correct.
+#   - No-ambient-AI lint (modules/07-ai-grading/ci/lint-no-ambient-claude.ts)
 
 set -uo pipefail
 
