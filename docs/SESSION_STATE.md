@@ -1,3 +1,64 @@
+# Session — 2026-05-04 (admin/reviewer IP rate-limit bypass on /api/auth/*)
+
+**Headline:** `4306701` — verified admins/reviewers bypass the 10/min per-IP bucket on opted-in `/api/auth/*` endpoints; per-user (60/min) and per-tenant (600/min) limits still apply.
+
+**Commits:**
+- `4306701` — feat(auth): admin/reviewer rate-limit bypass on opted-in /api/auth/* endpoints
+
+**Tests:** 104 passing; 7 pre-existing failures (6 × `audit_log` relation missing in `totp.test.ts`; 1 × JTI TTL flake in `embed-jwt.test.ts`). All 9 new bypass tests (B1–B9) pass. TypeScript typecheck clean on `@assessiq/auth` and `@assessiq/api`. Adversarial review (Copilot GPT-5 substituting for codex:rescue): **ACCEPTED** (12/12 checklist items passed).
+
+**Smoke tests:**
+- (a) verified-admin bypass headers on `/api/auth/google/start`: DEFERRED — Google OAuth creds still absent from `/srv/assessiq/.env`; no live admin session available on VPS. Bypass path proven by unit tests B1–B2.
+- (b) anonymous → 429 at 11th hit on `/api/auth/google/start`: **PASS** ✓ (hits 1-10 → 302, 11-12 → 429)
+- (c) TOTP/verify always strict (no bypass): **PASS** ✓ (hits 1-10 → 401 invalid code, 11-12 → 429; zero `X-RateLimit-Bypass` headers)
+- (d) verified-admin user bucket exhaustion at 61st hit: DEFERRED — same constraint as (a).
+
+**Next:** Google OAuth credentials wiring into `/srv/assessiq/.env` (unblocks full smoke tests a/d and Drills 1/3/4 from Phase 1 closure audit). Alternatively: Finding C fix (`inviteUsers tenantName:""` 500).
+
+**Open questions:**
+- Google OAuth credentials still empty in `/srv/assessiq/.env` — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C and/or missing Google OAuth).
+- `packages/embed-sdk`: missing `"lib": ["dom"]` in tsconfig (benign — fix before npm publish).
+
+---
+
+## What changed — 4306701
+
+**What changed:**
+- `modules/01-auth/src/middleware/rate-limit.ts`: Added `BYPASS_ROLES = new Set(["admin","reviewer"])`, `shouldBypassIpBucket(req, allowBypass)` helper (returns `false | "admin" | "reviewer"` — sanitized role string, never raw input), `allowVerifiedAdminBypass?: boolean` option in `RateLimitOptions`. When bypass fires: skips IP bucket, still runs user + tenant buckets, emits `X-RateLimit-Bypass: <role>`, `X-RateLimit-Limit-User: 60`, `X-RateLimit-Remaining-User: n`, `X-RateLimit-Limit-Tenant: 600`, `X-RateLimit-Remaining-Tenant: n`. Debug log with `rate_limit_bypass: true`. Three-condition AND gate: session loaded AND role in Set{admin,reviewer} AND `totpVerified === true` (strict boolean).
+- `modules/01-auth/src/middleware/types.ts`: Added `debug: (...args: unknown[]) => void` to `log?` interface (backward-compatible optional property).
+- `apps/api/src/middleware/auth-chain.ts`: Chain reordered from `[rateLimit, sessionLoader, ...]` to `[sessionLoader, rateLimit, ...]` (safe — `@fastify/cookie` runs as `onRequest` before all `preHandler`s). Two rate-limit instances: `_rateLimitDefault` (strict) and `_rateLimitBypass` (opt-in). `authChain(opts)` picks based on `opts.allowVerifiedAdminBypass === true`. `allowVerifiedAdminBypass?: boolean` added to `AuthChainOpts`.
+- `apps/api/src/routes/auth/google.ts`: `/api/auth/google/start` opts in with `allowVerifiedAdminBypass: true`. `/api/auth/google/cb` stays strict (no session exists at callback time).
+- `apps/api/src/routes/auth/logout.ts`: Opted in with `allowVerifiedAdminBypass: true`.
+- `apps/api/src/routes/auth/whoami.ts`: Opted in with `allowVerifiedAdminBypass: true`.
+- `modules/01-auth/src/__tests__/middleware.test.ts`: 9 new test cases (B1–B9) in `describe("admin/reviewer IP-bucket bypass")`.
+- `docs/04-auth-flows.md`: Updated middleware order section; added `## Admin/reviewer IP rate-limit bypass` section with full 5-part documentation.
+- `docs/03-api-contract.md`: Added `## Rate-limit response headers` section documenting bypass-active and standard header sets.
+- `modules/01-auth/SKILL.md`: Added refinement sub-bullet to decision #7 with full bypass feature summary.
+
+**Why it changed:** Verified admins performing manual grading review, bulk import, or repeated OAuth logins during audits were hitting the 10/min IP bucket designed for anonymous brute-force prevention. The bucket size is appropriate for unauthenticated endpoints but creates friction for high-frequency legitimate admin workflows. TOTP brute-force and per-user exhaustion protections are preserved.
+
+**What was considered and rejected:**
+- Raising the IP bucket limit globally (rejected — widens attack surface for anonymous brute-force).
+- Per-role bucket (rejected — adds Redis key complexity for minimal gain over opt-in flag).
+- Moving session lookup into a separate `preHandler` that runs before rate-limit (done — chain reorder; safe because cookie parsing is `onRequest`).
+- Opt-out model (allowing bypass by default, explicit opt-out for TOTP/MFA): rejected — unsafe default; load-bearing TOTP routes can be forgotten. Opt-in whitelist is smaller and auditable.
+- `totpVerified !== false` instead of `=== true`: rejected — strict bool prevents truthy-string injection (test B8 covers this).
+
+**What is NOT included:** Per-IP burst allowance for verified admins (rejected — user bucket handles frequency). Role expansion beyond admin/reviewer (candidates never bypass). Token/API-key paths (separate middleware).
+
+**Downstream impact:** Any new `/api/auth/*` routes wanting bypass must explicitly pass `allowVerifiedAdminBypass: true` to `authChain()` — opt-in by default. TOTP, MFA-setup, and email-confirm endpoints intentionally excluded. `modules/01-auth/SKILL.md` decision #7 is the canonical record.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet 4.6 (Copilot): full session — Phase 0 warm-start (12 files), plan, all implementation (7 files), 9 test cases, docs (3 files), all Phase 2 gates, commit/push, VPS deploy, smoke tests b+c
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — substituted by Copilot GPT-5 adversarial review (verdict: ACCEPTED, all 12 checklist items passed)
+
+---
+
 # Session — 2026-05-04 (admin pages plain-language rewrite: grading-jobs + billing)
 
 **Headline:** `da36e91` — `/admin/grading-jobs` and `/admin/settings/billing` rewritten in plain language for tenant admins; jargon moved to collapsible Technical details section.
