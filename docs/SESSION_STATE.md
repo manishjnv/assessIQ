@@ -1,3 +1,60 @@
+# Session — 2026-05-03 (tooling: lint-cross-module-deps shipped)
+
+**Headline:** `tools/lint-cross-module-deps.ts` shipped at `372838a` — catches missing `@assessiq/X` dep declarations (the recurring 3-instance RCA pattern) in <50ms. Scan result on main: **0 violations / 322 files / 24 packages**. Also found and fixed a 4th hidden instance (`tools/aiq-import-pack.ts` had undeclared root devDeps since Phase 1).
+
+**Commits (both on `origin/main`):**
+
+- `372838a` — feat(tooling): lint-cross-module-deps -- catches missing @assessiq/X dep declarations (5 files, 1118 insertions; adds the lint, CI step 13, precommit header, root devDeps, lockfile)
+
+**Tests:** 36/36 self-test assertions pass. Core packages (00-core, 01-auth, 02-tenancy, api) typecheck clean. `packages/embed-sdk` typecheck failure is pre-existing (missing DOM lib in tsconfig, unrelated to this session). Repo scan: 0 violations.
+
+**Next:** Push commit `372838a` to `origin/main` (noreply email pattern already set; push on next sync). Then: begin Phase 5 module 11-candidate-ui, or the git-clone-on-VPS conversion (see RCA 2026-05-03 § architectural debt), whichever the user prioritizes.
+
+**Open questions:**
+- Google OAuth credentials still not in `/srv/assessiq/.env` — admin SSO login returns 401.
+- `packages/embed-sdk` typecheck: missing `"lib": ["dom"]` in tsconfig — benign now but should be fixed before the embed-sdk npm publish.
+- git-clone-on-VPS conversion: still pending; every deploy from local Windows is multi-minute rsync.
+
+---
+
+## Implementation notes — lint-cross-module-deps
+
+**What changed:**
+- `tools/lint-cross-module-deps.ts` (new, 817 lines): the lint itself. Scans `.ts`/`.tsx` files recursively; walks up to nearest `package.json`; extracts `import`/`export`/dynamic-`import()` statements; asserts declared deps. 36 in-memory self-tests. `--check-unused` flag for declared-but-unused detection. Exit 0/1/2.
+- `.github/workflows/ci.yml` step 13: self-test first, then repo scan — both required-pass.
+- `.claude/hooks/precommit-gate.sh` header: explains why the lint is CI-only (whole-tree invariant, not diff-scope).
+- `package.json`: `lint:cross-module-deps` and `lint:cross-module-deps:self-test` scripts; `@assessiq/core` + `@assessiq/tenancy` added to root `devDependencies` (4th instance fix).
+- `pnpm-lock.yaml`: lockfile updated for root devDep additions.
+
+**Why it changed:** Three prod restart-loops in two months from the same root cause (73ad0b2, 8fff574, 81da5db). TypeScript cannot catch this class of bug because workspace deps resolve from the virtual store regardless of declarations; Node ESM runtime does not. The lint covers the gap.
+
+**What was considered and rejected:**
+- AST-based approach (ts-morph / @typescript-eslint/parser): rejected — adds a heavy dependency for no accuracy gain on this codebase's import patterns. Regex on import lines is sufficient and matches the project pattern from `lint-rls-policies.ts`.
+- Pre-commit hook integration as the primary enforcement: rejected — the invariant is whole-tree ("does every declared import have a package.json entry?"), not diff-scope. Pre-commit only sees staged changes; CI's full-tree scan is the correct enforcement layer.
+- Hardcoded module list: rejected — the scanner walks `REPO_ROOT` recursively, automatically covering new modules added in future phases.
+- Soft-failure (warn instead of fail): rejected per RCA pattern — warnings have 100% ignore rate; only exit 1 in CI prevents recurrence.
+
+**What is NOT included:**
+- Modifying any module's `package.json` to add deps (out of scope; the lint only reports violations).
+- `tools/lint-dockerignore-vs-copy.ts` (recommended in a different RCA 2026-05-03 § frontend Docker TS2307 cascade) — different pattern class, deferred.
+- VPS deploy (pure tooling session, no runtime change).
+
+**Downstream impact:**
+- Any new `import from "@assessiq/X"` without a corresponding `package.json` entry will fail CI step 13 immediately, before it can reach a deploy.
+- Future sessions can reference "cross-module dep lint" as an enforcement layer for this pattern class.
+- The `docs/RCA_LOG.md` 2026-05-03 entry now has a closure note with the SHA and scan result.
+- Root `package.json` now correctly declares `@assessiq/core` and `@assessiq/tenancy` as devDeps for root-level tool scripts.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet 4.6: full implementation (lint, CI wiring, hook documentation, root deps fix, docs update, commit); Phase 2 gates (self-test 36/36, repo scan 0 violations); Phase 5 seam review; debug of 3-layer false-positive bug (comment `*/` inside `**/ci/**`), dynamic import string-literal false positive, `aiq-import-pack.ts` 4th-instance real violation
+- Haiku 4.5: n/a
+- codex:rescue: judgment-skip — pure tooling lint, no runtime auth/classifier surface; documented in commit body
+
+---
+
 # Session — 2026-05-03 (Phase 4: embed-sdk full implementation — live)
 
 **Headline:** Phase 4 (module 12-embed-sdk) fully shipped: embed JWT ingestion, JIT user resolution, `aiq_embed_sess` session minting, CSP per-tenant, admin embed-origin management, privacy-disclosure gate, 4 schema migrations applied to production, 5/5 smoke tests green. All 34 files / 1743 insertions committed at `b20858b`, deployed, and documented.
