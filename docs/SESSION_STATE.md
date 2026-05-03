@@ -1,3 +1,50 @@
+# Session — 2026-05-04 (accept-invitation 500 fix)
+
+**Headline:** `30ba73d` — magic-link accept flow unblocked: `withSystemClient` now elevates to BYPASSRLS role before querying `user_invitations`; all future invitees can onboard without 500.
+
+**Commits:**
+- `30ba73d` — fix(invitations): accept flow no longer requires tenant context (was 500 on magic-link click)
+
+**Tests:** 29/30 pass in `@assessiq/users` (was 27/28 — +2 regression tests). Pre-existing API flakes unchanged (JTI TTL + Redis connection).
+
+**Workaround status:** `manishkumarjnvk@gmail.com` was manually activated at 2026-05-03T22:05Z via direct DB UPDATE — already active, no further action required. This fix unblocks future invitees.
+
+**Next:** Phase 1 closure audit Finding C fix — `inviteUsers tenantName:""` 500 (`05-lifecycle/src/service.ts:749`, fetch `tenant.name` from DB before `sendInvitationEmail` call).
+
+**Open questions:**
+- Google OAuth credentials still empty in `/srv/assessiq/.env` — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C).
+
+---
+
+## What changed — 30ba73d
+
+**What changed:**
+- `modules/03-users/src/repository.ts`: `withSystemClient` rewritten from a plain pool-client acquire (no transaction, no role switch) to `BEGIN + SET LOCAL ROLE assessiq_system + COMMIT/ROLLBACK`. This mirrors the `withTenant` pattern. The docstring updated to explain why role elevation is required and reference the 2026-05-03 incident.
+- `modules/03-users/src/__tests__/users.test.ts`: Added `import { withSystemClient }` from `../repository.js`. Added `describe('withSystemClient role elevation — regression 2026-05-03')` with two tests: (1) asserts `SELECT current_user` inside the callback equals `'assessiq_system'` (directly catches missing `SET LOCAL ROLE`); (2) full `acceptInvitation` with no caller tenant context asserting `result.user.tenant_id === tid`.
+- `modules/03-users/SKILL.md`: Test count updated 27 → 29; regression tests noted in parenthetical.
+
+**Why it changed:** Production `DATABASE_URL` connects as `assessiq_app` (RLS active, `NOINHERIT`). The `user_invitations` RLS policy evaluates `current_setting('app.current_tenant', true)::uuid`. On a connection with no tenant context, `current_setting` returns `''`; `''::uuid` → Postgres `INVALID_TEXT_REPRESENTATION` → HTTP 500. Test environment used superuser (BYPASSRLS unconditionally) so the bug was invisible in CI.
+
+**What was considered and rejected:**
+- Adding `WHERE tenant_id = $1` to `findInvitationByTokenHashSystem`: rejected — the tenant is unknown at lookup time; system-role token-only lookup is the only correct approach.
+- `SET ROLE` (session-level) instead of `SET LOCAL ROLE` (transaction-scoped): rejected — would pollute the pool connection for subsequent queries.
+- `SET LOCAL ROLE` without `BEGIN`: rejected — `SET LOCAL` is a no-op outside a transaction (per PG docs and existing `withTenant` comment).
+
+**What is NOT included:** Route handler changes (already clean — only passes `body.token`). Changes to `01-auth` or `02-tenancy`. Reverting the manual DB workaround (user already active).
+
+**Downstream impact:** `withSystemClient` is called only from `acceptInvitation` in `modules/03-users/src/invitations.ts`. No other callers. The `withTenant` and `withSystemClient` helpers now follow the same BEGIN/SET LOCAL/COMMIT/ROLLBACK transaction pattern.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet 4.6 (Copilot) only per user instruction
+- Sonnet 4.6 (Copilot): full session — Phase 0 warm-start (8 files), plan, 1-file code fix + 1-file test addition + SKILL.md update, all gates (typecheck, 29/30 tests, secrets, claude-grep, cross-module-deps, edge-routing), commit/push `30ba73d`, VPS deploy + smoke, RCA_LOG append, SESSION_STATE
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — judgment-skipped per user instruction (03-users + apps/api routes, not on load-bearing-paths list; no auth/classifier/infra changes)
+
+---
+
 # Session — 2026-05-04 (pack-detail pageSize 400 + questions error state)
 
 **Headline:** `2431ad5` — `GET /api/admin/questions?pageSize=200` was returning 400; cap raised to 500. Pack-detail now shows a styled error card with Retry when the questions fetch fails.
