@@ -1,3 +1,50 @@
+# Session — 2026-05-04 (admin pages plain-language rewrite: grading-jobs + billing)
+
+**Headline:** `da36e91` — `/admin/grading-jobs` and `/admin/settings/billing` rewritten in plain language for tenant admins; jargon moved to collapsible Technical details section.
+
+**Commits:**
+- `da36e91` — feat(admin-ui): rewrite grading-jobs + billing pages in plain language
+
+**Tests:** 17/17 admin-dashboard tests pass; Vite build 351 modules clean; 0 secrets hits; cross-module-deps 0 violations; claude/anthropic refs only inside `<details>` collapsible (not user-facing).
+
+**Next:** Phase 1 closure audit Finding C fix — `inviteUsers tenantName:""` 500 (fetch `tenant.name` from DB before email call in `inviteUsers`, `05-lifecycle:749`). Alternatively: Google OAuth credentials wiring.
+
+**Open questions:**
+- Browser smoke: user should open `/admin/grading-jobs` and `/admin/settings/billing` in the SSO session and confirm new copy renders, no jargon visible.
+- Google OAuth credentials still empty in `/srv/assessiq/.env` — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C).
+
+---
+
+## What changed — da36e91
+
+**What changed:**
+- `modules/10-admin-dashboard/src/pages/grading-jobs.tsx`: Rewrote from a single "Phase 1 mode — sync grading" stub to four plain-language Cards: "How grading works", "Reviewing AI grades", "If grading fails", "Coming soon". Uses `Card`, `Chip`, `Icon` from `@assessiq/ui-system`. Footer link to `/admin/guide`. `<details>` collapsible preserves original dev-speak (Phase 2 mode, BullMQ, P2.D3) for engineers. Breadcrumb updated from "Grading Jobs" to "Grading".
+- `modules/10-admin-dashboard/src/pages/billing.tsx`: Rewrote from Phase 2/Max OAuth stub to three plain-language Cards: "How AI grading is paid for today", "Your monthly grading limit", "Why a limit?". Uses same primitives + footer link to `/admin/guide`. `<details>` collapsible preserves P2.D6 / `tenant_grading_budgets` / Max OAuth context for engineers. H1 updated from "Billing & budgets." to "Billing & limits." to match copy spec.
+- `modules/10-admin-dashboard/SKILL.md`: Status note added for the 2026-05-04 plain-language rewrite.
+
+**Why it changed:** The existing copy assumed the reader understood internal build-phase labels, tool names (BullMQ), database internals, and decision IDs (P2.D6). A SOC manager at Wipro seeing "Phase 1 mode — sync grading" or "P2.D6 budget cap" has no actionable information. The rewrite answers "what does this mean for me right now?" directly.
+
+**What was considered and rejected:**
+- "Grade now" (from Opus-drafted copy) → corrected to "Grade all" (matches the actual button label on `attempt-detail.tsx`).
+- Removing the Technical details section entirely: rejected — preserves internal context for engineering/audit purposes without exposing it to non-technical admins.
+- Adding new ui-system primitives: rejected per anti-patterns (uses existing Card/Chip/Icon only).
+- Using `navigate()` for footer links instead of `<a href>`: used `navigate()` + button to match existing in-app patterns (no page reload).
+
+**What is NOT included:** Actual usage metrics / cost graphs (ships when direct AI billing lands); real AssessIQ administrator contact details (per-tenant ops detail, left as generic instruction); any business logic changes (budget caps, error envelopes, grading mode — copy-only change).
+
+**Downstream impact:** Users visiting these two pages now see actionable plain-language copy. The Technical details collapsible is the canonical internal-engineer source of truth for current Phase 2 mode details. Future sessions adding usage metrics to billing should remove or update the "How AI grading is paid for today" card at that time.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet 4.6 (Copilot): full session — Phase 0 warm-start (8 files), verification of UI affordances (attempt-detail.tsx, Icon.tsx), both page rewrites, SKILL.md update, all gates, commit/push, VPS deploy
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — pure UI copy/presentation change, no auth/classifier/load-bearing-path changes
+
+---
+
 # Session — 2026-05-04 (admin guide: verbatim content fix + claude ref removal)
 
 **Headline:** `02b42a3` — admin-guide content updated to verbatim spec; "Claude Code CLI" references removed (hard rule violation in prior commit `6c28a29`).
