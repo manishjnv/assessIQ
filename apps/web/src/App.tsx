@@ -13,6 +13,7 @@ import {
   AdminQuestionEditor,
   AdminBilling,
   AdminHelpContent,
+  AdminGuide,
   AdminShell,
 } from '@assessiq/admin-dashboard';
 import { InviteAccept } from './pages/invite-accept';
@@ -58,6 +59,7 @@ export function App(): JSX.Element {
           <Route path="/admin/question-bank/questions/:id" element={<RequireSession role="admin"><AdminQuestionEditor /></RequireSession>} />
           <Route path="/admin/settings/billing" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
           <Route path="/admin/settings/help-content" element={<RequireSession role="admin"><AdminHelpContent /></RequireSession>} />
+          <Route path="/admin/guide" element={<RequireSession role="admin"><AdminShell breadcrumbs={["Help guide"]}><AdminGuide /></AdminShell></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 
           {/* Candidate /take/* subtree.

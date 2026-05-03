@@ -112,3 +112,4 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | Brand visuals — typography, palette, screen-layout templates, component idioms (read before designing any new page) | `docs/10-branding-guideline.md` |
 | How a host app embeds AssessIQ | `docs/09-integration-guide.md` |
 | What a specific module does | `modules/<n>-<name>/SKILL.md` |
+| How to conduct an assessment end-to-end (L1→L3) | `/admin/guide` (live admin UI) and this table row |
