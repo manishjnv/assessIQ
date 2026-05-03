@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "assessiq": {
+      "command": "node",
+      "args": ["/srv/assessiq/mcp/dist/server.js"],
+      "env": {}
+    }
+  }
+}

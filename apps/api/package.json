@@ -20,6 +20,7 @@
     "@assessiq/question-bank": "workspace:*",
     "@assessiq/assessment-lifecycle": "workspace:*",
     "@assessiq/attempt-engine": "workspace:*",
+    "@assessiq/ai-grading": "workspace:*",
     "@assessiq/help-system": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "fastify": "^5.0.0",

@@ -1,0 +1,46 @@
+{
+  "id": "sample-soc-l1-subjective-001",
+  "type": "subjective",
+  "question": {
+    "title": "Incident Response — Lateral Movement and Credential Compromise",
+    "text": "A threat hunt in your SOC reveals that a single Windows workstation (WS-14) was compromised via a spear-phishing attachment. Within four hours, Splunk shows SMB authentication events from WS-14 to six other internal hosts using the credentials of a domain service account (svc_backup). Describe: (1) the technique the attacker most likely used to obtain and reuse the service account credentials, (2) how you would confirm lateral movement occurred, and (3) the immediate containment steps you would take."
+  },
+  "rubric": {
+    "anchors": [
+      {
+        "id": "a1",
+        "label": "lateral movement",
+        "synonyms": ["T1021", "east-west", "pivot", "SMB authentication", "internal hosts", "move laterally", "moving between", "network traversal"],
+        "weight": 12
+      },
+      {
+        "id": "a2",
+        "label": "credential reuse",
+        "synonyms": ["credential stuffing", "pass-the-hash", "PtH", "NTLM relay", "credential dumping", "Mimikatz", "LSASS", "stolen credentials", "hash extracted", "svc_backup credentials"],
+        "weight": 12
+      },
+      {
+        "id": "a3",
+        "label": "containment action",
+        "synonyms": ["isolate", "quarantine", "disable account", "block", "reset credentials", "segment", "firewall rule", "pull off network", "disable the service account"],
+        "weight": 12
+      },
+      {
+        "id": "a4",
+        "label": "forensic confirmation",
+        "synonyms": ["event log", "4624", "4648", "Windows Security log", "Splunk query", "SIEM alert", "authentication log", "network traffic analysis", "correlate", "confirm lateral"],
+        "weight": 12
+      }
+    ],
+    "anchor_weight_total": 48,
+    "reasoning_weight_total": 12,
+    "bands": {
+      "0": "No relevant technical content. Answer is blank, off-topic, or consists only of filler.",
+      "1": "Identifies one or two keywords (e.g. mentions 'credentials' or 'lateral movement') without explaining the technique, confirmation method, or containment steps. Significant gaps in all three areas.",
+      "2": "Partially addresses two of the three parts. Explains credential reuse OR lateral movement at a surface level, names a containment step without detail. Missing one entire part (e.g. no forensic confirmation).",
+      "3": "Addresses all three parts with reasonable technical depth. Correctly identifies a credential-reuse technique (e.g. pass-the-hash / credential dumping), describes SMB-based lateral movement, proposes concrete containment steps. May lack specificity on log events or miss one sub-detail.",
+      "4": "Comprehensive and precise. Names specific technique (e.g. pass-the-hash via NTLM, or credential dumping via LSASS/Mimikatz), references specific Windows event IDs (4624/4648) or equivalent SIEM queries for confirmation, and provides a prioritised containment checklist (isolate WS-14, disable svc_backup, reset domain credentials, segment affected hosts). Demonstrates SOC-L1 operational readiness."
+    }
+  },
+  "candidate_answer": "The attacker likely used pass-the-hash to reuse the svc_backup service account credentials after dumping the NTLM hash from WS-14's memory, possibly via a tool like Mimikatz targeting LSASS. This is a classic credential reuse technique that doesn't require the plaintext password.\n\nTo confirm lateral movement, I would query our SIEM for Windows Security event ID 4624 (logon type 3 — network logon) and 4648 (explicit credential use) on the six destination hosts, filtering for source WS-14 and the svc_backup account during the four-hour window. A spike in successful network logons from a single workstation to multiple hosts within a short time is a strong indicator.\n\nFor immediate containment, I would: isolate WS-14 from the network by disabling its switch port or applying a quarantine VLAN, disable the svc_backup domain account immediately to stop further lateral movement, force a password reset for all accounts that authenticated from WS-14, and segment the six impacted hosts pending forensic investigation. I would also alert the incident commander to escalate to a full IR engagement."
+}

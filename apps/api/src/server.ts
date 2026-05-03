@@ -15,6 +15,7 @@ import { registerAuthRoutes } from './routes/auth/index.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
 import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes } from '@assessiq/attempt-engine';
+import { registerGradingRoutes } from '@assessiq/ai-grading';
 import {
   registerHelpPublicRoutes,
   registerHelpAuthRoutes,
@@ -154,6 +155,14 @@ export async function buildServer() {
   // forward /take/* to assessiq-api — see RCA 2026-05-02 § Caddy /help/* fix
   // for the additive-matcher procedure.
   await registerAttemptTakeRoutes(app, { publicChain: authChain({ requireSession: false }) });
+
+  // AI grading admin routes — mounts /api/admin/{attempts,gradings,dashboard,grading-jobs,settings}/*
+  // per docs/03-api-contract.md § Admin — Grading & review. Override requires
+  // fresh MFA (5min) per D8. See modules/07-ai-grading/SKILL.md.
+  await registerGradingRoutes(app, {
+    adminOnly: authChain({ roles: ['admin'] }),
+    adminFreshMfa: authChain({ roles: ['admin'], freshMfaWithinMinutes: 5 }),
+  });
 
   // Help-system routes. Public + track are anonymous (no preHandler chain
   // needed; the global tenancy hook auto-skips when req.session is absent).

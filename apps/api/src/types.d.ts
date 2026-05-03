@@ -24,7 +24,7 @@ declare module 'fastify' {
     };
     session?: Pick<
       Session,
-      'id' | 'userId' | 'tenantId' | 'role' | 'totpVerified' | 'expiresAt' | 'lastTotpAt'
+      'id' | 'userId' | 'tenantId' | 'role' | 'totpVerified' | 'expiresAt' | 'lastSeenAt' | 'lastTotpAt'
     >;
     apiKey?: Pick<ApiKeyRecord, 'id' | 'tenantId' | 'scopes'>;
     tenant?: { id: string };

@@ -1,0 +1,32 @@
+{
+  "id": "sample-soc-l1-subjective-001",
+  "anchors": [
+    {
+      "anchor_id": "a1",
+      "hit": true,
+      "evidence_quote_substring": "lateral movement",
+      "confidence_min": 0.85
+    },
+    {
+      "anchor_id": "a2",
+      "hit": true,
+      "evidence_quote_substring": "pass-the-hash",
+      "confidence_min": 0.90
+    },
+    {
+      "anchor_id": "a3",
+      "hit": true,
+      "evidence_quote_substring": "isolate WS-14",
+      "confidence_min": 0.85
+    },
+    {
+      "anchor_id": "a4",
+      "hit": true,
+      "evidence_quote_substring": "event ID 4624",
+      "confidence_min": 0.90
+    }
+  ],
+  "band": 3,
+  "error_class": null,
+  "adversarial": false
+}

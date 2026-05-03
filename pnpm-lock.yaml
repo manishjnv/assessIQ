@@ -57,6 +57,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@assessiq/ai-grading':
+        specifier: workspace:*
+        version: link:../../modules/07-ai-grading
       '@assessiq/assessment-lifecycle':
         specifier: workspace:*
         version: link:../../modules/05-assessment-lifecycle
@@ -326,12 +329,21 @@ importers:
 
   modules/07-ai-grading:
     dependencies:
+      '@assessiq/attempt-engine':
+        specifier: workspace:*
+        version: link:../06-attempt-engine
+      '@assessiq/auth':
+        specifier: workspace:*
+        version: link:../01-auth
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:../02-tenancy
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.5
       zod:
         specifier: ^3.23.8
         version: 3.25.76

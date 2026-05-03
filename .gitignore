@@ -75,3 +75,7 @@ var/
 
 # The literal brace-expansion folder — left untracked until reviewed
 {docs,modules,infra}/
+
+# Eval harness run output and blessed baselines (large; admin-local)
+modules/07-ai-grading/eval/runs/*/
+modules/07-ai-grading/eval/baselines/*.json
