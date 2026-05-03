@@ -25,10 +25,6 @@
  * sha256 hash is persisted; the plaintext is placed in the invitation link
  * (email body only) and never logged or stored.
  *
- * tenantName in sendInvitationEmail:
- * Phase 1 passes an empty string for tenantName — the service does not fetch
- * tenants.name (no tenancy module helper for that yet). Flagged at each call
- * site; a follow-up should pull tenants.name inside the withTenant scope.
  */
 
 import {
@@ -39,6 +35,7 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant, getPool } from "@assessiq/tenancy";
+import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import { hashInvitationToken } from "./tokens.js";
 import type { PoolClient } from "pg";
 import * as repo from "./repository.js";
@@ -667,6 +664,12 @@ export async function inviteUsers(
   log.info({ tenantId, assessmentId, userCount: userIds.length }, "inviteUsers");
 
   return withTenant(tenantId, async (client) => {
+    // Fetch tenant name once — single DB hit, held for all invitees in this
+    // batch. Uses the already-open client (inside withTenant transaction) so
+    // no extra round-trip. Fallback: name → slug → tenantId so tenantName is
+    // always non-empty; 13-notifications Zod .min(1) stays strict.
+    const tenantRow = await tenancyRepo.findTenantById(client, tenantId);
+    const tenantName = tenantRow?.name || tenantRow?.slug || tenantId;
     // a. Read assessment
     const assessment = await repo.findAssessmentById(client, assessmentId);
     if (assessment === null) {
@@ -737,16 +740,15 @@ export async function inviteUsers(
       // Build the accept URL with plaintext token (email body only)
       const invitationLink = `${PUBLIC_URL}/invite/${plaintext}`;
 
-      // Send via 13-notifications shim — never inline SMTP here
-      // TODO (follow-up): pass tenants.name instead of empty string once the
-      // tenancy module exports a getTenantName(client, tenantId) helper.
+      // Send via 13-notifications shim — never inline SMTP here.
+      // tenantName resolved above via tenancyRepo.findTenantById (same client).
       await sendInvitationEmail({
         to: user.email,
         candidateName: user.name,
         assessmentName: assessment.name,
         invitationLink,
         expiresAt,
-        tenantName: "",
+        tenantName,
       });
 
       invited.push(invitation);
