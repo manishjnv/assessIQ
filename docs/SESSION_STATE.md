@@ -1,33 +1,42 @@
-# Session — 2026-05-03 (Phase 1 Closure Verification — PARTIAL)
+# Session — 2026-05-03 (G2.B Session 3 — 09-scoring shipped)
 
-**Headline:** Phase 1 closure audit (5 drills) run against `assessiq.automateedge.cloud`. Drills 2 (RLS isolation) and 5 (VPS additive-deploy) PASS. Drill 3 steps 1-4 PASS (token security — no enumeration oracle). Drill 1 fails at Step 9 (invite → 500: `tenantName:""` × notifications Zod `.min(1)` cross-phase regression). Drills 3 step 5 + Drill 4 BLOCKED pending Drill 1 fix. Phase 1 formally NOT CLOSED — re-audit required after fixing `05-assessment-lifecycle/src/service.ts:749`.
+**Headline:** `@assessiq/scoring` module shipped — attempt_scores table, cohort stats, archetype derivation, leaderboard, 4 admin endpoints. 29/29 tests pass. Live on production VPS.
 
-**Commits:** `d5113dc — docs(phase-1): closure verification — PARTIAL` (3 files, +135/−96). `<session-handoff-sha pending>` — docs(session): Phase 1 closure handoff. Both on `origin/main`.
+**Commits:**
+- `64a4d28 — feat(scoring): attempt_scores + cohort + archetype + leaderboard (09-scoring)` — 20 files, 2532 insertions
+- `<handoff-sha> — docs(session): G2.B Session 3 — 09-scoring shipped` — SESSION_STATE + RCA update
 
-**Tests:** Operational drills only (no unit tests changed). Drill 1=PARTIAL/FAIL(step9), Drill 2=PASS, Drill 3=PARTIAL(steps1-4 PASS/step5 SKIPPED), Drill 4=BLOCKED, Drill 5=PASS.
+**Tests:** 29/29 pass (`pnpm --filter @assessiq/scoring exec vitest run`). Pure-unit: 16 (deriveArchetype×10, computeSignals×6). Integration: 13 (computeAttemptScore×5, cohortStats×2, leaderboard×3, getAttemptScoreRow×2, individualReport×1). Workspace typecheck: 17/17 packages clean.
 
-**Next:** Fix `modules/05-assessment-lifecycle/src/service.ts:749` — fetch `tenant.name` from tenant row (available inside `withTenant` context: `SELECT name FROM tenants WHERE id = $1`) instead of passing `tenantName:""`. Then re-run Phase 1 closure audit Drills 1/3(step5)/4.
+**Next:** Fix Phase 1 closure regression — `modules/05-assessment-lifecycle/src/service.ts:749` `tenantName:""` → fetch `tenant.name` from DB. Then re-run closure drills 1/3(step5)/4.
 
 **Open questions:**
-- Should Finding A/B (route validation 500→400) be fixed in the same session as Finding C, or separately?
-- Test entities in production (`phase1-closure-test` pack + 3q + assessment + candidate user `drill1-candidate@closure-audit.test`) — leave or clean up?
-- Admin session (Redis key `aiq:sess:9377622d...`, EX 28800) expires 2026-05-03T20:31Z — will self-clean.
+- Test entities in production (phase1-closure-test pack + entities from closure audit) — leave or clean up?
+- Phase 1 is still formally NOT CLOSED pending the tenantName fix.
 
 ---
 
-## Drill outcomes
+## Agent utilization
+- Opus: n/a — Sonnet-only session by user instruction
+- Sonnet: full implementation — 11 new files (migration, types, archetype, repository, service, routes, index, tests) + 4 modified files (server.ts, admin-accept.ts, package.json ×2) + 3 doc updates (SKILL.md, 02-data-model.md, 03-api-contract.md) + typecheck/test gate iteration + deploy
+- Haiku: n/a — Sonnet handled all bulk reads inline
+- codex:rescue: n/a — judgment-skipped (09-scoring not on load-bearing paths per CLAUDE.md)
 
-| Drill | Steps | Result | Root cause of failure |
-|---|---|---|---|
-| **D1** — Candidate happy path | 1-8 PASS; step 9 FAIL | PARTIAL | `05-lifecycle:749` `tenantName:""` rejected by `13-notifications` Zod `.min(1)` → ZodError inside `withTenant` → rollback → 0 rows in `assessment_invitations` |
-| **D2** — Tenant RLS isolation | All PASS | PASS | — |
-| **D3** — Token security | Steps 1-4 PASS; step 5 SKIPPED | PARTIAL | Step 5 blocked (no valid invitation token; same root cause as D1) |
-| **D4** — Autosave + timer | All BLOCKED | BLOCKED | Requires valid invitation token (D1 blocker) |
-| **D5** — VPS additive-deploy | All PASS | PASS | — |
+---
 
-### Drill 1 detail (steps 1-8 PASS)
-- Step 1 check: admin session `GET /api/auth/whoami` → 200 ✓
-- Step 2: `POST /api/admin/packs` (slug=phase1-closure-test) → 201, id=`019dedd6-0a04-7b2e-9877-c5c77d1e80a7` ✓
+## Prior session (Phase 1 Closure Verification — PARTIAL) — archived below
+
+### Summary
+Phase 1 closure audit (5 drills) against `assessiq.automateedge.cloud`. Drills 2 (RLS) and 5 (VPS additive-deploy) PASS. Drill 1 fails Step 9 (invite → 500: `tenantName:""` × notifications Zod `.min(1)`). Phase 1 NOT CLOSED — re-audit after fixing `05-assessment-lifecycle/src/service.ts:749`.
+
+| Drill | Steps | Result |
+|---|---|---|
+| D1 — Candidate happy path | 1-8 PASS; step 9 FAIL | PARTIAL |
+| D2 — Tenant RLS isolation | All PASS | PASS |
+| D3 — Token security | Steps 1-4 PASS; step 5 SKIPPED | PARTIAL |
+| D4 — Autosave + timer | All BLOCKED | BLOCKED |
+| D5 — VPS additive-deploy | All PASS | PASS |
+
 - Step 3: `POST /api/admin/levels` (L1 - SOC Analyst) → 201, id=`019dedd6-2a3d-746d-8e05-36c3ef5d6ee5` ✓
 - Step 4: `POST /api/admin/questions` Q1 MCQ (Incident Response, 20pts) → 201, id=`019dedd8-0aa2-7fac-b8a6-1ba8e1f8040a` ✓
 - Step 5: Q2 Subjective (Threat Analysis, 25pts) → 201, id=`019dedd9-a7bd-7f6c-ba78-cc2f9a077751` ✓
