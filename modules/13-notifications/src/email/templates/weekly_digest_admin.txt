@@ -1,0 +1,16 @@
+Subject: Weekly digest — {{tenantName}} — week ending {{weekEnding}}
+
+Weekly Summary for {{tenantName}}
+Week ending: {{weekEnding}}
+
+Assessment Activity
+-------------------
+Total attempts:        {{totalAttempts}}
+Completed attempts:    {{completedAttempts}}
+Graded this week:      {{gradedThisWeek}}
+Pending review:        {{pendingReview}}
+
+View your dashboard:
+{{dashboardLink}}
+
+— The AssessIQ Team
