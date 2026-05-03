@@ -85,7 +85,7 @@ export function AdminLogin(): JSX.Element {
                 icon by default per Chip.tsx; matches the green-dot status
                 pattern in screens/login.jsx. */}
             <span style={{ display: 'inline-block', marginBottom: 24 }}>
-              <Chip variant="success">Welcome back</Chip>
+              <Chip variant="success">Welcome</Chip>
             </span>
             <h1
               className="aiq-serif"
@@ -142,13 +142,7 @@ export function AdminLogin(): JSX.Element {
           </div>
         </div>
 
-        {/* Mono footer — template idiom: version on left, compliance on right.
-            Values reflect honest Phase 0 status. */}
-        <div style={{ ...META_LABEL, display: 'flex', gap: 16 }}>
-          <span>Phase 0 · 2026</span>
-          <span style={{ flex: 1 }} />
-          <span>Google SSO · TOTP-ready</span>
-        </div>
+
       </main>
 
       {/* Right — admin-context visual panel. Preserves the template's
@@ -173,7 +167,6 @@ export function AdminLogin(): JSX.Element {
           }}
         >
           <div style={{ width: '100%', maxWidth: 460, textAlign: 'left' }}>
-            <Chip variant="accent" leftIcon="sparkle">Phase 0</Chip>
             <p
               className="aiq-serif"
               style={{
