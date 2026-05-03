@@ -1129,7 +1129,12 @@ describe("Cross-tenant RLS isolation", () => {
 // 8. Dev-email log assertion
 // ===========================================================================
 
-describe("Dev-email log — invitation.assessment template written to stub", () => {
+// NOTE: template_id in the dev-emails log is 'invitation_candidate' (the
+// Handlebars template name from email/templates/invitation_candidate.txt).
+// Phase 0 email-stub.ts wrote 'invitation.assessment' directly; Phase 3
+// G3.B replaced that path with legacy-shims → sendEmail → renderTemplate,
+// which uses the Handlebars template name as template_id.
+describe("Dev-email log — invitation_candidate template written to stub", () => {
   let savedEnv: string | undefined;
   let logPath: string;
   let packId: string;
@@ -1173,7 +1178,7 @@ describe("Dev-email log — invitation.assessment template written to stub", () 
     }
   });
 
-  it("dev-emails.log has at least one record with template_id === 'invitation.assessment'", async () => {
+  it("dev-emails.log has at least one record with template_id === 'invitation_candidate'", async () => {
     const raw = await readFile(logPath, "utf-8");
     const lines = raw.trim().split("\n").filter(Boolean);
     expect(lines.length).toBeGreaterThanOrEqual(1);
@@ -1186,7 +1191,7 @@ describe("Dev-email log — invitation.assessment template written to stub", () 
       template_id: string;
     });
 
-    const match = records.find((r) => r.template_id === "invitation.assessment");
+    const match = records.find((r) => r.template_id === "invitation_candidate");
     expect(match).toBeDefined();
     expect(match!.to).toBe(candidateEmail);
   });
@@ -1203,7 +1208,7 @@ describe("Dev-email log — invitation.assessment template written to stub", () 
     });
 
     const match = records.find(
-      (r) => r.template_id === "invitation.assessment" && r.to === candidateEmail,
+      (r) => r.template_id === "invitation_candidate" && r.to === candidateEmail,
     );
     expect(match).toBeDefined();
 
@@ -1217,6 +1222,33 @@ describe("Dev-email log — invitation.assessment template written to stub", () 
     expect(match!.to).not.toContain(tokenInBody!);
     expect(match!.subject).not.toContain(tokenInBody!);
     expect(match!.template_id).not.toContain(tokenInBody!);
+  });
+
+  it("tenantName is fetched from DB — body contains real tenant name, NOT empty string", async () => {
+    // Regression guard for the cross-phase bug (05-lifecycle:749 × 13-notifications Zod):
+    // inviteUsers previously passed tenantName:"" causing a ZodError + DB rollback.
+    // After the fix, the real tenant name must appear in the email body.
+    // tenantA was seeded in beforeAll with name "Tenant A".
+    const raw = await readFile(logPath, "utf-8");
+    const lines = raw.trim().split("\n").filter(Boolean);
+    const records = lines.map((l) => JSON.parse(l) as {
+      ts: string;
+      to: string;
+      subject: string;
+      body: string;
+      template_id: string;
+    });
+
+    const match = records.find(
+      (r) => r.template_id === "invitation_candidate" && r.to === candidateEmail,
+    );
+    expect(match).toBeDefined();
+
+    // The invitation_candidate template renders: "AssessIQ ({{tenantName}})"
+    // With tenantName:"" that would be "AssessIQ ()" AND the Zod .min(1) would
+    // have thrown before we got here. The real name must be present.
+    expect(match!.body).toContain("AssessIQ (Tenant A)");
+    expect(match!.body).not.toContain("AssessIQ ()");
   });
 });
 
