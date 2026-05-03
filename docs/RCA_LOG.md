@@ -620,3 +620,41 @@ Additionally, `modules/02-tenancy/package.json` was missing `@assessiq/audit-log
 1. **Cross-phase placeholder strings must fail fast.** Any `TODO: pass real X` comment at a call site where the downstream has a Zod schema is a latent 500. Prevention: the regression test added here ensures `tenantName: ""` always throws; future callers are caught at test time.
 2. **Dependency declarations must be complete before shipping.** `02-tenancy/src/service.ts` imported `@assessiq/audit-log` at ship time (Phase 3 G3.A) but the package.json dependency was not added. Prevention: `pnpm typecheck` passes even with missing workspace declarations (TypeScript resolves across workspaces), but runtime Vite resolution fails. Add a CI step or convention: every new `import from "@assessiq/X"` in a module requires a corresponding `"@assessiq/X": "workspace:*"` in that module's `package.json`.
 3. **Phase N regressions on Phase N-1 callers.** When Phase 3 G3.B shipped stricter Zod validation, existing Phase 1 callers were not audited. Prevention: SKILL.md files for notification modules should document caller contract requirements (e.g., "tenantName: non-empty string required, validated by Zod before send").
+
+---
+
+## 2026-05-03 — Frontend deploy stalled multi-hour: stale `Dockerfile.dockerignore` drift after G2.C shipped
+
+**Symptom:** Phase 2 G2.C admin-dashboard frontend deploy session stalled for hours. Sonnet's deploy step rsync'd ~949 MB of source + `node_modules` from local Windows to VPS. After source landed, `docker compose -f infra/docker-compose.yml build assessiq-frontend` failed with `failed to compute cache key: failed to calculate checksum of ref ...: "/modules/06-attempt-engine": not found`. Verbose `--progress=plain` revealed 8 "not found" errors for modules 03/04/05/06/07/08/09/10. The directories existed on disk with correct permissions; `find . -xtype l` found no broken symlinks; standalone `docker buildx build .` from inside one of the failing module dirs succeeded. BuildKit cache prune didn't help; legacy `DOCKER_BUILDKIT=0` builder failed differently (apps/web/package.json not in context — confirming root `.dockerignore` is the wrong file for the frontend).
+
+**Cause:** `infra/docker/assessiq-frontend/Dockerfile.dockerignore` (per-Dockerfile dockerignore — overrides root `.dockerignore` per BuildKit semantics) explicitly excluded `modules/{03-users, 04-question-bank, 05-assessment-lifecycle, 06-attempt-engine, 07-ai-grading, 08-rubric-engine, 09-scoring, 10-admin-dashboard}` because pre-G2.C the `apps/web` closure was only `@assessiq/{ui-system, candidate-ui, help-system, core, tenancy}`. G2.C `18fece2` added `apps/web → @assessiq/admin-dashboard`, which transitively pulls all 8 backend modules via type re-exports. Sonnet's `4807ba5 fix(frontend): update Dockerfile with admin-dashboard modules + skip tsc for docker build` correctly added 8 new `COPY modules/0X-...` lines to the Dockerfile but did NOT update the matching exclude list in `Dockerfile.dockerignore`. Result: Dockerfile says "COPY modules/10-admin-dashboard/" while dockerignore says "exclude modules/10-admin-dashboard"; BuildKit honors the exclude → directory invisible in the build context → "not found". Multi-hour rsync was incidental cover for the underlying drift bug.
+
+**Fix:** `infra/docker/assessiq-frontend/Dockerfile.dockerignore` — comment out the 8 module excludes (modules/0[3-9]- + modules/10-admin-dashboard) with explanatory `# UNEXCLUDED for G2.C (admin-dashboard transitive closure):` prefix. Commit `e1e27bf fix(infra): unexclude G2.C modules from frontend Dockerfile.dockerignore`. Verified live: assessiq-frontend rebuilt in 32s (vs the multi-hour rsync grind), container healthy, `/admin/dashboard` + `/admin/attempts` + `/admin/login` all return 200 with the new JS bundle `index-CqLC_h7V.js`.
+
+**Prevention:**
+
+1. **Dockerfile / Dockerfile.dockerignore drift detection.** Add a CI lint at `tools/lint-dockerignore-vs-copy.ts` that for each `infra/docker/*/Dockerfile`: (a) parses every `COPY <path>` instruction, (b) parses the matching `Dockerfile.dockerignore`, (c) asserts that every `COPY` source path is NOT excluded by any pattern in the dockerignore. Run as part of `.github/workflows/ci.yml` deterministic gates. Catches the exact class of bug that bit today.
+2. **Frontend transitive closure documentation.** Add a section to `infra/docker/assessiq-frontend/Dockerfile.dockerignore` header comment listing the current closure (currently 8 modules; will grow as Phase 4 adds embed-sdk). When the closure changes, both Dockerfile + Dockerignore + the comment must be updated together.
+3. **Multi-hour rsync as a smell.** When deploy time exceeds ~5 minutes for a frontend rebuild, that's a sign the deploy architecture itself is wrong. See the next RCA entry for the architectural fix (git-clone-on-VPS vs rsync-from-local).
+
+---
+
+## 2026-05-03 — Architectural debt: `/srv/assessiq/` is not a git clone — every deploy is rsync-from-local
+
+**Symptom:** Surfaced today during the G2.C deploy stall. Investigation revealed `/srv/assessiq/` on the production VPS is a flat copy of the repo (no `.git` directory; `git status` errors with `fatal: not a git repository`). All deploys since Phase 0 G0.A have been performed by rsync'ing the source tree (and accidentally `node_modules`, `apps/storybook/storybook-static`, etc.) from a developer's local machine to the VPS. Today's session burned hours rsyncing 949 MB of node_modules at ~30 KB/s per file before the docker build was even attempted.
+
+**Cause:** Initial Phase 0 deploy procedure (`docs/06-deployment.md` § first-boot bootstrap) used `git archive | scp | tarball-extract` instead of `git clone`. The `.git` directory was never seeded on the VPS, so subsequent deploy sessions defaulted to rsync-from-local because `git pull` wasn't possible. This was viable when the repo was small (< 10 MB source) but degrades sharply as the workspace grows (~14 modules each with their own `node_modules`). Compounding: every parallel session that ran `pnpm install` on local Windows polluted its lockfile + node_modules tree, making the rsync surface even larger and triggering the lockfile-bleed RCA pattern (G1.A handoff `f0b5ad9` documented this).
+
+**Fix:** **NOT YET APPLIED — deferred to a dedicated Sonnet session.** Today's incident was unblocked by manual `git archive HEAD | scp | tar -xz | docker build` (5-minute path) instead of rsync. The architectural fix is:
+
+1. Add a deploy SSH key on `assessiq-vps` with read access to `manishjnv/assessIQ` (GitHub Deploy Keys, single repo, read-only).
+2. `ssh assessiq-vps 'cd /srv && rm -rf assessiq.old && mv assessiq assessiq.old && git clone git@github.com:manishjnv/assessIQ.git assessiq && cp assessiq.old/.env assessiq/ && cp -r assessiq.old/secrets assessiq/'`. Preserve `.env`, `secrets/`, and any other untracked operational state.
+3. Verify `cd /srv/assessiq && git log -1` returns a recent commit.
+4. Update `docs/06-deployment.md` § first-boot bootstrap to use `git clone` instead of rsync; add a § "Deploy procedure (steady-state)" with the new commands: `ssh assessiq-vps 'cd /srv/assessiq && git pull && docker compose -f infra/docker-compose.yml up -d --build <service>'`.
+5. Once verified, `rm -rf assessiq.old`.
+
+**Prevention:**
+
+1. **Git-clone-on-VPS pattern is the deploy contract going forward.** Once landed, every Phase 4+ session uses `git pull && docker compose ... up -d --build`. No more rsync. No more multi-hour deploys. No more lockfile-bleed.
+2. **`/srv/assessiq/.git` health check.** Add to the VPS additive-deploy enumeration step in `CLAUDE.md` rule #8: `test -d /srv/assessiq/.git || echo "WARNING: /srv/assessiq is not a git clone — see RCA 2026-05-03"`. If the warning fires, the next session is responsible for converting before any deploy.
+3. **`docs/06-deployment.md` § Deploy procedure** must enumerate the standard 3-command flow + flag rsync as deprecated for any post-Phase-0 work.
