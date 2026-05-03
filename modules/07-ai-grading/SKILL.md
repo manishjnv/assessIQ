@@ -79,6 +79,37 @@ The compliance-defensibility of this mode rests on enforcing single-user-in-the-
 - Per-pack model overrides — defer; tenant-level is enough for v1
 - Self-hosted models for sensitive deployments (e.g., Llama via Bedrock) — design supports it via SDK provider switch; not built v1
 
+## Status — Phase 2 G2.A live as of 2026-05-03 (1.b)
+
+The implementation slot reserved by D1-D8 is now LIVE in `claude-code-vps` mode. Phase 1 G2.A Session 1.b shipped:
+
+- **Runtime** at `src/runtimes/claude-code-vps.ts` — real `runClaudeCodeGrading` body. Spawns `claude -p` with `--allowed-tools mcp__assessiq__submit_*`, `--disallowed-tools Bash,Write,Edit,Read,Glob,Grep`, `--output-format stream-json`, `--max-turns 4`, 120s timeout per stage. Stage 1 → submit_anchors; Stage 2 → submit_band; Stage 3 (when `band.needs_escalation === true` OR `input.force_escalate === true`) → grade-escalate. Reconciliation: ≥2-band Stage 2/3 disagreement → `escalation_chosen_stage='manual'` (admin sees both); <2 → Stage 3 wins. D4 SHA pinning composes `anchors:<8hex>;band:<8hex>;escalate:<8hex|->`.
+- **Helpers** at `src/{single-flight,skill-sha,stream-json-parser,score}.ts` — D7 in-process `Map<attemptId>` mutex; sha256 + minimal regex frontmatter parser; line-delimited JSON splitter + `parseToolInput` with EXACT `mcp__assessiq__<short>` prefix match (rescue Finding #2 fix).
+- **9 admin handlers** at `src/handlers/admin-*.ts` — grade / accept / override / rerun / queue / claim+release / grading-jobs (D3 stub) / budget. All RLS-scoped via `withTenant`. Override-vs-replace structurally enforced (zero `UPDATE gradings` statements; INSERT-only with `override_of` FK + `override_reason`).
+- **Routes registrar** at `src/routes.ts` — 10 endpoints under `/api/admin/{attempts,gradings,dashboard,grading-jobs,settings}/*`. Override uses `adminFreshMfa(5min)` chain.
+- **3 in-repo skills** at `prompts/skills/grade-{anchors,band,escalate}/SKILL.md` (Haiku/Sonnet/Opus, temperature 0.0, frontmatter `version: v1`).
+- **MCP server** at `tools/assessiq-mcp/` — stdio JSON-RPC via `@modelcontextprotocol/sdk` v1, 2 echo tools.
+- **Eval harness** at `eval/` — manual run/compare/bless flow with CI guard (exits 0 when CI=true per D5).
+- **Lint sentinel correction** — allow-list paths fixed to include `src/` prefix (Session 1.a defect: list referenced `modules/07-ai-grading/runtimes/...` but actual scaffold is `modules/07-ai-grading/src/runtimes/...`). Self-test 8/8 still passes.
+
+Phase 3 critique fixes applied inline:
+- **C1** — routes validate `proposal.attempt_id === URL attemptId` (defense vs cross-attempt-within-tenant spoof).
+- **H2** — `deriveStatus` distinguishes AI runtime failures (`AIG_*` codes → review_needed) from legitimate rubric error_classes (flow through score-ratio).
+- **Rescue #2** — parser uses exact `mcp__assessiq__` prefix match, not loose `endsWith`.
+- **Rescue #3** — `acceptProposals` validates each `proposal.question_id ∈ attempt_questions` for the URL attemptId.
+
+Tests: 102/102 passing across 7 vitest files in 12.5s (testcontainer Postgres for handlers + mock-spawn for runtime + tmpdir for eval). Override-never-replaces invariant has a load-bearing testcontainer integration test.
+
+Adversarial sign-off: sonnet-takeover (in lieu of codex:rescue per user preference) — verdict REVISED, 3 of 4 findings accepted + applied, 1 (admin-grade.ts spawn-allow-list tightening) deferred as a separate contract change for a future rescue pass.
+
+What's still NOT live in 1.b:
+- `prompt_versions` table (D3 — Phase 3+; SHAs persist on `gradings` rows directly per D4).
+- `grading_jobs` table (D3 — Phase 2+ when `anthropic-api` mode lands).
+- Real `anthropic-api` runtime (deferred to Phase 3+).
+- Open-weights runtime (deferred to Phase 4+).
+- Bulk re-grading of Phase 1 attempts (separate task).
+- `/srv/assessiq/scripts/grading-audit-hook.mjs` PostToolUse audit script (referenced in `infra/admin-claude-settings.example.json` as `TODO(phase-2-audit)`).
+
 ## Decisions captured (2026-05-01)
 
 Mirror of `docs/05-ai-pipeline.md` § "Decisions captured (2026-05-01)" — full rationale, alternatives rejected, and downstream impact live in the doc; the rule each decision pins is summarized here so a session reading only this SKILL.md sees the contract. **Future grading-related code or migration changes cite the decision number from the doc, not from here.**

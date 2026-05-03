@@ -347,7 +347,20 @@ total_for_question = anchor_score + reasoning_score      // never raw %; built f
 
 This is the **graduated, never-binary** behavior the project mandates. A perfectly correct answer can still lose points on reasoning band; a thin answer that hits all anchors still earns the anchor weight. No answer ever scores 100% from keyword matching alone, and few score 0% if any anchor coverage exists.
 
-## Implementation skeleton — Phase 1 (claude-code-vps)
+## Implementation skeleton — Phase 1 (claude-code-vps) — **LIVE 2026-05-03 (G2.A 1.b)**
+
+> Status: shipped in commit `5aec6ad`. The skeleton below is what the runtime
+> at `modules/07-ai-grading/src/runtimes/claude-code-vps.ts` implements,
+> verbatim, plus three operational additions discovered during the build:
+> (a) Stage 3 escalation also triggers on `input.force_escalate === true`
+> (admin's "Re-run with Opus" affordance via `handleAdminRerun`); (b) when
+> Stage 2 and Stage 3 disagree by ≥ 2 bands, `escalation_chosen_stage` is
+> set to `"manual"` and Stage 2's band stays primary so the admin sees both
+> verdicts; (c) the runtime captures `skillSha()` post-Stage-3 wrapped in
+> a try/catch so a TOCTOU skill-file deletion between Stage 3 and the SHA
+> read silently falls through to `escalate:-` rather than losing the
+> proposal. See `modules/07-ai-grading/SKILL.md` § Status (G2.A 1.b) for
+> the full inventory + Sonnet adversarial rescue verdict.
 
 ```typescript
 // modules/07-ai-grading/runtimes/claude-code-vps.ts
