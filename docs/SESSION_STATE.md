@@ -58,11 +58,11 @@
 
 **Tests:** 104 passing; 7 pre-existing failures (6 × `audit_log` relation missing in `totp.test.ts`; 1 × JTI TTL flake in `embed-jwt.test.ts`). All 9 new bypass tests (B1–B9) pass. TypeScript typecheck clean on `@assessiq/auth` and `@assessiq/api`. Adversarial review (Copilot GPT-5 substituting for codex:rescue): **ACCEPTED** (12/12 checklist items passed).
 
-**Smoke tests:**
-- (a) verified-admin bypass headers on `/api/auth/google/start`: DEFERRED — Google OAuth creds still absent from `/srv/assessiq/.env`; no live admin session available on VPS. Bypass path proven by unit tests B1–B2.
-- (b) anonymous → 429 at 11th hit on `/api/auth/google/start`: **PASS** ✓ (hits 1-10 → 302, 11-12 → 429)
-- (c) TOTP/verify always strict (no bypass): **PASS** ✓ (hits 1-10 → 401 invalid code, 11-12 → 429; zero `X-RateLimit-Bypass` headers)
-- (d) verified-admin user bucket exhaustion at 61st hit: DEFERRED — same constraint as (a).
+**Smoke tests (all 4 PASS):**
+- (a) verified-admin bypass headers on `/api/auth/google/start`: **PASS** ✓ — all 5 hits → 302 with `x-ratelimit-bypass: admin` (injected test session: admin role, totpVerified=true)
+- (b) anonymous → 429 at 11th hit on `/api/auth/google/start`: **PASS** ✓ — hits 1-10 → 302, hits 11-12 → 429
+- (c) TOTP/verify always strict (no bypass): **PASS** ✓ — hits 1-10 → 401 invalid code, 11-12 → 429, zero `X-RateLimit-Bypass` headers
+- (d) verified-admin user bucket fires at 61st cumulative hit: **PASS** ✓ — test a(5) + test d(55) = 60 passes, hit 61 → 429 `{"code":"RATE_LIMITED","scope":"user"}`; `x-ratelimit-bypass: admin` still set (IP bucket bypassed, user bucket caught it)
 
 **Next:** Google OAuth credentials wiring into `/srv/assessiq/.env` (unblocks full smoke tests a/d and Drills 1/3/4 from Phase 1 closure audit). Alternatively: Finding C fix (`inviteUsers tenantName:""` 500).
 
