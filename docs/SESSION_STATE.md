@@ -64,7 +64,7 @@
 
 ## Agent utilization
 
-- **Opus 4.7 (1M)**: orchestration, critique, Docker build RCA, session docs, routing decisions
-- **Sonnet**: G1.D frontend (modules/11-candidate-ui, apps/web/src/pages/take/*); worker impl (apps/api/src/{worker,routes/admin-worker}); take-backend (modules/{05,06}/src/)
-- **Haiku**: n/a this session
-- **codex:rescue**: n/a — no security/auth/classifier diffs
+- **Opus 4.7 (1M)**: orchestration, critique, Docker build RCA, session docs, routing decisions; for the worker-hardening slice — Phase 0 warm-start parallel reads, Phase 3 diff critique on the parallel Sonnet outputs (no bounces), authored same-PR doc detail in 03-api-contract / 06-deployment / 11-observability § 13, drove the deploy + mid-deploy crash diagnosis (parallel-session import gap)
+- **Sonnet**: G1.D frontend (modules/11-candidate-ui, apps/web/src/pages/take/*); worker impl in 2 parallel Phase 1 calls — Sonnet A (`modules/00-core/src/logger.ts` KNOWN_STREAMS + `apps/api/src/worker.ts` runJobWithLogging wrapper + JOB_RETRY_POLICY + 3 vitest cases) and Sonnet B (`apps/api/src/routes/admin-worker.ts` 3 routes + redactor + 5s TTL cache + 4 vitest cases + server.ts wiring); take-backend (modules/{05,06}/src/)
+- **Haiku**: n/a this session — deploy verification surface was small (3 curl smokes + 1 ssh log check), driven inline by Opus
+- **codex:rescue**: n/a (quota-throttled per the user's brief). Adversarial pass on the worker-hardening slice was delegated to **sonnet-takeover** per memory `feedback-sonnet-takeover-on-rescue.md`; verdict ACCEPT with two LOW redaction-key additions applied (`aiq_sess`, `candidate` substrings). One informational note about `time_milestone` event duplication on retry was raised then verified false (the `withTenant` transaction wrapper makes the whole sweep atomic; existing idempotency test at `attempt-engine.test.ts:655-659` confirms)
