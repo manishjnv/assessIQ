@@ -538,3 +538,52 @@ Applied via the truncate-write procedure (preserve bind-mount inode per RCA `202
 3. **No automatic enforcement is feasible** — `lint-rls-policies.ts` checks SQL policies against migrations, but there is no equivalent linter that knows the live Caddy matcher (which is on the VPS, not in-repo). A future `tools/lint-edge-routing.ts` could parse `apps/api/src/server.ts` for non-`/api/*` route mounts, parse the canonical Caddyfile snippet from `docs/06-deployment.md`, and assert every mounted bare-root path is in the matcher. Recorded as a Phase-2 infra-backlog item.
 
 **Cross-reference:** `docs/06-deployment.md` (Caddy block + smoke), `modules/16-help-system/src/routes-public.ts` (the registration), memory observation `648 — Help-system route architecture confirmed`. The fix touched shared infra (the ti-platform Caddyfile) — applied as an additive matcher extension only, with backup, inode preservation, and other-domain regression checks per CLAUDE.md rule #8.
+
+## 2026-05-03 — Phase 1 closure audit: three findings (PARTIAL result)
+
+**Symptom:** Phase 1 closure verification (5-drill audit) run on 2026-05-03. Three bugs discovered:
+
+**Finding A — `POST /admin/packs` with missing `slug` returns 500 (should be 400)**
+`createPack` in `modules/04-question-bank/src/service.ts` calls `assertValidSlug(input.slug)` before the DB insert, but `assertValidSlug(undefined)` does not throw — the undefined propagates to `repo.insertPack` where Postgres raises `null value in column "slug" violates not-null constraint` (error code `23502`). The route layer (`routes.ts:134`) casts `req.body as CreatePackInput` without any Fastify body schema, so Fastify's schema-validation layer never fires. Same pattern exists for `topic` and `points` in `POST /admin/questions`. HTTP 500 returned instead of 400 `VALIDATION_FAILED`.
+
+**Finding B — `POST /admin/questions` with missing `topic`/`points` returns 500 (should be 400)**
+Same root cause as Finding A. `createQuestion` service does not guard against undefined `topic` or `points` before the `insertQuestion` Postgres call. HTTP 500 returned.
+
+**Finding C (GATE FAILURE — Drill 1 blocked) — `POST /admin/assessments/:id/invite` returns 500 due to cross-phase regression in email template**
+`inviteUsers` in `modules/05-assessment-lifecycle/src/service.ts:749` passes `tenantName: ""` (empty string, Phase 1 placeholder per comment at lines 28-29) to `sendInvitationEmail`. Phase 3 G3.B `modules/13-notifications/src/email/render.ts:108` added a Zod schema that validates `tenantName: z.string().min(1)` — rejecting the empty placeholder. The Zod throw propagates inside the `withTenant` transaction, rolling back the `assessment_invitations` INSERT, so the invitation row is never created. HTTP 500 returned; `assessment_invitations` table remains empty. This was a cross-phase regression: Phase 1 code used an intentional placeholder (`""`) that Phase 3 G3.B's strict Zod validation broke.
+
+**Stack trace (Finding C):**
+```
+ZodError: [{"code":"too_small","path":["tenantName"],"message":"String must contain at least 1 character(s)"}]
+    at renderTemplate (modules/13-notifications/src/email/render.ts:108)
+    at sendEmail (modules/13-notifications/src/email/index.ts:94)
+    at sendAssessmentInvitationEmail (modules/13-notifications/src/email/legacy-shims.ts:47)
+    at sendInvitationEmail (modules/05-assessment-lifecycle/src/email.ts:42)
+    at service.ts:743 inside withTenant → transaction rollback
+```
+
+**Cause:** Finding A/B: route layer lacks Fastify body schema for question-bank POST endpoints; `assertValidSlug` / `assertNonEmpty` guards pass on `undefined`. Finding C: Phase 1 `service.ts:749` had `tenantName: ""` as a known placeholder; Phase 3 G3.B notifications module introduced strict Zod validation incompatible with that placeholder.
+
+**Fix:** TBD (per gate failure protocol — fixes deferred to dedicated follow-up sessions):
+- A/B: Add Fastify body schema to `POST /admin/packs` and `POST /admin/questions` route handlers, OR harden `assertValidSlug` / `assertNonEmpty` to throw on `undefined`/`null` inputs, returning 400 instead of propagating to DB.
+- C: Fix `modules/05-assessment-lifecycle/src/service.ts:749` — fetch the tenant name from the tenant row (already in scope via `withTenant`) instead of using a placeholder. The tenant name is available from the DB: `SELECT name FROM tenants WHERE id = $1`.
+
+**Prevention:**
+1. **Route-level schema validation is mandatory for all POST/PATCH endpoints.** The pattern `req.body as TypeX` without a Fastify JSON schema is a latent 500-for-bad-input trap. Add to CLAUDE.md Phase 3 critique: "Any POST/PATCH handler using `req.body as T` without `schema: { body: ... }` is a bounce condition."
+2. **Cross-phase placeholder strings must be flagged at compilation time or tested.** An empty `tenantName: ""` passed to a rendering function that requires non-empty is a contract violation. Add an integration test for `inviteUsers` that exercises the email path even in dev-email fallback mode.
+3. **Phase N regressions on Phase N-1 code paths.** When Phase 3 G3.B shipped notifications with stricter Zod validation, existing callers (`05-assessment-lifecycle`) were not audited for placeholder-value compatibility. Future module SKILL.md files should list their contract requirements on data from callers (e.g., "tenantName: non-empty string required").
+
+**Downstream impact:** Drill 1 (candidate full-stack happy path) blocked at Step 9. Drills 3 Step 5 (token reuse) and Drill 4 (autosave + timer) also blocked (require a valid invitation token). Phase 1 closure = PARTIAL.
+
+## 2026-05-03 — Phase 1 closure audit ran PARTIAL (3 drills pass, 1 drill partial, 1 blocked)
+
+**Symptom:** This is the positive audit summary entry per CLAUDE.md project overlay § "If ALL 5 drills pass" (which says to append a note even for clean audits; recorded here as PARTIAL per gate failure protocol).
+
+**Drills run on 2026-05-03:**
+- **Drill 1** — PARTIAL: Steps 1-8 PASS (pack/level/question creation, pack publish, question activation, assessment creation + publish). Step 9 (invite candidate) BLOCKED by Finding C above. Steps 10-14 BLOCKED (downstream).
+- **Drill 2** — PASS: RLS isolation confirmed via API + direct SQL. `closure-test@example.com` under `closure-test-tenant` not visible under wipro-soc session (API 200 without leak) or SQL `SET ROLE assessiq_app; SET app.current_tenant = '<wipro-soc-uuid>'`. Cleanup successful.
+- **Drill 3** — PASS (step 5 skipped): Fake token (valid length) → `404 INVITATION_NOT_FOUND`. Empty body `{}` → `404 INVITATION_NOT_FOUND`. Too-short token → `404 INVITATION_NOT_FOUND`. No enumeration oracle — identical error code/message across all three variants. Step 5 (single-use enforcement) skipped: no real token available due to Drill 1 failure.
+- **Drill 4** — BLOCKED: Requires valid invitation token to start an attempt. Blocked by Drill 1 Finding C.
+- **Drill 5** — PASS: All 5 assessiq containers healthy (`api Up 27min healthy`, `worker Up 4h`, `frontend Up 7h healthy`, `redis Up 2d healthy`, `postgres Up 2d healthy`). No new systemd units. Caddyfile `@api path /api/* /embed* /help/* /take/start` correct. No non-assessiq Caddy blocks modified. All logs present and populating. `logrotate.timer` active. No new AssessIQ crontab entries. Sibling apps (`intelwatch.in 307`, `ti.intelwatch.in 200`, `accessbridge.space 200`, `automateedge.cloud 200`) all healthy.
+
+**Phase 1 closure status: PARTIAL.** Follow-up session required to fix Finding C (invite 500) before re-running Drills 1/3/4.

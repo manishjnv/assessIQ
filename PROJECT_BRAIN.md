@@ -66,7 +66,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | Phase | Modules | Outcome |
 |---|---|---|
 | **Phase 0** — Foundation (Week 1–2) | 00, 01, 02, 03, 17 | Auth + tenancy + UI kit working |
-| **Phase 1** — Author & take (Week 3–5) | 04, 05, 06, 11, 16 | SOC pack authored, candidates can take assessments end-to-end with help system |
+| **Phase 1** — Author & take (Week 3–5) | 04, 05, 06, 11, 16 | SOC pack authored, candidates can take assessments end-to-end with help system. **Closure audit PARTIAL (2026-05-03):** Drills 2+3(steps 1-4)+5 PASS; Drill 1 fails at invite (Finding C: `05-lifecycle:749` `tenantName:""` × `13-notifications` Zod `.min(1)`); Drills 3(step 5)+4 BLOCKED. Fix: fetch `tenant.name` from DB in `inviteUsers` before email call. Re-audit required. |
 | **Phase 2** — Grade & report (Week 6–8) | 07, 08, 09, 10 | AI grading live, admin dashboard, archetype output |
 | **Phase 3** — Operate (Week 9–10) | 13, 14, 15 | Notifications, audit log, analytics |
 | **Phase 4** — Embed (Week 11–12) | 12 | iframe + JWT embed working in a host app |

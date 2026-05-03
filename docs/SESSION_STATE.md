@@ -1,109 +1,99 @@
-# Session — 2026-05-03 (Phase 2 G2.B Session 2 — `08-rubric-engine` lift + helpers — LIVE on production)
+# Session — 2026-05-03 (Phase 1 Closure Verification — PARTIAL)
 
-**Headline:** New service-only `@assessiq/rubric-engine` workspace module shipped per PHASE_2_KICKOFF.md G2.B Session 2 / P2.D12. Lifts the canonical `RubricSchema`, `AnchorSchema`, `Rubric`, `Anchor`, `AnchorFinding` types out of 04-question-bank + 07-ai-grading into a single home. Adds four pure-function helpers: `validateRubric` ({valid, errors[]} unified shape), `sumAnchorScore`, `computeReasoningScore`, `finalScore`. 04 re-exports the schemas verbatim — zero consumer churn (existing `import { RubricSchema } from "@assessiq/question-bank"` callers unchanged). 07's `runtimes/claude-code-vps.ts` swapped to import `finalScore` from `@assessiq/rubric-engine`; 07's local `score.ts` + `__tests__/score.test.ts` removed (lifted into 08). 04's internal `validateRubric` ({ok, errors:ZodIssue[]}) coexists — used by 04's service for per-issue error code mapping. `docs/02-data-model.md` L25 dead "rubrics/anchors" table reference replaced with the service-only boundary statement. Live on `assessiq.automateedge.cloud` post-deploy; `/api/health=200`, `/api/admin/users=401` (auth gate intact); all co-tenant containers untouched. **Sonnet-only mode** for the implementation — codex:rescue skipped per plan DoD recommendation (08 is non-load-bearing pure math, no auth/RLS/AI surface).
+**Headline:** Phase 1 closure audit (5 drills) run against `assessiq.automateedge.cloud`. Drills 2 (RLS isolation) and 5 (VPS additive-deploy) PASS. Drill 3 steps 1-4 PASS (token security — no enumeration oracle). Drill 1 fails at Step 9 (invite → 500: `tenantName:""` × notifications Zod `.min(1)` cross-phase regression). Drills 3 step 5 + Drill 4 BLOCKED pending Drill 1 fix. Phase 1 formally NOT CLOSED — re-audit required after fixing `05-assessment-lifecycle/src/service.ts:749`.
 
-**Commits:** `8600ce9 — feat(rubric-engine): lift RubricSchema + ship validate/score helpers` (20 files, +658/−345). On `origin/main`. No migrations; service-only module.
+**Commits:** `<pending>` — docs(phase-1): closure verification — PARTIAL; `<pending>` — docs(session): Phase 1 closure handoff. Push pending.
 
-**Tests:** `pnpm --filter @assessiq/rubric-engine test` → 28/28 passing (pure unit tests, no testcontainers; covers `validateRubric` happy-path + 7 Zod-rejection paths inc. anchors-empty/sum-not-100/missing-band-description/empty-synonyms/strict-unknown-key/negative-weight/path-prefixed-errors; `sumAnchorScore` all-hit/no-hit/partial/hallucinated-anchor-ignored/missing-finding-as-miss/empty-array/different-weights; `computeReasoningScore` band 0-4 exact + decimal-arithmetic-non-divisible; `finalScore` worked example matches `docs/05-ai-pipeline.md:341-345` verbatim 70/100, perfect 100/100, zero 0/100, max-invariant, alternate-rubric-shape; schema-export identity guards). Regression: `pnpm --filter @assessiq/question-bank test` → 55/55 still passing (re-export round-trip preserved). `pnpm --filter @assessiq/ai-grading test` → 85/85 still passing (07 swapped from local `computeFinalScore` to `finalScore` with no behavior change). `pnpm -r typecheck` workspace-clean across all 16 packages. `pnpm lint:rls` clean (no migrations added; 34 files / 19 tenant tables / 9 JOIN-RLS tables unchanged). `pnpm --filter @assessiq/ai-grading run lint:ambient-ai` clean (222 TS files; allow-list 2 spawn sites + 1 SDK import — no new violations from 08).
+**Tests:** Operational drills only (no unit tests changed). Drill 1=PARTIAL/FAIL(step9), Drill 2=PASS, Drill 3=PARTIAL(steps1-4 PASS/step5 SKIPPED), Drill 4=BLOCKED, Drill 5=PASS.
 
-**Next:** Phase 2 G2.B Session 3 — `09-scoring`. Greenfield (only SKILL.md exists). Ships migration `0050_attempt_scores.sql` + the `attempt_scores` table with standard `tenant_id`-direct RLS, the `ArchetypeLabel` enum (8 built-ins per P2.D11), the deterministic `deriveArchetype` rules, `computeAttemptScore` writer (UPSERT on `attempt_id` PK, idempotent), `recomputeOnOverride`, `cohortStats`, `leaderboard` (RLS-enforced + admin-only per P2.D13), and four admin scoring endpoints. Imports `finalScore` + `sumAnchorScore` + `computeReasoningScore` from this session's `@assessiq/rubric-engine`. **codex:rescue is judgment-call recommended once** on the archetype rule logic + percentile-cohort thresholds (the "first attempt in cohort returns null archetype" deterministic-but-stateful case is a subtle correctness trap per the kickoff plan).
+**Next:** Fix `modules/05-assessment-lifecycle/src/service.ts:749` — fetch `tenant.name` from tenant row (available inside `withTenant` context: `SELECT name FROM tenants WHERE id = $1`) instead of passing `tenantName:""`. Then re-run Phase 1 closure audit Drills 1/3(step5)/4.
 
-**Open questions:** see § Carry-forwards.
+**Open questions:**
+- Should Finding A/B (route validation 500→400) be fixed in the same session as Finding C, or separately?
+- Test entities in production (`phase1-closure-test` pack + 3q + assessment + candidate user `drill1-candidate@closure-audit.test`) — leave or clean up?
+- Admin session (Redis key `aiq:sess:9377622d...`, EX 28800) expires 2026-05-03T20:31Z — will self-clean.
 
 ---
 
-## What shipped (commit `8600ce9`)
+## Drill outcomes
 
-`modules/08-rubric-engine/` (new module, 9 files) + 4 modified files in 04 + 07 + apps/api + 1 doc:
-
-| File | Role |
-|---|---|
-| `modules/08-rubric-engine/package.json` | `@assessiq/rubric-engine`, version 0.0.0, type module, single dep `zod ^3.23.8`. No `@assessiq/core`, no Fastify, no DB — leaf module. |
-| `modules/08-rubric-engine/tsconfig.json` | Extends `tsconfig.base.json`, standard outDir/rootDir matching every other module. |
-| `modules/08-rubric-engine/vitest.config.ts` | Pure unit-test config — references the shared `../../vitest.setup.ts` only; no DB hooks. |
-| `modules/08-rubric-engine/src/types.ts` | `AnchorSchema`, `RubricSchema`, `AnchorFindingSchema` + their TypeScript types. **Lifted verbatim** from `modules/04-question-bank/src/types.ts` (schemas) and `modules/07-ai-grading/src/types.ts` (AnchorFinding). The `anchor_weight_total + reasoning_weight_total === 100` invariant + the strict-mode disallow-extra-keys + the min-1 anchors / min-1 synonyms / int-bounded weights all preserved. The aspirational `required` / `error_classes` fields from earlier SKILL.md drafts are NOT in the lifted schema (deferred Phase 3+ DSL upgrade). |
-| `modules/08-rubric-engine/src/validate.ts` | `validateRubric(unknown) → { valid: boolean; errors: string[] }` — uses `RubricSchema.safeParse` and maps `ZodIssue[]` to path-prefixed strings (`anchors.0.id: required` etc). Plan-pinned new shape. |
-| `modules/08-rubric-engine/src/score.ts` | Three helpers — `sumAnchorScore(anchors: Anchor[], findings: AnchorFinding[]) → number` (plan-pinned **bare-anchor-list** signature, not the rubric-as-arg shape 07 used previously), `computeReasoningScore(rubric: Rubric, band) → number` (`(band/4) * reasoning_weight_total`), `finalScore(rubric, findings, band) → { earned, max }`. Pure deterministic; no DB, no IO. Hallucinated-anchor guard (Stage-1 anchors not in rubric ignored) preserved from 07's prior implementation. |
-| `modules/08-rubric-engine/src/index.ts` | Public barrel — exports the 4 helpers + 3 schemas + 3 types. Single line `export * from` would have been wider than the plan allows; explicit named exports preserve the public-surface contract. |
-| `modules/08-rubric-engine/src/__tests__/rubric-engine.test.ts` | Vitest, 28 cases across 5 describe blocks. The `THREE_ANCHOR_RUBRIC` fixture mirrors `docs/05-ai-pipeline.md` § Score computation L336–345 worked example (3 anchors @ weight 20, anchor_weight_total=60, reasoning=40); the `finalScore` `worked example` test asserts exactly `earned=70, max=100`. |
-| `modules/08-rubric-engine/SKILL.md` | Status flipped from greenfield ("Open questions" only) to **live (Phase 2 G2.B Session 2 — 2026-05-03)**. Resolves P2.D12. Documents the lifted schema + the four helpers + the worked example + the re-export contract + the 4 anti-pattern guards. Calls out that the `required` / `error_classes` SKILL.md aspirational fields are NOT in the shipped schema (Phase 3+ deferral). |
-| `modules/04-question-bank/src/types.ts` (modified) | Removed inline `AnchorSchema` (private) + `RubricSchema` (exported) + `Rubric` type definitions. Replaced with `import { ... } from "@assessiq/rubric-engine"` at the top + named re-export so existing `import { RubricSchema } from "@assessiq/question-bank"` callers stay unchanged. The local `validateRubric` function (returning `{ ok, data | errors: ZodIssue[] }`) is **unchanged** — kept for service-internal per-issue error code mapping (called by `createQuestion`/`updateQuestion`). |
-| `modules/04-question-bank/package.json` (modified) | Added `"@assessiq/rubric-engine": "workspace:*"` to dependencies, alphabetically sorted. |
-| `modules/07-ai-grading/src/runtimes/claude-code-vps.ts` (modified) | Swapped `import { computeFinalScore, type RubricForScoring } from "../score.js"` → `import { finalScore } from "@assessiq/rubric-engine"; import type { Rubric } from "@assessiq/rubric-engine"`. Cast `input.rubric as RubricForScoring` → `as Rubric`. Call site `computeFinalScore(rubric, anchors, band.reasoning_band)` → `finalScore(rubric, anchors, band.reasoning_band)`. Cosmetic — same math, single source of truth. |
-| `modules/07-ai-grading/src/types.ts` (modified) | Updated the inline comment on `score_earned` from `Computed score = sumAnchorScore + computeReasoningScore.` → `Computed via finalScore() from @assessiq/rubric-engine.` to keep the docstring honest. |
-| `modules/07-ai-grading/src/score.ts` | **DELETED.** Logic lifted into 08. |
-| `modules/07-ai-grading/src/__tests__/score.test.ts` | **DELETED.** Same coverage moved into 08's test file (with one extra-coverage case for hallucinated-anchor + path-prefixed-error-strings). |
-| `modules/07-ai-grading/package.json` (modified) | Added `"@assessiq/rubric-engine": "workspace:*"` to dependencies. |
-| `apps/api/package.json` (modified) | Added `"@assessiq/rubric-engine": "workspace:*"` to dependencies (transitively pulled via 04/07 already, but explicit for clarity per plan step 5). |
-| `modules/04-question-bank/SKILL.md` (modified) | Added a one-line note under § Downstream impact pointing at 08's canonical home + clarifying that 04's internal `validateRubric` is unchanged. |
-| `docs/02-data-model.md` (modified) | Line 25 (the § "Module ownership" table row for 08) — replaced the dead `` `rubrics`, `anchors` (per-question rubrics live denormalized inside `questions.content`) `` reference with: `_service-only — no tables._ Rubric DSL lives denormalized in questions.rubric JSONB owned by 04. Phase 2 G2.B Session 2 (2026-05-03) confirmed this boundary per PHASE_2_KICKOFF.md § P2.D12; the prior rubrics/anchors table reference at this row was dead text from an earlier draft and never shipped.` |
-| `pnpm-lock.yaml` (modified) | Reflects the new workspace dep edges from 04/07/apps-api → 08. |
-
-## Decisions resolved this session
-
-- **P2.D12 — module boundary.** 08 ships zero migrations, zero DB, zero Fastify routes, zero auth — pure leaf module exporting schemas + math. The earlier `docs/02-data-model.md:25` row listing `rubrics`/`anchors` as 08-owned tables was dead text from an early draft and has now been replaced with an explicit "service-only, no tables" statement that cites this session and the kickoff plan reference. Resolution sits in `modules/08-rubric-engine/SKILL.md` § "Decisions resolved" + `modules/08-rubric-engine/SKILL.md` § "Module boundary" + `docs/02-data-model.md` L25.
-
-## Considered and rejected
-
-- **Lifting `validateRubric` into 08 with a single canonical signature.** Rejected. 04's existing `validateRubric` returns `{ ok: true; data } | { ok: false; errors: ZodIssue[] }` — its `errors: ZodIssue[]` shape is consumed by 04's `createQuestion`/`updateQuestion` paths to map per-issue Zod codes (e.g. `too_small` on `anchors.0.synonyms`) into 04's `QB_ERROR_CODES.INVALID_RUBRIC` envelope with a per-field error breakdown. Replacing it with the plan's `{ valid, errors: string[] }` shape would lose that per-issue richness and require rewriting the 04 service paths. Coexistence (same name, two modules, two return shapes) is the explicit plan instruction (`Re-export the same name from 04 for backwards-compat (export type { Rubric, Anchor }; export { RubricSchema, AnchorSchema })`) — which only re-exports the **schemas + types**, not the validate function. 04 keeps its local function; 08's public `validateRubric` is the new admin-UI-friendly shape for downstream consumers.
-- **Splitting `AnchorFinding` into its own subpackage so 09-scoring can import it without depending on 07's runtime types.** Rejected. The schema is small (4 fields), the import surface from `@assessiq/rubric-engine` already covers it, and pulling 09's eventual import out of 08 would force 07 to re-export `AnchorFindingSchema` from rubric-engine anyway — same code, longer dependency graph. 07 will continue to declare its `GradingProposal` shape using the same `AnchorFinding` type but imported from 08 in a follow-up cosmetic patch (deferred — 07's types.ts still has its own copy of `AnchorFindingSchema` which is byte-identical; both compile to the same shape and Zod's structural typing means downstream callers can't tell the difference).
-- **Lifting the per-question `attempt_questions.frozen_question` snapshot logic into 08.** Rejected. That's 06-attempt-engine's job (frozen at attempt-start; the rubric snapshot is an opaque blob to 06). 08 ships **runtime helpers**, not snapshot/persistence logic.
-- **Adding the `required: boolean` flag to `Anchor` and `error_classes: string[]` to `Rubric` per the original 08 SKILL.md draft.** Rejected for this session. The lift is verbatim — adding new fields would (a) require a schema migration story for existing `questions.rubric` JSONB rows in production (no rows yet but conceptually the contract changes), (b) require 07's grading skills to be re-baselined via the eval harness if the band-cap-on-required-miss semantics actually fire, (c) push the scope outside G2.B Session 2's "lift + helpers" boundary. Recorded as a Phase 3+ rubric DSL upgrade in 08's SKILL.md § "Open questions / Phase 3+ deferrals" and in 08's types.ts header comment.
-
-## Explicitly NOT included
-
-- **No 09-scoring code.** That's the next session (G2.B Session 3). 08 only exports the helpers; it does not call them.
-- **No 10-admin-dashboard wiring.** The `RubricEditor` domain composite (per P2.D18) lives in module 10 and ships in G2.C Session 4.
-- **No migrations.** 08 owns zero tables — the "module boundary (P2.D12)" section in SKILL.md states this as a contract, not a description.
-- **No `archetype_signals` / archetype-rule logic.** P2.D11 — that's 09-scoring's responsibility.
-- **No deploy-side smoke for the helper math.** The four helpers are pure functions; the unit tests are the contract. No production endpoint exercises them in this session — 07's `gradeSubjective` already covers `finalScore` end-to-end via its existing handler tests (85/85 still passing post-swap).
-- **No documentation for `@assessiq/rubric-engine` in `docs/03-api-contract.md`.** This module exposes no HTTP surface; the API contract doc is unchanged.
-
-## Downstream impact
-
-| Consumer | Impact |
-|---|---|
-| `@assessiq/question-bank` | **No consumer churn.** Existing `import { RubricSchema } from "@assessiq/question-bank"` keeps resolving. 04's local `validateRubric` keeps working unchanged. 04's 55 tests all still pass. |
-| `@assessiq/ai-grading` | Cosmetic swap only — `runtimes/claude-code-vps.ts` now imports `finalScore` from 08; local `score.ts` + `score.test.ts` removed. 85/85 tests still pass. The `gradeSubjective` proposal output (`score_earned` / `score_max`) is byte-identical to before. |
-| `@assessiq/scoring` (next session, greenfield) | Pre-wired — will import `sumAnchorScore` + `computeReasoningScore` + `finalScore` from `@assessiq/rubric-engine` in `service.ts` for `recomputeOnOverride`. The plan's "Module 09's `service.ts` imports the same helpers" wiring lands in G2.B Session 3, not this session — 09 doesn't exist yet. |
-| `apps/api` | Now lists 08 explicitly in its workspace deps (transitively pulled before, explicit now per plan step 5). No runtime change — the import graph is unchanged. |
-| `apps/web` | Untouched (08 is server-side helpers only; there is no admin UI surface here yet — that's G2.C Session 4's `RubricEditor` composite). |
-| 17-ui-system / Storybook | Untouched. |
-| `tools/lint-rls-policies.ts` | Untouched. 08 has no migrations and no tenant-bearing tables. |
-| `tools/lint-edge-routing.ts` | Untouched. 08 has no Fastify routes. |
-| `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` | Untouched. 222 TS files scanned; allow-list (2 spawn sites + 1 SDK import) unchanged. 08 has zero `claude`/`anthropic` strings. |
-
-## Production deploy verification
-
-| Surface | Pre-deploy | Post-deploy | Pass |
+| Drill | Steps | Result | Root cause of failure |
 |---|---|---|---|
-| `GET /api/health` | 200 | 200 (no regression) | ✓ |
-| `GET /api/admin/users` (regression) | 401 | 401 (no regression) | ✓ |
-| `assessiq-api` container health | running | running, no `SyntaxError`/import-resolution errors in `docker logs --tail 20` (per RCA 2026-05-03 staggered-deploy guard); single `assessiq-api listening` line | ✓ |
-| Atomic deploy (importer + exporter same `git archive`) | n/a | both `apps/api/package.json` + `modules/04-question-bank/src/types.ts` (importers) AND `modules/08-rubric-engine/**` (exporter) shipped together per RCA 2026-05-03 | ✓ |
-| Stale 07 score files removed on VPS | n/a | `modules/07-ai-grading/src/score.ts` and `modules/07-ai-grading/src/__tests__/score.test.ts` deleted via explicit `rm -f` (git archive does not propagate deletions) | ✓ |
-| Co-tenant containers (intelwatch / accessbridge / roadmap / ti-platform) | running | untouched (per CLAUDE.md rule #8) — 14 co-tenant containers all still up | ✓ |
-| `/srv/assessiq/.env` `SMTP_URL` | unset (G3.B carry-forward) | unset (out of scope for this session) | ✓ |
+| **D1** — Candidate happy path | 1-8 PASS; step 9 FAIL | PARTIAL | `05-lifecycle:749` `tenantName:""` rejected by `13-notifications` Zod `.min(1)` → ZodError inside `withTenant` → rollback → 0 rows in `assessment_invitations` |
+| **D2** — Tenant RLS isolation | All PASS | PASS | — |
+| **D3** — Token security | Steps 1-4 PASS; step 5 SKIPPED | PARTIAL | Step 5 blocked (no valid invitation token; same root cause as D1) |
+| **D4** — Autosave + timer | All BLOCKED | BLOCKED | Requires valid invitation token (D1 blocker) |
+| **D5** — VPS additive-deploy | All PASS | PASS | — |
 
-Deploy procedure: `git archive HEAD modules/08-rubric-engine modules/04-question-bank/src/types.ts modules/04-question-bank/package.json modules/07-ai-grading/src/runtimes/claude-code-vps.ts modules/07-ai-grading/src/types.ts modules/07-ai-grading/package.json apps/api/package.json pnpm-lock.yaml | ssh assessiq-vps "cd /srv/assessiq && tar -xf -"`; then VPS-side `rm -f modules/07-ai-grading/src/score.ts modules/07-ai-grading/src/__tests__/score.test.ts`; then `cd /srv/assessiq/infra && docker compose build assessiq-api && docker compose up -d --no-deps --force-recreate assessiq-api`. Container restart graceful, listened on :3000 within 5s; co-tenant containers untouched.
+### Drill 1 detail (steps 1-8 PASS)
+- Step 1 check: admin session `GET /api/auth/whoami` → 200 ✓
+- Step 2: `POST /api/admin/packs` (slug=phase1-closure-test) → 201, id=`019dedd6-0a04-7b2e-9877-c5c77d1e80a7` ✓
+- Step 3: `POST /api/admin/levels` (L1 - SOC Analyst) → 201, id=`019dedd6-2a3d-746d-8e05-36c3ef5d6ee5` ✓
+- Step 4: `POST /api/admin/questions` Q1 MCQ (Incident Response, 20pts) → 201, id=`019dedd8-0aa2-7fac-b8a6-1ba8e1f8040a` ✓
+- Step 5: Q2 Subjective (Threat Analysis, 25pts) → 201, id=`019dedd9-a7bd-7f6c-ba78-cc2f9a077751` ✓
+- Step 6: Q3 Subjective (Log Analysis, 25pts) → 201, id=`019dedd9-a7e6-7cd8-af7d-93796bc8ffd7` ✓
+- Step 7: `POST /api/admin/packs/:id/publish` → 200 (status=published, version=2) ✓
+- Step 8a: `POST /api/admin/questions/:id/activate` × 3 → 200 each, activated=3 ✓
+- Step 8b: `POST /api/admin/assessments` → 201, id=`019dedd9-a832-7086-afcb-374030b7875b` ✓
+- Step 8c: `POST /api/admin/assessments/:id/publish` → 200 (status=published) ✓
+- Step 9: `POST /api/admin/assessments/:id/invite` → **500** `ZodError: tenantName must contain at least 1 character(s)` ✗
 
-## Carry-forwards / open questions
+### Drill 2 detail (PASS)
+- Inserted `closure-test-tenant` + `closure-test@example.com` via assessiq_system BYPASSRLS
+- `GET /api/admin/users` under wipro-soc session: no closure-test user returned → API isolation PASS ✓
+- SQL `SET ROLE assessiq_app; SET app.current_tenant = '<wipro-soc-uuid>'; SELECT ... FROM users`: zero cross-tenant rows → SQL isolation PASS ✓
+- Cleanup: 0 test users, 0 test tenants remaining ✓
 
-| Item | Owner | Notes |
+### Drill 3 detail (steps 1-4 PASS, step 5 SKIPPED)
+- Fake 43-char token → `404 INVITATION_NOT_FOUND` ✓
+- Empty body `{}` → `404 INVITATION_NOT_FOUND` ✓
+- Too-short token `abc123` → `404 INVITATION_NOT_FOUND` ✓
+- All three return identical error code + message → **no enumeration oracle** ✓
+- Step 5 (single-use enforcement): SKIPPED — no valid invitation token exists
+
+### Drill 5 detail (PASS)
+- All 5 assessiq containers: healthy (`api up 27min`, `worker 4h`, `frontend 7h`, `redis 2d`, `postgres 2d`) ✓
+- No new non-assessiq systemd units ✓
+- Caddyfile: `@api path /api/* /embed* /help/* /take/start` correct; no non-assessiq blocks modified ✓
+- Logs: `app.log`, `request.log`, `auth.log`, `worker.log`, `webhook.log` all present and populating ✓
+- `logrotate.timer` active (triggers daily, next trigger 2026-05-04T00:00Z) ✓
+- Crontab: only roadmap-maintenance entries (pre-existing); no new assessiq crontab entries ✓
+- Sibling apps: `intelwatch.in 307`, `ti.intelwatch.in 200`, `accessbridge.space 200`, `automateedge.cloud 200` ✓
+
+## Production test entities (not yet cleaned up)
+| Entity | ID | Notes |
 |---|---|---|
-| **Phase 2 G2.B Session 3 — `09-scoring`** | next session | Greenfield. Migration `0050_attempt_scores.sql` (standard tenant_id-direct RLS), `ArchetypeLabel` enum (8 built-ins per P2.D11), `deriveArchetype` deterministic rules, `computeAttemptScore` writer (UPSERT idempotent on `attempt_id`), `recomputeOnOverride` (called from 07's `handleAdminOverride` follow-up patch — could ship in this session or G2.C Session 4 per plan), `cohortStats`, `leaderboard` (RLS + admin-only per P2.D13). Imports `finalScore` + `sumAnchorScore` + `computeReasoningScore` from this session's 08. **codex:rescue judgment-call recommended once** on archetype rule logic + percentile-cohort thresholds (the "first attempt in cohort returns null archetype" deterministic-but-stateful case is a subtle correctness trap). 09 is NOT on the load-bearing-paths list per CLAUDE.md but archetype labels are candidate-visible (via 11-candidate-ui Phase 3+) so incorrect labels are reputational. |
-| **Phase 2 G2.C Session 4 — `10-admin-dashboard`** | sequential after G2.B Session 3 | Ships the 17-ui-system Phase 2 primitives (P2.D18 — ScoreRing/Sparkline/Sidebar/NavItem/StatCard/Table/Modal/Drawer), the domain composites (AnchorChip/BandPicker/RubricEditor/GradingProposalCard/EscalationDiff/ArchetypeRadar/ScoreDetail), 9 admin pages, 25 new help_ids per P2.D17, 0014_seed_help_phase2_admin.sql migration. The `RubricEditor` binds to 08's `RubricSchema` for live "weights must sum to 100" validation. |
-| **Cosmetic deferral — 07's local `AnchorFindingSchema`** | future patch | 07's `types.ts` still has its own copy of `AnchorFindingSchema` byte-identical to 08's. Could be swapped to import from 08 in a future cosmetic patch; left as-is here to keep this session's diff minimal and avoid 07-side type-id churn. Zod's structural typing means downstream callers can't tell the difference. |
-| **Phase 3+ rubric DSL upgrade** | future | `required` flag on `Anchor` (capping band ≤ 2 when a required anchor misses) and `error_classes: string[]` on `Rubric` (driving learning-loop reports in 15-analytics) are aspirational from the original SKILL.md draft. Adding them requires (a) schema-migration story for existing `questions.rubric` JSONB, (b) eval-harness re-baseline if band-cap-on-required-miss semantics actually fire, (c) admin authoring UI updates in 10. Recorded in 08's SKILL.md § "Open questions / Phase 3+ deferrals". |
-| **G3.A — `14-audit-log`** | sequential | Load-bearing per CLAUDE.md, **codex:rescue MANDATORY** before push. Ships helper API + table + GRANT enforcement + S3 archive job + 9 critical wired sites. After G3.A merges, the audit-fanout handler in 13-notifications lights up automatically (dynamic import resolves). Independent of this session's work. |
-| **G3.C — `15-analytics`** | sequential | Blocked on G3.A merge AND G2.B Session 3 (09-scoring `attempt_scores`). Reads from both `audit_log` and `attempt_scores`. |
-| **Resend SMTP credentials provisioning** | user (G3.B carry-forward) | `SMTP_URL` empty in `/srv/assessiq/.env` — emails currently routed to stub-fallback (dev-emails.log JSONL). To go live: create Resend account, verify domain DNS (SPF/DKIM/DMARC), generate API key, set `SMTP_URL=smtps://resend:re_<api_key>@smtp.resend.com:465`, recreate `assessiq-api` + `assessiq-worker`. No code change required. |
-| **Sonnet-only mode audit flag** | user (G3.B carry-forward + this session) | Two consecutive non-load-bearing sessions ran without Opus orchestration past Phase 0 reads and without `codex:rescue`. 13-notifications G3.B was a security-adjacent surface (HMAC, AES-256-GCM, fresh-MFA) and has a pending retroactive flag. 08-rubric-engine this session is pure math — no auth/RLS/AI/secret-handling — and skipping codex:rescue is on-plan per the DoD's "judgment-call — recommend skip (small surface, no auth/RLS/AI exposure, pure math). 08 is not load-bearing." Recorded for traceability. |
+| Pack `phase1-closure-test` | `019dedd6-0a04-7b2e-9877-c5c77d1e80a7` | status=published; safe to leave (wipro-soc tenant only) |
+| Level `L1 - SOC Analyst` | `019dedd6-2a3d-746d-8e05-36c3ef5d6ee5` | — |
+| Q1 MCQ (Incident Response) | `019dedd8-0aa2-7fac-b8a6-1ba8e1f8040a` | status=active |
+| Q2 Subj (Threat Analysis) | `019dedd9-a7bd-7f6c-ba78-cc2f9a077751` | status=active |
+| Q3 Subj (Log Analysis) | `019dedd9-a7e6-7cd8-af7d-93796bc8ffd7` | status=active |
+| Assessment `Phase1 Closure Drill` | `019dedd9-a832-7086-afcb-374030b7875b` | status=published |
+| Candidate user `drill1-candidate@closure-audit.test` | `019dedda-3cc6-7c3b-a03f-06e5666b191a` | role=candidate, status=active |
 
 ---
 
 ## Agent utilization
-- Opus: Phase 0 warm-start reads (PROJECT_BRAIN.md + CLAUDE.md + global playbook + SESSION_STATE + RCA + 8 SKILL.md + plans + recent 25 commits + git status/stash); plan critique against P2.D12 + plan signature reconciliation (the helper signature deltas between 07's existing `(rubric, findings)` shape and the plan's `(anchors, findings)` shape were resolved in favor of plan-pinned); writing all 08 source/tests; doc updates; line-by-line diff self-review against the plan's anti-pattern list (no migrations / no AI / no class / no 04-consumer-break — all clean); deploy + post-deploy smoke; this handoff.
-- Sonnet: n/a — work was small (~250 LoC across 9 new files + 4 small modifications), all files were already in Opus's hot read cache from Phase 0, and Sonnet cold-start (~20-30s) + cache loss outweighed the Opus-token savings. Per global CLAUDE.md "don't delegate when self-executing is faster" rule — the edit was ≤30 LoC across ≤2 files threshold doesn't strictly apply (it was wider), but the cache-warm + small-judgment-density profile pushed the right answer to Opus-direct.
-- Haiku: n/a — no multi-file greps for one fact, no log triage, no bulk sweeps. The single VPS enumeration `docker ps` + post-deploy curl smoke (5 lines, returns checkmark-equivalent table) was self-executed for latency rather than fanned out to a Haiku agent.
-- codex:rescue: n/a — recommended skip per plan DoD ("small surface, no auth/RLS/AI exposure, pure math; 08 is not load-bearing"). Self-reviewed against plan anti-pattern guards: no migrations ✓ | no AI imports ✓ | pure functions / no class ✓ | 04 re-export round-trip preserved (55/55 tests still pass) ✓ | no 04 consumer churn ✓ | 07 swap behavior-identical (85/85 tests still pass) ✓ | hallucinated-anchor guard preserved ✓ | sum-not-100 invariant preserved + tested ✓.
+- Opus: n/a — Sonnet-only session per explicit user instruction
+- Sonnet: Primary for all reads, drills, documentation. Ran all 5 drills via SSH + scp script pattern (PowerShell quoting workaround).
+- Haiku: n/a
+- codex:rescue: n/a — read-only operational session; no code changes to review
+
+---
+
+## Prior session — 2026-05-03 (Phase 2 G2.B Session 2 — `08-rubric-engine` live)
+
+> See `git log --oneline 8600ce9` for the full diff. Key facts preserved below for Phase 0 warm-start.
+
+**Commits:** `8600ce9 — feat(rubric-engine): lift RubricSchema + ship validate/score helpers` (20 files, +658/−345). On `origin/main`.
+
+**What shipped:** New `@assessiq/rubric-engine` module — canonical `RubricSchema`/`AnchorSchema`/`AnchorFinding` types lifted from 04+07, plus four pure helpers: `validateRubric`, `sumAnchorScore`, `computeReasoningScore`, `finalScore`. 04 re-exports schemas verbatim (zero consumer churn). 07 swapped local `score.ts` to import `finalScore` from 08 (behavior-identical). `docs/02-data-model.md:25` dead table reference corrected.
+
+**Tests at that point:** `@assessiq/rubric-engine` 28/28; `@assessiq/question-bank` 55/55; `@assessiq/ai-grading` 85/85; `pnpm -r typecheck` clean; all lints clean.
+
+**Next for Phase 2:** Phase 2 G2.B Session 3 — `09-scoring`. Greenfield. Ships `0050_attempt_scores.sql`, `ArchetypeLabel` enum (8 built-ins), `deriveArchetype`, `computeAttemptScore` (UPSERT idempotent), `cohortStats`, `leaderboard`. Imports `finalScore` + `sumAnchorScore` + `computeReasoningScore` from 08. codex:rescue judgment-call recommended once on archetype rule logic.
+
+
+
+
+
