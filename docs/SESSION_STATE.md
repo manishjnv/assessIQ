@@ -1,3 +1,53 @@
+# Session — 2026-05-04 (admin guide: verbatim content fix + claude ref removal)
+
+**Headline:** `02b42a3` — admin-guide content updated to verbatim spec; "Claude Code CLI" references removed (hard rule violation in prior commit `6c28a29`).
+
+**Commits:**
+- `6c28a29` — feat(admin-guide): end-to-end assessment workflow guide page (L1→L3)
+- `8d9bff6` — docs(session): admin guide page shipped (SESSION_STATE handoff)
+- `02b42a3` — fix(admin-guide): align content to verbatim spec + remove claude refs
+
+**Tests:** Vite build 351 modules clean; no new test failures. Pre-existing failures unchanged.
+
+**Next:** Phase 1 closure audit Finding C fix (`inviteUsers tenantName:""` 500). Alternatively: lint-dockerignore-vs-copy tooling OR Sentry/SMTP wiring.
+
+**Open questions:**
+- Google OAuth credentials still empty — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C).
+- `/admin/guide` prior secrets scan bug: `-SimpleMatch` with `|` treats `|` as a literal character, not OR — use separate `Select-String` calls per pattern going forward.
+
+---
+
+## What changed — 02b42a3
+
+**What changed:** Content-only rewrite of `admin-guide.tsx` to match verbatim spec:
+- Overview: `P + UL + flow-line` instead of complex map(); verbatim three-layer description
+- Prerequisites: 3 items (admin role, Google Workspace TOTP, candidate emails) — replaces prior 4 items that included a "Claude Code CLI integration" mention (hard rule violation)
+- Steps 1–7: verbatim phrasing (concise instructions vs prior longer descriptions)
+- Step 8: 7-day TTL (was 72h), compact layout
+- Step 9: autosave every 5 s (was 30 s), condensed
+- Step 10: "Claude Code CLI" ref removed (violated hard rule); rephrased as "AI grading engine under your admin account"
+- Step 11: Accept / Override / comment field structure
+- Step 12: verbatim report description
+- Tips: verbatim titles + bodies (Bands / Audit log / Re-grading / Multi-tenant)
+- FAQ: 4 correct questions (retake / AI fail / edit pack / close window)
+
+**Why:** Prior commit `6c28a29` used differently-worded content; two "Claude Code CLI" mentions violated the hard rule. Secrets scan used `-SimpleMatch` with `claude|anthropic` which treats `|` as literal, not OR — both violations passed undetected. Fix: separate `-Pattern "claude"` + `-Pattern "anthropic"` scans.
+
+**What is NOT included:** Structural code changes, new primitives, new routes. Content only.
+
+**Downstream impact:** `STEP_LABELS[10]` updated to "Review & override" matching new step 11 title.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet 4.6 (Copilot): full session — content review, 17 multi-replace edits, build gate, commit/deploy
+- Haiku: n/a
+- codex:rescue: n/a — pure UI surface
+
+---
+
 # Session — 2026-05-04 (admin guide: 12-step L1→L3 assessment workflow page)
 
 **Headline:** `6c28a29` — `/admin/guide` live on VPS: 12-step end-to-end workflow guide for tenant admins, sidebar "Help guide" link, serif/TOC/status-chip layout.
