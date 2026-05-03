@@ -28,5 +28,27 @@ export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from 
 export { Tooltip } from "./components/Tooltip";
 export type { TooltipProps, TooltipPlacement } from "./components/Tooltip";
 
+// Phase 2 primitives (P2.D18)
+export { ScoreRing } from "./components/ScoreRing";
+export type { ScoreRingProps, ScoreRingSize } from "./components/ScoreRing";
+
+export { Sparkline } from "./components/Sparkline";
+export type { SparklineProps } from "./components/Sparkline";
+
+export { Sidebar, NavItem } from "./components/Sidebar";
+export type { SidebarProps, NavItemProps } from "./components/Sidebar";
+
+export { StatCard } from "./components/StatCard";
+export type { StatCardProps } from "./components/StatCard";
+
+export { Table } from "./components/Table";
+export type { TableProps, ColumnDef, SortDirection } from "./components/Table";
+
+export { Modal } from "./components/Modal";
+export type { ModalProps } from "./components/Modal";
+
+export { Drawer } from "./components/Drawer";
+export type { DrawerProps } from "./components/Drawer";
+
 export { TENANT_FIXTURES } from "./fixtures/tenants";
 export type { TenantFixture } from "./fixtures/tenants";
