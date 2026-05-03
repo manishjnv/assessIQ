@@ -113,4 +113,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | How a host app embeds AssessIQ | `docs/09-integration-guide.md` |
 | What a specific module does | `modules/<n>-<name>/SKILL.md` |
 | How to conduct an assessment end-to-end (L1→L3) | `/admin/guide` (live admin UI) and this table row |
+| Create and manage a question pack | `/admin/question-bank` (list) → `/admin/question-bank/:id` (detail with levels + questions) |
+| Set up an assessment cycle and invite candidates | `/admin/assessments` (list) → `/admin/assessments/:id` (detail with invite picker) |
+| View cohort or individual reports | `/admin/reports` (landing) → `/admin/reports/cohort/:id` or `/admin/reports/individual/:userId` |
 | What candidates see during their assessment | `/take/<token>` (magic-link landing) and `/take/attempt/<id>` (question runner). Help drawer: `modules/11-candidate-ui/src/components/CandidateHelp.tsx` |

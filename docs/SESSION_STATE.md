@@ -157,7 +157,79 @@
 
 ---
 
-# Session — 2026-05-04 (admin guide: verbatim content fix + claude ref removal)
+# Session — 2026-05-04 (admin nav: question-bank + assessments + reports)
+
+**Headline:** `35f78e6` — 5 admin list/detail pages shipped; sidebar nav now covers the full admin workflow (create pack → run assessment → grade → report).
+
+**Commits:**
+- `35f78e6` — feat(admin-ui): question-bank + assessments + reports list pages + sidebar nav
+
+**Tests:** Vite build 357 modules clean (+6 vs prior 351); 0 new TS errors; cross-module-deps 0 violations; edge-routing OK; secrets scan clean.
+
+**Next:** Phase 1 closure audit Finding C fix (`inviteUsers tenantName:""` 500 — fetch `tenant.name` from DB before email call in `inviteUsers`). Alternatively: land dedicated report-list endpoints (see Backend pending section below).
+
+**Open questions:**
+- Google OAuth credentials still empty — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C).
+- Dedicated report-list backend endpoints missing (see Backend-pending FLAGS below).
+- `/admin/guide` steps 1–7 now accurate (QB + assessments pages are live); step annotations can be updated to remove Phase 3+ flags.
+
+---
+
+## What changed — 35f78e6
+
+**What changed:**
+- **5 new admin pages** (all in `modules/10-admin-dashboard/src/pages/`):
+  - `question-bank.tsx` — pack list, URL-param filter chips (All/Draft/Published/Archived), name search, inline "+ New Pack" form (name + domain + description; client-side validation). Navigates to pack detail on row click.
+  - `pack-detail.tsx` — pack header (name / version / status), levels + per-level question list (fetched as flat list, grouped client-side), inline "+ Add level" form, "+ Add question" link per level, "Activate all" per level (pack must be published), "Publish pack" CTA for drafts.
+  - `assessments.tsx` — assessment list ("Cycles" in product spec = "Assessments" in backend), URL-param filter chips (All/Draft/Published/Active/Closed), inline "+ New Assessment" form (name + pack UUID + opens/closes datetime-local). NOTE comment in file header explains the naming delta.
+  - `assessment-detail.tsx` — assessment metadata header, invitations table (candidate email / status / invited / expires), inline "+ Invite candidates" checkbox picker sourced from `GET /admin/users`, "Publish" CTA for drafts, link to filtered attempts.
+  - `reports.tsx` — two-card landing: "Cohort reports" (lists non-draft assessments as entry points → `/admin/reports/cohort/:id`) and "Individual reports" (deduped by user, recent released attempts → `/admin/reports/individual/:userId`). Uses `ReportSection` helper component to avoid layout duplication.
+- **AdminShell nav** (`AdminShell.tsx`): icon union extended with `"clock"` and `"sparkle"`; 3 new nav entries added; 2 TODO Phase3+ comments removed. Final order: Dashboard / Assessments (clock) / Attempts (eye) / Grading (chart) / Reports (sparkle) / Question Bank (grid) / Users (user) / Help guide (book) / Settings (settings).
+- **Barrel** (`modules/10-admin-dashboard/src/index.ts`): 5 new exports added.
+- **Router** (`apps/web/src/App.tsx`): 5 new routes wired with `RequireSession role="admin"` guard.
+- **SKILL.md** (`modules/10-admin-dashboard/SKILL.md`): status section updated; page count 7→12.
+- **PROJECT_BRAIN.md**: 3 new "Where to look for what" rows for QB, Assessments, Reports.
+
+**Why it changed:** Admins could not complete Step 1 of the help guide (create a pack) because no route existed to reach the question bank or assessment create forms. These 5 pages close that gap.
+
+**What is NOT included:** Settings, webhooks, embed-secrets, audit log, bulk import, CSV export, topic-heatmap, advanced filter UX (date ranges), bulk operations (multi-select), the other 14 deferred admin pages.
+
+**Downstream impact:**
+- `docs/03-api-contract.md`: no new endpoints added. Fallback in `reports.tsx` uses existing `/admin/assessments` + `/admin/attempts` — flagged for follow-up (see Backend-pending below).
+- `/admin/guide` Steps 1–7 are now reachable; the "Phase 3+" badge on those steps is stale and can be removed in a follow-up session.
+
+---
+
+## Backend-pending FLAGS (follow-up session)
+
+| Page | Missing endpoint | Impact |
+|---|---|---|
+| `reports.tsx` | `GET /api/admin/reports/cycles` — assessments eligible for cohort reporting (with attempt count) | Currently falls back to listing all non-draft assessments; empty-state misleading when assessments exist but have 0 submitted attempts |
+| `reports.tsx` | `GET /api/admin/reports/recent-attempts` — recent individual-reportable attempts | Currently falls back to `GET /admin/attempts?status=released&limit=20`; deduplication is client-side |
+
+Both endpoints are non-blocking for v1 (fallback is functional). They should land in a dedicated "reports backend" session to clean up the page's data sourcing.
+
+---
+
+## Browser smoke (deploy verified)
+- `/admin/question-bank` → HTTP 200 ✓
+- `/admin/assessments` → HTTP 200 ✓
+- `/admin/reports` → HTTP 200 ✓
+- All 3 route under `/admin/*` SPA served by nginx; no Caddy config changes needed.
+- Full admin login + nav click smoke: pending user verification (Google OAuth still 401).
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet 4.6 (Copilot): full session — all 5 pages + nav + barrel + routes + gates + commit + deploy + docs
+- Haiku: n/a
+- codex:rescue: n/a — pure non-load-bearing UI surface
+
+---
+
+
 
 **Headline:** `02b42a3` — admin-guide content updated to verbatim spec; "Claude Code CLI" references removed (hard rule violation in prior commit `6c28a29`).
 
