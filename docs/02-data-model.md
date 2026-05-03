@@ -22,7 +22,7 @@
 | 05-assessment-lifecycle | `assessments`, `assessment_invitations` |
 | 06-attempt-engine | `attempts`, `attempt_questions`, `attempt_answers`, `attempt_events` |
 | 07-ai-grading | `grading_jobs`, `prompt_versions` |
-| 08-rubric-engine | `rubrics`, `anchors` (per-question rubrics live denormalized inside `questions.content`) |
+| 08-rubric-engine | _service-only — no tables._ Rubric DSL lives denormalized in `questions.rubric` JSONB owned by 04. Phase 2 G2.B Session 2 (2026-05-03) confirmed this boundary per PHASE_2_KICKOFF.md § P2.D12; the prior `rubrics`/`anchors` table reference at this row was dead text from an earlier draft and never shipped. |
 | 09-scoring | `gradings`, `attempt_scores`, `archetypes` |
 | 13-notifications | `webhook_endpoints`, `webhook_deliveries`, `email_log` |
 | 14-audit-log | `audit_log` |

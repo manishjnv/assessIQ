@@ -165,5 +165,6 @@ AI-assisted question generation is the only AI-touching surface in this module's
 - `05-assessment-lifecycle` (G1.B): consumes published packs + frozen `question_versions` snapshots when a candidate starts an attempt. The snapshot-at-publish guarantee is what makes this safe under concurrent admin edits.
 - `06-attempt-engine` (G1.C): pulls a question set from `(pack_id, level_id, status='active')` at attempt-start. RLS scopes everything to the candidate's tenant.
 - `07-ai-grading` (Phase 2): reads `questions.rubric` JSONB for subjective/scenario grading. Admin-triggered, never ambient.
+- `08-rubric-engine` (Phase 2 G2.B Session 2): canonical home for `RubricSchema`, `AnchorSchema`, `Rubric`, `Anchor`. 04 re-exports them so existing `import { RubricSchema } from "@assessiq/question-bank"` callers stay unchanged. 04's internal `validateRubric` (returning `{ ok, data | errors: ZodIssue[] }`) is unchanged and continues to drive `createQuestion`/`updateQuestion` per-issue error mapping.
 - `10-admin-dashboard` (Phase 2): replaces the CLI helper with a browser upload widget against `POST /api/admin/questions/import`.
 - `tools/lint-rls-policies.ts`: now structurally protects 4 join-based child tables; extending it for `06-attempt-engine` is a one-line addition to `JOIN_RLS_TABLES`.
