@@ -170,10 +170,16 @@
 | `GET`  | `/admin/embed-secrets`           | List embed secrets |
 | `POST` | `/admin/embed-secrets`           | Create — returns plaintext **once** |
 | `POST` | `/admin/embed-secrets/:id/rotate`| Rotate (90-day grace) |
-| `GET`  | `/admin/webhooks`                | List webhook endpoints |
-| `POST` | `/admin/webhooks`                | Register endpoint |
-| `POST` | `/admin/webhooks/:id/test`       | Send test event |
-| `GET`  | `/admin/webhook-deliveries`      | Delivery history (per endpoint) |
+| `GET`    | `/admin/webhooks`                          | List webhook endpoints for tenant — **live 2026-05-03** |
+| `POST`   | `/admin/webhooks`                          | Create endpoint — returns `{ endpoint, secret }` (secret ONCE); `audit.*` events require fresh MFA (≤5 min) → `401 FRESH_MFA_REQUIRED` otherwise — **live 2026-05-03** |
+| `DELETE` | `/admin/webhooks/:id`                      | Delete webhook endpoint — **live 2026-05-03** |
+| `POST`   | `/admin/webhooks/:id/test`                 | Send synthetic `test.ping` event — **live 2026-05-03** |
+| `GET`    | `/admin/webhooks/deliveries`               | Delivery history (optional `?endpointId=<uuid>&status=pending\|delivered\|failed`) — **live 2026-05-03** |
+| `POST`   | `/admin/webhooks/deliveries/:id/replay`    | Replay a delivery (append-only, new row) — **live 2026-05-03** |
+| `GET`    | `/admin/webhook-failures`                  | Convenience alias: deliveries with `status=failed` — **live 2026-05-03** |
+| `POST`   | `/admin/webhook-failures/:id/retry`        | Convenience alias for replay — **live 2026-05-03** |
+| `GET`    | `/admin/notifications`                     | Short-poll in-app notifications (`?since=<ISO cursor>&limit=<n>`) — any-role (admin+reviewer) — **live 2026-05-03** |
+| `POST`   | `/admin/notifications/:id/mark-read`       | Mark notification read — any-role — **live 2026-05-03** |
 
 ### Admin — Audit & help authoring
 

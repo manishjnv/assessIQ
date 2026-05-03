@@ -62,13 +62,42 @@ Owns: `webhook_endpoints`, `webhook_deliveries`, `email_log`. Reads: `users` (re
 
 ## Status
 
-**Stub live — 2026-05-01 (Phase 0 G0.C-5 / Window 5); extended 2026-05-02 (Phase 1 G1.B Session 3).** Workspace package `@assessiq/notifications` ships two exports backed by `modules/13-notifications/src/email-stub.ts`:
+**Live — 2026-05-03 (Phase 3 G3.B Session 2).** Full pipeline shipped. All three channels operational.
 
-- `sendInvitationEmail({ to, role, invitationLink, tenantName? })` — admin / reviewer / candidate user invitations from `03-users`. Template id `invitation.user`.
-- `sendAssessmentInvitationEmail({ to, candidateName, assessmentName, invitationLink, expiresAt, tenantName })` — assessment-cohort invitations from `05-assessment-lifecycle`. Template id `invitation.assessment`. Added 2026-05-02.
+### What shipped (Phase 3 G3.B)
 
-- **Behavior:** synchronous append-only JSONL write to `$ASSESSIQ_DEV_EMAILS_LOG ?? /var/log/assessiq/dev-emails.log` (production) or `~/.assessiq/dev-emails.log` (dev). One JSON object per line, fields `{ts, to, subject, body, template_id}` (per `modules/03-users/SKILL.md` § Decisions captured § 8 — exact field set). Plus a console-INFO log entry per send.
-- **What's NOT in the stub:** SMTP, BullMQ queueing, retries, webhooks, in-app notifications, all template files beyond `invitation.user` and `invitation.assessment`. The full webhook + SMTP + template pipeline lands in Phase 3.
-- **Why it's split out as its own workspace package** (vs inlined into 03-users): keeps the notification dependency injectable + testable (tests `vi.mock('@assessiq/notifications', ...)`), and lets Phase 3 swap the stub for the real adapter without touching the calling modules.
-- **2026-05-02 Windows-path fix** — `appendDevEmailLog` previously hand-rolled directory extraction via `lastIndexOf('/')`, which silently broke on pure-backslash Windows paths (returned `-1` → empty dir → `mkdir` fail → silent write loss). Now uses `path.dirname()`. RCA entry appended to `docs/RCA_LOG.md` 2026-05-02.
-- **codex:rescue note (LOW, deferred):** `ASSESSIQ_DEV_EMAILS_LOG` is read directly from `process.env` rather than going through `00-core` `ConfigSchema` Zod validation. Phase 3 SMTP wiring re-evaluates whether this env var stays (probably removed when SMTP replaces the stub).
+- **SMTP via nodemailer + generic SMTP transport** (P3.D9). `SMTP_URL` env var; Resend as default (`smtps://apikey:<key>@smtp.resend.com:465`). Empty `SMTP_URL` → stub-fallback writes JSONL to `/var/log/assessiq/dev-emails.log` — no deploy breakage before creds provisioned.
+- **7 Handlebars email templates** (P3.D14) — both `.html` and `.txt` variants, Zod-validated vars, HTML-escaped by default (no triple-stash). `.txt` compiled with `noEscape: true` so URLs are never entity-encoded.
+- **Signed outbound webhooks** (P3.D12) — `HMAC-SHA256` (`sha256=<hex>` format); secrets AES-256-GCM encrypted at rest under `ASSESSIQ_MASTER_KEY`; plaintext returned ONCE on create. Retry schedule: `[1m, 5m, 30m, 2h, 12h]` (published API contract — do not change without API version bump).
+- **In-app short-poll notifications** (P3.D13) — `GET /api/admin/notifications?since=<cursor>` returns `{ items, cursor }`; `POST /api/admin/notifications/:id/mark-read`. No WebSocket/SSE — deferred to Phase 4.
+- **P3.D16 fresh-MFA gate** — `audit.*` webhook subscriptions require `session.lastTotpAt` within 5 minutes; returns `401 FRESH_MFA_REQUIRED` otherwise.
+- **G3.A audit fanout hook** (`audit-fanout-handler.ts`) — dynamic import of `@assessiq/audit-log`; no-op + INFO log if absent (G3.A not yet merged).
+- **BullMQ integration** — `email.send` (exponential backoff, internal) and `webhook.deliver` (custom literal backoff, published) jobs processed by `assessiq-worker`.
+- **Legacy shims preserved** — `sendInvitationEmail` and `sendAssessmentInvitationEmail` still exported with identical signatures; `03-users` and `05-assessment-lifecycle` require no changes.
+
+### Key pinned decisions
+
+| ID | Decision |
+|---|---|
+| P3.D9 | nodemailer generic SMTP transport; Resend as default provider via `SMTP_URL` |
+| P3.D12 | Webhook retry schedule `[1m,5m,30m,2h,12h]` is published API contract |
+| P3.D13 | In-app delivery = short-poll only; no SSE/WebSocket in Phase 3 |
+| P3.D14 | Handlebars templates, Zod-validated vars, HTML-escape on `.html`, no-escape on `.txt` |
+| P3.D16 | `audit.*` webhook subscriptions require fresh MFA (≤5 min) — enforced at route layer |
+
+### Migrations
+
+| File | Table | Status |
+|---|---|---|
+| `0055_email_log.sql` | `email_log` | live |
+| `0056_in_app_notifications.sql` | `in_app_notifications` | live |
+| `0057_tenants_smtp_config.sql` | no-op (already added by `02-tenancy` migration 0004) | live |
+| `0058_webhook_tables.sql` | `webhook_endpoints`, `webhook_deliveries` | live |
+
+### What is NOT included
+
+- Per-tenant SMTP override UI (data model supports `tenants.smtp_config` JSONB but no admin route yet)
+- Slack/Teams native integrations (covered by registering a webhook to the Slack incoming-webhook URL)
+- Per-user notification preferences (Phase 4)
+- WebSocket/SSE push (Phase 4)
+- G3.A audit-log registration hook — G3.A's merge wires `handleAuditFanout` into the post-commit path

@@ -35,6 +35,13 @@ import { config, streamLogger } from "@assessiq/core";
 import { listActiveTenantIds, closePool } from "@assessiq/tenancy";
 import { processBoundariesForTenant } from "@assessiq/assessment-lifecycle";
 import { sweepStaleTimersForTenant } from "@assessiq/attempt-engine";
+import {
+  processEmailSendJob,
+  type EmailSendJobData,
+  processWebhookDeliverJob,
+  type WebhookDeliverJobData,
+  webhookBackoffStrategy,
+} from "@assessiq/notifications";
 
 const log = streamLogger("worker");
 
@@ -45,24 +52,35 @@ const log = streamLogger("worker");
 const QUEUE_NAME = "assessiq-cron";
 const BOUNDARY_JOB_NAME = "assessment-boundary-cron";
 const TIMER_SWEEP_JOB_NAME = "attempt-timer-sweep";
+const EMAIL_SEND_JOB_NAME = "email.send";
+const WEBHOOK_DELIVER_JOB_NAME = "webhook.deliver";
 
 const BOUNDARY_INTERVAL_MS = 60_000;
 const TIMER_SWEEP_INTERVAL_MS = 30_000;
 
 /**
- * Per-job retry policy. Both current jobs are idempotent at the SQL level
- * (bulk UPDATE WHERE status IN (...) — re-running on already-transitioned
- * rows is a no-op), so retries are safe.
+ * Per-job retry policy.
  *
- * If a future job is NOT idempotent (e.g. an outbound webhook that the
- * receiver doesn't dedupe), set `attempts: 1` here and document why.
+ * Cron jobs are idempotent at the SQL level (bulk UPDATE WHERE status IN (...)
+ * — re-running on already-transitioned rows is a no-op), so retries are safe.
+ *
+ * email.send: 5 attempts, exponential base 5s (SMTP transient retries, not a
+ *   published external contract — exponential is fine here).
+ *
+ * webhook.deliver: 5 attempts, custom backoff via WEBHOOK_RETRY_DELAYS_MS
+ *   literal schedule [1m, 5m, 30m, 2h, 12h] per P3.D12. This IS a published
+ *   API contract per docs/03-api-contract.md:324 — must remain literal.
+ *   Registered as the 'webhook-literal' custom backoff strategy below.
  */
 export const JOB_RETRY_POLICY: Record<
   string,
-  { attempts: number; backoff: { type: "exponential"; delay: number } }
+  | { attempts: number; backoff: { type: "exponential"; delay: number } }
+  | { attempts: number; backoff: { type: "custom" } }
 > = {
   [BOUNDARY_JOB_NAME]: { attempts: 5, backoff: { type: "exponential", delay: 1000 } },
   [TIMER_SWEEP_JOB_NAME]: { attempts: 5, backoff: { type: "exponential", delay: 1000 } },
+  [EMAIL_SEND_JOB_NAME]: { attempts: 5, backoff: { type: "exponential", delay: 5000 } },
+  [WEBHOOK_DELIVER_JOB_NAME]: { attempts: 5, backoff: { type: "custom" } },
 };
 
 // ---------------------------------------------------------------------------
@@ -290,9 +308,10 @@ async function start(): Promise<void> {
     },
   );
 
-  // Consumer: processes any job that lands on the queue. Concurrency 1 — we
-  // never want two boundary ticks running simultaneously (would race on the
-  // bulk UPDATE) or two timer sweeps (same reason).
+  // Consumer: processes any job that lands on the queue.
+  // Concurrency: cron jobs run at 1 (never two boundary/timer ticks simultaneously
+  // — would race on the bulk UPDATE). Email + webhook jobs can run at higher
+  // concurrency but share the same worker process for simplicity in Phase 3.
   const worker = new Worker(
     QUEUE_NAME,
     async (job: Job) => {
@@ -301,11 +320,33 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processBoundaryTick);
         case TIMER_SWEEP_JOB_NAME:
           return runJobWithLogging(job, processTimerSweepTick);
+        case EMAIL_SEND_JOB_NAME:
+          return runJobWithLogging(job, () =>
+            processEmailSendJob(job.data as EmailSendJobData).then((r) => ({
+              emailLogId: r.emailLogId.length,
+              status: r.status === 'sent' ? 1 : 0,
+            })),
+          );
+        case WEBHOOK_DELIVER_JOB_NAME:
+          return runJobWithLogging(job, () =>
+            processWebhookDeliverJob(job as Job<WebhookDeliverJobData>).then((r) => ({
+              deliveryId: r.deliveryId.length,
+              status: r.httpStatus ?? 0,
+            })),
+          );
         default:
           throw new Error(`Unknown job name: ${job.name}`);
       }
     },
-    { connection: redis, concurrency: 1 },
+    {
+      connection: redis,
+      concurrency: 1,
+      settings: {
+        // Custom backoff strategy for webhook.deliver — literal [1m,5m,30m,2h,12h]
+        // per P3.D12. NOT exponential. This is a published API contract.
+        backoffStrategy: webhookBackoffStrategy,
+      },
+    },
   );
 
   // Fires only when ALL retries are exhausted — distinct from the per-retry

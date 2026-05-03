@@ -1,0 +1,11 @@
+Subject: We received your assessment submission — {{assessmentName}}
+
+Hi {{candidateName}},
+
+We received your submission for "{{assessmentName}}" on {{tenantName}} at {{submittedAt}}.
+
+Your responses are now being reviewed. You'll receive another email when grading is complete.
+
+Thank you for taking the time to complete this assessment.
+
+— The AssessIQ Team

@@ -308,11 +308,15 @@ describe("JOB_RETRY_POLICY — retry table shape", () => {
     expect(boundaryPolicy).toBeDefined();
     expect(boundaryPolicy?.attempts).toBe(5);
     expect(boundaryPolicy?.backoff.type).toBe("exponential");
-    expect(typeof boundaryPolicy?.backoff.delay).toBe("number");
+    if (boundaryPolicy?.backoff.type === "exponential") {
+      expect(typeof boundaryPolicy.backoff.delay).toBe("number");
+    }
 
     expect(timerPolicy).toBeDefined();
     expect(timerPolicy?.attempts).toBe(5);
     expect(timerPolicy?.backoff.type).toBe("exponential");
-    expect(typeof timerPolicy?.backoff.delay).toBe("number");
+    if (timerPolicy?.backoff.type === "exponential") {
+      expect(typeof timerPolicy.backoff.delay).toBe("number");
+    }
   });
 });

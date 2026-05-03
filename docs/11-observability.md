@@ -46,7 +46,7 @@ Seven application streams plus one error mirror, all under `LOG_DIR` (default `/
 | `auth.log` | `01-auth/*` + `03-users/invitations.ts` (session minting on accept) | "Who logged in / failed MFA / had a session revoked?" | ~1 MB |
 | `grading.log` | `07-ai-grading` per-CLI-run wrapper *(Phase 2 — see § 10)* | "Why did this AI grade fail? What prompt SHA? Token cost?" | tiny in Phase 1 |
 | `migration.log` | `tools/migrate.ts` (self-contained JSONL writer) | "Which migrations applied to prod, when, in what order, hash matches?" | tiny |
-| `webhook.log` | `13-notifications` outbound HTTP *(Phase 3)* | "Did our webhook to host X fire? What did they return?" | varies |
+| `webhook.log` | `13-notifications` outbound webhook delivery + email queue — **live 2026-05-03** | "Did our webhook to host X fire? What did they return? Was the email queued?" | varies |
 | `frontend.log` | `apps/api/routes/_log.ts` ingest, fed by `apps/web/src/lib/logger.ts` | "What broke in the browser? Which client saw it?" | varies |
 | `worker.log` | `apps/api/src/worker.ts` BullMQ scheduler (`runJobWithLogging` wrapper) — see § 13 | "Did the cron tick? How long did it take? What failed and how many retries?" | ~200 KB at the current 60s + 30s cadence; one start + one finished line per tick |
 | `error.log` *(mirror)* | every stream, level ≥ error only | **"What broke?"** — single file to scan first, regardless of source | ~1 MB |
@@ -556,6 +556,48 @@ curl -sS -X POST -b "aiq_sess=<admin-session>" \
 ```
 
 If `worker.log` is empty but the container is running, the `LOG_DIR` env var was not set when the container booted — `docker exec assessiq-worker env | grep LOG_DIR` and recreate the container per the `restart` ≠ `recreate` rule in [docs/RCA_LOG.md](RCA_LOG.md) `2026-05-01 — env_file reload`.
+
+## 14. Notifications observability (Phase 3 — live 2026-05-03)
+
+> **Read this when:** triaging a missing webhook delivery, investigating an email that didn't arrive, or checking in-app notification state.
+
+Module `13-notifications` emits all observability to **`webhook.log`** (`streamLogger('webhook')`). Email send and webhook delivery are both async — queued via BullMQ, processed in `assessiq-worker`.
+
+### 14.1 Key log events
+
+| Event | Level | Stream | When |
+|---|---|---|---|
+| `email.queued` | info | webhook | `sendEmail()` enqueued the `email.send` BullMQ job |
+| `email.sent` | info | webhook | SMTP `sendMail()` returned without error |
+| `email: SMTP_URL not configured — falling back to dev-emails.log` | warn | webhook | No SMTP configured — stub fallback active |
+| `in-app.notification.created` | info | app | `notifyInApp()` inserted a row |
+| `webhook.delivery.delivered` | info | webhook | 2xx from endpoint |
+| `webhook.delivery.permanent_fail` | warn | webhook | 4xx (not 408/425/429) from endpoint — no retry |
+| `webhook.delivery.retry` | warn | webhook | 5xx / 408/425/429 from endpoint — BullMQ will retry |
+| `webhook.delivery.network_error` | warn | webhook | fetch threw before response — BullMQ will retry |
+| `webhook.delivery.not_found` | warn | webhook | delivery row missing — dropped silently |
+| `webhook.endpoint.not_found` | warn | webhook | endpoint deleted after delivery enqueued |
+| `webhook.secret.missing` | error | webhook | AES-decrypt failed — endpoint unusable |
+| `audit-fanout: @assessiq/audit-log not available — skipping fanout` | info | webhook | G3.A not yet merged — expected pre-Phase-3 |
+
+### 14.2 Retry schedules
+
+| Job | Schedule | BullMQ backoff type |
+|---|---|---|
+| `email.send` | exponential, base 5000 ms, 5 attempts | BullMQ built-in exponential |
+| `webhook.deliver` | literal `[1m, 5m, 30m, 2h, 12h]` (P3.D12 — published API contract) | custom strategy (`webhookBackoffStrategy`) |
+
+The webhook retry schedule is **published** in `docs/03-api-contract.md` — do not change it without an API version bump. The email retry schedule is internal and may change freely.
+
+### 14.3 Stub-fallback (pre-Resend creds)
+
+When `SMTP_URL` is unset or empty, `sendEmail()` writes a JSONL line to `~/.assessiq/dev-emails.log` (dev) or `/var/log/assessiq/dev-emails.log` (production) rather than failing. The path can be overridden via `ASSESSIQ_DEV_EMAILS_LOG` env var. This prevents deploy breakage before Resend credentials are provisioned.
+
+### 14.4 Webhook delivery admin surface
+
+- `GET /api/admin/webhooks/deliveries?status=failed` — all failed deliveries for the tenant
+- `POST /api/admin/webhooks/deliveries/:id/replay` — append-only replay (new delivery row, original preserved)
+- `GET /api/admin/webhook-failures` + `POST /api/admin/webhook-failures/:id/retry` — convenience aliases
 
 ### 13.6 What changed in this revision (2026-05-03)
 

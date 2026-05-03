@@ -23,6 +23,7 @@ import {
   registerHelpTrackRoutes,
 } from '@assessiq/help-system';
 import { registerAdminWorkerRoutes } from './routes/admin-worker.js';
+import { registerNotificationsRoutes } from '@assessiq/notifications';
 import { authChain } from './middleware/auth-chain.js';
 
 const requestLog = streamLogger('request');
@@ -170,6 +171,17 @@ export async function buildServer() {
   // framework-agnostic (no fastify dep) so apps/api passes its own factory.
   // Worker observability routes — queue stats + failed-job inspection + retry.
   await registerAdminWorkerRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
+  // Notifications + webhooks routes (Phase 3 G3.B):
+  //   - /api/admin/webhooks/* (admin-gated)
+  //   - /api/admin/webhook-failures/* (admin-gated, convenience alias)
+  //   - /api/admin/notifications (any-role — admin + reviewer)
+  //   - /api/admin/notifications/:id/mark-read (any-role)
+  // All routes are /api/admin/* prefix → covered by @api path /api/* Caddy matcher.
+  await registerNotificationsRoutes(app, {
+    adminOnly: authChain({ roles: ['admin'] }),
+    anyRoleAuth: authChain({ roles: ['admin', 'reviewer'] }),
+  });
 
   await registerHelpPublicRoutes(app);
   await registerHelpTrackRoutes(app);

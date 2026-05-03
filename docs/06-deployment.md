@@ -333,7 +333,12 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_OAUTH_REDIRECT=https://assessiq.automateedge.cloud/api/auth/google/cb
 
-# Email (SMTP — Phase 3; stub-to-file in dev)
+# Email (SMTP — live Phase 3, 2026-05-03)
+# SMTP_URL format: smtps://apikey:<RESEND_API_KEY>@smtp.resend.com:465
+# Leave EMPTY to activate stub-fallback: emails written to /var/log/assessiq/dev-emails.log
+# (or ASSESSIQ_DEV_EMAILS_LOG env override). No deploy breakage if unset.
+# Provision: create an API key at resend.com → Sending → API Keys (SMTP scope),
+# then set SMTP_URL=smtps://apikey:<key>@smtp.resend.com:465 and restart assessiq-api + assessiq-worker.
 SMTP_URL=
 EMAIL_FROM="AssessIQ <noreply@automateedge.cloud>"
 

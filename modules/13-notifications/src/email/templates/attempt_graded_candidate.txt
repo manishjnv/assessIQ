@@ -1,0 +1,10 @@
+Subject: Your assessment results are ready — {{assessmentName}}
+
+Hi {{candidateName}},
+
+Your results for "{{assessmentName}}" on {{tenantName}} are now available.
+
+{{#if resultsLink}}View your results here:
+{{resultsLink}}{{else}}Please log in to AssessIQ to view your results.{{/if}}
+
+— The AssessIQ Team

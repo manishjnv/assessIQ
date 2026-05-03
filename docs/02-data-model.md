@@ -633,29 +633,73 @@ CREATE TABLE audit_log (
 CREATE INDEX audit_log_tenant_at_idx ON audit_log (tenant_id, at DESC);
 CREATE INDEX audit_log_entity_idx ON audit_log (entity_type, entity_id);
 
+CREATE TABLE email_log (
+  id                  UUID PRIMARY KEY DEFAULT uuidv7(),
+  tenant_id           UUID NOT NULL REFERENCES tenants(id),
+  to_address          TEXT NOT NULL,
+  subject             TEXT NOT NULL,
+  template_id         TEXT NOT NULL,
+  body_text           TEXT,
+  body_html           TEXT,
+  status              TEXT NOT NULL DEFAULT 'queued'        -- 'queued','sending','sent','failed','bounced'
+                      CHECK (status IN ('queued','sending','sent','failed','bounced')),
+  provider            TEXT,
+  provider_message_id TEXT,
+  attempts            INT NOT NULL DEFAULT 0,
+  last_error          TEXT,
+  sent_at             TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX email_log_tenant_created_idx ON email_log (tenant_id, created_at DESC);
+CREATE INDEX email_log_tenant_status_idx ON email_log (tenant_id, status)
+  WHERE status IN ('queued','failed','bounced');
+
+CREATE TABLE in_app_notifications (
+  id          UUID PRIMARY KEY DEFAULT uuidv7(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id),
+  audience    TEXT NOT NULL CHECK (audience IN ('user','role','all')),
+  user_id     UUID REFERENCES users(id),                   -- set when audience='user'
+  role        TEXT CHECK (role IN ('admin','reviewer')),   -- set when audience='role'
+  kind        TEXT NOT NULL,                               -- 'attempt.graded', 'weekly.digest', etc.
+  message     TEXT NOT NULL,
+  link        TEXT,
+  read_at     TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX in_app_notif_unread_idx ON in_app_notifications
+  (tenant_id, audience, created_at DESC) WHERE read_at IS NULL;
+
 CREATE TABLE webhook_endpoints (
-  id              UUID PRIMARY KEY DEFAULT uuidv7(),
-  tenant_id       UUID NOT NULL REFERENCES tenants(id),
-  url             TEXT NOT NULL,
-  secret_enc      BYTEA NOT NULL,
-  events          TEXT[] NOT NULL,                         -- ['attempt.submitted','attempt.graded']
-  status          TEXT NOT NULL DEFAULT 'active',
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                UUID PRIMARY KEY DEFAULT uuidv7(),
+  tenant_id         UUID NOT NULL REFERENCES tenants(id),
+  name              TEXT NOT NULL,
+  url               TEXT NOT NULL,
+  secret_enc        BYTEA NOT NULL,                        -- AES-256-GCM encrypted; plaintext returned ONCE on create
+  events            TEXT[] NOT NULL,                       -- ['attempt.submitted','audit.*']
+  status            TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active','disabled')),
+  requires_fresh_mfa BOOLEAN NOT NULL DEFAULT false,       -- true when events includes audit.*
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE webhook_deliveries (
-  id              UUID PRIMARY KEY DEFAULT uuidv7(),
-  endpoint_id     UUID NOT NULL REFERENCES webhook_endpoints(id),
-  event           TEXT NOT NULL,
-  payload         JSONB NOT NULL,
-  status          TEXT NOT NULL,                           -- 'pending','delivered','failed'
-  http_status     INT,
-  attempts        INT NOT NULL DEFAULT 0,
-  next_retry_at   TIMESTAMPTZ,
-  delivered_at    TIMESTAMPTZ,
-  last_error      TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  id           UUID PRIMARY KEY DEFAULT uuidv7(),
+  endpoint_id  UUID NOT NULL REFERENCES webhook_endpoints(id),
+  event        TEXT NOT NULL,
+  payload      JSONB NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'pending'             -- 'pending','delivered','failed'
+               CHECK (status IN ('pending','delivered','failed')),
+  http_status  INT,
+  attempts     INT NOT NULL DEFAULT 0,
+  retry_at     TIMESTAMPTZ,
+  delivered_at TIMESTAMPTZ,
+  last_error   TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- webhook_deliveries has no tenant_id — RLS enforced via JOIN to webhook_endpoints:
+-- USING (EXISTS (SELECT 1 FROM webhook_endpoints e
+--               WHERE e.id = endpoint_id
+--                 AND e.tenant_id = current_setting('app.current_tenant')::uuid))
 
 CREATE TABLE help_content (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -702,3 +746,6 @@ System-level operations (cross-tenant analytics, support tools) use a `BYPASSRLS
 - `audit_log (tenant_id, at DESC)` — admin audit feed
 - `attempt_events (attempt_id, at)` — replay for behavioral scoring
 - Partial indexes on `WHERE deleted_at IS NULL` for users and questions
+- `email_log (tenant_id, created_at DESC)` — timeline feed; partial `(tenant_id, status) WHERE status IN ('queued','failed','bounced')` for retry sweeps
+- `in_app_notifications (tenant_id, audience, created_at DESC) WHERE read_at IS NULL` — unread short-poll query
+- `webhook_deliveries` — no own index; queries always filter through `endpoint_id` which maps back to tenant via RLS JOIN

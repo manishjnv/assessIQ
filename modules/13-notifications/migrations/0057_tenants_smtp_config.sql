@@ -1,0 +1,30 @@
+-- modules/13-notifications/migrations/0057_tenants_smtp_config.sql
+-- Phase 3 G3.B — verification migration for tenants.smtp_config.
+--
+-- VERIFICATION RESULT: Column EXISTS — NO-OP MIGRATION.
+--
+-- modules/02-tenancy/migrations/0004_tenants_smtp_config.sql (shipped
+-- 2026-05-02 in Phase 1 G1.B Session 3) already adds:
+--
+--   ALTER TABLE tenants ADD COLUMN IF NOT EXISTS smtp_config JSONB;
+--
+-- This file is intentionally a no-op comment. The column's shape is:
+--   {
+--     "host":         "smtp.hostinger.com",
+--     "port":         465,
+--     "secure":       true,
+--     "user":         "no-reply@<tenant-domain>",
+--     "password_enc": "<base64 AES-256-GCM ciphertext>",
+--     "from_address": "no-reply@<tenant-domain>",
+--     "from_name":    "AssessIQ"
+--   }
+--
+-- Phase 3 extends this shape with a 'provider' discriminator for the
+-- SmtpConfig Zod schema but does NOT modify the DB column — the JSONB
+-- shape is flexible and app-layer Zod validation handles the union.
+--
+-- See: docs/02-data-model.md § Assessment lifecycle (smtp_config note),
+--      modules/02-tenancy/migrations/0004_tenants_smtp_config.sql.
+
+-- Intentional no-op:
+SELECT 1; -- verification complete: tenants.smtp_config JSONB already present

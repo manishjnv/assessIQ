@@ -84,7 +84,18 @@ const JOIN_RLS_TABLES: ReadonlySet<string> = new Set([
   "attempt_questions",
   "attempt_answers",
   "attempt_events",
+  // Phase 3 G3.B — modules/13-notifications (migration 0058)
+  // webhook_deliveries has no tenant_id column; tenancy flows via
+  // endpoint_id → webhook_endpoints.tenant_id (one-hop EXISTS).
+  "webhook_deliveries",
 ]);
+
+// Standard tenant_id-direct tables added in Phase 3 G3.B:
+//   email_log            — migration 0055; tenant_id column, standard two-policy RLS
+//   in_app_notifications — migration 0056; tenant_id column, standard two-policy RLS
+//   webhook_endpoints    — migration 0058; tenant_id column, standard two-policy RLS
+// These appear in the standard branch of validateSqlContent (hasTenantIdColumn)
+// and do NOT need to be listed in JOIN_RLS_TABLES.
 
 /** Recursively collect files whose path matches the migration glob pattern. */
 async function findMigrationFiles(dir: string): Promise<string[]> {
