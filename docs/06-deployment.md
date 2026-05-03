@@ -128,7 +128,18 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
-### Current live state — Phase 1 G1.D split-route + frontend (2026-05-03)
+### Current live state — Phase 3 G3.C analytics module deployed (2026-05-03)
+
+`assessiq-api`, `assessiq-worker`, and `assessiq-frontend` are all live. Phase 3 G3.C ships 6 new admin analytics routes, `attempt_summary_mv` materialized view, and a nightly BullMQ cron refresh job.
+
+**What changed 2026-05-03 (Phase 3 G3.C — 15-analytics):**
+- Migration `0060_attempt_summary_mv.sql` applied — `attempt_summary_mv` MV created (empty, no attempt_scores yet).
+- `0011_seed_help_content.sql` re-applied — 8 new analytics help keys inserted via `ON CONFLICT DO NOTHING` upsert.
+- `assessiq-api` and `assessiq-worker` containers rebuilt with new `@assessiq/analytics` package.
+- 6 new routes: `GET /api/admin/reports/topic-heatmap`, `/archetype-distribution/:id`, `/cost-by-month`, `/exports/attempts.csv`, `/exports/attempts.jsonl`, `/exports/topic-heatmap.csv` — all return 401 unauthenticated (confirmed via smoke-curl).
+- No Caddy config changes — all routes are under `/api/*` which is already matched by the `@api` path matcher.
+
+**Previous state — Phase 1 G1.D split-route + frontend (2026-05-03)**
 
 `assessiq-api` and `assessiq-frontend` are both live. The frontend container ships at SHA `3ef4e25` — multi-stage Vite SPA build (apps/web) on `nginx:alpine`, 73.9 MB image, exposing host port 9091. The Caddy block does a split-route: API + embed + public-help + take/start paths reach the API container on 9092; the default route reverse-proxies to the frontend container on 9091.
 
