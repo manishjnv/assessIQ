@@ -104,12 +104,20 @@ function mapInvitationRow(row: InvitationRow): UserInvitation {
 // ---------------------------------------------------------------------------
 
 /**
- * Acquire a raw pool client WITHOUT tenant context (runs as the pool user,
- * which in production is assessiq_system or assessiq_app without SET LOCAL).
+ * Run `fn` inside a per-call Postgres transaction elevated to the
+ * assessiq_system (BYPASSRLS) role.
  *
  * Used ONLY by the pre-auth acceptInvitation path to look up the invitation's
- * tenant_id before we know which tenant to scope to. The caller is responsible
- * for releasing the client.
+ * tenant_id before we know which tenant to scope to.
+ *
+ * Why role elevation is required: the production DATABASE_URL points at
+ * assessiq_app (RLS active). Without explicit elevation, the RLS policy on
+ * user_invitations evaluates current_setting('app.current_tenant', true)::uuid,
+ * which is "" on a fresh/reused connection with no tenant context, producing
+ * "invalid input syntax for type uuid: """ (2026-05-03 incident). SET LOCAL ROLE
+ * assessiq_system bypasses RLS for the duration of this transaction only.
+ * assessiq_app holds GRANT assessiq_system (0002_rls_helpers.sql) so the
+ * elevation succeeds. See also: withTenant() for the tenant-scoped counterpart.
  *
  * Security argument: token_hash is the sha256 of a 32-byte random value
  * (256 bits of entropy). A global lookup is safe because collision/guessing is
@@ -123,7 +131,19 @@ export async function withSystemClient<T>(
 ): Promise<T> {
   const client = await getPool().connect();
   try {
-    return await fn(client);
+    await client.query("BEGIN");
+    // Elevate to BYPASSRLS role for this transaction only (SET LOCAL is
+    // transaction-scoped, reverts automatically on COMMIT/ROLLBACK).
+    await client.query("SET LOCAL ROLE assessiq_system");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {
+      // Secondary failure on ROLLBACK — connection likely dead.
+      // Swallow so the caller sees the original error.
+    });
+    throw err;
   } finally {
     client.release();
   }
