@@ -57,6 +57,8 @@ The administrator's command center. Authoring, monitoring, reviewing, exporting.
 - Notification toast region (top-right)
 - Help drawer (right side, opened by `?` or Cmd/Ctrl+/)
 
+> **AdminShell wraps ALL `/admin/*` routes (updated 2026-05-04, commit `473fef1`).** `/admin/users` was a Phase 0 G0.C-5 page that predated the G2.C AdminShell; it is now wrapped like every other admin route in `apps/web/src/App.tsx`. The only intentional exception is `/admin/mfa` — it is a constrained pre-session flow step; the sidebar would expose nav links the user cannot reach until MFA is verified, creating broken affordances.
+
 ## State management
 - TanStack Query for server state (caching, refetch, optimistic updates)
 - Local component state for ephemeral UI
