@@ -1,0 +1,28 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^git log --format='%h %ad %s' --date=short origin/main -25; Write-Host '---STATUS---'; git status --short; Write-Host '---STASH---'; git stash list$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd e:\\\\code\\\\AssessIQ; Write-Host '---PWD---'; pwd; Write-Host '---REMOTE---'; git remote -v; Write-Host '---BRANCH---'; git branch -vv; Write-Host '---HEAD---'; git log --format='%h %ad %s' --date=short HEAD -10; Write-Host '---ORIGIN/MAIN-RECENT---'; git log --format='%h %ad %s' --date=short origin/main -5 -- modules apps docs PROJECT_BRAIN\\.md 2>&1 \\| Select-Object -First 20; Write-Host '---FETCH---'; git fetch origin 2>&1 \\| Select-Object -First 5$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^pwd; git status --short; git stash list$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git check-ignore -v \\.claude/settings\\.local\\.json$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^pnpm --filter @assessiq/ai-grading test 2>&1 \\| Select-Object -Last 30$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git add docs/SESSION_STATE\\.md; \\$env:GIT_COMMITTER_EMAIL=\"257227540\\+manishjnv@users\\.noreply\\.github\\.com\"; \\$env:GIT_COMMITTER_NAME=\"Manish Kumar\"; git commit --author=\"Manish Kumar <257227540\\+manishjnv@users\\.noreply\\.github\\.com>\" -m \"docs\\(handoff\\): Phase 2 G2\\.B Session 2 SESSION_STATE — rubric-engine live\" 2>&1 \\| Select-Object -Last 5; git push 2>&1 \\| Select-Object -Last 5$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
