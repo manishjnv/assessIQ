@@ -68,7 +68,12 @@ export function AdminMfa(): JSX.Element {
   useEffect(() => {
     if (loading || session === null) return;
     if (session.mfaStatus === 'verified') {
-      nav('/admin/users', { replace: true });
+      // Already MFA-verified — skip ahead to the dashboard.
+      // /admin is the canonical post-login landing (changed 2026-05-04;
+      // MFA page intentionally does NOT use AdminShell — it is a
+      // constrained-flow step that runs pre-verified-session; the
+      // sidebar would expose nav links the user cannot access yet).
+      nav('/admin', { replace: true });
       return;
     }
 
@@ -116,7 +121,7 @@ export function AdminMfa(): JSX.Element {
         body: JSON.stringify({ code }),
       });
       await fetchWhoami(true);
-      nav('/admin/users', { replace: true });
+      nav('/admin', { replace: true }); // post-MFA landing is /admin (changed 2026-05-04)
     } catch (err) {
       if (err instanceof ApiCallError) {
         if (err.status === 423) {

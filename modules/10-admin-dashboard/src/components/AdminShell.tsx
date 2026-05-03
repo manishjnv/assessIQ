@@ -72,8 +72,11 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Dashboard", href: "/admin", icon: "home" },
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
     { label: "Grading", href: "/admin/grading-jobs", icon: "chart" },
-    { label: "Reports", href: "/admin/reports/cohort", icon: "chart" },
-    { label: "Question Bank", href: "/admin/question-bank/packs", icon: "book", adminOnly: true },
+    // TODO(Phase 3+): Re-add "Reports" → /admin/reports when the cohort-report
+    // list page ships (currently the route requires a dynamic :assessmentId;
+    // a list-first landing page is tracked in SESSION_STATE.md G3.D backlog).
+    // TODO(Phase 3+): Re-add "Question Bank" → /admin/question-bank/packs
+    // when the pack-list page ships (G3.C backlog).
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
     { label: "Settings", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
   ];

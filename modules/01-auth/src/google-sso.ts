@@ -444,11 +444,11 @@ export async function handleGoogleCallback(input: {
   // --- 8. Determine redirect target ---
   // Candidates skip MFA. Admins/reviewers:
   //   - MFA_REQUIRED=true  → /admin/mfa (pre-MFA enrolment / step-up)
-  //   - MFA_REQUIRED=false → safeReturnTo(embedded) || /admin/users (skip MFA hop)
+  //   - MFA_REQUIRED=false → safeReturnTo(embedded) || /admin (skip MFA hop)
   // safeReturnTo handles whitelisting; embeddedReturnTo is from the state token.
   const adminLanding = config.MFA_REQUIRED
     ? "/admin/mfa"
-    : "/admin/users";
+    : "/admin";
   const redirectTo =
     resolvedUser.role === "candidate"
       ? "/"
