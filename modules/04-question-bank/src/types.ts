@@ -237,7 +237,7 @@ export interface ListPacksInput {
 }
 
 export interface CreatePackInput {
-  slug: string;         // [a-z0-9-]+ between 3 and 80 chars
+  slug?: string;        // optional — auto-generated from name when omitted; [a-z0-9-]+ 3-80 chars when provided
   name: string;
   domain: string;
   description?: string;
@@ -376,6 +376,7 @@ export const QB_ERROR_CODES = {
   GENERATE_DRAFT_DEFERRED: "GENERATE_DRAFT_DEFERRED",
   INVALID_PAGE_SIZE: "INVALID_PAGE_SIZE",
   NO_DRAFT_QUESTIONS_TO_ACTIVATE: "NO_DRAFT_QUESTIONS_TO_ACTIVATE",
+  INVALID_NAME_FOR_SLUG: "INVALID_NAME_FOR_SLUG",
 } as const;
 
 export type QbErrorCode = typeof QB_ERROR_CODES[keyof typeof QB_ERROR_CODES];

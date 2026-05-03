@@ -56,6 +56,7 @@ const log = streamLogger("app");
 
 const SLUG_REGEX = /^[a-z0-9-]{3,80}$/;
 const MAX_PAGE_SIZE = 100;
+const MAX_SLUG_RETRIES = 10;
 
 // ---------------------------------------------------------------------------
 // Validation helpers
@@ -68,6 +69,33 @@ function assertValidSlug(slug: string): void {
       { details: { code: QB_ERROR_CODES.IMPORT_VALIDATION_FAILED, field: "slug" } },
     );
   }
+}
+
+/**
+ * Derive a URL-safe slug from an arbitrary display name.
+ * Steps: lowercase → NFKD normalise → strip non-alphanumeric/space/hyphen →
+ * trim → collapse whitespace+underscores to hyphens → collapse runs → cap 64.
+ * Returns an empty string if no alphanumeric characters survive.
+ */
+function generateSlugFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9\s-]/g, "")  // drop accents, punctuation, emoji
+    .trim()
+    .replace(/[\s_]+/g, "-")         // spaces/underscores → hyphens
+    .replace(/-+/g, "-")             // collapse multiple hyphens
+    .replace(/^-|-$/g, "")           // strip leading/trailing hyphens
+    .slice(0, 64);
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    err !== null &&
+    typeof err === "object" &&
+    "code" in err &&
+    (err as { code: string }).code === "23505"
+  );
 }
 
 function assertNonEmpty(value: string, field: string): void {
@@ -203,32 +231,85 @@ export async function createPack(
   input: CreatePackInput,
   createdByUserId: string,
 ): Promise<QuestionPack> {
-  assertValidSlug(input.slug);
   assertNonEmpty(input.name, "name");
   assertNonEmpty(input.domain, "domain");
 
   const id = uuidv7();
-  log.info({ tenantId, id, slug: input.slug }, "createPack");
 
-  try {
-    return await withTenant(tenantId, (client) =>
-      repo.insertPack(client, {
-        id,
-        tenantId,
-        slug: input.slug,
-        name: input.name,
-        domain: input.domain,
-        ...(input.description !== undefined ? { description: input.description } : {}),
-        createdBy: createdByUserId,
-      }),
-    );
-  } catch (err: unknown) {
-    rethrowUnique(
-      err,
-      QB_ERROR_CODES.PACK_SLUG_EXISTS,
-      `A pack with slug '${input.slug}' already exists in this tenant.`,
+  // -----------------------------------------------------------------------
+  // Slug resolution: explicit or auto-generated.
+  // -----------------------------------------------------------------------
+  const explicitSlug = input.slug !== undefined && input.slug.trim().length > 0;
+
+  if (explicitSlug) {
+    // Caller supplied a slug — validate format then try exactly once.
+    assertValidSlug(input.slug!);
+    const slug = input.slug!;
+    log.info({ tenantId, id, slug, auto: false }, "createPack");
+
+    try {
+      return await withTenant(tenantId, (client) =>
+        repo.insertPack(client, {
+          id,
+          tenantId,
+          slug,
+          name: input.name,
+          domain: input.domain,
+          ...(input.description !== undefined ? { description: input.description } : {}),
+          createdBy: createdByUserId,
+        }),
+      );
+    } catch (err: unknown) {
+      rethrowUnique(
+        err,
+        QB_ERROR_CODES.PACK_SLUG_EXISTS,
+        `A pack with slug '${slug}' already exists in this tenant.`,
+      );
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Auto-generate slug from name, with collision-retry (suffix -2 … -10).
+  // -----------------------------------------------------------------------
+  const baseSlug = generateSlugFromName(input.name);
+  if (baseSlug.length === 0) {
+    throw new ValidationError(
+      "name must contain at least one alphanumeric character",
+      { details: { code: QB_ERROR_CODES.INVALID_NAME_FOR_SLUG, field: "name" } },
     );
   }
+
+  log.info({ tenantId, id, baseSlug, auto: true }, "createPack");
+
+  for (let attempt = 0; attempt <= MAX_SLUG_RETRIES; attempt++) {
+    const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+
+    try {
+      return await withTenant(tenantId, (client) =>
+        repo.insertPack(client, {
+          id,
+          tenantId,
+          slug,
+          name: input.name,
+          domain: input.domain,
+          ...(input.description !== undefined ? { description: input.description } : {}),
+          createdBy: createdByUserId,
+        }),
+      );
+    } catch (err: unknown) {
+      if (isUniqueViolation(err)) {
+        // Slug already taken — try the next suffix on the next loop iteration.
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // Exhausted all retry slots.
+  throw new ConflictError(
+    `Could not generate a unique slug for name '${input.name}' after ${MAX_SLUG_RETRIES} attempts.`,
+    { details: { code: QB_ERROR_CODES.PACK_SLUG_EXISTS } },
+  );
 }
 
 // ---------------------------------------------------------------------------
