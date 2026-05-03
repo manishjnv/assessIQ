@@ -89,7 +89,7 @@ export function AdminAttempts(): React.ReactElement {
     {
       key: "status",
       label: "Status",
-      render: (row) => {
+      render: (row: AttemptListItem) => {
         const c = statusColor(row.status);
         return (
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.04em", padding: "1px 8px", borderRadius: "var(--aiq-radius-pill)", background: c.bg, color: c.color }}>
@@ -101,7 +101,7 @@ export function AdminAttempts(): React.ReactElement {
     {
       key: "submitted_at",
       label: "Submitted",
-      render: (row) => (
+      render: (row: AttemptListItem) => (
         <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
           {row.submitted_at ? new Date(row.submitted_at).toLocaleString() : "—"}
         </span>
@@ -111,7 +111,7 @@ export function AdminAttempts(): React.ReactElement {
       key: "action",
       label: "",
       width: 80,
-      render: (row) => (
+      render: (row: AttemptListItem) => (
         <button
           type="button"
           className="aiq-btn aiq-btn-outline aiq-btn-sm"

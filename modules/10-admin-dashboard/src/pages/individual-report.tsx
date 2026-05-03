@@ -88,10 +88,12 @@ export function AdminIndividualReport(): React.ReactElement {
 
         {/* KPI row */}
         <div style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap", alignItems: "flex-start" }}>
-          <StatCard
-            label="Latest band"
-            value={report.latest_band !== null ? `Band ${report.latest_band} (${BAND_PCT[report.latest_band] ?? 0}%)` : "—"}
-          />
+          <div className="aiq-card" style={{ padding: "var(--aiq-space-md) var(--aiq-space-lg)", minWidth: 140 }}>
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: 4 }}>Latest band</div>
+            <div style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontVariantNumeric: "lining-nums tabular-nums", fontWeight: 400 }}>
+              {report.latest_band !== null ? `Band ${report.latest_band}` : "—"}
+            </div>
+          </div>
           {trendData.length >= 2 && (
             <div className="aiq-card" style={{ padding: "var(--aiq-space-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", minWidth: 180 }}>
               <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>

@@ -111,8 +111,18 @@ export function AdminCohortReport(): React.ReactElement {
         {/* KPI row */}
         <div style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
           <StatCard label="Total candidates" value={report.total_candidates} />
-          <StatCard label="Median band" value={report.median_band !== null ? `Band ${report.median_band} (${BAND_PCT[report.median_band] ?? 0}%)` : "—"} />
-          <StatCard label="Pass rate" value={report.total_candidates > 0 ? `${Math.round(report.pass_count / report.total_candidates * 100)}%` : "—"} />
+          <div className="aiq-card" style={{ padding: "var(--aiq-space-md) var(--aiq-space-lg)", minWidth: 140 }}>
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: 4 }}>Median band</div>
+            <div style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontVariantNumeric: "lining-nums tabular-nums", fontWeight: 400 }}>
+              {report.median_band !== null ? `Band ${report.median_band}` : "—"}
+            </div>
+          </div>
+          <div className="aiq-card" style={{ padding: "var(--aiq-space-md) var(--aiq-space-lg)", minWidth: 140 }}>
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: 4 }}>Pass rate</div>
+            <div style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontVariantNumeric: "lining-nums tabular-nums", fontWeight: 400 }}>
+              {report.total_candidates > 0 ? `${Math.round(report.pass_count / report.total_candidates * 100)}%` : "—"}
+            </div>
+          </div>
         </div>
 
         {/* Band distribution */}

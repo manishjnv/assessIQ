@@ -92,7 +92,7 @@ export function StatCard({
           )}
         </span>
         {sparkline && sparkline.length >= 2 && (
-          <Sparkline data={sparkline} width={80} height={32} color={sparklineColor} />
+          <Sparkline data={sparkline} width={80} height={32} {...(sparklineColor !== undefined ? { color: sparklineColor } : {})} />
         )}
       </div>
       {delta !== undefined && (

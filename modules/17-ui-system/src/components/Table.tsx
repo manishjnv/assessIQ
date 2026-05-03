@@ -16,7 +16,7 @@ import React from "react";
 
 export type SortDirection = "asc" | "desc";
 
-export interface ColumnDef<T> {
+export interface ColumnDef<T = unknown> {
   /** Column key (must be unique). */
   key: string;
   /** Column header label. */
@@ -53,7 +53,7 @@ export interface TableProps<T> {
 // Component
 // ---------------------------------------------------------------------------
 
-export function Table<T extends Record<string, unknown>>({
+export function Table<T>({
   data,
   columns,
   cursor,
@@ -171,7 +171,7 @@ export function Table<T extends Record<string, unknown>>({
                   alignItems: "center",
                 }}
               >
-                {col.render ? col.render(row) : String(row[col.key] ?? "")}
+                {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? "")}
               </div>
             ))}
           </div>
