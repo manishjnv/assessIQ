@@ -47,14 +47,14 @@ apps/storybook
 # i.e. modules/{00-core, 02-tenancy, 11-candidate-ui, 16-help-system, 17-ui-system}.
 # Everything else under modules/ is server-side and excluded here.
 modules/01-auth
-modules/03-users
-modules/04-question-bank
-modules/05-assessment-lifecycle
-modules/06-attempt-engine
-modules/07-ai-grading
-modules/08-rubric-engine
-modules/09-scoring
-modules/10-admin-dashboard
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/03-users
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/04-question-bank
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/05-assessment-lifecycle
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/06-attempt-engine
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/07-ai-grading
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/08-rubric-engine
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/09-scoring
+# UNEXCLUDED for G2.C (admin-dashboard transitive closure): modules/10-admin-dashboard
 modules/12-embed-sdk
 modules/13-notifications
 modules/14-audit-log
