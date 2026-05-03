@@ -9,3 +9,6 @@ export type { IntegrityBannerProps, IntegrityBannerKind } from "./IntegrityBanne
 
 export { QuestionNavigator } from "./QuestionNavigator";
 export type { QuestionNavigatorProps, NavigatorItem } from "./QuestionNavigator";
+
+export { CandidateHelp } from "./CandidateHelp";
+export type { CandidateHelpProps } from "./CandidateHelp";

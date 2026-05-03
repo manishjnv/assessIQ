@@ -46,6 +46,7 @@ export {
   AutosaveIndicator,
   IntegrityBanner,
   QuestionNavigator,
+  CandidateHelp,
 } from "./components";
 export type {
   AttemptTimerProps,
@@ -55,6 +56,7 @@ export type {
   IntegrityBannerKind,
   QuestionNavigatorProps,
   NavigatorItem,
+  CandidateHelpProps,
 } from "./components";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
