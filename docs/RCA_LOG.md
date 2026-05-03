@@ -4,6 +4,108 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-03 — `assessiq-api` restart loop from staggered take-backend deploy (`registerAttemptTakeRoutes` import broke before module 06 source landed)
+
+**Symptom:** Production `assessiq-api` container in `Restarting (1)` loop. `docker logs` showed:
+
+```
+SyntaxError: The requested module '@assessiq/attempt-engine' does not provide an export named 'registerAttemptTakeRoutes'
+    at /app/apps/api/src/server.ts:17
+```
+
+The `apps/api/src/server.ts` line 17 import was already deployed by an earlier session (commit `a7053b7` referenced this in its handoff), but the matching export from `modules/06-attempt-engine/src/index.ts` (re-exporting `registerAttemptTakeRoutes` from the new `routes.take.ts` file) was NOT deployed in the same window. The container would boot, fail import resolution, exit non-zero, and Docker `restart: unless-stopped` would loop it. The frontend stayed healthy on port 9091 and the worker stayed healthy on Redis, so external traffic to `/api/*` returned 502 from Caddy while the rest of the surface looked normal.
+
+**Cause:** Two separate concurrent windows working on the same end-to-end ship (Phase 1 G1.D candidate-ui + Session 4b take-backend) produced an artifact-only deploy where the **importer** landed before the **export it depended on**. The `apps/api/src/server.ts` change was bundled into commit `a7053b7` (G1.D + worker handoff session) and that commit's deploy procedure wrote `apps/api/src/` to `/srv/assessiq/` but did NOT include `modules/06-attempt-engine/src/routes.take.ts` or the updated `index.ts` re-export. The pnpm workspace symlink at `/srv/assessiq/apps/api/node_modules/@assessiq/attempt-engine` resolves to the on-disk `modules/06-attempt-engine/src/index.ts`; that file at the deploy moment did not yet have the re-export, so Node ESM threw `SyntaxError` on the import.
+
+**Fix:** Pushed the missing files via `git archive HEAD modules/05-assessment-lifecycle/src/index.ts modules/05-assessment-lifecycle/src/service.ts modules/06-attempt-engine/src/index.ts modules/06-attempt-engine/src/routes.take.ts ... | ssh assessiq-vps "cd /srv/assessiq && tar -xf -"`. Then `docker compose build assessiq-api && up -d --force-recreate assessiq-api`. Container went from restarting → `(healthy)` within 20s. Health endpoint `/api/health` returned 200 on first request after recovery.
+
+**Prevention:**
+
+1. **Process rule — atomic deploys for cross-module changes.** When a deploy includes a server.ts import that references a new module export, the `git archive HEAD` invocation MUST list BOTH the importer and the exporter file paths. Bare `apps/api/src/...` deploys are correct for apps/api-only changes; cross-module changes need `apps/api/src/... modules/<n>/src/...` together. Treat "deploy includes server.ts import addition" as a Phase 3 bounce condition: the deploy diff must include the matching module's `index.ts` AND the new source files in the same archive call.
+2. **Process rule — verify the export resolves before declaring deploy done.** After any `assessiq-api` container recreate, the smoke checklist must include a 5-second log scrape: `docker logs --tail 20 assessiq-api 2>&1 | grep -i 'syntaxerror\|module.*does not provide'`. If anything matches, the deploy is broken and a follow-up file push is needed BEFORE moving to other smoke steps. Add to `docs/06-deployment.md` § Operational recipes when that section grows.
+3. **Cross-window coordination** — the W4+W5 working-tree-stall RCA from 2026-05-01 already calls out parallel-session collisions on the same module-graph segment as the root cause of multi-hour triages. This incident is the artifact-only-deploy variant of the same pattern: two windows shipped the same logical change, one window's commit was deploy-ready but missing pieces from another window's commit. Until per-session worktrees are normalized, the smoke-check above is the load-bearing safeguard. Recorded here so the pattern doesn't surprise the next session.
+
+**Cross-reference:** RCA 2026-05-01 § "W4+W5 working-tree stall: 30+ uncommitted files across two parallel sessions". `docs/06-deployment.md` smoke checklist needs the log-scrape addition. Commit `fae4b33` (the take-backend module 06 export) and commit `a7053b7` (the apps/api importer that referenced it) document the staggered shipping that produced the 502.
+
+## 2026-05-03 — `sed -i` on the bind-mounted Caddyfile broke the inode binding — running Caddy stuck on stale config
+
+**Symptom:** After narrowing the `@api` matcher from `/take/*` to `/take/start` (so `GET /take/<token>` would fall through to the SPA frontend), `caddy reload` reported `Valid configuration` but the running Caddy continued routing all `/take/*` to `assessiq-api`. `docker exec ti-platform-caddy-1 caddy adapt --config /etc/caddy/Caddyfile` showed the JSON config still had `/take/*` even though the on-disk Caddyfile had `/take/start`. Multiple `caddy reload` invocations did not pick up the change.
+
+**Cause:** The narrowing edit used `sed -i 's|...|...|' /opt/ti-platform/caddy/Caddyfile`. `sed -i` does NOT edit in place at the original inode — it writes the new content to a temporary file and **renames** it over the original, producing a NEW inode. `stat` confirmed the inode changed from `4194305` (original at session start) to `4194330` (after `sed -i`).
+
+The `ti-platform-caddy-1` container bind-mounts the single file `/opt/ti-platform/caddy/Caddyfile` to `/etc/caddy/Caddyfile`. Single-file Docker bind mounts capture the **inode at mount time**, not the path. When the source file is replaced via rename (the `sed -i` mechanic), the container continues to see the OLD inode (which still exists because the mount holds an open reference even after the host directory entry was overwritten). The container therefore reads stale config every time `caddy adapt` re-reads `/etc/caddy/Caddyfile`.
+
+This is the **second** occurrence of the inode trap on this VPS. RCA 2026-04-30 (CF Origin Cert paste) introduced the rule "**Edits MUST use truncate-write (`cat new > file`), NEVER mv — bind-mount inode trap**" with explicit comments at the top of `/opt/ti-platform/caddy/Caddyfile`:
+
+```
+# Edits MUST use truncate-write (cat >), NEVER mv — bind-mount inode trap
+# from RCA 2026-04-30.
+```
+
+The earlier `/help/*` matcher add (RCA 2026-05-02) followed the rule correctly with `sed pattern file > tmp; cat tmp > file`. This session's narrowing edit used `sed -i` and bypassed the rule.
+
+**Fix:** With explicit user approval (per CLAUDE.md AssessIQ rule #8 — STOP before docker rm/stop of non-`assessiq-*` containers), restarted `ti-platform-caddy-1`. Caddy on restart re-bound to the current inode (4194330) and picked up the narrowed `/take/start` matcher. Verified via `docker exec ti-platform-caddy-1 caddy adapt`: matcher list now `["/api/*", "/embed*", "/help/*", "/take/start"]`. Smoke confirmed `GET /take/<token>` returns `200 text/html` (SPA) and `POST /take/start` returns the API JSON envelope. Other 4 sites on the shared Caddy (intelwatch.in / ti.intelwatch.in / accessbridge.space / automateedge.cloud) all unaffected — restart was ~1s graceful.
+
+**Prevention:**
+
+1. **NEVER use `sed -i` on bind-mounted files.** The disk has the comment, the RCA log has the rule, and yet the trap fired again. The next prevention step is HOOK-level: add a pre-commit / pre-tool guard that refuses `sed -i` against any path under `/opt/ti-platform/caddy/`. Recorded as a Phase-2 infra-backlog item; until then, the rule is "manual discipline backed by this RCA's existence."
+2. **Always validate the running config matches disk after a Caddyfile edit.** Compare `docker exec ti-platform-caddy-1 caddy adapt --config /etc/caddy/Caddyfile` JSON against the on-disk Caddyfile after every reload; mismatch = inode trap fired and reload was a no-op. The 1-line check:
+
+   ```bash
+   ssh assessiq-vps "diff <(grep '@api path' /opt/ti-platform/caddy/Caddyfile) <(docker exec ti-platform-caddy-1 caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | grep -A4 '@api path' | head -10)"
+   ```
+
+   If diff is non-empty, the disk has changes the container can't see. Restart Caddy to recover.
+3. **Recovery procedure documented:** restoring from inode-trap requires a Caddy container restart (single-file bind mounts are not "follow path" in Docker). The restart is graceful (~1s) and affects all sites on the shared host. Per CLAUDE.md rule #8, restart of `ti-platform-caddy-1` MUST have explicit user approval — this is a shared-infra mutation, not an `assessiq-*` operation.
+
+**Cross-reference:** RCA 2026-04-30 § "CF Origin Cert paste artifact silently failed openssl x509 parse" introduced the inode rule; RCA 2026-05-02 § "Caddy `/help/*` not forwarded" demonstrated the correct truncate-write procedure. This is the third Caddyfile-bind-mount-related entry in 4 days; the next instance should escalate to the prevention-hook backlog item.
+
+## 2026-05-03 — Caddy `@api` matcher missing `/take/*` — magic-link routes fell through to SPA
+
+**Symptom:** Phase 1 G1.D + Session 4b.2 magic-link `/take/:token` routes returned `200 text/html` (the SPA `index.html`) instead of the expected `404 INVITATION_NOT_FOUND` JSON envelope when hit through the public hostname. Direct testing inside the `assessiq-api` container against `127.0.0.1:3000/take/<token>` correctly returned the JSON 404 envelope and the route was logged with `route":"/take/:token"` in the request log — meaning the API had the routes registered and was responding correctly. The gap was purely edge routing.
+
+**Cause:** The `@api` matcher in the shared `/opt/ti-platform/caddy/Caddyfile` (assessiq.automateedge.cloud block) was `@api path /api/* /embed* /help/*`. The `/take/*` bare-root path that `registerAttemptTakeRoutes` mounts (intentionally without an `/api` prefix — magic-link URLs go in candidate emails and short paths are easier to read / less spam-flagged) was not in the matcher. Caddy's default `handle { reverse_proxy ... 9091 }` routed the request to `assessiq-frontend`, where the SPA's catch-all served the index.html. This is structurally identical to the `/help/*` RCA from 2026-05-02 — same matcher, same surface, same edit procedure.
+
+**Fix:** Inode-preserving truncate-write of the Caddyfile to add `/take/*` to the `@api` matcher:
+
+```caddy
+@api path /api/* /embed* /help/* /take/*
+```
+
+Procedure (preserves bind-mount inode per the RCA 2026-04-30 lesson):
+
+```bash
+TS=$(date -u +%Y%m%d-%H%M%S)
+cp /opt/ti-platform/caddy/Caddyfile /opt/ti-platform/caddy/Caddyfile.bak.$TS
+stat -c %i /opt/ti-platform/caddy/Caddyfile  # capture before
+sed 's|@api path /api/\* /embed\* /help/\*|@api path /api/* /embed* /help/* /take/*|' \
+  /opt/ti-platform/caddy/Caddyfile > /tmp/Caddyfile.new
+cat /tmp/Caddyfile.new > /opt/ti-platform/caddy/Caddyfile
+stat -c %i /opt/ti-platform/caddy/Caddyfile  # confirm unchanged
+docker exec ti-platform-caddy-1 caddy validate --config /etc/caddy/Caddyfile
+docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+```
+
+After reload: `/take/<token>` returns `404 INVITATION_NOT_FOUND`; `POST /take/<token>/start` returns the same envelope (token doesn't exist). Regression check: `/`, `/api/health`, `/help/*`, `ti.intelwatch.in/`, `accessbridge.space/` all unchanged.
+
+**Prevention:**
+
+1. **Pattern guard for any module that mounts non-`/api/*` routes.** The Phase 1 G1.A help-system RCA (2026-05-02 § Caddy `/help/*` not forwarded) established this pattern; this incident is the second occurrence in 24 hours. Any module that mounts a `app.get("/<x>"...)` or `app.post("/<x>"...)` whose path does NOT start with `/api/` MUST update the Caddy `@api` matcher in the same deploy. Add to module SKILL.md `## Edge routing` sections.
+2. **Phase 5 deploy smoke MUST include every public bare-root path.** The Session 4b.2 deploy procedure listed `curl /api/health → 200` and `/api/me/* → 401` but did NOT list `curl /take/<fake-token>`. The route smoke for module 06 should be:
+
+   ```bash
+   # Mounted under /api/* (via @api matcher):
+   curl https://assessiq.automateedge.cloud/api/me/assessments       # 401
+   # Mounted at bare-root /take/* (REQUIRES @api matcher entry):
+   curl https://assessiq.automateedge.cloud/take/INVALID_TOKEN_LONG_ENOUGH_FOR_MIN_LEN_GATE
+   #   expect: 404 + {"error":{"code":"INVITATION_NOT_FOUND",...}}
+   #   if 200 + HTML  → @api matcher is missing /take/*
+   ```
+
+3. **Future `tools/lint-edge-routing.ts`** would parse `apps/api/src/server.ts` for non-`/api/*` route mounts (transitively through registered route plugins) and assert every bare-root path is in the canonical Caddyfile matcher snippet stored in `docs/06-deployment.md`. Recorded as a Phase-2 infra-backlog item (same recommendation as the help-system RCA).
+
+**Cross-reference:** RCA 2026-05-02 § "Caddy `/help/*` not forwarded — anonymous embed help endpoint fell through to SPA" — identical root-cause pattern; this is the second instance. Three is a trend; four would be a process failure.
+
 ## 2026-05-03 — `assessiq-frontend` Docker build TS2307 cascade after Phase 1 G1.D module additions
 
 **Symptom:** During Phase 1 G1.D deploy, `docker compose build assessiq-frontend` failed with 9 TypeScript errors:
