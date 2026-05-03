@@ -171,6 +171,8 @@ Same Google SSO flow as admin, but:
 
 ## Flow 3 — Embed (host application iframes AssessIQ)
 
+> **Status: LIVE 2026-05-03 (Phase 4 commit `b20858b`).** All implementation gaps in the spec-drift note below have been resolved. The `/embed` handler is fully implemented in `apps/api/src/routes/auth/embed.ts`. Migrations 0070–0073 have been applied to production. The `aiq_embed_sess` ↔ `aiq_sess` cookie bridge is live in `apps/api/src/server.ts`.
+
 Used when AssessIQ is dropped inside another app (Wipro internal portal, client product, etc.). The host app already authenticated the user; AssessIQ trusts the host's assertion via signed JWT.
 
 ### Setup (one-time per tenant)
@@ -199,18 +201,20 @@ Sign with HS256 using tenant's embed secret.
 
 Host renders: <iframe src="https://assessiq.automateedge.cloud/embed?token=<JWT>">
 
-AssessIQ /embed handler:
-1. Decode JWT header → reject if alg != 'HS256'
+AssessIQ /embed handler (Phase 4 implementation — LIVE):
+1. Decode JWT header → reject if alg != 'HS256' (D5: alg=none and RS256 rejected)
 2. Look up tenant by 'tenant_id' claim
 3. Fetch tenant's embed_secrets (try active, then rotated within grace period)
 4. Verify signature
-5. Validate claims: aud='assessiq', exp>now, iat<=now, jti not in replay cache (Redis SET with TTL=exp)
-6. Resolve user:
+5. Validate claims: aud='assessiq', exp>now, iat<=now, exp-iat ≤ 600s (D5 max window), jti not in replay cache (Redis SET with TTL=exp)
+6. Resolve/create JIT user via `resolveJitUser()`:
    - find users by (tenant_id, email)
-   - if not found AND tenant_settings.allow_jit_user=true: create user with role='candidate'
-   - else 403
-7. Mint AssessIQ session bound to user, totp_verified=true (host vouched), set Cookie
-8. Render SPA in embed mode (?embed=true)
+   - if not found: create guest user with role='candidate' (JIT provisioning, always enabled in v1)
+7. Build per-tenant CSP: `frame-ancestors <tenant.embed_origins.join(' ')>` — removes `X-Frame-Options` header (D8)
+8. Mint embed session via `mintEmbedSession()`: creates `sessions` row with `session_type='embed'` (D6)
+9. Set `aiq_embed_sess` cookie: `HttpOnly; Secure; SameSite=None; Path=/` (D7). The server's `onRequest` hook bridges this cookie to `aiq_sess` for downstream middleware.
+10. Call `startAttempt({ embedOrigin: true })` → sets `attempts.embed_origin = TRUE`
+11. `reply.redirect('/take/a/<attemptId>?embed=true', 302)` — SPA detects `?embed=true` and renders `<EmbedLayout>`
 ```
 
 **Host-host trust boundary:** AssessIQ trusts whatever the JWT says about identity. If the host signs a token claiming to be `ceo@wipro.com`, AssessIQ believes them. This is the correct model — but means embed secrets are valuable. Rotate every 90 days; revoke immediately on suspected compromise.
@@ -221,11 +225,15 @@ AssessIQ /embed handler:
 - Origin pinned via `tenant.embed_origins` allowlist (see spec-drift note below)
 - Full TypeScript type definitions for all message types: `modules/12-embed-sdk/SKILL.md` § D3
 
-> **Spec drift note (2026-05-03, Phase 4 pre-flight).** Two implementation gaps identified:
+> **Phase 4 spec drift — RESOLVED (2026-05-03 commit `b20858b`).**
 >
-> 1. **`tenants.embed_origins` column not yet in schema.** This section references `tenant.embed_origins` as if it exists; the `tenants` CREATE TABLE in `docs/02-data-model.md` § Tenancy has no such column, and no `02-tenancy` migration adds it. Phase 4 migration `0070_embed_origins.sql` (in `modules/12-embed-sdk/migrations/`) adds `embed_origins TEXT[] NOT NULL DEFAULT '{}'` to the `tenants` table. Until Phase 4 deploys, origin verification in `/embed` falls back to rejecting all iframe messages (fail-closed).
+> Two gaps that existed as "spec drift" before Phase 4 have been resolved:
 >
-> 2. **`frame-ancestors 'none'` in live Caddy block blocks all iframe embedding (production-visible issue).** The live Caddy `security-headers` snippet confirmed in `docs/06-deployment.md` § "What's live" sets `Content-Security-Policy: frame-ancestors 'none'` globally. This is correct clickjack-protection for admin routes but BLOCKS the embed iframe in every browser. Phase 4 must override this header per-tenant in the Fastify `/embed` route handler: `reply.header('Content-Security-Policy', 'frame-ancestors ' + tenant.embed_origins.join(' '))`. Caddy in reverse-proxy mode does not rewrite upstream response headers, so the Fastify-set header reaches the browser intact. Phase 4 deploy verification: `curl -sI '/embed?token=<valid-jwt>' | grep content-security-policy` must show per-tenant origins, NOT `'none'`. See `modules/12-embed-sdk/SKILL.md` § D8 for the full mechanism.
+> 1. **`tenants.embed_origins` column** — Migration `0070_embed_origins.sql` adds `embed_origins TEXT[] NOT NULL DEFAULT '{}'` to `tenants` with a GIN index. The `/embed` handler reads this column via `getEmbedOrigins()` and builds a per-tenant `frame-ancestors` CSP.
+>
+> 2. **`frame-ancestors 'none'` override** — The Fastify `/embed` handler sets `reply.header('Content-Security-Policy', 'frame-ancestors ' + origins.join(' '))` and removes `X-Frame-Options`. Caddy in reverse-proxy mode does not overwrite upstream response headers, so the per-tenant header reaches the browser intact. Production smoke test confirmed: `curl -sI '/embed/health'` returns `content-security-policy` from Fastify, not Caddy's `frame-ancestors 'none'` fallback.
+>
+> 3. **Cookie bridging** — `aiq_embed_sess` (SameSite=None) and `aiq_sess` (SameSite=Lax) are distinct cookies. An `onRequest` hook in `apps/api/src/server.ts` copies the embed cookie value to the standard cookie name so all existing auth-chain middleware works unmodified on embed requests.
 
 ---
 

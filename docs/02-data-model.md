@@ -18,6 +18,7 @@
 | 02-tenancy | `tenants`, `tenant_settings` |
 | 03-users | `users`, `user_credentials`, `user_invitations` |
 | 01-auth | `sessions`, `api_keys`, `embed_secrets`, `oauth_identities`, `totp_recovery_codes` |
+| 12-embed-sdk | No own tables — adds columns to `tenants` (`embed_origins`, `privacy_disclosed`), `sessions` (`session_type`), and `attempts` (`embed_origin`) via migrations 0070–0073 (Phase 4, 2026-05-03) |
 | 04-question-bank | `question_packs`, `levels`, `questions`, `question_versions`, `tags`, `question_tags` |
 | 05-assessment-lifecycle | `assessments`, `assessment_invitations` |
 | 06-attempt-engine | `attempts`, `attempt_questions`, `attempt_answers`, `attempt_events` |
@@ -42,9 +43,13 @@ CREATE TABLE tenants (
   domain          TEXT,                         -- 'wipro.com' for SSO domain restriction
   branding        JSONB DEFAULT '{}'::jsonb,    -- logo URL, colors, favicon
   status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','archived')),
+  embed_origins   TEXT[] NOT NULL DEFAULT '{}',  -- Phase 4 (2026-05-03): allowlisted iframe origins for postMessage D2/D8; GIN index below
+  privacy_disclosed BOOLEAN NOT NULL DEFAULT FALSE, -- Phase 4 (2026-05-03): gate on POST /api/admin/embed-secrets (D13); must be TRUE before embed JWTs can be issued
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Phase 4 GIN index for @> / <@ array containment on embed_origins
+CREATE INDEX tenants_embed_origins_gin_idx ON tenants USING GIN (embed_origins);
 
 CREATE TABLE tenant_settings (
   tenant_id           UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
@@ -165,9 +170,12 @@ CREATE TABLE sessions (
   user_agent      TEXT,
   expires_at      TIMESTAMPTZ NOT NULL,
   last_seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  session_type    TEXT NOT NULL DEFAULT 'standard' CHECK (session_type IN ('standard', 'embed'))  -- Phase 4 (2026-05-03): 'embed' set by mintEmbedSession; used for audit and embed-mode guard
 );
 CREATE INDEX sessions_user_idx ON sessions (user_id, expires_at);
+-- Phase 4 composite index for embed session queries and expiry sweeps
+CREATE INDEX sessions_session_type_idx ON sessions (session_type, tenant_id, expires_at);
 
 CREATE TABLE api_keys (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -430,12 +438,15 @@ CREATE TABLE attempts (
   ends_at         TIMESTAMPTZ,                            -- pinned at start = started_at + level.duration_minutes
   submitted_at    TIMESTAMPTZ,
   duration_seconds INT,                                    -- snapshot of level.duration_minutes * 60
+  embed_origin    BOOLEAN NOT NULL DEFAULT FALSE,          -- Phase 4 (2026-05-03): TRUE when attempt was started via embed JWT flow (D2); used in analytics and admin filters
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (assessment_id, user_id)                         -- one attempt per user per assessment v1
 );
 CREATE INDEX attempts_user_idx ON attempts (tenant_id, user_id);
 CREATE INDEX attempts_timer_sweep_idx ON attempts (ends_at) WHERE status = 'in_progress';
 CREATE INDEX attempts_assessment_status_idx ON attempts (assessment_id, status);
+-- Phase 4 partial index for embed attempt queries (sparse — most attempts are non-embed)
+CREATE INDEX attempts_embed_origin_idx ON attempts (tenant_id, embed_origin) WHERE embed_origin = TRUE;
 
 CREATE TABLE attempt_questions (
   attempt_id      UUID NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,

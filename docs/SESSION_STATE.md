@@ -1,3 +1,50 @@
+# Session — 2026-05-03 (Phase 4: embed-sdk full implementation — live)
+
+**Headline:** Phase 4 (module 12-embed-sdk) fully shipped: embed JWT ingestion, JIT user resolution, `aiq_embed_sess` session minting, CSP per-tenant, admin embed-origin management, privacy-disclosure gate, 4 schema migrations applied to production, 5/5 smoke tests green. All 34 files / 1743 insertions committed at `b20858b`, deployed, and documented.
+
+**Commits (both on `origin/main`):**
+
+- `b20858b` — feat(12-embed-sdk): Phase 4 — embed JWT ingestion, session minting, and admin surface (34 files, 1743 insertions)
+- `<docs-sha>` — docs(phase-4): update data-model, api-contract, auth-flows, deployment for embed-sdk live state
+
+**Tests:** 12/12 unit tests pass (origin-csp: 7, session-mint: 1, embed-verify: 4). Phase 2 gates all clean: typecheck ✅, RLS linter ✅, edge-routing linter ✅, no ambient AI ✅, no secrets ✅.
+
+**Live verification (`https://assessiq.automateedge.cloud`, 2026-05-03 ~17:20 UTC):**
+
+| Endpoint | Status | Expected |
+|---|---|---|
+| `GET /api/health` | 200 | ✅ |
+| `GET /embed` (no token) | 400 | ✅ (token required) |
+| `GET /embed/health` | 200 | ✅ |
+| `GET /embed/sdk.js` | 200 | ✅ |
+| `GET /api/admin/embed-origins` (no auth) | 401 | ✅ |
+
+**Migrations applied (via `docker exec -i assessiq-postgres psql -U assessiq -d assessiq`):**
+
+| Migration | Result |
+|---|---|
+| `0070_embed_origins.sql` | `ALTER TABLE` + `CREATE INDEX` |
+| `0071_tenants_embed_metadata.sql` | `ALTER TABLE` (×2) + `CREATE INDEX` |
+| `0072_embed_help_seed.sql` | `INSERT 0 4` |
+| `0073_attempt_embed_origin.sql` | `ALTER TABLE` + `CREATE INDEX` |
+
+**Next:** Begin Phase 5 (module 11-candidate-ui) per PHASE_2_KICKOFF.md or PHASE_3_KICKOFF.md — confirm with user.
+
+**Open questions:**
+- Google OAuth credentials still not in `/srv/assessiq/.env` — Flow 1 (admin SSO) is still returning 401 `"Google SSO is not configured"`. User to provision Google Cloud Console OAuth client.
+- `ENABLE_EMBED_TEST_MINTER` is not set in production `.env` (correct default). Should it be enabled for initial integration testing? User decision.
+- `packages/embed-sdk/` (the host-side npm package `@assessiq/embed`) is not yet published to npm. Defer until first external customer integration.
+
+---
+
+## Agent utilization
+- Opus: n/a — multi-model orchestration per user request (Sonnet 4.6 as primary author this session per VS Code Copilot)
+- Sonnet 4.6: Phase 4 full implementation (34 files, 1743 insertions); Phase 2 gates; 4 migrations + container rebuild + smoke tests + docs updates
+- Haiku 4.5: 3 parallel Phase 0 discovery sweeps (prior session, Cluster A/B/C); VPS smoke-test checkmark table
+- codex:rescue: SUBSTITUTED by Copilot GPT-5/Codex per user instruction; 12-item adversarial checklist presented; verdict ACCEPTED (user: "ok")
+
+---
+
 # Session — 2026-05-03 (Multi-deploy unblock: G2.C frontend live + G3.A migration applied + G3.D dep-fix loop closed)
 
 **Headline:** Three sequential deploy-blockers diagnosed + unblocked across G2.C / G3.A / G3.D in this Opus 4.7 main session, after a Sonnet/Copilot session burned hours on shell-quoting and rsync grind. (1) G2.C frontend stalled on stale `Dockerfile.dockerignore` excluding modules in the new admin-dashboard transitive closure → fixed at `e1e27bf`. (2) G3.A `audit_log` migration was never actually applied to prod despite `43c0e45`'s "shipped" status — code-only deploy hid the operational gap. The Sonnet session caught this and applied `0050_audit_log.sql` directly via psql; verified RLS shape (SELECT+INSERT for `assessiq_app`, no UPDATE/DELETE, two-policy template). (3) G3.D restart-loop on `ERR_MODULE_NOT_FOUND: @assessiq/audit-log` because `02-tenancy` + `13-notifications` package.jsons never declared the dep — fixed at `81da5db`. **All 5 containers healthy, /api/health returns 200, worker cron jobs firing every 30s with structured JSONL.** Phase 2 + Phase 3 are now both formally live on prod.

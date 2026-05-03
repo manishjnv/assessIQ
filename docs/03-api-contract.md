@@ -250,18 +250,54 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 
 ### Embed
 
-> **Phase 4 pre-flight note (2026-05-03).** The `/embed` surface is implemented in Phase 4 (Week 11-12). Decisions pinned in `modules/12-embed-sdk/SKILL.md` § Decisions captured (2026-05-03). Key implementation contracts:
-> - **Cookie name:** `aiq_embed_sess` (distinct from `aiq_sess`); `SameSite=None; Secure; HttpOnly` (D7).
+> **Status: LIVE 2026-05-03 (Phase 4 commit `b20858b`).** Full implementation in `apps/api/src/routes/auth/embed.ts`. Decisions pinned in `modules/12-embed-sdk/SKILL.md` § Decisions captured (2026-05-03). All 4 `/embed` routes below are live and verified (smoke tests: `/embed` → 400 without token ✅, `/embed/health` → 200 ✅, `/embed/sdk.js` → 200 ✅).
+>
+> Key implementation contracts:
+> - **Cookie name:** `aiq_embed_sess` (distinct from `aiq_sess`); `SameSite=None; Secure; HttpOnly` (D7). The API server bridges the embed cookie to the standard cookie name via an `onRequest` hook so all downstream auth-chain middleware sees `aiq_sess` without modification.
 > - **Embed surface scope:** candidate-take-only (`/take/*`); no admin or results views in v1 (D1).
-> - **Session type:** `sessions.session_type='embed'` distinguishes embed sessions from standard sessions (D6).
-> - **CSP override:** `/embed` handler sets `Content-Security-Policy: frame-ancestors <tenant.embed_origins>` per-request; the global Caddy `frame-ancestors 'none'` would otherwise block the iframe (D8).
+> - **Session type:** `sessions.session_type='embed'` distinguishes embed sessions from standard sessions (D6). Migration `0071_tenants_embed_metadata.sql` adds the column.
+> - **CSP override:** `/embed` handler sets `Content-Security-Policy: frame-ancestors <tenant.embed_origins>` per-request AND removes `X-Frame-Options`; the global Caddy `frame-ancestors 'none'` would otherwise block the iframe (D8). Per-tenant `embed_origins` stored as TEXT[] column on `tenants` (migration `0070_embed_origins.sql`).
+> - **Privacy gate (D13):** `POST /api/admin/embed-secrets` returns `403 EMBED_REGISTRATION_REQUIRES_PRIVACY_DISCLOSURE` if `tenants.privacy_disclosed = FALSE`.
+> - **JIT user resolution:** if the JWT `sub` is a known email, resolves to existing user; else creates a guest user in the tenant. Never exposes a user's password hash.
+> - **Attempt flagging:** `startAttempt({ embedOrigin: true })` sets `attempts.embed_origin = TRUE` (migration `0073_attempt_embed_origin.sql`).
+> - **Dev minter:** `POST /embed/sdk-mint` is triple-gated: `ENABLE_EMBED_TEST_MINTER=1` env var + `NODE_ENV !== 'production'` + admin session. Not enabled in production.
+> - **Host SDK:** `packages/embed-sdk/` is the public npm package (`@assessiq/embed`). `AssessIQEmbed.mount(selector, opts)` mounts the iframe and wraps the postMessage bus.
 
-| Method | Path | Purpose |
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `GET`  | `/embed?token=<JWT>`           | Embed-mode landing; verifies HS256 JWT (D5: exp-iat ≤ 600s), resolves/creates JIT user, mints `aiq_embed_sess` cookie (`SameSite=None; Secure; HttpOnly`), sets per-tenant CSP `frame-ancestors`, starts attempt with `embed_origin=true`, redirects to `/take/a/:id?embed=true` | **live 2026-05-03** |
+| `GET`  | `/embed/health`                | Health check for host apps to ping before iframe load — returns `{ status: 'ok' }` | **live 2026-05-03** |
+| `GET`  | `/embed/sdk.js`                | Self-contained UMD embed SDK; registers `window.AssessIQ.mount()`. `Cache-Control: public, max-age=3600` | **live 2026-05-03** |
+| `POST` | `/embed/sdk-mint`              | Dev-only JWT minter; triple-gated: `ENABLE_EMBED_TEST_MINTER=1` + `NODE_ENV≠production` + admin session. Not enabled in production | **live (dev-only gate)** |
+
+### Admin — Embed origins & webhook secrets
+
+> **Status: LIVE 2026-05-03 (Phase 4 commit `b20858b`).** Implemented in `apps/api/src/routes/embed-admin.ts`. All 4 routes gated by `authChain({ roles: ['admin'] })`. The `DELETE /api/admin/embed-secrets/:id` endpoint and the privacy-disclosure gate on `POST /api/admin/embed-secrets` are additions to the existing `embed-secrets.ts` route file.
+>
+> **What changed in Phase 4 on the existing `embed-secrets` routes:**
+> - `POST /api/admin/embed-secrets`: now returns `403 EMBED_REGISTRATION_REQUIRES_PRIVACY_DISCLOSURE` if `tenants.privacy_disclosed = FALSE` (D13). Writes `embed_secret.created` audit event.
+> - `POST /api/admin/embed-secrets/:id/rotate`: writes `embed_secret.rotated` audit event.
+> - `DELETE /api/admin/embed-secrets/:id`: NEW. Sets `status='revoked'`, writes `embed_secret.revoked` audit event. Returns 204.
+
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `GET`    | `/api/admin/embed-origins`            | List current `tenants.embed_origins[]` for the tenant | **live 2026-05-03** |
+| `POST`   | `/api/admin/embed-origins`            | Add an origin to `tenants.embed_origins[]`. Body: `{ origin: string }`. Validates: must be a valid HTTPS URL (or `http://localhost:<port>`); no `*`; no bare domain without protocol; must not duplicate. Returns 204. | **live 2026-05-03** |
+| `DELETE` | `/api/admin/embed-origins`            | Remove an origin. Body: `{ origin: string }`. Returns 204. | **live 2026-05-03** |
+| `POST`   | `/api/admin/webhook-secrets/rotate`   | Rotate `tenant_settings.webhook_secret`; returns plaintext **once**. Returns 200 `{ secret }`. | **live 2026-05-03** |
+| `DELETE` | `/api/admin/embed-secrets/:id`        | Revoke an embed secret. Sets `status='revoked'`, writes audit. Returns 204. | **live 2026-05-03** |
+
+#### Embed admin error contracts
+
+| `details.code` | HTTP | Where |
 |---|---|---|
-| `GET`  | `/embed?token=<JWT>`           | Embed-mode landing; verifies HS256 JWT, mints `aiq_embed_sess` cookie (`SameSite=None`), sets per-tenant CSP `frame-ancestors`, redirects to `/take/*?embed=true` |
-| `GET`  | `/embed/health`                | Health check for host apps to ping before iframe load |
-| `GET`  | `/embed/sdk.js`                | Self-contained embed SDK (≤3 KB gzipped); registers `window.AssessIQ.mount()` — Phase 4 |
-| `GET`  | `/embed/test-mint`             | Dev-only JWT minter; gated by `ENABLE_EMBED_TEST_MINTER=1` + `NODE_ENV≠production` + admin session — Phase 4 |
+| `EMBED_REGISTRATION_REQUIRES_PRIVACY_DISCLOSURE` | 403 | `POST /api/admin/embed-secrets` when `tenants.privacy_disclosed = FALSE` (D13) |
+| `EMBED_ORIGIN_INVALID` | 400 | `POST /api/admin/embed-origins` (not a valid https:// or localhost URL) |
+| `EMBED_ORIGIN_DUPLICATE` | 409 | `POST /api/admin/embed-origins` (origin already in array) |
+| `EMBED_ORIGIN_NOT_FOUND` | 404 | `DELETE /api/admin/embed-origins` (origin not in array) |
+| `AUTHN_FAILED` | 401 | All routes (no session) |
+| `AUTHZ_FAILED` | 403 | All routes (non-admin role) |
+| `VALIDATION_FAILED` | 400 | Body schema parse failure |
 
 ### Public
 

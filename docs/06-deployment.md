@@ -128,7 +128,22 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
-### Current live state — Phase 3 G3.C analytics module deployed (2026-05-03)
+### Current live state — Phase 4 embed-sdk deployed (2026-05-03)
+
+`assessiq-api`, `assessiq-worker`, and `assessiq-frontend` are all live. Phase 4 ships the full embed JWT ingestion flow, admin embed origin management, `aiq_embed_sess` cookie bridge, and 4 schema migrations.
+
+**What changed 2026-05-03 (Phase 4 — commit `b20858b`, 34 files, 1743 insertions):**
+- Migrations applied directly to `assessiq-postgres`: `0070_embed_origins.sql` (`tenants.embed_origins TEXT[]` + GIN index), `0071_tenants_embed_metadata.sql` (`tenants.privacy_disclosed BOOLEAN` + `sessions.session_type TEXT` + index), `0072_embed_help_seed.sql` (4 help content rows for embed surface), `0073_attempt_embed_origin.sql` (`attempts.embed_origin BOOLEAN` + partial index).
+- `assessiq-api` container rebuilt and restarted with new `@assessiq/embed-sdk` package.
+- New routes: `GET /embed?token=<JWT>` (full Phase 4 implementation), `GET /embed/health`, `GET /embed/sdk.js`, `POST /embed/sdk-mint` (dev-only, triple-gated by `ENABLE_EMBED_TEST_MINTER=1`), `GET /api/admin/embed-origins`, `POST /api/admin/embed-origins`, `DELETE /api/admin/embed-origins`, `DELETE /api/admin/embed-secrets/:id`, `POST /api/admin/webhook-secrets/rotate`.
+- `aiq_embed_sess` ↔ `aiq_sess` cookie bridge active in `onRequest` hook.
+- `apps/web` gains `useEmbedMode`, `embedBus`, `EmbedLayout`, and `TakeRoot` patch for embed rendering.
+- `packages/embed-sdk/` is the new public host-side npm package (`@assessiq/embed`).
+- No Caddy config changes — `/embed*` is already matched by the `@api` path matcher.
+- **Env var note:** `ENABLE_EMBED_TEST_MINTER=1` must NOT be set in production (default: unset). The triple gate (`env var + NODE_ENV != 'production' + admin session`) ensures it is safe to leave absent.
+- Smoke tests (post-deploy): `GET /api/health` → 200 ✅, `GET /embed` (no token) → 400 ✅, `GET /embed/health` → 200 ✅, `GET /embed/sdk.js` → 200 ✅, `GET /api/admin/embed-origins` (no auth) → 401 ✅.
+
+**Previous state — Phase 3 G3.C analytics module deployed (2026-05-03)**
 
 `assessiq-api`, `assessiq-worker`, and `assessiq-frontend` are all live. Phase 3 G3.C ships 6 new admin analytics routes, `attempt_summary_mv` materialized view, and a nightly BullMQ cron refresh job.
 
