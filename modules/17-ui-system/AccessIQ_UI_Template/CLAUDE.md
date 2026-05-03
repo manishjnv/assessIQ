@@ -46,6 +46,12 @@ screens/                   # one JSX per screen
   results.jsx
 design-system/             # docs you are reading
 component-gallery.html     # visual reference for every primitive
+Logo/                      # brand kit: mark, wordmark, lockups, favicon, OG
+  README.md                # kit overview + embed snippet
+  brand-guidelines.html    # visual reference — open in a browser
+  logo/                    # SVG masters + PNG fallbacks (assessiq-*.{svg,png})
+  favicon/                 # web + app icons + site.webmanifest
+  social/                  # OG / Twitter card
 ```
 
 New screens go in `screens/<name>.jsx` and export to `window` at the end of the file.

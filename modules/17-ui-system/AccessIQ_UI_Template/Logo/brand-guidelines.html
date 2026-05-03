@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AssessIQ — Brand Guidelines</title>
+<link rel="icon" href="favicon/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fff; --surface: #fafafa; --surface-2: #f5f5f5;
+    --border: #e8e8e8; --border-strong: #d4d4d4;
+    --text: #1a1a1a; --text-muted: #5f6368; --text-faint: #9aa0a6;
+    --accent: #3177dc;
+    --serif: "Newsreader", Georgia, serif;
+    --sans: "Geist", -apple-system, "Helvetica Neue", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 64px 48px 120px; }
+  .eyebrow { font-family:var(--mono); font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.08em; }
+  h1.display { font-family:var(--serif); font-size:64px; font-weight:400; letter-spacing:-0.025em; line-height:1.05; margin:8px 0 16px; }
+  p.lede { font-size:17px; color:var(--text-muted); margin:0 0 56px; max-width:640px; }
+  h2 { font-family:var(--serif); font-size:32px; font-weight:400; letter-spacing:-0.02em; margin:72px 0 8px; padding-top:32px; border-top:1px solid var(--border); }
+  h2:first-of-type { border-top:0; padding-top:0; margin-top:0; }
+  .section-lede { color:var(--text-muted); margin:0 0 32px; max-width:560px; }
+  h3 { font-family:var(--serif); font-size:20px; font-weight:400; margin:0 0 6px; }
+  .group { display:grid; grid-template-columns: 220px 1fr; gap:32px; padding:24px 0; border-bottom:1px solid var(--border); }
+  .group:last-child { border-bottom:0; }
+  .group p.note { font-size:13px; color:var(--text-muted); margin:0; }
+  .card { border:1px solid var(--border); border-radius:16px; background:var(--bg); padding:32px; }
+  .stage { display:flex; align-items:center; justify-content:center; min-height:140px; padding:32px; border:1px solid var(--border); border-radius:12px; background:var(--bg); }
+  .stage.dark { background:#0e0e10; border-color:#2a2a2e; }
+  .stage.surf { background:var(--surface); }
+  .stages { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  .stages.three { grid-template-columns:repeat(3,1fr); }
+  .colors { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:8px; }
+  .swatch { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; }
+  .swatch .chip { width:36px; height:36px; border-radius:8px; flex-shrink:0; }
+  .swatch .meta { display:flex; flex-direction:column; }
+  .swatch .meta .name { font-weight:500; font-size:13px; }
+  .swatch .meta .val { font-family:var(--mono); font-size:10px; color:var(--text-faint); }
+  .icon-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .icon-tile { display:flex; flex-direction:column; align-items:center; gap:8px; padding:20px 8px; border:1px solid var(--border); border-radius:12px; }
+  .icon-tile img { display:block; }
+  .icon-tile .lbl { font-family:var(--mono); font-size:10px; color:var(--text-faint); }
+  .dont, .do { display:flex; gap:12px; align-items:flex-start; padding:16px; border-radius:10px; }
+  .dont { background:#fff5f5; border:1px solid #f8d7d7; }
+  .do { background:#f0f9f1; border:1px solid #cee9d2; }
+  .dont .mk, .do .mk { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.08em; padding:2px 8px; border-radius:999px; flex-shrink:0; }
+  .dont .mk { background:#e8a4a4; color:#5e1212; }
+  .do .mk { background:#9bc9a3; color:#103118; }
+  .dont .body, .do .body { font-size:13px; line-height:1.55; color:var(--text); }
+  code.kbd { background:var(--surface); padding:2px 6px; border-radius:5px; font-family:var(--mono); font-size:12px; border:1px solid var(--border); }
+  .clearspace { position:relative; padding:48px; background:var(--surface); border-radius:12px; display:flex; align-items:center; justify-content:center; }
+  .clearspace::before { content:""; position:absolute; inset:24px; border:1px dashed var(--border-strong); border-radius:8px; }
+  .min-row { display:flex; align-items:center; gap:32px; padding:24px; border:1px solid var(--border); border-radius:12px; }
+  .min-row .label { font-family:var(--mono); font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.08em; }
+  .download { display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:999px; background:var(--accent); color:#fff; font-size:13px; font-weight:500; text-decoration:none; }
+  .download:hover { background:#0462d3; }
+  .files { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; font-family:var(--mono); font-size:12px; }
+  .files a { color:var(--text-muted); text-decoration:none; padding:6px 10px; border-radius:6px; border:1px solid var(--border); }
+  .files a:hover { color:var(--accent); border-color:var(--accent); }
+  .og-frame { border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .og-frame img { display:block; width:100%; height:auto; }
+  .typespec .row { display:grid; grid-template-columns:140px 1fr; align-items:baseline; gap:24px; padding:14px 0; border-bottom:1px solid var(--border); }
+  .typespec .row:last-child { border-bottom:0; }
+  .typespec .meta { font-family:var(--mono); font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="eyebrow">AssessIQ · Brand Guidelines · v1.0</div>
+  <h1 class="display">A mark for what's measured.</h1>
+  <p class="lede">A solid dot inside a hairline ring — a single result plotted on a distribution. Calm, precise, editorial. The complete identity in one place.</p>
+
+  <h2>The mark</h2>
+  <p class="section-lede">A solid blue dot, encircled by two hairline rings — the score and its distribution. Use the mark in product, on favicons, and as a small lockup detail.</p>
+
+  <div class="group">
+    <div>
+      <h3>Primary</h3>
+      <p class="note">For light backgrounds. The default mark used everywhere.</p>
+    </div>
+    <div class="stages three">
+      <div class="stage"><img src="logo/assessiq-mark.svg" width="96" alt="Mark"></div>
+      <div class="stage surf"><img src="logo/assessiq-mark.svg" width="96" alt="Mark on surface"></div>
+      <div class="stage dark"><img src="logo/assessiq-mark-dark.svg" width="96" alt="Mark on dark"></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div>
+      <h3>Monochrome</h3>
+      <p class="note">For single-color print, embossing, or any context where blue isn't available. Inherits <code class="kbd">currentColor</code>.</p>
+    </div>
+    <div class="stages three">
+      <div class="stage" style="color:#1a1a1a"><img src="logo/assessiq-mark-mono.svg" width="96" alt="Mark mono"></div>
+      <div class="stage" style="color:#5f6368"><img src="logo/assessiq-mark-mono.svg" width="96" alt="Mark mono muted"></div>
+      <div class="stage dark" style="color:#f5f5f7"><img src="logo/assessiq-mark-mono.svg" width="96" alt="Mark mono dark"></div>
+    </div>
+  </div>
+
+  <h2>Lockups</h2>
+  <p class="section-lede">Three approved lockups. Don't compose your own.</p>
+
+  <div class="group">
+    <div><h3>Horizontal</h3><p class="note">Default lockup. Use in product headers, navigation, email signatures.</p></div>
+    <div class="stages">
+      <div class="stage"><img src="logo/assessiq-horizontal.svg" width="280" alt="Horizontal"></div>
+      <div class="stage dark"><img src="logo/assessiq-horizontal-dark.svg" width="280" alt="Horizontal dark"></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div><h3>Stacked</h3><p class="note">For square real estate — covers, app stores, badges. Includes mono tagline.</p></div>
+    <div class="stage" style="min-height:240px"><img src="logo/assessiq-stacked.svg" width="200" alt="Stacked"></div>
+  </div>
+
+  <div class="group">
+    <div><h3>Wordmark</h3><p class="note">Type only. Use when the mark would be redundant (e.g. a logo card).</p></div>
+    <div class="stage"><img src="logo/assessiq-wordmark.svg" width="240" alt="Wordmark"></div>
+  </div>
+
+  <h2>Clear space &amp; minimum size</h2>
+  <p class="section-lede">Always 1× the mark's height of breathing room. Below the minimum, switch to the favicon.</p>
+
+  <div class="group">
+    <div><h3>Clear space</h3><p class="note">Padding equal to the height of the mark on every side. The dashed line below shows the safe zone.</p></div>
+    <div class="clearspace"><img src="logo/assessiq-horizontal.svg" width="280" alt="Clear space"></div>
+  </div>
+
+  <div class="group">
+    <div><h3>Minimum size</h3><p class="note">Mark: 16px. Horizontal lockup: 96px wide.</p></div>
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div class="min-row"><img src="logo/assessiq-mark.svg" width="16" alt="16"><span class="label">Mark · 16px</span></div>
+      <div class="min-row"><img src="logo/assessiq-horizontal.svg" width="96" alt="96"><span class="label">Horizontal · 96px wide</span></div>
+    </div>
+  </div>
+
+  <h2>Color</h2>
+  <p class="section-lede">A single accent. Black, white, gray. Nothing else.</p>
+  <div class="group">
+    <div><h3>Brand</h3><p class="note">Use the mark blue only on the mark itself and on links / primary CTAs.</p></div>
+    <div class="colors">
+      <div class="swatch"><div class="chip" style="background:#3177dc"></div><div class="meta"><span class="name">AssessIQ Blue</span><span class="val">#3177dc</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#5b9eff"></div><div class="meta"><span class="name">Blue · Dark</span><span class="val">#5b9eff</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#1a1a1a"></div><div class="meta"><span class="name">Ink</span><span class="val">#1a1a1a</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#ffffff;border:1px solid var(--border)"></div><div class="meta"><span class="name">Page</span><span class="val">#ffffff</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#fafafa;border:1px solid var(--border)"></div><div class="meta"><span class="name">Surface</span><span class="val">#fafafa</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#0e0e10"></div><div class="meta"><span class="name">Night</span><span class="val">#0e0e10</span></div></div>
+    </div>
+  </div>
+
+  <h2>Typography</h2>
+  <p class="section-lede">Newsreader for display, Geist for body, JetBrains Mono for metadata.</p>
+  <div class="group typespec">
+    <div><h3>Stack</h3><p class="note">Three families. Never substitute a fourth.</p></div>
+    <div style="width:100%">
+      <div class="row"><span class="meta">Wordmark · 34</span><span style="font-family:var(--serif);font-size:34px;letter-spacing:-0.01em">AssessIQ</span></div>
+      <div class="row"><span class="meta">Display · 56</span><span style="font-family:var(--serif);font-size:56px;letter-spacing:-0.025em">A calmer way.</span></div>
+      <div class="row"><span class="meta">Body · 14</span><span style="font-size:14px">The default size for body copy and most UI text.</span></div>
+      <div class="row"><span class="meta">Meta · 11</span><span style="font-family:var(--mono);font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.08em">ASSESSMENT · 2026</span></div>
+    </div>
+  </div>
+
+  <h2>Favicon &amp; app icon</h2>
+  <p class="section-lede">A simplified version of the mark — one ring, one dot — optimized for legibility at 16px.</p>
+
+  <div class="group">
+    <div><h3>Favicon</h3><p class="note">SVG (modern browsers) + PNG fallbacks at 16, 32, 48px.</p></div>
+    <div class="icon-grid">
+      <div class="icon-tile"><img src="favicon/favicon-16.png" width="16" height="16" alt="16"><span class="lbl">16 · favicon</span></div>
+      <div class="icon-tile"><img src="favicon/favicon-32.png" width="32" height="32" alt="32"><span class="lbl">32 · default</span></div>
+      <div class="icon-tile"><img src="favicon/favicon-48.png" width="48" height="48" alt="48"><span class="lbl">48 · windows</span></div>
+      <div class="icon-tile"><img src="favicon/favicon.svg" width="48" height="48" alt="svg"><span class="lbl">svg · scalable</span></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div><h3>App icon</h3><p class="note">Three concentric rings + dot, on a soft white-to-gray rounded square. Works on iOS, Android, PWA.</p></div>
+    <div class="icon-grid">
+      <div class="icon-tile"><img src="favicon/apple-touch-icon-180.png" width="120" height="120" alt="iOS" style="border-radius:24px"><span class="lbl">iOS · 180</span></div>
+      <div class="icon-tile"><img src="favicon/app-icon-192.png" width="120" height="120" alt="Android" style="border-radius:24px"><span class="lbl">Android · 192</span></div>
+      <div class="icon-tile"><img src="favicon/app-icon-512.png" width="120" height="120" alt="PWA" style="border-radius:24px"><span class="lbl">PWA · 512</span></div>
+      <div class="icon-tile" style="background:#0e0e10"><img src="favicon/app-icon-1024-dark.png" width="120" height="120" alt="Dark" style="border-radius:24px"><span class="lbl" style="color:#9aa0a6">dark · 1024</span></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div><h3>Embed</h3><p class="note">Drop these tags in your <code class="kbd">&lt;head&gt;</code>.</p></div>
+    <div class="card" style="font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre; overflow-x:auto"><span style="color:var(--text-faint)">&lt;!-- AssessIQ favicon set --&gt;</span>
+&lt;link rel="icon" href="/brand/favicon/favicon.svg" type="image/svg+xml"&gt;
+&lt;link rel="icon" href="/brand/favicon/favicon-32.png" sizes="32x32"&gt;
+&lt;link rel="apple-touch-icon" href="/brand/favicon/apple-touch-icon-180.png"&gt;
+&lt;link rel="manifest" href="/brand/favicon/site.webmanifest"&gt;
+&lt;meta name="theme-color" content="#3177dc"&gt;</div>
+  </div>
+
+  <h2>Social card</h2>
+  <p class="section-lede">Open Graph / Twitter image. 1200×630.</p>
+  <div class="group">
+    <div><h3>OG image</h3><p class="note">Default share card. Subtle grid backdrop, editorial headline.</p></div>
+    <div class="og-frame"><img src="social/og-image.svg" alt="OG image"></div>
+  </div>
+
+  <h2>Do &amp; Don't</h2>
+  <p class="section-lede">A few firm rules to keep the mark recognisable.</p>
+  <div class="group">
+    <div><h3>Do</h3><p class="note">Respect the proportions and the palette.</p></div>
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div class="do"><span class="mk">DO</span><span class="body">Use the supplied lockups. They're spaced and sized correctly.</span></div>
+      <div class="do"><span class="mk">DO</span><span class="body">Keep clear space equal to the mark's height on every side.</span></div>
+      <div class="do"><span class="mk">DO</span><span class="body">Use the monochrome variant for one-color print, embossing, or stamps.</span></div>
+      <div class="do"><span class="mk">DO</span><span class="body">Pair the wordmark with mono uppercase metadata when context calls for it.</span></div>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Don't</h3><p class="note">Common pitfalls that dilute the identity.</p></div>
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div class="dont"><span class="mk">NO</span><span class="body">Don't recolor the mark outside approved blue + mono variants.</span></div>
+      <div class="dont"><span class="mk">NO</span><span class="body">Don't stretch, rotate, skew, or outline the wordmark.</span></div>
+      <div class="dont"><span class="mk">NO</span><span class="body">Don't bold or italicize "AssessIQ".</span></div>
+      <div class="dont"><span class="mk">NO</span><span class="body">Don't substitute a different serif (no Playfair, Fraunces, Times) for the wordmark.</span></div>
+      <div class="dont"><span class="mk">NO</span><span class="body">Don't compose your own mark + wordmark layout — use the supplied lockups.</span></div>
+      <div class="dont"><span class="mk">NO</span><span class="body">Don't place the mark on busy photographs without a solid backdrop.</span></div>
+    </div>
+  </div>
+
+  <h2>Files</h2>
+  <p class="section-lede">Every asset in this kit. Right-click → Save As.</p>
+  <div class="group">
+    <div><h3>Logo</h3><p class="note">SVG masters + PNG fallbacks.</p></div>
+    <div class="files">
+      <a href="logo/assessiq-mark.svg">assessiq-mark.svg</a>
+      <a href="logo/assessiq-mark-dark.svg">assessiq-mark-dark.svg</a>
+      <a href="logo/assessiq-mark-mono.svg">assessiq-mark-mono.svg</a>
+      <a href="logo/assessiq-mark-512.png">assessiq-mark-512.png</a>
+      <a href="logo/assessiq-wordmark.svg">assessiq-wordmark.svg</a>
+      <a href="logo/assessiq-horizontal.svg">assessiq-horizontal.svg</a>
+      <a href="logo/assessiq-horizontal.png">assessiq-horizontal.png</a>
+      <a href="logo/assessiq-horizontal-dark.svg">assessiq-horizontal-dark.svg</a>
+      <a href="logo/assessiq-horizontal-dark.png">assessiq-horizontal-dark.png</a>
+      <a href="logo/assessiq-stacked.svg">assessiq-stacked.svg</a>
+      <a href="logo/assessiq-stacked.png">assessiq-stacked.png</a>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Favicon &amp; app icon</h3><p class="note">All sizes for web + native.</p></div>
+    <div class="files">
+      <a href="favicon/favicon.svg">favicon.svg</a>
+      <a href="favicon/favicon-16.png">favicon-16.png</a>
+      <a href="favicon/favicon-32.png">favicon-32.png</a>
+      <a href="favicon/favicon-48.png">favicon-48.png</a>
+      <a href="favicon/apple-touch-icon-180.png">apple-touch-icon-180.png</a>
+      <a href="favicon/app-icon-192.png">app-icon-192.png</a>
+      <a href="favicon/app-icon-512.png">app-icon-512.png</a>
+      <a href="favicon/app-icon-1024.png">app-icon-1024.png</a>
+      <a href="favicon/app-icon-1024.svg">app-icon-1024.svg</a>
+      <a href="favicon/app-icon-1024-dark.png">app-icon-1024-dark.png</a>
+      <a href="favicon/site.webmanifest">site.webmanifest</a>
+    </div>
+  </div>
+  <div class="group">
+    <div><h3>Social</h3><p class="note">Open Graph / Twitter card.</p></div>
+    <div class="files">
+      <a href="social/og-image.svg">og-image.svg</a>
+      <a href="social/og-image.png">og-image.png</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>
