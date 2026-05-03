@@ -1,3 +1,57 @@
+# Session — 2026-05-03 (Phase 4 pre-flight — `12-embed-sdk` decision pinning — PURE DOCS)
+
+**Headline:** Phase 4 12-embed-sdk pre-flight complete. 13 frozen decisions appended to `modules/12-embed-sdk/SKILL.md`; Phase 4 migration plan pre-seeded; two spec drifts fixed in `docs/04-auth-flows.md` and `docs/03-api-contract.md`. No code, no deploy, no VPS touches. Implementation session can start immediately against the locked contract.
+
+**Commits:**
+- `b7dfaa9 — docs(embed): pin 12-embed-sdk decisions before phase 4`
+- `<handoff-sha> — docs(session): Phase 4 12-embed-sdk pre-flight handoff`
+
+**Tests:** skipped — pure docs session. `pnpm -r typecheck` exit 0 (all 17 packages clean) confirmed before commit.
+
+**Next:** Phase 2 G2.C (`10-admin-dashboard`) once `09-scoring` lands from the parallel window; Phase 3 G3.A (`14-audit-log` — Opus 4.7, `codex:rescue` mandatory) when cycled in; Phase 4 (`12-embed-sdk`) can open immediately once Phase 3 completes — the contract is frozen.
+
+**Open questions:**
+- D1 (surface scope): confirm whether admin-view embedding is ever needed in v2 (UX implications).
+- D4 (rotation grace): 24h default pinned; if 01-AUTH §5 "90-day rotation grace" was meant as a grace WINDOW (not cadence), override `tenant_settings.features.embed.rotation_grace_hours` to 2160 before Phase 4.
+- D10 (SDK npm): `@assessiq/embed` pinned as public npm — confirm if first partners are all internal Wipro (private/unlisted is viable; visibility flag only, no code change).
+
+---
+
+## What shipped (commit `b7dfaa9`)
+
+| File | Change |
+|---|---|
+| `modules/12-embed-sdk/SKILL.md` | Appended `## Decisions captured (2026-05-03)` with D1–D13 at full CLAUDE.md §9 detail level (chosen/rationale/alternatives/downstream impact for each). Also appended `## Phase 4 migration plan`, `## Spec drifts resolved`, `## Security review note`. ~430 lines added. Existing SKILL.md content untouched. |
+| `modules/12-embed-sdk/migrations/.gitkeep` | New file; creates the migrations directory for Phase 4. |
+| `modules/12-embed-sdk/migrations/README.md` | New file; documents all 4 Phase 4 migrations (0070–0073) with schema sketches, RLS notes, and docs/02-data-model.md cross-references. Phase 4 writes the actual SQL. |
+| `docs/04-auth-flows.md` | Flow 3 postMessage section: expanded type list (aiq.ready, aiq.error, aiq.close-blocked, aiq.close-request); added spec-drift note callout box for two production-visible gaps: (1) `tenants.embed_origins` column absent; (2) `frame-ancestors 'none'` in live Caddy blocks iframe embedding. |
+| `docs/03-api-contract.md` | Embed section: added pre-flight note with cookie name, scope, session type, and CSP override contract; added two new Phase 4 endpoint rows (`/embed/sdk.js`, `/embed/test-mint`). |
+
+## Decisions resolved this session
+
+- D1–D13: all 13 embed-SDK-specific ambiguities pinned. See `modules/12-embed-sdk/SKILL.md` § Decisions captured (2026-05-03).
+- Spec drift 1 (embed_origins column absent): identified and documented; Phase 4 migration 0070 adds it.
+- Spec drift 2 (frame-ancestors 'none' blocks iframe): identified as production-visible; D8 pins the Fastify-header override mechanism.
+- Spec drift 3 (external_id claim undocumented): resolved in D9 (optional claim, stored in `users.metadata.external_id`).
+
+## Considered and rejected
+
+- D4: 90-day grace window — 01-AUTH §5 used "90-day rotation grace" phrasing; pinned 24h as the security-forward default; flagged as open question.
+- D6: JWT-exp as session lifetime — would expire mid-assessment; pinned standard 8h/30min idle instead.
+- D3: aiq.resize inbound type — rejected as redundant with proactive aiq.height from ResizeObserver.
+
+## Explicitly NOT included
+
+No code changes. No migrations written. No deploy. No VPS touches. `modules/01-auth/` read-only — Phase 4 sessionLoader + SameSite=None changes gated behind Opus + codex:rescue.
+
+## Agent utilization
+- Opus: n/a — Sonnet-only session per user instruction
+- Sonnet: full session — Phase 0 warm-start reads (12 docs), plan authoring, SKILL.md addendum (13 decisions, ~430 lines), migrations README, spec-drift fixes, gate verification, both commits
+- Haiku: n/a — pure docs, no bulk sweeps needed
+- codex:rescue: n/a — pure docs session, no diff touching load-bearing paths
+
+---
+
 # Session — 2026-05-03 (G2.B Session 3 — 09-scoring shipped)
 
 **Headline:** `@assessiq/scoring` module shipped — attempt_scores table, cohort stats, archetype derivation, leaderboard, 4 admin endpoints. 29/29 tests pass. Live on production VPS.
