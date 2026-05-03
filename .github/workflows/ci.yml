@@ -231,3 +231,15 @@ jobs:
             exit 1
           fi
           echo "No-TODO check: clean"
+
+      # 13. Cross-module dep declaration lint — RCA prevention for the
+      # "import @assessiq/X without declaring X in package.json" class of bugs.
+      # Three instances caused prod restart-loops (73ad0b2, 8fff574, 81da5db).
+      # See docs/RCA_LOG.md 2026-05-03 § "Missing @assessiq/audit-log dep
+      # declarations: recurring pattern (3rd instance), prod restart-loop".
+      # Self-test runs first so a regression in the lint surfaces before the scan.
+      - name: Cross-module dep lint (self-test)
+        run: pnpm tsx tools/lint-cross-module-deps.ts --self-test
+
+      - name: Cross-module dep lint (repo scan)
+        run: pnpm lint:cross-module-deps
