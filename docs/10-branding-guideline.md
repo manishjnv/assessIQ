@@ -451,6 +451,56 @@ modules/17-ui-system/AccessIQ_UI_Template/      # reference only — DO NOT IMPO
 
 The four "exclude from build" files are the omelette/Claude-design-canvas wrapper that produced this template. They are useful for visual reference (open `AccessIQ.html` in a browser to see all screens) but must never be imported by production code.
 
+### 13.b — Brand kit (logo, favicon, OG card, web manifest)
+
+The brand identity assets live **inside** the UI template at [`modules/17-ui-system/AccessIQ_UI_Template/Logo/`](../modules/17-ui-system/AccessIQ_UI_Template/Logo/) so the design system and brand identity share one source of truth. Open [`Logo/brand-guidelines.html`](../modules/17-ui-system/AccessIQ_UI_Template/Logo/brand-guidelines.html) in a browser for the visual reference.
+
+```
+modules/17-ui-system/AccessIQ_UI_Template/Logo/
+├── README.md                          # kit overview + embed snippet
+├── brand-guidelines.html              # visual reference
+├── logo/                              # mark, wordmark, lockups (assessiq-*.{svg,png})
+├── favicon/                           # web + app icons + site.webmanifest
+└── social/                            # OG / Twitter card (1200×630)
+```
+
+**Wordmark, color, file naming:**
+
+- The wordmark text in every SVG is **AssessIQ** (not "AccessIQ" — the parent folder name carries the typo, the assets do not). Per § 0 of this guideline.
+- The mark color in every light-variant SVG is `#3177dc` — the canonical accent derived from `oklch(0.58 0.17 258)` in [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css). Dark variants use `#5b9eff` (`oklch(0.70 0.16 258)`); the accent-hover companion is `#0462d3` (`oklch(0.52 0.19 258)`). Tenant accent overrides flow through `--aiq-color-accent` for in-product surfaces; baked SVGs (favicon, OG, app icons) keep the AssessIQ accent.
+- File names follow `assessiq-{mark,wordmark,horizontal,stacked,horizontal-dark,mark-dark,mark-mono,...}.{svg,png}`. The unprefixed favicons (`favicon-16.png`, `apple-touch-icon-180.png`, `app-icon-192.png`, etc.) keep their standard names.
+
+**Two regeneration / mirror workflows:**
+
+1. **PNGs from SVGs** — [`modules/17-ui-system/tools/regenerate-brand-pngs.ts`](../modules/17-ui-system/tools/regenerate-brand-pngs.ts) rasterizes every PNG under `Logo/` from its SVG master at the canonical size. Run after editing any SVG in the kit:
+
+   ```bash
+   pnpm --filter @assessiq/ui-system brand:regen
+   ```
+
+   Uses `@resvg/resvg-js` (pure-WASM, no native binary, no Chromium overhead). The job manifest in the script is the source of truth for "which SVG → which PNG → at what size"; add an entry there to ship a new lockup raster.
+
+2. **Kit → SPA mirror** — [`apps/web/scripts/copy-brand-assets.mjs`](../apps/web/scripts/copy-brand-assets.mjs) copies the `Logo/{favicon,logo,social}/` subfolders into `apps/web/public/brand/` so Vite serves them at `/brand/*`. Wired into `apps/web/package.json` as `predev` and `prebuild` hooks, so any `pnpm dev` or `pnpm build` re-mirrors automatically. The destination folder is **gitignored** — never edit `apps/web/public/brand/` directly. Source-of-truth is always the kit.
+
+**Production wiring (`apps/web/index.html`):**
+
+- Favicon set: `favicon.svg` (modern browsers), `favicon-{16,32}.png` (legacy), `apple-touch-icon-180.png` (iOS).
+- PWA manifest: `<link rel="manifest" href="/brand/favicon/site.webmanifest" />` — nginx serves it as `application/manifest+json` via an explicit MIME location in [`infra/docker/assessiq-frontend/nginx.conf`](../infra/docker/assessiq-frontend/nginx.conf) (the default mime.types doesn't include `.webmanifest`).
+- Theme color: `<meta name="theme-color" content="#3177dc" />`.
+- OG / Twitter share card: `og:title`, `og:description`, `og:image`, `og:type`, `twitter:card=summary_large_image`, `twitter:image`.
+
+**In-product Logo component — Path 1 decision (2026-05-03):**
+
+[`modules/17-ui-system/src/components/Logo.tsx`](../modules/17-ui-system/src/components/Logo.tsx) stays the existing CSS-driven `aiq-mark` (a 10×10 dot + 1px halo at -4px inset, per § 6). It does NOT inline the kit's SVG. The kit's mark is intentionally *richer* (dot + two hairline rings r=18 and r=26 at varying opacity) — it's the brand on a deck or share card, not a calmer in-context detail. The two variants are a feature, not a bug.
+
+If a future surface needs the richer kit mark (e.g. an admin "branding settings" preview), import the SVG from `apps/web/public/brand/logo/assessiq-mark.svg` directly — don't duplicate it into `Logo.tsx`.
+
+**Pending decisions (still open as of 2026-05-03):**
+
+- OG card copy (`A calmer way to measure ability.`, `ASSESSMENT · MEASURED`, `EST · 2026`) is from the original kit; not in any approved doc. Live now because skipping the OG card on every social share is worse than shipping the placeholder. Revisit before any official social push.
+- OG card domain shows `assessiq.io` — placeholder. Real production domain is `assessiq.automateedge.cloud`. Not changed automatically because `assessiq.io` may be a planned acquisition.
+- Stacked lockup carries `ASSESSMENT · 2026` subtagline — not in any approved doc; same defer-to-decision.
+
 ## 14. What this guideline does not cover
 
 - **Domain copy.** Replace cognitive-assessment sample text (verbal/logical/spatial categories, "GMAT-style", percentile-vs-millions) with role-readiness language (SOC analyst scenarios, anchor concepts, archetype labels) on a per-page basis.

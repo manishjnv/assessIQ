@@ -1,3 +1,94 @@
+# Session — 2026-05-03 (brand kit shipped to production)
+
+**Headline:** AssessIQ brand kit (mark, lockups, favicons, OG card, web manifest) shipped end-to-end — kit-defect fixes, PNG regen tooling, SPA wiring, and deployed to `https://assessiq.automateedge.cloud`. Definition of Done: commit / deploy / document / handoff all closed in this session.
+**Commits:**
+- `87b7064` — `feat(ui-system): add AssessIQ brand kit under AccessIQ_UI_Template/Logo/`
+- `36d737c` — `chore(ui-system): regenerate brand PNGs + add brand:regen script`
+- `0d78180` — `feat(web): wire AssessIQ brand kit into apps/web (favicon, OG, manifest)`
+- *(this commit)* — `docs(branding): § 13.b for kit + nginx webmanifest MIME + handoff`
+
+**Tests:** `pnpm --filter @assessiq/ui-system brand:regen` 13/13 PNGs regenerated cleanly; vite-dev curl-grid 10/10 paths 200 with correct content-types; prod curl-grid 9/9 paths 200 against `assessiq.automateedge.cloud`; visual verify via Read-as-image confirmed AssessIQ wordmark + canonical accent in regenerated PNGs.
+**Next:** Resolve OG card copy + `assessiq.io` placeholder domain (still in `/brand/social/og-image.svg`) before any official social push. Otherwise the brand kit is fully live — Phase 2 G2.A Session 1.a (`modules/07-ai-grading` scaffold, separate WIP) remains the next coding task.
+**Open questions:**
+
+- OG card domain (`assessiq.io` placeholder vs the real `assessiq.automateedge.cloud`) — kept the placeholder pending user call; possibly a planned domain acquisition.
+- OG card copy — `A calmer way to measure ability.` (also in webmanifest description) and `ASSESSMENT · MEASURED` eyebrow + `EST · 2026` footer were carried over from the original kit; not in any approved copy doc.
+- Stacked lockup subtagline `ASSESSMENT · 2026` — same defer-to-decision; not in any doc.
+- Folder rename `AccessIQ_UI_Template/` → `AssessIQ_UI_Template/` — left unchanged to match the precedent and avoid coordinated rename of every inbound path; the *contents* are now correctly AssessIQ-branded.
+
+---
+
+## What shipped
+
+### Slice 1 — kit defect fixes (commit `87b7064`)
+
+The brand kit (28 files) was originally authored at `modules/17-ui-system/AccessIQ_Branding_Logo_Template/` and moved mid-session by the user to `modules/17-ui-system/AccessIQ_UI_Template/Logo/` so design system and brand identity share one source of truth.
+
+Three classes of defect fixed in-place vs. the as-shipped template:
+
+1. **Wordmark typo** — `AccessIQ` → `AssessIQ` in every SVG `<title>`/`<text>`/`aria-label`, the README, the manifest's `name`/`short_name`, and the visual `brand-guidelines.html`. Per `docs/10-branding-guideline.md:5` the product is unambiguously *AssessIQ*; the parent folder name keeps the typo as a precedent (matches existing `AccessIQ_UI_Template/`), but the asset content does not.
+2. **Mark colour** — `#1a73e8` (Google blue) → `#3177dc`, the canonical accent computed from `oklch(0.58 0.17 258)` per `modules/17-ui-system/src/styles/tokens.css:28`. Dark variant `#7ab1f5` → `#5b9eff` (`oklch(0.70 0.16 258)`); a stray hover `#155bb5` in `brand-guidelines.html` → `#0462d3` (`oklch(0.52 0.19 258)`). Computed via inline Node script using Björn Ottosson's OKLCH→sRGB matrices.
+3. **File renames** — `accessiq-{mark,wordmark,horizontal,stacked,...}.{svg,png}` → `assessiq-*.*` (11 files). Unprefixed favicons (`favicon-16.png`, `apple-touch-icon-180.png`, `app-icon-192.png`, etc.) kept their standard names.
+
+Also folded in: `modules/17-ui-system/AccessIQ_UI_Template/CLAUDE.md` updated so its file/folder conventions tree lists the new `Logo/` subfolder — future sessions discover the kit at warm-start.
+
+### Slice 2 — PNG regen tooling (commit `36d737c`)
+
+After fix slice 1, the renamed PNGs still showed the OLD pixel content (`AccessIQ` wordmark + `#1a73e8`). Needed regeneration from updated SVGs.
+
+- Added `@resvg/resvg-js@^2.6.2` as devDep on `@assessiq/ui-system` — pure-WASM, ~5MB, no native binary, no Chromium overhead.
+- Wrote [`modules/17-ui-system/tools/regenerate-brand-pngs.ts`](../modules/17-ui-system/tools/regenerate-brand-pngs.ts) — declarative job manifest of 13 SVG → PNG mappings with target sizes (favicons 16/32/48, apple-touch 180, app-icons 192/512/1024 + dark, og-image 1200×630, lockups at canonical sizes).
+- Wired as `pnpm --filter @assessiq/ui-system brand:regen`.
+- Visual verify (Read-as-image on regenerated PNGs): confirmed `AssessIQ` wordmark + `#3177dc` accent landed cleanly. Newsreader serif rendered correctly via system font fallback inside resvg.
+
+### Slice 3 — SPA wiring (commit `0d78180`)
+
+- [`apps/web/scripts/copy-brand-assets.mjs`](../apps/web/scripts/copy-brand-assets.mjs) — mirror script copies `Logo/{favicon,logo,social}/` (25 files) into `apps/web/public/brand/`.
+- [`apps/web/package.json`](../apps/web/package.json) — `predev` and `prebuild` hooks invoke the mirror script, so any `pnpm dev` or `pnpm build` re-mirrors automatically.
+- [`apps/web/index.html`](../apps/web/index.html) — added 13 head tags: favicon set (svg + 16/32 png + apple-touch), `<link rel="manifest">`, `theme-color`, `description`, `og:title|description|image|type`, `twitter:card|image`.
+- [`.gitignore`](../.gitignore) — `apps/web/public/brand/` excluded; source-of-truth is always the kit.
+- Verified end-to-end via `vite dev` curl-grid: 10/10 paths return 200 with correct content-types; index.html serves all 13 new head tags; manifest renders cleanly with name/short_name/description/theme_color matching the brand contract.
+
+**Logo.tsx — Path 1 decision.** [`modules/17-ui-system/src/components/Logo.tsx`](../modules/17-ui-system/src/components/Logo.tsx) left untouched. The in-product mark stays the existing CSS-driven `aiq-mark` (calmer dot+halo per branding-guideline § 6). The kit's SVGs (richer dot+two-rings) are for *external* surfaces — favicons, OG card, decks, emails. Two variants intentionally honor "in-product is calmer than the brand-on-a-deck."
+
+### Slice 4 — production deploy
+
+- VPS enumeration first per `CLAUDE.md` rule #8: `docker ps` confirmed 5 namespaced `assessiq-*` containers among 19 total; the other 14 (roadmap, accessbridge, ti-platform) untouched throughout.
+- Source pushed to `/srv/assessiq` via `git archive HEAD <paths> | ssh assessiq-vps tar -x` (VPS isn't a git repo — uses tar archive deploy pattern per the May 2 RCA).
+- `docker compose -f /srv/assessiq/infra/docker-compose.yml build assessiq-frontend` rebuilt the image from `e851db5c5678` → `4424a4350f2d`. Build log shows the prebuild script ran cleanly inside Docker (12 favicon + 11 logo + 2 social mirrored), and `vite build` produced 320 modules with no errors.
+- `docker compose up -d assessiq-frontend` recreated the container only — no other `assessiq-*` containers touched.
+- Prod curl-grid (`https://assessiq.automateedge.cloud`): 9/9 brand assets return 200, index.html ships all 13 head tags, manifest content matches local exactly.
+
+### Slice 5 — nginx webmanifest MIME fix (this commit)
+
+The prod curl-grid surfaced one nit: `site.webmanifest` was served as `application/octet-stream` because nginx's default `mime.types` doesn't map `.webmanifest`. Browsers tolerate this via `<link rel="manifest">` content sniffing, but it's a correctness gap.
+
+[`infra/docker/assessiq-frontend/nginx.conf`](../infra/docker/assessiq-frontend/nginx.conf) now has a dedicated `location ~ \.webmanifest$` block setting `default_type application/manifest+json`, with 1-day cache (the manifest URL is unhashed, so longer cache delays icon updates). To be redeployed alongside this docs commit.
+
+### Documentation updates
+
+- **`docs/10-branding-guideline.md`** — new § 13.b "Brand kit (logo, favicon, OG card, web manifest)" covering folder location, wordmark/colour/naming rules, the two regen+mirror workflows, production wiring, the Path 1 decision, and the still-pending OG/domain/subtagline questions. Comprehensive enough that a future session can resume the kit work without reading any diff.
+- **This SESSION_STATE entry** — full session narrative + agent footer per project rule.
+
+### Out of this session's scope (explicit)
+
+- Phase 2 G2.A Session 1.a (`modules/07-ai-grading` scaffold) — remains untracked WIP; the parallel session's `dee4c86` correctly excluded it too.
+- Pre-existing working-tree changes to `modules/00-core/src/config.ts`, `tools/lint-rls-policies.ts`, `pnpm-lock.yaml` (07-ai-grading importer block), and the `lint:ambient-ai` scripts in root `package.json` — all Session 1.a glue, surgically untouched throughout this session via `git stash` during the @resvg install + targeted-path `git add` for every commit.
+
+### Adversarial review
+
+Skipped — UI assets, HTML, JSON manifest, CSS-class component, nginx MIME mapping, asset-mirror script. None touch security/auth/classifier surface or any load-bearing path under `modules/{01-auth,02-tenancy,07-ai-grading,14-audit-log}` or core deploy infra (Caddyfile, shared mounts, certbot). Per CLAUDE.md "scale rigor to change magnitude" — full rescue ceremony not warranted.
+
+---
+
+## Agent utilization
+- Opus: full session end-to-end — kit-defect review and triage, OKLCH→sRGB hex computation via inline Node, all SVG/manifest/README/HTML edits via parallel `Edit` calls, regen tooling design, asset-mirror script, nginx MIME fix, VPS enumeration + tar-archive deploy + curl-grid verify, branding-guideline § 13.b authoring.
+- Sonnet: n/a — work fragmented into small edits (≤30 lines each) with files already in Opus read cache; subagent cold-start (~20-30s) would have outweighed token savings on every slice.
+- Haiku: n/a — bulk verification was inline curl-grid (10 paths dev + 9 paths prod, single bash call each); too small to warrant a Haiku subagent dispatch.
+- codex:rescue: n/a — no security/auth/classifier surface; no load-bearing-path writes; kit + wiring is pure visual asset + static HTML/manifest. CLAUDE.md "scale rigor to change magnitude" applies.
+
+---
+
 # Session — 2026-05-03 (RCA-driven tooling hardening)
 
 **Headline:** Edge-routing CI lint + shared-mount sed PreToolUse hook shipped — converts five "manual discipline" RCAs from the past 4 days into harness-enforced gates. No module code, no shared-VPS deploy.
