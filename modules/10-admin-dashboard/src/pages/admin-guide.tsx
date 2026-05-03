@@ -19,13 +19,15 @@
 //  - No new @assessiq/ui-system primitives — TOC and layout are inline flexbox.
 //  - Navigation references use human-readable page / element names, never bare
 //    URL strings, so future route renames don't silently break the guide.
-//  - Status badges accurately reflect the current shipped state (2026-05-04):
-//    steps 1–7 are Phase 3+ (question-bank + assessment-lifecycle pages not yet
-//    routed); steps 8–12 reference live pages (users, attempts, grading, reports).
+//  - Step number circles show plain integers (1–12), no zero-padding.
+//  - All 12 steps reference live pages as of commit 35f78e6 (Question Bank,
+//    Assessments, Reports, Users, Attempts, Grading all in sidebar).
+//  - The only "coming soon" note is the Audit log tip (Settings → Audit log
+//    UI not yet shipped; raw log access via Settings → Audit is pending).
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Chip, Icon } from "@assessiq/ui-system";
+import { Card, Icon } from "@assessiq/ui-system";
 import type { IconName } from "@assessiq/ui-system";
 
 // ── Section IDs ───────────────────────────────────────────────────────────────
@@ -165,15 +167,13 @@ function TocLink({
 function StepCard({
   number,
   title,
-  live,
   children,
 }: {
   number: number;
   title: string;
-  live: boolean;
   children: React.ReactNode;
 }): React.ReactElement {
-  const numStr = String(number).padStart(2, "0");
+  const numStr = String(number);
   return (
     <div id={S.step(number)} style={{ scrollMarginTop: "var(--aiq-space-xl)" }}>
       <Card padding="lg">
@@ -207,28 +207,16 @@ function StepCard({
             {numStr}
           </div>
 
-          {/* Title + status chip */}
+          {/* Title */}
           <div style={{ flex: 1, paddingTop: 6 }}>
-            <div
+            <h3
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--aiq-space-sm)",
-                flexWrap: "wrap",
+                ...SERIF_HEADING,
+                fontSize: "var(--aiq-text-lg)",
               }}
             >
-              <h3
-                style={{
-                  ...SERIF_HEADING,
-                  fontSize: "var(--aiq-text-lg)",
-                }}
-              >
-                {title}
-              </h3>
-              <Chip variant={live ? "success" : "default"}>
-                {live ? "Live" : "Phase 3+"}
-              </Chip>
-            </div>
+              {title}
+            </h3>
           </div>
         </div>
 
@@ -433,7 +421,7 @@ export function AdminGuide(): React.ReactElement {
             }}
           >
             {/* ── Step 1 ── */}
-            <StepCard number={1} title="Create a question pack" live={false}>
+            <StepCard number={1} title="Create a question pack">
               <P>
                 Click <strong>Question Bank</strong> in the sidebar →{" "}
                 <strong>+ New pack</strong> → name it (e.g. "SOC Analyst Q2
@@ -442,7 +430,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 2 ── */}
-            <StepCard number={2} title="Add three levels — L1, L2, L3" live={false}>
+            <StepCard number={2} title="Add three levels — L1, L2, L3">
               <P>
                 Open the pack → <strong>+ Add level</strong>. Create three
                 levels:
@@ -461,7 +449,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 3 ── */}
-            <StepCard number={3} title="Author questions per level" live={false}>
+            <StepCard number={3} title="Author questions per level">
               <P>
                 Open a level → <strong>+ Add question</strong>. Pick a type:
               </P>
@@ -482,7 +470,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 4 ── */}
-            <StepCard number={4} title="Activate questions" live={false}>
+            <StepCard number={4} title="Activate questions">
               <P>
                 Questions are <strong>draft</strong> by default. Use the{" "}
                 <strong>Activate all</strong> affordance on the level page.
@@ -491,7 +479,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 5 ── */}
-            <StepCard number={5} title="Publish the pack" live={false}>
+            <StepCard number={5} title="Publish the pack">
               <P>
                 From the pack overview → <strong>Publish</strong>. This
                 snapshots the current pack version. New edits land in a new
@@ -499,19 +487,19 @@ export function AdminGuide(): React.ReactElement {
                 they were created against.
               </P>
             </StepCard>
+            </StepCard>
 
             {/* ── Step 6 ── */}
-            <StepCard number={6} title="Create an assessment cycle" live={false}>
+            <StepCard number={6} title="Create an assessment cycle">
               <P>
-                Use the <strong>+ New assessment</strong> affordance when the
-                Assessments page ships (Phase 3+). Pick the published pack, set
-                the open + close window, optionally pre-select levels. Save as
-                draft.
+                Use the <strong>+ New assessment</strong> affordance on the
+                Assessments page. Pick the published pack, set the open + close
+                window, optionally pre-select levels. Save as draft.
               </P>
             </StepCard>
 
             {/* ── Step 7 ── */}
-            <StepCard number={7} title="Publish the assessment" live={false}>
+            <StepCard number={7} title="Publish the assessment">
               <P>
                 Review settings → <strong>Publish</strong>. The cycle is live;
                 invitations can now be sent.
@@ -519,7 +507,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 8 ── */}
-            <StepCard number={8} title="Invite candidates" live={true}>
+            <StepCard number={8} title="Invite candidates">
               <P>
                 <strong>Users → + Invite user</strong> → role{" "}
                 <Code>candidate</Code>, paste email, save.
@@ -527,7 +515,7 @@ export function AdminGuide(): React.ReactElement {
               <P>
                 From the cycle detail page →{" "}
                 <strong>+ Invite to assessment</strong> → select candidates →
-                Send (Phase 3+). Each candidate receives a magic-link email
+                Send. Each candidate receives a magic-link email
                 (single-use, 7-day TTL). Track invitation status on the cycle
                 detail page.
               </P>
@@ -543,7 +531,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 9 ── */}
-            <StepCard number={9} title="Candidates take the assessment" live={true}>
+            <StepCard number={9} title="Candidates take the assessment">
               <P>
                 Candidates click the magic link → token landing → Start → the
                 SPA shows the attempt UI. Autosave every 5 s, timer per level.
@@ -563,7 +551,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 10 ── */}
-            <StepCard number={10} title="Trigger AI grading per attempt" live={true}>
+            <StepCard number={10} title="Trigger AI grading per attempt">
               <P>
                 <strong>Attempts → click an attempt → Grade now.</strong>{" "}
                 Phase 1 grading is synchronous — wait ~30–60 s while the AI
@@ -583,7 +571,7 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 11 ── */}
-            <StepCard number={11} title="Review and accept or override" live={true}>
+            <StepCard number={11} title="Review and accept or override">
               <P>
                 On the attempt detail page, scroll through each question. The AI
                 grade shows anchor + justification. For each subjective answer:
@@ -598,13 +586,13 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 12 ── */}
-            <StepCard number={12} title="Generate reports" live={true}>
+            <StepCard number={12} title="Generate reports">
               <P>
-                <strong>Reports → Cohort report</strong> (Phase 3+ nav) — per-cycle
-                rollup: pass rate, average band per level, archetype
-                distribution. Or <strong>Individual report</strong> — per-candidate
-                summary with anchor citations + recommendations. Export CSV
-                from either view.
+                <strong>Reports → Cohort report</strong> — per-cycle rollup:
+                pass rate, average band per level, archetype distribution. Or{" "}
+                <strong>Individual report</strong> — per-candidate summary with
+                anchor citations + recommendations. Export CSV from either
+                view.
               </P>
               <div
                 style={{
@@ -658,7 +646,7 @@ export function AdminGuide(): React.ReactElement {
             <TipCard
               icon="eye"
               title="Audit log"
-              body="Every grade trigger, override, and invite is captured in the append-only audit log. Settings → Audit log when Phase 3 ships the UI. Records cannot be edited or deleted."
+              body="Every grade trigger, override, and invite is captured in the append-only audit log. The Settings → Audit log page is coming soon. Records cannot be edited or deleted."
             />
             <TipCard
               icon="sparkle"
@@ -754,7 +742,7 @@ export function AdminGuide(): React.ReactElement {
           <TocLink
             key={n}
             href={S.step(n)}
-            label={`${String(n).padStart(2, "0")} — ${STEP_LABELS[n - 1]}`}
+            label={`${n} — ${STEP_LABELS[n - 1]}`}
             sub
           />
         ))}
