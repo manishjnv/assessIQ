@@ -78,6 +78,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     // TODO(Phase 3+): Re-add "Question Bank" → /admin/question-bank/packs
     // when the pack-list page ships (G3.C backlog).
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
+    { label: "Help guide", href: "/admin/guide", icon: "book" },
     { label: "Settings", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
   ];
 
@@ -88,6 +89,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
   const content = (
     <div
+      className="aiq-screen"
       style={{
         display: "flex",
         height: "100vh",

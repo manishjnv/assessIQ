@@ -39,3 +39,4 @@ export { AdminIndividualReport } from "./pages/individual-report.js";
 export { AdminQuestionEditor } from "./pages/question-editor.js";
 export { AdminBilling } from "./pages/billing.js";
 export { AdminHelpContent } from "./pages/help-content.js";
+export { AdminGuide } from "./pages/admin-guide.js";
