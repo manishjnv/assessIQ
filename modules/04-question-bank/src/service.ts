@@ -666,6 +666,14 @@ export async function createQuestion(
   input: CreateQuestionInput,
   createdByUserId: string,
 ): Promise<Question> {
+  // Guard: topic is required (NOT NULL in DB) — defense-in-depth behind the
+  // Fastify body schema on the route. Catches service-layer callers that omit it.
+  // Same class as the 2026-05-03 slug/topic null-constraint incident (RCA).
+  if (typeof input.topic !== "string" || input.topic.trim().length === 0) {
+    throw new ValidationError("topic is required and must not be empty", {
+      details: { code: QB_ERROR_CODES.INVALID_TOPIC },
+    });
+  }
   // Validate content shape before touching the DB
   assertValidContent(input.type, input.content);
   // Validate rubric gate

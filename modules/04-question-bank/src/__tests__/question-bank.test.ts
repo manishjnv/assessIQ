@@ -606,6 +606,30 @@ describe("Question lifecycle + versioning", () => {
     );
   });
 
+  it("createQuestion with topic omitted throws ValidationError INVALID_TOPIC (regression: was 500 DB null constraint)", async () => {
+    // This regression guards against the 2026-05-03 incident where POST /api/admin/questions
+    // with no topic field sent NULL to Postgres and produced an unhandled 500.
+    await expect(
+      createQuestion(
+        tenantA,
+        {
+          pack_id: packId,
+          level_id: levelId,
+          type: "mcq",
+          // topic intentionally omitted — simulates UI sending no topic field
+          topic: undefined as unknown as string,
+          points: 5,
+          content: mcqContent(),
+        },
+        adminA,
+      ),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ValidationError &&
+        (e.details as Record<string, unknown> | undefined)?.["code"] === "INVALID_TOPIC",
+    );
+  });
+
   it("createQuestion against an archived pack throws ConflictError QUESTION_PACK_ARCHIVED", async () => {
     // Build and archive a pack
     const archivedPack = await createPack(
