@@ -7,13 +7,23 @@
 // audit hooks that want to ignore /api/auth/*). The per-route chain is
 // authoritative for /api/auth/* and /embed.
 //
-// Stack order — modules/01-auth/SKILL.md § Decisions captured § 9:
-//   1. rateLimit         (per-IP for /api/auth/*; per-user/tenant for authed)
-//   2. sessionLoader     (sets req.session if cookie present)
+// Stack order — UPDATED 2026-05-04 (admin rate-limit bypass):
+//   1. sessionLoader     (sets req.session if cookie present — MUST run first
+//                         so rateLimit can read it for the bypass decision;
+//                         short-circuits in <1ms when no aiq_sess cookie is
+//                         present — no Redis hit on anonymous requests)
+//   2. rateLimit         (per-IP for /api/auth/*; per-user/tenant for authed;
+//                         per-IP bucket skipped for verified admin/reviewer on
+//                         opt-in endpoints when allowVerifiedAdminBypass=true)
 //   3. apiKeyAuth        (sets req.apiKey if Bearer present and no session)
 //   4. syncCtx           (mirrors session/apiKey into req.assessiqCtx for ALS)
 //   5. requireAuth       (role / TOTP / freshMfa gates — only when requested)
 //   6. extendOnPass      (sliding-refresh; runs on session-backed pass)
+//
+// Previous order was [rateLimit, sessionLoader, ...]. The reorder is safe
+// because @fastify/cookie runs as an onRequest hook BEFORE all preHandlers,
+// so req.cookies is already populated when sessionLoader runs first. See
+// CLAUDE.md prompt 2026-05-04 for full rationale and safety analysis.
 //
 // The 02-tenancy.tenantContextMiddleware already runs as a global preHandler
 // gated on req.session?.tenantId. When this auth chain populates req.session,
@@ -50,11 +60,18 @@ const cast = <H>(hook: H): FastifyHook => hook as unknown as FastifyHook;
 // constructor itself throws if asked to skip in production.
 const skipUserStatusCheck = config.NODE_ENV !== 'production';
 
-const _rateLimit = rateLimitMiddleware();
+// Two rate-limit middleware instances: one strict (default) and one with the
+// admin/reviewer per-IP bypass enabled. The bypass is a code-set option —
+// it is NEVER set from request input. Only routes that explicitly call
+// authChain({ allowVerifiedAdminBypass: true }) get the bypass instance.
+// Both instances share the same Redis connection (via getRedis() singleton).
+const _rateLimitDefault = rateLimitMiddleware();
+const _rateLimitBypass = rateLimitMiddleware({ allowVerifiedAdminBypass: true });
 const _sessionLoader = sessionLoaderMiddleware({ skipUserStatusCheck });
 const _extendOnPass = extendOnPassMiddleware(config.SESSION_COOKIE_NAME);
 
-const rateLimit: FastifyHook = cast(_rateLimit);
+const rateLimitDefault: FastifyHook = cast(_rateLimitDefault);
+const rateLimitBypass: FastifyHook = cast(_rateLimitBypass);
 const sessionLoader: FastifyHook = cast(_sessionLoader);
 const apiKeyAuth: FastifyHook = cast(apiKeyAuthMiddleware);
 const extendOnPass: FastifyHook = cast(_extendOnPass);
@@ -79,10 +96,34 @@ export interface AuthChainOpts {
   roles?: readonly Role[];
   freshMfaWithinMinutes?: number;
   requireTotpVerified?: boolean;
+
+  // When true, a verified admin or reviewer session (role IN {admin,reviewer}
+  // AND totpVerified === true) bypasses the per-IP rate-limit bucket. The
+  // per-user (60/min) and per-tenant (600/min) buckets still apply.
+  //
+  // This flag is CODE-ONLY — it is set here in route definitions, never from
+  // request headers, query strings, or body. A reviewer cannot smuggle this
+  // flag into a request to bypass the IP limiter.
+  //
+  // Opt-in whitelist (the only routes where this should be true):
+  //   - /api/auth/google/start  (admin re-clicking SSO during testing)
+  //   - /api/auth/logout        (admin aborting a session)
+  //   - /api/auth/whoami        (frequent polling by admin SPA)
+  //
+  // NEVER set on:
+  //   - /api/auth/totp/verify   (TOTP brute-force class — always strict)
+  //   - /api/auth/totp/recovery (recovery-code brute-force class)
+  //   - /api/auth/totp/enroll/* (enrollment confirm is also brute-forceable)
+  //   - /api/auth/google/cb     (OAuth callback — no session yet)
+  //   - /api/take/start         (magic-link redemption — no session yet)
+  allowVerifiedAdminBypass?: boolean;
 }
 
 export function authChain(opts: AuthChainOpts = {}): FastifyHook[] {
-  const chain: FastifyHook[] = [rateLimit, sessionLoader, apiKeyAuth, syncCtx];
+  // Chain order: sessionLoader FIRST so rateLimit can read req.session for the
+  // admin bypass decision. See header comment for full safety rationale.
+  const rateLimit = opts.allowVerifiedAdminBypass === true ? rateLimitBypass : rateLimitDefault;
+  const chain: FastifyHook[] = [sessionLoader, rateLimit, apiKeyAuth, syncCtx];
   if (opts.requireSession === false) return chain;
 
   // Conditional spread to satisfy exactOptionalPropertyTypes — never pass

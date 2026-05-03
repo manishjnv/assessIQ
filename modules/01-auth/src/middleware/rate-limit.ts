@@ -84,23 +84,83 @@ function setHeaders(reply: AuthReply, max: number, remaining: number, ttlSeconds
   }
 }
 
+// Roles that qualify for the per-IP bypass. Explicit allowlist — NOT a denylist
+// (we do NOT say "not candidate"; we say "is admin OR reviewer").
+const BYPASS_ROLES = new Set<string>(["admin", "reviewer"]);
+
+// Sanitized role values that are safe to place in a response header.
+// Must stay in sync with BYPASS_ROLES. Never emit arbitrary strings from
+// req.session.role into headers — even though the role is DB-sourced, defense
+// in depth requires an explicit enum-normalization step.
+const BYPASS_ROLE_HEADER_VALUE: Record<string, string> = {
+  admin: "admin",
+  reviewer: "reviewer",
+};
+
 interface RateLimitOptions {
   // For Phase 0 we tune the limits via constants per the addendum. The opts
   // object exists so a future per-route override can pass tighter limits.
   authPathPrefix?: string; // default "/api/auth/"
+
+  // When true, a verified admin or reviewer session (role IN {admin,reviewer}
+  // AND totpVerified === true) bypasses the per-IP bucket on this middleware
+  // instance. The per-user (60/min) and per-tenant (600/min) buckets still
+  // apply even when the IP bucket is skipped.
+  //
+  // This flag is set CODE-SIDE in rateLimitMiddleware(opts) — it is NEVER read
+  // from req.headers, req.query, req.body, or req.params. A request cannot
+  // opt itself into the bypass by crafting a header or query string.
+  //
+  // Initial opt-in whitelist (see apps/api/src/routes/auth/*):
+  //   - /api/auth/google/start
+  //   - /api/auth/logout
+  //   - /api/auth/whoami
+  //
+  // Always-strict blacklist (these are NEVER opted in, regardless of session):
+  //   - /api/auth/totp/verify       (TOTP brute-force class)
+  //   - /api/auth/totp/recovery     (recovery-code brute-force class)
+  //   - /api/auth/totp/enroll/*     (enrollment confirm is also brute-forceable)
+  //   - /api/auth/google/cb         (OAuth callback — no session yet by definition)
+  //   - /api/take/start             (magic-link redemption — no session yet)
+  allowVerifiedAdminBypass?: boolean;
+}
+
+// Three conditions that must ALL be true for the per-IP bypass to fire.
+// (a) The route was explicitly opted in (code-set flag, never request input).
+// (b) The request carries a valid session with role in the allowlist.
+// (c) The session has completed TOTP (strict === true, not truthy coercion).
+//
+// The bypass is evaluated PER REQUEST — no module-level caching of bypass
+// decisions. Two subsequent requests from the same IP are evaluated
+// independently; there is no "this IP bypassed once, all subsequent bypass"
+// memoization.
+function shouldBypassIpBucket(req: AuthRequest, allowBypass: boolean): false | "admin" | "reviewer" {
+  if (!allowBypass) return false;
+  if (req.session === undefined) return false;
+  const role = req.session.role;
+  if (!BYPASS_ROLES.has(role)) return false;
+  // Strict === true: rejects false, undefined, null, 1, "true", etc.
+  if (req.session.totpVerified !== true) return false;
+  // Return the validated role so the caller can emit the sanitized header.
+  return role as "admin" | "reviewer";
 }
 
 export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
   const authPrefix = opts.authPathPrefix ?? "/api/auth/";
+  const allowBypass = opts.allowVerifiedAdminBypass === true;
 
   return async (req, reply) => {
     const url = req.url ?? "";
     const isAuthRoute = url.startsWith(authPrefix);
 
+    // Evaluate the bypass BEFORE building the limits array so we can decide
+    // whether to include the IP bucket. Bypass decision is per-request (no cache).
+    const bypassRole = isAuthRoute ? shouldBypassIpBucket(req, allowBypass) : false;
+
     // Compose the active limits.
     const limits: Limit[] = [];
 
-    if (isAuthRoute) {
+    if (isAuthRoute && bypassRole === false) {
       const ip = extractClientIp(req);
       // No CF-Connecting-IP and not in dev → reject at edge.
       if (ip === null) {
@@ -140,19 +200,64 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
       });
     }
 
-    if (limits.length === 0) return; // unauth public route, no enforcement
+    if (limits.length === 0) {
+      // Unauth public route with no session — no enforcement.
+      // Log bypass=false at debug level for traceability (cheap, no Redis).
+      if (bypassRole !== false) {
+        // This branch is unreachable: bypassRole is truthy only when
+        // isAuthRoute && bypassRole !== false, but then we've already added
+        // user+tenant limits above (session is defined). If somehow reached,
+        // treat conservatively as "no limits to check" without bypassing.
+        req.log?.debug({ rate_limit_bypass: false, reason: "no-limits-after-bypass", endpoint: url }, "rate limit: no limits");
+      }
+      return;
+    }
 
     // Evaluate all buckets in parallel — atomic per-bucket via Lua.
     const results = await Promise.all(limits.map(async (l) => ({ limit: l, result: await evalBucket(l) })));
 
-    // Set headers using the most-constrained bucket (lowest remaining).
-    let mostConstrained = results[0]!;
-    for (const r of results) {
-      if (r.result.remaining < mostConstrained.result.remaining) mostConstrained = r;
+    // When bypass fired, emit the bypass headers so observability can audit.
+    // Role value is sanitized through BYPASS_ROLE_HEADER_VALUE (enum mapping,
+    // never a raw string from user-controlled input — role is DB-sourced but
+    // defense-in-depth demands the extra normalization step).
+    if (bypassRole !== false) {
+      const safeRoleValue = BYPASS_ROLE_HEADER_VALUE[bypassRole] ?? "admin";
+      reply.header("X-RateLimit-Bypass", safeRoleValue);
+
+      // Emit user + tenant headers when bypass is active so callers can see
+      // their remaining quota even when the IP bucket was skipped.
+      for (const r of results) {
+        if (r.limit.scope === "user") {
+          reply.header("X-RateLimit-Limit-User", r.limit.max);
+          reply.header("X-RateLimit-Remaining-User", Math.max(0, r.result.remaining));
+        } else if (r.limit.scope === "tenant") {
+          reply.header("X-RateLimit-Limit-Tenant", r.limit.max);
+          reply.header("X-RateLimit-Remaining-Tenant", Math.max(0, r.result.remaining));
+        }
+      }
+
+      req.log?.debug(
+        {
+          rate_limit_bypass: true,
+          role: safeRoleValue,
+          userId: req.session?.userId,
+          tenantId: req.session?.tenantId,
+          endpoint: url,
+        },
+        "rate limit: IP bucket bypassed for verified admin/reviewer",
+      );
+    } else {
+      // No bypass — set standard headers from most-constrained bucket.
+      let mostConstrained = results[0]!;
+      for (const r of results) {
+        if (r.result.remaining < mostConstrained.result.remaining) mostConstrained = r;
+      }
+      setHeaders(reply, mostConstrained.limit.max, mostConstrained.result.remaining, mostConstrained.result.ttlSeconds, false);
     }
-    setHeaders(reply, mostConstrained.limit.max, mostConstrained.result.remaining, mostConstrained.result.ttlSeconds, false);
 
     // Reject if ANY bucket is exhausted (remaining < 0).
+    // This applies regardless of bypass state — user+tenant buckets are
+    // always enforced even when the IP bucket was skipped.
     for (const r of results) {
       if (r.result.remaining < 0) {
         setHeaders(reply, r.limit.max, r.result.remaining, r.result.ttlSeconds, true);

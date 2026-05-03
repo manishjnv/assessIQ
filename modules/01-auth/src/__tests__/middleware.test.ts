@@ -300,6 +300,270 @@ describe("rate-limit (Redis testcontainer)", () => {
     const keys = await redis.keys(`aiq:rl:auth:ip:*`);
     expect(keys.some((k) => k === `aiq:rl:auth:ip:${ip}`)).toBe(true);
   });
+
+  // ---------------------------------------------------------------------------
+  // § admin/reviewer bypass (tests B1–B9)
+  // All use unique IP/userId/tenantId to avoid cross-test bucket contamination.
+  // ---------------------------------------------------------------------------
+
+  describe("admin/reviewer IP-bucket bypass", () => {
+    // Helpers
+    function bypassHandler() {
+      return rateLimitMiddleware({ authPathPrefix: "/api/auth/", allowVerifiedAdminBypass: true });
+    }
+    function strictHandler() {
+      return rateLimitMiddleware({ authPathPrefix: "/api/auth/" }); // default: no bypass
+    }
+
+    function verifiedSession(
+      role: "admin" | "reviewer" | "candidate",
+      totpVerified: boolean,
+      userId: string,
+      tenantId: string,
+    ): NonNullable<AuthRequest["session"]> {
+      return {
+        id: `sess-${userId}`,
+        userId,
+        tenantId,
+        role,
+        totpVerified,
+        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        lastTotpAt: nowIso(),
+      };
+    }
+
+    // B1: Verified admin on opt-in endpoint — bypass fires, IP bucket NOT
+    // incremented, X-RateLimit-Bypass: admin emitted.
+    it("B1: verified admin on opt-in endpoint bypasses IP bucket", async () => {
+      const handler = bypassHandler();
+      const ip = "30.1.1.1";
+      const userId = "bypass-b1-user";
+      const tenantId = "bypass-b1-tenant";
+      const session = verifiedSession("admin", true, userId, tenantId);
+
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/google/start",
+        headers: { "cf-connecting-ip": ip },
+        session,
+      }), reply);
+
+      // Bypass header must be present and set to "admin".
+      expect(reply.headers["X-RateLimit-Bypass"]).toBe("admin");
+      // User and tenant headers must be present (buckets still tracked).
+      expect(reply.headers["X-RateLimit-Limit-User"]).toBe(60);
+      expect(typeof reply.headers["X-RateLimit-Remaining-User"]).toBe("number");
+      expect(reply.headers["X-RateLimit-Limit-Tenant"]).toBe(600);
+      expect(typeof reply.headers["X-RateLimit-Remaining-Tenant"]).toBe("number");
+
+      // IP bucket must NOT have been incremented: the Redis key should not exist.
+      const redis = getRedis();
+      const ipKey = `aiq:rl:auth:ip:${ip}`;
+      const ipVal = await redis.get(ipKey);
+      expect(ipVal).toBeNull();
+
+      // User bucket MUST have been incremented.
+      const userKey = `aiq:rl:user:${userId}`;
+      const userVal = await redis.get(userKey);
+      expect(Number(userVal)).toBe(1);
+    });
+
+    // B2: Verified reviewer on opt-in endpoint — bypass fires (same as admin).
+    it("B2: verified reviewer on opt-in endpoint bypasses IP bucket", async () => {
+      const handler = bypassHandler();
+      const ip = "30.1.1.2";
+      const session = verifiedSession("reviewer", true, "bypass-b2-user", "bypass-b2-tenant");
+
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/whoami",
+        headers: { "cf-connecting-ip": ip },
+        session,
+      }), reply);
+
+      expect(reply.headers["X-RateLimit-Bypass"]).toBe("reviewer");
+      // IP bucket must NOT exist.
+      const redis = getRedis();
+      expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
+    });
+
+    // B3: Pre-MFA session (totpVerified=false) — NO bypass, IP bucket fires.
+    it("B3: pre-MFA admin (totpVerified=false) on opt-in endpoint hits IP bucket", async () => {
+      const handler = bypassHandler();
+      const ip = "30.1.1.3";
+      const session = verifiedSession("admin", false, "bypass-b3-user", "bypass-b3-tenant");
+
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/google/start",
+        headers: { "cf-connecting-ip": ip },
+        session,
+      }), reply);
+
+      // No bypass header.
+      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
+      // IP bucket MUST exist (was incremented).
+      const redis = getRedis();
+      const ipVal = await redis.get(`aiq:rl:auth:ip:${ip}`);
+      expect(Number(ipVal)).toBe(1);
+    });
+
+    // B4: Candidate session — NO bypass even on opt-in endpoint.
+    it("B4: candidate session on opt-in endpoint hits IP bucket (candidates not in bypass allowlist)", async () => {
+      const handler = bypassHandler();
+      const ip = "30.1.1.4";
+      // Candidates have totpVerified=true (magic link sets it) but role='candidate'.
+      const session = verifiedSession("candidate", true, "bypass-b4-user", "bypass-b4-tenant");
+
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/google/start",
+        headers: { "cf-connecting-ip": ip },
+        session,
+      }), reply);
+
+      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
+      const redis = getRedis();
+      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
+    });
+
+    // B5: Anonymous (no session) on opt-in endpoint — NO bypass, IP bucket fires.
+    it("B5: anonymous request on opt-in endpoint hits IP bucket", async () => {
+      const handler = bypassHandler();
+      const ip = "30.1.1.5";
+
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/google/start",
+        headers: { "cf-connecting-ip": ip },
+        // No session.
+      }), reply);
+
+      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
+      const redis = getRedis();
+      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
+    });
+
+    // B6: Verified admin on a NON-opt-in endpoint (strict handler, no bypass flag).
+    // This proves the flag is code-only: even a verified admin hits the IP bucket
+    // on a middleware instance that was NOT configured with allowVerifiedAdminBypass.
+    it("B6: verified admin on non-opt-in middleware instance hits IP bucket (code-only flag)", async () => {
+      const handler = strictHandler(); // <-- no allowVerifiedAdminBypass
+      const ip = "30.1.1.6";
+      const session = verifiedSession("admin", true, "bypass-b6-user", "bypass-b6-tenant");
+
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/totp/verify", // TOTP verify: always strict
+        headers: { "cf-connecting-ip": ip },
+        session,
+      }), reply);
+
+      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
+      const redis = getRedis();
+      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
+    });
+
+    // B7: User bucket exhaustion at 60/min — fires RATE_LIMITED scope=user
+    // even when the IP bucket is bypassed. Tenant bucket is trusted to work
+    // by structural parity (same Lua path, same INCR+EXPIRE — see test 15 note).
+    it("B7: user bucket exhaustion fires RATE_LIMITED scope=user even when IP bucket bypassed", async () => {
+      const handler = bypassHandler();
+      const ip = "30.1.1.7";
+      // Use /api/assessments (non-auth prefix) so only user+tenant buckets apply,
+      // and bypass doesn't interact with any IP logic.
+      // But to test bypass WITH user exhaustion, use /api/auth/* with session.
+      const userId = "bypass-b7-user";
+      const tenantId = "bypass-b7-tenant";
+      const session = verifiedSession("admin", true, userId, tenantId);
+
+      // Use /api/auth/whoami so the opt-in path is hit 60 times.
+      const req = () => makeReq({
+        url: "/api/auth/whoami",
+        headers: { "cf-connecting-ip": ip },
+        session,
+      });
+
+      // 60 requests — all bypass the IP bucket, all increment user bucket.
+      for (let i = 0; i < 60; i++) {
+        const reply = makeReply();
+        await handler(req(), reply);
+        // Every reply must have the bypass header.
+        expect(reply.headers["X-RateLimit-Bypass"]).toBe("admin");
+      }
+
+      // 61st — must throw RATE_LIMITED with scope=user.
+      await expect(handler(req(), makeReply())).rejects.toSatisfy((err: unknown) => {
+        return (
+          err instanceof RateLimitError &&
+          (err.details as { scope?: string } | undefined)?.scope === "user"
+        );
+      });
+
+      // IP bucket must still be absent (bypass was active the whole time).
+      const redis = getRedis();
+      expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
+    });
+
+    // B8: totpVerified strict === true check — "true" string and 1 do NOT bypass.
+    // This validates that the guard uses === true (not truthy coercion).
+    it("B8: totpVerified strict check — truthy non-boolean values do not bypass", async () => {
+      const handler = bypassHandler();
+      const ip = "30.1.1.8";
+
+      // Craft a session where totpVerified would pass truthy coercion but not ===.
+      // TypeScript prevents this at compile time; we cast to simulate an
+      // attacker-controlled or corrupted session value arriving at runtime.
+      const sessionLike = {
+        id: "sess-b8",
+        userId: "bypass-b8-user",
+        tenantId: "bypass-b8-tenant",
+        role: "admin" as const,
+        totpVerified: "true" as unknown as boolean, // truthy string, NOT === true
+        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        lastTotpAt: nowIso(),
+      };
+
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/google/start",
+        headers: { "cf-connecting-ip": ip },
+        session: sessionLike,
+      }), reply);
+
+      // Must NOT bypass — totpVerified was "true" string, not boolean true.
+      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
+      // IP bucket must have been incremented.
+      const redis = getRedis();
+      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
+    });
+
+    // B9: Bypass is per-request — hitting the same endpoint 5 times with bypass
+    // does NOT persist a bypass decision between requests. Each request is
+    // independently evaluated. (Structural: verified by B1–B7 already, since
+    // every test call re-evaluates the three conditions. This test adds an
+    // explicit multi-request assertion for clarity.)
+    it("B9: bypass is evaluated per-request; no cross-request memoization", async () => {
+      const bypassH = bypassHandler();
+      const ip = "30.1.1.9a";
+      const sessionAdmin = verifiedSession("admin", true, "bypass-b9a-user", "bypass-b9a-tenant");
+
+      // First request: bypass fires.
+      const r1 = makeReply();
+      await bypassH(makeReq({ url: "/api/auth/google/start", headers: { "cf-connecting-ip": ip }, session: sessionAdmin }), r1);
+      expect(r1.headers["X-RateLimit-Bypass"]).toBe("admin");
+
+      // Second request from same IP but NO session — must NOT bypass.
+      // Omit `session` entirely (absent property) instead of explicit undefined
+      // to satisfy exactOptionalPropertyTypes.
+      const r2 = makeReply();
+      await bypassH(makeReq({ url: "/api/auth/google/start", headers: { "cf-connecting-ip": ip } }), r2);
+      expect(r2.headers["X-RateLimit-Bypass"]).toBeUndefined();
+      // IP bucket must now have count 1 (from the second request only).
+      const redis = getRedis();
+      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

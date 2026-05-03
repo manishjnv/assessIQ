@@ -183,6 +183,8 @@ Postgres mirror (`sessions` table, `02-DATA:145–157`) holds the same fields in
 
 **Rationale.** Lua atomicity matters because the read-modify-write sequence happens outside a single Redis command otherwise — race conditions during a flood let the limit be exceeded by ~N concurrent connections. Three independent counters (IP for unauth-burst, user for individual abuse, tenant for noisy-neighbor) each catch a different attack class and combine without scope-creep. CF-Connecting-IP is the only correct source on this VPS topology because Caddy terminates Cloudflare's L7 hop; the raw client IP is never available to AssessIQ.
 
+**Refinement (2026-05-04):** Admin/reviewer IP-bucket bypass added. Verified admins and reviewers (role IN {admin,reviewer} AND totpVerified === true) bypass the per-IP bucket on explicitly opted-in endpoints. Per-user (60/min) and per-tenant (600/min) buckets still apply. Opt-in whitelist: `/api/auth/google/start`, `/api/auth/logout`, `/api/auth/whoami`. Always-strict blacklist (never opted in): `/api/auth/totp/verify`, `/api/auth/totp/recovery`, `/api/auth/totp/enroll/confirm`, `/api/auth/google/cb`, `/api/take/start`. The bypass is code-only (`allowVerifiedAdminBypass` in `rateLimitMiddleware(opts)` — never from request input). Chain reorder: sessionLoader now runs before rateLimit in `apps/api/src/middleware/auth-chain.ts` so the bypass can inspect `req.session`. See `docs/04-auth-flows.md` § Admin/reviewer IP rate-limit bypass + `docs/03-api-contract.md` § Rate-limit response headers. 9 bypass test cases (B1–B9) added in `__tests__/middleware.test.ts`. Shipped in commit referenced in SESSION_STATE.md 2026-05-04.
+
 ### 8. Magic link
 
 **Decision.**

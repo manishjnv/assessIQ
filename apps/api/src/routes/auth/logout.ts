@@ -20,7 +20,7 @@ export async function registerLogoutRoutes(app: FastifyInstance): Promise<void> 
     '/api/auth/logout',
     {
       config: { skipAuth: true },
-      preHandler: authChain({ requireTotpVerified: false }),
+      preHandler: authChain({ requireTotpVerified: false, allowVerifiedAdminBypass: true }),
     },
     async (req, reply) => {
       const token = req.cookies?.[config.SESSION_COOKIE_NAME];
