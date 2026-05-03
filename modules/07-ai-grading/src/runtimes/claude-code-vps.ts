@@ -38,7 +38,8 @@ import type {
   GradingInput,
   GradingProposal,
 } from "../types.js";
-import { computeFinalScore, type RubricForScoring } from "../score.js";
+import { finalScore } from "@assessiq/rubric-engine";
+import type { Rubric } from "@assessiq/rubric-engine";
 import { skillSha } from "../skill-sha.js";
 import {
   parseStreamLines,
@@ -85,7 +86,7 @@ const SubmitAnchorsInputSchema = z.object({
 export async function gradeSubjective(
   input: GradingInput,
 ): Promise<GradingProposal> {
-  const rubric = input.rubric as RubricForScoring;
+  const rubric = input.rubric as Rubric;
   if (!rubric || !Array.isArray(rubric.anchors)) {
     throw new AppError(
       "rubric missing or malformed for grading",
@@ -244,7 +245,7 @@ export async function gradeSubjective(
   }
 
   // ----- Score computation -------------------------------------------------
-  const { earned, max } = computeFinalScore(rubric, anchors, band.reasoning_band);
+  const { earned, max } = finalScore(rubric, anchors, band.reasoning_band);
 
   // ----- D4 SHA pinning ---------------------------------------------------
   const anchorsSha = await skillSha(SKILL_ANCHORS);

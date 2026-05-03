@@ -1,4 +1,21 @@
 import { z } from "zod";
+import {
+  AnchorSchema,
+  RubricSchema,
+  type Anchor,
+  type Rubric,
+} from "@assessiq/rubric-engine";
+
+// Phase 2 G2.B Session 2: rubric DSL canonical home is @assessiq/rubric-engine
+// per PHASE_2_KICKOFF.md § P2.D12. Re-exported from 04 so existing consumers
+// (`import { RubricSchema } from '@assessiq/question-bank'`) keep working
+// without churn.
+export {
+  AnchorSchema,
+  RubricSchema,
+  type Anchor,
+  type Rubric,
+};
 
 // ---------------------------------------------------------------------------
 // Question-content schemas — one per type, keyed to docs/02-data-model.md
@@ -91,38 +108,6 @@ export const LogAnalysisContentSchema = z.object({
 }).strict();
 
 export type LogAnalysisContent = z.infer<typeof LogAnalysisContentSchema>;
-
-// ---------------------------------------------------------------------------
-// Rubric schema — required for subjective and scenario; null for others
-// (data-model lines 289-306)
-// anchor_weight_total + reasoning_weight_total must equal 100.
-// ---------------------------------------------------------------------------
-
-const AnchorSchema = z.object({
-  id: z.string().min(1),
-  concept: z.string().min(1),
-  weight: z.number().int().min(0).max(100),
-  synonyms: z.array(z.string().min(1)).min(1),
-}).strict();
-
-export const RubricSchema = z.object({
-  anchors: z.array(AnchorSchema).min(1),
-  reasoning_bands: z.object({
-    band_4: z.string(),
-    band_3: z.string(),
-    band_2: z.string(),
-    band_1: z.string(),
-    band_0: z.string(),
-  }).strict(),
-  anchor_weight_total: z.number().int().min(0).max(100),
-  reasoning_weight_total: z.number().int().min(0).max(100),
-}).strict()
-  .refine(
-    (r) => r.anchor_weight_total + r.reasoning_weight_total === 100,
-    { message: "anchor_weight_total + reasoning_weight_total must equal 100" },
-  );
-
-export type Rubric = z.infer<typeof RubricSchema>;
 
 // ---------------------------------------------------------------------------
 // Per-type union dispatcher

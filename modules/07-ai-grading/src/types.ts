@@ -52,7 +52,7 @@ export const GradingProposalSchema = z.object({
   question_id: z.string().uuid(),
   anchors: z.array(AnchorFindingSchema),
   band: BandFindingSchema,
-  /** Computed score = sumAnchorScore + computeReasoningScore. */
+  /** Computed via finalScore() from @assessiq/rubric-engine. */
   score_earned: z.number(),
   score_max: z.number(),
   /** D4: prompt SHA pinning — `anchors:<8hex>;band:<8hex>;escalate:<8hex|->`. */
