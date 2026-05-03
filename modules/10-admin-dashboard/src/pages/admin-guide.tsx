@@ -52,7 +52,7 @@ const STEP_LABELS: readonly string[] = [
   "Invite candidates",   // 08
   "Candidates take",     // 09
   "Trigger grading",     // 10
-  "Review verdicts",     // 11
+  "Review & override",    // 11
   "Generate reports",    // 12
 ];
 
@@ -369,56 +369,22 @@ export function AdminGuide(): React.ReactElement {
             Overview — the three-layer model.
           </h2>
           <Card padding="md">
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--aiq-space-md)",
-              }}
-            >
-              {(
-                [
-                  {
-                    label: "Pack",
-                    body: "The library of questions, organised into levels. A pack defines the domain (e.g. SOC operations). Publishing a pack creates an immutable snapshot — assessment cycles always reference a fixed version of the content.",
-                  },
-                  {
-                    label: "Level",
-                    body: "A tier within the pack: L1 (foundational — scenario knowledge), L2 (applied — tool proficiency under pressure), L3 (expert — cross-domain synthesis). Levels are defined by the pack author, not the platform.",
-                  },
-                  {
-                    label: "Cycle",
-                    body: "One run of an assessment against a published pack for a cohort of candidates. Cycles are time-bounded, produce individual and aggregate reports, and can reference any published version of the pack.",
-                  },
-                ] as Array<{ label: string; body: string }>
-              ).map(({ label, body }) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "flex",
-                    gap: "var(--aiq-space-md)",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: "var(--aiq-font-mono)",
-                      fontSize: "var(--aiq-text-xs)",
-                      fontWeight: 500,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--aiq-color-accent)",
-                      width: 52,
-                      flexShrink: 0,
-                      paddingTop: 2,
-                    }}
-                  >
-                    {label}
-                  </span>
-                  <p style={{ ...BODY, margin: 0 }}>{body}</p>
-                </div>
-              ))}
-            </div>
+            <P>A scenario-driven assessment in AssessIQ has three layers:</P>
+            <UL
+              items={[
+                <><strong>Question Pack</strong> — a versioned bundle of questions.</>,
+                <><strong>Level</strong> — difficulty tier within a pack (L1 junior, L2 mid, L3 senior).</>,
+                <><strong>Assessment Cycle</strong> — a scheduled instance of a published pack with invited candidates.</>,
+              ]}
+            />
+            <P>
+              End-to-end flow:{" "}
+              <strong>
+                build pack → add levels → add questions → publish pack →
+                create assessment → invite candidates → candidates take →
+                AI grades → admin reviews → reports.
+              </strong>
+            </P>
           </Card>
         </section>
 
@@ -439,27 +405,9 @@ export function AdminGuide(): React.ReactElement {
           <Card padding="md">
             <UL
               items={[
-                <>
-                  <strong>Admin role</strong> — reviewer accounts cannot create
-                  packs, cycles, or invite users.
-                </>,
-                <>
-                  <strong>Question pack with published questions</strong> —
-                  cycles reference a published pack version. Complete steps 1–5
-                  before creating a cycle.
-                </>,
-                <>
-                  <strong>Candidate users</strong> — candidates must be added
-                  in <strong>Users</strong> (sidebar) with{" "}
-                  <Code>role=candidate</Code> before cycle assignment.
-                </>,
-                <>
-                  <strong>AI grading integration</strong> — short-answer, essay,
-                  KQL, and code questions use the Claude Code CLI integration on
-                  the VPS. Verify the integration is active in{" "}
-                  <strong>Settings → Integrations</strong> before triggering
-                  grading.
-                </>,
+                <><strong>Admin role</strong> in your tenant.</>,
+                <>Google Workspace account with <strong>TOTP MFA enrolled</strong>.</>,
+                <>List of <strong>candidate email addresses</strong> ready.</>,
               ]}
             />
           </Card>
@@ -487,191 +435,102 @@ export function AdminGuide(): React.ReactElement {
             {/* ── Step 1 ── */}
             <StepCard number={1} title="Create a question pack" live={false}>
               <P>
-                Navigate to <strong>Question Bank → Packs</strong> in the
-                sidebar and click <strong>+ New pack</strong>. Give the pack a
-                name (e.g. "SOC Operations — L1–L3") and a short description.
-              </P>
-              <P>
-                A pack is the container for all levels and questions. It is
-                versioned — publishing creates an immutable snapshot, so
-                assessment cycles always run against a known version of the
-                content.
+                Click <strong>Question Bank</strong> in the sidebar →{" "}
+                <strong>+ New pack</strong> → name it (e.g. "SOC Analyst Q2
+                2026") → add description + tags → <strong>Save</strong>.
               </P>
             </StepCard>
 
             {/* ── Step 2 ── */}
             <StepCard number={2} title="Add three levels — L1, L2, L3" live={false}>
               <P>
-                Inside the pack detail page, click <strong>+ Add level</strong>{" "}
-                three times. Configure each level:
+                Open the pack → <strong>+ Add level</strong>. Create three
+                levels:
               </P>
               <UL
                 items={[
-                  <>
-                    <strong>L1 — Foundational:</strong> scenario knowledge,
-                    recognition, basic SOC tooling.
-                  </>,
-                  <>
-                    <strong>L2 — Applied:</strong> tool proficiency under time
-                    pressure, triage decisions.
-                  </>,
-                  <>
-                    <strong>L3 — Expert:</strong> cross-domain synthesis,
-                    escalation judgement, incident command.
-                  </>,
+                  <><strong>L1 Foundational</strong> — knowledge checks, basic recognition.</>,
+                  <><strong>L2 Applied</strong> — multi-step scenarios, intermediate reasoning.</>,
+                  <><strong>L3 Expert</strong> — complex incident response, edge-case judgment.</>,
                 ]}
               />
               <P>
-                Level labels and descriptions appear in candidate-facing reports
-                and in the cohort rollup. The level ordering determines the
-                sequence candidates encounter if level-gating is enabled on the
-                cycle.
+                Each level has its own pass-band threshold (defaults are
+                sensible).
               </P>
             </StepCard>
 
             {/* ── Step 3 ── */}
             <StepCard number={3} title="Author questions per level" live={false}>
               <P>
-                Select a level and click <strong>+ New question</strong>.
-                AssessIQ supports five question types:
+                Open a level → <strong>+ Add question</strong>. Pick a type:
               </P>
               <UL
                 items={[
-                  <>
-                    <strong>MCQ</strong> — multiple choice, single correct
-                    answer. Auto-graded immediately on submission.
-                  </>,
-                  <>
-                    <strong>KQL pattern</strong> — candidate writes a query; AI
-                    grades against expected pattern anchors.
-                  </>,
-                  <>
-                    <strong>Short answer</strong> (≤ 250 words) — AI grades
-                    against rubric anchors with a 0/25/50/75/100 band verdict.
-                  </>,
-                  <>
-                    <strong>Long answer / essay</strong> (≤ 2 000 words) — full
-                    AI grading with optional human review and override.
-                  </>,
-                  <>
-                    <strong>Code</strong> — language-tagged snippet; AI grades
-                    for correctness and clarity against rubric anchors.
-                  </>,
+                  <><strong>MCQ</strong> — auto-graded.</>,
+                  <><strong>Short answer / KQL pattern</strong> — auto-graded.</>,
+                  <><strong>Long answer</strong> — AI-graded with admin review.</>,
+                  <><strong>Code paste</strong> — AI-graded.</>,
                 ]}
               />
               <P>
-                For every non-MCQ question, configure the{" "}
-                <strong>rubric anchors</strong> before publishing the pack. The
-                AI grader uses anchors as its scoring reference — they describe
-                what a 0-band, 50-band, and 100-band answer looks like in
-                concrete terms.
+                Write the prompt and <strong>rubric anchors</strong>. For each
+                anchor band (0 / 25 / 50 / 75 / 100) describe what that level
+                of answer looks like and provide one or two example answers.
+                Add at least 5 questions per level.
               </P>
             </StepCard>
 
             {/* ── Step 4 ── */}
             <StepCard number={4} title="Activate questions" live={false}>
               <P>
-                Newly authored questions start in <strong>draft</strong> state
-                and will not appear in assessments until activated.
-              </P>
-              <P>
-                Select all questions in a level and use the{" "}
-                <strong>Activate all</strong> affordance at the top of the
-                question list. Each question moves to <Code>active</Code> state.
-                You can also activate questions individually, or deactivate a
-                question to exclude it from the next pack publish without
-                deleting it.
+                Questions are <strong>draft</strong> by default. Use the{" "}
+                <strong>Activate all</strong> affordance on the level page.
+                Activated questions become eligible for assessments.
               </P>
             </StepCard>
 
             {/* ── Step 5 ── */}
             <StepCard number={5} title="Publish the pack" live={false}>
               <P>
-                On the pack detail page, click <strong>Publish pack</strong>.
-                AssessIQ takes a snapshot of all active questions and their
-                current rubric anchors. The snapshot is immutable — future edits
-                to questions or anchors do not affect already-published cycles.
-                To deploy updated content, publish a new pack version and create
-                a new cycle referencing it.
-              </P>
-              <P>
-                The published version number appears on the pack header and in
-                cycle detail pages when the pack is referenced.
+                From the pack overview → <strong>Publish</strong>. This
+                snapshots the current pack version. New edits land in a new
+                draft version; assessments stay locked to the published version
+                they were created against.
               </P>
             </StepCard>
 
             {/* ── Step 6 ── */}
             <StepCard number={6} title="Create an assessment cycle" live={false}>
               <P>
-                Navigate to <strong>Assessments</strong> in the sidebar and
-                click <strong>+ New assessment</strong>. In the create wizard:
+                Use the <strong>+ New assessment</strong> affordance when the
+                Assessments page ships (Phase 3+). Pick the published pack, set
+                the open + close window, optionally pre-select levels. Save as
+                draft.
               </P>
-              <UL
-                items={[
-                  <>
-                    Set a <strong>name</strong> (displayed to candidates and in
-                    reports).
-                  </>,
-                  <>
-                    Select the <strong>question pack</strong> and{" "}
-                    <strong>version</strong> to reference.
-                  </>,
-                  <>
-                    Configure <strong>level gates</strong> — whether candidates
-                    attempt all levels sequentially or are placed by a
-                    pre-screen result.
-                  </>,
-                  <>
-                    Set a <strong>time limit per level</strong> (optional). The
-                    attempt engine enforces this with an auto-submit at expiry.
-                  </>,
-                  <>
-                    Set the <strong>cycle window</strong> — open and close dates
-                    for candidate access.
-                  </>,
-                ]}
-              />
             </StepCard>
 
             {/* ── Step 7 ── */}
             <StepCard number={7} title="Publish the assessment" live={false}>
               <P>
-                From the assessment detail page, click{" "}
-                <strong>Publish</strong>. The cycle moves to{" "}
-                <Code>active</Code> state. Candidates can now be assigned and
-                will receive magic-link invitations upon assignment.
-              </P>
-              <P>
-                A published assessment cannot be deleted — it can be{" "}
-                <strong>closed</strong> (no new attempts accepted) or{" "}
-                <strong>archived</strong> (hidden from active views) once the
-                cohort completes.
+                Review settings → <strong>Publish</strong>. The cycle is live;
+                invitations can now be sent.
               </P>
             </StepCard>
 
             {/* ── Step 8 ── */}
             <StepCard number={8} title="Invite candidates" live={true}>
               <P>
-                <strong>Add the candidate as a user (live now):</strong> Open{" "}
-                <strong>Users</strong> in the sidebar and click{" "}
-                <strong>Invite user</strong>. Enter the candidate's email and
-                set their role to <Code>candidate</Code>. An invitation email is
-                sent immediately.
+                <strong>Users → + Invite user</strong> → role{" "}
+                <Code>candidate</Code>, paste email, save.
               </P>
               <P>
-                <strong>Assign the candidate to the cycle (Phase 3+):</strong>{" "}
-                Once the Assessments page ships, open the cycle detail, go to
-                the <strong>Candidates</strong> tab, and click{" "}
-                <strong>Add candidate</strong>. A magic-link email is sent
-                automatically on assignment.
+                From the cycle detail page →{" "}
+                <strong>+ Invite to assessment</strong> → select candidates →
+                Send (Phase 3+). Each candidate receives a magic-link email
+                (single-use, 7-day TTL). Track invitation status on the cycle
+                detail page.
               </P>
-              <Callout>
-                <strong>Magic links:</strong> Candidates receive a single-use
-                token URL that opens the take-assessment flow without requiring
-                a password. The link expires after 72 hours. If the candidate
-                loses it or it expires, re-send from the candidate row in the
-                cycle's Candidates tab.
-              </Callout>
               <div style={{ marginTop: "var(--aiq-space-sm)" }}>
                 <button
                   type="button"
@@ -685,39 +544,12 @@ export function AdminGuide(): React.ReactElement {
 
             {/* ── Step 9 ── */}
             <StepCard number={9} title="Candidates take the assessment" live={true}>
-              <P>The candidate's flow once they click their magic link:</P>
-              <UL
-                items={[
-                  <>
-                    The platform validates the token and creates a
-                    candidate session.
-                  </>,
-                  <>
-                    For each level: read the question, write the answer. Answers
-                    auto-save every 30 seconds and on every keystroke pause —
-                    the candidate never loses progress.
-                  </>,
-                  <>
-                    When done with a level, click{" "}
-                    <strong>Submit level</strong>. Submission is final; the
-                    candidate cannot return to a submitted level.
-                  </>,
-                  <>
-                    After the final level, click{" "}
-                    <strong>Submit assessment</strong>. Attempt status moves to{" "}
-                    <Code>submitted</Code>.
-                  </>,
-                  <>
-                    If the time limit expires, the attempt is{" "}
-                    <strong>auto-submitted</strong> with whatever answers are
-                    saved at that moment.
-                  </>,
-                ]}
-              />
               <P>
-                Monitor live attempt progress in{" "}
-                <strong>Attempts</strong> in the sidebar. The status column
-                updates in near-real-time.
+                Candidates click the magic link → token landing → Start → the
+                SPA shows the attempt UI. Autosave every 5 s, timer per level.
+                Submit moves status <Code>in_progress</Code> →{" "}
+                <Code>submitted</Code>. The attempt appears under{" "}
+                <strong>Attempts</strong> in your sidebar.
               </P>
               <div style={{ marginTop: "var(--aiq-space-sm)" }}>
                 <button
@@ -733,38 +565,12 @@ export function AdminGuide(): React.ReactElement {
             {/* ── Step 10 ── */}
             <StepCard number={10} title="Trigger AI grading per attempt" live={true}>
               <P>
-                After submission, an attempt moves to{" "}
-                <Code>pending_admin_grading</Code>. AI grading does not run
-                automatically — it requires an explicit admin click, keeping the
-                Claude Code CLI integration within an admin-in-the-loop model.
+                <strong>Attempts → click an attempt → Grade now.</strong>{" "}
+                Phase 1 grading is synchronous — wait ~30–60 s while the AI
+                grading engine runs under your admin account. Each subjective
+                answer receives anchor + band (0/25/50/75/100) + justification.
+                MCQ + KQL are scored immediately.
               </P>
-              <P>To grade an attempt:</P>
-              <UL
-                items={[
-                  <>
-                    Open <strong>Attempts</strong> in the sidebar.
-                  </>,
-                  <>
-                    Filter by status <Code>pending_admin_grading</Code> to see
-                    the full grading queue.
-                  </>,
-                  <>
-                    Click a row to open the attempt detail page.
-                  </>,
-                  <>
-                    Click <strong>Grade now</strong> at the top of the page.
-                    Grading runs synchronously — keep the tab open until all
-                    verdicts appear (typically 15–60 seconds per question).
-                  </>,
-                ]}
-              />
-              <Callout>
-                MCQ answers are graded instantly without AI. Short-answer,
-                long-answer, KQL, and code questions go through the AI pipeline.
-                If the integration is unavailable, the attempt stays in{" "}
-                <Code>pending_admin_grading</Code> and can be manually overridden
-                at any time.
-              </Callout>
               <div style={{ marginTop: "var(--aiq-space-sm)" }}>
                 <button
                   type="button"
@@ -777,71 +583,28 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 11 ── */}
-            <StepCard number={11} title="Review AI verdicts and override" live={true}>
+            <StepCard number={11} title="Review and accept or override" live={true}>
               <P>
-                Once grading completes, each answer shows four pieces of
-                information:
+                On the attempt detail page, scroll through each question. The AI
+                grade shows anchor + justification. For each subjective answer:
               </P>
               <UL
                 items={[
-                  <>
-                    <strong>AI band</strong> — 0, 25, 50, 75, or 100. This is
-                    the AI's verdict; never a raw percentage.
-                  </>,
-                  <>
-                    <strong>Anchors used</strong> — the rubric anchors the AI
-                    matched against, highlighted inline.
-                  </>,
-                  <>
-                    <strong>Justification</strong> — the AI's reasoning for the
-                    band choice, including any partial credit notes.
-                  </>,
-                  <>
-                    <strong>Error class</strong> — if the AI detected a
-                    conceptual error (misidentification, tooling gap, etc.) it
-                    is named here for reviewer context.
-                  </>,
+                  <><strong>Accept</strong> — AI verdict stands.</>,
+                  <><strong>Override</strong> — record your own band; the AI verdict is preserved beside it (audit trail, never replaced).</>,
+                  <>Add reasoning in the <strong>comment field</strong>.</>,
                 ]}
               />
-              <P>
-                To override: click the band selector next to the AI verdict and
-                choose a different band. Add a comment explaining the override.
-                The override is logged <em>alongside</em> the AI verdict — it
-                never replaces it. Both records appear in the audit log with
-                timestamps and your user ID.
-              </P>
-              <P>
-                When you are satisfied with all verdicts, click{" "}
-                <strong>Release results</strong> on the attempt detail page. The
-                candidate's score becomes visible in their candidate portal
-                (Phase 2+).
-              </P>
             </StepCard>
 
             {/* ── Step 12 ── */}
             <StepCard number={12} title="Generate reports" live={true}>
-              <P>AssessIQ provides two report surfaces:</P>
-              <UL
-                items={[
-                  <>
-                    <strong>Cohort report</strong> — per-cycle rollup showing
-                    band distribution across all candidates for each question,
-                    topic-level heatmap, and archetype breakdown. Accessible
-                    from the assessment detail page under{" "}
-                    <strong>Reports → Cohort</strong>.
-                  </>,
-                  <>
-                    <strong>Individual report</strong> — per-candidate summary
-                    showing the candidate's band per question, overall
-                    archetype, level scores, and a downloadable PDF. Accessible
-                    from the candidate row in the attempt list.
-                  </>,
-                ]}
-              />
               <P>
-                Both reports support <strong>CSV export</strong>. Use this to
-                import scores into your HR system (Workday, ServiceNow, custom
-                HRMS) or archive alongside the audit log.
+                <strong>Reports → Cohort report</strong> (Phase 3+ nav) — per-cycle
+                rollup: pass rate, average band per level, archetype
+                distribution. Or <strong>Individual report</strong> — per-candidate
+                summary with anchor citations + recommendations. Export CSV
+                from either view.
               </P>
               <div
                 style={{
@@ -889,23 +652,23 @@ export function AdminGuide(): React.ReactElement {
           >
             <TipCard
               icon="chart"
-              title="Banded scoring"
-              body="Answers land in 0/25/50/75/100 bands — never raw percentages. Configure per-question rubric anchors before publishing the pack. Bands map to readiness tiers in the cohort report archetype analysis, and are the load-bearing signal for HR scoring outputs."
+              title="Bands, not percentages"
+              body="AssessIQ never shows a raw '73%' — every score is one of {0, 25, 50, 75, 100}. Configure rubric anchors per question before publishing the pack."
             />
             <TipCard
               icon="eye"
-              title="Audit trail"
-              body="Every override, grading event, session change, and admin action is recorded in the append-only audit log (Settings → Audit). HR-grade immutability — records cannot be edited or deleted. Use this for compliance reviews, incident reconstruction, and calibration disputes."
+              title="Audit log"
+              body="Every grade trigger, override, and invite is captured in the append-only audit log. Settings → Audit log when Phase 3 ships the UI. Records cannot be edited or deleted."
             />
             <TipCard
               icon="sparkle"
               title="Re-grading"
-              body="If you update rubric anchors after grading runs, you can re-trigger the AI grader for specific attempts from the attempt detail page. The original AI grade and any overrides are preserved alongside the new verdict — nothing is lost and all versions appear in the audit log."
+              body="Only the admin can re-trigger grading — no background AI calls. Re-trigger from the attempt detail page at any time."
             />
             <TipCard
               icon="grid"
-              title="Multi-tenancy"
-              body="If you manage multiple tenants, use the tenant switcher in the top bar. All data — question packs, users, grades, and reports — is strictly isolated between tenants at the database row level. There is no cross-tenant sharing, even for admins with multi-tenant access."
+              title="Multi-tenant"
+              body="Every action is scoped to your tenant. You only see your tenant's data — question packs, users, grades, and reports are strictly isolated at the database row level."
             />
           </div>
         </section>
@@ -931,20 +694,20 @@ export function AdminGuide(): React.ReactElement {
             {(
               [
                 {
-                  q: "Can a candidate see their score immediately after submitting?",
-                  a: 'No. Scores are released by the admin after the AI grading review cycle is complete. The candidate sees a "Submitted — results pending" state until you click Release results on the attempt detail page.',
+                  q: "Can a candidate retake?",
+                  a: "Not by default. Admin manually creates a new invitation if needed.",
                 },
                 {
-                  q: "What if AI grading fails for an attempt?",
-                  a: "The attempt stays in pending_admin_grading status. An error note appears on the failed grading row. Manual override is always available — set the band directly on any failed question. There is no dependency on AI grading completing before you can release results.",
+                  q: "What if AI grading fails?",
+                  a: "Admin can re-trigger. Failures are logged; no auto-retry in Phase 1.",
                 },
                 {
-                  q: "Can I reuse a question pack across multiple cycles?",
-                  a: "Yes. Create a new cycle referencing the same published pack version. Each cycle produces its own independent cohort report. If you publish a new version of the pack, new cycles reference the new version while existing cycles remain pinned to their original snapshot.",
+                  q: "Can I edit a published pack?",
+                  a: "Yes, edits land in a new version. Existing assessments stay locked to the version snapshot they were created against.",
                 },
                 {
-                  q: "What is the difference between L1, L2, and L3?",
-                  a: "The levels are defined by the admin when authoring the pack — the platform provides the three-tier structure but not the specific content. Convention for the SOC pack: L1 tests scenario knowledge and tool recognition (foundational); L2 tests applied tool use under time pressure (applied); L3 tests cross-domain synthesis, escalation judgement, and incident command (expert). They represent progressive readiness tiers, not a linear difficulty scale.",
+                  q: "What happens at the close window?",
+                  a: "The cycle closes automatically. In-progress attempts auto-submit at their per-attempt timer expiry, regardless of cycle status.",
                 },
               ] as Array<{ q: string; a: string }>
             ).map(({ q, a }) => (
