@@ -350,3 +350,583 @@ admin.assessments.invite.bulk:
 
   related_keys:
     - admin.assessments.publish
+
+# ─── Analytics & Reports (Phase 3 G3.C) ───
+
+admin.reports.cohort.distribution:
+  audience: admin
+  short_text: "Archetype distribution shows how many submitted attempts landed in each performance archetype for this assessment."
+  long_md: |
+    ## Cohort archetype distribution
+
+    AssessIQ classifies each completed attempt into one of five archetypes:
+
+    | Archetype | Meaning |
+    |---|---|
+    | `confident_correct` | High score with consistent reasoning alignment |
+    | `capable_but_unsure` | High score but lower reasoning quality |
+    | `memorised_pattern` | Correct answers without analytical depth |
+    | `partial_grasp` | Mixed accuracy; some topics understood |
+    | `needs_support` | Low score, reasoning gaps across topics |
+
+    The distribution chart reflects **submitted and scored** attempts only.
+    In-progress or pending-review attempts are excluded until grading is complete.
+
+    Archetypes are immutable once assigned — reassessing a candidate creates a
+    new attempt with its own archetype.
+
+admin.reports.heatmap.colors:
+  audience: admin
+  short_text: "Heat cell color = average reasoning band for that topic-level pair: green (3–4), amber (2), red (0–1)."
+  long_md: |
+    ## Topic heatmap color scale
+
+    Each cell in the topic heatmap represents one topic × level combination.
+    The color encodes the mean **reasoning band** (0–4) of all graded questions
+    in that cell:
+
+    | Color | Band range | Interpretation |
+    |---|---|---|
+    | Green | 3–4 | Strong reasoning; candidates consistently explained the concept |
+    | Amber | 2 | Partial reasoning; correct answers but shallow justification |
+    | Red | 0–1 | Weak reasoning; frequent guessing or pattern-matching |
+
+    A cell shows as **grey** when fewer than two attempts have graded answers
+    for that topic — not enough data to draw a meaningful conclusion.
+
+    The **hit rate** (right side of each cell) is the fraction of questions in
+    that cell answered correctly, regardless of reasoning band.
+
+admin.reports.archetype.disclaimer:
+  audience: admin
+  short_text: "Archetypes are statistical descriptors, not diagnostic labels. Use them to guide learning — not hiring decisions."
+  long_md: |
+    ## Archetype disclaimer
+
+    AssessIQ archetypes are computed by an AI rubric engine that scores
+    reasoning quality on a 0–4 band scale. They are designed to identify
+    **learning gaps and strengths at scale**, not to serve as a definitive
+    measure of individual ability.
+
+    **Do not use archetypes as the sole basis for hiring, promotion, or
+    compensation decisions.** They are complementary signals to human
+    review, structured interviews, and on-the-job evaluation.
+
+    Archetype accuracy depends on:
+    - Question prompt quality (well-scoped rubric anchors improve band accuracy)
+    - Attempt length (short assessments yield less signal)
+    - Current AI pipeline mode (`claude-code-vps` uses deterministic scoring;
+      `anthropic-api` uses LLM-based reasoning-band scoring)
+
+    Results should be reviewed alongside raw scores and grading transcripts.
+
+admin.reports.export.format:
+  audience: admin
+  short_text: "Exports are available as CSV (Excel-compatible) or JSONL (one JSON object per line, for pipeline ingest)."
+  long_md: |
+    ## Export formats
+
+    **CSV (`attempts.csv`)** — one row per scored attempt. Compatible with
+    Excel, Google Sheets, and most BI tools. Columns:
+
+    `tenant_id`, `assessment_id`, `assessment_name`, `user_id`, `user_email`,
+    `attempt_id`, `status`, `submitted_at`, `total_earned`, `total_max`,
+    `auto_pct`, `archetype`, `computed_at`
+
+    **JSONL (`attempts.jsonl`)** — one JSON object per line. Use this for
+    scripted pipeline ingest or when you need to preserve numeric precision.
+    Each object has the same fields as the CSV.
+
+    **Topic heatmap CSV (`topic-heatmap.csv`)** — one row per topic × level
+    combination. Columns: `pack_id`, `level_id`, `topic`, `hit_rate`,
+    `mean_band`, `attempt_count`.
+
+    **Row cap:** all export endpoints are capped at 10,000 rows. If your
+    tenant has more data, use the `submittedAfter` / `submittedBefore`
+    filters to export in date-range batches.
+
+    **Audit:** every export is logged in the audit trail with the acting
+    admin's user ID and a timestamp.
+
+admin.reports.cost.empty_in_claude_code_vps_mode:
+  audience: admin
+  short_text: "Cost breakdown requires anthropic-api mode. This deployment uses claude-code-vps — no per-call cost is metered."
+  long_md: |
+    ## Grading cost breakdown — not available in VPS mode
+
+    The cost-by-month report tracks Anthropic API token spend per assessment.
+    It is populated when `AI_PIPELINE_MODE=anthropic-api` is active.
+
+    This deployment uses `claude-code-vps` mode: a human-operated Claude Code
+    session runs the grading workflow on the VPS, and token costs are not
+    metered through the AssessIQ billing system.
+
+    If you switch to `anthropic-api` mode in a future deployment, the cost
+    report will begin populating from that date forward.
+
+admin.audit.export.format:
+  audience: admin
+  short_text: "The audit log records admin actions (exports, grading, user changes) with actor, timestamp, and tenant scope."
+  long_md: |
+    ## Audit log
+
+    AssessIQ maintains an append-only audit log for every significant admin
+    action. Entries are written synchronously with the operation (not
+    fire-and-forget) to guarantee no silent loss.
+
+    **Audited actions include:**
+    - `attempt.exported` — admin downloaded a CSV or JSONL export
+    - `grading.override` — admin manually changed a grading band
+    - `user.created`, `user.role_changed`, `user.deactivated`
+    - `assessment.published`, `assessment.archived`
+    - `pack.version_bumped`
+
+    Audit log entries are immutable. They cannot be edited or deleted by any
+    admin — including tenant super-admins. Retention is 7 years (configurable
+    by the platform operator).
+
+    The export audit entry includes `export_format` and the filter parameters
+    used, so the exact dataset exported can be reconstructed.
+
+admin.audit.archives.restore_procedure:
+  audience: admin
+  short_text: "Archived assessments are soft-deleted. Contact your platform admin to restore — no self-service restore in Phase 3."
+  long_md: |
+    ## Restoring archived assessments
+
+    Archiving an assessment sets its status to `archived` and hides it from
+    the active assessments list. The underlying data (attempts, gradings,
+    scores) is fully preserved.
+
+    **To restore** in the current Phase 3 build:
+
+    1. Contact your AssessIQ platform administrator.
+    2. Provide the assessment ID (visible in the audit log entry for the
+       archive action).
+    3. The admin updates `status = 'active'` and re-enables any active
+       invite links.
+
+    Self-service restore via the UI is planned for Phase 4.
+
+    **Grading data:** attempts submitted before archiving retain their scores
+    and archetype assignments. No re-grading is triggered on restore.
+
+admin.notifications.in_app.short_poll_interval:
+  audience: admin
+  short_text: "In-app notifications are fetched every 15 seconds. There is no WebSocket push in Phase 3."
+  long_md: |
+    ## In-app notification polling
+
+    The admin dashboard polls for new in-app notifications every **15 seconds**
+    using a short-poll strategy. Notifications include:
+
+    - Grading complete (an attempt's AI grading finished)
+    - Bulk invite batch complete (all emails sent)
+    - Assessment boundary transitions (e.g. attempt timer expired)
+
+    **Why short-poll?** Phase 3 does not include a WebSocket server. Short
+    polling over HTTPS is simpler to operate and sufficient for the current
+    notification volume (< 10 tenants, < 100 concurrent admins).
+
+    **Phase 4** will evaluate WebSocket or SSE push once the candidate UI
+    (module 11) ships and real-time status updates become time-critical.
+
+    If a notification arrives between polls, it will appear at the next tick.
+    The 15-second window is intentional — it avoids overloading the DB with
+    sub-second polling while keeping the perceived lag minimal for admin-level
+    workflows.
+
+# ─── Phase 2 G2.C — Admin grading UI (10-admin-dashboard) ───────────────────
+
+admin.grading.queue.row:
+  audience: admin
+  short_text: "Each row is an attempt awaiting review. Click 'Review' to open the grading panel."
+  long_md: |
+    ## Grading queue row
+
+    A row appears here when a candidate submits an attempt containing at least
+    one subjective or scenario question. Clicking **Review** opens the attempt
+    detail page, which simultaneously claims the attempt (`submitted →
+    pending_admin_grading`) so other admins know you are reviewing it.
+
+    The claim is soft: if you navigate away without grading, the attempt
+    reverts to `submitted` on the next queue refresh.
+
+admin.grading.queue.empty:
+  audience: admin
+  short_text: "No attempts awaiting grading. Either no assessments have run yet, or all attempts are already graded."
+  long_md: |
+    ## Empty grading queue
+
+    The queue is empty when all submitted attempts have been graded and released,
+    or when no assessments have had any submissions yet.
+
+    If you expected to see something here, check:
+    - The **Attempts** page with filter "All" — the attempt may already be
+      in `graded` or `released` status.
+    - Whether the assessment has expired or closed before candidates submitted.
+
+admin.grading.proposal.anchors:
+  audience: admin
+  short_text: "Green chips = anchor phrases the AI found; grey chips = anchors it didn't detect."
+  long_md: |
+    ## Anchor findings
+
+    Each anchor in the rubric is shown as a chip. **Green / hit** means the AI
+    found the concept in the candidate's answer (with evidence shown on hover).
+    **Grey / miss** means the concept was absent or the AI was not confident
+    enough to flag it.
+
+    Misses do not automatically reduce the score — band scoring is holistic.
+    A band-3 answer can miss a minor anchor if the overall reasoning quality
+    justifies it. Use the anchor display as a *starting point*, not a checklist.
+
+admin.grading.proposal.band:
+  audience: admin
+  short_text: "The AI's verdict on reasoning quality: 0 = no credit, 1 = 25%, 2 = 50%, 3 = 75%, 4 = 100%."
+  long_md: |
+    ## Reasoning band
+
+    Bands map to percentage scores: **0 → 0%, 1 → 25%, 2 → 50%, 3 → 75%,
+    4 → 100%**. Raw floats are never surfaced — only these five values.
+
+    The band represents the AI's holistic judgement of the candidate's
+    reasoning quality, not a count of correct facts. A response that correctly
+    identifies the right tool but fails to explain *why* it is right typically
+    lands at band 2–3, not 4.
+
+admin.grading.proposal.justification:
+  audience: admin
+  short_text: "The AI's free-text reasoning for its band choice. Read before accepting or overriding."
+  long_md: |
+    ## AI justification
+
+    The AI grader writes a short explanation of why it chose the verdict it did.
+    Read this before clicking Accept — it surfaces the evidence and reasoning
+    that drove the band choice.
+
+    If the justification is vague ("the answer is mostly correct"), that is a
+    signal to run Stage 3 (Opus re-run) before accepting.
+
+admin.grading.proposal.error_class:
+  audience: admin
+  short_text: "The error type if band < 3: missing_concept, wrong_tool, wrong_reasoning, partial_answer, or none."
+  long_md: |
+    ## Error class
+
+    When the AI assigns band 0–2, it also assigns an error class:
+
+    | Class | Meaning |
+    |---|---|
+    | `missing_concept` | Core concept absent from the answer |
+    | `wrong_tool` | Candidate chose the wrong tool or approach |
+    | `wrong_reasoning` | Tool is right but the explanation is incorrect |
+    | `partial_answer` | Correct direction, incomplete execution |
+    | `none` | No specific error class (band 3–4) |
+
+    Error classes feed the cohort-level analytics (which error types are
+    most common) and the archetype signal computation.
+
+admin.grading.proposal.escalation:
+  audience: admin
+  short_text: "Stage-3 (Opus) re-run differs from Stage-2 (Sonnet) by ≥2 bands. Pick the verdict to keep."
+  long_md: |
+    ## Escalation diff
+
+    When you click **Re-run with Opus**, Stage 3 grades the answer
+    independently using a more powerful model. If the verdicts differ by 2 or
+    more bands (e.g. Sonnet said band 2, Opus says band 4), the escalation diff
+    appears side-by-side.
+
+    You must pick one verdict and write a reconciliation note before submitting.
+    The chosen stage is recorded on the `gradings` row so future analysis can
+    identify systematic AI disagreements.
+
+admin.grading.accept:
+  audience: admin
+  short_text: "Accept commits the AI's proposal to the gradings table. No fresh MFA required."
+  long_md: |
+    ## Accept AI proposal
+
+    Clicking Accept:
+
+    1. Writes the AI's band, score, anchor hits, and justification to the
+       `gradings` table with `grader = 'ai'`.
+    2. Does **not** release the attempt to the candidate — release is a
+       separate action once all questions are graded.
+
+    Accept does not require fresh MFA. Override does.
+
+admin.grading.override.reason:
+  audience: admin
+  short_text: "Required when overriding the AI. Shown in audit exports and used for AI calibration feedback."
+  long_md: |
+    ## Override reason
+
+    The override reason is mandatory and must be meaningful — it feeds:
+
+    - The **audit trail** for HR and compliance exports.
+    - Future AI calibration: patterns in override reasons help identify rubric
+      gaps or systematic AI errors.
+
+    Minimum useful length: one sentence describing *what was wrong* with the
+    AI's verdict. "Wrong band" alone fails validation.
+
+admin.grading.rerun:
+  audience: admin
+  short_text: "Re-run asks the AI to grade the same answer again with Sonnet. Use when the initial proposal looks wrong."
+  long_md: |
+    ## Re-run (Sonnet)
+
+    Re-run submits the same answer and rubric to Stage 2 (Sonnet) again.
+    Because AI grading is non-deterministic, a second pass sometimes produces
+    a better proposal, especially for ambiguous answers.
+
+    Use re-run when:
+    - The justification is clearly misaligned with the rubric.
+    - The anchor hits don't match what you read in the answer.
+    - The band seems too high or too low but you want a second opinion before
+      overriding manually.
+
+    Re-run does **not** replace the original proposal — both are in the
+    `gradings` table (with `override_of` linking them).
+
+admin.grading.rerun.opus:
+  audience: admin
+  short_text: "Re-run with Opus (Stage 3) uses a more powerful model. Use for complex cases or appeals."
+  long_md: |
+    ## Re-run with Opus (Stage 3)
+
+    Stage 3 uses Claude Opus — a more capable but slower model. Use it for:
+
+    - Complex multi-step scenario answers where Sonnet's chain-of-thought
+      seems shallow.
+    - Appeals: the candidate disputes the grade and you want an independent
+      high-quality re-assessment.
+    - Calibration: spot-check whether Stage 2 verdicts hold up on a sample
+      of high-stakes attempts.
+
+    Stage 3 is billed at a higher token cost. The tenant budget guard tracks
+    and may block if the monthly cap is near.
+
+admin.grading.skill_drift:
+  audience: admin
+  short_text: "The prompt version used for this grade differs from the current live prompt. Consider re-grading."
+  long_md: |
+    ## Skill drift
+
+    Each grading row records the SHA-256 hash of the prompt version that
+    produced it. If the admin updates a grading skill (prompt template), rows
+    graded with the old version are flagged with a **drift** badge.
+
+    Drift is informational — it does not block releasing results. Use it as a
+    signal to re-run affected attempts when a prompt change was material (e.g.
+    a rubric anchor was corrected).
+
+admin.scoring.attempt.total:
+  audience: admin
+  short_text: "Sum of earned points across all questions, normalized to 100. Bands are shown per-question only."
+  long_md: |
+    ## Total score
+
+    The attempt total is a weighted sum of per-question scores, normalized to
+    100. It is derived from the `attempt_scores` row written when all questions
+    are graded.
+
+    For subjective questions, the per-question score is `reasoning_band × 25`,
+    so a band-3 answer on a 20-point question contributes 15 points.
+
+    The total does **not** drive pass/fail thresholds directly — the archetype
+    and cohort percentile are also factors. See `admin.scoring.cohort.percentiles`.
+
+admin.scoring.attempt.archetype:
+  audience: admin
+  short_text: "Behavioral pattern derived from edit count, pace, flags, multi-tab, and copy-paste signals."
+  long_md: |
+    ## Archetype signals
+
+    The archetype radar charts six behavioral signals collected during the attempt:
+
+    | Signal | Measures |
+    |---|---|
+    | Pace | Median time per question |
+    | Edits | Total edit count across answers |
+    | Flags | Questions flagged for review |
+    | Focus loss | Tab-blur events |
+    | Copy/paste | Combined copy + paste events |
+    | Multi-tab | Multi-tab conflict events |
+
+    High edit counts combined with slow pace may indicate careful, deliberate
+    work. High copy/paste with fast pace may indicate pasted content. Context
+    matters — interpret signals holistically, not as individual scores.
+
+admin.scoring.archetype.disclaimer:
+  audience: admin
+  short_text: "Behavioral signals are observational only. They do not affect the score and are not a proxy for integrity."
+  long_md: |
+    ## Archetype signal disclaimer
+
+    Archetype signals are behavioral telemetry, not integrity flags. They:
+
+    - Do **not** adjust the candidate's score in any direction.
+    - Are **not** a proxy for cheating detection.
+    - Are context-dependent: a slow pace on L3 scenarios is normal; the same
+      pace on an L1 triage question might indicate difficulty.
+
+    Use signals to understand cohort patterns (e.g. "L2 candidates average
+    200 edits per attempt") not to make individual pass/fail decisions.
+
+admin.scoring.cohort.percentiles:
+  audience: admin
+  short_text: "Rank within the cohort. 90th percentile = scored higher than 90% of candidates on the same assessment."
+  long_md: |
+    ## Cohort percentiles
+
+    Cohort percentiles are computed once the cohort has ≥5 released results.
+    They are recomputed on every new release.
+
+    A candidate at the 90th percentile scored higher than 90% of the cohort
+    on the same assessment + level. Percentiles are assessment-scoped — they
+    do not span across assessments or levels.
+
+    Phase 1 computes median and percentile bands (P25, P50, P75, P90). Full
+    bell-curve distribution charts are a Phase 3 analytics feature.
+
+admin.scoring.leaderboard.privacy:
+  audience: admin
+  short_text: "Anonymize toggle hides candidate emails. Leaderboard data is admin-only and never shown to candidates."
+  long_md: |
+    ## Leaderboard privacy
+
+    The cohort leaderboard is visible to admins and reviewers only — candidates
+    never see their rank or peers' scores.
+
+    Use the **Anonymize** toggle to hide email addresses when screensharing
+    or presenting cohort results to stakeholders. The setting is stored in your
+    browser session only (not tenant-wide).
+
+admin.rubric.anchor.weight:
+  audience: admin
+  short_text: "Fractional contribution of this anchor to the total rubric weight. All anchor weights must sum ≤ 1.0."
+  long_md: |
+    ## Anchor weight
+
+    The weight controls how much this anchor contributes to the overall
+    scoring floor. All anchor weights must sum to ≤ 1.0 (the UI shows the
+    running total and blocks saving if exceeded).
+
+    Recommended allocation: identify 2–4 *essential* anchors (weight 0.2–0.3
+    each) and 2–4 *supporting* anchors (weight 0.05–0.1 each). Leave room in
+    the total so a strong answer that covers most anchors isn't penalized by
+    one missed nuance.
+
+admin.rubric.anchor.synonyms:
+  audience: admin
+  short_text: "Comma-separated synonyms or equivalent phrasings the AI should treat as matching the anchor."
+  long_md: |
+    ## Anchor synonyms
+
+    Add synonyms when the anchor concept has multiple correct phrasings.
+    Example: anchor phrase "lateral movement", synonyms "east-west traffic,
+    network pivoting, pivot host".
+
+    Synonyms are case-insensitive and matched as substrings within the answer.
+    Avoid overly broad synonyms that could match unrelated content.
+
+admin.rubric.anchor.required:
+  audience: admin
+  short_text: "Required anchors must be present for the answer to score above band 0, regardless of overall quality."
+  long_md: |
+    ## Required anchor
+
+    Marking an anchor **required** creates a hard floor: if the AI does not
+    detect this concept, the band is capped at 0 regardless of the rest of
+    the answer quality.
+
+    Use sparingly — for concepts so fundamental that their absence represents
+    a complete misunderstanding. For most anchors, leave required off and let
+    the holistic band judgement do its work.
+
+admin.rubric.reasoning.bands:
+  audience: admin
+  short_text: "Band labels and descriptions tell the AI how to distinguish between 0%, 25%, 50%, 75%, and 100%."
+  long_md: |
+    ## Reasoning bands
+
+    Write a label and description for each of the five bands. These are
+    included verbatim in the AI grading prompt — they are the specification
+    the model grades against.
+
+    Best practice:
+    - **Band 4 (100%):** Complete, accurate, specific. Names tools, explains
+      tradeoffs, shows system-level reasoning.
+    - **Band 3 (75%):** Mostly correct. One missing element or weak rationale.
+    - **Band 2 (50%):** Correct direction, significant gaps. Explains *what*
+      but not *why*, or vice versa.
+    - **Band 1 (25%):** Shows partial understanding. More wrong than right.
+    - **Band 0 (0%):** No credit. Blank, off-topic, or fundamentally wrong.
+
+admin.rubric.error_classes:
+  audience: admin
+  short_text: "Error classes tag low-band answers for cohort analytics. Choose the one that best describes the failure."
+  long_md: |
+    ## Error classes
+
+    Error classes are assigned by the AI when band < 3 and aggregated in the
+    cohort analytics view. They answer: "what kind of mistake did candidates
+    make most often on this question?"
+
+    Available classes:
+    - `missing_concept` — the core concept was absent
+    - `wrong_tool` — candidate chose the wrong approach
+    - `wrong_reasoning` — reasoning is incorrect despite using the right tool
+    - `partial_answer` — correct direction, incomplete
+
+    Admin overrides can also set the error class. If no class applies, leave
+    as `none`.
+
+admin.settings.billing.budget:
+  audience: admin
+  short_text: "Monthly grading run cap per tenant. Default: 100 runs/month. Resets on the 1st of each month."
+  long_md: |
+    ## Grading budget cap
+
+    The budget guard limits AI grading runs to protect against runaway costs.
+    A "run" is one call to the grading pipeline per question — a 10-question
+    attempt uses 10 runs.
+
+    Default cap: 100 runs/month per tenant. Contact support to raise the cap.
+    The `tenant_grading_budgets` table holds the current usage and cap; a
+    platform admin can edit it directly until Phase 3 ships a settings UI.
+
+admin.settings.billing.alert_threshold:
+  audience: admin
+  short_text: "Notify the admin when monthly usage exceeds this percentage of the cap (default: 80%)."
+  long_md: |
+    ## Budget alert threshold
+
+    When monthly grading usage crosses this fraction of the cap, AssessIQ sends
+    an in-app notification and email to all tenant admins. Default: 80%.
+
+    The notification is informational — grading continues until the hard cap
+    is hit. Raise the cap in `tenant_grading_budgets` before that happens.
+
+admin.settings.help_content.markdown:
+  audience: admin
+  short_text: "Help text supports Markdown. Preview shows plain text only — full rendering launches in Phase 3."
+  long_md: |
+    ## Help content Markdown
+
+    Help text bodies accept GitHub-flavored Markdown: headings, bold, italic,
+    code blocks, ordered/unordered lists, and tables.
+
+    The Phase 2 admin editor shows a **plain-text preview** only. Full Markdown
+    rendering in the editor is deferred to Phase 3. Candidates and admins who
+    read the help drawer see rendered Markdown via the `HelpProvider` component.
+
+    **What to avoid:**
+    - Raw HTML tags — they are stripped before storage.
+    - Inline images — not supported in this phase.
+    - Custom CSS classes — the design system renders Markdown in a sandboxed
+      `aiq-prose` container with fixed styles.
+

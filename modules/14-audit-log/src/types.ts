@@ -63,6 +63,8 @@ export const ACTION_CATALOG = [
   'webhook.replayed',
   // Help system
   'help.content.updated',
+  // Analytics exports (G3.C — admin bulk download is an auditable action)
+  'attempt.exported',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

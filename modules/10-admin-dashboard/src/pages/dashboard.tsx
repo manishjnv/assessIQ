@@ -57,7 +57,7 @@ export function AdminDashboard(): React.ReactElement {
     {
       key: "candidate_email",
       label: "Candidate",
-      render: (row) => (
+      render: (row: QueueRow) => (
         <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
           {row.candidate_email}
         </span>
@@ -68,7 +68,7 @@ export function AdminDashboard(): React.ReactElement {
     {
       key: "submitted_at",
       label: "Submitted",
-      render: (row) => (
+      render: (row: QueueRow) => (
         <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
           {row.submitted_at
             ? new Date(row.submitted_at).toLocaleString()
@@ -79,7 +79,7 @@ export function AdminDashboard(): React.ReactElement {
     {
       key: "status",
       label: "Status",
-      render: (row) => (
+      render: (row: QueueRow) => (
         <span
           style={{
             fontFamily: "var(--aiq-font-mono)",
@@ -106,7 +106,7 @@ export function AdminDashboard(): React.ReactElement {
       key: "action",
       label: "",
       width: 100,
-      render: (row) => (
+      render: (row: QueueRow) => (
         <button
           type="button"
           className="aiq-btn aiq-btn-outline aiq-btn-sm"

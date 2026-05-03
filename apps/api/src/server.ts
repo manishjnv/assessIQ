@@ -25,6 +25,7 @@ import {
 import { registerAdminWorkerRoutes } from './routes/admin-worker.js';
 import { registerNotificationsRoutes } from '@assessiq/notifications';
 import { registerScoringRoutes } from '@assessiq/scoring';
+import { registerAnalyticsRoutes } from '@assessiq/analytics';
 import { authChain } from './middleware/auth-chain.js';
 
 const requestLog = streamLogger('request');
@@ -187,6 +188,16 @@ export async function buildServer() {
   // Scoring admin routes — /api/admin/attempts/:id/score, /api/admin/reports/*
   // All /api/* prefix → Caddy @api matcher already covers these.
   await registerScoringRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
+  // Analytics admin routes (Phase 3 G3.C):
+  //   - /api/admin/reports/topic-heatmap
+  //   - /api/admin/reports/archetype-distribution/:assessmentId
+  //   - /api/admin/reports/cost-by-month
+  //   - /api/admin/reports/exports/attempts.csv
+  //   - /api/admin/reports/exports/attempts.jsonl
+  //   - /api/admin/reports/exports/topic-heatmap.csv
+  // All /api/admin/* → covered by Caddy @api matcher.
+  await registerAnalyticsRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
 
   await registerHelpPublicRoutes(app);
   await registerHelpTrackRoutes(app);

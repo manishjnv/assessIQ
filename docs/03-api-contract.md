@@ -411,3 +411,110 @@ function buildAssessIQEmbedUrl(tenantId, user, assessmentId) {
 ## OpenAPI spec
 
 A formal OpenAPI 3.1 spec lives at `infra/openapi.yaml`, kept in sync with this doc. Generated from Fastify route schemas via `fastify-swagger`. Tenants can pull it from `/api/openapi.yaml` (auth required).
+
+---
+
+## Admin — Reports & Exports (Phase 3 G3.C, module 15-analytics)
+
+All routes require admin session. Served at `/api/admin/reports/*`.
+
+### `GET /api/admin/reports/topic-heatmap`
+
+Returns per-topic average score buckets for a given pack.
+
+**Query params:** `packId` (required UUID), `from` (optional ISO date), `to` (optional ISO date)
+
+**Response 200:**
+```json
+{
+  "topics": [
+    { "topicId": "uuid", "topicLabel": "string", "avgPct": 75, "bucket": "good", "n": 42 }
+  ]
+}
+```
+`bucket` is one of `"poor" | "fair" | "good" | "excellent"` (25/50/75/100 band scoring).
+
+**Response 400:** `packId` missing or malformed.
+
+---
+
+### `GET /api/admin/reports/archetype-distribution/:assessmentId`
+
+Returns count of each archetype for a given assessment.
+
+**Path params:** `assessmentId` (UUID)
+
+**Response 200:**
+```json
+{
+  "items": [
+    { "archetype": "Practitioner", "count": 12 }
+  ]
+}
+```
+
+---
+
+### `GET /api/admin/reports/cost-by-month`
+
+Returns per-month grading cost (API token spend). In Phase 3 (`claude-code-vps` mode) always returns empty shape.
+
+**Query params:** `year` (optional YYYY integer, defaults to current year)
+
+**Response 200 (Phase 3 — claude-code-vps):**
+```json
+{
+  "items": [],
+  "mode": "claude-code-vps",
+  "message": "Cost data is only available in Anthropic API mode."
+}
+```
+
+**Response 200 (Phase 4 — anthropic-api):**
+```json
+{
+  "items": [
+    { "month": "2026-01", "inputTokens": 1200000, "outputTokens": 80000, "estimatedUsdCents": 450 }
+  ]
+}
+```
+
+---
+
+### `GET /api/admin/reports/exports/attempts.csv`
+
+Streams all scored attempts as CSV (RFC 4180). Capped at `EXPORT_ROW_CAP = 10_000` rows.
+
+**Query params (all optional):** `from` (ISO date), `to` (ISO date), `assessmentId` (UUID), `userId` (UUID)
+
+**Response 200:** `Content-Type: text/csv`, `Content-Disposition: attachment; filename="attempts.csv"`, streaming body.
+
+**Columns:** `attempt_id, assessment_name, user_id, submitted_at, total_earned, total_max, auto_pct, pending_review, archetype`
+
+**Audit:** `action: 'attempt.exported'` written to audit log on each call.
+
+---
+
+### `GET /api/admin/reports/exports/attempts.jsonl`
+
+Same data as attempts.csv but as JSON Lines (one JSON object per line, `\n` delimited).
+
+**Query params:** same as `attempts.csv`.
+
+**Response 200:** `Content-Type: application/x-ndjson`, streaming body.
+
+**Audit:** `action: 'attempt.exported'` written to audit log.
+
+---
+
+### `GET /api/admin/reports/exports/topic-heatmap.csv`
+
+Exports the topic heatmap report as CSV.
+
+**Query params:** `packId` (required UUID), `from` (optional ISO date), `to` (optional ISO date)
+
+**Response 200:** `Content-Type: text/csv`, streaming body.
+
+**Columns:** `topic_id, topic_label, avg_pct, bucket, n`
+
+**Response 400:** `packId` missing or malformed.

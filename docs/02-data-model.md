@@ -774,3 +774,70 @@ System-level operations (cross-tenant analytics, support tools) use a `BYPASSRLS
 - `email_log (tenant_id, created_at DESC)` — timeline feed; partial `(tenant_id, status) WHERE status IN ('queued','failed','bounced')` for retry sweeps
 - `in_app_notifications (tenant_id, audience, created_at DESC) WHERE read_at IS NULL` — unread short-poll query
 - `webhook_deliveries` — no own index; queries always filter through `endpoint_id` which maps back to tenant via RLS JOIN
+- `attempt_summary_mv (tenant_id, attempt_id)` — **UNIQUE** composite required for `REFRESH MATERIALIZED VIEW CONCURRENTLY` (Phase 3 G3.C)
+
+---
+
+## Materialized view — `attempt_summary_mv`
+
+**Status:** LIVE — Phase 3 G3.C (migration `0060`, module 15-analytics).
+
+### Why
+
+Heavy analytics queries (cohort reports, heatmaps, exports) join `attempt_scores → attempts → assessments` on every request. At scale the per-request join cost becomes unacceptable. `attempt_summary_mv` pre-joins these tables into a single row-per-scored-attempt structure, refreshed nightly.
+
+### What changed vs rejected alternatives
+
+- **Considered:** TimescaleDB hypertable. Rejected — overkill for Phase 3 volume (< 50 k attempts), adds operational complexity.
+- **Chosen:** Standard Postgres materialized view + CONCURRENT refresh. Zero additional infra; `REFRESH CONCURRENTLY` holds no table-level lock, so live reads continue during refresh.
+
+### RLS caveat
+
+**Postgres does NOT enforce RLS on materialized views.** All queries against `attempt_summary_mv` MUST include:
+```sql
+WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
+```
+Enforced by `tools/lint-mv-tenant-filter.ts` in CI.
+
+### Schema
+
+```sql
+-- modules/15-analytics/migrations/0060_attempt_summary_mv.sql
+CREATE MATERIALIZED VIEW attempt_summary_mv AS
+SELECT
+  ats.tenant_id,
+  ats.attempt_id,
+  a.assessment_id,
+  a.user_id,
+  a.status          AS attempt_status,
+  a.submitted_at,
+  ats.total_earned,
+  ats.total_max,
+  ats.auto_pct,
+  ats.pending_review,
+  ats.archetype,
+  ats.computed_at,
+  asm.pack_id,
+  asm.level_id,
+  asm.name          AS assessment_name
+FROM attempt_scores ats
+JOIN attempts   a   ON a.id   = ats.attempt_id
+JOIN assessments asm ON asm.id = a.assessment_id;
+
+-- Required for CONCURRENT refresh
+CREATE UNIQUE INDEX attempt_summary_mv_pk
+  ON attempt_summary_mv (tenant_id, attempt_id);
+
+-- Analytics query indexes
+CREATE INDEX attempt_summary_mv_assessment_idx
+  ON attempt_summary_mv (tenant_id, assessment_id, computed_at DESC);
+CREATE INDEX attempt_summary_mv_pack_idx
+  ON attempt_summary_mv (tenant_id, pack_id, computed_at DESC);
+```
+
+### Refresh schedule
+
+Nightly at **02:00 UTC** via BullMQ job `analytics:refresh_mv` (registered in `apps/api/src/worker.ts`). Initial populate at deploy time:
+```bash
+psql -U assessiq_system -c "REFRESH MATERIALIZED VIEW attempt_summary_mv"
+```
