@@ -101,7 +101,7 @@ The `X-RateLimit-Bypass` header is observable by admin tooling and curl to confi
 | Method | Path | Purpose |
 |---|---|---|
 | `GET`  | `/admin/packs`                       | List question packs (paginated; filter by `domain`, `status`) |
-| `POST` | `/admin/packs`                       | Create pack (returns 201) |
+| `POST` | `/admin/packs`                       | Create pack (returns 201). `slug` is **optional** — auto-generated from `name` (NFKD lowercase, hyphens, 64-char cap) when omitted. Collision appends `-2` … `-10` suffix. Explicit slug still validated against `/^[a-z0-9-]{3,80}$/`. **fix 2026-05-04** |
 | `GET`  | `/admin/packs/:id`                   | Pack with levels (`{ pack, levels }`) |
 | `PATCH`| `/admin/packs/:id`                   | Update pack metadata (name, domain, description) |
 | `POST` | `/admin/packs/:id/publish`           | Transition draft → published; snapshots all questions; bumps `pack.version` and each `question.version` |

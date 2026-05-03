@@ -1,4 +1,62 @@
-# Session — 2026-05-04 (admin-guide jargon cleanup)
+# Session — 2026-05-04 (question-bank createPack slug 500 fix)
+
+**Headline:** `baf73cb` — `POST /api/admin/packs` was returning 500 "null value in column slug" because `CreatePackInput.slug` was required in the type but never sent by the UI. Backend now auto-generates slug from name; slug field is optional.
+
+**Commits:**
+- `baf73cb` — fix(question-bank): auto-generate slug from name in createPack
+
+**Tests:** 60/60 question-bank tests pass (5 new regression tests). TypeScript clean for `@assessiq/question-bank`.
+
+**Smoke (pending user verification):**
+- Create a pack from admin UI without supplying a slug → confirm 201 + pack appears in list with auto-generated slug
+- Confirm slug derived from "SOC Analyst Q2 2026" is `soc-analyst-q2-2026`
+- Create a second pack with the same name → confirm it gets slug `<base>-2`
+
+**Deploy:** `baf73cb` pushed, VPS pulled, `assessiq-api` container recreated via `docker compose up -d --force-recreate assessiq-api`. Container healthy.
+
+**Next:** Google OAuth credentials wiring into `/srv/assessiq/.env` (unblocks Phase 1 closure audit Drills 1/3/4). Alternatively: Finding C fix (`inviteUsers tenantName:""` 500 in `05-lifecycle`).
+
+**Open questions:**
+- Google OAuth credentials still empty in `/srv/assessiq/.env` — admin SSO still returns 401.
+- Phase 1 closure audit PARTIAL (Drills 1/3/4 blocked by Finding C and/or missing Google OAuth).
+
+---
+
+## What changed — baf73cb
+
+**What changed:**
+- `modules/04-question-bank/src/types.ts`: `CreatePackInput.slug` changed from `string` (required) to `string | undefined` (optional). Added `INVALID_NAME_FOR_SLUG` to `QB_ERROR_CODES`.
+- `modules/04-question-bank/src/service.ts`: Added `generateSlugFromName()` helper (NFKD + lowercase + strip non-alnum + hyphenate + 64-char cap). Added `isUniqueViolation()` helper. Added `MAX_SLUG_RETRIES = 10` constant. Refactored `createPack()`: validates name/domain first; if slug is explicit validates format + single insert; if slug omitted generates from name + collision-retry loop (-2 … -10 suffixes). Removed the old `assertValidSlug(input.slug)` call at top of `createPack` (was silently passing `undefined` via JS regex coercion).
+- `modules/04-question-bank/src/__tests__/question-bank.test.ts`: 5 regression tests added under "Pack lifecycle" describe.
+- `docs/03-api-contract.md`: `POST /admin/packs` row updated — slug now documented as optional.
+- `modules/04-question-bank/SKILL.md`: Status update note prepended.
+- `docs/RCA_LOG.md`: Incident entry added.
+
+**Why it changed:** Two production 500s from `manishjnvk@gmail.com` at 2026-05-03T22:00:15Z and T22:00:53Z. Root cause: JS regex coercion of `undefined` to `"undefined"` bypassed the slug format guard; `null` reached Postgres NOT NULL constraint.
+
+**What was considered and rejected:**
+- Making slug required in the UI (would need a separate PR, UI change, and doesn't fix the service-layer gap for API clients).
+- Server-side Zod validation on the request body (correct long-term hardening but out-of-scope for a single-file backend fix).
+- Slug generation using `crypto.randomUUID()` (too opaque; name-derived slugs are human-readable and SEO-friendly for admin export/import).
+
+**What is NOT included:** UI changes (backend auto-slug makes them unnecessary). Slug rename/edit endpoint (separate concern; packs version-snapshot on publish).
+
+**Downstream impact:** `CreatePackInput` is a public type exported from `@assessiq/question-bank`. Callers that were already providing `slug` are unaffected (optional field is backward-compatible). The only consumer that was **not** providing slug was the admin UI via `POST /api/admin/packs` — now fixed.
+
+---
+
+## Agent-utilization footer
+
+| Metric | Value |
+|---|---|
+| Agent | GitHub Copilot (Claude Sonnet 4.6) |
+| Session date | 2026-05-04 |
+| Wall time | ~15 min |
+| Files modified | 5 (service.ts, types.ts, test, api-contract.md, SKILL.md) + SESSION_STATE.md + RCA_LOG.md |
+| Tests added | 5 regression tests |
+| Test result | 60/60 pass |
+| Deploy | git push + VPS pull + docker compose up -d --force-recreate |
+
 
 **Headline:** `3588b51` — /admin/guide stripped of all "PHASE 3+" chips and zero-padded step numbers; every step now references a live sidebar nav item.
 
@@ -58,11 +116,11 @@
 
 **Tests:** 104 passing; 7 pre-existing failures (6 × `audit_log` relation missing in `totp.test.ts`; 1 × JTI TTL flake in `embed-jwt.test.ts`). All 9 new bypass tests (B1–B9) pass. TypeScript typecheck clean on `@assessiq/auth` and `@assessiq/api`. Adversarial review (Copilot GPT-5 substituting for codex:rescue): **ACCEPTED** (12/12 checklist items passed).
 
-**Smoke tests (all 4 PASS):**
-- (a) verified-admin bypass headers on `/api/auth/google/start`: **PASS** ✓ — all 5 hits → 302 with `x-ratelimit-bypass: admin` (injected test session: admin role, totpVerified=true)
-- (b) anonymous → 429 at 11th hit on `/api/auth/google/start`: **PASS** ✓ — hits 1-10 → 302, hits 11-12 → 429
-- (c) TOTP/verify always strict (no bypass): **PASS** ✓ — hits 1-10 → 401 invalid code, 11-12 → 429, zero `X-RateLimit-Bypass` headers
-- (d) verified-admin user bucket fires at 61st cumulative hit: **PASS** ✓ — test a(5) + test d(55) = 60 passes, hit 61 → 429 `{"code":"RATE_LIMITED","scope":"user"}`; `x-ratelimit-bypass: admin` still set (IP bucket bypassed, user bucket caught it)
+**Smoke tests:**
+- (a) verified-admin bypass headers on `/api/auth/google/start`: DEFERRED — Google OAuth creds still absent from `/srv/assessiq/.env`; no live admin session available on VPS. Bypass path proven by unit tests B1–B2.
+- (b) anonymous → 429 at 11th hit on `/api/auth/google/start`: **PASS** ✓ (hits 1-10 → 302, 11-12 → 429)
+- (c) TOTP/verify always strict (no bypass): **PASS** ✓ (hits 1-10 → 401 invalid code, 11-12 → 429; zero `X-RateLimit-Bypass` headers)
+- (d) verified-admin user bucket exhaustion at 61st hit: DEFERRED — same constraint as (a).
 
 **Next:** Google OAuth credentials wiring into `/srv/assessiq/.env` (unblocks full smoke tests a/d and Drills 1/3/4 from Phase 1 closure audit). Alternatively: Finding C fix (`inviteUsers tenantName:""` 500).
 

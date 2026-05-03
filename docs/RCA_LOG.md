@@ -4,7 +4,28 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
-## 2026-05-03 — D2 lint flagged its own runtime-selector comment quoting the SDK import path
+## 2026-05-04 — POST /api/admin/packs 500 "null value in column slug"
+
+**Symptom:** Two consecutive pack-create attempts by `manishjnvk@gmail.com` at `2026-05-03T22:00:15Z` and `2026-05-03T22:00:53Z` returned HTTP 500 with Postgres error: `null value in column slug of relation question_packs violates not-null constraint`.
+
+**Cause:** `CreatePackInput.slug` was typed as required (`slug: string`) but the admin UI never sent it — the field was not present in the request body. In `createPack()`, `assertValidSlug(input.slug)` was called before the DB insert. `SLUG_REGEX.test(undefined)` in JavaScript coerces `undefined` to the string `"undefined"` which matches `/^[a-z0-9-]{3,80}$/` (9 lowercase letters, in range). Validation therefore passed silently and `undefined` was forwarded to `insertPack()`, which sent it as `NULL` to Postgres — violating the `NOT NULL` constraint with a 500.
+
+**Fix (commit `baf73cb`):**
+- `CreatePackInput.slug` is now `optional` (`slug?: string`)
+- `createPack()` auto-generates a URL-safe slug from `input.name` using NFKD normalisation + lowercase + strip `[^a-z0-9\s-]` + hyphenate + 64-char cap
+- All-emoji / all-punctuation names (empty result) throw `ValidationError INVALID_NAME_FOR_SLUG`
+- Collision retry: appends `-2` … `-10` suffix on Postgres `23505`; throws `ConflictError PACK_SLUG_EXISTS` after 10 attempts
+- Explicit slug provided: same `assertValidSlug` + single-attempt behaviour as before
+- 5 regression tests added; 60/60 pass
+
+**Prevention:**
+- API boundary inputs that are "required in DB but optional in UX" must have an auto-derive fallback at the service layer, not just a type-level assertion
+- `SLUG_REGEX.test(undefined)` returns `true` because of JS coercion — any regex validator applied to a potentially-undefined TypeScript optional must guard with `if (value !== undefined && value.trim().length > 0)` before testing
+- CLAUDE.md rule #5 (same-PR docs): `docs/03-api-contract.md` and `modules/04-question-bank/SKILL.md` updated in this commit
+
+**Recurrence weight:** First instance of the JS-regex-coercion-of-undefined class. Guardrail: future slug/identifier validations in service.ts should use `if (input.slug !== undefined && input.slug.trim())` guards, not bare `SLUG_REGEX.test(input.slug)` calls.
+
+
 
 **Symptom:** `pnpm lint:ambient-ai` exited 1 immediately after Opus added a load-bearing comment to `modules/07-ai-grading/src/runtime-selector.ts` warning the Session 1.b author about an eager-import startup hazard. The lint had passed cleanly two minutes earlier; the only intervening change was the new comment.
 
