@@ -1,0 +1,38 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#ffffff"></rect>
+  
+  <defs>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#e8e8e8" stroke-width="1"></path>
+    </pattern>
+    <radialGradient id="mask" cx="78%" cy="32%" r="55%">
+      <stop offset="0%" stop-color="#000" stop-opacity="0.5"></stop>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"></stop>
+    </radialGradient>
+    <mask id="m">
+      <rect width="1200" height="630" fill="url(#mask)"></rect>
+    </mask>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)" mask="url(#m)"></rect>
+
+  
+  <g transform="translate(80, 80)">
+    <circle cx="22" cy="22" r="18" fill="none" stroke="#3177dc" stroke-width="1" opacity="0.32"></circle>
+    <circle cx="22" cy="22" r="13" fill="none" stroke="#3177dc" stroke-width="0.8" opacity="0.18"></circle>
+    <circle cx="22" cy="22" r="6" fill="#3177dc"></circle>
+    <text x="56" y="32" font-family="Newsreader, &#39;Source Serif Pro&#39;, Georgia, serif" font-size="22" font-weight="400" letter-spacing="-0.005em" fill="#1a1a1a">AssessIQ</text>
+  </g>
+
+  
+  <text x="80" y="338" font-family="&#39;JetBrains Mono&#39;, &#39;SF Mono&#39;, Menlo, monospace" font-size="12" letter-spacing="0.18em" fill="#9aa0a6">ASSESSMENT · MEASURED</text>
+
+  
+  <text x="80" y="420" font-family="Newsreader, &#39;Source Serif Pro&#39;, Georgia, serif" font-size="76" font-weight="400" letter-spacing="-0.025em" fill="#1a1a1a">A calmer way</text>
+  <text x="80" y="498" font-family="Newsreader, &#39;Source Serif Pro&#39;, Georgia, serif" font-size="76" font-weight="400" letter-spacing="-0.025em" fill="#1a1a1a">to measure ability.</text>
+
+  
+  <line x1="80" y1="552" x2="1120" y2="552" stroke="#e8e8e8" stroke-width="1"></line>
+  <text x="80" y="582" font-family="&#39;JetBrains Mono&#39;, &#39;SF Mono&#39;, Menlo, monospace" font-size="12" fill="#5f6368" letter-spacing="0.04em">assessiq.io</text>
+  <text x="1120" y="582" text-anchor="end" font-family="&#39;JetBrains Mono&#39;, &#39;SF Mono&#39;, Menlo, monospace" font-size="12" fill="#9aa0a6" letter-spacing="0.08em">EST · 2026</text>
+</svg>
