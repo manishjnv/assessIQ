@@ -250,10 +250,18 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 
 ### Embed
 
+> **Phase 4 pre-flight note (2026-05-03).** The `/embed` surface is implemented in Phase 4 (Week 11-12). Decisions pinned in `modules/12-embed-sdk/SKILL.md` § Decisions captured (2026-05-03). Key implementation contracts:
+> - **Cookie name:** `aiq_embed_sess` (distinct from `aiq_sess`); `SameSite=None; Secure; HttpOnly` (D7).
+> - **Embed surface scope:** candidate-take-only (`/take/*`); no admin or results views in v1 (D1).
+> - **Session type:** `sessions.session_type='embed'` distinguishes embed sessions from standard sessions (D6).
+> - **CSP override:** `/embed` handler sets `Content-Security-Policy: frame-ancestors <tenant.embed_origins>` per-request; the global Caddy `frame-ancestors 'none'` would otherwise block the iframe (D8).
+
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/embed?token=<JWT>`           | Embed-mode landing; mints session and serves SPA |
+| `GET`  | `/embed?token=<JWT>`           | Embed-mode landing; verifies HS256 JWT, mints `aiq_embed_sess` cookie (`SameSite=None`), sets per-tenant CSP `frame-ancestors`, redirects to `/take/*?embed=true` |
 | `GET`  | `/embed/health`                | Health check for host apps to ping before iframe load |
+| `GET`  | `/embed/sdk.js`                | Self-contained embed SDK (≤3 KB gzipped); registers `window.AssessIQ.mount()` — Phase 4 |
+| `GET`  | `/embed/test-mint`             | Dev-only JWT minter; gated by `ENABLE_EMBED_TEST_MINTER=1` + `NODE_ENV≠production` + admin session — Phase 4 |
 
 ### Public
 

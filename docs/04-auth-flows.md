@@ -216,9 +216,16 @@ AssessIQ /embed handler:
 **Host-host trust boundary:** AssessIQ trusts whatever the JWT says about identity. If the host signs a token claiming to be `ceo@wipro.com`, AssessIQ believes them. This is the correct model — but means embed secrets are valuable. Rotate every 90 days; revoke immediately on suspected compromise.
 
 **postMessage protocol** (for iframe ↔ parent communication):
-- AssessIQ → host: `{ type: 'aiq.attempt.started', attemptId }`, `{ type: 'aiq.attempt.submitted', attemptId, summary }`, `{ type: 'aiq.height', px }` (auto-resize)
-- Host → AssessIQ: `{ type: 'aiq.theme', tokens: {...} }` (runtime theming), `{ type: 'aiq.locale', locale: 'en-IN' }`
-- Origin pinned via tenant.embed_origins allowlist
+- AssessIQ → host: `{ type: 'aiq.attempt.started', attemptId }`, `{ type: 'aiq.attempt.submitted', attemptId, summary }`, `{ type: 'aiq.height', px }` (auto-resize), `{ type: 'aiq.ready', tenantId, assessmentId }` (initial handshake), `{ type: 'aiq.error', code, message }`, `{ type: 'aiq.close-blocked', reason }` (response to close-request when attempt in progress)
+- Host → AssessIQ: `{ type: 'aiq.theme', tokens: {...} }` (runtime theming), `{ type: 'aiq.locale', locale: 'en-IN' }`, `{ type: 'aiq.close-request' }` (host wants to close iframe)
+- Origin pinned via `tenant.embed_origins` allowlist (see spec-drift note below)
+- Full TypeScript type definitions for all message types: `modules/12-embed-sdk/SKILL.md` § D3
+
+> **Spec drift note (2026-05-03, Phase 4 pre-flight).** Two implementation gaps identified:
+>
+> 1. **`tenants.embed_origins` column not yet in schema.** This section references `tenant.embed_origins` as if it exists; the `tenants` CREATE TABLE in `docs/02-data-model.md` § Tenancy has no such column, and no `02-tenancy` migration adds it. Phase 4 migration `0070_embed_origins.sql` (in `modules/12-embed-sdk/migrations/`) adds `embed_origins TEXT[] NOT NULL DEFAULT '{}'` to the `tenants` table. Until Phase 4 deploys, origin verification in `/embed` falls back to rejecting all iframe messages (fail-closed).
+>
+> 2. **`frame-ancestors 'none'` in live Caddy block blocks all iframe embedding (production-visible issue).** The live Caddy `security-headers` snippet confirmed in `docs/06-deployment.md` § "What's live" sets `Content-Security-Policy: frame-ancestors 'none'` globally. This is correct clickjack-protection for admin routes but BLOCKS the embed iframe in every browser. Phase 4 must override this header per-tenant in the Fastify `/embed` route handler: `reply.header('Content-Security-Policy', 'frame-ancestors ' + tenant.embed_origins.join(' '))`. Caddy in reverse-proxy mode does not rewrite upstream response headers, so the Fastify-set header reaches the browser intact. Phase 4 deploy verification: `curl -sI '/embed?token=<valid-jwt>' | grep content-security-policy` must show per-tenant origins, NOT `'none'`. See `modules/12-embed-sdk/SKILL.md` § D8 for the full mechanism.
 
 ---
 
