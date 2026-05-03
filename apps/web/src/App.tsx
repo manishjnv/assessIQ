@@ -3,6 +3,17 @@ import { ThemeProvider, TENANT_FIXTURES } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
 import { AdminMfa } from './pages/admin/mfa';
 import { AdminUsers } from './pages/admin/users';
+import {
+  AdminDashboard,
+  AdminAttempts,
+  AdminAttemptDetail,
+  AdminGradingJobs,
+  AdminCohortReport,
+  AdminIndividualReport,
+  AdminQuestionEditor,
+  AdminBilling,
+  AdminHelpContent,
+} from '@assessiq/admin-dashboard';
 import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
 import {
@@ -37,6 +48,15 @@ export function App(): JSX.Element {
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
           <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
+          <Route path="/admin" element={<RequireSession role="admin"><AdminDashboard /></RequireSession>} />
+          <Route path="/admin/attempts" element={<RequireSession role="admin"><AdminAttempts /></RequireSession>} />
+          <Route path="/admin/attempts/:id" element={<RequireSession role="admin"><AdminAttemptDetail /></RequireSession>} />
+          <Route path="/admin/grading-jobs" element={<RequireSession role="admin"><AdminGradingJobs /></RequireSession>} />
+          <Route path="/admin/reports/cohort/:assessmentId" element={<RequireSession role="admin"><AdminCohortReport /></RequireSession>} />
+          <Route path="/admin/reports/individual/:userId" element={<RequireSession role="admin"><AdminIndividualReport /></RequireSession>} />
+          <Route path="/admin/question-bank/questions/:id" element={<RequireSession role="admin"><AdminQuestionEditor /></RequireSession>} />
+          <Route path="/admin/settings/billing" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
+          <Route path="/admin/settings/help-content" element={<RequireSession role="admin"><AdminHelpContent /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 
           {/* Candidate /take/* subtree.

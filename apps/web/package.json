@@ -13,6 +13,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@assessiq/admin-dashboard": "workspace:*",
     "@assessiq/candidate-ui": "workspace:*",
     "@assessiq/help-system": "workspace:*",
     "@assessiq/ui-system": "workspace:*",
