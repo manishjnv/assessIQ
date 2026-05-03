@@ -327,6 +327,58 @@ describe("Pack lifecycle", () => {
     expect(updated.domain).toBe("cloud");
     expect(updated.description).toBe("New description");
   });
+
+  // -------------------------------------------------------------------------
+  // Auto-slug regression tests (fix: slug NOT NULL 500 — 2026-05-04)
+  // -------------------------------------------------------------------------
+
+  it("createPack with slug omitted auto-generates from name", async () => {
+    const pack = await createPack(
+      tenantA,
+      { name: "AutoSlug Test Pack", domain: "soc" },
+      adminA,
+    );
+    expect(pack.slug).toBe("autoslug-test-pack");
+    expect(pack.status).toBe("draft");
+  });
+
+  it("createPack with explicit slug uses the provided slug", async () => {
+    const slug = `explicit-slug-${randomUUID().slice(0, 8)}`;
+    const pack = await createPack(
+      tenantA,
+      { slug, name: "Explicit Slug Pack", domain: "soc" },
+      adminA,
+    );
+    expect(pack.slug).toBe(slug);
+  });
+
+  it("createPack with name='SOC Analyst Q2 2026' generates slug 'soc-analyst-q2-2026'", async () => {
+    const pack = await createPack(
+      tenantA,
+      { name: "SOC Analyst Q2 2026", domain: "soc" },
+      adminA,
+    );
+    expect(pack.slug).toBe("soc-analyst-q2-2026");
+  });
+
+  it("createPack with name='!!!' (no alphanumerics) throws ValidationError INVALID_NAME_FOR_SLUG", async () => {
+    await expect(
+      createPack(tenantA, { name: "!!!", domain: "soc" }, adminA),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ValidationError &&
+        (e.details as Record<string, unknown> | undefined)?.["code"] === "INVALID_NAME_FOR_SLUG",
+    );
+  });
+
+  it("two packs with the same name get distinct slugs (second gets -2 suffix)", async () => {
+    const name = `Collision Pack ${randomUUID().slice(0, 8)}`;
+    const first = await createPack(tenantA, { name, domain: "soc" }, adminA);
+    const second = await createPack(tenantA, { name, domain: "soc" }, adminA);
+
+    expect(second.slug).toBe(`${first.slug}-2`);
+    expect(first.slug).not.toBe(second.slug);
+  });
 });
 
 // ===========================================================================
