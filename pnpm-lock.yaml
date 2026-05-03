@@ -78,6 +78,9 @@ importers:
       '@assessiq/core':
         specifier: workspace:*
         version: link:../../modules/00-core
+      '@assessiq/embed-sdk':
+        specifier: workspace:*
+        version: link:../../modules/12-embed-sdk
       '@assessiq/help-system':
         specifier: workspace:*
         version: link:../../modules/16-help-system
@@ -503,6 +506,27 @@ importers:
       react-dom:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
+
+  modules/12-embed-sdk:
+    dependencies:
+      '@assessiq/attempt-engine':
+        specifier: workspace:*
+        version: link:../06-attempt-engine
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
+      '@assessiq/auth':
+        specifier: workspace:*
+        version: link:../01-auth
+      '@assessiq/core':
+        specifier: workspace:*
+        version: link:../00-core
+      '@assessiq/tenancy':
+        specifier: workspace:*
+        version: link:../02-tenancy
+      jose:
+        specifier: ^5.9.0
+        version: 5.10.0
 
   modules/13-notifications:
     dependencies:

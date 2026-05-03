@@ -4,6 +4,9 @@ import {
   rotateEmbedSecret,
   listEmbedSecrets,
 } from '@assessiq/auth';
+import { audit } from '@assessiq/audit-log';
+import { withTenant } from '@assessiq/tenancy';
+import { AppError } from '@assessiq/core';
 import { authChain } from '../../middleware/auth-chain.js';
 
 // Embed-secret admin endpoints. Library handles AES-256-GCM envelope under
@@ -12,6 +15,9 @@ import { authChain } from '../../middleware/auth-chain.js';
 //
 // Spec: docs/03-api-contract.md § Embed; modules/01-auth/SKILL.md § Decisions §5.
 // Mutations require fresh MFA — these are tenant-scoped signing keys.
+//
+// Privacy gate (D13): POST create → 403 unless tenant.privacy_disclosed = TRUE.
+// Audit writes: every mutation writes an audit_log row.
 
 const createBodySchema = {
   type: 'object',
@@ -21,6 +27,10 @@ const createBodySchema = {
 } as const;
 
 const FRESH_MFA_MINUTES = 15;
+
+interface TenantPrivacyRow {
+  privacy_disclosed: boolean;
+}
 
 export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/admin/embed-secrets — list metadata; envelope is never decrypted.
@@ -38,6 +48,7 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
   );
 
   // POST /api/admin/embed-secrets
+  // Privacy gate: tenant.privacy_disclosed must be TRUE (D13).
   app.post(
     '/api/admin/embed-secrets',
     {
@@ -48,7 +59,36 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
     async (req, reply) => {
       const sess = req.session!;
       const { name } = req.body as { name: string };
+
+      // D13: block creation if tenant has not disclosed privacy terms.
+      const privacyRow = await withTenant(sess.tenantId, async (client) => {
+        const result = await client.query<TenantPrivacyRow>(
+          `SELECT privacy_disclosed FROM tenants WHERE id = $1 LIMIT 1`,
+          [sess.tenantId],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!privacyRow?.privacy_disclosed) {
+        throw new AppError(
+          'Tenant must confirm privacy disclosure before creating embed secrets.',
+          'EMBED_REGISTRATION_REQUIRES_PRIVACY_DISCLOSURE',
+          403,
+        );
+      }
+
       const out = await createEmbedSecret(sess.tenantId, name);
+
+      // Audit write — every secret creation is auditable.
+      await audit({
+        tenantId: sess.tenantId,
+        actorKind: 'user',
+        actorUserId: sess.userId,
+        action: 'embed_secret.created',
+        entityType: 'embed_secret',
+        entityId: out.id,
+        after: { name, id: out.id },
+      });
+
       return reply.code(201).send({
         id: out.id,
         name,
@@ -59,9 +99,6 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
   );
 
   // POST /api/admin/embed-secrets/:id/rotate
-  // Library rotates the active secret for the tenant — :id in the URL is
-  // surfaced for audit shape parity with the api-contract doc, but the
-  // library's rotateEmbedSecret operates on the tenant's active row.
   app.post(
     '/api/admin/embed-secrets/:id/rotate',
     {
@@ -70,11 +107,66 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
     },
     async (req) => {
       const sess = req.session!;
+      const { id } = req.params as { id: string };
       const out = await rotateEmbedSecret(sess.tenantId);
+
+      // Audit write.
+      await audit({
+        tenantId: sess.tenantId,
+        actorKind: 'user',
+        actorUserId: sess.userId,
+        action: 'embed_secret.rotated',
+        entityType: 'embed_secret',
+        entityId: id,
+      });
+
       return {
         id: out.id,
         plaintextSecret: out.plaintextSecret,
       };
+    },
+  );
+
+  // DELETE /api/admin/embed-secrets/:id — revoke a specific secret.
+  // Marks the row status='revoked'. Revoked secrets are not tried during
+  // JWT verification (only active + rotated-within-grace are tried).
+  app.delete(
+    '/api/admin/embed-secrets/:id',
+    {
+      config: { skipAuth: true },
+      preHandler: authChain({ roles: ['admin'], freshMfaWithinMinutes: FRESH_MFA_MINUTES }),
+    },
+    async (req, reply) => {
+      const sess = req.session!;
+      const { id } = req.params as { id: string };
+
+      await withTenant(sess.tenantId, async (client) => {
+        const result = await client.query(
+          `UPDATE embed_secrets
+           SET status = 'revoked'
+           WHERE id = $1 AND tenant_id = $2 AND status != 'revoked'`,
+          [id, sess.tenantId],
+        );
+        if (result.rowCount === 0) {
+          throw new AppError(
+            `Embed secret ${id} not found or already revoked`,
+            'NOT_FOUND',
+            404,
+          );
+        }
+      });
+
+      // Audit write.
+      await audit({
+        tenantId: sess.tenantId,
+        actorKind: 'user',
+        actorUserId: sess.userId,
+        action: 'embed_secret.revoked',
+        entityType: 'embed_secret',
+        entityId: id,
+      });
+
+      return reply.code(204).send();
     },
   );
 }

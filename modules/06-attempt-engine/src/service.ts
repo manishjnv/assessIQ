@@ -145,31 +145,36 @@ export async function startAttempt(
       );
     }
 
-    // c. Invitation must exist and be valid (not expired/submitted).
-    const invitation = await repo.findInvitationForCandidate(
-      client,
-      input.assessmentId,
-      input.userId,
-    );
-    if (invitation === null) {
-      throw new NotFoundError("No invitation for this assessment", {
-        details: { code: AE_ERROR_CODES.INVITATION_NOT_FOUND },
-      });
-    }
-    if (invitation.status === "expired") {
-      throw new ValidationError("Invitation has been revoked", {
-        details: { code: AE_ERROR_CODES.INVITATION_INVALID, status: invitation.status },
-      });
-    }
-    if (invitation.status === "submitted") {
-      throw new ValidationError("Attempt already submitted", {
-        details: { code: AE_ERROR_CODES.ALREADY_SUBMITTED },
-      });
-    }
-    if (invitation.expires_at.getTime() < Date.now()) {
-      throw new ValidationError("Invitation expired", {
-        details: { code: AE_ERROR_CODES.INVITATION_EXPIRED, expires_at: invitation.expires_at },
-      });
+    // c. Invitation check — skipped for embed-origin attempts (embed JWT IS the authorization).
+    //    For standard attempts, invitation must exist and be valid.
+    let invitationId: string | undefined;
+    if (!input.embedOrigin) {
+      const invitation = await repo.findInvitationForCandidate(
+        client,
+        input.assessmentId,
+        input.userId,
+      );
+      if (invitation === null) {
+        throw new NotFoundError("No invitation for this assessment", {
+          details: { code: AE_ERROR_CODES.INVITATION_NOT_FOUND },
+        });
+      }
+      if (invitation.status === "expired") {
+        throw new ValidationError("Invitation has been revoked", {
+          details: { code: AE_ERROR_CODES.INVITATION_INVALID, status: invitation.status },
+        });
+      }
+      if (invitation.status === "submitted") {
+        throw new ValidationError("Attempt already submitted", {
+          details: { code: AE_ERROR_CODES.ALREADY_SUBMITTED },
+        });
+      }
+      if (invitation.expires_at.getTime() < Date.now()) {
+        throw new ValidationError("Invitation expired", {
+          details: { code: AE_ERROR_CODES.INVITATION_EXPIRED, expires_at: invitation.expires_at },
+        });
+      }
+      invitationId = invitation.id;
     }
 
     // d. Resolve level for duration_minutes (timer source).
@@ -223,6 +228,7 @@ export async function startAttempt(
       startedAt,
       endsAt,
       durationSeconds,
+      embedOrigin: input.embedOrigin ?? false,
     });
 
     // i. Snapshot the question set + empty answer rows.
@@ -234,8 +240,10 @@ export async function startAttempt(
     await repo.insertAttemptQuestions(client, attempt.id, aqRows);
     await repo.insertEmptyAttemptAnswers(client, attempt.id, chosen.map((q) => q.id));
 
-    // j. Mark invitation 'started' (no-op if it was already past pending/viewed).
-    await repo.markInvitationStarted(client, invitation.id);
+    // j. Mark invitation 'started' — skipped for embed-origin attempts (no invitation row).
+    if (!input.embedOrigin && invitationId !== undefined) {
+      await repo.markInvitationStarted(client, invitationId);
+    }
 
     // k. Append a question_view event for the first question (Phase 1
     //    candidate UI also fires this client-side; the server-side write at

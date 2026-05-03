@@ -62,6 +62,8 @@ export interface Attempt {
   submitted_at: Date | null;
   duration_seconds: number | null;
   created_at: Date;
+  /** True when the attempt was started via the embed JWT flow (Phase 4). */
+  embed_origin: boolean;
 }
 
 export interface AttemptQuestion {
@@ -196,6 +198,12 @@ export const KNOWN_EVENT_TYPES: ReadonlySet<EventType> = new Set(
 export interface StartAttemptInput {
   userId: string;
   assessmentId: string;
+  /**
+   * When true, the attempt was started via the embed JWT flow.
+   * Skips the invitation check (the embed JWT IS the authorization),
+   * and sets attempts.embed_origin = TRUE (Phase 4 migration 0073).
+   */
+  embedOrigin?: boolean;
 }
 
 export interface SaveAnswerInput {
