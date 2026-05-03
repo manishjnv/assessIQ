@@ -69,6 +69,9 @@ importers:
       '@assessiq/attempt-engine':
         specifier: workspace:*
         version: link:../../modules/06-attempt-engine
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../../modules/14-audit-log
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../../modules/01-auth
