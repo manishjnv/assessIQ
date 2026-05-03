@@ -17,7 +17,10 @@
     "lint:ambient-ai": "tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts",
     "lint:ambient-ai:self-test": "tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts --self-test",
     "lint:edge-routing": "tsx tools/lint-edge-routing.ts",
-    "lint:edge-routing:self-test": "tsx tools/lint-edge-routing.ts --self-test"
+    "lint:edge-routing:self-test": "tsx tools/lint-edge-routing.ts --self-test",
+    "aiq:eval:run": "tsx modules/07-ai-grading/eval/cli.ts run",
+    "aiq:eval:compare": "tsx modules/07-ai-grading/eval/cli.ts compare",
+    "aiq:eval:bless": "tsx modules/07-ai-grading/eval/cli.ts bless"
   },
   "dependencies": {
     "pg": "^8.13.0",

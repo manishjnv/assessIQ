@@ -108,6 +108,14 @@ export interface GradingInput {
   rubric: unknown;
   /** Candidate answer payload from attempt_answers.answer. */
   answer: unknown;
+  /**
+   * When true, the runtime skips the Stage-2 `needs_escalation` gate and
+   * always runs Stage 3 (grade-escalate skill). Used by `handleAdminRerun`
+   * to give the admin an Opus second-opinion on demand. Default false —
+   * Stage 3 still triggers automatically when Stage 2 sets
+   * `needs_escalation: true`.
+   */
+  force_escalate?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,41 +1,27 @@
 // AssessIQ — modules/07-ai-grading runtime dispatch (D1).
 //
-// Single static switch on `config.AI_PIPELINE_MODE`. Phase 2 G2.A Session 1.a
-// ships only the dispatch shell — the three runtime files (claude-code-vps,
-// anthropic-api, open-weights) ship as `NotImplementedError` stubs in this
-// session, with real claude-code-vps wiring landing in Session 1.b.
+// Single static switch on `config.AI_PIPELINE_MODE`. Runtime modules are
+// loaded via dynamic `import()` per case branch so only the active runtime's
+// module-level imports are evaluated at startup — Phase 1 (claude-code-vps)
+// never touches the Phase-2+ Agent SDK runtime, so a missing SDK in the
+// production image cannot crash boot. R2 hazard from Session 1.a is now
+// resolved.
 //
 // IMPORTANT — D1 invariant:
 //   This is the ONLY place that decides which runtime executes. There is
-//   no string-based dispatch, no dynamic `import()`, no plugin loader.
-//   Mode is read once at process start; changing it is a deploy event,
-//   never a runtime toggle.
+//   no string-based dispatch, no plugin loader. Mode is read once at
+//   process start; changing it is a deploy event, never a runtime toggle.
 //
 // IMPORTANT — D2 invariant:
-//   This file imports from `runtimes/*` files. Those imports are the
-//   D2 lint allow-list seam — a banned-path file (cron, BullMQ worker,
-//   candidate route) that imports `gradeSubjective` from this package
-//   transitively pulls in the runtime references and the lint catches
-//   it. See modules/07-ai-grading/ci/lint-no-ambient-claude.ts.
-//
-// IMPORTANT — Session 1.b/2+ author warning (eager-import startup hazard):
-//   The three runtime modules are imported eagerly here (lines below).
-//   Session 1.a stubs have zero module-level side effects, so eager
-//   loading is safe. When the anthropic-api runtime ships the real
-//   Agent SDK import at module top-level, eager loading WILL crash
-//   startup in claude-code-vps mode with MODULE_NOT_FOUND because the
-//   SDK is intentionally absent in Phase 1 (D1 defense-in-depth).
-//   Fix at that point by EITHER (a) converting these to dynamic
-//   import() inside each case branch so only the active runtime loads,
-//   OR (b) declaring the Agent SDK as optionalDependencies in
-//   modules/07-ai-grading/package.json and wrapping its top-level
-//   import in a try/catch inside the anthropic-api runtime file.
+//   Banned-path files (cron, BullMQ workers, candidate routes, webhooks,
+//   apps/worker entrypoints) that import `gradeSubjective` from this
+//   package transitively reach the runtime files via these dynamic
+//   imports. The lint at modules/07-ai-grading/ci/lint-no-ambient-claude.ts
+//   matches against banned paths importing the package barrel; the dynamic
+//   import here does NOT save such a banned-path file from being flagged.
+//   The static-source enforcement is the load-bearing gate.
 
-import { AppError } from "@assessiq/core";
-import { config } from "@assessiq/core";
-import { gradeSubjective as gradeViaClaudeCodeVps } from "./runtimes/claude-code-vps.js";
-import { gradeSubjective as gradeViaAnthropicApi } from "./runtimes/anthropic-api.js";
-import { gradeSubjective as gradeViaOpenWeights } from "./runtimes/open-weights.js";
+import { AppError, config } from "@assessiq/core";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
 import type { GradingInput, GradingProposal } from "./types.js";
 
@@ -51,19 +37,20 @@ export async function gradeSubjective(
   input: GradingInput,
 ): Promise<GradingProposal> {
   switch (config.AI_PIPELINE_MODE) {
-    case "claude-code-vps":
-      return gradeViaClaudeCodeVps(input);
-    case "anthropic-api":
-      return gradeViaAnthropicApi(input);
+    case "claude-code-vps": {
+      const m = await import("./runtimes/claude-code-vps.js");
+      return m.gradeSubjective(input);
+    }
+    case "anthropic-api": {
+      const m = await import("./runtimes/anthropic-api.js");
+      return m.gradeSubjective(input);
+    }
+    case "open-weights": {
+      const m = await import("./runtimes/open-weights.js");
+      return m.gradeSubjective(input);
+    }
     default: {
-      // exhaustiveness: if D1 adds 'open-weights' to the enum, this branch
-      // routes there. The current 00-core/src/config.ts enum permits only
-      // claude-code-vps + anthropic-api today; open-weights is future.
-      // The cast preserves narrow typing on a runtime-string fallthrough.
       const mode = config.AI_PIPELINE_MODE as string;
-      if (mode === "open-weights") {
-        return gradeViaOpenWeights(input);
-      }
       throw new AppError(
         `Unknown AI_PIPELINE_MODE: ${mode}`,
         AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,

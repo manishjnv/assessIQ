@@ -23,12 +23,12 @@
  * ALLOW-LIST (positive list — only places where `claude` spawn or runtime
  * imports are legitimate):
  *
- *   - `modules/07-ai-grading/handlers/admin-grade.ts`
- *   - `modules/07-ai-grading/runtimes/claude-code-vps.ts`
+ *   - `modules/07-ai-grading/src/handlers/admin-grade.ts`
+ *   - `modules/07-ai-grading/src/runtimes/claude-code-vps.ts`
  *
  * Plus the SDK import allow-list (one file only):
  *
- *   - `modules/07-ai-grading/runtimes/anthropic-api.ts`
+ *   - `modules/07-ai-grading/src/runtimes/anthropic-api.ts`
  *
  * Plus this lint file itself (regexes / strings naming `claude` are harmless).
  *
@@ -69,15 +69,25 @@ import { fileURLToPath } from "node:url";
 // Allow-list (positive list per D2)
 // ---------------------------------------------------------------------------
 
-/** Files allowed to spawn `claude` or import `runClaudeCodeGrading`. */
+/**
+ * Files allowed to spawn `claude` or import `runClaudeCodeGrading`.
+ *
+ * 2026-05-03 Session 1.b path correction: the actual module scaffold from
+ * Session 1.a placed source files under `src/`, but the original allow-list
+ * (and the self-test fixtures below) referenced paths without `src/`. The
+ * mismatch only became observable when 1.b added a real `spawn` call to
+ * the runtime — pre-1.b the stub never tripped pattern 1. The codex:rescue
+ * gate at end of 1.b adjudicates this correction; the contract intent
+ * (two allow-listed files for spawn + one for the SDK) is preserved.
+ */
 const CLAUDE_SPAWN_ALLOW_LIST: ReadonlySet<string> = new Set([
-  "modules/07-ai-grading/handlers/admin-grade.ts",
-  "modules/07-ai-grading/runtimes/claude-code-vps.ts",
+  "modules/07-ai-grading/src/handlers/admin-grade.ts",
+  "modules/07-ai-grading/src/runtimes/claude-code-vps.ts",
 ]);
 
 /** Files allowed to import `@anthropic-ai/claude-agent-sdk`. */
 const SDK_IMPORT_ALLOW_LIST: ReadonlySet<string> = new Set([
-  "modules/07-ai-grading/runtimes/anthropic-api.ts",
+  "modules/07-ai-grading/src/runtimes/anthropic-api.ts",
 ]);
 
 /**
@@ -250,8 +260,8 @@ function validateFile(
       rule: 1,
       message:
         "D2 pattern 1: spawn/exec of `claude` is forbidden outside " +
-        "modules/07-ai-grading/handlers/admin-grade.ts and " +
-        "modules/07-ai-grading/runtimes/claude-code-vps.ts.",
+        "modules/07-ai-grading/src/handlers/admin-grade.ts and " +
+        "modules/07-ai-grading/src/runtimes/claude-code-vps.ts.",
     });
   }
 
@@ -262,7 +272,7 @@ function validateFile(
       rule: 2,
       message:
         "D2 pattern 2: import of @anthropic-ai/claude-agent-sdk is " +
-        "forbidden outside modules/07-ai-grading/runtimes/anthropic-api.ts.",
+        "forbidden outside modules/07-ai-grading/src/runtimes/anthropic-api.ts.",
     });
   }
 
@@ -312,7 +322,7 @@ function runSelfTest(): void {
 
   // --- Fixture 3: pattern 1 — allowed file (claude-code-vps runtime) ---
   const spawnAllowed = {
-    path: "modules/07-ai-grading/runtimes/claude-code-vps.ts",
+    path: "modules/07-ai-grading/src/runtimes/claude-code-vps.ts",
     content: `
       import { spawn } from "node:child_process";
       const proc = spawn("claude", ["-p", "test"]);
@@ -327,7 +337,7 @@ function runSelfTest(): void {
 
   // --- Fixture 5: pattern 2 — allowed file (anthropic-api runtime) ---
   const sdkAllowed = {
-    path: "modules/07-ai-grading/runtimes/anthropic-api.ts",
+    path: "modules/07-ai-grading/src/runtimes/anthropic-api.ts",
     content: `import { query } from "@anthropic-ai/claude-agent-sdk";`,
   };
 

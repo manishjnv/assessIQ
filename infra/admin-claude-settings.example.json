@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "$comment": [
+    "AssessIQ admin Claude Code settings — deployed to ~/.claude/settings.json on the VPS.",
+    "This template ships in the repo as the source-of-truth; the deploy procedure copies",
+    "to ~/.claude/settings.json owned by the admin OS user.",
+    "",
+    "PostToolUse hook: appends one append-only audit line per Claude Code grading run",
+    "to /var/log/assessiq/grading-audit.jsonl per docs/05-ai-pipeline.md § Audit + reproducibility.",
+    "The matcher catches the two MCP tools the grading runtime allows.",
+    "",
+    "TODO(phase-2-audit): the hook command points at /srv/assessiq/scripts/grading-audit-hook.mjs",
+    "which ships in a Phase 2 follow-up session — until then the hook line silently does nothing",
+    "(the file path won't resolve and Claude Code logs a warning but doesn't fail the grading run).",
+    "",
+    "DO NOT add Anthropic API keys here. AssessIQ Phase 1 uses the admin's Max OAuth token",
+    "cached at ~/.claude/ (created via `claude login`); see CLAUDE.md AssessIQ rule #1."
+  ],
+  "theme": "dark",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "submit_anchors|submit_band",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /srv/assessiq/scripts/grading-audit-hook.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

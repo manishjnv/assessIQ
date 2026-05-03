@@ -15,6 +15,9 @@
   "dependencies": {
     "@assessiq/core": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
+    "@assessiq/attempt-engine": "workspace:*",
+    "@assessiq/auth": "workspace:*",
+    "fastify": "^5.0.0",
     "zod": "^3.23.8"
   }
 }
