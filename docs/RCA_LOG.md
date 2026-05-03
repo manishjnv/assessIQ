@@ -587,3 +587,36 @@ ZodError: [{"code":"too_small","path":["tenantName"],"message":"String must cont
 - **Drill 5** — PASS: All 5 assessiq containers healthy (`api Up 27min healthy`, `worker Up 4h`, `frontend Up 7h healthy`, `redis Up 2d healthy`, `postgres Up 2d healthy`). No new systemd units. Caddyfile `@api path /api/* /embed* /help/* /take/start` correct. No non-assessiq Caddy blocks modified. All logs present and populating. `logrotate.timer` active. No new AssessIQ crontab entries. Sibling apps (`intelwatch.in 307`, `ti.intelwatch.in 200`, `accessbridge.space 200`, `automateedge.cloud 200`) all healthy.
 
 **Phase 1 closure status: PARTIAL.** Follow-up session required to fix Finding C (invite 500) before re-running Drills 1/3/4.
+
+## 2026-05-03 — `inviteUsers` passed `tenantName:""` to 13-notifications Zod `.min(1)` — 500 on every invite + DB rollback
+
+**Symptom:** `POST /api/admin/assessments/:id/invite` returned HTTP 500 on every call. `assessment_invitations` table had 0 rows inserted despite the payload being valid. Phase 1 closure Drill 1 Step 9 blocked; Drills 3 Step 5 and Drill 4 also blocked downstream. Stack trace (captured in Phase 1 closure audit d5113dc):
+
+```
+ZodError: [{"code":"too_small","path":["tenantName"],"message":"String must contain at least 1 character(s)"}]
+    at renderTemplate (modules/13-notifications/src/email/render.ts:108)
+    at sendEmail (modules/13-notifications/src/email/index.ts:94)
+    at sendAssessmentInvitationEmail (modules/13-notifications/src/email/legacy-shims.ts:47)
+    at sendInvitationEmail (modules/05-assessment-lifecycle/src/email.ts:42)
+    at service.ts:743 inside withTenant → transaction rollback
+```
+
+**Cause:** `inviteUsers` in `modules/05-assessment-lifecycle/src/service.ts:749` passed `tenantName: ""` — a Phase 1 placeholder that was left in when the module shipped. When Phase 3 G3.B (`13-notifications`) shipped, `InvitationCandidateVarsSchema` added `tenantName: z.string().min(1)`, which correctly rejected the empty placeholder. The ZodError propagated inside the `withTenant` transaction, causing a ROLLBACK. The placeholder comment at lines 28-31 and the TODO comment at line 742 both documented the intent to fix this in a follow-up; the follow-up was deferred until the closure audit caught it.
+
+**Fix:** `modules/05-assessment-lifecycle/src/service.ts`:
+1. Added `getTenantById` to the `@assessiq/tenancy` import (line 41).
+2. Added a single `const tenant = await getTenantById(tenantId)` call immediately before the `withTenant` scope — single DB hit shared across all invitees in the batch.
+3. Derived `tenantName = tenant.name ?? tenant.slug` (fallback: slug if name is null/empty — slug is always non-empty per DB NOT NULL + check constraint; Zod `.min(1)` never fires on slug).
+4. Replaced `tenantName: ""` with the real `tenantName` at the `sendInvitationEmail` call site.
+5. Removed the stale placeholder comment block (lines 28-31) and the TODO comment at the call site.
+
+Additionally, `modules/02-tenancy/package.json` was missing `@assessiq/audit-log: workspace:*` as a declared dependency (the import already existed in `service.ts` but was not declared; this caused a Vite resolution failure in the lifecycle test suite once `getTenantById` was imported for the first time from outside the tenancy module). Added declaration; `pnpm install` created the missing symlink. `modules/05-assessment-lifecycle/package.json` also needed the same declaration for the transitive chain.
+
+**Tests added:**
+- `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts` — Section 8 "Dev-email log": new test `"tenantName is fetched from DB — body contains real tenant name, NOT empty string"` asserts that the rendered email body contains `"AssessIQ (Tenant A)"` (the real tenant name) and not `"AssessIQ ()"`. Also updated the `template_id` filter in the section from `"invitation.assessment"` (old email-stub.ts format) to `"invitation_candidate"` (Phase 3 Handlebars template name) — the two pre-existing tests in this section were silently broken since Phase 3 G3.B shipped.
+- `modules/13-notifications/src/__tests__/notifications.test.ts` — Section 5 "Legacy shims": new test `sendAssessmentInvitationEmail rejects tenantName:"" — regression for 05-lifecycle:749 cross-phase bug` asserts that passing `tenantName: ''` always throws (ZodError from `InvitationCandidateVarsSchema`).
+
+**Prevention:**
+1. **Cross-phase placeholder strings must fail fast.** Any `TODO: pass real X` comment at a call site where the downstream has a Zod schema is a latent 500. Prevention: the regression test added here ensures `tenantName: ""` always throws; future callers are caught at test time.
+2. **Dependency declarations must be complete before shipping.** `02-tenancy/src/service.ts` imported `@assessiq/audit-log` at ship time (Phase 3 G3.A) but the package.json dependency was not added. Prevention: `pnpm typecheck` passes even with missing workspace declarations (TypeScript resolves across workspaces), but runtime Vite resolution fails. Add a CI step or convention: every new `import from "@assessiq/X"` in a module requires a corresponding `"@assessiq/X": "workspace:*"` in that module's `package.json`.
+3. **Phase N regressions on Phase N-1 callers.** When Phase 3 G3.B shipped stricter Zod validation, existing Phase 1 callers were not audited. Prevention: SKILL.md files for notification modules should document caller contract requirements (e.g., "tenantName: non-empty string required, validated by Zod before send").

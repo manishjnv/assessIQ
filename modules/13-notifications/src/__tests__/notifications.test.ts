@@ -426,6 +426,20 @@ describe('legacy shims', () => {
     })).resolves.toBeUndefined();
   });
 
+  it('sendAssessmentInvitationEmail rejects tenantName:"" — regression for 05-lifecycle:749 cross-phase bug', async () => {
+    // Regression guard: inviteUsers once passed tenantName:"" as a Phase 1 placeholder.
+    // InvitationCandidateVarsSchema has tenantName:z.string().min(1) which rejects "".
+    // This test MUST ALWAYS throw so any future caller passing "" is caught early.
+    await expect(sendAssessmentInvitationEmail({
+      to: 'candidate@example.com',
+      candidateName: 'Jane Doe',
+      assessmentName: 'SOC L1',
+      invitationLink: 'https://assessiq.test/take/token456',
+      expiresAt: new Date('2026-06-01'),
+      tenantName: '',
+    })).rejects.toThrow();
+  });
+
   it('does NOT accept extra fields (type check via inference)', () => {
     // This is a compile-time check. The legacy input types must not have changed.
     type LegacyInput = Parameters<typeof sendInvitationEmail>[0];
