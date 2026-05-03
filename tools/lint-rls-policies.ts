@@ -174,8 +174,12 @@ function validateSqlContent(
     const columnBody = match[3]!.toLowerCase();
     const hasTenantIdColumn = columnBody.includes("tenant_id");
 
-    // Special case: `tenants` table — id IS the tenant discriminator.
-    // Accept as long as there is at least one `create policy tenant_isolation` anywhere.
+    // Special case: `tenants` AND `tenant_grading_budgets` — the row's
+    // PK *is* the tenant discriminator (no separate `tenant_id` column;
+    // the policy compares `id` or PK against `app.current_tenant`).
+    // tenant_grading_budgets ships in modules/07-ai-grading/migrations/0041
+    // with PK = tenant_id and a `tenant_id = current_setting(...)` policy
+    // — the same shape as tenants but with a different PK name.
     if (rawTableName === "tenants") {
       if (!hasIsolation) {
         violations.push({

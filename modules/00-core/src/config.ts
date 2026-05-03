@@ -84,7 +84,7 @@ const ConfigSchema = z
       .default("AssessIQ <noreply@automateedge.cloud>"),
     SENTRY_DSN: z.string().optional(),
     AI_PIPELINE_MODE: z
-      .enum(["claude-code-vps", "anthropic-api"])
+      .enum(["claude-code-vps", "anthropic-api", "open-weights"])
       .default("claude-code-vps"),
     ANTHROPIC_API_KEY: z.string().optional(),
   })

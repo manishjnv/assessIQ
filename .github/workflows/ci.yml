@@ -57,6 +57,17 @@ jobs:
       - name: RLS linter self-test
         run: pnpm tsx tools/lint-rls-policies.ts --self-test
 
+      # 9a. No-ambient-Claude lint sentinel — Phase 2 G2.A.
+      # LOAD-BEARING per CLAUDE.md § Load-bearing paths: encodes D2 from
+      # docs/05-ai-pipeline.md. Modifying the lint file requires codex:rescue.
+      # Self-test runs first so a regression in the lint itself surfaces
+      # before the actual scan does.
+      - name: No-ambient-Claude lint (self-test)
+        run: pnpm lint:ambient-ai:self-test
+
+      - name: No-ambient-Claude lint (repo scan)
+        run: pnpm lint:ambient-ai
+
       # 9b. Logging-discipline lint — enforces the convention from
       # docs/11-observability.md § 8 (no console.*, modules use streamLogger,
       # object-form logging, no bare-error args).

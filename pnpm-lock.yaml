@@ -324,6 +324,18 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
 
+  modules/07-ai-grading:
+    dependencies:
+      '@assessiq/core':
+        specifier: workspace:*
+        version: link:../00-core
+      '@assessiq/tenancy':
+        specifier: workspace:*
+        version: link:../02-tenancy
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
   modules/11-candidate-ui:
     dependencies:
       '@assessiq/ui-system':
