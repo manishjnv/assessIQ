@@ -487,7 +487,6 @@ export function AdminGuide(): React.ReactElement {
                 they were created against.
               </P>
             </StepCard>
-            </StepCard>
 
             {/* ── Step 6 ── */}
             <StepCard number={6} title="Create an assessment cycle">
