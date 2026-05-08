@@ -11,11 +11,11 @@
 //  - Question content shown as plain text only.
 //  - Rubric changes never auto-save — explicit "Save rubric" button only.
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell.js";
 import { RubricEditor } from "../components/RubricEditor.js";
-import type { RubricDraft } from "../components/RubricEditor.js";
+import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
 import { adminApi, AdminApiError } from "../api.js";
 
 const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis"] as const;
@@ -46,6 +46,93 @@ function parseRubric(raw: unknown): RubricDraft {
     anchors: Array.isArray(r.anchors) ? r.anchors : [],
     bands: Array.isArray(r.bands) ? r.bands : [],
   };
+}
+
+// Server Rubric → editor RubricDraft
+function rubricToRubricDraft(rubric: unknown): RubricDraft {
+  if (!rubric || typeof rubric !== "object") return { anchors: [], bands: [] };
+  const r = rubric as Record<string, unknown>;
+  const serverAnchors = Array.isArray(r.anchors) ? r.anchors as Array<Record<string, unknown>> : [];
+  const anchors = serverAnchors.map((a) => ({
+    anchor_id: typeof a.id === "string" ? a.id : crypto.randomUUID(),
+    phrase: typeof a.concept === "string" ? a.concept : "",
+    synonyms: Array.isArray(a.synonyms) ? a.synonyms as string[] : [],
+    weight: typeof a.weight === "number" ? a.weight / 100 : 0,
+    required: false,
+  }));
+  const rb = (r.reasoning_bands && typeof r.reasoning_bands === "object") ? r.reasoning_bands as Record<string, string> : {};
+  const bands: BandDraft[] = [4, 3, 2, 1, 0].map((band) => ({
+    band,
+    label: `Band ${band}`,
+    description: typeof rb[`band_${band}`] === "string" ? rb[`band_${band}`] as string : "",
+  }));
+  return { anchors, bands };
+}
+
+// Editor RubricDraft → server Rubric canonical shape
+function draftToRubric(draft: RubricDraft, reasoningWeight: number): unknown {
+  const anchorWeightTotal = Math.round(draft.anchors.reduce((s, a) => s + a.weight * 100, 0));
+  const reasoning_weight_total = reasoningWeight;
+  const reasoning_bands: Record<string, string> = {};
+  for (const band of draft.bands) {
+    reasoning_bands[`band_${band.band}`] = band.description;
+  }
+  return {
+    anchors: draft.anchors.map((a) => ({
+      id: a.anchor_id,
+      concept: a.phrase,
+      weight: Math.round(a.weight * 100),
+      synonyms: a.synonyms,
+    })),
+    reasoning_bands,
+    anchor_weight_total: anchorWeightTotal,
+    reasoning_weight_total,
+  };
+}
+
+interface RubricProposal {
+  proposal: unknown;
+  skillSha: string;
+  promptSha: string;
+  levelDefaultsHash: string;
+  model: string;
+}
+
+// Shimmer skeleton shown while AI rubric generation is in progress
+function RubricSkeleton(): React.ReactElement {
+  return (
+    <>
+      <style>{`
+        @keyframes aiq-shimmer {
+          0% { background-position: -400px 0; }
+          100% { background-position: 400px 0; }
+        }
+        .aiq-skeleton-line {
+          background: linear-gradient(90deg, var(--aiq-color-bg-secondary, #f0f0f0) 25%, var(--aiq-color-bg-tertiary, #e0e0e0) 50%, var(--aiq-color-bg-secondary, #f0f0f0) 75%);
+          background-size: 800px 100%;
+          animation: aiq-shimmer 1.4s infinite;
+          border-radius: 4px;
+          height: 14px;
+          margin-bottom: 8px;
+        }
+      `}</style>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="aiq-skeleton-line" style={{ width: "40%" }} />
+            <div className="aiq-skeleton-line" style={{ width: "70%" }} />
+            <div className="aiq-skeleton-line" style={{ width: "55%" }} />
+          </div>
+        ))}
+        {[0, 1, 2, 3, 4].map((b) => (
+          <div key={b} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="aiq-skeleton-line" style={{ width: "25%" }} />
+            <div className="aiq-skeleton-line" style={{ width: "85%" }} />
+          </div>
+        ))}
+      </div>
+    </>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +297,14 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Rubric generation state
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [rubricDraft, setRubricDraft] = useState<RubricDraft | null>(null);
+  const [showManual, setShowManual] = useState(false);
+  const [reasoningWeight, setReasoningWeight] = useState(50);
+  const abortRef = useRef<AbortController | null>(null);
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -217,6 +312,13 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
     try {
       const data = await adminApi<QuestionDetail>(`/admin/questions/${id}`);
       setQuestion(data);
+      if (data.rubric) {
+        setRubricDraft(rubricToRubricDraft(data.rubric));
+        const r = data.rubric as Record<string, unknown>;
+        if (typeof r.reasoning_weight_total === "number") {
+          setReasoningWeight(r.reasoning_weight_total);
+        }
+      }
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load question.");
     } finally {
@@ -226,22 +328,63 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
 
   useEffect(() => { void load(); }, [load]);
 
+  async function handleGenerate() {
+    if (!id) return;
+    setGenerating(true);
+    setGenerateError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const result = await adminApi<RubricProposal>(`/admin/questions/${id}/generate-rubric`, {
+        method: "POST",
+        signal: controller.signal,
+      });
+      setRubricDraft(rubricToRubricDraft(result.proposal));
+      const p = result.proposal as Record<string, unknown>;
+      if (typeof p.reasoning_weight_total === "number") {
+        setReasoningWeight(p.reasoning_weight_total);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setGenerateError("Generation cancelled.");
+      } else {
+        setGenerateError(err instanceof AdminApiError ? err.apiError.message : "Generation failed.");
+      }
+    } finally {
+      setGenerating(false);
+      abortRef.current = null;
+    }
+  }
+
+  function handleAbort() {
+    abortRef.current?.abort();
+  }
+
   async function handleSaveRubric(draft: RubricDraft) {
     if (!id) return;
     setSaving(true);
     setSaved(false);
+    setError(null);
     try {
-      await adminApi(`/admin/questions/${id}/rubric`, {
-        method: "PATCH",
-        body: JSON.stringify(draft),
+      await adminApi(`/admin/questions/${id}/save-rubric`, {
+        method: "POST",
+        body: JSON.stringify({ rubric: draftToRubric(draft, reasoningWeight) }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      // Reload to reflect saved state
+      void load();
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Save failed.");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleRegenerate() {
+    if (!window.confirm("Discard current rubric and re-generate? This will not save automatically.")) return;
+    setRubricDraft(null);
+    void handleGenerate();
   }
 
   if (loading) {
@@ -252,7 +395,7 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
     );
   }
 
-  if (error || !question) {
+  if (error && !question) {
     return (
       <AdminShell breadcrumbs={["Question Bank", "Editor"]} helpPage="admin.question.editor">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
@@ -260,7 +403,23 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
     );
   }
 
+  if (!question) {
+    return (
+      <AdminShell breadcrumbs={["Question Bank", "Editor"]} helpPage="admin.question.editor">
+        <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>Not found.</div>
+      </AdminShell>
+    );
+  }
+
   const contentText = typeof question.content === "string" ? question.content : JSON.stringify(question.content, null, 2);
+  const supportsRubric = question.type === "subjective" || question.type === "scenario";
+
+  // Live anchor weight total for the badge
+  const anchorWeightTotal = rubricDraft
+    ? Math.round(rubricDraft.anchors.reduce((s, a) => s + a.weight * 100, 0))
+    : 0;
+  const combinedTotal = anchorWeightTotal + reasoningWeight;
+  const weightOk = combinedTotal === 100;
 
   return (
     <AdminShell breadcrumbs={["Question Bank", question.id.slice(0, 8)]} helpPage="admin.question.editor">
@@ -297,16 +456,129 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
           </p>
         </div>
 
-        {/* Rubric editor */}
+        {/* Rubric section */}
         <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
           <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: "0 0 var(--aiq-space-lg)" }}>
             Rubric
           </h2>
-          <RubricEditor
-            initialDraft={parseRubric(question.rubric)}
-            onSave={(draft) => void handleSaveRubric(draft)}
-            submitting={saving}
-          />
+
+          {/* State A: no rubric yet */}
+          {supportsRubric && !rubricDraft && !showManual && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+              {!generating && (
+                <>
+                  <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-muted)" }}>
+                    No rubric yet.
+                  </p>
+                  <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
+                    <button
+                      className="aiq-btn aiq-btn-primary"
+                      onClick={() => void handleGenerate()}
+                      disabled={generating}
+                    >
+                      Auto-generate from level
+                    </button>
+                    <button
+                      className="aiq-btn aiq-btn-ghost"
+                      onClick={() => setShowManual(true)}
+                      style={{ fontSize: "var(--aiq-text-sm)" }}
+                    >
+                      or fill manually below
+                    </button>
+                  </div>
+                </>
+              )}
+              {generating && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+                  <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+                    Generating rubric…
+                  </div>
+                  <RubricSkeleton />
+                  <button className="aiq-btn aiq-btn-ghost" onClick={handleAbort} style={{ width: "fit-content" }}>
+                    Abort
+                  </button>
+                </div>
+              )}
+              {generateError && (
+                <div style={{ color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+                  {generateError}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* State A manual fallback: show editor with empty draft */}
+          {supportsRubric && !rubricDraft && showManual && (
+            <RubricEditor
+              initialDraft={{ anchors: [], bands: [] }}
+              onSave={(draft) => void handleSaveRubric(draft)}
+              submitting={saving}
+            />
+          )}
+
+          {/* State B: rubric loaded (from DB or generated) */}
+          {rubricDraft && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+              {/* Weight badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+                <span
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    padding: "2px 8px",
+                    borderRadius: 4,
+                    background: weightOk ? "var(--aiq-color-success-bg, #d1fae5)" : "var(--aiq-color-warning-bg, #fef3c7)",
+                    color: weightOk ? "var(--aiq-color-success, #065f46)" : "var(--aiq-color-warning, #92400e)",
+                  }}
+                >
+                  Anchor {anchorWeightTotal} + Reasoning {reasoningWeight} = {combinedTotal}/100
+                  {!weightOk && " ⚠ must equal 100"}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                  <label htmlFor="reasoning-weight">Reasoning weight:</label>
+                  <input
+                    id="reasoning-weight"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={reasoningWeight}
+                    onChange={(e) => setReasoningWeight(parseInt(e.target.value, 10) || 0)}
+                    style={{ width: 56, padding: "2px 4px", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)" }}
+                  />
+                </div>
+              </div>
+
+              <RubricEditor
+                key={JSON.stringify(rubricDraft.anchors.map((a) => a.anchor_id))}
+                initialDraft={rubricDraft}
+                onSave={(draft) => {
+                  setRubricDraft(draft);
+                  void handleSaveRubric(draft);
+                }}
+                submitting={saving}
+              />
+
+              {supportsRubric && (
+                <div>
+                  <button
+                    className="aiq-btn aiq-btn-ghost"
+                    onClick={() => void handleRegenerate()}
+                    disabled={generating || saving}
+                    style={{ fontSize: "var(--aiq-text-sm)" }}
+                  >
+                    Re-generate
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Non-rubric question types */}
+          {!supportsRubric && (
+            <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-muted)" }}>
+              Rubric not applicable for question type &ldquo;{question.type}&rdquo;.
+            </p>
+          )}
         </div>
       </div>
     </AdminShell>
