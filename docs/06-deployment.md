@@ -128,7 +128,34 @@ assessiq.automateedge.cloud {
 
 If validation fails: do **not** reload. Caddy keeps the old config running. Investigate, fix, re-validate.
 
-### Current live state — Phase 4 embed-sdk deployed (2026-05-03)
+### Current live state — Phase 2 AI question generator deployed (2026-05-08)
+
+SOC-grounded AI question generation is live. 70-entry knowledge base (L1/L2/L3), `generate-questions` Claude Code skill, `submit_questions` MCP tool, admin generate-drawer UI with citation chips.
+
+**What changed 2026-05-08 (commits `e04f6e2`–`586e889`, 32 files, 2610 insertions):**
+- Migration 0016 applied to `assessiq-postgres`: `questions.status` CHECK includes `'ai_draft'`; `knowledge_base_sources JSONB NOT NULL DEFAULT '[]'` added to `questions` and `question_versions`.
+- `modules/04-question-bank/src/knowledge-base/`: soc-l1.json (25), soc-l2.json (25), soc-l3.json (20) KB entries.
+- New route: `POST /api/admin/packs/:id/levels/:levelId/generate` (admin-only, single-flight, returns `{ questionIds, generated, skillSha }`).
+- `assessiq-api` image **rebuilt** (`docker compose build assessiq-api`) and recreated.
+- `generate-questions` SKILL.md installed at `~/.claude/skills/generate-questions/SKILL.md` on VPS.
+- Admin pack-detail page: "✦ Generate" button per level, slide-in drawer with count slider + SOC topic-focus chips, citation chips for `ai_draft` questions.
+- Smoke verified: `POST /api/.../generate` (no auth) → **401** ✅
+
+**Deploy procedure for source-only changes (no schema change, no new skill):**
+```bash
+git pull --ff-only
+docker compose -f /srv/assessiq/infra/docker-compose.yml build assessiq-api
+docker compose -f /srv/assessiq/infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-api
+```
+`--force-recreate` alone is insufficient — the Dockerfile bakes source into the image, so a rebuild is required on every code change.
+
+**SKILL.md update procedure (when `prompts/skills/generate-questions/SKILL.md` changes):**
+```bash
+scp prompts/skills/generate-questions/SKILL.md assessiq-vps:~/.claude/skills/generate-questions/SKILL.md
+# No API restart needed — skills are read from disk per-invocation
+```
+
+
 
 `assessiq-api`, `assessiq-worker`, and `assessiq-frontend` are all live. Phase 4 ships the full embed JWT ingestion flow, admin embed origin management, `aiq_embed_sess` cookie bridge, and 4 schema migrations.
 
