@@ -23,7 +23,7 @@
 
 import { AppError, config } from "@assessiq/core";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
-import type { GradingInput, GradingProposal, GenerateQuestionsInput, GenerateQuestionsOutput } from "./types.js";
+import type { GradingInput, GradingProposal, GenerateQuestionsInput, GenerateQuestionsOutput, GenerateRubricInput, GenerateRubricOutput } from "./types.js";
 
 /**
  * Mode-agnostic core. Delegates to the active runtime per D1.
@@ -78,6 +78,31 @@ export async function generateQuestions(
       const mode = config.AI_PIPELINE_MODE as string;
       throw new AppError(
         `generateQuestions not implemented for AI_PIPELINE_MODE: ${mode}`,
+        AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
+        501,
+      );
+    }
+  }
+}
+
+/**
+ * Mode-agnostic rubric draft generator. Delegates to the active runtime per D1.
+ *
+ * Callers (question-bank service layer) MUST verify admin session BEFORE
+ * calling this function. Returns a proposal — NOT persisted to DB.
+ */
+export async function generateRubricDraft(
+  input: GenerateRubricInput,
+): Promise<GenerateRubricOutput> {
+  switch (config.AI_PIPELINE_MODE) {
+    case "claude-code-vps": {
+      const m = await import("./runtimes/claude-code-vps.js");
+      return m.generateRubricDraft(input);
+    }
+    default: {
+      const mode = config.AI_PIPELINE_MODE as string;
+      throw new AppError(
+        `generateRubricDraft not implemented for AI_PIPELINE_MODE: ${mode}`,
         AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
         501,
       );

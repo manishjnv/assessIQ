@@ -38,13 +38,16 @@ export type {
 } from "./types.js";
 
 // Runtime dispatch (D1 — single static switch)
-export { gradeSubjective, generateQuestions } from "./runtime-selector.js";
+export { gradeSubjective, generateQuestions, generateRubricDraft } from "./runtime-selector.js";
 
 // Generation types
 export type {
   GenerateQuestionsInput,
   GenerateQuestionsOutput,
   GeneratedQuestionDraft,
+  GenerateRubricInput,
+  GenerateRubricOutput,
+  LevelRubricDefaults,
 } from "./types.js";
 
 // Repository (Session 1.b)

@@ -24,6 +24,7 @@
 // text including comments. Reference descriptively only.
 
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 
 import { AppError, streamLogger } from "@assessiq/core";
 
@@ -38,6 +39,8 @@ import type {
   GenerateQuestionsInput,
   GenerateQuestionsOutput,
   GeneratedQuestionDraft,
+  GenerateRubricInput,
+  GenerateRubricOutput,
   GradingInput,
   GradingProposal,
 } from "../types.js";
@@ -414,6 +417,127 @@ export async function generateQuestions(
   return {
     questions,
     skillSha: genSha.short,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// generateRubricDraft — Rubric generation using the generate-rubric skill
+// ---------------------------------------------------------------------------
+
+const SKILL_RUBRIC = "generate-rubric";
+const TOOL_SUBMIT_RUBRIC = "submit_rubric";
+const MCP_SUBMIT_RUBRIC = "mcp__assessiq__submit_rubric";
+
+// Local schema mirror — avoids dep on @assessiq/rubric-engine in this file;
+// the refine enforces the weight=100 invariant before we return the proposal.
+const SubmitRubricAnchorSchema = z.object({
+  id: z.string().min(1),
+  concept: z.string().min(1),
+  weight: z.number().int().min(0).max(100),
+  synonyms: z.array(z.string().min(1)).min(1),
+}).strict();
+
+const SubmitRubricOutputSchema = z.object({
+  rubric: z.object({
+    anchors: z.array(SubmitRubricAnchorSchema).min(1),
+    reasoning_bands: z.object({
+      band_4: z.string().min(1),
+      band_3: z.string().min(1),
+      band_2: z.string().min(1),
+      band_1: z.string().min(1),
+      band_0: z.string().min(1),
+    }).strict(),
+    anchor_weight_total: z.number().int().min(0).max(100),
+    reasoning_weight_total: z.number().int().min(0).max(100),
+  }).strict().refine(
+    (r) => r.anchor_weight_total + r.reasoning_weight_total === 100,
+    { message: "anchor_weight_total + reasoning_weight_total must equal 100" },
+  ),
+});
+
+function hashString8(s: string): string {
+  return createHash("sha256").update(s).digest("hex").slice(0, 8);
+}
+
+function sortedJsonHash(obj: object | null): string {
+  if (obj === null) return "";
+  const sorted = Object.fromEntries(
+    Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  return hashString8(JSON.stringify(sorted));
+}
+
+/**
+ * Generate a rubric proposal using the generate-rubric skill.
+ * Returns a proposal WITHOUT persisting. The admin reviews and POSTs
+ * to /save-rubric to persist. Same single-flight + skill_sha + prompt_sha
+ * + level_defaults_hash patterns as generateQuestions.
+ *
+ * NOTE (D2): This function lives in claude-code-vps.ts — the only file
+ * allowed to interact with the claude subprocess (via the shared runSkill
+ * helper). The question-bank service calls through runtime-selector → here.
+ */
+export async function generateRubricDraft(
+  input: GenerateRubricInput,
+): Promise<GenerateRubricOutput> {
+  const rubricSkillSha = await skillSha(SKILL_RUBRIC);
+
+  const promptVars = {
+    questionText: input.questionText,
+    questionType: input.questionType,
+    levelOrdinal: input.levelOrdinal,
+    levelDefaults: input.levelDefaults ?? null,
+    existingRubric: input.existingRubric ?? null,
+  };
+
+  const promptSha = hashString8(JSON.stringify(promptVars));
+  const levelDefaultsHash = sortedJsonHash(input.levelDefaults);
+
+  const events = await runSkill({
+    skill: SKILL_RUBRIC,
+    promptVars,
+    allowedTools: [MCP_SUBMIT_RUBRIC],
+    attemptId: "rubric-generation",
+    questionId: input.questionId,
+  });
+
+  const raw = parseToolInput(events, TOOL_SUBMIT_RUBRIC);
+  if (raw === null) {
+    throw new AppError(
+      `expected ${TOOL_SUBMIT_RUBRIC} tool use in stream-json output`,
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { skill: SKILL_RUBRIC, questionId: input.questionId } },
+    );
+  }
+
+  const parsed = SubmitRubricOutputSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new AppError(
+      "submit_rubric payload failed schema validation",
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { issues: parsed.error.issues, questionId: input.questionId } },
+    );
+  }
+
+  log.info(
+    {
+      questionId: input.questionId,
+      levelOrdinal: input.levelOrdinal,
+      levelDefaultsHash,
+      skillSha: rubricSkillSha.short,
+      promptSha,
+    },
+    "rubric-generation.skill.complete",
+  );
+
+  return {
+    rubric: parsed.data.rubric as Rubric,
+    skillSha: rubricSkillSha.short,
+    promptSha,
+    levelDefaultsHash,
+    model: rubricSkillSha.model,
   };
 }
 
