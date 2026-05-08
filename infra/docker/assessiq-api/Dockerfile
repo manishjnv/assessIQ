@@ -19,7 +19,13 @@
 # is that source-only edits invalidate the deps layer cache — acceptable
 # given the rebuild cadence.
 
-ARG NODE_VERSION=22-alpine
+# node:22-slim (Debian bookworm-slim) is required instead of Alpine because
+# the `claude` CLI binary installed on the host VPS is a glibc ELF executable
+# (built against GNU libc 2.17+). Alpine uses musl libc; glibc binaries do not
+# run on musl without a compatibility shim. The Debian slim base ships glibc
+# and is the standard choice when the container needs to exec host-installed
+# glibc binaries via a bind-mount. Image size delta: ~40MB vs Alpine.
+ARG NODE_VERSION=22-slim
 
 # ─── Stage 1: deps — install pnpm workspace closure for @assessiq/api ────────
 FROM node:${NODE_VERSION} AS deps
@@ -47,6 +53,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 FROM node:${NODE_VERSION} AS runtime
 
 RUN corepack enable
+
+# Required for claude CLI (glibc ELF) to exec correctly on Debian slim.
+# ca-certificates is needed by claude for HTTPS API calls.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
     PORT=3000

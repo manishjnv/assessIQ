@@ -85,9 +85,19 @@ services:
     # the correct skill visible. Skills are managed on the host via the
     # docs/06-deployment.md § "SKILL.md update procedure"; no image rebuild
     # needed when a skill is updated — just recreate the container.
+    #
+    # claude CLI: bind the host binary read-only. The API container base is
+    # node:22-slim (Debian/glibc) so the glibc ELF binary runs correctly.
+    # /root/.claude/settings.json carries the Max OAuth token for claude on
+    # the host; bind it read-only so claude in the container authenticates.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
       - /root/.claude/skills:/home/node/.claude/skills:ro
+      - /usr/bin/claude:/usr/local/bin/claude:ro
+      - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
+      - /root/.claude/settings.json:/home/node/.claude/settings.json:ro
+      - /root/.claude/oauth_token:/home/node/.claude/oauth_token:ro
+      - /root/.claude/oauth_token.expires:/home/node/.claude/oauth_token.expires:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
@@ -127,10 +137,15 @@ services:
         required: false
     # Operational logs: same bind as assessiq-api. Worker logs go to the same
     # JSONL files (stream binding distinguishes per-process emitters).
-    # Skills: same bind as assessiq-api (see comment there).
+    # Skills + claude: same binds as assessiq-api (see comment there).
     volumes:
       - /var/log/assessiq:/var/log/assessiq
       - /root/.claude/skills:/home/node/.claude/skills:ro
+      - /usr/bin/claude:/usr/local/bin/claude:ro
+      - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
+      - /root/.claude/settings.json:/home/node/.claude/settings.json:ro
+      - /root/.claude/oauth_token:/home/node/.claude/oauth_token:ro
+      - /root/.claude/oauth_token.expires:/home/node/.claude/oauth_token.expires:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
