@@ -140,14 +140,6 @@ export async function registerDevMintSessionRoute(app: FastifyInstance): Promise
       },
     },
     async (req, reply) => {
-      // Re-check the gate at handler time as a defense-in-depth guard.
-      // Primary protection is the conditional import in server.ts — the route
-      // won't be registered at all in prod. This check catches mis-wiring.
-      if (!config.ENABLE_E2E_TEST_MINTER) {
-        reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Not found.' } });
-        return;
-      }
-
       const { email, role, tenantSlug } = req.body;
 
       // Validate inputs at the boundary.
@@ -167,40 +159,59 @@ export async function registerDevMintSessionRoute(app: FastifyInstance): Promise
       }
 
       // Find or create the user (system-role BYPASSRLS).
+      //
+      // SECURITY: when an existing user is found, we use the user's CURRENT
+      // DB role for the minted session — NEVER the caller-supplied `role`.
+      // Otherwise an attacker with mint-endpoint access (staging mis-config)
+      // could escalate any existing candidate to admin by passing role:'admin'.
+      //
+      // SECURITY: when no user exists, refuse to mint admin/reviewer accounts.
+      // Privileged accounts must come from the real invitation flow. The
+      // minter is for E2E candidate flows + pre-seeded admin fixtures only.
       const existing = await findUserSystemRole(tenant.id, email);
-      const userId =
-        existing !== null
-          ? existing.id
-          : (await createUserSystemRole(tenant.id, email, role)).id;
+      let userId: string;
+      let effectiveRole: Role;
+      if (existing !== null) {
+        userId = existing.id;
+        effectiveRole = existing.role as Role;
+      } else {
+        if (role !== 'candidate') {
+          throw new AuthnError(
+            `dev-mint-session: refusing to create new ${role} account; ` +
+              `only 'candidate' may be auto-created. Seed admin/reviewer via the real invitation flow.`,
+          );
+        }
+        userId = (await createUserSystemRole(tenant.id, email, role)).id;
+        effectiveRole = role;
+      }
 
       // Mint a fully-verified session (totpVerified=true so the spec doesn't
-      // need to complete the TOTP flow). Admins get totpVerified=true by design
-      // — the spec is testing admin workflows, not the TOTP flow itself.
+      // need to complete the TOTP flow). The session role is `effectiveRole`,
+      // which is the existing user's DB role or — for new users — 'candidate'.
       const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip ?? '127.0.0.1';
       const ua = req.headers['user-agent'] ?? 'playwright-e2e';
       const sessionOut = await sessions.create({
         userId,
         tenantId: tenant.id,
-        role,
+        role: effectiveRole,
         totpVerified: true,
         ip,
         ua,
       });
 
-      // Audit — best-effort. dev-only endpoint; don't block the test on audit failure.
-      audit({
+      // Audit — fail-closed. A session-minting endpoint without an audit trail
+      // is worse than no endpoint: there's no forensic record of who minted
+      // what. If the audit write fails, the request fails too.
+      await audit({
         tenantId: tenant.id,
         actorKind: 'system',
         actorUserId: userId,
         action: 'dev.mint_session',
         entityType: 'session',
         entityId: sessionOut.id,
-        after: { email, role, tenantSlug },
+        after: { email, role: effectiveRole, requestedRole: role, tenantSlug },
         ip,
         userAgent: ua,
-      }).catch((err) => {
-        // Log but don't rethrow — audit failure must not block the E2E session mint.
-        req.log.warn({ err }, 'dev-mint-session: audit write failed (non-fatal)');
       });
 
       // Set the standard session cookie (mirrors what google/cb does).
