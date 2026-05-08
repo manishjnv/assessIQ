@@ -47,6 +47,7 @@ interface QuestionItem {
   type: string;
   status: string;
   content: Record<string, unknown>;
+  knowledge_base_sources?: Array<{ id: string; name: string; citation: string; url?: string }>;
 }
 
 interface PackDetailResponse {
@@ -69,6 +70,19 @@ function packStatusColor(s: string): { bg: string; color: string } {
       return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
   }
 }
+
+/** All SOC function categories present in the knowledge base. */
+const SOC_FUNCTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "triage",       label: "Triage"       },
+  { value: "detection",    label: "Detection"    },
+  { value: "analysis",     label: "Analysis"     },
+  { value: "response",     label: "Response"     },
+  { value: "forensics",    label: "Forensics"    },
+  { value: "hunting",      label: "Threat Hunt"  },
+  { value: "intelligence", label: "Intelligence" },
+  { value: "governance",   label: "Governance"   },
+  { value: "architecture", label: "Architecture" },
+];
 
 function questionPrompt(content: Record<string, unknown>): string {
   const c = content as { prompt?: string; stem?: string; scenario?: string };
@@ -95,6 +109,14 @@ export function AdminPackDetail(): React.ReactElement {
   const [publishError, setPublishError] = useState<string | null>(null);
 
   const [activatingLevel, setActivatingLevel] = useState<string | null>(null);
+
+  // Generate-questions drawer state
+  const [generateLevelId, setGenerateLevelId] = useState<string | null>(null);
+  const [genCount, setGenCount] = useState(5);
+  const [genTopicFocus, setGenTopicFocus] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genResult, setGenResult] = useState<{ generated: number; skillSha: string } | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
 
   const fetchPack = useCallback(async () => {
     if (!id) return;
@@ -182,6 +204,45 @@ export function AdminPackDetail(): React.ReactElement {
     } finally {
       setActivatingLevel(null);
     }
+  }
+
+  async function handleGenerate(levelId: string) {
+    if (!id) return;
+    setGenerating(true);
+    setGenError(null);
+    setGenResult(null);
+    try {
+      const body: Record<string, unknown> = { count: genCount };
+      if (genTopicFocus) body["topic_focus"] = genTopicFocus;
+      const result = await adminApi<{ questionIds: string[]; generated: number; skillSha: string }>(
+        `/admin/packs/${id}/levels/${levelId}/generate`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      setGenResult({ generated: result.generated, skillSha: result.skillSha });
+      // Refresh question list so drafts appear immediately
+      await fetchPack();
+    } catch (err) {
+      setGenError(
+        err instanceof AdminApiError ? err.apiError.message : "Generation failed. Try again.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function openGenerateDrawer(levelId: string) {
+    setGenerateLevelId(levelId);
+    setGenCount(5);
+    setGenTopicFocus(null);
+    setGenResult(null);
+    setGenError(null);
+  }
+
+  function closeGenerateDrawer() {
+    if (generating) return; // block close while in-flight
+    setGenerateLevelId(null);
+    setGenResult(null);
+    setGenError(null);
   }
 
   if (loading) {
@@ -554,6 +615,14 @@ export function AdminPackDetail(): React.ReactElement {
                             {activatingLevel === level.id ? "Activating…" : "Activate all"}
                           </button>
                         )}
+                        <button
+                          type="button"
+                          className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                          onClick={() => openGenerateDrawer(level.id)}
+                          title="Generate AI draft questions for this level"
+                        >
+                          ✦ Generate
+                        </button>
                         <Link
                           to={`/admin/question-bank/questions/new?pack_id=${pack.id}&level_id=${level.id}`}
                           className="aiq-btn aiq-btn-outline aiq-btn-sm"
@@ -605,6 +674,44 @@ export function AdminPackDetail(): React.ReactElement {
                           >
                             {q.type} · {q.status}
                           </span>
+                          {/* Citation chips for ai_draft questions */}
+                          {q.status === "ai_draft" && q.knowledge_base_sources && q.knowledge_base_sources.length > 0 && (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "4px",
+                                marginTop: "4px",
+                              }}
+                            >
+                              {q.knowledge_base_sources.map((src) => (
+                                <a
+                                  key={src.id}
+                                  href={src.url ?? "#"}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={src.name}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "3px",
+                                    fontFamily: "var(--aiq-font-mono)",
+                                    fontSize: "10px",
+                                    lineHeight: 1,
+                                    padding: "2px 6px",
+                                    borderRadius: "var(--aiq-radius-pill)",
+                                    background: "var(--aiq-color-accent-soft)",
+                                    color: "var(--aiq-color-accent)",
+                                    textDecoration: "none",
+                                    letterSpacing: "0.02em",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {src.citation}
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -623,6 +730,306 @@ export function AdminPackDetail(): React.ReactElement {
           )}
         </div>
       </div>
+
+      {/* Generate Questions Drawer */}
+      {generateLevelId !== null && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={closeGenerateDrawer}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.35)",
+              zIndex: 100,
+            }}
+          />
+          {/* Drawer panel */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Generate AI draft questions"
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "min(480px, 100vw)",
+              background: "var(--aiq-color-bg-base)",
+              borderLeft: "1px solid var(--aiq-color-border)",
+              zIndex: 101,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Drawer header */}
+            <div
+              style={{
+                padding: "var(--aiq-space-lg)",
+                borderBottom: "1px solid var(--aiq-color-border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexShrink: 0,
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    fontFamily: "var(--aiq-font-serif)",
+                    fontSize: "var(--aiq-text-xl)",
+                    fontWeight: 400,
+                    margin: 0,
+                    letterSpacing: "-0.015em",
+                  }}
+                >
+                  Generate questions.
+                </h3>
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    color: "var(--aiq-color-fg-muted)",
+                    margin: "4px 0 0",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {levels.find((l) => l.id === generateLevelId)?.label ?? "Level"} · SOC grounded · ai_draft
+                </p>
+              </div>
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                onClick={closeGenerateDrawer}
+                disabled={generating}
+                aria-label="Close drawer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Drawer body */}
+            <div
+              style={{
+                flex: 1,
+                overflow: "auto",
+                padding: "var(--aiq-space-lg)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--aiq-space-lg)",
+              }}
+            >
+              {/* Count */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                <label
+                  htmlFor="gen-count"
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    fontWeight: 500,
+                  }}
+                >
+                  Number of questions
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+                  <input
+                    id="gen-count"
+                    type="range"
+                    min={1}
+                    max={10}
+                    value={genCount}
+                    onChange={(e) => setGenCount(Number(e.target.value))}
+                    disabled={generating}
+                    style={{ flex: 1, accentColor: "var(--aiq-color-accent)" }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: "var(--aiq-text-sm)",
+                      minWidth: "2ch",
+                      textAlign: "right",
+                    }}
+                  >
+                    {genCount}
+                  </span>
+                </div>
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    color: "var(--aiq-color-fg-muted)",
+                    margin: 0,
+                  }}
+                >
+                  Generation takes 30–90 seconds per question.
+                </p>
+              </div>
+
+              {/* Topic focus chips */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                <span
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    fontWeight: 500,
+                  }}
+                >
+                  Topic focus{" "}
+                  <span
+                    style={{
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: "var(--aiq-text-xs)",
+                      fontWeight: 400,
+                      color: "var(--aiq-color-fg-muted)",
+                    }}
+                  >
+                    (optional — select one)
+                  </span>
+                </span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {SOC_FUNCTIONS.map((fn) => {
+                    const active = genTopicFocus === fn.value;
+                    return (
+                      <button
+                        key={fn.value}
+                        type="button"
+                        disabled={generating}
+                        onClick={() =>
+                          setGenTopicFocus((prev) => (prev === fn.value ? null : fn.value))
+                        }
+                        style={{
+                          fontFamily: "var(--aiq-font-mono)",
+                          fontSize: "var(--aiq-text-xs)",
+                          padding: "4px 10px",
+                          borderRadius: "var(--aiq-radius-pill)",
+                          border: `1px solid ${active ? "var(--aiq-color-accent)" : "var(--aiq-color-border)"}`,
+                          background: active ? "var(--aiq-color-accent-soft)" : "transparent",
+                          color: active ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)",
+                          cursor: generating ? "not-allowed" : "pointer",
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        {fn.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    color: "var(--aiq-color-fg-muted)",
+                    margin: 0,
+                  }}
+                >
+                  Narrows KB sources to the selected function. Falls back to full level if fewer than 3 sources match.
+                </p>
+              </div>
+
+              {/* Error */}
+              {genError && (
+                <div
+                  style={{
+                    padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                    borderRadius: "var(--aiq-radius-md)",
+                    background: "var(--aiq-color-danger-soft, rgba(220,38,38,0.06))",
+                    border: "1px solid var(--aiq-color-danger-border, var(--aiq-color-danger))",
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    color: "var(--aiq-color-danger)",
+                  }}
+                >
+                  {genError}
+                </div>
+              )}
+
+              {/* Success */}
+              {genResult && (
+                <div
+                  style={{
+                    padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                    borderRadius: "var(--aiq-radius-md)",
+                    background: "var(--aiq-color-success-soft)",
+                    border: "1px solid var(--aiq-color-success-border, var(--aiq-color-success))",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "var(--aiq-font-sans)",
+                      fontSize: "var(--aiq-text-sm)",
+                      fontWeight: 500,
+                      color: "var(--aiq-color-success)",
+                    }}
+                  >
+                    {genResult.generated} draft question{genResult.generated !== 1 ? "s" : ""} generated.
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: "var(--aiq-text-xs)",
+                      color: "var(--aiq-color-fg-muted)",
+                    }}
+                  >
+                    skill sha: {genResult.skillSha}
+                  </span>
+                </div>
+              )}
+
+              {/* In-flight progress */}
+              {generating && (
+                <div
+                  style={{
+                    padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                    borderRadius: "var(--aiq-radius-md)",
+                    background: "var(--aiq-color-accent-soft)",
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    color: "var(--aiq-color-accent)",
+                  }}
+                >
+                  Generating… this typically takes 30–90 s per question. Do not close this panel.
+                </div>
+              )}
+            </div>
+
+            {/* Drawer footer */}
+            <div
+              style={{
+                padding: "var(--aiq-space-md) var(--aiq-space-lg)",
+                borderTop: "1px solid var(--aiq-color-border)",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "var(--aiq-space-sm)",
+                flexShrink: 0,
+              }}
+            >
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline"
+                onClick={closeGenerateDrawer}
+                disabled={generating}
+              >
+                {genResult ? "Close" : "Cancel"}
+              </button>
+              {!genResult && (
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-primary"
+                  onClick={() => void handleGenerate(generateLevelId)}
+                  disabled={generating}
+                >
+                  {generating ? "Generating…" : `Generate ${genCount} draft${genCount !== 1 ? "s" : ""}`}
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </AdminShell>
   );
 }
