@@ -817,3 +817,16 @@ A second prevention: every revert commit must explicitly enumerate "what was rev
 - Frontend component interfaces must be derived from the backend type export or from `docs/03-api-contract.md`, never assumed from early design docs.
 - PRs shipping both a backend route and a frontend consumer must cross-check the response shape in the PR description.
 - Phase 3 critique: when a frontend component uses `adminApi<T>()` with a locally-declared `T`, verify `T` matches the corresponding route handler's reply type.
+
+## 2026-05-08 — AI question generator returned 'skill not found' on first generate click
+
+**Symptom:** Admin opened pack detail, clicked ✦ Generate, drawer immediately showed error: `skill not found at /home/node/.claude/skills/generate-questions/SKILL.md`; no questions generated.
+
+**Cause (layer 1):** `skill-sha.ts` resolves skill path via `os.homedir()` which returns `/home/node` inside the container. The `assessiq-api` compose volume block had no mount for skills, so `/home/node/.claude/skills/` did not exist in the container even though `prompts/skills/generate-questions/SKILL.md` was git-tracked on the host.
+
+**Cause (layer 2):** A previous interim fix mounted `/root/.claude/skills` (a host OS directory outside the repo) instead of `prompts/skills/` from the repo. This meant skill changes required a manual `scp` step — the intended `git pull`-only deploy workflow was broken.
+
+**Fix:** `infra/docker-compose.yml` — replaced `/root/.claude/skills:/home/node/.claude/skills:ro` with `../prompts/skills:/home/node/.claude/skills:ro` (relative to `infra/docker-compose.yml`) on both `assessiq-api` and `assessiq-worker`. Commit `0c3b856`. Container recreated; `docker exec assessiq-api ls /home/node/.claude/skills/` lists all 4 skills.
+
+**Prevention:** Skill changes now deploy via `git pull` alone — no scp, no rebuild. Post-deploy smoke step documented in `docs/06-deployment.md` § Skill-deploy procedure: `docker exec assessiq-api ls /home/node/.claude/skills/` must list all expected skill directories. Consider a `tools/lint-skill-mount.ts` CI check that asserts every `prompts/skills/*/SKILL.md` has a corresponding compose bind-mount entry.
+

@@ -137,7 +137,7 @@ SOC-grounded AI question generation is live. 70-entry knowledge base (L1/L2/L3),
 - `modules/04-question-bank/src/knowledge-base/`: soc-l1.json (25), soc-l2.json (25), soc-l3.json (20) KB entries.
 - New route: `POST /api/admin/packs/:id/levels/:levelId/generate` (admin-only, single-flight, returns `{ questionIds, generated, skillSha }`).
 - `assessiq-api` image **rebuilt** (`docker compose build assessiq-api`) and recreated.
-- `generate-questions` SKILL.md installed at `~/.claude/skills/generate-questions/SKILL.md` on VPS.
+- `generate-questions` SKILL.md at `prompts/skills/generate-questions/SKILL.md` (git-tracked; bind-mounted into container at `/home/node/.claude/skills/generate-questions/SKILL.md`).
 - Admin pack-detail page: "✦ Generate" button per level, slide-in drawer with count slider + SOC topic-focus chips, citation chips for `ai_draft` questions.
 - Smoke verified: `POST /api/.../generate` (no auth) → **401** ✅
 
@@ -149,10 +149,25 @@ docker compose -f /srv/assessiq/infra/docker-compose.yml up -d --no-deps --force
 ```
 `--force-recreate` alone is insufficient — the Dockerfile bakes source into the image, so a rebuild is required on every code change.
 
-**SKILL.md update procedure (when `prompts/skills/generate-questions/SKILL.md` changes):**
+**Skill-deploy procedure (when any `prompts/skills/*/SKILL.md` changes):**
+
+Skills in `prompts/skills/` are bind-mounted read-only into the `assessiq-api` and
+`assessiq-worker` containers at `/home/node/.claude/skills/` (relative path
+`../prompts/skills` from `infra/docker-compose.yml`). **A `git pull` alone is sufficient
+to deploy skill changes — no image rebuild, no `scp`, no container restart needed.**
+The skill file is re-read from disk on every `skillSha()` invocation.
+
 ```bash
-scp prompts/skills/generate-questions/SKILL.md assessiq-vps:~/.claude/skills/generate-questions/SKILL.md
-# No API restart needed — skills are read from disk per-invocation
+# On VPS — skill-only deploy:
+cd /srv/assessiq && git pull --ff-only
+# Verify the updated skill is readable:
+docker exec assessiq-api head -3 /home/node/.claude/skills/generate-questions/SKILL.md
+```
+
+Post-deploy smoke (run after any skill change):
+```bash
+docker exec assessiq-api ls /home/node/.claude/skills/
+# Expected: generate-questions  grade-anchors  grade-band  grade-escalate
 ```
 
 

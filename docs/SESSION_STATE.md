@@ -1,3 +1,39 @@
+# Session — 2026-05-08 (Phase 2 AI generator fully operational)
+
+**Headline:** SOC-grounded AI question generator unblocked end-to-end: skill files now bind-mounted from the repo into the container; `claude` CLI accessible via Debian slim base image. All 4 skills visible at `/home/node/.claude/skills/`; route returns 401 (auth gate). Commits `f749c4f`, `b4da78f`, `0c3b856`.
+
+**Commits (this session, infra fixes):**
+- `f749c4f` — fix(infra): mount /root/.claude/skills into api+worker containers
+- `b4da78f` — fix(infra): Debian slim base + bind-mount claude CLI into api container
+- `0c3b856` — fix(infra): mount prompts/skills (repo path) not /root/.claude/skills
+
+**Tests:**
+- No code changes — infra/compose only. Route smoke: 401 ✅, skills visible ✅, `claude --version` inside container ✅.
+- Pre-existing failures unchanged: 3× `lastSeenAt` in `07-ai-grading/src/routes.ts`.
+
+**Deployed:** VPS at `0c3b856`. assessiq-api + assessiq-worker recreated. All 4 skills mounted from `/srv/assessiq/prompts/skills/`.
+
+**Smokes:**
+- `docker exec assessiq-api ls /home/node/.claude/skills/` → `generate-questions  grade-anchors  grade-band  grade-escalate` ✅
+- `docker exec assessiq-api claude --version` → `2.1.119 (Claude Code)` ✅
+- `POST /api/.../generate` (no auth) → `401 AUTHN_FAILED` ✅ (no 503 skill-not-found)
+
+**Next:** Admin clicks ✦ Generate in the drawer → count 2 → Generate → wait 60–120s → verify 2 `ai_draft` questions appear with MITRE/NIST citation chips. If it works, the feature is fully end-to-end.
+
+**Open questions:**
+- Browser smoke (actual question generation) not yet confirmed — requires live admin session + Max plan OAuth token valid on VPS.
+- Pre-existing `lastSeenAt` typecheck failures in `07-ai-grading/src/routes.ts` — 3 errors unchanged.
+
+---
+
+## Agent utilization
+- Opus: infra diagnosis (root-cause chain: skill path → glibc/musl → repo mount); compose + Dockerfile edits; docs updates
+- Sonnet: n/a
+- Haiku: n/a
+- codex:rescue: n/a — infra-only change, no security/auth/classifier code touched
+
+---
+
 # Session — 2026-05-08 (3 punch-list bugs closed)
 
 **Headline:** Closed 3 remaining 2026-05-03 punch-list bugs: invite-accept no-enumeration oracle (`d20735a`), pack-detail pageSize 100→500 (`51a1ad1`), candidate magic-link `/invite/`→`/take/` (`a79282c`). All 3 deployed + smoked.
