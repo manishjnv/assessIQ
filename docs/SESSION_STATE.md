@@ -1,4 +1,88 @@
-# Session — 2026-05-04 (accept-invitation 500 fix)
+# Session — 2026-05-08 (SOC AI question generator shipped)
+
+**Headline:** Full SOC-grounded AI question generator: 70-entry SOC KB (L1/L2/L3) + `generate-questions` skill + `submit_questions` MCP tool + admin generate-drawer UI + D2 lint tightened. Questions land as `ai_draft` with MITRE/NIST citation chips.
+
+**Commits:**
+- `e04f6e2` — feat(question-bank): SOC knowledge base (soc-l1/l2/l3.json, index.ts) + migration 0016
+- `a2dc726` — feat(ai-grading): generateQuestions runtime + admin-generate handler + MCP tool
+- `84e98a5` — feat(question-bank): generateQuestions service + admin route + barrel update
+- `f2f2a58` — feat(admin-dashboard): generate-questions drawer + topic chips + citation chips
+- `526c9ff` — chore(lint): tighten D2 sentinel for generateQuestions symbol
+
+**Tests:** Question-bank unit suite: testcontainer required (no local Docker), 60 skipped. D2 lint self-test: 10/10 pass. Typecheck: question-bank + admin-dashboard clean. Pre-existing failures unchanged (routes.ts lastSeenAt, 3 errors).
+
+**Deployed:** VPS git pull at 526c9ff. SKILL.md installed at `~/.claude/skills/generate-questions/SKILL.md`. Migration 0016 applied to assessiq-postgres. assessiq-api force-recreated and healthy.
+
+**Next:** Smoke test: Admin → open pack → level → "✦ Generate" button → count 5 → Generate → wait 60–90 s/question → verify 5 `ai_draft` questions with MITRE/NIST citation chips appear.
+
+**Open questions:**
+- Smoke test not yet run (needs VPS with claude CLI + admin Max OAuth active).
+- KB `soc-l1.json`/`soc-l2.json` could be expanded from 25→30 entries each if level-score diversity improves.
+- `question_versions` trigger needs to be verified that it copies `knowledge_base_sources` on snapshot (migration added the column, trigger SQL predates this session).
+
+---
+
+## Agent utilization
+- Opus: Architecture decisions, all code implementation (< 30 lines per change, files in hot cache), adversarial review coordination, all commits.
+- Sonnet: Adversarial review of lint-no-ambient-claude.ts changes (codex:rescue n/a — VS Code session); verdict: revise → accept after 4 fixes applied.
+- Haiku: n/a
+- codex:rescue: n/a — VS Code Copilot Chat session (CLI-only tool); Sonnet takeover used per CLAUDE.md fallback ladder.
+
+---
+
+## Prior session state (archived below)
+
+# Session — 2026-05-08 (E2E spec + dev test-minter endpoint shipped)
+
+**Headline:** `b3710ae` — Full admin→candidate Playwright E2E spec + `POST /api/dev/mint-session` dev test-minter endpoint. 13-step serial spec covers the complete workflow end-to-end. CI wired via `.github/workflows/ci.yml` `e2e` job. Prod invariant verified: `POST /api/dev/mint-session` returns 404 on prod (route not registered, `ENABLE_E2E_TEST_MINTER` absent from prod `.env`).
+
+**Commits:**
+- `b3710ae` — feat(e2e): full admin-to-candidate workflow spec + dev test-minter endpoint (12 files, 1710 insertions)
+
+**Tests:**
+- `mint-session.test.ts`: 4/4 pass (env-gated, env-absent 404, valid 200+cookie, invalid email 400)
+- Pre-existing failures unchanged: `auth.test.ts` embed-route 500 (pre-existing redis mock), `worker.test.ts` Docker testcontainer (no local Docker)
+
+**Prod invariant check:** `curl -s -X POST -H 'Content-Type: application/json' -d '{}' https://assessiq.automateedge.cloud/api/dev/mint-session` → **404** ✅
+
+**Next session — first thing to do:**
+Configure GitHub Actions E2E job to actually run by setting `vars.E2E_BASE_URL` in the repo settings:
+1. GitHub → repo → Settings → Variables and secrets → Actions variables
+2. `E2E_BASE_URL` = `https://assessiq.automateedge.cloud`
+3. `E2E_API_BASE_URL` = `https://assessiq.automateedge.cloud`
+4. Also set `ENABLE_E2E_TEST_MINTER=true` on the VPS only if a staging/CI env is set up; the current prod VPS does NOT have it set (correct)
+5. First real E2E run will likely need troubleshooting: cookie domain, timing, TOTP bypass for MFA
+
+**Open questions:**
+- Pre-existing typecheck failures: `packages/embed-sdk` (missing DOM types — needs `"lib": ["DOM"]` in tsconfig), `modules/07-ai-grading/src/routes.ts` (`request.session` Fastify augmentation missing in web typecheck context)
+- E2E spec currently asserts at API level (not UI); a follow-up pass should add browser-level assertions to steps 03b/09b (pack detail + assessments list page checks)
+- CI E2E job skips when `vars.E2E_BASE_URL` is unset — add staging env or point at prod with caution
+
+---
+
+## What changed — b3710ae
+
+**New files:**
+- `apps/api/src/routes/dev/mint-session.ts`: `POST /api/dev/mint-session`. Body `{email, role, tenantSlug}` → find-or-create user → `sessions.create({totpVerified:true})` → sets `aiq_sess` cookie → returns `{sessionId, userId, expiresAt}`. Runtime double-guard + compile-time conditional import in `server.ts`. Audits `dev.mint_session` to audit_log. Zero AI SDK references.
+- `apps/api/src/__tests__/routes/mint-session.test.ts`: 4 tests covering disabled state, enabled state, email validation, unknown tenant.
+- `apps/web/e2e/fixtures/factories.ts`: Node.js fetch helpers. All API operations needed for E2E setup: mint sessions, create/publish pack, add levels/questions, activate questions, create/publish assessment, invite candidate, start/answer/submit attempt, trigger/accept grading, cleanup.
+- `apps/web/e2e/admin-workflow.spec.ts`: 13-step serial Playwright spec. TS timestamp suffix prevents name collisions. `parseCookie` helper for Playwright context injection. `collectConsoleErrors` for zero-error DOM assertions. Grading step handles CI case (claude not available) gracefully.
+
+**Modified files:**
+- `apps/api/src/server.ts`: conditional import block (already existed pre-session for embed-sdk, mirrored that pattern)
+- `modules/00-core/src/config.ts`: `ENABLE_E2E_TEST_MINTER` flag (already existed from prior session, no changes needed — found in place)
+- `modules/14-audit-log/src/types.ts`: `dev.mint_session` action (already existed — found in place)
+- `.github/workflows/ci.yml`: `e2e` job added after `quality`
+- `apps/web/e2e/README.md`: full rewrite with local + CI setup guide
+- `docs/06-deployment.md`: E2E test-minter prod invariant section
+- `docs/RCA_LOG.md`: closure entry for 6 manual-test bugs + E2E prevention note
+- `modules/01-auth/SKILL.md`: dev-mint endpoint addendum in Key Flows section
+
+**Agent utilization:** Agent ran full Phase 0 warm-start (SESSION_STATE + PROJECT_BRAIN + SKILL.md survey), discovered test-minter backend was already implemented from a prior session, added missing `userId` to the response, built factories + spec, wired CI, wrote all docs, ran Phase 2 gates, committed, deployed, and verified prod invariant in a single session. No human debugging interventions needed.
+
+---
+
+
 
 **Headline:** `30ba73d` — magic-link accept flow unblocked: `withSystemClient` now elevates to BYPASSRLS role before querying `user_invitations`; all future invitees can onboard without 500.
 

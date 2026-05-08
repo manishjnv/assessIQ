@@ -845,3 +845,73 @@ export async function handleAdminGrade(req, attemptId) {
 ### Carry-forwards (out of this session's scope, but flagged)
 
 - **`docs/01-architecture-overview.md` lines ~30–80** still describe a BullMQ "grading queue" + "Grading Worker — Claude Agent SDK" subscribing to the queue. That diagram is the pre-2026-04-29 architecture and is now stale per the decision-log entry in `PROJECT_BRAIN.md`. A future session cleaning up `01-architecture-overview.md` should redraw the application-layer diagram around the sync-on-click flow above and demote the BullMQ box to non-AI work only. Not fixed in this PR — Window D scope is the AI-pipeline contract, not the architecture-overview rewrite.
+
+---
+
+## Phase 2 — AI Question Generation (2026-05-08)
+
+### Architecture
+
+**Goal:** Admins can generate SOC-grounded `ai_draft` question drafts without writing them from scratch. The same `claude-code-vps` runtime used for grading now powers generation via a separate skill.
+
+**Call chain:**
+
+```
+Admin click "Generate" in pack-detail.tsx
+  → POST /admin/packs/:id/levels/:levelId/generate
+  → generateQuestions() in 04-question-bank/service.ts
+    → handleAdminGenerate() in 07-ai-grading/handlers/admin-generate.ts
+      → generateQuestions() in 07-ai-grading/runtime-selector.ts
+        → runtimes/claude-code-vps.ts: generateQuestions()
+          → runSkill({ skill: "generate-questions" })
+            → prompts/skills/generate-questions/SKILL.md (Claude Code skill on VPS)
+              → submit_questions MCP tool (tools/assessiq-mcp)
+                → validated echo-back parsed with Zod
+          → insertDrafts() within withTenant() transaction
+            → questions rows with status='ai_draft', knowledge_base_sources JSONB
+```
+
+**D2 compliance:** same rules as grading.
+- `handleAdminGenerate` is only called on admin click via a registered admin-only Fastify route.
+- `generateQuestions` symbol is now in `RE_GRADING_RUNTIME_IMPORT` — banned-path files (worker, candidate routes, webhooks) cannot import it.
+- `admin-generate.ts` is intentionally NOT in `CLAUDE_SPAWN_ALLOW_LIST` — it does not spawn `claude` directly; only `claude-code-vps.ts` does.
+- 10 self-test fixtures in `lint-no-ambient-claude.ts` now cover `generateQuestions` in both banned and allowed paths.
+
+### D8 extension — ai_draft status
+
+Generated questions land with `status='ai_draft'` (distinct from `'draft'`). This enables:
+- Admin queue filtering: "needs AI-generated-review" vs "human-authored draft"
+- Citation chips in pack-detail UI: `knowledge_base_sources` JSONB shows which MITRE/NIST/SIEM entries grounded each question
+- Never auto-activated — admin must explicitly transition to `draft` → `active`
+
+### Knowledge base
+
+**Location:** `modules/04-question-bank/src/knowledge-base/`
+
+Three JSON files (Pattern A split to stay within skill token budget):
+- `soc-l1.json` — 25 entries (alert triage, basic log analysis, common attack patterns)
+- `soc-l2.json` — 25 entries (SIEM correlation, behavioral analysis, lateral movement, C2)
+- `soc-l3.json` — 20 entries (threat hunting, advanced forensics, APT attribution)
+
+Each entry has: `id, name, citation, url, level_fit, function, description, tags, kb_version`.
+
+SOC functions: `triage`, `detection`, `analysis`, `response`, `forensics`, `hunting`, `intelligence`, `governance`, `architecture`.
+
+**Version:** `2026-05-08`. When KB entries change, bump `version` in each JSON file. The `kb_version` field on every generated question row records which version was used at generation time.
+
+### generate-questions skill
+
+**Location:** `prompts/skills/generate-questions/SKILL.md`
+**Install on VPS:** `~/.claude/skills/generate-questions/SKILL.md`
+
+The skill receives: `level` (L1/L2/L3), `count`, `topic_focus?`, `existing_topics[]`, `sources[]` (pre-selected KB entries from caller).
+
+Output: one `submit_questions` MCP tool call with all questions. Per-type content shapes (MCQ, subjective, KQL, scenario, log-analysis) are validated by the `submit_questions` tool in `tools/assessiq-mcp/src/tools/submit-questions.ts`.
+
+### Schema changes (migration 0016)
+
+- `questions.status` CHECK now includes `'ai_draft'`
+- `questions.knowledge_base_sources JSONB NOT NULL DEFAULT '[]'`
+- `question_versions.knowledge_base_sources JSONB NOT NULL DEFAULT '[]'` (snapshots inherit provenance)
+
+Applied manually to production via `docker cp` + `psql -f` on 2026-05-08.
