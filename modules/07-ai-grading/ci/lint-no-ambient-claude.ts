@@ -26,6 +26,12 @@
  *   - `modules/07-ai-grading/src/handlers/admin-grade.ts`
  *   - `modules/07-ai-grading/src/runtimes/claude-code-vps.ts`
  *
+ * admin-generate.ts is the authorised handler for AI question generation.
+ * It does NOT spawn `claude` directly (that is done only by claude-code-vps.ts),
+ * so it is NOT in CLAUDE_SPAWN_ALLOW_LIST.  It is in the non-banned handler
+ * directory and the lint polices it via RE_GRADING_RUNTIME_IMPORT + the
+ * BANNED_PATH_PATTERNS check (banned-path files may not import generateQuestions).
+ *
  * Plus the SDK import allow-list (one file only):
  *
  *   - `modules/07-ai-grading/src/runtimes/anthropic-api.ts`
@@ -79,6 +85,13 @@ import { fileURLToPath } from "node:url";
  * the runtime — pre-1.b the stub never tripped pattern 1. The codex:rescue
  * gate at end of 1.b adjudicates this correction; the contract intent
  * (two allow-listed files for spawn + one for the SDK) is preserved.
+ *
+ * 2026-05-08 Session 2.a: admin-generate.ts is intentionally NOT in this
+ * list.  It is the authorised handler entry point for AI question generation
+ * but it does not spawn `claude` directly — only claude-code-vps.ts does.
+ * Adding it here would grant it unnecessary spawn permission.  The handler
+ * is policed instead via RE_GRADING_RUNTIME_IMPORT + BANNED_PATH_PATTERNS
+ * (any attempt to invoke generateQuestions from a banned path will fail).
  */
 const CLAUDE_SPAWN_ALLOW_LIST: ReadonlySet<string> = new Set([
   "modules/07-ai-grading/src/handlers/admin-grade.ts",
@@ -198,7 +211,7 @@ const RE_AGENT_SDK_IMPORT =
  * reason to reach into the grading runtime, even for types.
  */
 const RE_GRADING_RUNTIME_IMPORT =
-  /(?:from\s+["'](?:[^"']*\/modules\/07-ai-grading\/runtimes\/[^"']+|@assessiq\/ai-grading)["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b)/;
+  /(?:from\s+["'](?:[^"']*\/modules\/07-ai-grading\/runtimes\/[^"']+|@assessiq\/ai-grading)["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b|\bgenerateQuestions\b)/;
 
 /**
  * Banned-path globs for patterns 3-7. A file matching ANY of these AND
@@ -359,6 +372,20 @@ function runSelfTest(): void {
     content: `import { runClaudeCodeGrading } from "@assessiq/ai-grading";`,
   };
 
+  // --- Fixture 9: generateQuestions in banned worker path → violation ---
+  // (2026-05-08 Session 2.a — covers new RE_GRADING_RUNTIME_IMPORT term)
+  const workerGenerateViolation = {
+    path: "apps/worker/src/generate-handler.ts",
+    content: `import { generateQuestions } from "@assessiq/ai-grading";`,
+  };
+
+  // --- Fixture 10: generateQuestions in non-banned handler path → no violation ---
+  // (admin-generate.ts is the authorised caller; handler/ is not a banned path)
+  const handlerGenerateAllowed = {
+    path: "modules/07-ai-grading/src/handlers/admin-generate.ts",
+    content: `import { generateQuestions } from "@assessiq/ai-grading";\nasync function run() { return generateQuestions(input); }`,
+  };
+
   const results = [
     { fixture: "ok", actual: validateFile(okFile.path, okFile.content), expectViolations: 0 },
     { fixture: "spawn-violation", actual: validateFile(spawnViolation.path, spawnViolation.content), expectViolations: 1 },
@@ -368,6 +395,8 @@ function runSelfTest(): void {
     { fixture: "worker-violation", actual: validateFile(workerViolation.path, workerViolation.content), expectViolations: 1 },
     { fixture: "candidate-route-violation", actual: validateFile(candidateRouteViolation.path, candidateRouteViolation.content), expectViolations: 1 },
     { fixture: "webhook-violation", actual: validateFile(webhookViolation.path, webhookViolation.content), expectViolations: 1 },
+    { fixture: "worker-generateQuestions-violation", actual: validateFile(workerGenerateViolation.path, workerGenerateViolation.content), expectViolations: 1 },
+    { fixture: "handler-generateQuestions-allowed", actual: validateFile(handlerGenerateAllowed.path, handlerGenerateAllowed.content), expectViolations: 0 },
   ];
 
   let passed = true;
