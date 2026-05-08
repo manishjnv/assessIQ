@@ -606,10 +606,12 @@ describe('acceptInvitation', () => {
       );
     });
 
+    // After the WHERE-clause fix (AND accepted_at IS NULL AND expires_at > NOW()),
+    // expired tokens look identical to not-found tokens — no enumeration oracle.
     await expect(acceptInvitation(token)).rejects.toSatisfy(
       (e: unknown) =>
-        e instanceof ConflictError &&
-        (e.details as Record<string, unknown> | undefined)?.['code'] === 'INVITATION_EXPIRED',
+        e instanceof NotFoundError &&
+        (e.details as Record<string, unknown> | undefined)?.['code'] === 'INVITATION_NOT_FOUND',
     );
   });
 
@@ -631,11 +633,12 @@ describe('acceptInvitation', () => {
     // First acceptance should succeed
     await acceptInvitation(token);
 
-    // Second acceptance must fail
+    // Second acceptance must fail — DB-level filter (AND accepted_at IS NULL) returns null,
+    // so sequential replay looks identical to not-found (no enumeration oracle).
     await expect(acceptInvitation(token)).rejects.toSatisfy(
       (e: unknown) =>
-        e instanceof ConflictError &&
-        (e.details as Record<string, unknown> | undefined)?.['code'] === 'INVITATION_ALREADY_USED',
+        e instanceof NotFoundError &&
+        (e.details as Record<string, unknown> | undefined)?.['code'] === 'INVITATION_NOT_FOUND',
     );
   });
 

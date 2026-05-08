@@ -438,8 +438,10 @@ export async function findInvitationByTokenHashSystem(
 ): Promise<UserInvitation | null> {
   // Run as assessiq_system to bypass RLS (no tenant context is set).
   // Only token_hash is used in the WHERE; see module-level security comment.
+  // accepted_at IS NULL + expires_at > NOW() enforce the no-enumeration oracle:
+  // expired, already-used, and not-found tokens all return null → identical 4xx.
   const result = await systemClient.query<InvitationRow>(
-    `SELECT ${INVITATION_COLUMNS} FROM user_invitations WHERE token_hash = $1 LIMIT 1`,
+    `SELECT ${INVITATION_COLUMNS} FROM user_invitations WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > NOW() LIMIT 1`,
     [tokenHash],
   );
   const row = result.rows[0];
