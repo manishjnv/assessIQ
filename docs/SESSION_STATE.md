@@ -1,3 +1,53 @@
+# Session — 2026-05-08 (lint-deploy-procedure shipped + 9 Check C violations on main)
+
+**Headline:** `tools/lint-deploy-procedure.ts` shipped — 4-check CI lint (skill bind-mount, migration apply chain, env var declaration, email template URL↔route) with 17 self-test assertions. All gates pass. Scan on current main: A✓ B✓ D✓ — C surfaces 9 pre-existing env var declaration gaps as a punch list for the next session.
+
+**Commits:**
+- `f98ef0b` — feat(tooling): lint-deploy-procedure -- 4 checks for ops-vs-code drift
+
+**Tests:**
+- `pnpm tsx tools/lint-deploy-procedure.ts --self-test` → 17/17 PASS
+- `pnpm tsx tools/lint-deploy-procedure.ts` → A✓ B✓ C:9 violations D✓ (pre-existing, not regressions)
+- No pre-existing test failures changed.
+
+**Deployed:** skip — pure tooling (CI lint, no runtime code).
+
+**Next:** Fix the 9 pre-existing CHECK C violations (all env vars read in code but absent from `.env.example`). See punch list below. Each fix is 1–3 lines in `.env.example`. Some may also warrant adding to `modules/00-core/src/config.ts` Zod schema.
+
+**Open questions:**
+- `ASSESSIQ_PUBLIC_URL` (service.ts:85): Is this intentionally an override of `ASSESSIQ_BASE_URL`? If yes, add to config.ts Zod schema and .env.example as optional. If no, remove and use `config.ASSESSIQ_BASE_URL` instead.
+- `ENABLE_EMBED_TEST_MINTER` (embed.ts:173): Is this already in config.ts? If so, only .env.example needs updating.
+- `S3_BUCKET` (archive-job.ts:65): Phase 2 archival feature — document with a "Phase 2 placeholder" comment in .env.example.
+
+---
+
+## CHECK C punch list — pre-existing env var declaration gaps
+
+All 9 violations reported by `pnpm tsx tools/lint-deploy-procedure.ts` on `f98ef0b`.
+These are READ in production code but absent from `.env.example`. Fixing each is a 1-3 line edit in `.env.example`. None require code changes unless the var should be added to the config schema too.
+
+| Var | File:Line | Classification | Action |
+|---|---|---|---|
+| `ASSESSIQ_PUBLIC_URL` | `modules/05-assessment-lifecycle/src/service.ts:85` | Real gap — alternative base URL override | Add to .env.example (optional with default) + evaluate if config.ts Zod schema should include it |
+| `ASSESSIQ_DEV_EMAILS_LOG` | `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts:1148` | Dev-only, test file | Add to .env.example as optional, dev section |
+| `AIQ_ADMIN_USER_ID` | `modules/07-ai-grading/eval/cli.ts:609` | Eval CLI — admin context | Add to .env.example under eval tooling section |
+| `S3_BUCKET` | `modules/14-audit-log/src/archive-job.ts:65` | Phase 2 archival | Add to .env.example as Phase 2 placeholder |
+| `ENABLE_EMBED_TEST_MINTER` | `apps/api/src/routes/auth/embed.ts:173` | Test gate — similar to ENABLE_E2E_TEST_MINTER | Add to .env.example + check if config.ts needs it |
+| `ENABLE_E2E_TEST_MINTER` | `apps/api/src/__tests__/routes/mint-session.test.ts:192` | In config.ts but missing from .env.example | Add to .env.example only |
+| `PLAYWRIGHT_BASE_URL` | `apps/web/e2e/fixtures/factories.ts:24` | E2E test variable | Add to .env.example under E2E section |
+| `E2E_API_BASE_URL` | `apps/web/e2e/fixtures/factories.ts:25` | E2E test variable | Add to .env.example under E2E section |
+| `E2E_CANDIDATE_TOKEN` | `apps/web/e2e/take-happy-path.spec.ts:7` | E2E fixture token | Add to .env.example under E2E section |
+
+---
+
+## Agent utilization
+- Opus: Full session — authored lint, wired CI, ran gates, wrote docs, committed and pushed.
+- Sonnet: n/a — all changes ≤ 700 lines single file; files were in hot cache; subagent cold-start would have been wasteful.
+- Haiku: n/a
+- codex:rescue: n/a — pure tooling change (lint file + CI wiring + docs); no load-bearing paths, no security/auth/classifier code touched.
+
+---
+
 # Session — 2026-05-08 (Phase 2 AI generator fully operational)
 
 **Headline:** SOC-grounded AI question generator unblocked end-to-end: skill files now bind-mounted from the repo into the container; `claude` CLI accessible via Debian slim base image. All 4 skills visible at `/home/node/.claude/skills/`; route returns 401 (auth gate). Commits `f749c4f`, `b4da78f`, `0c3b856`.
