@@ -120,6 +120,18 @@ const ConfigSchema = z
         path: ["ANTHROPIC_API_KEY"],
       });
     }
+    if (
+      data.NODE_ENV === "production" &&
+      data.ENABLE_E2E_TEST_MINTER === true
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "ENABLE_E2E_TEST_MINTER MUST be false in production. The dev session " +
+          "minter bypasses Google SSO + TOTP and must never be reachable in prod.",
+        path: ["ENABLE_E2E_TEST_MINTER"],
+      });
+    }
   });
 
 export type Config = z.infer<typeof ConfigSchema>;
