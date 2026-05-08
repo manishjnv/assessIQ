@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
-import type { IconName } from "./Icon";
-import { Icon } from "./Icon";
+import type { IconName } from "./Icon.js";
+import { Icon } from "./Icon.js";
 
 export type ButtonVariant = "primary" | "outline" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";

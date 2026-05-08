@@ -1,4 +1,4 @@
-import type { TenantBranding } from "../theme/ThemeProvider";
+import type { TenantBranding } from "../theme/ThemeProvider.js";
 
 export interface TenantFixture {
   id: string;

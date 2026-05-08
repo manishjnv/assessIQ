@@ -1,54 +1,54 @@
-export { Button } from "./components/Button";
-export type { ButtonProps, ButtonVariant, ButtonSize } from "./components/Button";
+export { Button } from "./components/Button.js";
+export type { ButtonProps, ButtonVariant, ButtonSize } from "./components/Button.js";
 
-export { Card } from "./components/Card";
-export type { CardProps, CardPadding } from "./components/Card";
+export { Card } from "./components/Card.js";
+export type { CardProps, CardPadding } from "./components/Card.js";
 
-export { Field, Input, Label, FieldHelp } from "./components/Field";
-export type { FieldProps, InputProps, LabelProps, FieldHelpProps } from "./components/Field";
+export { Field, Input, Label, FieldHelp } from "./components/Field.js";
+export type { FieldProps, InputProps, LabelProps, FieldHelpProps } from "./components/Field.js";
 
-export { Chip } from "./components/Chip";
-export type { ChipProps, ChipVariant } from "./components/Chip";
+export { Chip } from "./components/Chip.js";
+export type { ChipProps, ChipVariant } from "./components/Chip.js";
 
-export { Icon } from "./components/Icon";
-export type { IconProps, IconName } from "./components/Icon";
+export { Icon } from "./components/Icon.js";
+export type { IconProps, IconName } from "./components/Icon.js";
 
-export { Logo } from "./components/Logo";
-export type { LogoProps } from "./components/Logo";
+export { Logo } from "./components/Logo.js";
+export type { LogoProps } from "./components/Logo.js";
 
-export { Num } from "./components/Num";
-export type { NumProps } from "./components/Num";
+export { Num } from "./components/Num.js";
+export type { NumProps } from "./components/Num.js";
 
-export { useCountUp } from "./hooks/useCountUp";
-export type { UseCountUpOptions } from "./hooks/useCountUp";
+export { useCountUp } from "./hooks/useCountUp.js";
+export type { UseCountUpOptions } from "./hooks/useCountUp.js";
 
-export { ThemeProvider } from "./theme/ThemeProvider";
-export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from "./theme/ThemeProvider";
+export { ThemeProvider } from "./theme/ThemeProvider.js";
+export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from "./theme/ThemeProvider.js";
 
-export { Tooltip } from "./components/Tooltip";
-export type { TooltipProps, TooltipPlacement } from "./components/Tooltip";
+export { Tooltip } from "./components/Tooltip.js";
+export type { TooltipProps, TooltipPlacement } from "./components/Tooltip.js";
 
 // Phase 2 primitives (P2.D18)
-export { ScoreRing } from "./components/ScoreRing";
-export type { ScoreRingProps, ScoreRingSize } from "./components/ScoreRing";
+export { ScoreRing } from "./components/ScoreRing.js";
+export type { ScoreRingProps, ScoreRingSize } from "./components/ScoreRing.js";
 
-export { Sparkline } from "./components/Sparkline";
-export type { SparklineProps } from "./components/Sparkline";
+export { Sparkline } from "./components/Sparkline.js";
+export type { SparklineProps } from "./components/Sparkline.js";
 
-export { Sidebar, NavItem } from "./components/Sidebar";
-export type { SidebarProps, NavItemProps } from "./components/Sidebar";
+export { Sidebar, NavItem } from "./components/Sidebar.js";
+export type { SidebarProps, NavItemProps } from "./components/Sidebar.js";
 
-export { StatCard } from "./components/StatCard";
-export type { StatCardProps } from "./components/StatCard";
+export { StatCard } from "./components/StatCard.js";
+export type { StatCardProps } from "./components/StatCard.js";
 
-export { Table } from "./components/Table";
-export type { TableProps, ColumnDef, SortDirection } from "./components/Table";
+export { Table } from "./components/Table.js";
+export type { TableProps, ColumnDef, SortDirection } from "./components/Table.js";
 
-export { Modal } from "./components/Modal";
-export type { ModalProps } from "./components/Modal";
+export { Modal } from "./components/Modal.js";
+export type { ModalProps } from "./components/Modal.js";
 
-export { Drawer } from "./components/Drawer";
-export type { DrawerProps } from "./components/Drawer";
+export { Drawer } from "./components/Drawer.js";
+export type { DrawerProps } from "./components/Drawer.js";
 
-export { TENANT_FIXTURES } from "./fixtures/tenants";
-export type { TenantFixture } from "./fixtures/tenants";
+export { TENANT_FIXTURES } from "./fixtures/tenants.js";
+export type { TenantFixture } from "./fixtures/tenants.js";
