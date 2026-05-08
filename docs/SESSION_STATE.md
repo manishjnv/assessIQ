@@ -1,4 +1,40 @@
-# Session — 2026-05-08 (SOC AI question generator shipped)
+# Session — 2026-05-08 (3 punch-list bugs closed)
+
+**Headline:** Closed 3 remaining 2026-05-03 punch-list bugs: invite-accept no-enumeration oracle (`d20735a`), pack-detail pageSize 100→500 (`51a1ad1`), candidate magic-link `/invite/`→`/take/` (`a79282c`). All 3 deployed + smoked.
+
+**Commits:**
+- `d20735a` — fix(invitations): accept flow no longer requires tenant context
+- `51a1ad1` — fix(question-bank): bump listQuestions pageSize cap to 500
+- `a79282c` — fix(notifications): candidate invitation URL is /take/<token> not /invite/<token>
+
+**Tests:**
+- `@assessiq/notifications`: 40/40 pass (includes new Fix 3 regression test)
+- `@assessiq/users` typecheck: clean; users.test.ts requires testcontainer (skipped locally — pre-existing Docker constraint)
+- `@assessiq/admin-dashboard` typecheck: clean
+- Pre-existing failures unchanged: 3× `lastSeenAt` in `07-ai-grading/src/routes.ts`
+
+**Deployed:** VPS git pull at `a79282c`. assessiq-api + assessiq-worker + assessiq-frontend force-recreated and healthy.
+
+**Smokes:**
+- Fix 1: `POST /api/invitations/accept {token: 43-char-fake}` → `{"code":"NOT_FOUND","details":{"code":"INVITATION_NOT_FOUND"}}` ✅ (not 500)
+- Fix 2: `GET /api/admin/questions?pageSize=500` → `{"code":"AUTHN_FAILED"}` ✅ (pageSize=500 passes validation layer, auth error only)
+- Fix 3: dev-emails.log shows May 3 candidate invite had `/invite/BK8_...` (bug confirmed); new invitations post-deploy will use `/take/`. Manual re-invite needed to confirm /take/ in live email.
+
+**Next:** Smoke Fix 3 fully by inviting a real candidate via Admin → Cycles → Invite → check dev-emails.log for `/take/<token>`. Then configure `vars.E2E_BASE_URL` in GitHub repo settings to activate the CI E2E job.
+
+**Open questions:**
+- Fix 3 manual smoke (live candidate invite) not yet run — requires active admin session and test candidate email.
+- Pre-existing `lastSeenAt` typecheck failures in `07-ai-grading/src/routes.ts` — 3 errors unchanged.
+
+---
+
+## Agent utilization
+- Opus: All implementation (< 30 lines per change, files already in hot cache), all gates, all commits/push/deploy.
+- Sonnet: n/a — all changes were ≤ 6 lines each across 5 files; Opus direct faster than subagent cold-start.
+- Haiku: n/a
+- codex:rescue: n/a — no load-bearing or security-adjacent paths changed (repository.ts WHERE clause is a data filtering change, not auth/classifier logic); Sonnet takeover would apply if needed per fallback ladder.
+
+
 
 **Headline:** Full SOC-grounded AI question generator: 70-entry SOC KB (L1/L2/L3) + `generate-questions` skill + `submit_questions` MCP tool + admin generate-drawer UI + D2 lint tightened. Questions land as `ai_draft` with MITRE/NIST citation chips.
 

@@ -4,6 +4,28 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-08 — 3 remaining 2026-05-03 punch-list bugs closed (punch-list #4, #6, #7)
+
+**Symptom:** Three bugs from the 2026-05-03 manual-test session were not fixed in subsequent sessions:
+- **#4 (invite-accept no-enumeration oracle)** — `findInvitationByTokenHashSystem` WHERE clause was `token_hash = $1 LIMIT 1`; expired and already-used tokens returned different error codes (`INVITATION_EXPIRED`, `INVITATION_ALREADY_USED`) from not-found tokens (`INVITATION_NOT_FOUND`), creating a timing-oracle that could distinguish token states.
+- **#6 (pack-detail pageSize=100 vs backend cap=500)** — `pack-detail.tsx` fetched `GET /admin/questions?pageSize=100` after the backend `parsePagination()` cap was raised to 500 in commit `2431ad5`. Packs with L1/L2/L3 fully populated (200+ questions) silently truncated to 100.
+- **#7 (candidate invitation URL `/invite/<token>` → `/take/<token>`)** — `inviteUsers()` in `modules/05-assessment-lifecycle/src/service.ts` built the magic-link as `PUBLIC_URL + '/invite/' + plaintext`. The SPA has no `/invite/:token` route; candidates clicking the link landed on the SPA 404 fallback. Confirmed by dev-emails.log: `2026-05-03T13:39:21.256Z` entry shows `https://assessiq.automateedge.cloud/invite/BK8_Zzw4RvL80eelEYOdMirxzVwcZmhzZrhpZ3qRrBE`.
+
+**Cause:**
+- **#4** — The `findInvitationByTokenHashSystem` SQL didn't include `AND accepted_at IS NULL AND expires_at > NOW()`. The service layer had manual post-lookup checks that threw distinct error codes, leaking oracle information. `modules/03-users/src/repository.ts` line ~443.
+- **#6** — Only the backend `parsePagination()` cap was updated in the prior fix; the frontend fetch URL in `modules/10-admin-dashboard/src/pages/pack-detail.tsx` line ~140 still used `pageSize=100`.
+- **#7** — `modules/05-assessment-lifecycle/src/service.ts` line 741 used `/invite/` instead of `/take/`. The `/take/:token` SPA route and the `POST /api/take/start` API endpoint are the correct candidate entry points; `/invite/` was never registered.
+
+**Fix:**
+- **#4** (`d20735a`): `findInvitationByTokenHashSystem` WHERE clause: added `AND accepted_at IS NULL AND expires_at > NOW()`. All invalid tokens (expired, used, not-found) now return null → identical `INVITATION_NOT_FOUND` 4xx. Two `users.test.ts` assertions updated from `ConflictError(INVITATION_EXPIRED/INVITATION_ALREADY_USED)` to `NotFoundError(INVITATION_NOT_FOUND)`.
+- **#6** (`51a1ad1`): `pack-detail.tsx` fetch: `pageSize=100` → `pageSize=500`. Questions error card (danger border + Retry) was already present.
+- **#7** (`a79282c`): `service.ts` line 741: `/invite/` → `/take/`. Regression test added to `modules/13-notifications/src/__tests__/notifications.test.ts`: renders `invitation_candidate` template; asserts body contains `/take/<token>` and does not contain `/invite/`.
+
+**Prevention:**
+- The no-enumeration oracle (Fix #4) is now enforced at the DB layer — the service manual checks are dead code but harmless. Any future lookup that needs to distinguish expired-vs-used states must do so via audit log, not via distinct API error codes visible to the caller.
+- Paginated fetch URLs should always match the backend cap; the RCA for #6 (`2026-05-04 — GET /api/admin/questions 400`) should have updated the frontend too.
+- The Fix #7 regression test in `notifications.test.ts` guards the template contract permanently: `/invite/` in a candidate invitation email is a test failure.
+
 ## 2026-05-08 — 6 workflow-integration bugs caught by manual click-testing; E2E spec added as recurrence prevention
 
 **Symptom:** Manual click-testing on 2026-05-08 surfaced 6 bugs in 2 hours, of which 3–4 were workflow-integration-class regressions (involving cross-module state transitions, empty-state handling, and invitation acceptance errors) that could have been caught by automated E2E tests at PR time. Specific bugs referenced by their prior RCA entries: `POST /admin/packs 500 slug null` (baf73cb), `GET /admin/questions 400 pageSize cap` (2431ad5), `POST /invitations/accept 500 withSystemClient` (30ba73d), and cohort-report empty-state blank page.
