@@ -79,12 +79,11 @@ services:
     # daemon, on host) and pino (in container) share the file inodes. Path
     # MUST match the LOG_DIR env var. See docs/11-observability.md § 7.
     #
-    # Skills: bind /root/.claude/skills from host read-only into the container
-    # at /home/node/.claude/skills so skill-sha.ts (os.homedir() = /home/node)
-    # can hash skill files and claude-code-vps.ts can spawn `claude -p` with
-    # the correct skill visible. Skills are managed on the host via the
-    # docs/06-deployment.md § "SKILL.md update procedure"; no image rebuild
-    # needed when a skill is updated — just recreate the container.
+    # Skills: bind prompts/skills/ from the repo (relative to this compose
+    # file at infra/docker-compose.yml, so ../prompts/skills) read-only into
+    # the container at /home/node/.claude/skills. This means `git pull` alone
+    # is sufficient to deploy skill changes — no image rebuild needed.
+    # skill-sha.ts resolves via os.homedir() = /home/node inside container.
     #
     # claude CLI: bind the host binary read-only. The API container base is
     # node:22-slim (Debian/glibc) so the glibc ELF binary runs correctly.
@@ -92,7 +91,7 @@ services:
     # the host; bind it read-only so claude in the container authenticates.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
-      - /root/.claude/skills:/home/node/.claude/skills:ro
+      - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
       - /root/.claude/settings.json:/home/node/.claude/settings.json:ro
@@ -140,7 +139,7 @@ services:
     # Skills + claude: same binds as assessiq-api (see comment there).
     volumes:
       - /var/log/assessiq:/var/log/assessiq
-      - /root/.claude/skills:/home/node/.claude/skills:ro
+      - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
       - /root/.claude/settings.json:/home/node/.claude/settings.json:ro
