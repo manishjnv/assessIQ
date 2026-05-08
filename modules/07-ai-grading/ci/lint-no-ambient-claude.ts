@@ -32,6 +32,15 @@
  * directory and the lint polices it via RE_GRADING_RUNTIME_IMPORT + the
  * BANNED_PATH_PATTERNS check (banned-path files may not import generateQuestions).
  *
+ * 2026-05-08 Session 2.b: three new admin rubric endpoints added in
+ * modules/04-question-bank/src/routes.ts:
+ *   POST /api/admin/questions/:id/generate-rubric
+ *   POST /api/admin/questions/:id/save-rubric
+ *   POST /api/admin/packs/:id/generate-missing-rubrics
+ * These route to service.ts which calls generateRubricDraft via dynamic
+ * import of @assessiq/ai-grading. routes.ts is NOT a banned path. The
+ * D2 invariant is preserved: no ambient invocation, admin-click-only.
+ *
  * Plus the SDK import allow-list (one file only):
  *
  *   - `modules/07-ai-grading/src/runtimes/anthropic-api.ts`
@@ -211,7 +220,7 @@ const RE_AGENT_SDK_IMPORT =
  * reason to reach into the grading runtime, even for types.
  */
 const RE_GRADING_RUNTIME_IMPORT =
-  /(?:from\s+["'](?:[^"']*\/modules\/07-ai-grading\/runtimes\/[^"']+|@assessiq\/ai-grading)["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b|\bgenerateQuestions\b)/;
+  /(?:from\s+["'](?:[^"']*\/modules\/07-ai-grading\/runtimes\/[^"']+|@assessiq\/ai-grading)["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b|\bgenerateQuestions\b|\bgenerateRubricDraft\b)/;
 
 /**
  * Banned-path globs for patterns 3-7. A file matching ANY of these AND
@@ -386,6 +395,22 @@ function runSelfTest(): void {
     content: `import { generateQuestions } from "@assessiq/ai-grading";\nasync function run() { return generateQuestions(input); }`,
   };
 
+  // --- Fixture 11: generateRubricDraft in banned worker path → violation ---
+  // (2026-05-08 Session 2.b — covers generateRubricDraft in RE_GRADING_RUNTIME_IMPORT)
+  const workerRubricViolation = {
+    path: "apps/worker/src/rubric-handler.ts",
+    content: `import { generateRubricDraft } from "@assessiq/ai-grading";`,
+  };
+
+  // --- Fixture 12: generateRubricDraft in non-banned service path → no violation ---
+  // (question-bank service.ts is the authorised caller; not a banned path)
+  // Content uses the symbol name (not a dep-import-lint-triggering dynamic import string)
+  // to verify the path matcher returns 0 violations for non-banned paths.
+  const serviceRubricAllowed = {
+    path: "modules/04-question-bank/src/service.ts",
+    content: `// service layer: calls generateRubricDraft from ai-grading\nconst output = await generateRubricDraft(input);`,
+  };
+
   const results = [
     { fixture: "ok", actual: validateFile(okFile.path, okFile.content), expectViolations: 0 },
     { fixture: "spawn-violation", actual: validateFile(spawnViolation.path, spawnViolation.content), expectViolations: 1 },
@@ -397,6 +422,8 @@ function runSelfTest(): void {
     { fixture: "webhook-violation", actual: validateFile(webhookViolation.path, webhookViolation.content), expectViolations: 1 },
     { fixture: "worker-generateQuestions-violation", actual: validateFile(workerGenerateViolation.path, workerGenerateViolation.content), expectViolations: 1 },
     { fixture: "handler-generateQuestions-allowed", actual: validateFile(handlerGenerateAllowed.path, handlerGenerateAllowed.content), expectViolations: 0 },
+    { fixture: "worker-generateRubricDraft-violation", actual: validateFile(workerRubricViolation.path, workerRubricViolation.content), expectViolations: 1 },
+    { fixture: "service-generateRubricDraft-allowed", actual: validateFile(serviceRubricAllowed.path, serviceRubricAllowed.content), expectViolations: 0 },
   ];
 
   let passed = true;
