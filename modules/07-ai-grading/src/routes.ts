@@ -13,6 +13,7 @@
 // the request body. Hard rule per CLAUDE.md § AssessIQ-specific hard rules #4.
 //
 // Errors flow through the global Fastify error handler in apps/api/src/server.ts;
+/// <reference path="./fastify.d.ts" />
 // this layer throws ValidationError from @assessiq/core on bad input and does
 // NOT try/catch service throws (AppError subclasses are caught by the global
 // error handler and mapped to HTTP).

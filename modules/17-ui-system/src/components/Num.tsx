@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCountUp } from "../hooks/useCountUp";
+import { useCountUp } from "../hooks/useCountUp.js";
 
 export interface NumProps extends React.HTMLAttributes<HTMLSpanElement> {
   value: number;
