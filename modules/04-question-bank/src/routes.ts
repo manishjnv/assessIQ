@@ -45,6 +45,9 @@ import {
   restoreVersion,
   bulkImport,
   generateQuestions,
+  generateRubricForQuestion,
+  saveRubric,
+  bulkGenerateMissingRubrics,
 } from "./service.js";
 import type {
   AddLevelInput,
@@ -391,6 +394,53 @@ export async function registerQuestionBankRoutes(
           : undefined;
 
       return generateQuestions(tenantId, userId, packId, levelId, count, topicFocus);
+    },
+  );
+
+  // POST /api/admin/questions/:id/generate-rubric
+  // Returns a rubric proposal (NOT saved). Admin must POST to save-rubric to persist.
+  // D2 compliant: admin-only route, no BullMQ/cron/webhook path.
+  app.post(
+    "/api/admin/questions/:id/generate-rubric",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const { id } = req.params as { id: string };
+      return generateRubricForQuestion(tenantId, id);
+    },
+  );
+
+  // POST /api/admin/questions/:id/save-rubric
+  // Validates weight=100 server-side (client live total is UX only).
+  // Persists the rubric as a new version. Separate from generate.
+  app.post(
+    "/api/admin/questions/:id/save-rubric",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      const body = req.body as { rubric?: unknown };
+      if (!body?.rubric) {
+        throw new ValidationError("rubric is required", {
+          details: { code: "INVALID_PARAM", param: "rubric" },
+        });
+      }
+      return saveRubric(tenantId, id, body.rubric, userId);
+    },
+  );
+
+  // POST /api/admin/packs/:id/generate-missing-rubrics
+  // Finds first question in pack with rubric IS NULL and type in (subjective, scenario).
+  // Returns proposal + cursor (currentQuestionId, nextQuestionId, remainingCount).
+  // Does NOT auto-save — admin reviews each proposal and POSTs to save-rubric.
+  app.post(
+    "/api/admin/packs/:id/generate-missing-rubrics",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const { id: packId } = req.params as { id: string };
+      return bulkGenerateMissingRubrics(tenantId, packId);
     },
   );
 }

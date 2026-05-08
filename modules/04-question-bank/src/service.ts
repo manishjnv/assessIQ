@@ -611,6 +611,7 @@ export async function updateLevel(
     if (patch.duration_minutes !== undefined) repoPatch.duration_minutes = patch.duration_minutes;
     if (patch.default_question_count !== undefined) repoPatch.default_question_count = patch.default_question_count;
     if (patch.passing_score_pct !== undefined) repoPatch.passing_score_pct = patch.passing_score_pct;
+    if (patch.rubric_defaults !== undefined) repoPatch.rubric_defaults = patch.rubric_defaults;
 
     return repo.updateLevelRow(client, levelId, repoPatch);
   });
@@ -1158,5 +1159,210 @@ export async function generateQuestions(
     socLevel,
     sources,
     existingTopics,
+  });
+}
+
+// ===========================================================================
+// RUBRIC GENERATOR — proposal + save + bulk-fill
+// ===========================================================================
+
+/**
+ * Generate a rubric proposal for a subjective or scenario question.
+ * Returns a proposal WITHOUT persisting — admin must POST to save-rubric.
+ *
+ * D2 compliance: uses dynamic import to call generateRubricDraft from
+ * @assessiq/ai-grading. This service file is not in a banned path.
+ * The D2 lint enforces the call-site restriction at the runtime level,
+ * not at the service layer.
+ */
+export async function generateRubricForQuestion(
+  tenantId: string,
+  questionId: string,
+): Promise<{
+  proposal: unknown;
+  skillSha: string;
+  promptSha: string;
+  levelDefaultsHash: string;
+  model: string;
+}> {
+  return withTenant(tenantId, async (client) => {
+    const question = await repo.findQuestionById(client, questionId);
+    if (!question) {
+      throw new NotFoundError("question not found", {
+        details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND, questionId },
+      });
+    }
+
+    if (question.type !== "subjective" && question.type !== "scenario") {
+      throw new ValidationError(
+        "rubric generation only supported for subjective and scenario questions",
+        { details: { code: "UNSUPPORTED_TYPE", type: question.type } },
+      );
+    }
+
+    const level = await repo.findLevelById(client, question.level_id);
+    if (!level) {
+      throw new NotFoundError("level not found", {
+        details: { code: QB_ERROR_CODES.LEVEL_NOT_FOUND, levelId: question.level_id },
+      });
+    }
+
+    const questionText =
+      typeof (question.content as Record<string, unknown>)?.question === "string"
+        ? (question.content as Record<string, unknown>).question as string
+        : JSON.stringify(question.content);
+
+    const { generateRubricDraft } = await import("@assessiq/ai-grading");
+
+    const output = await generateRubricDraft({
+      questionText,
+      questionType: question.type as "subjective" | "scenario",
+      levelOrdinal: level.position,
+      levelDefaults: level.rubric_defaults ?? null,
+      existingRubric: question.rubric ?? undefined,
+      questionId,
+    });
+
+    return {
+      proposal: output.rubric,
+      skillSha: output.skillSha,
+      promptSha: output.promptSha,
+      levelDefaultsHash: output.levelDefaultsHash,
+      model: output.model,
+    };
+  });
+}
+
+/**
+ * Validate and persist a rubric to a question.
+ * Server-side weight=100 invariant validation runs BEFORE any DB write.
+ * Creates a new version snapshot (via updateQuestion) before persisting.
+ */
+export async function saveRubric(
+  tenantId: string,
+  questionId: string,
+  rubric: unknown,
+  userId: string,
+): Promise<{ id: string }> {
+  const { RubricSchema } = await import("@assessiq/rubric-engine");
+
+  const validated = RubricSchema.safeParse(rubric);
+  if (!validated.success) {
+    throw new ValidationError(
+      "rubric failed schema validation: " +
+        validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      { details: { code: QB_ERROR_CODES.INVALID_RUBRIC, issues: validated.error.issues } },
+    );
+  }
+
+  return withTenant(tenantId, async (client) => {
+    const question = await repo.findQuestionById(client, questionId);
+    if (!question) {
+      throw new NotFoundError("question not found", {
+        details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND, questionId },
+      });
+    }
+
+    // Snapshot current state before overwriting rubric
+    await repo.insertQuestionVersion(client, {
+      id: uuidv7(),
+      questionId: question.id,
+      version: question.version,
+      content: question.content,
+      rubric: question.rubric,
+      savedBy: userId,
+    });
+
+    await repo.updateQuestionRow(client, questionId, {
+      rubric: validated.data,
+      version: question.version + 1,
+    });
+
+    return { id: questionId };
+  });
+}
+
+export interface BulkGenerateMissingRubricsResult {
+  proposal: unknown;
+  skillSha: string;
+  promptSha: string;
+  levelDefaultsHash: string;
+  model: string;
+  currentQuestionId: string;
+  remainingCount: number;
+  nextQuestionId: string | null;
+}
+
+/**
+ * Find the first question in a pack with rubric IS NULL and type in
+ * (subjective, scenario). Return a proposal + cursor.
+ * Does NOT auto-save — admin reviews each proposal and POSTs to save-rubric.
+ */
+export async function bulkGenerateMissingRubrics(
+  tenantId: string,
+  packId: string,
+): Promise<BulkGenerateMissingRubricsResult> {
+  return withTenant(tenantId, async (client) => {
+    const nullRubricRes = await client.query<{ id: string; count: string }>(
+      `SELECT q.id, COUNT(*) OVER() AS count
+       FROM questions q
+       WHERE q.pack_id = $1
+         AND q.rubric IS NULL
+         AND q.type IN ('subjective', 'scenario')
+       ORDER BY q.created_at ASC`,
+      [packId],
+    );
+
+    if (nullRubricRes.rows.length === 0) {
+      throw new NotFoundError(
+        "no questions with missing rubrics found in this pack",
+        { details: { code: "NO_MISSING_RUBRICS", packId } },
+      );
+    }
+
+    const firstRow = nullRubricRes.rows[0]!;
+    const currentQuestionId = firstRow.id;
+    const totalCount = parseInt(firstRow.count, 10);
+    const nextQuestionId = nullRubricRes.rows[1]?.id ?? null;
+    const remainingCount = totalCount - 1;
+
+    const question = await repo.findQuestionById(client, currentQuestionId);
+    if (!question) {
+      throw new NotFoundError("question not found", {
+        details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND, questionId: currentQuestionId },
+      });
+    }
+    const level = await repo.findLevelById(client, question.level_id);
+    if (!level) {
+      throw new NotFoundError("level not found", {
+        details: { code: QB_ERROR_CODES.LEVEL_NOT_FOUND, levelId: question.level_id },
+      });
+    }
+
+    const questionText =
+      typeof (question.content as Record<string, unknown>)?.question === "string"
+        ? (question.content as Record<string, unknown>).question as string
+        : JSON.stringify(question.content);
+
+    const { generateRubricDraft } = await import("@assessiq/ai-grading");
+
+    const output = await generateRubricDraft({
+      questionText,
+      questionType: question.type as "subjective" | "scenario",
+      levelOrdinal: level.position,
+      levelDefaults: level.rubric_defaults ?? null,
+      questionId: currentQuestionId,
+    });
+
+    return {
+      proposal: output.rubric,
+      skillSha: output.skillSha,
+      promptSha: output.promptSha,
+      levelDefaultsHash: output.levelDefaultsHash,
+      model: output.model,
+      currentQuestionId,
+      remainingCount,
+      nextQuestionId,
+    };
   });
 }
