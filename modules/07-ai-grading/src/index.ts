@@ -38,7 +38,14 @@ export type {
 } from "./types.js";
 
 // Runtime dispatch (D1 — single static switch)
-export { gradeSubjective } from "./runtime-selector.js";
+export { gradeSubjective, generateQuestions } from "./runtime-selector.js";
+
+// Generation types
+export type {
+  GenerateQuestionsInput,
+  GenerateQuestionsOutput,
+  GeneratedQuestionDraft,
+} from "./types.js";
 
 // Repository (Session 1.b)
 export type { InsertGradingInput, QueueRow } from "./repository.js";
@@ -109,6 +116,14 @@ export {
 
 export type { HandleAdminBudgetOutput } from "./handlers/admin-budget.js";
 export { handleAdminBudget } from "./handlers/admin-budget.js";
+
+// AI question generator handler (Session 2 — question generation feature)
+export type {
+  HandleAdminGenerateInput,
+  HandleAdminGenerateOutput,
+  KbSourceRef,
+} from "./handlers/admin-generate.js";
+export { handleAdminGenerate } from "./handlers/admin-generate.js";
 
 // Fastify route registrar — Session 1.c (routes sonnet's scope)
 export { registerGradingRoutes } from "./routes.js";

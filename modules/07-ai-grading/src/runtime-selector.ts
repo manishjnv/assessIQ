@@ -23,7 +23,7 @@
 
 import { AppError, config } from "@assessiq/core";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
-import type { GradingInput, GradingProposal } from "./types.js";
+import type { GradingInput, GradingProposal, GenerateQuestionsInput, GenerateQuestionsOutput } from "./types.js";
 
 /**
  * Mode-agnostic core. Delegates to the active runtime per D1.
@@ -55,6 +55,31 @@ export async function gradeSubjective(
         `Unknown AI_PIPELINE_MODE: ${mode}`,
         AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
         500,
+      );
+    }
+  }
+}
+
+/**
+ * Mode-agnostic question generator.  Delegates to the active runtime per D1.
+ *
+ * Callers (handlers/admin-generate.ts) MUST verify admin session + single-flight
+ * mutex BEFORE calling this function.
+ */
+export async function generateQuestions(
+  input: GenerateQuestionsInput,
+): Promise<GenerateQuestionsOutput> {
+  switch (config.AI_PIPELINE_MODE) {
+    case "claude-code-vps": {
+      const m = await import("./runtimes/claude-code-vps.js");
+      return m.generateQuestions(input);
+    }
+    default: {
+      const mode = config.AI_PIPELINE_MODE as string;
+      throw new AppError(
+        `generateQuestions not implemented for AI_PIPELINE_MODE: ${mode}`,
+        AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
+        501,
       );
     }
   }
