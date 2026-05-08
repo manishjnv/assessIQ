@@ -78,8 +78,16 @@ services:
     # Operational logs: bind /var/log/assessiq from host so logrotate (system
     # daemon, on host) and pino (in container) share the file inodes. Path
     # MUST match the LOG_DIR env var. See docs/11-observability.md § 7.
+    #
+    # Skills: bind /root/.claude/skills from host read-only into the container
+    # at /home/node/.claude/skills so skill-sha.ts (os.homedir() = /home/node)
+    # can hash skill files and claude-code-vps.ts can spawn `claude -p` with
+    # the correct skill visible. Skills are managed on the host via the
+    # docs/06-deployment.md § "SKILL.md update procedure"; no image rebuild
+    # needed when a skill is updated — just recreate the container.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
+      - /root/.claude/skills:/home/node/.claude/skills:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
@@ -119,8 +127,10 @@ services:
         required: false
     # Operational logs: same bind as assessiq-api. Worker logs go to the same
     # JSONL files (stream binding distinguishes per-process emitters).
+    # Skills: same bind as assessiq-api (see comment there).
     volumes:
       - /var/log/assessiq:/var/log/assessiq
+      - /root/.claude/skills:/home/node/.claude/skills:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
