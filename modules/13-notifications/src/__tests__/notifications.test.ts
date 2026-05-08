@@ -333,6 +333,25 @@ describe('email template rendering', () => {
     expect(result.text).toContain('https://assessiq.test/take/token123');
   });
 
+  // Regression: 2026-05-03 — candidate invitation link was /invite/<token> instead of /take/<token>
+  // Fix: modules/05-assessment-lifecycle/src/service.ts inviteUsers() now uses PUBLIC_URL + '/take/' + plaintext.
+  // This test guards the template-rendering contract: any /take/<token> link must survive rendering
+  // as-is; a /invite/<token> link must never appear in a candidate invitation email body.
+  it('invitation_candidate — rendered body contains /take/ and never /invite/ (regression Fix 3)', () => {
+    const token = 'abc123def456ghi789jkl012mno345pqr678stu';
+    const result = renderTemplate('invitation_candidate', {
+      candidateName: 'Candidate User',
+      assessmentName: 'SOC Assessment',
+      invitationLink: `https://assessiq.test/take/${token}`,
+      expiresAt: '2026-06-01T00:00:00Z',
+      tenantName: 'Test Corp',
+    });
+    expect(result.text).toContain(`/take/${token}`);
+    expect(result.html).toContain(`/take/${token}`);
+    expect(result.text).not.toContain('/invite/');
+    expect(result.html).not.toContain('/invite/');
+  });
+
   it('renders all 7 templates without throwing', () => {
     const templates = [
       { name: 'invitation_admin' as const, vars: {
