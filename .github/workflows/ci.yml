@@ -83,6 +83,19 @@ jobs:
       - name: Edge-routing lint (repo scan)
         run: pnpm lint:edge-routing
 
+      # 12. Deploy-procedure lint — 4 checks for ops-vs-code drift.
+      # A: skill bind-mount integrity (RCA 2026-05-08 skill-mount incidents)
+      # B: migration apply chain (orphaned SQL files not discovered by migrate.ts)
+      # C: env var declaration coverage (vars read in code but missing from .env.example)
+      # D: email template URL ↔ SPA route (RCA 2026-05-04 /invite/ vs /take/)
+      # Self-test runs first so a regression in the lint itself surfaces before
+      # the actual scan does.
+      - name: Deploy-procedure lint (self-test)
+        run: pnpm lint:deploy-procedure:self-test
+
+      - name: Deploy-procedure lint (repo scan)
+        run: pnpm lint:deploy-procedure
+
       # 10. Secrets scan — exact regex set from .claude/hooks/precommit-gate.sh lines 40-51
       # plus the hardcoded-credential-literal pattern. Runs on all files (not just diff)
       # so CI catches anything the precommit hook might have missed.
