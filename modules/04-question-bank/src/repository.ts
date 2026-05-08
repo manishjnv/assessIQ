@@ -36,6 +36,7 @@ import type {
   CreateQuestionInput,
   KnowledgeBaseSource,
   Level,
+  LevelRubricDefaults,
   ListPacksInput,
   ListQuestionsInput,
   PackStatus,
@@ -54,7 +55,7 @@ import type {
 
 const PACK_COLUMNS = `id, tenant_id, slug, name, domain, description, status, version, created_by, created_at, updated_at`;
 
-const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct`;
+const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct, rubric_defaults`;
 
 const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, knowledge_base_sources, created_by, created_at, updated_at`;
 
@@ -89,6 +90,7 @@ interface LevelRow {
   duration_minutes: number;
   default_question_count: number;
   passing_score_pct: number;
+  rubric_defaults: LevelRubricDefaults | null;
 }
 
 interface QuestionRow {
@@ -155,6 +157,7 @@ function mapLevelRow(row: LevelRow): Level {
     duration_minutes: row.duration_minutes,
     default_question_count: row.default_question_count,
     passing_score_pct: row.passing_score_pct,
+    rubric_defaults: row.rubric_defaults ?? null,
   };
 }
 
@@ -473,6 +476,15 @@ export async function updateLevelRow(
     sets.push(`passing_score_pct = $${i}`);
     values.push(patch.passing_score_pct);
     i++;
+  }
+  if (patch.rubric_defaults !== undefined) {
+    if (patch.rubric_defaults === null) {
+      sets.push(`rubric_defaults = NULL`);
+    } else {
+      sets.push(`rubric_defaults = $${i}`);
+      values.push(JSON.stringify(patch.rubric_defaults));
+      i++;
+    }
   }
 
   if (sets.length === 0) {
