@@ -39,6 +39,7 @@ Reads: `users` (existence check), `tenants`, `tenant_settings`.
 - **TOTP enroll:** server generates secret + QR; user confirms; recovery codes shown once
 - **Embed:** `/embed?token=<JWT>` → verify HS256 with tenant secret → mint session → SPA in embed mode
 - **API key:** `Authorization: Bearer aiq_live_*` → sha256 lookup → tenant context set
+- **E2E test-minter (dev/CI only):** `POST /api/dev/mint-session` (body: `{email, role, tenantSlug}`) → find-or-create user via system-role BYPASSRLS → `sessions.create({totpVerified:true})` → sets `aiq_sess` cookie + returns `{sessionId, userId}`. Route is conditionally imported only when `ENABLE_E2E_TEST_MINTER=true` (see `apps/api/src/server.ts` conditional import). Pattern mirrors `/embed/sdk-mint` (12-embed-sdk) but uses a dedicated env var so E2E and embed are independently gated. **INVARIANT: ENABLE_E2E_TEST_MINTER must be absent or `"false"` in production `.env`.** Verify post-deploy: `curl -I /api/dev/mint-session` must return 404.
 
 ## Help/tooltip surface
 - `admin.auth.totp.enroll` — explains TOTP enrollment, app recommendations, recovery codes

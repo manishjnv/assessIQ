@@ -70,6 +70,9 @@ export const ACTION_CATALOG = [
   'help.content.updated',
   // Analytics exports (G3.C — admin bulk download is an auditable action)
   'attempt.exported',
+  // Dev-only E2E test-minter — off in production per ENABLE_E2E_TEST_MINTER gate.
+  // Auditable so dev/staging test runs are traceable in the audit trail.
+  'dev.mint_session',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

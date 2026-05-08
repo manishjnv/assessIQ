@@ -236,6 +236,16 @@ export async function buildServer() {
   await registerHelpAuthRoutes(app, { authChain: authChainAdapter });
   await registerHelpAdminRoutes(app, { authChain: authChainAdapter });
 
+  // Dev-only E2E session minter — POST /api/dev/mint-session.
+  // Route is conditionally imported so it does NOT exist in the prod module
+  // graph when ENABLE_E2E_TEST_MINTER is false (compile-time skip, not a
+  // runtime guard). See apps/api/src/routes/dev/mint-session.ts.
+  if (config.ENABLE_E2E_TEST_MINTER) {
+    const { registerDevMintSessionRoute } = await import('./routes/dev/mint-session.js');
+    await registerDevMintSessionRoute(app);
+    appLog.warn({}, 'ENABLE_E2E_TEST_MINTER=true — dev/mint-session route ACTIVE (not for production)');
+  }
+
   return app;
 }
 
