@@ -737,8 +737,9 @@ export async function inviteUsers(
         invitedBy: invitedByUserId,
       });
 
-      // Build the accept URL with plaintext token (email body only)
-      const invitationLink = `${PUBLIC_URL}/invite/${plaintext}`;
+      // Build the accept URL with plaintext token (email body only).
+      // Candidates land on /take/<token> — the magic-link SPA route.
+      const invitationLink = `${PUBLIC_URL}/take/${plaintext}`;
 
       // Send via 13-notifications shim — never inline SMTP here.
       // tenantName resolved above via tenancyRepo.findTenantById (same client).
