@@ -150,6 +150,76 @@ export interface TenantGradingBudget {
 }
 
 // ---------------------------------------------------------------------------
+// GenerateQuestions — input / output types for the AI question generator
+// ---------------------------------------------------------------------------
+
+/**
+ * Input to generateQuestions() via the runtime-selector.
+ * Constructed by handlers/admin-generate.ts.
+ */
+export interface GenerateQuestionsInput {
+  /** SOC analyst level — controls KB slice and question depth. */
+  level: "L1" | "L2" | "L3";
+  /** Target question count, 1-10. */
+  count: number;
+  /** Optional KbSource.function category to prefer. */
+  topicFocus?: string;
+  /** Existing topic strings to avoid duplication. */
+  existingTopics: string[];
+  /**
+   * Curated KB sources to embed in the generator prompt.
+   * Selected by the handler from SOC_KNOWLEDGE_BASE filtered by level/topicFocus.
+   * The runtime never imports the KB directly — sources are passed in as data.
+   */
+  sources: Array<{
+    id: string;
+    name: string;
+    citation: string;
+    url: string;
+    level_fit: "L1" | "L2" | "L3";
+    function: string;
+    description: string;
+    tags: string[];
+    kb_version: string;
+  }>;
+  /** For structured logging only — not sent to the model. */
+  packId: string;
+  levelId: string;
+}
+
+/**
+ * One question draft returned by the generate-questions skill's
+ * submit_questions MCP tool call.
+ */
+export interface GeneratedQuestionDraft {
+  type: "mcq" | "subjective" | "kql" | "scenario" | "log_analysis";
+  topic: string;
+  points: number;
+  content: unknown;
+  rubric: unknown | null;
+  /** KbSource.id values from the KB slice — for provenance chips. */
+  knowledgeBaseSources: Array<{
+    id: string;
+    name: string;
+    citation: string;
+    url: string;
+    level_fit: "L1" | "L2" | "L3";
+    function: string;
+    kb_version: string;
+  }>;
+}
+
+/**
+ * Returned by generateQuestions() — the full set of generated drafts plus
+ * the skill SHA for provenance recording.
+ */
+export interface GenerateQuestionsOutput {
+  questions: GeneratedQuestionDraft[];
+  /** First 8 hex chars of the generate-questions SKILL.md sha256. */
+  skillSha: string;
+}
+
+// ---------------------------------------------------------------------------
 // Error codes
 // ---------------------------------------------------------------------------
 

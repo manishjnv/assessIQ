@@ -35,6 +35,9 @@ import {
 import type {
   AnchorFinding,
   BandFinding,
+  GenerateQuestionsInput,
+  GenerateQuestionsOutput,
+  GeneratedQuestionDraft,
   GradingInput,
   GradingProposal,
 } from "../types.js";
@@ -297,6 +300,122 @@ export async function gradeSubjective(
 
 /** Public alias — D2 lint allow-list contract names this symbol. */
 export const runClaudeCodeGrading = gradeSubjective;
+
+// ---------------------------------------------------------------------------
+// generateQuestions — Question generation using the generate-questions skill
+// ---------------------------------------------------------------------------
+
+const SKILL_GENERATE = "generate-questions";
+const TOOL_SUBMIT_QUESTIONS = "submit_questions";
+const MCP_SUBMIT_QUESTIONS = "mcp__assessiq__submit_questions";
+
+/**
+ * GeneratedQuestionSchema — validates the submit_questions payload from the
+ * skill.  Mirrors the MCP tool's submit-questions.ts schema without importing
+ * the tools package (no dep in this package.json).
+ */
+const GeneratedQuestionDraftSchema = z.object({
+  type: z.enum(["mcq", "subjective", "kql", "scenario", "log_analysis"]),
+  topic: z.string().min(3).max(200),
+  points: z.number().int().min(1).max(10),
+  knowledge_base_source_ids: z.array(z.string().min(1)).min(1),
+  content: z.unknown(),
+  rubric: z.unknown().nullable().optional(),
+});
+
+const SubmitQuestionsInputSchema = z.object({
+  questions: z.array(GeneratedQuestionDraftSchema).min(1).max(12),
+});
+
+/**
+ * Generate SOC-grounded ai_draft questions using the generate-questions skill.
+ * Called by the runtime-selector; entry point is admin-generate.ts handler.
+ *
+ * NOTE (D2): This function is in claude-code-vps.ts — the only file allowed
+ * to interact with the claude subprocess (via the shared runSkill helper).
+ * admin-generate.ts calls through runtime-selector → here.
+ */
+export async function generateQuestions(
+  input: GenerateQuestionsInput,
+): Promise<GenerateQuestionsOutput> {
+  const genSha = await skillSha(SKILL_GENERATE);
+
+  const promptVars = {
+    level: input.level,
+    count: input.count,
+    topic_focus: input.topicFocus ?? null,
+    existing_topics: input.existingTopics,
+    sources: input.sources,
+  };
+
+  const events = await runSkill({
+    skill: SKILL_GENERATE,
+    promptVars,
+    allowedTools: [MCP_SUBMIT_QUESTIONS],
+    attemptId: "generation",
+    questionId: `${input.packId}:${input.levelId}`,
+  });
+
+  const raw = parseToolInput(events, TOOL_SUBMIT_QUESTIONS);
+  if (raw === null) {
+    throw new AppError(
+      `expected ${TOOL_SUBMIT_QUESTIONS} tool use in stream-json output`,
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { skill: SKILL_GENERATE, packId: input.packId } },
+    );
+  }
+
+  const parsed = SubmitQuestionsInputSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new AppError(
+      "submit_questions payload failed schema validation",
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { issues: parsed.error.issues } },
+    );
+  }
+
+  // Build the full source objects for provenance: resolve each
+  // knowledge_base_source_id from the input.sources array.
+  const sourceById = new Map(input.sources.map((s) => [s.id, s]));
+
+  const questions: GeneratedQuestionDraft[] = parsed.data.questions.map((q) => ({
+    type: q.type,
+    topic: q.topic,
+    points: q.points,
+    content: q.content,
+    rubric: q.rubric ?? null,
+    knowledgeBaseSources: q.knowledge_base_source_ids
+      .map((id) => sourceById.get(id))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined)
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        citation: s.citation,
+        url: s.url,
+        level_fit: s.level_fit,
+        function: s.function,
+        kb_version: s.kb_version,
+      })),
+  }));
+
+  log.info(
+    {
+      packId: input.packId,
+      levelId: input.levelId,
+      level: input.level,
+      generated: questions.length,
+      skillSha: genSha.short,
+    },
+    "generation.skill.complete",
+  );
+
+  return {
+    questions,
+    skillSha: genSha.short,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // runSkill — single `claude -p` subprocess, returns parsed stream-json events
