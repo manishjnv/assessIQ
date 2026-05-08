@@ -36,8 +36,8 @@ export {
   restoreVersion,
   // bulk import
   bulkImport,
-  // ai stub (decision #11)
-  generateDraft,
+  // ai question generation
+  generateQuestions,
 } from "./service.js";
 
 // ---------------------------------------------------------------------------
@@ -81,6 +81,7 @@ export type {
   Question,
   QuestionVersion,
   Tag,
+  KnowledgeBaseSource,
   // service-input types
   ListPacksInput,
   CreatePackInput,
@@ -97,6 +98,17 @@ export type {
   // error code union
   QbErrorCode,
 } from "./types.js";
+
+// Knowledge base exports (for admin-generate handler and UI)
+export {
+  SOC_KNOWLEDGE_BASE,
+  SOC_KB_VERSION,
+  SOC_KB_BY_ID,
+  SOC_KB_BY_LEVEL,
+  SOC_KB_FUNCTIONS,
+  KbSourceSchema,
+} from "./knowledge-base/index.js";
+export type { KbSource } from "./knowledge-base/index.js";
 
 // ---------------------------------------------------------------------------
 // 3. Route registrar

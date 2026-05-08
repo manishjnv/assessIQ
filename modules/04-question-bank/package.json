@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@assessiq/ai-grading": "workspace:*",
     "@assessiq/auth": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",

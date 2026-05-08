@@ -293,6 +293,9 @@ importers:
 
   modules/04-question-bank:
     dependencies:
+      '@assessiq/ai-grading':
+        specifier: workspace:*
+        version: link:../07-ai-grading
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth

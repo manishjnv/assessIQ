@@ -43,7 +43,6 @@ import {
   listVersions,
   restoreVersion,
   bulkImport,
-  generateDraft,
 } from "../service.js";
 import { ConflictError, NotFoundError, ValidationError, AppError } from "@assessiq/core";
 import type { CreatePackInput, AddLevelInput, CreateQuestionInput } from "../types.js";
@@ -1634,17 +1633,8 @@ describe("activateAllQuestionsForPack", () => {
 });
 
 // ===========================================================================
-// 9. generateDraft — 501 stub (decision #11)
+// 9. generateQuestions — deferred integration test (requires live AI runtime)
 // ===========================================================================
-
-describe("generateDraft — 501 stub (decision #11)", () => {
-  it("generateDraft throws an AppError with code GENERATE_DRAFT_DEFERRED", async () => {
-    await expect(
-      generateDraft(tenantA, { topic: "incident-response", type: "mcq", level: "L1", count: 3 }),
-    ).rejects.toSatisfy(
-      (e: unknown) =>
-        e instanceof AppError &&
-        (e.details as Record<string, unknown> | undefined)?.["code"] === "GENERATE_DRAFT_DEFERRED",
-    );
-  });
-});
+// Integration tests for generateQuestions require AI_PIPELINE_MODE=claude-code-vps
+// and a live claude CLI.  Unit tests are in modules/07-ai-grading/src/__tests__/.
+// This block intentionally omitted from the question-bank unit suite.
