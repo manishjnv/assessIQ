@@ -243,3 +243,63 @@ jobs:
 
       - name: Cross-module dep lint (repo scan)
         run: pnpm lint:cross-module-deps
+
+  # ---------------------------------------------------------------------------
+  # E2E job — admin → candidate workflow (Playwright)
+  # ---------------------------------------------------------------------------
+  # Runs against a configured staging URL. Skipped gracefully when
+  # E2E_BASE_URL is not set (no staging env configured yet).
+  #
+  # To enable: add repo secrets E2E_BASE_URL + E2E_API_BASE_URL pointing at a
+  # staging server where ENABLE_E2E_TEST_MINTER=true is set in the server env.
+  #
+  # NEVER set ENABLE_E2E_TEST_MINTER=true on the production .env.
+  # See apps/web/e2e/README.md and docs/06-deployment.md § E2E test minter.
+  e2e:
+    runs-on: ubuntu-latest
+    # Only run if the staging URL secret is configured
+    if: vars.E2E_BASE_URL != '' && vars.E2E_BASE_URL != null
+    needs: quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @assessiq/web exec playwright install --with-deps chromium
+
+      - name: Run E2E spec — admin workflow
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL }}
+          E2E_API_BASE_URL: ${{ vars.E2E_API_BASE_URL }}
+        run: pnpm --filter @assessiq/web exec playwright test apps/web/e2e/admin-workflow.spec.ts
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: apps/web/playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ github.run_id }}
+          path: apps/web/test-results/
+          retention-days: 14

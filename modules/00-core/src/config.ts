@@ -87,6 +87,14 @@ const ConfigSchema = z
       .enum(["claude-code-vps", "anthropic-api", "open-weights"])
       .default("claude-code-vps"),
     ANTHROPIC_API_KEY: z.string().optional(),
+    // Dev-only E2E session minter — POST /api/dev/mint-session.
+    // When "true", the route is registered at server startup.
+    // MUST be absent (or "false") in production .env.
+    // See apps/web/e2e/README.md and docs/06-deployment.md § E2E test minter.
+    ENABLE_E2E_TEST_MINTER: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((s) => s === "true"),
   })
   .superRefine((data, ctx) => {
     if (

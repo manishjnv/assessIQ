@@ -143,6 +143,26 @@ If validation fails: do **not** reload. Caddy keeps the old config running. Inve
 - **Env var note:** `ENABLE_EMBED_TEST_MINTER=1` must NOT be set in production (default: unset). The triple gate (`env var + NODE_ENV != 'production' + admin session`) ensures it is safe to leave absent.
 - Smoke tests (post-deploy): `GET /api/health` → 200 ✅, `GET /embed` (no token) → 400 ✅, `GET /embed/health` → 200 ✅, `GET /embed/sdk.js` → 200 ✅, `GET /api/admin/embed-origins` (no auth) → 401 ✅.
 
+### E2E test minter (`ENABLE_E2E_TEST_MINTER`) — prod invariant
+
+Added 2026-05-08 alongside the `admin-workflow.spec.ts` Playwright E2E suite. The route `POST /api/dev/mint-session` provides a dev-only way to bootstrap authenticated sessions without Google SSO — enabling E2E tests in CI without interactive OAuth.
+
+**Invariant: `ENABLE_E2E_TEST_MINTER` must be absent (or `"false"`) in `/srv/assessiq/.env` at all times.** The route is not registered at server startup unless the env var is `"true"`, so it physically does not exist in the prod module graph. This is stronger than a runtime 403.
+
+Verification (run after every API deploy):
+```bash
+curl -I https://assessiq.automateedge.cloud/api/dev/mint-session
+# Expected: 404 Not Found (NOT 401 or 200)
+```
+
+If the curl returns anything other than 404, the env var is misconfigured. Remove it from `/srv/assessiq/.env` and restart `assessiq-api` immediately.
+
+The env var is intentional on:
+- Local dev: `ENABLE_E2E_TEST_MINTER=true pnpm --filter @assessiq/api dev`
+- Staging/CI: set on the staging server only, never production
+
+See `apps/web/e2e/README.md` for full local run + CI integration guide.
+
 **Previous state — Phase 3 G3.C analytics module deployed (2026-05-03)**
 
 `assessiq-api`, `assessiq-worker`, and `assessiq-frontend` are all live. Phase 3 G3.C ships 6 new admin analytics routes, `attempt_summary_mv` materialized view, and a nightly BullMQ cron refresh job.

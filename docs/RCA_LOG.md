@@ -4,6 +4,27 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-08 — 6 workflow-integration bugs caught by manual click-testing; E2E spec added as recurrence prevention
+
+**Symptom:** Manual click-testing on 2026-05-08 surfaced 6 bugs in 2 hours, of which 3–4 were workflow-integration-class regressions (involving cross-module state transitions, empty-state handling, and invitation acceptance errors) that could have been caught by automated E2E tests at PR time. Specific bugs referenced by their prior RCA entries: `POST /admin/packs 500 slug null` (baf73cb), `GET /admin/questions 400 pageSize cap` (2431ad5), `POST /invitations/accept 500 withSystemClient` (30ba73d), and cohort-report empty-state blank page.
+
+**Cause:** No automated E2E spec existed for the full admin→candidate workflow. Unit tests and integration tests validated individual modules in isolation but did not cover the multi-step workflow sequence (pack → questions → activate → publish pack → create cycle → publish cycle → invite → take → grade → view report). Cross-module state transitions (e.g. "questions must be activated after publishing pack before an assessment can be published") were only validated by the developer's mental model during development, not by automated assertions.
+
+**Fix (2026-05-08):** Added three new files:
+- `apps/api/src/routes/dev/mint-session.ts` — dev-only POST /api/dev/mint-session, env-gated via `ENABLE_E2E_TEST_MINTER=true`. Creates real sessions without Google SSO. NOT registered in production (compile-time skip via conditional import in `server.ts`). Audits every mint to `audit_log` with `action='dev.mint_session'`.
+- `apps/web/e2e/fixtures/factories.ts` — Node.js fetch helpers for all E2E setup/teardown operations (mintAdminSession, mintCandidateSession, createPack, addLevel, createMcqQuestion, createSubjectiveQuestion, publishPack, activateAllQuestionsForPack, createAssessment, publishAssessment, inviteCandidate, startAttempt, answerQuestion, submitAttempt, triggerGrading, acceptGradings, cleanupTestData).
+- `apps/web/e2e/admin-workflow.spec.ts` — 13-step serial Playwright E2E spec covering the full admin→candidate workflow. Each step asserts HTTP success on the relevant API call, no "Not found." or raw error string in the DOM, and no unexpected console errors.
+
+**Prevention:** The `admin-workflow.spec.ts` spec is the permanent recurrence prevention for the workflow-integration-class regression pattern. It runs on every PR when `vars.E2E_BASE_URL` is configured in the GitHub repo settings (see `.github/workflows/ci.yml` `e2e` job). Future workflow-integration changes must not break this spec.
+
+The spec guards specifically against:
+- Pack creation 500 (step 03) — catches the slug null-constraint class
+- Questions not loading in pack detail (step 03b) — catches the pageSize cap class
+- Invitation acceptance 500 (step 10/11) — catches the withSystemClient pre-auth path class
+- Cohort report blank page (step 13) — catches empty-state rendering failures
+
+---
+
 ## 2026-05-04 — GET /api/admin/questions 400 "pageSize must be between 1 and 100"
 
 **Symptom:** Pack-detail page returned a raw error string "pageSize must be between 1 and 100" at `2026-05-03T22:00:28Z`. Admin could not view questions for any pack.
