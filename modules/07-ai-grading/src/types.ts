@@ -220,6 +220,52 @@ export interface GenerateQuestionsOutput {
 }
 
 // ---------------------------------------------------------------------------
+// GenerateRubric — input / output types for the AI rubric generator
+// ---------------------------------------------------------------------------
+
+export interface LevelRubricDefaults {
+  profile: "foundational" | "practitioner" | "expert";
+  anchorComplexity: "short" | "medium" | "dense";
+  bandStrictness: "lenient" | "standard" | "strict";
+}
+
+/**
+ * Input to generateRubricDraft() via the runtime selector.
+ * Constructed by the question-bank service layer.
+ */
+export interface GenerateRubricInput {
+  /** Full question prompt text — passed verbatim into the skill. */
+  questionText: string;
+  /** Question type — controls anchor depth guidance. */
+  questionType: "subjective" | "scenario";
+  /** Level ordinal (1-5) — calibrates complexity when levelDefaults is null. */
+  levelOrdinal: number;
+  /** Optional level-defaults from levels.rubric_defaults JSONB. */
+  levelDefaults: LevelRubricDefaults | null;
+  /** If set, this is a re-generation request — include in skill prompt. */
+  existingRubric?: unknown;
+  /** For structured logging only — not sent to the model. */
+  questionId: string;
+}
+
+/**
+ * Output of generateRubricDraft(): the proposal + audit metadata.
+ * The proposal is NOT persisted — the handler returns it to the admin for review.
+ */
+export interface GenerateRubricOutput {
+  /** The generated Rubric JSON (satisfies RubricSchema). */
+  rubric: import("@assessiq/rubric-engine").Rubric;
+  /** Skill file SHA (8 hex chars). */
+  skillSha: string;
+  /** Prompt SHA (SHA256 of JSON.stringify(promptVars), first 8 hex chars). */
+  promptSha: string;
+  /** Hash of levelDefaults as used at generation time (SHA256 of sorted JSON; empty string if null). */
+  levelDefaultsHash: string;
+  /** Model identifier from skill frontmatter. */
+  model: string;
+}
+
+// ---------------------------------------------------------------------------
 // Error codes
 // ---------------------------------------------------------------------------
 
