@@ -478,6 +478,73 @@ The VPS authenticates to GitHub using an Ed25519 deploy key at `~/.ssh/github_de
 
 **Rotation:** generate a new ed25519 key (`ssh-keygen -t ed25519 -f ~/.ssh/assessiq_deploy_new -N ''`), add to GitHub Settings → Deploy Keys, update `~/.ssh/config` `IdentityFile` line, verify `ssh -T git@github.com-assessiq`, remove old key from GitHub, delete old key file.
 
+## Pre-deploy lint gates
+
+> **Added 2026-05-08.** These CI lints run on every PR in `.github/workflows/ci.yml` (deterministic-gates job, steps 8–12). They catch the "code shipped, operational dependency missed" class of bugs that caused repeated production incidents between 2026-05-03 and 2026-05-08. See `docs/RCA_LOG.md` for the originating incidents.
+
+Run locally before opening a PR:
+
+```bash
+pnpm tsx tools/lint-deploy-procedure.ts
+```
+
+Or run a specific check via `--json` for machine-readable output, and `--self-test` to validate the lint itself.
+
+### CHECK A — Skill bind-mount integrity
+
+**What it catches:** Skill files under `prompts/skills/<name>/SKILL.md` that exist in the repo but are not bind-mounted into the `assessiq-api` and `assessiq-worker` containers in `infra/docker-compose.yml`. Also detects the inverse: a mount declared in docker-compose but the `prompts/skills/` directory contains no `SKILL.md` files.
+
+**Why it exists:** On 2026-05-08, the question-generator feature was blocked for hours because the `prompts/skills/` directory was not mounted into the container — the skills were on the VPS host but invisible inside the running API. The fix required 3 commits and a compose rebuild.
+
+**Canonical fix for violations:**
+- `SKILL UNREACHABLE`: Add a read-only bind-mount in `infra/docker-compose.yml` under `services.<name>.volumes` mapping `../prompts/skills` to the skills directory inside the container. See the existing `assessiq-api` volumes block for the correct pattern.
+- `SKILL MOUNT EMPTY`: Either add `SKILL.md` files under `prompts/skills/<name>/` or remove the dead bind-mount.
+
+### CHECK B — Migration apply chain
+
+**What it catches:** SQL files anywhere under `modules/` or `apps/` that are NOT at the exact depth `modules/<name>/migrations/<file>.sql` — the only path pattern discovered by `tools/migrate.ts`. A SQL file at `modules/foo/subdir/migrations/001.sql` is invisible to the runner and will never be applied, silently leaving the schema stale.
+
+**Why it exists:** Migration files added to non-standard paths (e.g., in a subdirectory or under `apps/`) will be committed without error and appear in git history, but will never be applied at deploy time. The schema diverges from the code silently.
+
+**Canonical fix for violations:**
+- `MIGRATION ORPHAN`: Move the file to `modules/<name>/migrations/<basename>.sql` so the runner discovers it, OR add the exemption marker at the top of the file: `-- DEPLOY: manual; not part of migration sequence` and document the manual apply step in this doc under § Migrations.
+
+**Exemption marker** (for seed files, reference data, or ad-hoc fixes applied out-of-band):
+```sql
+-- DEPLOY: manual; not part of migration sequence
+-- Reason: <explain why this SQL is not part of the automated migration sequence>
+```
+
+### CHECK C — Env var declaration coverage
+
+**What it catches:** `process.env.VAR_NAME` reads in `modules/*/src/` and `apps/*/src/` where `VAR_NAME` does not appear anywhere in `.env.example` (including comment mentions). This catches vars that are used in code but never documented for operators provisioning a new environment.
+
+**Why it exists:** On 2026-05-08 the SMTP email feature was delayed because `SMTP_URL` was not provisioned on the VPS — it was in the config schema but operators didn't know to set it. This check ensures every env var consumed by the codebase is visible in `.env.example`.
+
+**Standard skip list** (not flagged): `NODE_ENV`, `HOME`, `PATH`, `USER`, `HOSTNAME`, `SHELL`, `CI`, `GITHUB_ACTIONS`, `PORT`, and other standard Node/OS/CI variables. See `SKIP_ENV_VARS` in `tools/lint-deploy-procedure.ts`.
+
+**Canonical fix for violations:**
+- `ENV VAR UNDECLARED`: Add a placeholder entry to `.env.example`:
+  ```
+  # VAR_NAME — short description of what this variable controls.
+  # Example: VAR_NAME=example-value  (or leave blank if it's a secret)
+  VAR_NAME=
+  ```
+  If the variable is truly optional with a sensible default, also declare it in `modules/00-core/src/config.ts` as `z.optional()` or `z.default(...)`.
+
+### CHECK D — Email template URL ↔ SPA route consistency
+
+**What it catches:** Two patterns:
+1. HTML email templates (`modules/13-notifications/src/email/templates/*.html`) with hardcoded `href="/path/..."` attributes that don't match any `<Route path="...">` entry in `apps/web/src/App.tsx`.
+2. Email-sending service code (modules 03, 05, 13) that constructs URL paths via template literals (`${base}/path/${segment}`) or string concatenation where the path prefix has no matching SPA route.
+
+**Why it exists:** On 2026-05-04 (RCA: "candidate invitation URL /invite/ vs /take/"), `modules/05-assessment-lifecycle/src/service.ts` built invitation links as `${PUBLIC_URL}/invite/${token}`. The SPA has no `/invite/:token` route — candidates clicked the link and landed on the 404 page. The fix was a 1-line change but required diagnosing from a live email log.
+
+**Canonical fix for violations:**
+- `TEMPLATE URL MISMATCH`: Either fix the URL path in the template / service code to use a registered SPA route (check `apps/web/src/App.tsx`), OR add the missing route to the SPA. The fix should be made in BOTH places if the route was intentionally omitted — don't patch the URL around a missing route.
+
+---
+
 ## Deploy procedure (steady-state, post-2026-05-03)
 
 As of 2026-05-03 `/srv/assessiq` is a `git clone` of `manishjnv/assessIQ`. The old `git archive + scp + tar-extract` rsync flow is **deprecated** — see RCA 2026-05-03 "Architectural debt: /srv/assessiq is not a git clone". All future deploys use:

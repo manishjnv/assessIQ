@@ -4,6 +4,40 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-08 — lint-deploy-procedure: 4-check CI lint hardens against ops-vs-code drift
+
+**Symptom:** Three distinct classes of "code shipped, operational dependency missed" bugs recurred across 2026-05-03 through 2026-05-08, each causing production incidents that took 1–4 hours to diagnose:
+1. **Skill bind-mount missing** (2026-05-08): `prompts/skills/` commit shipped but no Docker bind-mount in `infra/docker-compose.yml` → skills invisible inside `assessiq-api` container → feature blocked.
+2. **Migration apply chain gap** (chronic risk, no incident yet): SQL files committed outside `modules/<name>/migrations/<file>.sql` depth are silently skipped by `tools/migrate.ts` → schema diverges from code without any error.
+3. **Env var not provisioned** (SMTP_URL, 2026-05-08): `SMTP_URL` in config schema and used in code but missing from `.env.example` → operators don't know to set it → email feature silently falls back to dev stub on production.
+4. **Email template URL mismatch** (2026-05-04, RCA entry "punch-list #7"): `service.ts` built invitation links as `${PUBLIC_URL}/invite/${token}`; SPA has no `/invite/:token` route → candidates landed on 404 page.
+
+**Cause:** All four bug classes shared the same root cause: there was no automated gate checking that code commits are operationally self-consistent. Each class was caught only after a live incident or manual test session, never at PR time.
+
+**Fix:** `tools/lint-deploy-procedure.ts` — a new TypeScript CI lint implementing four independent checks:
+- **CHECK A** (`tools/lint-deploy-procedure.ts`, `checkSkillBindMounts()`): Every `prompts/skills/<name>/SKILL.md` must have a volume mount in `infra/docker-compose.yml` for `assessiq-api` and `assessiq-worker`. Inverse check also included.
+- **CHECK B** (`tools/lint-deploy-procedure.ts`, `checkMigrationApplyChain()`): Every `.sql` file under `modules/` or `apps/` that is NOT at the runner's discovery depth (`modules/<name>/migrations/<file>.sql`) must carry the `-- DEPLOY: manual; not part of migration sequence` exemption marker or be treated as an orphan.
+- **CHECK C** (`tools/lint-deploy-procedure.ts`, `checkEnvVarDeclaration()`): Every `process.env.VAR_NAME` reference in source code must appear (anywhere, including comment mentions) in `.env.example`.
+- **CHECK D** (`tools/lint-deploy-procedure.ts`, `checkEmailTemplateUrls()`): Every URL path constructed in email-sending service code (template literal `${base}/path/${segment}` pattern) and every hardcoded `href` in template HTML must have a matching first path segment in `apps/web/src/App.tsx`.
+
+Wired into `.github/workflows/ci.yml` step 12 (self-test + repo scan, both required-pass). Package scripts: `pnpm lint:deploy-procedure` and `pnpm lint:deploy-procedure:self-test`. Documented in `docs/06-deployment.md` § Pre-deploy lint gates.
+
+**Results on current main (2026-05-08):**
+- CHECK A: ✓ clean (skills bind-mount fix shipped earlier today)
+- CHECK B: ✓ clean (all migrations at correct depth)
+- CHECK C: ✗ 9 pre-existing violations (real punch list — separate follow-up session):
+  - `ASSESSIQ_PUBLIC_URL` (service.ts:85) — alternative to ASSESSIQ_BASE_URL, undocumented
+  - `ASSESSIQ_DEV_EMAILS_LOG` (lifecycle.test.ts:1148) — dev-only email log path
+  - `AIQ_ADMIN_USER_ID` (eval/cli.ts:609) — eval CLI admin user
+  - `S3_BUCKET` (archive-job.ts:65) — audit-log archival target
+  - `ENABLE_EMBED_TEST_MINTER` (embed.ts:173) — embed test gate, undocumented
+  - `ENABLE_E2E_TEST_MINTER` (mint-session.test.ts:192) — in config.ts but absent from .env.example
+  - `PLAYWRIGHT_BASE_URL`, `E2E_API_BASE_URL` (factories.ts) — E2E test base URLs
+  - `E2E_CANDIDATE_TOKEN` (take-happy-path.spec.ts:7) — E2E fixture token
+- CHECK D: ✓ clean (magic-link fix a79282c confirmed effective)
+
+**Prevention:** The lint itself, with self-test (17 assertions) confirming all four check classes detect violations correctly. `pnpm lint:deploy-procedure:self-test` in CI ensures the lint doesn't silently regress.
+
 ## 2026-05-08 — 3 remaining 2026-05-03 punch-list bugs closed (punch-list #4, #6, #7)
 
 **Symptom:** Three bugs from the 2026-05-03 manual-test session were not fixed in subsequent sessions:
