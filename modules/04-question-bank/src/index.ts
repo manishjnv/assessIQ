@@ -38,6 +38,10 @@ export {
   bulkImport,
   // ai question generation
   generateQuestions,
+  // ai rubric generation
+  generateRubricForQuestion,
+  saveRubric,
+  bulkGenerateMissingRubrics,
 } from "./service.js";
 
 // ---------------------------------------------------------------------------
@@ -53,6 +57,9 @@ export {
   LogAnalysisContentSchema,
   // rubric
   RubricSchema,
+  // level rubric defaults
+  LevelRubricDefaultsSchema,
+  validateLevelRubricDefaults,
   // dispatcher / helpers
   validateQuestionContent,
   validateRubric,
@@ -72,6 +79,8 @@ export type {
   ScenarioContent,
   LogAnalysisContent,
   Rubric,
+  // level calibration
+  LevelRubricDefaults,
   // domain types
   QuestionType,
   QuestionStatus,
@@ -98,6 +107,8 @@ export type {
   // error code union
   QbErrorCode,
 } from "./types.js";
+
+export type { BulkGenerateMissingRubricsResult } from "./service.js";
 
 // Knowledge base exports (for admin-generate handler and UI)
 export {

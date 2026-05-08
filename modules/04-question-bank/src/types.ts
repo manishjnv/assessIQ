@@ -161,6 +161,30 @@ export function validateRubric(
 }
 
 // ---------------------------------------------------------------------------
+// LevelRubricDefaults — calibration hints stored in levels.rubric_defaults
+// ---------------------------------------------------------------------------
+//
+// When admin sets a profile on a level, the AI rubric generator uses it to
+// bias its output (more anchors, stricter band-4 bar, denser language).
+// NULL → generator falls back to ordinal-only calibration.
+
+export const LevelRubricDefaultsSchema = z.object({
+  profile: z.enum(["foundational", "practitioner", "expert"]),
+  anchorComplexity: z.enum(["short", "medium", "dense"]),
+  bandStrictness: z.enum(["lenient", "standard", "strict"]),
+}).strict();
+
+export type LevelRubricDefaults = z.infer<typeof LevelRubricDefaultsSchema>;
+
+export function validateLevelRubricDefaults(
+  content: unknown,
+): { ok: true; data: LevelRubricDefaults } | { ok: false; errors: z.ZodIssue[] } {
+  const result = LevelRubricDefaultsSchema.safeParse(content);
+  if (result.success) return { ok: true, data: result.data };
+  return { ok: false, errors: result.error.issues };
+}
+
+// ---------------------------------------------------------------------------
 // Domain types — mapped from DB rows
 // ---------------------------------------------------------------------------
 
@@ -196,6 +220,8 @@ export interface Level {
   duration_minutes: number;
   default_question_count: number;
   passing_score_pct: number;
+  /** Calibration hints for the AI rubric generator. NULL = ordinal-only calibration. */
+  rubric_defaults: LevelRubricDefaults | null;
 }
 
 /**
@@ -281,6 +307,7 @@ export interface UpdateLevelPatch {
   duration_minutes?: number;
   default_question_count?: number;
   passing_score_pct?: number;
+  rubric_defaults?: LevelRubricDefaults | null;
 }
 
 export interface ListQuestionsInput {
