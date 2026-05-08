@@ -1,0 +1,226 @@
+{
+  "version": "2026-05-08",
+  "level_fit": "L3",
+  "sources": [
+    {
+      "id": "threat.hunting.sqf",
+      "name": "Threat Hunting — Sqrrl Funnel of Fidelity and Hypothesis-Driven Methodology",
+      "citation": "SANS Whitepaper: A Guide to Hunting in the Enterprise (Sqrrl / Amazon)",
+      "url": "https://www.sans.org/white-papers/38900/",
+      "level_fit": "L3",
+      "function": "hunting",
+      "description": "Threat hunting proactively searches for attackers that have evaded automated detections. The Sqrrl Funnel of Fidelity model progresses from high-volume, low-fidelity data (machine learning alerts) to low-volume, high-fidelity targeted queries, with human analysts adding context at each stage. L3 hunters formulate hypotheses from TTP patterns (e.g. 'APT29 uses GoldFinder for HTTP-based C2 on port 443 — hunt for fixed-interval low-byte-count HTTPS sessions to cloud providers'), express them as structured hunt queries in Splunk SPL/KQL/Sigma, and track findings in a hunt-ops journal with MITRE technique references. Hunts that find nothing are still valuable: they extend dwell-time visibility.",
+      "tags": ["threat-hunting", "hypothesis", "Sqrrl", "SANS", "Sigma", "dwell-time"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.attack.groups",
+      "name": "APT Group Attribution and Campaign Analysis",
+      "citation": "MITRE ATT&CK Groups Catalog",
+      "url": "https://attack.mitre.org/groups/",
+      "level_fit": "L3",
+      "function": "intelligence",
+      "description": "MITRE ATT&CK documents 130+ tracked adversary groups with their associated TTPs, software, and campaigns. L3 analysts perform attribution by matching observed TTPs against group profiles: Lazarus Group (G0032) favors BLINDINGCAN/COPPERHEDGE malware and targets financial institutions; APT29/Cozy Bear (G0016) uses SUNBURST/NOBELIUM toolchain and targets government/think tanks; FIN7 (G0046) uses Carbanak RAT against retail/hospitality POS. Attribution is probabilistic, not deterministic — Diamond Model elements (adversary, infrastructure, capability, victim) and confidence levels must accompany every attribution claim.",
+      "tags": ["APT", "attribution", "Diamond-Model", "MITRE-Groups", "threat-intelligence"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "sans.for610.static",
+      "name": "Malware Static Analysis — PE File Structure and Import Analysis",
+      "citation": "SANS FOR610: Reverse-Engineering Malware, Section 2",
+      "url": "https://www.sans.org/cyber-security-courses/reverse-engineering-malware-malware-analysis-tools-techniques/",
+      "level_fit": "L3",
+      "function": "forensics",
+      "description": "Static analysis extracts intelligence from a malware binary without executing it. Key techniques: PE header parsing (suspicious section names, abnormal section permissions RWX, low image size vs. overlay size indicating packers), import table analysis (VirtualAlloc+WriteProcessMemory+CreateRemoteThread = injection capability, InternetOpen+HttpSendRequest = C2 capable), string extraction (CyberChef for base64/hex/XOR decoding), and import hash (imphash) for family classification. Tools: PE-bear, pestudio, Ghidra (static RE), Cutter/Rizin. Entropy > 7.2 in the .text section indicates a packer; run through UPX or DIE (Detect-It-Easy) before further analysis.",
+      "tags": ["static-analysis", "PE-structure", "imphash", "packer", "FOR610", "SANS", "GREM"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "sans.for610.dynamic",
+      "name": "Malware Dynamic Analysis — Behavioral Profiling in Controlled Environments",
+      "citation": "SANS FOR610: Reverse-Engineering Malware, Section 3",
+      "url": "https://www.sans.org/cyber-security-courses/reverse-engineering-malware-malware-analysis-tools-techniques/",
+      "level_fit": "L3",
+      "function": "forensics",
+      "description": "Dynamic analysis observes malware behavior at runtime in an isolated environment. L3 analysts use a hardened FlareVM or REMnux toolchain: Process Monitor (ProcMon) for file/registry/network syscalls, Wireshark+FakeNet-NG for network simulation without real C2 connectivity, API Monitor for Win32 API call tracing, and x64dbg/OllyDbg for unpacking stubs. VM evasion detection is critical — malware increasingly checks CPUID, RDTSC timing, virtual NIC OUI (VMware 00:0C:29), registry artifacts (HKLM\\SOFTWARE\\VMware), and system uptime (<10 min sandbox indicator). Countermeasures: ScoopyNG-aware VM hardening, human cursor movement simulation, and extended sandbox runtime (15+ minutes).",
+      "tags": ["dynamic-analysis", "FakeNet", "ProcMon", "VM-evasion", "FOR610", "SANS", "GREM"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "volatility3.advanced",
+      "name": "Advanced Memory Forensics with Volatility 3",
+      "citation": "SANS FOR508: Advanced Incident Response, Threat Hunting, and Digital Forensics",
+      "url": "https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/",
+      "level_fit": "L3",
+      "function": "forensics",
+      "description": "Volatility 3 provides modular memory forensics against full RAM images. L3 analysts use: windows.malfind to detect process-hollowed or reflective-injected regions (MZ header in uncommitted RWX memory), windows.dlllist + windows.dumpfiles to extract injected DLLs not present on disk, windows.handles to enumerate open handles revealing C2 mutex names, windows.cmdline for reconstructing attacker command sequences, and windows.netscan for established connections that may have closed by the time EDR logged them. Correlating Volatility output with timeline analysis (plaso log2timeline) provides full attack sequencing.",
+      "tags": ["Volatility", "memory-forensics", "malfind", "process-hollow", "FOR508", "GCFE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "timeline.analysis",
+      "name": "Super Timeline Analysis (log2timeline / plaso)",
+      "citation": "SANS FOR508: Advanced Incident Response, Section 4",
+      "url": "https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/",
+      "level_fit": "L3",
+      "function": "forensics",
+      "description": "A super timeline aggregates artifacts from NTFS MFT (file creation/modification/access/$MFT entries), Windows Event Logs, browser history, prefetch files, registry hives (ShimCache, AmCache, UserAssist, MRU), and network logs into a single chronologically sorted event stream. Tools: log2timeline.py (plaso), Timesketch for collaborative analysis, KAPE (Kroll Artifact Parser and Extractor) for rapid triage collection. Key forensic insights: $STANDARD_INFORMATION vs. $FILE_NAME timestamp discrepancies indicate timestomping (T1070.006); prefetch file creation timestamps reveal first execution times for living-off-the-land tools.",
+      "tags": ["timeline", "plaso", "log2timeline", "NTFS-MFT", "timestomping", "FOR508"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1195",
+      "name": "Supply Chain Attack (Initial Access)",
+      "citation": "MITRE ATT&CK T1195",
+      "url": "https://attack.mitre.org/techniques/T1195/",
+      "level_fit": "L3",
+      "function": "detection",
+      "description": "Adversaries compromise the software or hardware supply chain to insert malicious code into trusted products. SolarWinds SUNBURST (T1195.002 — Compromise Software Supply Chain) involved a malicious DLL injected into Orion build pipeline and digitally signed with SolarWinds certificates. Detection is extremely difficult post-infection; hunting indicators include: SUNBURST-specific domain generation algorithm (DGA) patterns, binary hash deviation from vendor-published checksums, and anomalous Orion process network connections to avsvmcloud.com sub-domains. Prevention: build pipeline integrity controls (Sigstore, SLSA framework), vendor security questionnaires, and software composition analysis (SBOM).",
+      "tags": ["supply-chain", "T1195", "SolarWinds", "SUNBURST", "SLSA", "SBOM", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "lockheed.killchain",
+      "name": "Lockheed Martin Cyber Kill Chain",
+      "citation": "Lockheed Martin — Intelligence-Driven Computer Network Defense",
+      "url": "https://www.lockheedmartin.com/en-us/capabilities/cyber/cyber-kill-chain.html",
+      "level_fit": "L3",
+      "function": "intelligence",
+      "description": "The Kill Chain models adversary intrusion in 7 ordered phases: Reconnaissance → Weaponization → Delivery → Exploitation → Installation → Command & Control → Actions on Objectives. L3 analysts use the Kill Chain to: (1) assess intrusion completeness (which phase did we detect and disrupt?), (2) identify earlier detection opportunities that would have increased adversary cost, and (3) build campaign narratives linking observed TTPs across incidents. Relationship with MITRE ATT&CK: the Kill Chain provides a linear narrative; ATT&CK provides granular technique mapping within each phase. D3FEND provides countermeasure mapping to ATT&CK techniques.",
+      "tags": ["kill-chain", "Lockheed", "APT", "campaign-analysis", "D3FEND", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "diamond.model",
+      "name": "Diamond Model of Intrusion Analysis",
+      "citation": "Caltagirone, Pendergast, Betz — The Diamond Model of Intrusion Analysis (2013)",
+      "url": "https://apps.dtic.mil/sti/citations/ADA586960",
+      "level_fit": "L3",
+      "function": "intelligence",
+      "description": "The Diamond Model structures each intrusion event around four axes: Adversary (who), Infrastructure (C2 IPs, domains), Capability (malware, exploits, TTPs), and Victim (target organization). Meta-features include timestamps, phases (aligned to Kill Chain), and confidence levels. L3 analysts use the model to pivot across incidents: shared infrastructure (same C2 IP in two incidents) links events to a campaign; shared capability (same malware family) links events to a group. Activity threads and activity groups are built by correlating diamonds sharing two or more elements.",
+      "tags": ["Diamond-Model", "intrusion-analysis", "campaign", "attribution", "CTI"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1528",
+      "name": "OAuth 2.0 Access Token Theft and Abuse (Credential Access)",
+      "citation": "MITRE ATT&CK T1528",
+      "url": "https://attack.mitre.org/techniques/T1528/",
+      "level_fit": "L3",
+      "function": "detection",
+      "description": "Adversaries steal OAuth 2.0 access tokens from browser storage, application configuration files, or memory to impersonate users without requiring credentials. Notably used in Microsoft 365 / Entra ID attacks (T1528 via Device Code Phishing — attacker sends victim a device authorization URL, captures token after victim authenticates). Detection: Azure AD sign-in logs showing token usage from anomalous IP/device after device code flow (grant_type=urn:ietf:params:oauth:grant-type:device_code), token replay from multiple geographic locations, and Conditional Access policy failures. Hunting: Entra audit logs for device registrations correlated with subsequent token issuance.",
+      "tags": ["OAuth", "T1528", "device-code-phishing", "Entra-ID", "M365", "token-theft"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.d3fend",
+      "name": "MITRE D3FEND Countermeasure Framework",
+      "citation": "MITRE D3FEND Technical Knowledge Graph",
+      "url": "https://d3fend.mitre.org/",
+      "level_fit": "L3",
+      "function": "architecture",
+      "description": "D3FEND is a knowledge graph of cybersecurity countermeasures mapped to ATT&CK techniques. For each offensive technique, D3FEND specifies defensive techniques (Harden, Detect, Isolate, Deceive, Evict) with their digital artifacts and dependencies. L3 architects use D3FEND to select compensating controls when primary mitigations are infeasible and to demonstrate defensive coverage against specific threat actor TTPs. Example: T1055 (Process Injection) → D3FEND countermeasures include Process Self-Modification Detection, Executable Allowlisting, and Segment Address Offset Randomization (ASLR enforcement).",
+      "tags": ["D3FEND", "MITRE", "countermeasures", "defensive-architecture", "ATT&CK-mapping"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "nist.sp800-61.postmortem",
+      "name": "Post-Incident Activity and Lessons Learned",
+      "citation": "NIST SP 800-61 Rev 2, Section 3.4",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+      "level_fit": "L3",
+      "function": "governance",
+      "description": "Post-incident reviews capture what happened, root cause, the effectiveness of the IR process, and specific improvement actions. The 5-Why root cause analysis technique systematically identifies the underlying process or control failure behind each technical artifact (e.g. 'malware executed → phishing email bypassed SEG → attachment type not blocked → SEG policy not updated → no policy review process → recommendation: 30-day policy review cadence'). L3 analysts own the written RCA and present to CISO-level stakeholders. Metrics: mean time to detect (MTTD), mean time to respond (MTTR), false positive rate, and adversary dwell time.",
+      "tags": ["post-mortem", "lessons-learned", "NIST", "5-Why", "MTTD", "MTTR", "RCA"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "sigma.rules",
+      "name": "Sigma Generic Detection Rule Format",
+      "citation": "Sigma Project GitHub — pySigma / sigmahq",
+      "url": "https://github.com/SigmaHQ/sigma",
+      "level_fit": "L3",
+      "function": "detection",
+      "description": "Sigma is a generic, vendor-neutral YAML format for describing detection rules that can be compiled to Splunk SPL, Elastic Query DSL, Microsoft Sentinel KQL, Chronicle YARA-L, and other SIEM query languages via pySigma backends. L3 analysts write Sigma rules with: logsource (category/product/service triplet), detection (keywords, condition, filters), falsepositives, and level (informational/low/medium/high/critical). Rules in the SigmaHQ/sigma repository cover 3000+ ATT&CK-mapped detections and are the de facto standard for portable detection engineering. Testing: sigma-rule-tester, evtx-attack-samples corpus.",
+      "tags": ["Sigma", "detection-engineering", "SIEM", "KQL", "SPL", "pySigma"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "cve.prioritization",
+      "name": "Zero-Day CVE Triage and Exploitability Prioritization (EPSS / CISA KEV)",
+      "citation": "CISA Known Exploited Vulnerabilities Catalog + EPSS (FIRST.org)",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+      "level_fit": "L3",
+      "function": "triage",
+      "description": "CVSS alone is insufficient for prioritization: a CVSS 9.8 vulnerability with no public exploit is less urgent than a CVSS 7.5 with active exploitation. EPSS (Exploit Prediction Scoring System) predicts 30-day exploitation probability (0-100%) using NVD features and threat intelligence; EPSS >10% signals elevated urgency. CISA KEV lists vulnerabilities with confirmed in-the-wild exploitation and mandates federal agency patching within 15 days. L3 analysts combine CVSS + EPSS + KEV status + asset criticality into a composite risk score for prioritization, and perform emergency out-of-band patching for KEV entries affecting critical infrastructure.",
+      "tags": ["CVE", "CVSS", "EPSS", "CISA-KEV", "zero-day", "prioritization"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "soar.playbook",
+      "name": "SOAR Playbook Development and Automation Architecture",
+      "citation": "SANS SOC Curriculum — SOAR Playbook Design Patterns",
+      "url": "https://www.sans.org/blog/soar-playbook-design-patterns/",
+      "level_fit": "L3",
+      "function": "architecture",
+      "description": "SOAR (Security Orchestration, Automation, and Response) platforms (Splunk SOAR, Palo Alto XSOAR, Google SecOps) execute automated investigation and response playbooks triggered by SIEM alerts. L3 architects design playbooks with: enrichment actions (IP reputation lookup, file hash detonation, user risk score fetch), decision gates (if reputation score > 80, auto-contain; else escalate to L2), and bi-directional integrations with ITSM (ServiceNow ticket creation/update), EDR (host isolation), and firewall (block IP). Playbook testing requires a golden dataset of labeled alerts to measure automation TP rate, FP rate, and containment speed improvement over manual handling.",
+      "tags": ["SOAR", "playbook", "automation", "XSOAR", "Splunk-SOAR", "response-automation"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.engage",
+      "name": "MITRE Engage — Adversary Engagement and Deception Operations",
+      "citation": "MITRE Engage Matrix",
+      "url": "https://engage.mitre.org/",
+      "level_fit": "L3",
+      "function": "hunting",
+      "description": "MITRE Engage provides a framework for adversary engagement operations: Prepare (strategic planning), Expose (honeypot/canary token deployment to lure and detect adversaries), Affect (disrupting adversary operations within the network), Elicit (gathering adversary intelligence by allowing limited controlled activity), and Understand (analyzing collected TTPs). L3 practitioners deploy canary tokens (fake credentials, decoy documents with embedded tracking), honeypots mimicking high-value servers, and honeynet segments to detect post-compromise reconnaissance. Every engagement requires legal counsel review to avoid entrapment exposure.",
+      "tags": ["deception", "honeypot", "canary-token", "MITRE-Engage", "adversary-engagement"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1601",
+      "name": "Firmware Persistence — Modify System Image (T1601)",
+      "citation": "MITRE ATT&CK T1601",
+      "url": "https://attack.mitre.org/techniques/T1601/",
+      "level_fit": "L3",
+      "function": "detection",
+      "description": "Nation-state adversaries modify router/firewall firmware or UEFI/BIOS to survive OS reinstallation. Cisco IOS implants (SYNful Knock — T1601.001) replaced legitimate IOS images; UEFI bootkits (BlackLotus, CosmicStrand) persist across Secure Boot by exploiting vulnerabilities in UEFI modules. Detection: firmware integrity checking via Secure Boot attestation (TPM PCR measurements), out-of-band hash comparison against golden firmware images, and anomalous UEFI variable writes (Sysmon can be extended with a UEFI driver). NIST SP 800-147 (BIOS Protection Guidelines) and SP 800-193 (Platform Firmware Resiliency) define the mitigation framework.",
+      "tags": ["firmware", "UEFI", "T1601", "BlackLotus", "Secure-Boot", "NIST-SP-800-147"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "giac.gcih",
+      "name": "GIAC GCIH Core Incident Handling Competencies",
+      "citation": "GIAC Certified Incident Handler (GCIH) Exam Objectives",
+      "url": "https://www.giac.org/certifications/certified-incident-handler-gcih/",
+      "level_fit": "L3",
+      "function": "response",
+      "description": "GCIH validates deep incident handling competency across: attack and defense of network infrastructure (packet filtering, spoofing, covert channels), hacker techniques (exploitation, privilege escalation, buffer overflow concepts), network and host investigation, and IR team leadership. L3 analysts holding GCIH are expected to lead multi-team incident response exercises, brief executive stakeholders, coordinate with law enforcement if criminal activity is involved, and produce forensically sound evidence chains. Complementary certifications: GIAC GCFE (Forensic Examiner), GREM (Reverse Engineering Malware), GCIA (Intrusion Analyst).",
+      "tags": ["GCIH", "GIAC", "incident-handling", "forensics", "L3", "certification"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "threat.hunting.kql",
+      "name": "KQL Threat Hunting in Microsoft Sentinel / Defender XDR",
+      "citation": "Microsoft Sentinel KQL Hunting Query Documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/sentinel/hunting",
+      "level_fit": "L3",
+      "function": "hunting",
+      "description": "KQL (Kusto Query Language) is the query language for Microsoft Sentinel, Defender XDR, and Azure Monitor. L3 hunters use KQL for: join operations across SecurityEvent, DeviceProcessEvents, and EmailEvents tables to correlate phishing receipt → malicious execution → C2 connection; extend + mv-expand to parse JSON payloads within event fields; and let statements for reusable sub-queries. Bookmark flagging and entity mapping convert hunt findings into incidents. Microsoft's 'Threat Hunter Playbook' (github.com/OTRF/ThreatHunter-Playbook) provides 200+ KQL-based hunt patterns mapped to ATT&CK techniques.",
+      "tags": ["KQL", "Sentinel", "Defender-XDR", "threat-hunting", "Microsoft", "SIEM"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "red.team.ttp.counter",
+      "name": "Red Team TTP Counter-Hunting and Purple Team Operations",
+      "citation": "SANS Whitepaper: Purple Teaming — The Forgotten Team (2019)",
+      "url": "https://www.sans.org/white-papers/39325/",
+      "level_fit": "L3",
+      "function": "hunting",
+      "description": "Purple teaming integrates red team offensive operations with blue team defensive telemetry validation in real time. L3 analysts coordinate with the red team to: validate that planned ATT&CK techniques generate detectable artifacts in the SIEM (coverage verification), identify detection gaps revealed by successful red team evasion, and tune rules based on observed evasion patterns (e.g. red team uses HTTPS LOLBin — blue team adds TLS SNI blocklisting). The MITRE ATT&CK Evaluations program (emulating APT29, Carbanak, FIN7) provides a structured benchmark for detection coverage measurement.",
+      "tags": ["purple-team", "red-team", "coverage-validation", "ATT&CK-evaluation", "SANS"],
+      "kb_version": "2026-05-08"
+    }
+  ]
+}

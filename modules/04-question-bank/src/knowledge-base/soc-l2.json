@@ -1,0 +1,270 @@
+{
+  "version": "2026-05-08",
+  "level_fit": "L2",
+  "sources": [
+    {
+      "id": "mitre.t1059.001",
+      "name": "PowerShell Obfuscation and Execution Policy Bypass",
+      "citation": "MITRE ATT&CK T1059.001",
+      "url": "https://attack.mitre.org/techniques/T1059/001/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries leverage PowerShell's rich scripting capabilities and frequent execution policy bypasses (-ExecutionPolicy Bypass, -ep bypass, -enc for base64-encoded payloads) to download and run malicious code. L2 analysts should be able to decode base64-encoded PowerShell commands (base64 -d or [System.Text.Encoding]::Unicode.GetString), identify AMSI bypass patterns, and correlate Script Block Logging (event 4104) with Module Logging (4103) to reconstruct obfuscated payloads. Tools: Revoke-Obfuscation, PSDecode.",
+      "tags": ["PowerShell", "obfuscation", "T1059.001", "AMSI", "SIEM", "event-4104"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1003",
+      "name": "OS Credential Dumping (LSASS Memory)",
+      "citation": "MITRE ATT&CK T1003",
+      "url": "https://attack.mitre.org/techniques/T1003/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries extract credential material (NTLM hashes, Kerberos tickets, cleartext passwords) from OS memory or registry hives. T1003.001 targets LSASS process memory via Mimikatz, procdump, or Task Manager. Detection: Sysmon event 10 (ProcessAccess) showing any non-lsass process opening LSASS with PROCESS_VM_READ rights, Windows Credential Guard enforcement gaps, and EDR rules firing on known Mimikatz modules (sekurlsa::logonPasswords). L2 analysts reconstruct the credential-dump chain and assess lateral-movement blast radius.",
+      "tags": ["credential-dumping", "LSASS", "Mimikatz", "T1003", "MITRE", "Sysmon"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1550.002",
+      "name": "Pass-the-Hash (Use Alternate Authentication Material)",
+      "citation": "MITRE ATT&CK T1550.002",
+      "url": "https://attack.mitre.org/techniques/T1550/002/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries use captured NTLM hashes to authenticate without knowing the plaintext password. Detection relies on correlating event 4648 (explicit logon) clusters from a single source with anomalous logon types: Logon Type 3 (network) using NTLM authentication (4776) when Kerberos would be expected, and Logon Type 9 (NewCredentials). Mimikatz sekurlsa::pth leaves a characteristic footprint: a new logon session created under an existing process. Mitigation: enforce Kerberos-only (disable NTLMv1/v2), deploy Windows Defender Credential Guard.",
+      "tags": ["pass-the-hash", "NTLM", "T1550.002", "lateral-movement", "event-4648"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1558.003",
+      "name": "Kerberoasting (Steal or Forge Kerberos Tickets)",
+      "citation": "MITRE ATT&CK T1558.003",
+      "url": "https://attack.mitre.org/techniques/T1558/003/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries request Kerberos service tickets (TGS) for service accounts, then extract and offline-crack the ticket's RC4 or AES encrypted blob to recover the service account password. Detection: event 4769 (TGS requested) with Ticket Encryption Type 0x17 (RC4-HMAC) from a non-service account is the primary signal. Tools used: Rubeus, Invoke-Kerberoast. Mitigation: enforce AES encryption only (0x12/0x11), use Group Managed Service Accounts (gMSA) with 120-char random passwords that cannot be cracked.",
+      "tags": ["Kerberoasting", "Kerberos", "T1558.003", "AD", "event-4769", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1486",
+      "name": "Ransomware — Data Encrypted for Impact",
+      "citation": "MITRE ATT&CK T1486",
+      "url": "https://attack.mitre.org/techniques/T1486/",
+      "level_fit": "L2",
+      "function": "response",
+      "description": "Ransomware encrypts victim files to cause service disruption and demand payment. L2 analysts lead ransomware response: immediate network segmentation of affected hosts, shadow-copy deletion forensics (event 524 or VSS API calls via T1490), identification of the initial access vector (phishing T1566 or exploitation T1190), and ransom note artifact collection for variant attribution. The first 15 minutes decision window: contain vs. let run for intelligence — organizational IR policy drives this. Recovery from backup is preferred over payment.",
+      "tags": ["ransomware", "T1486", "T1490", "incident-response", "containment", "VSS"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1071",
+      "name": "C2 Application Layer Protocol (Beacon Detection)",
+      "citation": "MITRE ATT&CK T1071",
+      "url": "https://attack.mitre.org/techniques/T1071/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries encode C2 traffic inside standard protocols (HTTP/S, DNS, SMTP) to avoid firewall blocking. Cobalt Strike beacons produce characteristic fixed-interval HTTP GET/POST (default jitter 0%, check-in every ~60s). Detection: compute inter-request timing variance for each internal host; low-jitter, low-variance connections to rare external IPs are beacon candidates. JA3/JA3S TLS fingerprints and HASSH SSH fingerprints enable detection even when content is encrypted. Tools: RITA (Real Intelligence Threat Analytics), Zeek network logs.",
+      "tags": ["C2", "beacon", "Cobalt-Strike", "T1071", "network-analysis", "JA3"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.ta0008",
+      "name": "Lateral Movement Tactic Detection",
+      "citation": "MITRE ATT&CK TA0008",
+      "url": "https://attack.mitre.org/tactics/TA0008/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Lateral movement involves adversaries moving through the network to reach high-value targets after initial compromise. L2 analysts correlate multiple sub-techniques: PsExec (T1570 — remote service creation + ADMIN$ share access), WMI (T1047 — WmiPrvSE.exe spawning child processes), WinRM (T1021.006 — port 5985/5986 logon), and RDP (T1021.001 — event 4624 Logon Type 10 from unusual source). Beaconing from the compromised host to multiple internal peers within minutes of initial compromise is a key tipping point for lateral movement escalation.",
+      "tags": ["lateral-movement", "TA0008", "PsExec", "WMI", "WinRM", "RDP", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1505.003",
+      "name": "Web Shell (Server Software Component)",
+      "citation": "MITRE ATT&CK T1505.003",
+      "url": "https://attack.mitre.org/techniques/T1505/003/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Web shells are malicious scripts uploaded to a compromised web server providing persistent remote access via HTTP. Detection: web server process (w3wp.exe, nginx worker, apache2) spawning cmd.exe or powershell.exe is the primary EDR indicator; WAF alerting on outbound connections from the web server process; file integrity monitoring on web root directories for new .php/.aspx/.jsp files with unusual creation timestamps. Tools: webshell scanners (neopi, webshell-scan), YARA rules for China Chopper/ASPXspy signatures.",
+      "tags": ["web-shell", "T1505.003", "persistence", "MITRE", "web-server", "YARA"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1087",
+      "name": "Active Directory Account and Group Discovery",
+      "citation": "MITRE ATT&CK T1087",
+      "url": "https://attack.mitre.org/techniques/T1087/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries enumerate accounts, groups, and permissions to identify high-privilege targets. T1087.002 (Domain Account) uses net user /domain, Get-ADUser, and ldapsearch to list all AD accounts. Detection: high-volume LDAP queries (event 1644 in DC trace logs), net.exe execution with /domain flag (event 4688), and BloodHound/SharpHound collection patterns (compressed LDAP queries bursting from a single host over <5 minutes). LDAP signing and channel binding enforcement reduces the attack surface.",
+      "tags": ["AD-enumeration", "BloodHound", "T1087", "LDAP", "discovery", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1218",
+      "name": "Signed Binary Proxy Execution (LOLBins)",
+      "citation": "MITRE ATT&CK T1218",
+      "url": "https://attack.mitre.org/techniques/T1218/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries use Microsoft-signed binaries to execute malicious payloads, bypassing application whitelisting. Common LOLBins: regsvr32.exe /s /n /u /i:http://... scrobj.dll (T1218.010), mshta.exe (T1218.005), certutil.exe -urlcache -split -f (T1218), rundll32.exe (T1218.011). Detection: LOLBin parent process anomalies (Office spawning regsvr32), network connections from regsvr32/mshta/certutil to external IPs, and LOLBAS project signatures. AppLocker/Windows Defender Application Control (WDAC) rules for these binaries are highly effective mitigations.",
+      "tags": ["LOLBin", "T1218", "regsvr32", "mshta", "certutil", "WDAC", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1562",
+      "name": "Impair Defenses (Defense Evasion)",
+      "citation": "MITRE ATT&CK T1562",
+      "url": "https://attack.mitre.org/techniques/T1562/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries disable or tamper with security tools to reduce detection likelihood. Sub-techniques include: T1562.001 (disabling AV/EDR via registry or sc.exe stop), T1562.002 (disabling Windows Event Logging via auditpol.exe or NtTraceControl), T1562.004 (modifying firewall rules via netsh advfirewall). Detection: event 4719 (system audit policy changed), 7036 (service stopped) and 7040 (service start type changed) for EDR services, and Sysmon event 12/13 for registry modifications to HKLM\\\\SYSTEM\\\\CurrentControlSet\\\\Services\\\\<EDR>.",
+      "tags": ["defense-evasion", "T1562", "AV-disable", "event-4719", "MITRE", "EDR-tamper"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1036",
+      "name": "Masquerading (Defense Evasion)",
+      "citation": "MITRE ATT&CK T1036",
+      "url": "https://attack.mitre.org/techniques/T1036/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries rename malicious binaries to mimic legitimate system files (svchost.exe, lsass.exe) or place them in paths that appear trusted. T1036.004 involves matching the file name of a legitimate file to confuse analysts. Detection: process hash verification against known-good hashes of Windows system binaries (imphash comparison), file path anomalies (svchost.exe running from C:\\Users\\... instead of C:\\Windows\\System32\\), and Authenticode signature verification failures. Sysmon event 1 (ProcessCreate) includes the image hash for comparison.",
+      "tags": ["masquerading", "T1036", "defense-evasion", "MITRE", "Sysmon", "binary-validation"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1055",
+      "name": "Process Injection",
+      "citation": "MITRE ATT&CK T1055",
+      "url": "https://attack.mitre.org/techniques/T1055/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries inject malicious code into legitimate processes to evade defenses and elevate privileges. Common variants: T1055.001 (DLL injection via LoadLibrary), T1055.002 (PE injection), T1055.003 (Thread Execution Hijacking), T1055.012 (Process Hollowing — spawning a suspended process and replacing its image). Detection: Sysmon event 8 (CreateRemoteThread) showing cross-process thread creation, event 10 (ProcessAccess) with PROCESS_VM_WRITE + PROCESS_VM_OPERATION rights, and anomalous memory-mapped regions (MZ headers at unexpected addresses via memory scanning).",
+      "tags": ["process-injection", "T1055", "DLL-injection", "process-hollowing", "Sysmon", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "stix.taxii",
+      "name": "STIX/TAXII Threat Intelligence Sharing",
+      "citation": "NIST SP 800-150, Section 3",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-150.pdf",
+      "level_fit": "L2",
+      "function": "intelligence",
+      "description": "STIX (Structured Threat Information eXpression) v2.1 defines JSON-based objects for representing threat actors, campaigns, indicators, and courses of action. TAXII (Trusted Automated eXchange of Indicator Information) 2.1 defines the REST API transport for distributing STIX bundles. L2 analysts configure SIEM enrichment pipelines to consume TAXII feeds (ISAC feeds, MISP, OpenCTI), normalize incoming indicators to internal schema, and manage confidence scoring to avoid over-alerting on stale IOCs. Relationship objects in STIX (Indicator → Attack Pattern) are more valuable than atomic IOCs.",
+      "tags": ["STIX", "TAXII", "threat-intelligence", "NIST", "MISP", "CTI"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1040",
+      "name": "Network Sniffing (Credential Access / Collection)",
+      "citation": "MITRE ATT&CK T1040",
+      "url": "https://attack.mitre.org/techniques/T1040/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries sniff network traffic on a compromised host to capture credentials passed in cleartext (Telnet, FTP, HTTP Basic Auth, LDAP) or harvest NTLMv2 challenge-response hashes for offline cracking (Responder, LLMNR/NBT-NS poisoning). Detection: promiscuous mode detection on network interfaces via SNMP polling, network flow analysis for LLMNR/NBT-NS traffic on segments where it should be absent, and NDR detection of credential-in-cleartext protocol usage. Mandatory enforcement of SMB signing and LDAP signing prevents NTLM relay attacks.",
+      "tags": ["network-sniffing", "T1040", "LLMNR", "Responder", "NTLM-relay", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "sans.for508.memory",
+      "name": "Memory Forensics — Process and Network Artifacts (SANS FOR508)",
+      "citation": "SANS FOR508: Advanced Incident Response, Threat Hunting, and Digital Forensics",
+      "url": "https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/",
+      "level_fit": "L2",
+      "function": "forensics",
+      "description": "Memory forensics extracts volatile artifacts unavailable on disk: running process list with parent-child relationships, loaded DLL modules per process, open network connections (established/listening/time-wait), registry hive contents, and clipboard data. Tools: Volatility 3 plugins (windows.pslist, windows.netscan, windows.malfind, windows.cmdline). Malfind detects process-hollowing and reflective DLL injection by identifying executable memory regions with MZ headers not backed by a file on disk.",
+      "tags": ["memory-forensics", "Volatility", "FOR508", "SANS", "process-hollow", "malfind"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "nist.sp800-83.malware",
+      "name": "Malware Incident Handling and Behavioral Analysis",
+      "citation": "NIST SP 800-83 Rev 1, Section 4",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-83r1.pdf",
+      "level_fit": "L2",
+      "function": "analysis",
+      "description": "Malware sandbox analysis involves executing suspicious files in an isolated VM (Cuckoo, ANY.RUN, Hybrid Analysis) and observing: file system changes (dropped payloads, registry persistence keys), network connections (C2 beacon patterns), process behavior (injection, privilege escalation attempts), and evasion detection (sleep-bombing, VM detection via cpuid/registry checks). L2 analysts produce sandbox reports, extract behavioral IOCs (dropped file hashes, network IOCs, registry keys), and map findings to ATT&CK for SIEM rule authoring.",
+      "tags": ["malware-analysis", "sandbox", "Cuckoo", "ANY.RUN", "NIST", "behavioral-IOC"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "cloud.aws.cloudtrail",
+      "name": "AWS CloudTrail Log Analysis for Security Events",
+      "citation": "AWS Security Reference Architecture, CloudTrail Best Practices",
+      "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-examples.html",
+      "level_fit": "L2",
+      "function": "analysis",
+      "description": "CloudTrail records every API call made to AWS services including the calling identity, source IP, region, and request parameters. Key L2 detection patterns: unauthorized API calls (AccessDenied events from IAM roles performing reconnaissance), EC2 instance creation in unexpected regions (T1578.002 — cloud infrastructure creation), IAM policy modifications (T1098.001 — account permission manipulation), and data exfiltration via S3 GetObject calls to new external IPs. GuardDuty findings should be correlated with raw CloudTrail to validate and contextualize alerts.",
+      "tags": ["AWS", "CloudTrail", "cloud-security", "GuardDuty", "IAM", "MITRE-T1578"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "yara.rules",
+      "name": "YARA Rule Authoring for Malware Detection",
+      "citation": "SANS FOR610: Reverse-Engineering Malware — Malware Analysis Tools and Techniques",
+      "url": "https://www.sans.org/cyber-security-courses/reverse-engineering-malware-malware-analysis-tools-techniques/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "YARA rules match binary patterns, string sequences, and file structure conditions to classify malware families. L2 analysts write YARA rules targeting: PE section entropy thresholds (packed malware has entropy >7.0), unique string constants in known malware families, specific API import combinations (VirtualAllocEx + WriteProcessMemory + CreateRemoteThread for process injection), and overlay signatures for dropper payloads. Rules should be tested against a benign corpus to measure false-positive rate before deployment to production EDR/AV.",
+      "tags": ["YARA", "malware-detection", "FOR610", "SANS", "PE-analysis", "entropy"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "email.forensics",
+      "name": "Email Header Forensics and SPF/DKIM/DMARC Analysis",
+      "citation": "CompTIA CySA+ CS0-003 Objective 2.3",
+      "url": "https://www.comptia.org/certifications/cybersecurity-analyst",
+      "level_fit": "L2",
+      "function": "forensics",
+      "description": "Email headers contain the full SMTP relay chain, authentication results (SPF pass/fail, DKIM signature validation, DMARC alignment), and Message-ID uniquely identifying the message. L2 analysts trace phishing campaigns by extracting originating IP from the first untrusted Received: header, checking SPF alignment (envelope-from vs. header-from mismatch = spoofing), and verifying DKIM signature headers match the sending domain's DNS TXT record. DMARC p=reject enforcement prevents most domain spoofing at the organizational boundary.",
+      "tags": ["email-forensics", "SPF", "DKIM", "DMARC", "phishing", "CySA"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1574",
+      "name": "DLL Hijacking (Hijack Execution Flow)",
+      "citation": "MITRE ATT&CK T1574",
+      "url": "https://attack.mitre.org/techniques/T1574/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries place malicious DLLs in directories searched before the legitimate DLL location, causing vulnerable applications to load the malicious version on execution. T1574.001 (DLL Search Order Hijacking) exploits the Windows DLL search order; T1574.002 (DLL Side-Loading) targets applications that load DLLs from their own directory without absolute path. Detection: Sysmon event 7 (ImageLoaded) showing unsigned DLLs loaded from non-system directories by system processes, and process monitor traces showing DLL not-found then found in user-writable paths.",
+      "tags": ["DLL-hijacking", "T1574", "side-loading", "defense-evasion", "Sysmon", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1190",
+      "name": "Exploit Public-Facing Application (Initial Access)",
+      "citation": "MITRE ATT&CK T1190",
+      "url": "https://attack.mitre.org/techniques/T1190/",
+      "level_fit": "L2",
+      "function": "detection",
+      "description": "Adversaries exploit vulnerabilities in internet-facing services (web apps, VPN concentrators, mail servers) for initial access without phishing. L2 analysts analyze WAF and web server logs for exploitation signatures: path traversal (../../), SQL injection (UNION SELECT, 1=1), deserialization gadget chains (Java serialized object magic bytes AC ED), and ysoserial payloads in POST bodies. CVE feeds (NVD, CISA KEV) correlate observed exploitation attempts against patching status — CISA KEV has 100+ confirmed exploited CVEs requiring 15-day remediation.",
+      "tags": ["exploitation", "T1190", "initial-access", "WAF", "CVE", "CISA-KEV", "MITRE"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "nist.sp800-61.containment",
+      "name": "Containment and Eradication Strategies",
+      "citation": "NIST SP 800-61 Rev 2, Section 3.3",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+      "level_fit": "L2",
+      "function": "response",
+      "description": "Containment stops the spread of an incident; eradication removes the threat; recovery restores normal operations. Short-term containment (isolating affected hosts via network ACL or EDR isolation) must be decided within minutes for active threats. Long-term containment may allow business continuity while the root cause is analyzed (e.g. monitoring-only mode with enhanced logging). Eradication requires identifying all persistence mechanisms (registry run keys, scheduled tasks, services, startup folders) — missing one leads to re-compromise.",
+      "tags": ["containment", "eradication", "NIST", "incident-response", "persistence"],
+      "kb_version": "2026-05-08"
+    },
+    {
+      "id": "mitre.t1499",
+      "name": "Denial of Service — Endpoint / Network Resource Exhaustion",
+      "citation": "MITRE ATT&CK T1499",
+      "url": "https://attack.mitre.org/techniques/T1499/",
+      "level_fit": "L2",
+      "function": "analysis",
+      "description": "Adversaries flood endpoints or network resources to degrade service availability, either as a primary objective or as a distraction for concurrent data theft. T1499.001 (OS Exhaustion Flood) targets CPU/memory; T1499.002 (Service Exhaustion Flood) targets web application connection pools; T1499.004 (Application or System Exploitation) crashes services via malformed inputs. L2 analysts distinguish DoS from ransomware-caused downtime and identify whether the DoS is a smokescreen (correlate with simultaneous exfiltration alerts).",
+      "tags": ["DoS", "T1499", "availability", "incident-response", "MITRE"],
+      "kb_version": "2026-05-08"
+    }
+  ]
+}
