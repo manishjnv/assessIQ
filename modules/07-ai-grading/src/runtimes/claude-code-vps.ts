@@ -438,6 +438,7 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
     const args = [
       "-p",
       prompt,
+      "--verbose",
       "--allowed-tools",
       opts.allowedTools.join(","),
       "--disallowed-tools",
