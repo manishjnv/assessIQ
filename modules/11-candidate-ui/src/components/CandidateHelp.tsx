@@ -1,6 +1,6 @@
 // CandidateHelp — self-contained inline help drawer for the candidate take flow.
 //
-// Intentionally STANDALONE from @assessiq/help-system (Phase 4+ TODO: connect
+// Intentionally STANDALONE from @assessiq/help-system (Phase 4+ TODO(phase-4): connect
 // to 16-help-system content store for i18n + admin-overridable copy).
 //
 // Renders in two modes:

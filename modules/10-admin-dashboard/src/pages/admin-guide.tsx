@@ -6,7 +6,7 @@
 // Option A (v1): static JSX content baked in.  Fast to ship; full styling
 // control via @assessiq/ui-system primitives.  No runtime fetch.
 //
-// Phase 4+ TODO: migrate content to modules/16-help-system as structured YAML
+// Phase 4+ TODO(phase-4): migrate content to modules/16-help-system as structured YAML
 // (Option B from the 2026-05-04 session brief) so the guide can be edited
 // without a code-change + redeploy.
 //
