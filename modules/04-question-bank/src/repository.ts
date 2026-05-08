@@ -34,6 +34,7 @@ import type {
   AddLevelInput,
   CreatePackInput,
   CreateQuestionInput,
+  KnowledgeBaseSource,
   Level,
   ListPacksInput,
   ListQuestionsInput,
@@ -55,7 +56,7 @@ const PACK_COLUMNS = `id, tenant_id, slug, name, domain, description, status, ve
 
 const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct`;
 
-const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, created_by, created_at, updated_at`;
+const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, knowledge_base_sources, created_by, created_at, updated_at`;
 
 const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`;
 
@@ -101,6 +102,7 @@ interface QuestionRow {
   version: number;
   content: unknown;
   rubric: unknown | null;
+  knowledge_base_sources: unknown;
   created_by: string;
   created_at: Date;
   updated_at: Date;
@@ -168,6 +170,9 @@ function mapQuestionRow(row: QuestionRow): Question {
     version: row.version,
     content: row.content,
     rubric: row.rubric,
+    knowledge_base_sources: Array.isArray(row.knowledge_base_sources)
+      ? (row.knowledge_base_sources as KnowledgeBaseSource[])
+      : [],
     created_by: row.created_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -572,7 +577,8 @@ export async function listQuestionRows(
   // Qualify all columns to avoid ambiguity when the tag JOIN is present.
   const dataResult = await client.query<QuestionRow>(
     `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic, q.points, q.status,
-            q.version, q.content, q.rubric, q.created_by, q.created_at, q.updated_at
+            q.version, q.content, q.rubric, q.knowledge_base_sources,
+            q.created_by, q.created_at, q.updated_at
      FROM questions q
      ${joinClause}
      ${where}
@@ -620,6 +626,51 @@ export async function insertQuestion(
   const row = result.rows[0];
   if (row === undefined) {
     throw new Error("insertQuestion: INSERT returned no row");
+  }
+  return mapQuestionRow(row);
+}
+
+/**
+ * Insert an AI-generated question draft.  Unlike `insertQuestion`, this
+ * explicitly sets `status='ai_draft'` and persists the knowledge-base sources
+ * embedded in the generator prompt so admins can see provenance citation chips.
+ */
+export async function insertAiDraftQuestion(
+  client: PoolClient,
+  input: {
+    id: string;
+    packId: string;
+    levelId: string;
+    type: QuestionType;
+    topic: string;
+    points: number;
+    content: unknown;
+    rubric?: unknown;
+    knowledgeBaseSources: KnowledgeBaseSource[];
+    createdBy: string;
+  },
+): Promise<Question> {
+  const result = await client.query<QuestionRow>(
+    `INSERT INTO questions
+       (id, pack_id, level_id, type, topic, points, status, content, rubric, knowledge_base_sources, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, 'ai_draft', $7::jsonb, $8::jsonb, $9::jsonb, $10)
+     RETURNING ${QUESTION_COLUMNS}`,
+    [
+      input.id,
+      input.packId,
+      input.levelId,
+      input.type,
+      input.topic,
+      input.points,
+      JSON.stringify(input.content),
+      input.rubric !== undefined ? JSON.stringify(input.rubric) : null,
+      JSON.stringify(input.knowledgeBaseSources),
+      input.createdBy,
+    ],
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error("insertAiDraftQuestion: INSERT returned no row");
   }
   return mapQuestionRow(row);
 }
