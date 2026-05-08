@@ -44,6 +44,7 @@ import {
   listVersions,
   restoreVersion,
   bulkImport,
+  generateQuestions,
 } from "./service.js";
 import type {
   AddLevelInput,
@@ -364,4 +365,32 @@ export async function registerQuestionBankRoutes(
   // PATCH /api/admin/questions/:id/tags NOT exposed — tags are part of PATCH body.
   // DELETE on packs/levels/questions NOT supported in Phase 1 — soft-delete via
   // status='archived' is the only path. Hard delete is a Phase 3 admin tool.
+
+  // POST /api/admin/packs/:id/levels/:levelId/generate
+  // Body: { count: number (1-10), topic_focus?: string }
+  // Returns: { questionIds: string[], generated: number, skillSha: string }
+  app.post(
+    "/api/admin/packs/:id/levels/:levelId/generate",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id: packId, levelId } = req.params as { id: string; levelId: string };
+      const body = req.body as { count?: unknown; topic_focus?: unknown };
+
+      const count = typeof body?.count === "number" ? body.count : 5;
+      if (!Number.isInteger(count) || count < 1 || count > 10) {
+        throw new ValidationError("count must be an integer between 1 and 10", {
+          details: { code: "INVALID_PARAM", param: "count" },
+        });
+      }
+
+      const topicFocus =
+        typeof body?.topic_focus === "string" && body.topic_focus.trim().length > 0
+          ? body.topic_focus.trim()
+          : undefined;
+
+      return generateQuestions(tenantId, userId, packId, levelId, count, topicFocus);
+    },
+  );
 }

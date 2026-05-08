@@ -1078,19 +1078,85 @@ export async function bulkImport(
 }
 
 // ===========================================================================
-// AI GENERATION STUB
+// AI QUESTION GENERATION
 // ===========================================================================
 
-// ---------------------------------------------------------------------------
-// generateDraft — Phase 2 deferred (decision #11)
-// ---------------------------------------------------------------------------
+/**
+ * Generate SOC-grounded ai_draft questions for a pack/level.
+ *
+ * This function:
+ *   1. Loads the SOC knowledge base and selects sources matching the level
+ *      (inferred from level label) and optional topic_focus filter.
+ *   2. Loads existing topics for the pack/level to prevent duplicates.
+ *   3. Delegates to handleAdminGenerate (ai-grading handler), which
+ *      calls the claude-code-vps runtime → generate-questions SKILL.md →
+ *      submit_questions MCP tool → inserts ai_draft rows in DB.
+ *
+ * D2 compliance note:
+ *   This function imports from '@assessiq/ai-grading' (the barrel).
+ *   The ai-grading lint's RE_GRADING_RUNTIME_IMPORT pattern matches
+ *   `generateQuestions` as a symbol name, and this file is not in a
+ *   banned path (not worker / candidate / webhook / cron) — lint passes.
+ */
+export async function generateQuestions(
+  tenantId: string,
+  userId: string,
+  packId: string,
+  levelId: string,
+  count: number,
+  topicFocus?: string,
+): Promise<{ questionIds: string[]; generated: number; skillSha: string }> {
+  // Dynamic import to break the load-time cycle: at module load time
+  // neither package has finished resolving. Dynamic import defers until
+  // the first call, at which point both packages are fully resolved.
+  const { handleAdminGenerate } = await import("@assessiq/ai-grading");
+  const {
+    SOC_KB_BY_LEVEL,
+    SOC_KB_FUNCTIONS,
+  } = await import("./knowledge-base/index.js");
 
-export async function generateDraft(
-  _tenantId: string,
-  _input: { topic: string; type: QuestionType; level: string; count: number },
-): Promise<Question[]> {
-  throw notImplemented(
-    "Phase 2: AI question generation lands with grading runtime",
-    QB_ERROR_CODES.GENERATE_DRAFT_DEFERRED,
-  );
+  // Resolve level label to SOC level
+  const level = await withTenant(tenantId, async (client) => {
+    const result = await client.query<{ label: string }>(
+      `SELECT label FROM levels WHERE id = $1 LIMIT 1`,
+      [levelId],
+    );
+    return result.rows[0]?.label ?? null;
+  });
+
+  const socLevel = ((): "L1" | "L2" | "L3" => {
+    if (level === null) return "L1";
+    const upper = level.toUpperCase();
+    if (upper.includes("L3") || upper.includes("LEVEL 3") || upper.includes("SENIOR") || upper.includes("THREAT HUNT")) return "L3";
+    if (upper.includes("L2") || upper.includes("LEVEL 2") || upper.includes("INTERMEDIATE") || upper.includes("ANALYST")) return "L2";
+    return "L1";
+  })();
+
+  // Select sources from KB filtered by level (and optionally topic_focus)
+  let sources = SOC_KB_BY_LEVEL[socLevel];
+  if (topicFocus && (SOC_KB_FUNCTIONS as readonly string[]).includes(topicFocus)) {
+    const focused = sources.filter((s) => s.function === topicFocus);
+    // Only narrow to topic_focus if it has enough entries; otherwise use full level
+    sources = focused.length >= 3 ? focused : sources;
+  }
+
+  // Load existing topics for duplicate avoidance
+  const existingTopics = await withTenant(tenantId, async (client) => {
+    const result = await client.query<{ topic: string }>(
+      `SELECT topic FROM questions WHERE pack_id = $1 AND level_id = $2`,
+      [packId, levelId],
+    );
+    return result.rows.map((r) => r.topic);
+  });
+
+  return handleAdminGenerate({
+    tenantId,
+    userId,
+    packId,
+    levelId,
+    count,
+    socLevel,
+    sources,
+    existingTopics,
+  });
 }
