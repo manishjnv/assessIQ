@@ -135,7 +135,7 @@ export function AdminPackDetail(): React.ReactElement {
       return;
     }
     try {
-      const qData = await adminApi<QuestionsResponse>(`/admin/questions?pack_id=${id}&pageSize=100`);
+      const qData = await adminApi<QuestionsResponse>(`/admin/questions?pack_id=${id}&pageSize=500`);
       setQuestions(qData.items);
     } catch (err) {
       setQuestionsError(
