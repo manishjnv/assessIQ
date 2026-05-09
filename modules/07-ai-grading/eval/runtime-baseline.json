@@ -1,5 +1,5 @@
 {
-  "_comment": "Stage 1.5 runtime baseline. baseline.json captures structural golden scoring; this file captures live runtime characteristics so regressions in latency / RSS / chunk-success rates can be detected. Updated 2026-05-09 post-citation+subjective ship with the L2 count=15 smoke.",
+  "_comment": "Stage 1.5 runtime baseline. Updated 2026-05-09 post-1.5e MCP strict schema. Live smoke attempt 019e0deb: 8/15 inserted, 3/5 chunks passed, citation_dropped=0, RSS peak 649 MiB. MCP gate confirmed — DB content keys are canonical (question/options/correct/rationale, etc.). Two chunks (log_analysis + scenario) failed exit-1 with no detail; needs stderr_tail dive. Eval fixtures have invented src_l2_* IDs vs the real SOC KB mitre.t* IDs — score-candidate misreports until fixtures align with soc-l1/l2/l3.json.",
   "smoke_run": {
     "captured_at": "2026-05-09T15:40:00Z",
     "level": "L2",

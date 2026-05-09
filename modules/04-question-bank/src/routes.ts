@@ -48,7 +48,6 @@ import {
   generateRubricForQuestion,
   saveRubric,
   bulkGenerateMissingRubrics,
-  bulkUpdateQuestionStatus,
 } from "./service.js";
 import type {
   AddLevelInput,
@@ -328,57 +327,6 @@ export async function registerQuestionBankRoutes(
       // this endpoint handles (single pack, hundreds of questions max).
       const buffer = Buffer.from(JSON.stringify(req.body));
       return bulkImport(tenantId, buffer, "json", userId);
-    },
-  );
-
-  // POST /api/admin/questions/bulk-update-status
-  // Body: { ids: string[], status: "active" | "archived" }
-  // Validates:
-  //   - ids is a non-empty array of UUIDs (length 1-200)
-  //   - status is "active" or "archived"
-  //   - transitions: ai_draft→active, ai_draft→archived, draft→archived, active→archived
-  //   - archived→active is FORBIDDEN (per-question only, for audit trail)
-  // Returns: { updated: string[], notFound: string[] }
-  // notFound includes cross-tenant ids (RLS-filtered) and ids whose current
-  // status does not permit the requested transition.
-  app.post(
-    "/api/admin/questions/bulk-update-status",
-    { preHandler: adminOnly },
-    async (req) => {
-      const tenantId = req.session!.tenantId;
-      const body = req.body as { ids?: unknown; status?: unknown };
-
-      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-      if (!Array.isArray(body?.ids) || body.ids.length === 0 || body.ids.length > 200) {
-        throw new ValidationError(
-          "ids must be a non-empty array of UUIDs with at most 200 entries",
-          { details: { code: "INVALID_BULK_SIZE", received: Array.isArray(body?.ids) ? body.ids.length : 0 } },
-        );
-      }
-
-      for (const id of body.ids as unknown[]) {
-        if (typeof id !== "string" || !UUID_RE.test(id)) {
-          throw new ValidationError(
-            `ids must all be valid UUIDs; got: ${String(id).slice(0, 64)}`,
-            { details: { code: "INVALID_PARAM", param: "ids" } },
-          );
-        }
-      }
-
-      const ALLOWED_TARGET_STATUSES = ["active", "archived"] as const;
-      if (!ALLOWED_TARGET_STATUSES.includes(body.status as "active" | "archived")) {
-        throw new ValidationError(
-          `status must be one of: ${ALLOWED_TARGET_STATUSES.join(", ")}`,
-          { details: { code: "INVALID_PARAM", param: "status" } },
-        );
-      }
-
-      return bulkUpdateQuestionStatus(
-        tenantId,
-        body.ids as string[],
-        body.status as "active" | "archived",
-      );
     },
   );
 
