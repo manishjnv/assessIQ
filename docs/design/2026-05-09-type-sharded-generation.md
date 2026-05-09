@@ -169,7 +169,7 @@ Promise.allSettled([
   counts.scenario > 0 → generateScenarioQuestions(scenarioSources, counts.scenario),
   counts.kql > 0      → generateKqlQuestions(kqlSources, counts.kql),
 ])
-  │   (N concurrent claude subprocesses — one per active type)
+  │   (capped at 2 concurrent via semaphore — Stage 1; raise to 4 after Stage 1.5 gate)
   │
   ▼
 merge results → topic-dedupe against existingTopics + within this run
@@ -211,12 +211,24 @@ was explicitly wired to the same key (verify in implementation).
 
 ### Concurrent subprocess budget
 
-With 4 active types, there are 4 concurrent claude subprocesses per generation run. Each VPS
-claude process uses approximately 150–250 MB RSS during inference. At 4 concurrent:
-~600 MB–1 GB additional RAM during the ~60–70 s peak window. This is on top of the API process
-and Postgres. **VPS RAM must be verified before implementation** (see Q2, §9). If RAM is
-constrained (<2 GB free), a lightweight semaphore (max concurrency = 2) can throttle the
-type fan-out at the cost of ~15–30 s additional wall-clock.
+**Decision (2026-05-09, Q2): Stage 1 concurrency cap = 2.** The VPS has ~4.4 GB available
+headroom but shares the box with at least 4 other apps (A11yOS/AccessBridge umbrella). Two
+concurrent claude processes at ~250 MB RSS peak = ~500 MB worst-case — well within headroom
+even during co-tenant spikes. Four concurrent would peak at ~1 GB, which is acceptable
+normally but risky if another app has a burst at the same moment.
+
+At cap=2, the type fan-out runs two sequential batches. Implementation batches by estimated
+duration: batch 1 (log_analysis + mcq — the two highest-count types) runs first; batch 2
+(scenario + kql) runs immediately after. For a 30-question run:
+~85 s (batch 1) + ~50 s (batch 2) ≈ **135 s** total — within the Stage 1 target of ≤180 s.
+
+**Stage 1.5 promotion gate (after 1 week of clean Stage 2 operation):**  
+Run a full 4-type generation on the dev tenant, sample `docker stats --no-stream assessiq-api`
+at 5 s intervals during the run, record max container RSS.
+- **Threshold to raise cap to 4:** max system-wide RSS across all containers during
+  generation < 3.5 GB. At cap=4, all 4 types run in a single batch targeting ≤90 s.
+- If threshold is not met, cap remains at 2; revisit when co-tenant apps have explicit
+  Docker memory limits.
 
 The 15-concurrent-subprocess scenario (5 types × 3 chunks from Option B) is not proposed
 for Phase 1 and requires separate capacity planning.
@@ -227,35 +239,56 @@ for Phase 1 and requires separate capacity planning.
 
 ### Per-type counts modal (proposed)
 
+**Default behavior (Q4 decision, 2026-05-09):** Admin sets a total count and level; the handler
+auto-derives per-type counts from the weight table below. Each chip is editable; the total
+updates live. Setting any type to 0 skips that skill entirely (clean per-type off-switch).
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Generate Questions — SOC L2                                    │
-├─────────────────────────────────────────────────────────────────┤
-│  Type             Count     KB sources    Est. wall-clock       │
-│  ─────────────────────────────────────────────────────────────  │
-│  MCQ              [ 10 ]   (25 sources)   ~20 s                 │
-│  Log Analysis     [ 10 ]   (12 sources)   ~55 s  ← bottleneck  │
-│  Scenario         [  5 ]   ( 8 sources)   ~40 s                 │
-│  KQL              [  5 ]   ( 7 sources)   ~30 s                 │
-│  Subjective       [  0 ]   (omnibus)      —                     │
-│  ─────────────────────────────────────────────────────────────  │
-│  Total: 30 questions    Expected: ~70 s  (limited by Log A.)    │
-│                                                                 │
-│  [ Generate Any (30 balanced) ]         [ ▶ Generate (30) ]    │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Generate Questions — SOC L2                                     │
+├──────────────────────────────────────────────────────────────────┤
+│  Total:  [ 30 ]   Level: ( L1 )  ( L2 ●)  ( L3 )               │
+│                                                                  │
+│  ── Auto-weighted from L2 defaults (35/30/20/10/5%) ──────────  │
+│  [ MCQ: 11 ]  [ Log Analysis: 9 ]  [ Scenario: 6 ]  [ KQL: 4 ] │
+│  [ Subjective: 0 ]  ← set to 0 skips skill entirely             │
+│                                                                  │
+│  Type           Count    KB sources     Est. wall-clock          │
+│  ──────────────────────────────────────────────────────────────  │
+│  MCQ            [ 11 ]   (25 sources)   ~35 s  (batch 1)        │
+│  Log Analysis   [  9 ]   (12 sources)   ~55 s  ← bottleneck     │
+│  Scenario       [  6 ]   ( 8 sources)   ~42 s  (batch 2)        │
+│  KQL            [  4 ]   ( 7 sources)   ~30 s  (batch 2)        │
+│  Subjective     [  0 ]   (omnibus)       —                      │
+│  ──────────────────────────────────────────────────────────────  │
+│  Total: 30 qs   Expected: ~150 s  (cap=2, 2 batches)            │
+│                                                                  │
+│  Presets: [ Balanced L1 ]  [ Balanced L2 ]  [ Balanced L3 ]     │
+│  [ Generate Any — omnibus (30) ]        [ ▶ Generate (30) ]     │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-**"Generate Any (N balanced)"** button triggers the omnibus skill with the existing count slider.
-This is the backward-compatible escape hatch (see §7).
+**Weight table by level** (auto-derived counts round to nearest integer, total enforced):
 
-**"KB sources (N sources)"** is a live preview: the count is computed client-side from the
-slicing criteria applied against the pack's SOC level. It gives the admin immediate feedback
-before committing the request. If a type slice shows "(< 3 sources)", the UI warns: "Not enough
-KB sources — will fall back to full level KB."
+| Level | MCQ | Log Analysis | Scenario | KQL | Subjective |
+|---|---|---|---|---|---|
+| L1 | 50% | 30% | 10% | 5% | 5% |
+| L2 | 35% | 30% | 20% | 10% | 5% |
+| L3 | 20% | 20% | 25% | 20% | 15% |
 
-**"Est. wall-clock"** is a static lookup from a table baked into the frontend:  
-`[level][type][count] → seconds estimate`. The bottleneck type is flagged `← bottleneck`.
-The composite estimate shown is `max(per-type-estimates) + 15 s overhead`.
+Subjective always routes to the omnibus skill; if Subjective count > 0, one omnibus call is
+added to the fan-out sequentially after the type-skill batches complete.
+
+**"KB sources (N sources)"** is computed client-side from the slicing criteria applied against
+the pack's SOC level, loaded eagerly when the modal opens. If any type slice shows
+"(< 3 sources)", the UI warns inline: "Sparse KB — will fall back to full level KB."
+
+**"Est. wall-clock"** labels each type with its batch (1 or 2) and flags the bottleneck.
+The composite estimate is `batch1_max + batch2_max + 20 s overhead`. At Stage 1.5 cap=4,
+both batches collapse to one and the estimate drops to `max(all_types) + 15 s`.
+
+**Preset buttons** auto-fill per-type chips using the weight table; the admin can still
+override individual values after selecting a preset.
 
 **Decision: keep omnibus as "Generate Any" fallback — yes.**  
 Remove it only after Stage 3 flip AND 30 days clean operation AND eval parity is confirmed
@@ -364,11 +397,24 @@ The flag is read in `admin-generate.ts` (or the runtime-selector). No other file
 ### Stage 1 — Ship per-type skills behind default=omnibus
 
 - Create the 4 SKILL.md files in `prompts/skills/` (this deliverable, as DRAFT).
-- Finalize skills (version `2026-05-09` → `1.0.0`), deploy to VPS `~/.claude/skills/`.
+- Finalize skills (version `DRAFT-2026-05-09` → `1.0.0`), deploy to VPS `~/.claude/skills/`.
 - Wire the `AI_GENERATE_MODE=sharded` branch in the handler (no-op while flag is `omnibus`).
+- Implement type fan-out with **concurrency cap = 2** via a lightweight semaphore, configurable
+  via `GENERATE_SUBPROCESS_CAP` env var (default: `2`).
 - Run eval harness against fixtures; establish `baseline.json`.
 
-**Gate to Stage 2:** eval baseline recorded, CI schema checks pass, skill SHAs are stable.
+**Gate to Stage 2:** eval baseline recorded, CI schema checks pass, skill SHAs stable,
+and cap=2 integration test completes in ≤180 s for 30 questions on the dev machine.
+
+### Stage 1.5 — Measure peak RSS; decide cap=4 promotion
+
+Run after at least 1 week of clean Stage 2 (test-tenant) operation:
+- Trigger a full 4-type generation (30 questions) on the dev tenant while sampling
+  `docker stats --no-stream assessiq-api` at 5 s intervals. Record peak system-wide RSS.
+- **If peak RSS < 3.5 GB:** raise `GENERATE_SUBPROCESS_CAP` to 4. Expected wall-clock drops
+  from ~135 s to ≤90 s. Update Stage 2 gate threshold accordingly (see gate below).
+- **If peak RSS ≥ 3.5 GB:** cap remains at 2. Revisit when co-tenant apps gain explicit
+  Docker memory limits. Stage 2 gate threshold stays at ≤180 s.
 
 ### Stage 2 — Enable `AI_GENERATE_MODE=sharded` for one test tenant (two-week window)
 
@@ -380,7 +426,8 @@ The flag is read in `admin-generate.ts` (or the runtime-selector). No other file
   `chunks_failed` rate, `dedupe_dropped` rate, admin feedback (qualitative).
 
 **Gate to Stage 3:**
-- Mean wall-clock for 30 questions < 90 s (p90 < 120 s).
+- Mean wall-clock for 30 questions: ≤180 s at cap=2, or ≤90 s if Stage 1.5 raised cap to 4.
+  (p90 ≤ 1.4× the applicable mean threshold.)
 - Success rate ≥ 95% (at most 1 failed type per 20 runs).
 - Zero eval regressions on any dimension vs. `baseline.json`.
 - No admin-reported quality complaint requiring rollback.
@@ -406,64 +453,69 @@ The flag is read in `admin-generate.ts` (or the runtime-selector). No other file
 
 | # | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|---|
-| 1 | **Model drift between Haiku and Sonnet.** MCQ questions (Haiku) are systematically easier or less technically precise than log_analysis questions (Sonnet). An L3 pack authored with MCQ:Haiku + scenario:Sonnet has uneven difficulty calibration. | Medium | High | Add `difficulty_fit` dimension to eval (dimension 5). Flag L3 MCQs for human review during Stage 2. Consider L3-only `generate-mcq-sonnet` variant behind a flag. |
+| 1 | **Homogeneous Sonnet stack lowers L3 scenario quality ceiling.** Moving all four skills to Sonnet eliminates cross-model quality variance but removes the Opus ceiling for scenario narrative depth and TTP precision. L3 scenario questions may be shallower than what the omnibus produced if it implicitly used a stronger model for complex requests. | Low–Medium | Medium | Monitor eval dimension 5 (difficulty fit) and scenario step-coherence in Stage 2. If regression is detected, `generate-scenario-opus` (§1 Non-goals, deferred) becomes the remediation path. |
 | 2 | **Cross-skill citation mismatch.** KB slicing means MCQ and scenario questions in the same pack cite different sources; a pack about "Kerberoasting" might have scenario questions with no Kerberoasting reference if it sliced to incident-response sources. Topical coherence within a pack degrades. | Low–Medium | Medium | The omnibus's `topic_focus` param can still be passed to each type-skill; the KB slice is already narrowed by type. Add a `topic_coverage_check` to the eval runner: confirm that ≥1 source in the MCQ slice and ≥1 source in the scenario slice share a common tag cluster. |
 | 3 | **Increased cost at Phase 2.** Four skill calls × ~28 K total input vs one call × 25 K input. Phase 2 cost per run: ~$0.29 vs ~$0.23 (omnibus), a 26% increase. With prompt caching, static skill content is cached across runs; only KB slice input is non-cacheable. | Medium | Low (Phase 1) / Medium (Phase 2) | Accept for Phase 1. Plan prompt-caching strategy before Phase 2 migration. Document the cost delta in Phase 2 budget planning. |
 | 4 | **Eval baseline too thin to detect regressions.** 10 golden questions per type per level is the minimum viable set. Subtle shifts in distractor quality or log-excerpt realism may not surface at 10-sample granularity. | High | Medium | Grow golden set by 5 per type per level each quarter. Set CI alert: if eval set has not grown in 90 days, open a backlog ticket. |
-| 5 | **Per-type UI confusing admins who liked the simple slider.** Some admins want "give me 30 varied questions" without thinking about type allocation. The new modal adds cognitive overhead. | Medium | Low | Preserve "Generate Any (N balanced)" omnibus shortcut permanently (§5). Add preset buttons: "Balanced L1 (50/30/10/5/5)", "Balanced L2", "Balanced L3" that auto-fill the per-type inputs from the existing weight table. |
+| 5 | **Per-type UI confusing admins who liked the simple slider.** Some admins want "give me 30 varied questions" without thinking about type allocation. The new modal adds cognitive overhead. | Medium | Low | Auto-weighted defaults (§5) mean the modal opens pre-filled; the admin rarely needs to touch individual chips. Preset buttons ("Balanced L1/L2/L3") and the "Generate Any" omnibus shortcut are permanent escape hatches. |
+
+### Constraint: codex:rescue gate scope
+
+**The `CLAUDE_SPAWN_ALLOW_LIST` in `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` is
+FILE-level, not skill-level.** The two currently allowed files (`admin-generate.ts`,
+`claude-code-vps.ts`) already cover all spawn sites. `runSkill()` in `claude-code-vps.ts`
+parameterizes the skill name — adding 4 new type skills introduces zero new spawn sites
+and therefore requires no lint allowlist change.
+
+`codex:rescue` adversarial review is required for Stage 1 implementation **only if**:
+- The lint file itself is modified (e.g., to add a new file to the allowlist), OR
+- A new file is added under `modules/07-ai-grading/src/runtimes/` (which would bypass
+  the parameterized `runSkill()` path).
+
+The implementation plan MUST keep all 4 type skills routed through the existing
+`claude-code-vps.ts` runtime to avoid triggering this gate.
 
 ---
 
 ## 9. Open questions for the user
 
-Please answer these before implementation is commissioned. These are the decisions that
-cannot be resolved from the existing codebase.
+Questions 1 (scenario model), 2 (concurrency cap), and 4 (per-type count allocation) are
+**resolved** — see §1, §4, and §5 respectively. The following are still open and must be
+answered before Stage 1 implementation begins.
 
-1. **Scenario model: Sonnet or Opus?** The 90 s wall-clock target requires Sonnet for scenario.
-   If quality is more important than speed for scenario questions, Opus is viable but will
-   make scenario the bottleneck at 80–120 s, pushing total wall-clock past 90 s. Should
-   the `generate-scenario` skill use Sonnet with an optional `generate-scenario-opus` variant,
-   or should it always use Opus (accepting slower generation)?
+1. **singleFlight mutex shared with grading.** Generation and grading currently share the
+   same `singleFlight` registry (different keys). With 2–4 concurrent generation subprocesses,
+   can the admin still click "Grade next" on an unrelated attempt simultaneously, or does the
+   shared registry create any unexpected contention? Should generation and grading have
+   separate mutex registries for clarity?
 
-2. **Max account subprocess concurrency.** Is there a known hard limit on concurrent claude
-   subprocesses under the Max subscription on the VPS? 4 concurrent is the Phase 1 default;
-   if the Max account throttles parallel sessions, the type fan-out will serialize and the
-   wall-clock wins disappear. Should a 2-subprocess concurrency cap be the safe default
-   while this is measured?
+2. **Exact KB source counts per level.** The slice estimate table in §3 is based on partial
+   file reads. Before wiring the KB-source-count preview in the UI, implementation needs
+   exact per-level counts per slice criterion. Should implementation compute these
+   programmatically at request time (always current) or derive them from a static lookup
+   baked into the frontend (simpler but stale when KB is updated)?
 
-3. **singleFlight mutex shared with grading.** Currently, generation and grading share the
-   same `singleFlight` registry (different keys). With 4 concurrent generation subprocesses,
-   can the admin still click "Grade next" on an unrelated attempt simultaneously? Or should
-   generation and grading have separate mutex registries to avoid confusion?
-
-4. **Per-type count allocation: manual or auto-weighted?** Should the modal default to manual
-   (admin sets each count) or auto-weighted from the existing weight table
-   (L1: MCQ 50%, log 30%, scenario 10%, kql 5%, subjective 5%)? If auto-weighted, the admin
-   sets total count and the weights fill in; they can then override individual types. This is
-   a UX decision, not an engineering constraint.
-
-5. **Exact KB source counts per level.** The KB slice estimate table in §3 is based on
-   partial file reads. Before implementing the KB-source-count preview in the UI, exact
-   counts per level per slice criterion are needed. Can you confirm the counts from the
-   full `soc-l1.json`, `soc-l2.json`, `soc-l3.json`, or should implementation derive them
-   programmatically at request time?
-
-6. **KQL scope: Microsoft Sentinel / Defender only, or also Splunk SPL / Sigma?** The KQL
-   skill is named `generate-kql`. The L3 KB contains sources referencing Splunk SPL and
-   Sigma rules alongside KQL. Should the skill generate KQL-only questions, or also support
+3. **KQL scope: Microsoft Sentinel / Defender only, or also Splunk SPL / Sigma?** The
+   `generate-kql` skill currently targets KQL only. The L3 KB contains sources referencing
+   Splunk SPL and Sigma rules. Should the skill generate KQL-only questions, or also support
    SPL/Sigma? If multi-platform, the skill name and quality standards need adjustment.
 
-7. **Subjective exclusion permanent?** The task excludes `generate-subjective` because the
-   omnibus handles it adequately. Should subjective remain in the omnibus path permanently,
-   or is there a quality-improvement case for a separate `generate-subjective` skill later
-   (e.g., to improve rubric pre-population)?
+4. **Subjective exclusion permanent?** Subjective is excluded from type-sharding (omnibus
+   handles it). Should this be permanent, or is there a quality-improvement case for a
+   `generate-subjective` skill later (e.g., to improve rubric pre-population for the
+   generate-rubric downstream skill)?
 
-8. **`skillShas` in the response.** The current handler returns a single `skillSha`. With
+5. **`skillShas` in the response.** The current handler returns a single `skillSha`. With
    four skills, the handler would return `skillShas: { mcq, log_analysis, scenario, kql }`.
    The `generation_attempts` table's `skill_sha` column is a single varchar. Should this be
-   JSON-stringified into the column, or should the table gain a `skill_shas` jsonb column?
-   This is a schema decision that belongs in §7 Stage 1.
+   JSON-stringified into the existing column, or should the table gain a `skill_shas` jsonb
+   column? This schema decision is a Stage 1 blocker.
 
-9. **"Generate Any" omnibus: is it shown to all admins or only super-admins?** If the omnibus
-   is kept as an escape hatch, should it be hidden from tenant admins (to enforce quality via
-   sharded only) and available only to platform super-admins for debugging?
+6. **"Generate Any" omnibus: shown to all admins or super-admins only?** If the omnibus is
+   kept as an escape hatch, should it be hidden from tenant admins (to enforce sharded-only
+   quality path) and available only to platform super-admins for debugging?
+
+**Residual from Q2 (cap=4 promotion):** The 3.5 GB peak-RSS threshold in §4 Stage 1.5 is
+an estimate, not yet empirically measured. The threshold is the primary unknown that gates
+raising the cap to 4 and hitting the ≤90 s wall-clock target. This is a Stage 1.5 action
+item, not a pre-implementation blocker.

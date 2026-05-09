@@ -1,7 +1,7 @@
 ---
 name: generate-mcq
 version: "DRAFT-2026-05-09"
-model: claude-haiku-4-5
+model: claude-sonnet-4-6
 description: |
   Generate multiple-choice questions (MCQ) for SOC analyst assessments grounded
   in provided knowledge-base sources. Returns a structured array via the
