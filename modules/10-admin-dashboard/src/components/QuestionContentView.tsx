@@ -52,6 +52,58 @@ function JsonFallback({ value }: { value: unknown }): React.ReactElement {
   );
 }
 
+// ── Text-normalization helpers ────────────────────────────────────────────────
+
+/**
+ * Decode JSON double-escape artifacts and common HTML entities.
+ * Order matters: double-backslash must be resolved before \\n / \\t so that
+ * a triple-escaped sequence like "\\\\n" → "\n" (literal) and "\\n" → newline.
+ */
+function unescapeJsonString(s: string): string {
+  return s
+    .replace(/\\\\/g, "\\")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\"/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n");
+}
+
+/**
+ * Strip markdown syntax markers while preserving structure.
+ * - Bold / italic markers are removed; inner text is kept.
+ * - Underscores inside identifiers (field_name) are left alone.
+ * - `inline code` → inner text (no backticks).
+ * - [text](url) → "text (url)".
+ * - ## headings → plain text on its own line.
+ * - "- " / "* " bullets → "• " (unicode bullet keeps visual list structure).
+ * - "1. " ordered → "1) " (keeps numbering without markdown syntax).
+ */
+function stripMarkdown(s: string): string {
+  return s
+    .replace(/\*\*([^*\n]+)\*\*/g, "$1")
+    .replace(/__([^_\n]+)__/g, "$1")
+    .replace(/(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/g, "$1")
+    .replace(/(?<!\w)_(?!\s)([^_\n]+?)(?<!\s)_(?!\w)/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[*-]\s+/gm, "• ")
+    .replace(/^(\d+)\.\s+/gm, "$1) ")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+/** Full normalization: decode JSON/HTML escapes, then strip markdown markers. */
+function cleanText(s: string): string {
+  return stripMarkdown(unescapeJsonString(s));
+}
+
 // ── MCQ ──────────────────────────────────────────────────────────────────────
 
 const OPTION_LABELS = ["A", "B", "C", "D", "E", "F"];
@@ -65,8 +117,8 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
       {question != null ? (
-        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6 }}>
-          {question}
+        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {cleanText(question)}
         </p>
       ) : (
         <JsonFallback value={c.question} />
@@ -116,9 +168,10 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
                     fontFamily: "var(--aiq-font-sans)",
                     fontSize: "var(--aiq-text-sm)",
                     color: isCorrect ? "var(--aiq-color-success, #065f46)" : "var(--aiq-color-fg-primary)",
+                    whiteSpace: "pre-wrap",
                   }}
                 >
-                  {typeof opt === "string" ? opt : JSON.stringify(opt)}
+                  {typeof opt === "string" ? cleanText(opt) : JSON.stringify(opt)}
                 </span>
               </li>
             );
@@ -136,10 +189,11 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
             fontFamily: "var(--aiq-font-sans)",
             fontSize: "var(--aiq-text-sm)",
             color: "var(--aiq-color-fg-muted)",
+            whiteSpace: "pre-wrap",
           }}
         >
           <span style={{ fontWeight: 600, marginRight: "var(--aiq-space-xs)" }}>Rationale:</span>
-          {rationale}
+          {cleanText(rationale)}
         </div>
       )}
     </div>
@@ -151,8 +205,8 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
 function SubjectiveView({ c }: { c: Record<string, unknown> }): React.ReactElement {
   const question = safeStr(c.question);
   return question != null ? (
-    <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6 }}>
-      {question}
+    <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+      {cleanText(question)}
     </p>
   ) : (
     <JsonFallback value={c.question} />
@@ -188,8 +242,8 @@ function KqlView({ c }: { c: Record<string, unknown> }): React.ReactElement {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
       {question != null ? (
-        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6 }}>
-          {question}
+        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {cleanText(question)}
         </p>
       ) : (
         <JsonFallback value={c.question} />
@@ -266,7 +320,7 @@ function ScenarioView({ c }: { c: Record<string, unknown> }): React.ReactElement
             fontWeight: 400,
           }}
         >
-          {title}
+          {cleanText(title)}
         </h3>
       ) : (
         <JsonFallback value={c.title} />
@@ -279,8 +333,8 @@ function ScenarioView({ c }: { c: Record<string, unknown> }): React.ReactElement
       )}
 
       {intro != null && (
-        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6 }}>
-          {intro}
+        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {cleanText(intro)}
         </p>
       )}
 
@@ -293,7 +347,7 @@ function ScenarioView({ c }: { c: Record<string, unknown> }): React.ReactElement
             return (
               <li key={i} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
                 {prompt != null ? (
-                  <span>{prompt}</span>
+                  <span style={{ display: "block", whiteSpace: "pre-wrap" }}>{cleanText(prompt)}</span>
                 ) : (
                   <JsonFallback value={step} />
                 )}
@@ -305,10 +359,11 @@ function ScenarioView({ c }: { c: Record<string, unknown> }): React.ReactElement
                       borderLeft: "3px solid var(--aiq-color-border, #e5e7eb)",
                       color: "var(--aiq-color-fg-muted)",
                       fontSize: "var(--aiq-text-xs)",
+                      whiteSpace: "pre-wrap",
                     }}
                   >
                     <span style={{ fontWeight: 600 }}>Expected: </span>
-                    {expected}
+                    {cleanText(expected)}
                   </div>
                 )}
               </li>
@@ -334,8 +389,8 @@ function LogAnalysisView({ c }: { c: Record<string, unknown> }): React.ReactElem
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
       {/* Prompt */}
       {question != null ? (
-        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6 }}>
-          {question}
+        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {cleanText(question)}
         </p>
       ) : (
         <JsonFallback value={c.question} />
@@ -364,7 +419,7 @@ function LogAnalysisView({ c }: { c: Record<string, unknown> }): React.ReactElem
                 border: "1px solid var(--aiq-color-border, #e5e7eb)",
               }}
             >
-              {logExcerpt}
+              {unescapeJsonString(logExcerpt)}
             </pre>
           ) : (
             <JsonFallback value={c.log_excerpt} />
@@ -389,8 +444,8 @@ function LogAnalysisView({ c }: { c: Record<string, unknown> }): React.ReactElem
           </div>
           <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
             {expectedFindings.map((f, i) => (
-              <li key={i} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", lineHeight: 1.5 }}>
-                {typeof f === "string" ? f : JSON.stringify(f)}
+              <li key={i} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                {typeof f === "string" ? cleanText(f) : JSON.stringify(f)}
               </li>
             ))}
           </ol>
@@ -415,9 +470,10 @@ function LogAnalysisView({ c }: { c: Record<string, unknown> }): React.ReactElem
               margin: "var(--aiq-space-xs) 0 0",
               lineHeight: 1.6,
               color: "var(--aiq-color-fg-primary)",
+              whiteSpace: "pre-wrap",
             }}
           >
-            {sampleSolution}
+            {cleanText(sampleSolution)}
           </p>
         </details>
       )}
@@ -433,10 +489,11 @@ function LogAnalysisView({ c }: { c: Record<string, unknown> }): React.ReactElem
             fontFamily: "var(--aiq-font-sans)",
             fontSize: "var(--aiq-text-sm)",
             color: "var(--aiq-color-fg-muted)",
+            whiteSpace: "pre-wrap",
           }}
         >
           <span style={{ fontWeight: 600, marginRight: "var(--aiq-space-xs)" }}>Hint:</span>
-          {hint}
+          {cleanText(hint)}
         </div>
       )}
     </div>
