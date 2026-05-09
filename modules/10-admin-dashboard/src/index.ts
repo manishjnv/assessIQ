@@ -29,6 +29,9 @@ export type { ScoreDetailProps } from "./components/ScoreDetail.js";
 export { AdminShell } from "./components/AdminShell.js";
 export type { AdminShellProps } from "./components/AdminShell.js";
 
+export { QuestionContentView } from "./components/QuestionContentView.js";
+export type { QuestionContentViewProps } from "./components/QuestionContentView.js";
+
 // ── Pages ──────────────────────────────────────────────────────────────────
 export { AdminDashboard } from "./pages/dashboard.js";
 export { AdminAttempts } from "./pages/attempts.js";

@@ -84,24 +84,39 @@ admin.packs.create.domain:
 
 admin.questions.generate.draft:
   audience: admin
-  short_text: "AI-assisted question drafts are a Phase 2 feature; for now, author by hand or import from JSON."
+  short_text: "Generate 1–30 AI draft questions per call from the pack-detail page. Each draft must be reviewed and activated individually."
   long_md: |
     ## AI-assisted question generation
 
-    Phase 2 will add a **Generate draft** button that takes a one-line prompt
-    ("design a tier-2 SOC scenario about phishing escalation") and returns a
-    fully-shaped question with anchors, rubric bands, and example responses,
-    using the same AI-grading pipeline that scores attempts.
+    The **Generate questions** button (pack-detail page → level row) sends
+    the pack's knowledge base and rubric anchors to the AI pipeline and
+    returns 1–30 `ai_draft` questions per call. Each draft is staged
+    for review — generation does not auto-publish or activate any question.
 
-    For Phase 1 you have two paths:
+    **Using the generator:**
 
-    1. **Author by hand** — fill the question form (type, body, expected
-       answers, rubric) directly.
-    2. **Import JSON** — paste or upload a JSON document conforming to the
-       schema in `modules/04-question-bank/import.schema.json`.
+    1. Open a pack, expand the level you want to fill.
+    2. Click **Generate questions**, set the count (1–30), optionally narrow
+       the topic focus, then click **Generate**.
+    3. New `ai_draft` questions appear in the question list. Open each one
+       in the question editor to review anchors and rubric, then activate.
 
-    The hand-authored path supports every question type the engine understands;
-    JSON import is convenient for migrating from spreadsheets.
+    Wall-clock for a single call:
+
+    - count ≤ 10  → one model call, ~30–90 s per question (cold cache)
+    - count 11–20 → two parallel model calls, ~3–4 min total
+    - count 21–30 → three parallel model calls, ~3–5 min total
+
+    ### Notes
+
+    - **Cache window:** the prompt context (skill + knowledge-base JSON,
+      ~25 K tokens) caches for 5 minutes after a call. A second click within
+      5 minutes reuses the cache and is 2–3× faster.
+    - **Topic dedupe:** parallel chunks may independently propose the same
+      topic. The handler drops case-insensitive duplicates against existing
+      pack topics and across chunks before insert.
+    - **Review still required:** each `ai_draft` must be opened, reviewed,
+      and individually activated — generation does not auto-publish.
 
 admin.questions.import.format:
   audience: admin

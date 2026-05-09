@@ -28,10 +28,12 @@ type PackStatus = "draft" | "published" | "archived";
 interface PackListItem {
   id: string;
   name: string;
+  slug: string;
   domain: string;
   status: PackStatus;
   version: number;
   question_count: number;
+  created_at: string;
   updated_at: string;
 }
 
@@ -81,6 +83,8 @@ export function AdminQuestionBank(): React.ReactElement {
 
   const [searchInput, setSearchInput] = useState(searchQuery);
 
+  const [archivingPackId, setArchivingPackId] = useState<string | null>(null);
+
   const fetchPacks = useCallback(async (status: string, search: string) => {
     setLoading(true);
     setError(null);
@@ -128,8 +132,20 @@ export function AdminQuestionBank(): React.ReactElement {
     );
   }
 
-  async function handleCreatePack(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleArchivePack(pack: PackListItem) {
+    if (!window.confirm(`Are you sure? This will archive "${pack.name}".`)) return;
+    setArchivingPackId(pack.id);
+    try {
+      await adminApi(`/admin/packs/${pack.id}/archive`, { method: "POST" });
+      await fetchPacks(statusFilter, searchQuery);
+    } catch (err) {
+      console.warn("archive-pack error:", err instanceof AdminApiError ? err.apiError.message : err);
+    } finally {
+      setArchivingPackId(null);
+    }
+  }
+
+  async function handleCreatePack(e: React.FormEvent) {    e.preventDefault();
     if (!newForm.name.trim()) { setCreateError("Pack name is required."); return; }
     if (!newForm.domain.trim()) { setCreateError("Domain is required."); return; }
     setCreating(true);
@@ -157,15 +173,27 @@ export function AdminQuestionBank(): React.ReactElement {
       key: "name",
       label: "Name",
       render: (row: PackListItem) => (
-        <span
-          style={{
-            fontFamily: "var(--aiq-font-sans)",
-            fontWeight: 500,
-            fontSize: "var(--aiq-text-sm)",
-          }}
-        >
-          {row.name}
-        </span>
+        <div>
+          <span
+            style={{
+              fontFamily: "var(--aiq-font-sans)",
+              fontWeight: 500,
+              fontSize: "var(--aiq-text-sm)",
+              display: "block",
+            }}
+          >
+            {row.name}
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--aiq-font-mono)",
+              fontSize: "var(--aiq-text-xs)",
+              color: "var(--aiq-color-fg-muted)",
+            }}
+          >
+            {row.slug}
+          </span>
+        </div>
       ),
     },
     {
@@ -240,8 +268,8 @@ export function AdminQuestionBank(): React.ReactElement {
       ),
     },
     {
-      key: "updated_at",
-      label: "Last updated",
+      key: "created_at",
+      label: "Created",
       render: (row: PackListItem) => (
         <span
           style={{
@@ -250,25 +278,41 @@ export function AdminQuestionBank(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {new Date(row.updated_at).toLocaleDateString()}
+          {new Date(row.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
         </span>
       ),
     },
     {
       key: "action",
       label: "",
-      width: 80,
+      width: 140,
       render: (row: PackListItem) => (
-        <button
-          type="button"
-          className="aiq-btn aiq-btn-outline aiq-btn-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/admin/question-bank/${row.id}`);
-          }}
-        >
-          Open
-        </button>
+        <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
+          {row.status !== "archived" && (
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+              disabled={archivingPackId === row.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleArchivePack(row);
+              }}
+              style={{ color: "var(--aiq-color-danger)" }}
+            >
+              {archivingPackId === row.id ? "…" : "Archive"}
+            </button>
+          )}
+          <button
+            type="button"
+            className="aiq-btn aiq-btn-outline aiq-btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/admin/question-bank/${row.id}`);
+            }}
+          >
+            Open
+          </button>
+        </div>
       ),
     },
   ];
