@@ -368,6 +368,16 @@ export async function generateQuestions(
 
   const raw = parseToolInput(events, TOOL_SUBMIT_QUESTIONS);
   if (raw === null) {
+    // Log raw stream events (truncated 2KB) so the mismatch is diagnosable.
+    log.error(
+      {
+        skill: SKILL_GENERATE,
+        packId: input.packId,
+        expectedTool: TOOL_SUBMIT_QUESTIONS,
+        rawStreamTruncated: JSON.stringify(events).slice(0, 2048),
+      },
+      "generation.submit_tool.missing",
+    );
     throw new AppError(
       `expected ${TOOL_SUBMIT_QUESTIONS} tool use in stream-json output`,
       AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
@@ -378,6 +388,18 @@ export async function generateQuestions(
 
   const parsed = SubmitQuestionsInputSchema.safeParse(raw);
   if (!parsed.success) {
+    // Log raw payload (truncated 2KB) + Zod issues so the structural mismatch
+    // is diagnosable without reading production DB rows.
+    log.error(
+      {
+        skill: SKILL_GENERATE,
+        packId: input.packId,
+        expectedTool: TOOL_SUBMIT_QUESTIONS,
+        rawPayloadTruncated: JSON.stringify(raw).slice(0, 2048),
+        issues: parsed.error.issues,
+      },
+      "generation.submit_tool.schema_failed",
+    );
     throw new AppError(
       "submit_questions payload failed schema validation",
       AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
@@ -424,6 +446,7 @@ export async function generateQuestions(
   return {
     questions,
     skillSha: genSha.short,
+    model: genSha.model,
   };
 }
 
@@ -512,6 +535,15 @@ export async function generateRubricDraft(
 
   const raw = parseToolInput(events, TOOL_SUBMIT_RUBRIC);
   if (raw === null) {
+    log.error(
+      {
+        skill: SKILL_RUBRIC,
+        questionId: input.questionId,
+        expectedTool: TOOL_SUBMIT_RUBRIC,
+        rawStreamTruncated: JSON.stringify(events).slice(0, 2048),
+      },
+      "generation.submit_tool.missing",
+    );
     throw new AppError(
       `expected ${TOOL_SUBMIT_RUBRIC} tool use in stream-json output`,
       AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
@@ -522,6 +554,16 @@ export async function generateRubricDraft(
 
   const parsed = SubmitRubricOutputSchema.safeParse(raw);
   if (!parsed.success) {
+    log.error(
+      {
+        skill: SKILL_RUBRIC,
+        questionId: input.questionId,
+        expectedTool: TOOL_SUBMIT_RUBRIC,
+        rawPayloadTruncated: JSON.stringify(raw).slice(0, 2048),
+        issues: parsed.error.issues,
+      },
+      "generation.submit_tool.schema_failed",
+    );
     throw new AppError(
       "submit_rubric payload failed schema validation",
       AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
@@ -595,8 +637,20 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
     });
 
     let stdoutBuf = "";
-    let stderrTail = "";
+    // Full stderr buffer — see privacy gate comment below before adding any log.
+    let stderrFull = "";
     const events: StreamJsonEvent[] = [];
+
+    // Stage-timing counters
+    let firstEventAt: number | null = null;
+    let lastEventAt: number | null = null;
+    const eventCounts = { assistant: 0, tool_use: 0, tool_result: 0, result: 0, rate_limit_event: 0 };
+
+    // Privacy gate: true for generation skills — stderr carries no candidate text.
+    // For grading skills the gate stays closed: stderr is captured in memory but
+    // NEVER logged or persisted (candidate-answer leakage risk per D8/docs/11-observability.md).
+    const isGenerationSkill =
+      opts.skill === "generate-questions" || opts.skill === "generate-rubric";
 
     const timeoutMs = opts.timeoutMs ?? STAGE_TIMEOUT_MS;
     const timer = setTimeout(() => {
@@ -614,17 +668,45 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
     proc.stdout.on("data", (chunk: Buffer) => {
       stdoutBuf += chunk.toString("utf8");
       const { events: parsed, remainder } = parseStreamLines(stdoutBuf);
-      events.push(...parsed);
+      for (const ev of parsed) {
+        events.push(ev);
+        const now = Date.now();
+        if (firstEventAt === null) firstEventAt = now;
+        lastEventAt = now;
+        // Count top-level event types for the summary log.
+        if (ev.type === "assistant") eventCounts.assistant++;
+        if (ev.type === "result") eventCounts.result++;
+        if (ev.type === "rate_limit_event") eventCounts.rate_limit_event++;
+        // Walk content items for tool_use / tool_result counts.
+        // Also promote tool_use to info — keys only, never values
+        // (tool inputs may carry question text — verbose but not sensitive;
+        // values are still omitted to keep logs concise).
+        const content = ev.message?.content;
+        if (Array.isArray(content)) {
+          for (const item of content) {
+            if (item.type === "tool_use") {
+              eventCounts.tool_use++;
+              const inputKeys =
+                item.input && typeof item.input === "object"
+                  ? Object.keys(item.input as Record<string, unknown>).slice(0, 8)
+                  : [];
+              log.info(
+                { skill: opts.skill, tool_name: item.name, tool_input_keys: inputKeys },
+                "claude.tool_use",
+              );
+            }
+            if (item.type === "tool_result") eventCounts.tool_result++;
+          }
+        }
+      }
       stdoutBuf = remainder;
     });
 
     proc.stderr.on("data", (chunk: Buffer) => {
-      // Keep last 512 bytes for diagnostic logging — redacted, never raw
-      // candidate-answer leakage. Anthropic content-policy refusals
-      // sometimes echo prompt content into stderr per
-      // docs/11-observability.md § 10.
-      const text = chunk.toString("utf8");
-      stderrTail = (stderrTail + text).slice(-512);
+      // Accumulate full stderr. The privacy gate (isGenerationSkill) determines
+      // whether this buffer is ever emitted — it must never escape for grading
+      // skills. Buffer is bounded at process exit by the 1024-byte slice below.
+      stderrFull += chunk.toString("utf8");
     });
 
     proc.on("error", (err) => {
@@ -650,6 +732,21 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
         events.push(...parsed);
       }
       const durationMs = Date.now() - startedAt;
+      const msToFirstEvent = firstEventAt !== null ? firstEventAt - startedAt : null;
+      const msToLastEvent = lastEventAt !== null ? lastEventAt - startedAt : null;
+
+      // Privacy gate: log stderr tail ONLY for generation skills.
+      // Grading skill stderr is captured above but discarded here.
+      const stderrTailForLog = isGenerationSkill && stderrFull.length > 0
+        ? stderrFull.slice(-1024)
+        : null;
+      if (stderrTailForLog !== null) {
+        log.warn(
+          { skill: opts.skill, stderrTail: stderrTailForLog },
+          "claude.subprocess.stderr",
+        );
+      }
+
       log.info(
         {
           skill: opts.skill,
@@ -658,15 +755,22 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
           questionId: opts.questionId,
           exitCode: code,
           durationMs,
-          // stderrTail is intentionally NOT logged — even truncated, it
-          // can leak candidate text. The audit JSONL hook on the VPS
-          // captures Claude Code's own structured trace.
+          msToFirstEvent,
+          msToLastEvent,
+          eventCounts,
         },
-        "grading.run",
+        "claude.subprocess.summary",
       );
+
       if (code === 0) {
         resolve(events);
       } else {
+        // Privacy gate: include stderrTail in AppError details for generation
+        // skills only so the handler can persist it to generation_attempts.
+        // For grading skills the field is absent — never persisted.
+        const stderrTailForError = isGenerationSkill && stderrFull.length > 0
+          ? stderrFull.slice(-1024)
+          : undefined;
         reject(
           new AppError(
             `claude subprocess exited with code ${code} (skill=${opts.skill})`,
@@ -677,6 +781,9 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
                 skill: opts.skill,
                 exitCode: code,
                 attemptId: opts.attemptId,
+                ...(stderrTailForError !== undefined
+                  ? { stderrTail: stderrTailForError }
+                  : {}),
               },
             },
           ),
