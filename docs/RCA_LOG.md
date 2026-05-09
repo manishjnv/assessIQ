@@ -4,6 +4,19 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-09 — pack-detail "pageSize must not exceed 100" blocks question list on packs with 200+ questions
+
+**Symptom:** Admin pack-detail page rendered "Couldn't load questions. pageSize must not exceed 100" whenever a pack had more than 100 questions (typical for L1/L2/L3 fully-populated packs). The fetch `GET /admin/questions?pack_id=…&pageSize=500` reached the API, passed `parsePagination()` (cap=500 in `routes.ts`), but was rejected by `assertPageSize()` inside `service.ts` because `MAX_PAGE_SIZE` there was still `100`.
+
+**Cause:** Two-layer validation with mismatched caps. `routes.ts::parsePagination()` was raised to 500 in an earlier session, but `service.ts::MAX_PAGE_SIZE` was a separate constant that was never updated. The UI error card showed the raw service error string ("pageSize must not exceed 100") which is the `MAX_PAGE_SIZE` value interpolated into the message at `modules/04-question-bank/src/service.ts:113`.
+
+**Fix:**
+- `modules/04-question-bank/src/service.ts:58` (commit `bb0176a`): `MAX_PAGE_SIZE = 100` → `MAX_PAGE_SIZE = 500`. Caps now agree at every layer (routes validation → service assertion → SQL LIMIT).
+- `modules/04-question-bank/src/routes.ts` comment (this commit): updated to record the 2026-05-09 bump date and rationale.
+- Existing UI error card in `modules/10-admin-dashboard/src/pages/pack-detail.tsx` already shows "Couldn't load questions. [Retry]" (added in a prior session); no UI change needed.
+
+**Prevention:** Any two-layer pagination validation (route guard + service assertion) must keep both constants in sync. When raising a cap at the route layer, search for corresponding service-layer `MAX_*` or `assertPage*` symbols and update them in the same commit. The service.ts constant is the authoritative upper bound; routes.ts is an ergonomic early-reject.
+
 ## 2026-05-09 — claude auth state mount: per-file approach broken across version upgrades
 
 **Symptom:** `assessiq-api` claude subprocess exited code 1 with "Not logged in · Please run /login" even though host's claude was authenticated and working. Three iterations of partial fix (chmod o+r, chown to UID 1000, individual rw mounts on oauth_token files) all left the container "Not logged in" because each ignored the actual missing file.

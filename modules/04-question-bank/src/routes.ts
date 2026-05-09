@@ -77,11 +77,10 @@ function parsePagination(q: Record<string, string | undefined>): { page: number;
       details: { code: "INVALID_PARAM", param: "page" },
     });
   }
-  // Upper bound 500: pack-detail loads ALL questions for a pack in one request
-  // (GET /admin/questions?pack_id=...&pageSize=200). 200+ questions per pack is
-  // normal at scale with L1/L2/L3 levels populated. 500 is a safe cap that
-  // covers realistic question-bank sizes without unbounded queries; the SQL
-  // LIMIT in repository.ts ensures the DB is always bounded.
+  // Bumped from 100 to 500 on 2026-05-09: pack-detail page renders ALL questions
+  // for a pack in one view; 200+ per pack is realistic when L1/L2/L3 are
+  // populated. RLS bounds + LIMIT clause in the SQL query (repository.ts) cap
+  // memory; 500 is a reasonable upper guard.
   // (admin-users.ts keeps its own 100 cap — user lists never need a full dump
   // in one shot, so the tighter limit there is intentional.)
   if (isNaN(pageSize) || pageSize < 1 || pageSize > 500) {
