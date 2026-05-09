@@ -1,0 +1,127 @@
+[
+  {
+    "type": "scenario",
+    "topic": "Active ransomware containment and evidence preservation",
+    "points": 10,
+    "content": {
+      "title": "Ransomware Outbreak on WORKSTATION-042",
+      "intro": "At 02:14 UTC you receive a critical EDR alert: WORKSTATION-042 is actively encrypting files on the mapped network share \\\\FILESERVER-01\\shared\\. The process tree shows explorer.exe → svchost.exe → encrypted_doc.exe. The workstation is online and FILESERVER-01 is also online. You have EDR remote capabilities and domain admin credentials in a privileged jump host.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "What is your very first action and why? Consider the trade-offs between stopping the encryption immediately versus preserving forensic evidence.",
+          "expected": "Capture volatile artefacts first: use EDR remote shell to collect running process list, active network connections (netstat -ano), and identify the encryption binary's full path and parent process tree. Per NIST 800-61r2, volatile data (RAM, running processes, network state) is lost on isolation — capturing this before network isolation provides the attack chain, any C2 IP, and the malware's persistence mechanism. Only after volatile capture should the host be network-isolated via EDR quarantine."
+        },
+        {
+          "prompt": "After capturing volatile data, how do you contain WORKSTATION-042 without destroying additional evidence? What specifically should you NOT do?",
+          "expected": "Use EDR to quarantine (network-isolate) the host — this blocks outbound C2 and stops further share encryption while keeping the host powered on for RAM imaging. Do NOT power off the machine (loses RAM encryption keys, running process state, and may corrupt open files). Do NOT reimage yet. Do NOT reset the user password before documenting all active sessions. Optionally, take a live RAM image via EDR if supported."
+        },
+        {
+          "prompt": "To scope the impact on FILESERVER-01, which Windows event log and event IDs would you query, and what fields identify the encryption scope?",
+          "expected": "Query the Security event log on FILESERVER-01 for Event ID 5145 (A network share object was checked to see whether client can be granted desired access) — this shows which files were accessed/written from WORKSTATION-042's IP. Also check Event 4663 (An attempt was made to access an object) if Object Access Auditing is enabled, filtering on ObjectType=File, IpAddress=WORKSTATION-042's IP, and AccessMask including write (0x2) or delete (0x10000). Fields: SubjectUserName, ObjectName (full file path), IpAddress, AccessMask."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l2_005"]
+  },
+  {
+    "type": "scenario",
+    "topic": "PsExec lateral movement triage and scope determination",
+    "points": 10,
+    "content": {
+      "title": "Anomalous PsExec Activity from HR Workstation",
+      "intro": "At 09:47 UTC, your SIEM fires an alert: SERVER-DB01 has generated a cluster of anomalous process events — Sysmon shows services.exe spawning PSEXESVC.EXE. Preceding this, Event 4624 on SERVER-DB01 shows a network logon (LogonType=3, NTLM) from WS-HR-07 using the account svc_backup. WS-HR-07 is a standard HR workstation; svc_backup is a SQL Server service account.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "What attack technique is most likely occurring and what MITRE technique ID applies? Explain why the specific combination of events confirms your assessment.",
+          "expected": "T1021.002 — Remote Services: SMB/Windows Admin Shares (PsExec lateral movement). The process chain services.exe → PSEXESVC.EXE on SERVER-DB01 is the canonical PsExec artifact — PsExec installs PSEXESVC.EXE as a service on the target host. The preceding NTLM LogonType=3 from WS-HR-07 using svc_backup is anomalous (a service account authenticating from an HR workstation), suggesting credential theft (T1003) or Pass-the-Hash (T1550.002) on WS-HR-07 as a precondition."
+        },
+        {
+          "prompt": "To determine whether this was authorized activity, what three information sources would you check and in what order?",
+          "expected": "1. Change management / ITSM system: search for an open ticket authorizing remote administration of SERVER-DB01 from WS-HR-07 in the current window. 2. HR workstation owner: contact the assigned user of WS-HR-07 to confirm whether they intentionally ran PsExec (most users would not know what it is). 3. Svc_backup account audit: check Active Directory for who has svc_backup's password (should be restricted to the DBA team or service account vault), and review recent password retrievals from the PAM system — an HR workstation having svc_backup credentials is a red flag regardless of ticketing."
+        },
+        {
+          "prompt": "Assuming this is malicious, what is the minimum set of hosts you must investigate immediately, and what is the risk if you delay containment?",
+          "expected": "Minimum scope: WS-HR-07 (the source, likely the initial compromise point — investigate how svc_backup credentials were obtained here), SERVER-DB01 (the lateral movement target — check what the attacker did post-PSEXESVC.EXE via subsequent Sysmon events), and any other hosts that received NTLM network logons (LogonType=3) from WS-HR-07 in the past 24 hours (to detect wider lateral movement). Risk of delay: the attacker may already be pivoting from SERVER-DB01 to additional database or backup servers, exfiltrating data, or installing persistent backdoors. DATABASE servers are high-value targets."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l2_006", "src_l2_003"]
+  },
+  {
+    "type": "scenario",
+    "topic": "PowerShell download cradle to dropper execution investigation",
+    "points": 10,
+    "content": {
+      "title": "Staged Payload Delivery via Encoded PowerShell",
+      "intro": "A Sysmon alert fires at 15:30 UTC on DESKTOP-09: powershell.exe (parent: winword.exe) executed with -EncodedCommand. A second alert fires 45 seconds later: a new process, svchost32.exe, spawned from %TEMP%\\svchost32.exe. The original Word document (invoice_0509.docm) was opened by the user at 15:28 UTC.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "Reconstruct the infection chain from the available Sysmon data. What technique does each stage represent?",
+          "expected": "Stage 1: User opens invoice_0509.docm — the .docm extension indicates a macro-enabled document. winword.exe spawning powershell.exe is T1566.001 (Phishing: Spearphishing Attachment) triggering a malicious macro (T1137 — Office Application Startup or T1059.001 via macro). Stage 2: The encoded PowerShell (-EncodedCommand) is a download cradle (T1059.001) that retrieves the second-stage payload and drops it to %TEMP%\\svchost32.exe. Stage 3: svchost32.exe executing from %TEMP% is the dropper (T1105 — Ingress Tool Transfer) — the filename mimics legitimate svchost.exe to evade casual inspection."
+        },
+        {
+          "prompt": "What two Sysmon event IDs (beyond ID 1) would you query to understand the full impact of svchost32.exe's execution, and what specifically would you look for in each?",
+          "expected": "Sysmon ID 3 (NetworkConnect): look for any outbound connections from svchost32.exe — destination IP, port, and protocol reveal the C2 address. The first network connection after dropper execution is typically the C2 check-in. Sysmon ID 11 (FileCreate): look for any files written to disk by svchost32.exe — secondary payloads, configuration files, or persistence artifacts dropped in Startup folders, AppData, or registry-referenced paths."
+        },
+        {
+          "prompt": "The user insists they opened the file from a SharePoint site, not an email attachment. How does this change your investigation scope?",
+          "expected": "If the file was downloaded from SharePoint, the initial delivery vector is T1566.002 (Phishing: Spearphishing Link) or T1213 (Data from Information Repositories) if SharePoint was compromised. You must: (a) retrieve SharePoint audit logs to identify who uploaded the malicious .docm and when; (b) determine whether other users downloaded or opened the same file (scope of concurrent infections); (c) check whether the SharePoint site was externally accessible — if so, this may be a supply-chain or watering-hole attack rather than a targeted phish. The endpoint investigation remains the same; only the attribution and scope change."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l2_001", "src_l2_002"]
+  },
+  {
+    "type": "scenario",
+    "topic": "Malicious Windows service installation persistence",
+    "points": 10,
+    "content": {
+      "title": "Suspicious Service Installation on Domain Controller",
+      "intro": "During overnight log review at 08:00 UTC, a SOC analyst discovers Windows System Event 7045 (A service was installed in the system) on DC01, logged at 02:47 UTC: ServiceName=WinTelSvc, ServiceFileName=C:\\Windows\\Temp\\wintelsvc.exe, StartType=Automatic, AccountName=LocalSystem. No change ticket exists for this service. The domain controller has not been rebooted since the event.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "What is the immediate risk presented by this finding and why does the location of ServiceFileName matter?",
+          "expected": "Immediate risk: a service running as LocalSystem with StartType=Automatic means it executes at boot with the highest possible privilege and will persist across reboots — this is T1543.003 (Create or Modify System Process: Windows Service). The ServiceFileName path C:\\Windows\\Temp\\ is critical: legitimate Windows services run from C:\\Windows\\System32\\ or C:\\Program Files\\, not from Temp directories. Malware places executables in writable temp directories to evade software inventory tools that scan standard paths. On a domain controller, any persistent LocalSystem service has access to the entire domain's credential material."
+        },
+        {
+          "prompt": "Without rebooting the DC, how would you investigate what wintelsvc.exe has already executed since 02:47 UTC?",
+          "expected": "Query Sysmon Event ID 1 on DC01 filtered to ParentImage containing wintelsvc.exe — this shows all child processes spawned by the service since installation. Check Sysmon ID 3 (NetworkConnect) with InitiatingProcess=wintelsvc.exe for any C2 connections. Query Security Event 4688 (Process Creation, if not using Sysmon) for the same. Review the Security event log for any privilege escalation, account creation (Event 4720), or group membership changes (Event 4728) made in the 02:47–08:00 UTC window. Pull the wintelsvc.exe binary for static and dynamic analysis — hash it against threat intel feeds first."
+        },
+        {
+          "prompt": "What steps are needed to remove the service safely while preserving evidence for forensics?",
+          "expected": "1. Copy wintelsvc.exe to a secure evidence share before any removal (sc.exe query WinTelSvc to confirm current state). 2. Stop the service (sc stop WinTelSvc) — this terminates the running process but leaves the binary and registry entry. 3. Capture a memory dump of the service process (if possible via task manager or procdump) before stopping — contains decrypted C2 config. 4. Delete the service (sc delete WinTelSvc). 5. Delete C:\\Windows\\Temp\\wintelsvc.exe. 6. Search for additional copies of the binary by SHA256 hash across all endpoints. 7. Review Security Event 4697 (Service Installed) across all domain-joined hosts for the same ServiceName or ServiceFileName pattern."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l2_010"]
+  },
+  {
+    "type": "scenario",
+    "topic": "C2 infrastructure discovery via beacon jitter analysis",
+    "points": 10,
+    "content": {
+      "title": "Suspected Multi-Host C2 Beacon Campaign",
+      "intro": "Threat intelligence reports a Cobalt Strike campaign using fast-flux C2. Your SIEM has flagged unusual outbound TLS traffic from WORKSTATION-03 to 34.102.45.0/24 every ~5 minutes for 72 hours. You have Zeek TLS logs, Sysmon endpoint data, and Microsoft Defender XDR available.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "How would you determine whether other internal hosts are part of the same C2 campaign? Describe the hunting query logic (you may use pseudocode or KQL structure).",
+          "expected": "Extract the JA3 hash observed in WORKSTATION-03's TLS connections to 34.102.45.0/24 from Zeek TLS logs. Query all Zeek TLS records for the past 72 hours where JA3 matches this hash and the destination is NOT a catalogued enterprise IP. Alternatively, in Defender XDR: DeviceNetworkEvents | where RemoteIPType == \"Public\" and RemoteIP startswith \"34.102.45.\" | summarize count() by DeviceName, RemoteIP | where count_ > 5. Also check for periodic beacon signatures using make-series on connection timestamps per host and calculate inter-beacon intervals."
+        },
+        {
+          "prompt": "Sysmon ID 3 shows the TLS connections on WORKSTATION-03 originate from a process named svchost.exe (PID 4812) running from C:\\Windows\\System32\\svchost.exe. How do you determine whether this is a legitimate svchost.exe or process impersonation?",
+          "expected": "Check the Hashes field in Sysmon Event ID 1 for PID 4812 and compare the SHA256 against Microsoft's known-good svchost.exe hash (verifiable via LOLBAS or Microsoft's catalog). A legitimate svchost.exe will always be signed by Microsoft and run from C:\\Windows\\System32\\, but the SHA256 must match the exact OS build version. Also check the ParentImage in Event ID 1 for PID 4812 — legitimate svchost.exe is always spawned by services.exe. A svchost.exe spawned by explorer.exe, cmd.exe, or any non-services.exe parent is definitively malicious (T1036.004 — Masquerading: Masquerade Task or Service). Check IntegrityLevel — legitimate svchost.exe runs as System."
+        },
+        {
+          "prompt": "Threat intel confirms this is Cobalt Strike with DNS-based C2 fallback. What two additional log sources should you query immediately, and what specific indicators would you search for?",
+          "expected": "1. DNS query logs (Sysmon ID 22 / internal DNS resolver logs): search for high-frequency DNS queries from affected hosts to domains with high entropy names or newly registered domains (WHOIS age < 30 days). Cobalt Strike DNS C2 exfiltrates data in subdomains — queries like a1b2c3d4.c2domain.net with varying subdomains indicate active DNS tunneling. 2. Proxy / web gateway logs: search for HTTP/S requests with unusual User-Agent strings or URI patterns from Cobalt Strike's default Malleable C2 profiles (e.g., paths matching /jquery-3.3.1.min.js or /dot.gif with abnormal POST bodies). The proxy logs may capture C2 check-ins that TLS inspection can decrypt."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l2_008"]
+  }
+]

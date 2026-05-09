@@ -1,0 +1,62 @@
+[
+  {
+    "type": "kql",
+    "topic": "Detect encoded PowerShell execution in DeviceProcessEvents",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against the Microsoft Defender XDR DeviceProcessEvents table to detect PowerShell processes launched with encoded command arguments (-EncodedCommand or -enc) in the past 24 hours. Return the device name, account name, command line, initiating process, and timestamp, sorted by most recent first.",
+      "tables": ["DeviceProcessEvents"],
+      "expected_keywords": ["DeviceProcessEvents", "ProcessCommandLine", "EncodedCommand", "powershell", "project", "sort"],
+      "sample_solution": "DeviceProcessEvents\n| where Timestamp > ago(24h)\n| where FileName =~ \"powershell.exe\" or FileName =~ \"pwsh.exe\"\n| where ProcessCommandLine has_any (\"-EncodedCommand\", \"-enc \", \"-ec \")\n| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine\n| sort by Timestamp desc"
+    },
+    "knowledge_base_source_ids": ["src_l2_004", "src_l2_007"]
+  },
+  {
+    "type": "kql",
+    "topic": "Detect password spray via SecurityEvent 4625",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against the Microsoft Sentinel SecurityEvent table to detect password spraying: a single source IP generating more than 20 failed logon attempts (Event ID 4625) targeting at least 5 distinct accounts within a 5-minute window. Return the source IP, attempt count, distinct account count, and time window.",
+      "tables": ["SecurityEvent"],
+      "expected_keywords": ["SecurityEvent", "4625", "summarize", "count", "dcount", "where", "IpAddress"],
+      "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4625\n| where LogonType == 3\n| summarize AttemptCount = count(), DistinctAccounts = dcount(TargetUserName), StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by IpAddress, bin(TimeGenerated, 5m)\n| where AttemptCount > 20 and DistinctAccounts >= 5\n| project IpAddress, AttemptCount, DistinctAccounts, StartTime, EndTime\n| sort by AttemptCount desc"
+    },
+    "knowledge_base_source_ids": ["src_l2_004", "src_l2_003"]
+  },
+  {
+    "type": "kql",
+    "topic": "Detect anomalous NTLM lateral movement via SecurityEvent 4624",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against Microsoft Sentinel SecurityEvent to detect potential lateral movement: successful network logons (Event ID 4624, LogonType=3) using NTLM authentication from a single source workstation to more than 3 distinct server targets within 1 hour. Return the source workstation, logon account, target count, and list of target computers.",
+      "tables": ["SecurityEvent"],
+      "expected_keywords": ["SecurityEvent", "4624", "LogonType", "NTLM", "summarize", "dcount", "make_set"],
+      "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4624\n| where LogonType == 3\n| where AuthenticationPackageName =~ \"NTLM\"\n| where WorkstationName != Computer\n| summarize TargetCount = dcount(Computer), Targets = make_set(Computer, 20) by WorkstationName, TargetUserName, bin(TimeGenerated, 1h)\n| where TargetCount > 3\n| project WorkstationName, TargetUserName, TargetCount, Targets\n| sort by TargetCount desc"
+    },
+    "knowledge_base_source_ids": ["src_l2_004", "src_l2_006"]
+  },
+  {
+    "type": "kql",
+    "topic": "Detect Kerberoasting via Event 4769 RC4 ticket requests",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against Microsoft Sentinel SecurityEvent to detect Kerberoasting: a single user account requesting Kerberos service tickets (Event ID 4769) using RC4-HMAC encryption (TicketEncryptionType=0x17) for more than 3 distinct service accounts within 10 minutes.",
+      "tables": ["SecurityEvent"],
+      "expected_keywords": ["SecurityEvent", "4769", "TicketEncryptionType", "0x17", "summarize", "dcount"],
+      "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4769\n| where TicketEncryptionType == \"0x17\"\n| where ServiceName !endswith \"$\"\n| summarize ServiceCount = dcount(ServiceName), Services = make_set(ServiceName, 20), StartTime = min(TimeGenerated) by SubjectUserName, IpAddress, bin(TimeGenerated, 10m)\n| where ServiceCount > 3\n| project SubjectUserName, IpAddress, ServiceCount, Services, StartTime\n| sort by ServiceCount desc"
+    },
+    "knowledge_base_source_ids": ["src_l2_004", "src_l2_009"]
+  },
+  {
+    "type": "kql",
+    "topic": "Detect periodic C2 beacon jitter in DeviceNetworkEvents",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against Microsoft Defender XDR DeviceNetworkEvents to identify hosts with periodic outbound connections to a single remote IP — a beacon signature. For each (DeviceName, RemoteIP) pair, compute connection intervals using make-series, flag pairs with more than 5 connections and an average inter-connection interval between 60 and 600 seconds (1–10 minute beacon range).",
+      "tables": ["DeviceNetworkEvents"],
+      "expected_keywords": ["DeviceNetworkEvents", "make-series", "RemoteIP", "summarize", "mv-expand", "avg"],
+      "sample_solution": "DeviceNetworkEvents\n| where Timestamp > ago(24h)\n| where RemoteIPType == \"Public\"\n| summarize ConnectionTimes = make_list(Timestamp, 500) by DeviceName, RemoteIP\n| mv-expand ConnectionTimes to typeof(datetime)\n| sort by DeviceName asc, RemoteIP asc, ConnectionTimes asc\n| serialize\n| extend PrevTime = prev(ConnectionTimes, 1)\n| extend IntervalSec = datetime_diff('second', ConnectionTimes, PrevTime)\n| where isnotnull(IntervalSec) and IntervalSec > 0\n| summarize ConnCount = count(), AvgIntervalSec = avg(IntervalSec), StdDevInterval = stdev(IntervalSec) by DeviceName, RemoteIP\n| where ConnCount > 5 and AvgIntervalSec between (60 .. 600)\n| project DeviceName, RemoteIP, ConnCount, AvgIntervalSec, StdDevInterval\n| sort by ConnCount desc"
+    },
+    "knowledge_base_source_ids": ["src_l2_004", "src_l2_008"]
+  }
+]

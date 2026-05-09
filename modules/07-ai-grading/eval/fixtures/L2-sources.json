@@ -1,0 +1,112 @@
+[
+  {
+    "id": "src_l2_001",
+    "name": "MITRE ATT&CK T1059.001 — Command and Scripting Interpreter: PowerShell",
+    "citation": "MITRE ATT&CK® v15, Technique T1059.001",
+    "url": "https://attack.mitre.org/techniques/T1059/001/",
+    "level_fit": "L2",
+    "function": "detection",
+    "description": "Adversaries use PowerShell for execution, discovery, lateral movement, and download cradles. Key detection: Event 4104 Script Block Logging, Sysmon Event ID 1 with -EncodedCommand or -enc, unusual parent-child process chains (cmd.exe → powershell.exe).",
+    "tags": ["mitre", "powershell", "execution", "event-4104", "sysmon", "T1059.001"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_002",
+    "name": "Sysmon Configuration and Event Reference Guide",
+    "citation": "Microsoft Sysinternals Sysmon v15.x Event Reference",
+    "url": "https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon",
+    "level_fit": "L2",
+    "function": "detection",
+    "description": "Sysmon provides granular endpoint telemetry. Critical event IDs: 1 (ProcessCreate — Image, CommandLine, ParentImage, IntegrityLevel, Hashes), 3 (NetworkConnect — SourceIp, DestinationIp, DestinationPort), 7 (ImageLoad — DLL hijacking), 11 (FileCreate), 22 (DNSQuery). Primary LOLBin detection field: CommandLine in Event ID 1.",
+    "tags": ["sysmon", "windows-event", "edr", "eventlog", "event-id-1", "event-id-3"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_003",
+    "name": "Windows Security Event ID 4625 — Account Failed to Log On",
+    "citation": "Microsoft Docs: Windows Security Audit Events, Event ID 4625",
+    "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4625",
+    "level_fit": "L2",
+    "function": "detection",
+    "description": "Event 4625 fires on the target host when logon fails. Key fields: TargetUserName, LogonType (3=network), IpAddress, Status/SubStatus (0xC000006A=wrong password, 0xC0000234=locked). Pattern: single IP targeting many accounts with same password = password spray; many IPs one account = credential stuffing.",
+    "tags": ["windows-event", "event-4625", "4625", "authentication", "brute-force"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_004",
+    "name": "Microsoft Sentinel KQL Hunting Query Library",
+    "citation": "Microsoft Sentinel GitHub Community: Hunting Queries",
+    "url": "https://github.com/Azure/Azure-Sentinel/tree/master/Hunting%20Queries",
+    "level_fit": "L2",
+    "function": "hunting",
+    "description": "Curated KQL hunting queries for Sentinel. Key tables: SecurityEvent (Windows events via AMA), DeviceProcessEvents and DeviceNetworkEvents (Defender XDR endpoint), SigninLogs (Entra ID), OfficeActivity. Common operators: summarize, make-series, series_stats, project, extend, join.",
+    "tags": ["KQL", "SIEM", "hunting", "threat-hunting", "Sigma", "C2"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_005",
+    "name": "NIST SP 800-61r2 — Computer Security Incident Handling Guide",
+    "citation": "NIST SP 800-61 Revision 2, August 2012",
+    "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+    "level_fit": "L2",
+    "function": "response",
+    "description": "Standard IR lifecycle: Preparation → Detection & Analysis → Containment, Eradication & Recovery → Post-Incident Activity. §3.3.2 mandates volatile evidence collection first (RAM, running processes, network connections) before disk imaging. Containment: short-term (isolate, disable account) vs. long-term (patch, reimage).",
+    "tags": ["incident-response", "containment", "triage", "nist", "evidence-collection"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_006",
+    "name": "Lateral Movement Detection via Sysmon and Windows Events",
+    "citation": "Threat Hunting via Sysmon — SANS SOC Summit 2023",
+    "url": "https://www.sans.org/white-papers/lateral-movement-sysmon/",
+    "level_fit": "L2",
+    "function": "detection",
+    "description": "PsExec: services.exe spawning psexesvc.exe then cmd.exe (Sysmon ID 1). WMI: wmiprvse.exe spawning unexpected children. Pass-the-Hash: Event 4624 LogonType=3 + NtlmV1. SMB admin share access: Event 5140 ShareName=ADMIN$ or C$. Correlate source and target auth events.",
+    "tags": ["sysmon", "lateral-movement", "edr", "windows-event", "eventlog", "T1021", "T1047"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_007",
+    "name": "Microsoft Defender XDR Advanced Hunting Table Schemas",
+    "citation": "Microsoft Docs: Advanced Hunting Schema Reference",
+    "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-schema-tables",
+    "level_fit": "L2",
+    "function": "hunting",
+    "description": "Core Defender XDR KQL table schemas: DeviceProcessEvents (DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName, SHA256), DeviceNetworkEvents (DeviceName, RemoteIP, RemotePort, RemoteUrl, Protocol, InitiatingProcessFileName), DeviceLogonEvents (AccountName, LogonType, RemoteIP), AlertInfo (Title, Severity, AttackTechniques).",
+    "tags": ["KQL", "SIEM", "DeviceProcessEvents", "DeviceNetworkEvents", "edr", "hunting"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_008",
+    "name": "C2 Beacon Detection Using JA3 TLS Fingerprints",
+    "citation": "John Althouse et al., JA3: A Method for Profiling SSL/TLS Client Hello Messages, 2019",
+    "url": "https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967/",
+    "level_fit": "L2",
+    "function": "hunting",
+    "description": "JA3 is an MD5 fingerprint of TLS Client Hello parameters (SSLVersion, Ciphers, Extensions, EllipticCurves). Known-bad JA3 hashes identify C2 frameworks. Hunt: group flows by JA3, flag identical rare hashes reaching rotating external IPs from multiple internal hosts, correlate with process tree.",
+    "tags": ["C2", "beacon", "network-analysis", "JA3", "hunting", "threat-hunting", "tls"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_009",
+    "name": "Windows Security Event ID 4769 — Kerberos Service Ticket Requested",
+    "citation": "Microsoft Docs: Windows Security Audit Events, Event ID 4769",
+    "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4769",
+    "level_fit": "L2",
+    "function": "detection",
+    "description": "Event 4769 fires when a Kerberos TGS is requested. Kerberoasting pattern: one user account requesting TGS for many service accounts using TicketEncryptionType=0x17 (RC4-HMAC, weak) in a short window. Normal baseline: AES256 (0x12). MITRE T1558.003.",
+    "tags": ["windows-event", "event-4769", "4769", "kerberoasting", "authentication", "T1558.003"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l2_010",
+    "name": "MITRE ATT&CK T1543.003 — Create or Modify System Process: Windows Service",
+    "citation": "MITRE ATT&CK® v15, Technique T1543.003",
+    "url": "https://attack.mitre.org/techniques/T1543/003/",
+    "level_fit": "L2",
+    "function": "detection",
+    "description": "Adversaries create or modify Windows services for persistence and execution. Detection: Event 4697 (service installed), System Event 7045 (new service), Sysmon ID 1 for sc.exe children. Suspicious: services running from temp directories, single-char service names, ImagePath using rundll32 or regsvr32.",
+    "tags": ["mitre", "persistence", "windows-event", "T1543.003", "service"],
+    "kb_version": "2026-05-09"
+  }
+]

