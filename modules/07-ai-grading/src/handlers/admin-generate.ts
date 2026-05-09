@@ -37,7 +37,7 @@ import { generateQuestions, generateQuestionsByType } from "../runtime-selector.
 import { singleFlight } from "../single-flight.js";
 import { allocateByWeight, applyOverride } from "../auto-weight.js";
 import { withConcurrencyLimit } from "../concurrency.js";
-import type { GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput, QuestionType } from "../types.js";
+import type { GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput, GeneratedQuestionDraft, QuestionType } from "../types.js";
 import type { PoolClient } from "pg";
 
 const log = streamLogger("generation");
@@ -108,6 +108,46 @@ export interface HandleAdminGenerateOutput {
   /** Short SHA of the generate-questions skill used for this run. */
   skillSha: string;
 }
+
+// ---------------------------------------------------------------------------
+// Citation enforcement helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Drop any question whose knowledge_base_source_ids contains a value not
+ * present in validSourceIds.  Also drops questions with an empty id list —
+ * the canonical contract requires at least one source per question.
+ *
+ * This is the mechanical enforcement of the citation HARD RULE.  The same
+ * rule exists as wording in the generate-* SKILL.md files, but the model
+ * repeatedly ignores it (mitre.t1003 / T1558.003 leaking through despite
+ * three SKILL.md revisions).  Enforcement here is authoritative; SKILL.md
+ * wording is now advisory documentation only.
+ *
+ * Called from all three generation paths (sharded, omnibus single-call,
+ * omnibus chunked) so the filter is uniform regardless of mode.
+ */
+function filterByCitation<T extends { knowledge_base_source_ids?: string[] }>(
+  questions: T[],
+  validSourceIds: Set<string>,
+  onDrop: (q: T, invalidIds: string[]) => void,
+): T[] {
+  const kept: T[] = [];
+  for (const q of questions) {
+    const ids = q.knowledge_base_source_ids ?? [];
+    const invalidIds = ids.filter((id) => !validSourceIds.has(id));
+    if (ids.length === 0 || invalidIds.length > 0) {
+      onDrop(q, invalidIds);
+    } else {
+      kept.push(q);
+    }
+  }
+  return kept;
+}
+
+// ---------------------------------------------------------------------------
+// DB helpers — insertDrafts
+// ---------------------------------------------------------------------------
 
 /**
  * Insert ai_draft questions returned by the generator into the questions table.
@@ -180,6 +220,8 @@ interface AttemptFinalizeFields {
   chunksPlanned?: number | null;
   chunksFailed?: number | null;
   dedupeDropped?: number | null;
+  /** Questions dropped because knowledge_base_source_ids contained IDs not in input.sources. */
+  citationDropped?: number | null;
   durationMs?: number | null;
 }
 
@@ -207,7 +249,8 @@ async function tryFinalizeAttempt(
              chunks_planned  = $9,
              chunks_failed   = $10,
              dedupe_dropped  = $11,
-             duration_ms     = $12,
+             citation_dropped = $12,
+             duration_ms     = $13,
              finished_at     = now()
          WHERE id = $1`,
         [
@@ -222,6 +265,7 @@ async function tryFinalizeAttempt(
           fields.chunksPlanned ?? null,
           fields.chunksFailed ?? null,
           fields.dedupeDropped ?? null,
+          fields.citationDropped ?? null,
           fields.durationMs ?? null,
         ],
       );
@@ -316,6 +360,7 @@ export async function handleAdminGenerate(
   let chunksPlanned: number | undefined;
   let chunksFailed: number | undefined;
   let dedupeDroppedCount: number | undefined;
+  let citationDroppedCount: number | undefined;
   let capturedOutput: HandleAdminGenerateOutput | undefined;
   let capturedErr: unknown;
 
@@ -409,6 +454,39 @@ export async function handleAdminGenerate(
           throw firstError;
         }
 
+        // ── Citation enforcement ───────────────────────────────────────────
+        // Drop any question whose knowledge_base_source_ids contains values
+        // not present verbatim in input.sources[].id.  Empty id arrays are
+        // also dropped — at least one valid source is required.
+        const validSourceIds = new Set(input.sources.map((s) => s.id));
+        let citationDropped = 0;
+        const filteredOutputs: GenerateQuestionsOutput[] = [];
+        for (const chunk of fulfilled) {
+          const kept = filterByCitation(
+            chunk.questions,
+            validSourceIds,
+            (q, invalidIds) => {
+              citationDropped++;
+              log.warn(
+                {
+                  attemptId,
+                  type: (q as GeneratedQuestionDraft).type,
+                  topic: (q as GeneratedQuestionDraft).topic,
+                  invalidIds: invalidIds.slice(0, 5),
+                  sample_valid_id: validSourceIds.values().next().value,
+                },
+                "generation.sharded.citation.dropped",
+              );
+            },
+          );
+          filteredOutputs.push({ ...chunk, questions: kept });
+        }
+        citationDroppedCount = citationDropped;
+        log.info(
+          { attemptId, citationDropped, totalDroppedForCitation: citationDropped },
+          "generation.sharded.citation.summary",
+        );
+
         // Merge + topic-dedupe (case-insensitive, compare against
         // existingTopics + already-merged questions)
         const seenTopics = new Set(
@@ -417,7 +495,7 @@ export async function handleAdminGenerate(
         const mergedQuestions: GenerateQuestionsOutput["questions"] = [];
         let dedupeDropped = 0;
 
-        for (const chunkOutput of fulfilled) {
+        for (const chunkOutput of filteredOutputs) {
           for (const q of chunkOutput.questions) {
             const normalised = q.topic.trim().toLowerCase();
             if (seenTopics.has(normalised)) {
@@ -495,7 +573,39 @@ export async function handleAdminGenerate(
         };
 
         const output = await generateQuestions(genInput);
-        const ids = await insertDrafts(client, input, output, attemptId);
+
+        // Citation enforcement — same filter as the sharded path.
+        const validSourceIdsOmnibus = new Set(input.sources.map((s) => s.id));
+        let citationDroppedOmnibus = 0;
+        const filteredSingleQuestions = filterByCitation(
+          output.questions,
+          validSourceIdsOmnibus,
+          (q, invalidIds) => {
+            citationDroppedOmnibus++;
+            log.warn(
+              {
+                attemptId,
+                type: (q as GeneratedQuestionDraft).type,
+                topic: (q as GeneratedQuestionDraft).topic,
+                invalidIds: invalidIds.slice(0, 5),
+                sample_valid_id: validSourceIdsOmnibus.values().next().value,
+              },
+              "generation.omnibus.citation.dropped",
+            );
+          },
+        );
+        citationDroppedCount = citationDroppedOmnibus;
+        log.info(
+          { attemptId, citationDropped: citationDroppedOmnibus, totalDroppedForCitation: citationDroppedOmnibus },
+          "generation.omnibus.citation.summary",
+        );
+
+        const filteredSingleOutput: GenerateQuestionsOutput = {
+          ...output,
+          questions: filteredSingleQuestions,
+        };
+
+        const ids = await insertDrafts(client, input, filteredSingleOutput, attemptId);
 
         log.info(
           {
@@ -580,13 +690,43 @@ export async function handleAdminGenerate(
         throw firstError;
       }
 
+      // Citation enforcement — same filter as the sharded path.
+      const validSourceIdsChunked = new Set(input.sources.map((s) => s.id));
+      let citationDroppedChunked = 0;
+      const filteredChunks: GenerateQuestionsOutput[] = [];
+      for (const chunk of fulfilled) {
+        const kept = filterByCitation(
+          chunk.questions,
+          validSourceIdsChunked,
+          (q, invalidIds) => {
+            citationDroppedChunked++;
+            log.warn(
+              {
+                attemptId,
+                type: (q as GeneratedQuestionDraft).type,
+                topic: (q as GeneratedQuestionDraft).topic,
+                invalidIds: invalidIds.slice(0, 5),
+                sample_valid_id: validSourceIdsChunked.values().next().value,
+              },
+              "generation.chunked.citation.dropped",
+            );
+          },
+        );
+        filteredChunks.push({ ...chunk, questions: kept });
+      }
+      citationDroppedCount = citationDroppedChunked;
+      log.info(
+        { attemptId, citationDropped: citationDroppedChunked, totalDroppedForCitation: citationDroppedChunked },
+        "generation.chunked.citation.summary",
+      );
+
       const seenTopics = new Set(
         input.existingTopics.map((t) => t.trim().toLowerCase()),
       );
       const mergedQuestions: GenerateQuestionsOutput["questions"] = [];
       let dedupeDropped = 0;
 
-      for (const chunkOutput of fulfilled) {
+      for (const chunkOutput of filteredChunks) {
         for (const q of chunkOutput.questions) {
           const normalised = q.topic.trim().toLowerCase();
           if (seenTopics.has(normalised)) {
@@ -670,6 +810,7 @@ export async function handleAdminGenerate(
           chunksPlanned: chunksPlanned ?? null,
           chunksFailed: chunksFailed ?? null,
           dedupeDropped: dedupeDroppedCount ?? null,
+          citationDropped: citationDroppedCount ?? null,
           durationMs,
         });
       }
