@@ -363,6 +363,7 @@ export async function generateQuestions(
     timeoutMs:
       GENERATION_BASE_TIMEOUT_MS +
       input.count * GENERATION_PER_ITEM_TIMEOUT_MS,
+    model: "claude-sonnet-4-6",
   });
 
   const raw = parseToolInput(events, TOOL_SUBMIT_QUESTIONS);
@@ -506,6 +507,7 @@ export async function generateRubricDraft(
     attemptId: "rubric-generation",
     questionId: input.questionId,
     timeoutMs: RUBRIC_TIMEOUT_MS,
+    model: "claude-sonnet-4-6",
   });
 
   const raw = parseToolInput(events, TOOL_SUBMIT_RUBRIC);
@@ -559,6 +561,7 @@ interface RunSkillOpts {
   attemptId: string;
   questionId: string;
   timeoutMs?: number;
+  model?: string;
 }
 
 function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
@@ -582,6 +585,9 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
       "--permission-mode",
       "auto",
     ];
+    if (opts.model) {
+      args.push("--model", opts.model);
+    }
 
     const startedAt = Date.now();
     const proc = spawn("claude", args, {
@@ -647,6 +653,7 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
       log.info(
         {
           skill: opts.skill,
+          model: opts.model ?? "default",
           attemptId: opts.attemptId,
           questionId: opts.questionId,
           exitCode: code,
