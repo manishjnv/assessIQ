@@ -101,6 +101,14 @@ services:
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
+      # assessiq-mcp: stdio MCP server providing submit_anchors / submit_band /
+      # submit_questions / submit_rubric tools. Built on the VPS via
+      # `cd /srv/assessiq/tools/assessiq-mcp && npm install && npx tsc`.
+      # Registered in /root/.claude.json under mcpServers.assessiq with
+      # command=node args=["/opt/assessiq-mcp/dist/server.js"]. Without this
+      # mount + that registration, claude has no tool to deliver structured
+      # output and exits with code 1 (RCA 2026-05-09).
+      - ../tools/assessiq-mcp:/opt/assessiq-mcp:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
@@ -148,6 +156,14 @@ services:
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
+      # assessiq-mcp: stdio MCP server providing submit_anchors / submit_band /
+      # submit_questions / submit_rubric tools. Built on the VPS via
+      # `cd /srv/assessiq/tools/assessiq-mcp && npm install && npx tsc`.
+      # Registered in /root/.claude.json under mcpServers.assessiq with
+      # command=node args=["/opt/assessiq-mcp/dist/server.js"]. Without this
+      # mount + that registration, claude has no tool to deliver structured
+      # output and exits with code 1 (RCA 2026-05-09).
+      - ../tools/assessiq-mcp:/opt/assessiq-mcp:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
