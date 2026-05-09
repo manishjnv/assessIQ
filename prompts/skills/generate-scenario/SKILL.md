@@ -1,6 +1,6 @@
 ---
 name: generate-scenario
-version: "2026-05-09b"
+version: "2026-05-09c"
 model: claude-sonnet-4-6
 description: |
   Generate multi-step scenario questions for SOC analyst assessments grounded
@@ -106,6 +106,28 @@ Call `submit_questions` exactly once with a JSON array. Each object must be:
 
 Points: L1 = 3–5, L2 = 5–8, L3 = 7–10. Points should equal approximately
 2× the step count (each step is worth roughly equal credit).
+
+## Source-citation contract (HARD RULE)
+
+For every question you generate, `knowledge_base_source_ids`
+MUST be an array of strings copied **verbatim** from the
+`id` field of one or more entries in the input `sources`
+array — character-for-character, no transformation.
+
+Allowed examples (these IDs must literally appear in the
+`sources` array you were given):
+  "src_l2_001", "src_l2_007"
+
+FORBIDDEN — these are NOT source IDs, even when they reference
+real concepts:
+  "mitre.t1558.003"      ← MITRE technique ID, not a source.id
+  "T1003.001"            ← same — a technique label, not an id
+  "sysmon-event-10"      ← topic tag, not an id
+  any string not present verbatim in the input sources[].id
+
+If you cannot identify at least one matching `source.id` for
+a question, drop the question rather than inventing or
+substituting a citation.
 
 ## Tool-use policy
 

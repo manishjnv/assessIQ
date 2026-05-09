@@ -29,7 +29,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const LEVELS = ["L1", "L2", "L3"] as const;
-const TYPES: EvalType[] = ["mcq", "log_analysis", "scenario", "kql"];
+const TYPES: EvalType[] = ["mcq", "log_analysis", "scenario", "kql", "subjective"];
 
 type Level = "L1" | "L2" | "L3";
 

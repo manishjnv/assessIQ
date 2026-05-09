@@ -1,0 +1,47 @@
+[
+  {
+    "type": "subjective",
+    "topic": "Incident response decision-making under live encryption",
+    "points": 5,
+    "content": {
+      "question": "An EDR alert fires at 03:20 UTC: a host named WORKSTATION-077 is actively encrypting files on a mapped network share. The process responsible is an unsigned binary launched from %APPDATA%. The host is online and the affected file server is reachable. Explain the sequence of actions you would take in the first 15 minutes, the reasoning behind each step's order, and what you would explicitly avoid doing to preserve forensic evidence."
+    },
+    "knowledge_base_source_ids": ["src_l2_005"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Isolate vs monitor containment trade-off analysis",
+    "points": 5,
+    "content": {
+      "question": "You have confirmed active C2 beaconing from an internal host to an external IP, with a 90-second beacon interval. Your incident commander asks you to justify whether to isolate the host immediately or monitor for 30 additional minutes to map lateral movement. Compare the operational and forensic trade-offs of each option, referencing the NIST SP 800-61r2 containment framework, and state the conditions under which you would choose each approach."
+    },
+    "knowledge_base_source_ids": ["src_l2_005", "src_l2_008"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Detection gap analysis for password spraying activity",
+    "points": 8,
+    "content": {
+      "question": "A red team report reveals that a password spray attack targeting 400 domain accounts over 6 hours went undetected by your SIEM. The attack used Logon Type 3, targeting each account no more than once per 40 minutes. Describe the specific detection logic gaps that allowed this to evade alerting, what Windows event IDs and fields are necessary to detect it, and the compensating controls you would implement to close the gap."
+    },
+    "knowledge_base_source_ids": ["src_l2_003", "src_l2_006"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Post-incident review write-up for PsExec lateral movement",
+    "points": 5,
+    "content": {
+      "question": "Following a confirmed PsExec-based lateral movement incident where an attacker moved from WS-HR-07 to a database server using a stolen service-account credential, write the post-incident review summary you would deliver to the security leadership team. Your summary must cover: the attack timeline and technique, the detection failure points, the evidence collected that confirmed the incident, the containment and recovery actions taken, and at least three specific prevention recommendations grounded in the detection sources available to your SOC."
+    },
+    "knowledge_base_source_ids": ["src_l2_006", "src_l2_003", "src_l2_005"]
+  },
+  {
+    "type": "subjective",
+    "topic": "KQL hunt hypothesis design for JA3 C2 beacon detection",
+    "points": 8,
+    "content": {
+      "question": "You have been asked to build a proactive threat hunt for C2 beacon activity in Microsoft Sentinel using JA3 TLS fingerprinting and network flow data. Describe the hunt hypothesis you would formulate, the KQL tables and fields you would query, the analytical steps to separate malicious from legitimate traffic, and the criteria you would use to escalate a finding from a potential alert to a confirmed incident."
+    },
+    "knowledge_base_source_ids": ["src_l2_008", "src_l2_004"]
+  }
+]

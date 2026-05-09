@@ -458,14 +458,14 @@ export async function generateQuestions(
 // generateQuestionsByType — per-type sharded generation (Stage 1)
 // ---------------------------------------------------------------------------
 
-// Per-type skill name mapping (Stage 1). subjective is NOT type-sharded —
-// the omnibus skill handles it; if a sharded run needs subjective, the
-// handler falls back to omnibus for that slice only.
+// Per-type skill name mapping (Stage 1+). subjective now has its own skill
+// (generate-subjective), completing all 5 question-type shards.
 const TYPE_SKILL_MAP: Record<string, string> = {
   mcq: "generate-mcq",
   log_analysis: "generate-log-analysis",
   scenario: "generate-scenario",
   kql: "generate-kql",
+  subjective: "generate-subjective",
 };
 
 /**
@@ -825,7 +825,8 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
       opts.skill === "generate-mcq" ||
       opts.skill === "generate-log-analysis" ||
       opts.skill === "generate-scenario" ||
-      opts.skill === "generate-kql";
+      opts.skill === "generate-kql" ||
+      opts.skill === "generate-subjective";
 
     const timeoutMs = opts.timeoutMs ?? STAGE_TIMEOUT_MS;
     const timer = setTimeout(() => {

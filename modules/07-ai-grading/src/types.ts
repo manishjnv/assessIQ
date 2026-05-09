@@ -240,16 +240,14 @@ export interface GenerateQuestionsOutput {
  * Input to generateQuestionsByType() — one call per question type in the
  * sharded fan-out. See docs/design/2026-05-09-type-sharded-generation.md.
  *
- * NOTE: `subjective` is not type-sharded in Stage 1. If a sharded run
- * needs subjective questions, the handler falls back to the omnibus skill
- * for the subjective slice only. This decision was made to avoid creating
- * a generate-subjective skill before the eval harness is in place
- * (Stage 1.5).
+ * Stage 3: `subjective` is now a first-class type in the sharded path,
+ * served by the dedicated generate-subjective skill. All 5 question types
+ * are supported.
  */
 export interface GenerateByTypeInput {
   level: "L1" | "L2" | "L3";
-  /** Type of question this call will generate. Subjective excluded — see note. */
-  type: Exclude<QuestionType, "subjective">;
+  /** Type of question this call will generate. */
+  type: QuestionType;
   count: number;
   topicFocus?: string | null;
   existingTopics: string[];

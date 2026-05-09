@@ -334,18 +334,12 @@ export async function handleAdminGenerate(
           ? applyOverride(baseAllocation, input.typeCounts)
           : baseAllocation;
 
-        // Stage 1: subjective is NOT type-sharded. If the allocator assigns
-        // any count to subjective, fold it into mcq (largest sharded type)
-        // as a safe fallback. A future prompt will add generate-subjective.
         const shardedAllocation = { ...typeAllocation };
-        if (shardedAllocation.subjective > 0) {
-          shardedAllocation.mcq += shardedAllocation.subjective;
-          shardedAllocation.subjective = 0;
-        }
+        // subjective is now its own skill — no fold.
 
         // Build one GenerateByTypeInput per non-zero type
         const typeEntries = (
-          ["mcq", "log_analysis", "scenario", "kql"] as const
+          ["mcq", "log_analysis", "scenario", "kql", "subjective"] as const
         ).filter((t) => shardedAllocation[t] > 0);
 
         chunksPlanned = typeEntries.length;
