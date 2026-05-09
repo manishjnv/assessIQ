@@ -4,7 +4,21 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
-## 2026-05-09 — dev-mint-session route was LIVE in production with role-escalation bug
+## 2026-05-09 — claude auth state mount: per-file approach broken across version upgrades
+
+**Symptom:** `assessiq-api` claude subprocess exited code 1 with "Not logged in · Please run /login" even though host's claude was authenticated and working. Three iterations of partial fix (chmod o+r, chown to UID 1000, individual rw mounts on oauth_token files) all left the container "Not logged in" because each ignored the actual missing file.
+
+**Cause:** claude 2.1.137 introduced `.credentials.json` (mode 600, root-owned) as the new primary auth file; legacy `oauth_token` files became vestigial. The per-file bind-mount in `infra/docker-compose.yml` only listed the legacy files, so the container had no `.credentials.json`. Separately, `.claude.json` (the main config file) lives at `/root/.claude.json` — one level above the `.claude/` directory — and was never mounted. Whenever claude upgrades and adds new state files, per-file mounts silently miss them and report "Not logged in".
+
+**Fix:**
+- `infra/docker/assessiq-api/Dockerfile` (commit `607f636`): `USER node` → `USER root` so the container can read mode-600 files without ownership gymnastics.
+- `infra/docker-compose.yml` (commit `607f636` + `de49d89`): replaced per-file mounts with whole-directory mount (`/root/.claude:/home/node/.claude:rw`) plus explicit `/root/.claude.json:/home/node/.claude.json:rw` for the config file that lives one level above. `prompts/skills` overlay remains `:ro`.
+- Host chown reverted to `root:root` — no longer needed once container runs as root.
+- Verified: `docker exec assessiq-api id` → `uid=0(root)`, `echo hi | claude -p "reply OK"` → "OK" with no warnings.
+
+**Prevention:** Container-side state directories that mirror host CLI state should always be whole-directory mounts unless there's a specific reason to filter. Per-file mounts are a maintenance trap — every CLI version bump can silently add files the mount doesn't list. **Anti-pattern to refuse:** mounting individual files from `/root/.claude/` or using chown to uid 1000 gymnastics. The lint-deploy-procedure.ts (queued for Phase 4+) should add a check: any directory under `/home/node/.claude` should be a whole-dir mount, not per-file.
+
+
 
 **Symptom:** When the new `superRefine` config guard landed on the VPS (commit `bd0ceb0`), `assessiq-api` entered a crash loop with `ENABLE_E2E_TEST_MINTER MUST be false in production`. Investigation revealed `/srv/assessiq/.env` line 28 had `ENABLE_E2E_TEST_MINTER=true` set in production. This means the dev-only POST `/api/dev/mint-session` route — which bypasses Google SSO + TOTP and (until commit `bd0ceb0`) accepted caller-supplied `role`, allowing any candidate to escalate to admin — had been reachable on `https://assessiq.automateedge.cloud` since the route shipped in commit `b3710ae`.
 

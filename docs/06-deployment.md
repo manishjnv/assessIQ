@@ -256,6 +256,33 @@ docker exec assessiq-api ls /home/node/.claude/skills/
 # Expected: generate-questions  grade-anchors  grade-band  grade-escalate
 ```
 
+**Claude CLI state mount pattern (2026-05-09, commits `607f636` + `de49d89`):**
+
+The container mounts the entire host claude state as a directory, not per-file.
+Two mounts are required:
+
+```yaml
+- /root/.claude:/home/node/.claude:rw        # entire state directory
+- /root/.claude.json:/home/node/.claude.json:rw  # config file (one level above dir)
+```
+
+**Why whole-directory, not per-file:** claude upgrades introduce new state files
+(`.credentials.json` was added in v2.1.137; older per-file mounts only listed
+`oauth_token`, `oauth_token.expires`, `settings.json` and silently missed it).
+Whole-directory mount picks up any new state files automatically without YAML edits.
+
+**Why `USER root`:** `.credentials.json` is mode 600, root-owned. The container must
+run as root to read it. The app files are still chowned to node:node inside the image
+(`RUN chown -R node:node /app` runs before `USER root`), so the app itself runs fine.
+Trust model: single-tenant admin container; node-user isolation adds little real
+security when the container already bind-mounts the admin's credential directory.
+
+**`skills/` stays `:ro` overlay:** `../prompts/skills` is overlaid read-only on top
+of the `.claude` dir mount so git-pull-only skill deploys still work.
+
+RCA reference: `docs/RCA_LOG.md` 2026-05-09 entry "claude auth state mount: per-file
+approach broken across version upgrades".
+
 
 
 `assessiq-api`, `assessiq-worker`, and `assessiq-frontend` are all live. Phase 4 ships the full embed JWT ingestion flow, admin embed origin management, `aiq_embed_sess` cookie bridge, and 4 schema migrations.

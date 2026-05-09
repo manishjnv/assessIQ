@@ -19,7 +19,7 @@ Grade subjective and scenario answers using a multi-stage cascade across Claude 
 - `08-rubric-engine` — rubric data structure
 - `09-scoring` — emits "graded" event after writing all per-question gradings
 - `13-notifications` — admin alerts on failures
-- **Phase 1 runtime auth:** admin's Max OAuth token cached at `~/.claude/` on the VPS (no `ANTHROPIC_API_KEY`).
+- **Phase 1 runtime auth:** admin's Max OAuth token cached at `~/.claude/` on the VPS (no `ANTHROPIC_API_KEY`). **Auth-mount pattern (2026-05-09):** container runs as `USER root` with whole-directory bind mounts `/root/.claude:/home/node/.claude:rw` + `/root/.claude.json:/home/node/.claude.json:rw`. Per-file mounts are a maintenance trap — every claude version bump can add new state files (`.credentials.json` added in v2.1.137) that per-file mounts silently miss. See `docs/06-deployment.md` § "Claude CLI state mount pattern" and `docs/RCA_LOG.md` 2026-05-09.
 - **Phase 2 runtime dep (deferred):** `@anthropic-ai/claude-agent-sdk` — imported only inside `runtimes/anthropic-api.ts`, gated behind `AI_PIPELINE_MODE=anthropic-api`. CLAUDE.md rule #2 + `ci/lint-no-ambient-claude.ts` enforce this.
 
 ## Public surface
