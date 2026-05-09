@@ -21,8 +21,8 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, generateQuestionsApi } from "../api.js";
-import { allocateByWeight, applyOverride } from "@assessiq/ai-grading";
-import type { QuestionType } from "@assessiq/ai-grading";
+import { allocateByWeight, applyOverride } from "../auto-weight.js";
+import type { QuestionType } from "../auto-weight.js";
 
 type PackStatus = "draft" | "published" | "archived";
 

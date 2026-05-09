@@ -270,9 +270,9 @@ updates live. Setting any type to 0 skips that skill entirely (clean per-type of
 │  Type           Count    KB sources     Est. wall-clock          │
 │  ──────────────────────────────────────────────────────────────  │
 │  MCQ            [ 11 ]   (25 sources)   ~35 s  (batch 1)        │
-│  Log Analysis   [  9 ]   (12 sources)   ~55 s  ← bottleneck     │
-│  Scenario       [  6 ]   ( 8 sources)   ~42 s  (batch 2)        │
-│  KQL            [  4 ]   ( 7 sources)   ~30 s  (batch 2)        │
+│  Log Analysis   [  9 ]   (25 sources)   ~55 s  ← bottleneck     │
+│  Scenario       [  6 ]   (25 sources)   ~42 s  (batch 2)        │
+│  KQL            [  4 ]   (25 sources)   ~30 s  (batch 2)        │
 │  Subjective     [  0 ]   (omnibus)       —                      │
 │  ──────────────────────────────────────────────────────────────  │
 │  Total: 30 qs   Expected: ~150 s  (cap=2, 2 batches)            │
@@ -294,9 +294,10 @@ Subjective always routes to the omnibus skill in Stage 1 (transitional invariant
 and §7 Stage 3); if Subjective count > 0, one omnibus call is added to the fan-out
 sequentially after the type-skill batches complete.
 
-**"KB sources (N sources)"** is computed client-side from the slicing criteria applied against
-the pack's SOC level, loaded eagerly when the modal opens. If any type slice shows
-"(< 3 sources)", the UI warns inline: "Sparse KB — will fall back to full level KB."
+**"KB sources (N sources)"** shows the total sources at the requested level passed to all
+type skills (single list — see §3). All types display the same count. The count is computed
+client-side from the level KB loaded when the modal opens. If the filtered list has fewer
+than 3 sources, the UI warns inline: "Sparse KB — will fall back to full level KB."
 
 **"Est. wall-clock"** labels each type with its batch (1 or 2) and flags the bottleneck.
 The composite estimate is `batch1_max + batch2_max + 20 s overhead`. At Stage 1.5 cap=4,
@@ -305,9 +306,10 @@ both batches collapse to one and the estimate drops to `max(all_types) + 15 s`.
 **Preset buttons** auto-fill per-type chips using the weight table; the admin can still
 override individual values after selecting a preset.
 
-**Decision: keep omnibus as "Generate Any" fallback — yes.**  
-Remove it only after Stage 3 flip AND 30 days clean operation AND eval parity is confirmed
-(§7 Stage 4 gate). Removing too early loses the admin's safety net and complicates rollback.
+**Decision: keep omnibus as "Generate Any" fallback until Stage 3.**  
+After the Stage 3 flip, the omnibus button is removed from the UI and omnibus is only
+accessible via `AI_GENERATE_MODE=omnibus` in the VPS `.env` (operator-level, not admin-level).
+Remove the omnibus code path entirely in Stage 4 (see §7).
 
 ---
 
@@ -394,6 +396,17 @@ The 195-question target is the steady-state goal after the first eval cycle.
 `baseline.json` records the omnibus skill's scores on the golden set (pre-sharding).
 Per-type skills must meet or exceed the omnibus score on each dimension before Stage 2.
 
+### `skillShas` schema for Stage 1
+
+**Decision (2026-05-09, Q5):** The `generation_attempts.skill_sha` column retains its current
+`TEXT` type, comma-joined. For Stage 1, the handler writes the four skill SHAs as a single
+comma-joined string (e.g. `"abc1234,def5678,ghi9012,jkl3456"`) into the existing column —
+no schema migration required.
+
+If admins need to query "which run used skill X at version Y", a JSONB migration to a
+`skill_shas jsonb` column is deferred to Stage 2.5. For Stage 1 the comma-join is sufficient
+for the attempts-list display; no admin workflow requires per-skill SHA lookup before then.
+
 ---
 
 ## 7. Migration plan
@@ -447,20 +460,29 @@ Run after at least 1 week of clean Stage 2 (test-tenant) operation:
 - Zero eval regressions on any dimension vs. `baseline.json`.
 - No admin-reported quality complaint requiring rollback.
 
-### Stage 3 — Flip default to `sharded`
+### Stage 3 — Flip default to `sharded`; ship `generate-subjective`
 
-- Set `AI_GENERATE_MODE=sharded` globally. `omnibus` remains available for explicit rollback.
+- Set `AI_GENERATE_MODE=sharded` globally.
+- Ship `generate-subjective` skill (see §2); subjective questions are removed from the
+  omnibus routing path and handled by the dedicated skill from this point forward.
+- **Omnibus becomes admin-invisible.** The "Generate Any — omnibus" UI button is removed.
+  The only way to invoke the omnibus path after Stage 3 is to set
+  `AI_GENERATE_MODE=omnibus` in the VPS `.env` — this is a VPS operator action, not an
+  admin action. The omnibus code path remains in the handler for operator-level rollback
+  until Stage 4 removes it.
 - Monitor `generation_attempts` for 30 days: alert if p90 > 120 s or failure rate > 5%.
 
 **Gate to Stage 4:** 30 days clean, zero rollback events.
 
-### Stage 4 — Remove omnibus
+### Stage 4 — Remove omnibus (after 30 clean days)
 
 - Delete `prompts/skills/generate-questions/SKILL.md`.
-- Remove `omnibus` branch from handler.
+- Remove the `omnibus` branch from the handler and the `AI_GENERATE_MODE=omnibus`
+  env-var path entirely.
 - Archive skill SHA in `docs/RCA_LOG.md` for historical reference.
 
-**Gate:** Only after Stage 3 is stable. No earlier.
+**Gate:** 30 days clean Stage 3 with zero rollback events. Omnibus was already
+admin-invisible since Stage 3; Stage 4 removes the operator-level fallback entirely.
 
 ---
 
@@ -469,10 +491,10 @@ Run after at least 1 week of clean Stage 2 (test-tenant) operation:
 | # | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|---|
 | 1 | **Homogeneous Sonnet stack lowers L3 scenario quality ceiling.** Moving all four skills to Sonnet eliminates cross-model quality variance but removes the Opus ceiling for scenario narrative depth and TTP precision. L3 scenario questions may be shallower than what the omnibus produced if it implicitly used a stronger model for complex requests. | Low–Medium | Medium | Monitor eval dimension 5 (difficulty fit) and scenario step-coherence in Stage 2. If regression is detected, `generate-scenario-opus` (§1 Non-goals, deferred) becomes the remediation path. |
-| 2 | **Cross-skill citation mismatch.** KB slicing means MCQ and scenario questions in the same pack cite different sources; a pack about "Kerberoasting" might have scenario questions with no Kerberoasting reference if it sliced to incident-response sources. Topical coherence within a pack degrades. | Low–Medium | Medium | The omnibus's `topic_focus` param can still be passed to each type-skill; the KB slice is already narrowed by type. Add a `topic_coverage_check` to the eval runner: confirm that ≥1 source in the MCQ slice and ≥1 source in the scenario slice share a common tag cluster. |
+| 2 | **Cross-skill topical coherence (future, once per-skill slicing ships).** In Stage 1 all skills receive the same KB source list (see §3), so topical coherence is preserved. When Stage 4 per-skill slicing is introduced, MCQ and scenario questions may cite different sources; a pack about "Kerberoasting" might have scenario questions with no Kerberoasting reference if it sliced to incident-response sources. | Low (Stage 1) / Low–Medium (Stage 4+) | Medium | Not a Stage 1 concern. When per-skill slicing is designed for Stage 4, add a `topic_coverage_check` to the eval runner: confirm that ≥1 source in each type slice shares a common tag cluster with the topic under focus. |
 | 3 | **Increased cost at Phase 2.** Four skill calls × ~28 K total input vs one call × 25 K input. Phase 2 cost per run: ~$0.29 vs ~$0.23 (omnibus), a 26% increase. With prompt caching, static skill content is cached across runs; only KB slice input is non-cacheable. | Medium | Low (Phase 1) / Medium (Phase 2) | Accept for Phase 1. Plan prompt-caching strategy before Phase 2 migration. Document the cost delta in Phase 2 budget planning. |
 | 4 | **Eval baseline too thin to detect regressions.** 10 golden questions per type per level is the minimum viable set. Subtle shifts in distractor quality or log-excerpt realism may not surface at 10-sample granularity. | High | Medium | Grow golden set by 5 per type per level each quarter. Set CI alert: if eval set has not grown in 90 days, open a backlog ticket. |
-| 5 | **Per-type UI confusing admins who liked the simple slider.** Some admins want "give me 30 varied questions" without thinking about type allocation. The new modal adds cognitive overhead. | Medium | Low | Auto-weighted defaults (§5) mean the modal opens pre-filled; the admin rarely needs to touch individual chips. Preset buttons ("Balanced L1/L2/L3") and the "Generate Any" omnibus shortcut are permanent escape hatches. |
+| 5 | **Per-type UI confusing admins who liked the simple slider.** Some admins want "give me 30 varied questions" without thinking about type allocation. The new modal adds cognitive overhead. | Medium | Low | Auto-weighted defaults (§5) mean the modal opens pre-filled; the admin rarely needs to touch individual chips. Preset buttons ("Balanced L1/L2/L3") and the "Generate Any" omnibus shortcut are escape hatches until Stage 3 (when omnibus becomes admin-invisible; see §5 and §7). |
 
 ### Constraint: codex:rescue gate scope
 
@@ -494,43 +516,26 @@ The implementation plan MUST keep all 4 type skills routed through the existing
 
 ## 9. Open questions for the user
 
-Questions 1 (scenario model), 2 (concurrency cap), and 4 (per-type count allocation) are
-**resolved** — see §1, §4, and §5 respectively. The following are still open and must be
-answered before Stage 1 implementation begins.
+Questions 1 (scenario model), 2 (concurrency cap), and 4 (per-type count allocation) were
+**resolved** in commit 88cf0f5 — see §1, §4, and §5 respectively. The six remaining
+questions have now been resolved and their decisions applied to the relevant sections:
 
-1. **singleFlight mutex shared with grading.** Generation and grading currently share the
-   same `singleFlight` registry (different keys). With 2–4 concurrent generation subprocesses,
-   can the admin still click "Grade next" on an unrelated attempt simultaneously, or does the
-   shared registry create any unexpected contention? Should generation and grading have
-   separate mutex registries for clarity?
+- **Q1 (mutex scope):** Per-pack:level mutex covers the full sharded fan-out; per-skill
+  mutex rejected as it breaks topic-dedupe atomicity — documented in §4 "Single-flight
+  shape".
+- **Q2 (KB sources):** Handler passes a single level-filtered KB source list to all type
+  skills; per-skill slicing deferred to Stage 4 — §3 rewritten to reflect this; §5 UI
+  source counts updated accordingly.
+- **Q3 (KQL scope):** Stage 1 covers Microsoft Sentinel and Defender tables only; SPL
+  (Splunk) and Sigma rules are non-goals — added to §1 Non-goals.
+- **Q4 (subjective permanence):** Stage 1 fold-into-omnibus is a transitional invariant
+  only; `generate-subjective` ships in Stage 3 alongside omnibus removal — §2 skill
+  inventory "future" row added; §7 Stage 3 updated.
+- **Q5 (skillShas schema):** `skill_sha` column stays TEXT comma-joined for Stage 1; JSONB
+  migration deferred to Stage 2.5 — §6 "`skillShas` schema for Stage 1" added.
+- **Q6 (omnibus visibility):** Omnibus becomes admin-invisible after the Stage 3 flip;
+  only accessible via `AI_GENERATE_MODE=omnibus` in the VPS `.env` (operator-level);
+  removed entirely in Stage 4 — §5 and §7 Stage 3/Stage 4 updated.
 
-2. **Exact KB source counts per level.** The slice estimate table in §3 is based on partial
-   file reads. Before wiring the KB-source-count preview in the UI, implementation needs
-   exact per-level counts per slice criterion. Should implementation compute these
-   programmatically at request time (always current) or derive them from a static lookup
-   baked into the frontend (simpler but stale when KB is updated)?
-
-3. **KQL scope: Microsoft Sentinel / Defender only, or also Splunk SPL / Sigma?** The
-   `generate-kql` skill currently targets KQL only. The L3 KB contains sources referencing
-   Splunk SPL and Sigma rules. Should the skill generate KQL-only questions, or also support
-   SPL/Sigma? If multi-platform, the skill name and quality standards need adjustment.
-
-4. **Subjective exclusion permanent?** Subjective is excluded from type-sharding (omnibus
-   handles it). Should this be permanent, or is there a quality-improvement case for a
-   `generate-subjective` skill later (e.g., to improve rubric pre-population for the
-   generate-rubric downstream skill)?
-
-5. **`skillShas` in the response.** The current handler returns a single `skillSha`. With
-   four skills, the handler would return `skillShas: { mcq, log_analysis, scenario, kql }`.
-   The `generation_attempts` table's `skill_sha` column is a single varchar. Should this be
-   JSON-stringified into the existing column, or should the table gain a `skill_shas` jsonb
-   column? This schema decision is a Stage 1 blocker.
-
-6. **"Generate Any" omnibus: shown to all admins or super-admins only?** If the omnibus is
-   kept as an escape hatch, should it be hidden from tenant admins (to enforce sharded-only
-   quality path) and available only to platform super-admins for debugging?
-
-**Residual from Q2 (cap=4 promotion):** The 3.5 GB peak-RSS threshold in §4 Stage 1.5 is
-an estimate, not yet empirically measured. The threshold is the primary unknown that gates
-raising the cap to 4 and hitting the ≤90 s wall-clock target. This is a Stage 1.5 action
-item, not a pre-implementation blocker.
+All design questions closed. Stage 1.5 RSS-threshold measurement is the only outstanding
+item before Stage 2 ship.
