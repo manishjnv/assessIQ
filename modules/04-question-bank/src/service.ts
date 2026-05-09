@@ -1368,3 +1368,58 @@ export async function bulkGenerateMissingRubrics(
     };
   });
 }
+
+// ===========================================================================
+// BULK QUESTION STATUS UPDATE
+// ===========================================================================
+
+/**
+ * Transition a batch of questions to a new status in a single transaction.
+ *
+ * Allowed source → target transitions (mirrors the admin bulk-action allow-list
+ * defined in docs/03-api-contract.md § "Bulk status update"):
+ *   ai_draft → active
+ *   ai_draft → archived
+ *   draft    → archived
+ *   active   → archived
+ *
+ * Forbidden: archived → active (re-activation is per-question for audit trail).
+ *
+ * RLS enforces tenant isolation — cross-tenant ids are invisible and land in
+ * notFound. The WHERE clause additionally restricts to valid source statuses so
+ * rows already in an invalid state are also placed in notFound.
+ *
+ * @param ids      Non-empty array of question UUIDs (caller validates 1-200).
+ * @param status   Target status ('active' | 'archived').
+ * @returns        { updated: string[], notFound: string[] }
+ */
+export async function bulkUpdateQuestionStatus(
+  tenantId: string,
+  ids: string[],
+  status: "active" | "archived",
+): Promise<{ updated: string[]; notFound: string[] }> {
+  log.info({ tenantId, count: ids.length, status }, "bulkUpdateQuestionStatus");
+
+  // Source statuses allowed for each target.
+  const allowedSources = status === "active"
+    ? ["ai_draft"] as const
+    : ["ai_draft", "draft", "active"] as const;
+
+  return withTenant(tenantId, async (client) => {
+    const result = await client.query<{ id: string }>(
+      `UPDATE questions
+          SET status     = $1,
+              updated_at = now()
+        WHERE id = ANY($2::uuid[])
+          AND status = ANY($3)
+        RETURNING id`,
+      [status, ids, allowedSources],
+    );
+
+    const updated = result.rows.map((r) => r.id);
+    const updatedSet = new Set(updated);
+    const notFound = ids.filter((id) => !updatedSet.has(id));
+
+    return { updated, notFound };
+  });
+}

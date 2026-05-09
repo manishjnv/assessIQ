@@ -81,3 +81,26 @@ export async function generateQuestionsApi(
     { method: "POST", body: JSON.stringify(body) },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — bulk question status update endpoint
+// ---------------------------------------------------------------------------
+
+export interface BulkUpdateStatusRequest {
+  ids: string[];
+  status: "active" | "archived";
+}
+
+export interface BulkUpdateStatusResponse {
+  updated: string[];
+  notFound: string[];
+}
+
+export async function bulkUpdateQuestionStatus(
+  body: BulkUpdateStatusRequest,
+): Promise<BulkUpdateStatusResponse> {
+  return adminApi<BulkUpdateStatusResponse>(
+    "/admin/questions/bulk-update-status",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
