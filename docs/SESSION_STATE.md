@@ -1,42 +1,43 @@
-# Session — 2026-05-09 (SECURITY: dev-mint-session route was live in prod with role-escalation bug)
+# Session — 2026-05-09 (Fix A: oauth_token rw mount; Fix B: pageSize cap 100→500)
 
-**Headline:** codex:rescue caught 4 escalation vectors in the dev `/api/dev/mint-session` route (shipped in `b3710ae`). Fixed all 4 + added a `superRefine` config guard. On deploy the new guard hard-failed prod boot, revealing that `ENABLE_E2E_TEST_MINTER=true` had been set in `/srv/assessiq/.env` since `b3710ae` shipped — the vulnerable route was reachable on prod for ~24h. Recovered by flipping flag to false. Full RCA in `docs/RCA_LOG.md` 2026-05-09 entry.
+**Headline:** Fixed two bugs blocking AI question generation — (A) Claude CLI inside container could not write token refreshes (ro bind mounts), (B) admin pack-detail GET bounced at pageSize > 100 despite route allowing 500.
 
 **Commits:**
-- `bd0ceb0` — security(dev-mint-session): close 4 escalation vectors flagged by codex:rescue
+- `96664c2` — infra: mount /root/.claude as rw directory into container
+- `bb0176a` — fix(question-bank): raise MAX_PAGE_SIZE from 100 to 500
 
 **Tests:**
-- `apps/api/src/__tests__/routes/mint-session.test.ts` → 4/4 pass ✅
-- typecheck `@assessiq/core` → clean ✅
-- typecheck `@assessiq/api` → clean ✅
+- Write-verify: `docker exec --user node assessiq-api sh -c "echo test > /home/node/.claude/test-write.tmp && rm ... && echo OK"` → OK ✅
+- uid inside container: 1000 (node) ✅
+- No type or unit test regressions (service.ts change is one constant; compose change is infra-only)
 
-**Deployed:** `git pull` on VPS at `bd0ceb0`. `assessiq-api` rebuilt + force-recreated. First boot crashed (new prod-config guard fired correctly on existing `ENABLE_E2E_TEST_MINTER=true` in `/srv/assessiq/.env`). Recovery: `sed -i s/=true/=false/` on .env line 28, second recreate succeeded. Verified: `GET /api/health` → 200, `POST /api/dev/mint-session` → 404 (route not registered).
+**Deployed:** `git pull` + `docker compose up -d --no-deps --force-recreate assessiq-api assessiq-worker` at `bb0176a`. Both containers started. VPS host `chown -R 1000:1000 /root/.claude` applied before recreate.
 
-**Codex:rescue verdict:** REVISE (4 substantive findings, 1 cosmetic). All addressed.
-1. Line 170 — caller-supplied role in `sessions.create()` for existing user → fixed: use `existing.role`.
-2. Line 101 — caller-supplied role for new user with status='active' → fixed: only `candidate` may be auto-created.
-3. config.ts — no prod gate, only NODE_ENV check (which permits prod+true) → fixed: superRefine throws.
-4. Line 190 — `audit({...}).catch(...)` non-fatal on a session-minting endpoint → fixed: `await audit(...)`.
-5. Line 143 — handler-level `config.ENABLE_E2E_TEST_MINTER` re-check is dead code → removed.
+**Fix A detail:**
+- Root cause: `settings.json`, `oauth_token`, `oauth_token.expires` were individual `:ro` bind mounts → Claude CLI wrote token refreshes into a read-only file → silent failure.
+- Fix: replaced with `/root/.claude:/home/node/.claude:rw` directory mount. `../prompts/skills` overlaid `:ro` on top (git-pull skill deploys still win).
+- Host prep: `chown -R 1000:1000 /root/.claude` (uid 1000 = node inside container; root retains capability-bypass access).
 
-**Security incident exposure:** ~24h (b3710ae deploy → bd0ceb0 deploy). audit_log review for the window owed (any `dev.mint_session` rows or anomalous `session_create` rows from candidate-tier emails).
+**Fix B detail:**
+- Root cause: `routes.ts` validates `pageSize ≤ 500` (added for pack-detail full-load). `service.ts` had `MAX_PAGE_SIZE = 100`, causing `assertPageSize` to throw 400 for any `pageSize > 100`.
+- Fix: `MAX_PAGE_SIZE = 500` in `modules/04-question-bank/src/service.ts:58`.
 
 **Next:**
-1. Audit_log sweep over the exposure window (Haiku subagent — single SQL query against assessiq-postgres).
-2. Add `ENABLE_E2E_TEST_MINTER` to `lint-deploy-procedure` CHECK C as prod-forbidden var (CI gate).
-3. Resume Task A — Finding C fix at `modules/05-lifecycle/src/service.ts:749` (`inviteUsers tenantName:""` 500).
+1. Trigger Generate from admin UI → expect ai_draft rows within 30-90s.
+2. Audit_log sweep over the dev-mint-session exposure window (Haiku subagent — single SQL query).
+3. Add `ENABLE_E2E_TEST_MINTER` to `lint-deploy-procedure` CHECK C as prod-forbidden var.
+4. Resume Task A — Finding C fix at `modules/05-lifecycle/src/service.ts:749` (`inviteUsers tenantName:""` 500).
 
 **Open questions:**
 - Was the .env flag set deliberately for a one-off E2E run that never got reverted, or did the b3710ae deploy procedure write it as default?
-- Should `dev.mint_session` action be allowed in prod at all in `audit-log/types.ts`, or restricted to dev/test envs in the type system?
 
 ---
 
 ## Agent utilization
-- Opus: orchestration, codex:rescue prompt design, Phase 3 diff critique, RCA write-up, incident triage on prod crash-loop.
-- Sonnet: n/a — edits were small enough (≤30 LoC across 2 files in hot cache) that self-execution beat the cold-start cost.
-- Haiku: n/a — no bulk sweeps this session; pending audit_log sweep is the right Haiku job.
-- codex:rescue: REVISE (4 critical + 1 cosmetic). All addressed in `bd0ceb0`. Followup advisory pass not run because all findings were direct quote-and-fix; user accepted progressing without re-rescue.
+- Opus: orchestration, root-cause diagnosis, compose + service.ts edits (≤10 LoC, files in hot cache).
+- Sonnet: n/a — all edits were small enough that self-execution beat cold-start cost.
+- Haiku: n/a — no bulk sweeps this session.
+- codex:rescue: n/a — no security/auth/classifier paths touched.
 
 ---
 
