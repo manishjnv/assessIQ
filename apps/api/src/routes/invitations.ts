@@ -73,15 +73,16 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
           required: ['token'],
           additionalProperties: false,
           properties: {
-            token: { type: 'string', minLength: ACCEPT_TOKEN_MIN, maxLength: ACCEPT_TOKEN_MAX },
+            token: { type: 'string', minLength: ACCEPT_TOKEN_MIN, maxLength: ACCEPT_TOKEN_MAX, pattern: '^[A-Za-z0-9_-]+$' },
           },
         },
       },
     },
     async (req, reply) => {
-      const body = req.body as { token: string };
-      // Defense-in-depth: even with the schema, reject obviously malformed shapes.
-      if (typeof body.token !== 'string' || body.token.length < ACCEPT_TOKEN_MIN) {
+      const body = req.body as { token?: string } | null;
+      // Defense-in-depth: guard against null body (no Content-Type) AND
+      // enforce base64url charset beyond what the Fastify schema already checks.
+      if (!body || typeof body.token !== 'string' || !/^[A-Za-z0-9_-]{43,64}$/.test(body.token)) {
         throw new ValidationError('Invalid invitation token shape.', {
           details: { code: 'INVALID_TOKEN' },
         });

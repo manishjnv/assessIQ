@@ -33,6 +33,7 @@ import {
   ValidationError,
   ConflictError,
   uuidv7,
+  config,
 } from "@assessiq/core";
 import { withTenant, getPool } from "@assessiq/tenancy";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
@@ -78,11 +79,10 @@ const MAX_PAGE_SIZE = 100;
 
 /**
  * Read once at module load — never shell out per inviteUsers call.
- * Callers that need a different base URL set ASSESSIQ_PUBLIC_URL before
- * the process starts.
+ * Callers that need a different base URL set ASSESSIQ_BASE_URL before
+ * the process starts (see modules/00-core/src/config.ts).
  */
-const PUBLIC_URL =
-  process.env["ASSESSIQ_PUBLIC_URL"] ?? "https://assessiq.automateedge.cloud";
+const PUBLIC_URL = config.ASSESSIQ_BASE_URL;
 
 // ---------------------------------------------------------------------------
 // Local helpers (mirror 04-question-bank pattern — re-implemented locally)

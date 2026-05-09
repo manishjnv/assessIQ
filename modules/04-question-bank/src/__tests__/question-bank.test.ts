@@ -287,8 +287,15 @@ describe("Pack lifecycle", () => {
     }
   });
 
-  it("listPacks with pageSize > 100 throws ValidationError INVALID_PAGE_SIZE", async () => {
-    await expect(listPacks(tenantA, { pageSize: 101 })).rejects.toSatisfy(
+  it("listPacks with pageSize 500 succeeds (cap raised from 100→500)", async () => {
+    // pageSize=500 must be accepted — pack-detail fetches all questions in a
+    // pack in one shot; packs with L1/L2/L3 fully populated can reach 200+.
+    const result = await listPacks(tenantA, { pageSize: 500 });
+    expect(result.pageSize).toBe(500);
+  });
+
+  it("listPacks with pageSize > 500 throws ValidationError INVALID_PAGE_SIZE", async () => {
+    await expect(listPacks(tenantA, { pageSize: 501 })).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ValidationError &&
         (e.details as Record<string, unknown> | undefined)?.["code"] === "INVALID_PAGE_SIZE",

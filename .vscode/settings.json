@@ -23,6 +23,39 @@
         "/^git add docs/SESSION_STATE\\.md; \\$env:GIT_COMMITTER_EMAIL=\"257227540\\+manishjnv@users\\.noreply\\.github\\.com\"; \\$env:GIT_COMMITTER_NAME=\"Manish Kumar\"; git commit --author=\"Manish Kumar <257227540\\+manishjnv@users\\.noreply\\.github\\.com>\" -m \"docs\\(handoff\\): Phase 2 G2\\.B Session 2 SESSION_STATE — rubric-engine live\" 2>&1 \\| Select-Object -Last 5; git push 2>&1 \\| Select-Object -Last 5$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^pnpm -r typecheck 2>&1 \\| Select-String -Pattern \"error\\|warning\\|ERR\" \\| Select-Object -First 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd e:\\\\code\\\\AssessIQ; pnpm -r build 2>&1 \\| Select-String -Pattern \"error TS\\|ERR_\" \\| Select-Object -First 10; echo \"exit: \\$LASTEXITCODE\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "git add": true,
+        "git commit": true,
+        "git push": true,
+        "ssh": true,
+        "Set-Content": true,
+        "/^\\(Get-Content modules/04-question-bank/package\\.json \\| ConvertFrom-Json\\)\\.dependencies \\| ConvertTo-Json$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^pnpm --filter @assessiq/question-bank exec tsc --noEmit 2>&1 \\| Select-Object -Last 40$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^pnpm --filter @assessiq/question-bank exec tsc --noEmit 2>&1 \\| Select-Object -Last 30$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^pnpm -r typecheck 2>&1 \\| tail -60$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^pnpm -C modules/10-admin-dashboard typecheck 2>&1$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

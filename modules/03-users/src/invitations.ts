@@ -193,7 +193,18 @@ export async function inviteUser(
  * ip and ua are read from the request context; defaults to safe fallbacks
  * when invoked outside a request context (e.g. CLI / tests).
  */
+/** Tokens are 32 bytes of base64url entropy → exactly 43 chars. Accept up to 64 for future-proofing. */
+const INVITATION_TOKEN_RE = /^[A-Za-z0-9_-]{43,64}$/;
+
 export async function acceptInvitation(token: string): Promise<AcceptInvitationResult> {
+  // Validate token shape before doing any hashing or DB work.  Malformed or
+  // empty tokens must surface as a clean 400-equivalent, not a DB error.
+  if (typeof token !== 'string' || !INVITATION_TOKEN_RE.test(token)) {
+    throw new ValidationError('Invalid invitation token.', {
+      details: { code: 'INVALID_INVITATION_TOKEN' },
+    });
+  }
+
   const tokenHash = hashToken(token);
 
   // Step 1: system-role pre-auth lookup (addendum § 12 + repository.ts security comment).
