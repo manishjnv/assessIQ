@@ -369,7 +369,7 @@ export async function registerQuestionBankRoutes(
   // status='archived' is the only path. Hard delete is a Phase 3 admin tool.
 
   // POST /api/admin/packs/:id/levels/:levelId/generate
-  // Body: { count: number (1-10), topic_focus?: string }
+  // Body: { count: number (1-30), topic_focus?: string }
   // Returns: { questionIds: string[], generated: number, skillSha: string }
   app.post(
     "/api/admin/packs/:id/levels/:levelId/generate",
@@ -381,8 +381,8 @@ export async function registerQuestionBankRoutes(
       const body = req.body as { count?: unknown; topic_focus?: unknown };
 
       const count = typeof body?.count === "number" ? body.count : 5;
-      if (!Number.isInteger(count) || count < 1 || count > 10) {
-        throw new ValidationError("count must be an integer between 1 and 10", {
+      if (!Number.isInteger(count) || count < 1 || count > 30) {
+        throw new ValidationError("count must be an integer between 1 and 30", {
           details: { code: "INVALID_PARAM", param: "count" },
         });
       }
@@ -440,6 +440,48 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const { id: packId } = req.params as { id: string };
       return bulkGenerateMissingRubrics(tenantId, packId);
+    },
+  );
+
+  // GET /api/admin/packs/:packId/levels/:levelId/generation-attempts
+  // Returns the most recent 5 generation attempts for this pack+level so admins
+  // can diagnose why a "Generate" click produced 0 rows without SSH'ing the VPS.
+  // Body shape:
+  //   [{ id, status, count_requested, count_inserted, error_code, error_message,
+  //      stderr_tail, model, duration_ms, started_at, finished_at }]
+  app.get(
+    "/api/admin/packs/:packId/levels/:levelId/generation-attempts",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const { packId, levelId } = req.params as { packId: string; levelId: string };
+      const { withTenant: wt } = await import("@assessiq/tenancy");
+      return wt(tenantId, async (client) => {
+        const result = await client.query<{
+          id: string;
+          status: string;
+          count_requested: number;
+          count_inserted: number;
+          error_code: string | null;
+          error_message: string | null;
+          stderr_tail: string | null;
+          model: string | null;
+          duration_ms: number | null;
+          started_at: string;
+          finished_at: string | null;
+        }>(
+          `SELECT id, status, count_requested, count_inserted,
+                  error_code, error_message, stderr_tail, model,
+                  duration_ms, started_at, finished_at
+           FROM generation_attempts
+           WHERE pack_id = $1
+             AND level_id = $2
+           ORDER BY started_at DESC
+           LIMIT 5`,
+          [packId, levelId],
+        );
+        return result.rows;
+      });
     },
   );
 }

@@ -24,6 +24,22 @@ import { adminApi, AdminApiError } from "../api.js";
 
 type PackStatus = "draft" | "published" | "archived";
 
+type GenerationAttemptStatus = "success" | "partial" | "failed" | "running";
+
+interface GenerationAttempt {
+  id: string;
+  status: GenerationAttemptStatus;
+  count_requested: number;
+  count_inserted: number;
+  error_code: string | null;
+  error_message: string | null;
+  stderr_tail: string | null;
+  model: string | null;
+  duration_ms: number | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
 interface Level {
   id: string;
   label: string;
@@ -46,6 +62,9 @@ interface QuestionItem {
   level_id: string;
   type: string;
   status: string;
+  topic?: string | null;
+  points?: number;
+  created_at?: string;
   content: Record<string, unknown>;
   knowledge_base_sources?: Array<{ id: string; name: string; citation: string; url?: string }>;
 }
@@ -85,8 +104,148 @@ const SOC_FUNCTIONS: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 function questionPrompt(content: Record<string, unknown>): string {
-  const c = content as { prompt?: string; stem?: string; scenario?: string };
-  return c.prompt ?? c.stem ?? c.scenario ?? "—";
+  const c = content as { prompt?: string; stem?: string; scenario?: string; question?: string; title?: string };
+  return c.prompt ?? c.stem ?? c.scenario ?? c.question ?? c.title ?? "—";
+}
+
+/** Format a date string as relative (< 30 days) or absolute (≥ 30 days). */
+function relativeDate(isoStr: string): string {
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  if (days >= 30) {
+    return new Date(isoStr).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
+  if (days > 0) return rtf.format(-days, "day");
+  if (hours > 0) return rtf.format(-hours, "hour");
+  if (minutes > 0) return rtf.format(-minutes, "minute");
+  return "just now";
+}
+
+/** Format a date string as relative (< 30 min) or absolute (≥ 30 min). */
+function attemptDate(isoStr: string): string {
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 30) {
+    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
+    if (minutes < 1) return "just now";
+    return rtf.format(-minutes, "minute");
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(isoStr));
+}
+
+/** Format milliseconds as "Xm Ys" for display. */
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+/** Renders the last-attempt status line shown below the level header. */
+function GenerationAttemptLine({
+  attempt,
+  detailsOpen,
+  onToggleDetails,
+}: {
+  attempt: GenerationAttempt | null | undefined;
+  detailsOpen: boolean;
+  onToggleDetails: () => void;
+}): React.ReactElement | null {
+  if (!attempt) return null;
+
+  const { status, count_requested, count_inserted, error_code, error_message,
+          stderr_tail, duration_ms, started_at, chunks_failed } = attempt as GenerationAttempt & { chunks_failed?: number | null };
+
+  const dateStr = attemptDate(started_at);
+  const durStr = duration_ms != null ? formatDuration(duration_ms) : null;
+
+  if (status === "running") {
+    return (
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", marginLeft: "var(--aiq-space-sm)" }}>
+        ⟳ Generation in progress…
+      </span>
+    );
+  }
+
+  if (status === "success") {
+    return (
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-success)", marginLeft: "var(--aiq-space-sm)" }}>
+        ✓ Last generation: {count_inserted} question{count_inserted !== 1 ? "s" : ""}
+        {durStr ? ` in ${durStr}` : ""} ({dateStr})
+      </span>
+    );
+  }
+
+  if (status === "partial") {
+    return (
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-warning, #d97706)", marginLeft: "var(--aiq-space-sm)" }}>
+        ⚠ Last generation: {count_inserted} of {count_requested}
+        {chunks_failed ? ` (${chunks_failed} chunk${chunks_failed !== 1 ? "s" : ""} failed)` : ""}
+        {durStr ? ` in ${durStr}` : ""} ({dateStr})
+      </span>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-danger)", marginLeft: "var(--aiq-space-sm)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        ✗ Last generation failed{error_code ? `: ${error_code}` : ""}
+        {(error_message || stderr_tail) && (
+          <>
+            {" "}
+            <button
+              type="button"
+              onClick={onToggleDetails}
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-danger)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                textDecoration: "underline",
+              }}
+            >
+              {detailsOpen ? "Hide" : "Details"}
+            </button>
+            {detailsOpen && (
+              <pre
+                style={{
+                  display: "block",
+                  marginTop: "var(--aiq-space-xs)",
+                  padding: "var(--aiq-space-sm)",
+                  background: "var(--aiq-color-bg-sunken)",
+                  borderRadius: "var(--aiq-radius-sm)",
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "10px",
+                  color: "var(--aiq-color-fg-secondary)",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                  maxHeight: "160px",
+                  overflowY: "auto",
+                  width: "100%",
+                }}
+              >
+                {[error_message, stderr_tail].filter(Boolean).join("\n---\n")}
+              </pre>
+            )}
+          </>
+        )}
+      </span>
+    );
+  }
+
+  return null;
 }
 
 export function AdminPackDetail(): React.ReactElement {
@@ -110,6 +269,17 @@ export function AdminPackDetail(): React.ReactElement {
 
   const [activatingLevel, setActivatingLevel] = useState<string | null>(null);
 
+  // Archive pack state
+  const [archivingPack, setArchivingPack] = useState(false);
+  const [archivePackError, setArchivePackError] = useState<string | null>(null);
+
+  // Archive question state (tracks which question id is being archived)
+  const [archivingQuestion, setArchivingQuestion] = useState<string | null>(null);
+
+  // Client-side filter state (applies to all level question lists)
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterType, setFilterType] = useState("");
+
   // Generate-questions drawer state
   const [generateLevelId, setGenerateLevelId] = useState<string | null>(null);
   const [genCount, setGenCount] = useState(5);
@@ -118,15 +288,22 @@ export function AdminPackDetail(): React.ReactElement {
   const [genResult, setGenResult] = useState<{ generated: number; skillSha: string } | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
 
+  // Per-level last generation attempt (keyed by levelId)
+  const [lastAttempts, setLastAttempts] = useState<Record<string, GenerationAttempt | null>>({});
+  // Tracks which level's Details disclosure is open
+  const [openAttemptDetails, setOpenAttemptDetails] = useState<string | null>(null);
+
   const fetchPack = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
     setQuestionsError(null);
+    let fetchedLevels: Level[] = [];
     try {
       const detail = await adminApi<PackDetailResponse>(`/admin/packs/${id}`);
       setPack(detail.pack);
-      setLevels(detail.levels.slice().sort((a, b) => a.order - b.order));
+      fetchedLevels = detail.levels.slice().sort((a, b) => a.order - b.order);
+      setLevels(fetchedLevels);
     } catch (err) {
       setError(
         err instanceof AdminApiError ? err.apiError.message : "Failed to load pack.",
@@ -144,7 +321,34 @@ export function AdminPackDetail(): React.ReactElement {
     } finally {
       setLoading(false);
     }
+    // Fetch last generation attempt for each level (best-effort; errors silently ignored)
+    const attempts: Record<string, GenerationAttempt | null> = {};
+    await Promise.allSettled(
+      fetchedLevels.map(async (level) => {
+        try {
+          const rows = await adminApi<GenerationAttempt[]>(
+            `/admin/packs/${id}/levels/${level.id}/generation-attempts`,
+          );
+          attempts[level.id] = rows.length > 0 ? rows[0]! : null;
+        } catch {
+          attempts[level.id] = null;
+        }
+      }),
+    );
+    setLastAttempts(attempts);
   }, [id]);
+
+  /** Refresh attempts for a single level after a generate completes or fails. */
+  const refreshAttempt = useCallback(async (packId: string, levelId: string) => {
+    try {
+      const rows = await adminApi<GenerationAttempt[]>(
+        `/admin/packs/${packId}/levels/${levelId}/generation-attempts`,
+      );
+      setLastAttempts((prev) => ({ ...prev, [levelId]: rows.length > 0 ? rows[0]! : null }));
+    } catch {
+      // Non-critical: ignore
+    }
+  }, []);
 
   useEffect(() => {
     void fetchPack();
@@ -206,6 +410,39 @@ export function AdminPackDetail(): React.ReactElement {
     }
   }
 
+  async function handleArchivePack() {
+    if (!id || !pack) return;
+    if (!window.confirm(`Are you sure? This will archive "${pack.name}".`)) return;
+    setArchivingPack(true);
+    setArchivePackError(null);
+    try {
+      await adminApi(`/admin/packs/${id}/archive`, { method: "POST" });
+      await fetchPack();
+    } catch (err) {
+      setArchivePackError(
+        err instanceof AdminApiError ? err.apiError.message : "Failed to archive pack.",
+      );
+    } finally {
+      setArchivingPack(false);
+    }
+  }
+
+  async function handleArchiveQuestion(questionId: string, topic: string) {
+    if (!window.confirm(`Are you sure? This will archive "${topic || questionId.slice(0, 8)}".`)) return;
+    setArchivingQuestion(questionId);
+    try {
+      await adminApi(`/admin/questions/${questionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "archived" }),
+      });
+      await fetchPack();
+    } catch (err) {
+      console.warn("archive-question error:", err instanceof AdminApiError ? err.apiError.message : err);
+    } finally {
+      setArchivingQuestion(null);
+    }
+  }
+
   async function handleGenerate(levelId: string) {
     if (!id) return;
     setGenerating(true);
@@ -227,6 +464,8 @@ export function AdminPackDetail(): React.ReactElement {
       );
     } finally {
       setGenerating(false);
+      // Always refresh attempt status after generate, success or failure
+      void refreshAttempt(id, levelId);
     }
   }
 
@@ -357,6 +596,17 @@ export function AdminPackDetail(): React.ReactElement {
             >
               ← Back
             </button>
+            {pack.status !== "archived" && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                onClick={() => void handleArchivePack()}
+                disabled={archivingPack}
+                style={{ color: "var(--aiq-color-danger)" }}
+              >
+                {archivingPack ? "Archiving…" : "Archive pack"}
+              </button>
+            )}
             {pack.status === "draft" && (
               <button
                 type="button"
@@ -379,6 +629,18 @@ export function AdminPackDetail(): React.ReactElement {
             }}
           >
             {publishError}
+          </div>
+        )}
+
+        {archivePackError && (
+          <div
+            style={{
+              color: "var(--aiq-color-danger)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+            }}
+          >
+            {archivePackError}
           </div>
         )}
 
@@ -566,8 +828,7 @@ export function AdminPackDetail(): React.ReactElement {
                         justifyContent: "space-between",
                         padding: "var(--aiq-space-md) var(--aiq-space-lg)",
                         background: "var(--aiq-color-bg-raised)",
-                        borderBottom:
-                          levelQs.length > 0 ? "1px solid var(--aiq-color-border)" : "none",
+                        borderBottom: "1px solid var(--aiq-color-border)",
                       }}
                     >
                       <div>
@@ -592,6 +853,15 @@ export function AdminPackDetail(): React.ReactElement {
                             — {level.description}
                           </span>
                         )}
+                        <GenerationAttemptLine
+                          attempt={lastAttempts[level.id]}
+                          detailsOpen={openAttemptDetails === level.id}
+                          onToggleDetails={() =>
+                            setOpenAttemptDetails((prev) =>
+                              prev === level.id ? null : level.id,
+                            )
+                          }
+                        />
                       </div>
                       <div
                         style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}
@@ -633,96 +903,200 @@ export function AdminPackDetail(): React.ReactElement {
                       </div>
                     </div>
 
-                    {/* Questions list */}
-                    {levelQs.map((q, qi) => (
+                    {/* Filter chips — only when level has questions */}
+                    {levelQs.length > 0 && (
                       <div
-                        key={q.id}
                         style={{
                           display: "flex",
+                          flexWrap: "wrap",
                           alignItems: "center",
-                          justifyContent: "space-between",
+                          gap: "4px",
                           padding: "var(--aiq-space-sm) var(--aiq-space-lg)",
-                          borderBottom:
-                            qi < levelQs.length - 1
-                              ? "1px solid var(--aiq-color-border)"
-                              : "none",
-                          background: "var(--aiq-color-bg-base)",
+                          borderBottom: "1px solid var(--aiq-color-border)",
+                          background: "var(--aiq-color-bg-raised)",
                         }}
                       >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span
+                        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginRight: 2 }}>Status:</span>
+                        {(["", "ai_draft", "draft", "active", "archived"] as const).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            className={`aiq-btn aiq-btn-sm ${filterStatus === s ? "aiq-btn-primary" : "aiq-btn-outline"}`}
+                            onClick={() => setFilterStatus(s)}
+                          >
+                            {s || "all"}
+                          </button>
+                        ))}
+                        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginLeft: 8, marginRight: 2 }}>Type:</span>
+                        {(["", "mcq", "log_analysis", "scenario", "kql", "subjective"] as const).map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            className={`aiq-btn aiq-btn-sm ${filterType === t ? "aiq-btn-primary" : "aiq-btn-outline"}`}
+                            onClick={() => setFilterType(t)}
+                          >
+                            {t || "all"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Questions list */}
+                    {(() => {
+                      const filteredQs = levelQs.filter(
+                        (q) =>
+                          (filterStatus === "" || q.status === filterStatus) &&
+                          (filterType === "" || q.type === filterType),
+                      );
+                      if (levelQs.length === 0) {
+                        return (
+                          <div
                             style={{
+                              padding: "var(--aiq-space-md) var(--aiq-space-lg)",
+                              color: "var(--aiq-color-fg-muted)",
                               fontFamily: "var(--aiq-font-sans)",
                               fontSize: "var(--aiq-text-sm)",
-                              display: "block",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              marginBottom: 2,
                             }}
                           >
-                            {questionPrompt(q.content)}
-                          </span>
-                          <span
+                            No questions yet. Click ✦ Generate or + Add question to start.
+                          </div>
+                        );
+                      }
+                      if (filteredQs.length === 0) {
+                        return (
+                          <div
                             style={{
-                              fontFamily: "var(--aiq-font-mono)",
-                              fontSize: "var(--aiq-text-xs)",
+                              padding: "var(--aiq-space-md) var(--aiq-space-lg)",
                               color: "var(--aiq-color-fg-muted)",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
+                              fontFamily: "var(--aiq-font-sans)",
+                              fontSize: "var(--aiq-text-sm)",
                             }}
                           >
-                            {q.type} · {q.status}
-                          </span>
-                          {/* Citation chips for ai_draft questions */}
-                          {q.status === "ai_draft" && q.knowledge_base_sources && q.knowledge_base_sources.length > 0 && (
-                            <div
+                            No questions match the current filter.
+                          </div>
+                        );
+                      }
+                      return filteredQs.map((q, qi) => (
+                        <div
+                          key={q.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            padding: "var(--aiq-space-sm) var(--aiq-space-lg)",
+                            borderBottom:
+                              qi < filteredQs.length - 1
+                                ? "1px solid var(--aiq-color-border)"
+                                : "none",
+                            background: "var(--aiq-color-bg-base)",
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {/* Primary line: topic (or prompt fallback) */}
+                            <span
                               style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                gap: "4px",
-                                marginTop: "4px",
+                                fontFamily: "var(--aiq-font-sans)",
+                                fontSize: "var(--aiq-text-sm)",
+                                display: "block",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                marginBottom: 2,
                               }}
                             >
-                              {q.knowledge_base_sources.map((src) => (
-                                <a
-                                  key={src.id}
-                                  href={src.url ?? "#"}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title={src.name}
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "3px",
-                                    fontFamily: "var(--aiq-font-mono)",
-                                    fontSize: "10px",
-                                    lineHeight: 1,
-                                    padding: "2px 6px",
-                                    borderRadius: "var(--aiq-radius-pill)",
-                                    background: "var(--aiq-color-accent-soft)",
-                                    color: "var(--aiq-color-accent)",
-                                    textDecoration: "none",
-                                    letterSpacing: "0.02em",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {src.citation}
-                                </a>
-                              ))}
-                            </div>
-                          )}
+                              {q.topic && q.topic.trim() ? q.topic : questionPrompt(q.content)}
+                            </span>
+                            {/* Secondary line: type · status · points · date */}
+                            <span
+                              style={{
+                                fontFamily: "var(--aiq-font-mono)",
+                                fontSize: "var(--aiq-text-xs)",
+                                color: "var(--aiq-color-fg-muted)",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.04em",
+                              }}
+                            >
+                              {q.type} · {q.status}
+                              {q.points != null ? ` · ${q.points} pts` : ""}
+                              {q.created_at ? ` · ${relativeDate(q.created_at)}` : ""}
+                            </span>
+                            {/* Citation chips */}
+                            {q.knowledge_base_sources && q.knowledge_base_sources.length > 0 && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: "4px",
+                                  marginTop: "4px",
+                                }}
+                              >
+                                {q.knowledge_base_sources.map((src) => (
+                                  <a
+                                    key={src.id}
+                                    href={src.url ?? "#"}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={src.name}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "3px",
+                                      fontFamily: "var(--aiq-font-mono)",
+                                      fontSize: "10px",
+                                      lineHeight: 1,
+                                      padding: "2px 6px",
+                                      borderRadius: "var(--aiq-radius-pill)",
+                                      background: "var(--aiq-color-accent-soft)",
+                                      color: "var(--aiq-color-accent)",
+                                      textDecoration: "none",
+                                      letterSpacing: "0.02em",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {src.citation}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "var(--aiq-space-xs)",
+                              flexShrink: 0,
+                              marginLeft: "var(--aiq-space-md)",
+                              alignItems: "center",
+                            }}
+                          >
+                            {q.status !== "archived" && (
+                              <button
+                                type="button"
+                                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                                disabled={archivingQuestion === q.id}
+                                onClick={() =>
+                                  void handleArchiveQuestion(
+                                    q.id,
+                                    q.topic ?? questionPrompt(q.content),
+                                  )
+                                }
+                                style={{ color: "var(--aiq-color-danger)" }}
+                              >
+                                {archivingQuestion === q.id ? "…" : "Archive"}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                              onClick={() =>
+                                navigate(`/admin/question-bank/questions/${q.id}`)
+                              }
+                            >
+                              Edit
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-                          onClick={() => navigate(`/admin/question-bank/questions/${q.id}`)}
-                          style={{ flexShrink: 0, marginLeft: "var(--aiq-space-md)" }}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 );
               })}
@@ -838,7 +1212,7 @@ export function AdminPackDetail(): React.ReactElement {
                     id="gen-count"
                     type="range"
                     min={1}
-                    max={10}
+                    max={30}
                     value={genCount}
                     onChange={(e) => setGenCount(Number(e.target.value))}
                     disabled={generating}
@@ -864,6 +1238,30 @@ export function AdminPackDetail(): React.ReactElement {
                   }}
                 >
                   Generation takes 30–90 seconds per question.
+                </p>
+                {genCount > 10 && (
+                  <p
+                    style={{
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: "var(--aiq-text-xs)",
+                      color: "var(--aiq-color-fg-muted)",
+                      margin: 0,
+                    }}
+                  >
+                    {genCount <= 20
+                      ? "Splits into 2 parallel calls (~3–4 min)."
+                      : "Splits into 3 parallel calls (~3–5 min)."}
+                  </p>
+                )}
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    color: "var(--aiq-color-fg-muted)",
+                    margin: 0,
+                  }}
+                >
+                  Tip: to build a larger bank, click Generate again within 5 minutes of the previous run. Cached context cuts the next call to ~30–60s.
                 </p>
               </div>
 
