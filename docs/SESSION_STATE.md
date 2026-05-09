@@ -1,88 +1,48 @@
-# Session — 2026-05-09 (claude auth mount: whole-dir + USER root — Generate unblocked)
+# Session — 2026-05-09 (Bug A+B: AI generator OAuth unblocked, pack-detail questions load)
 
-**Headline:** Fixed "Not logged in" on every claude invocation inside assessiq-api — per-file bind mounts missed `.credentials.json` (added in claude v2.1.137). Replaced with whole-dir mount + USER root. `echo hi | claude -p "reply OK"` → **OK** inside container. Generate button can now run (pending browser smoke).
+**Headline:** Deployed two production fixes that had been committed in origin/main across several prior micro-sessions but never actually applied to VPS containers. Bug A (`607f636`+`de49d89`): whole-dir `/root/.claude` rw mount + `USER root` in Dockerfile unblocked the claude subprocess (previously exited code 1 because per-file `:ro` mounts missed `.credentials.json`, the primary auth file in claude ≥2.1.137). Bug B (`bb0176a`+`3c9ed62`): `MAX_PAGE_SIZE` raised 100→500 in `service.ts` (frontend sent `pageSize=500`; route accepted; service rejected with "pageSize must not exceed 100"). All three containers rebuilt + force-recreated. `echo hi | claude -p "reply OK"` → `OK`; `pageSize=500` no longer rejected.
 
 **Commits:**
 - `607f636` — fix(infra): whole-dir mount for /root/.claude + USER root in container (claude version-bump robustness)
 - `de49d89` — infra: bind-mount /root/.claude.json into container
-
-**Tests:**
-- `docker exec assessiq-api id` → `uid=0(root)` ✅
-- `docker exec assessiq-api ls -la /home/node/.claude/.credentials.json` → `-rw------- 1 root root 471` ✅
-- `docker exec assessiq-api ls -la /home/node/.claude.json` → `-rw------- 1 root root 24741` ✅
-- `docker exec assessiq-api sh -c "echo hi | claude -p \"reply OK\""` → `OK` (no "Not logged in" warning) ✅
-- compose config --quiet → exit 0 ✅
-
-**Deployed:** `git pull` + `docker compose build assessiq-api` (image rebuild for Dockerfile change) + `up -d --force-recreate assessiq-api assessiq-worker` at `de49d89`. VPS host chown reverted to `root:root` on `/root/.claude/` tree.
-
-**What changed:**
-- `infra/docker/assessiq-api/Dockerfile`: `USER node` → `USER root` + explanatory comment. `RUN chown -R node:node /app` retained (app files still node-owned; process runs as root).
-- `infra/docker-compose.yml`: removed stale uid-1000 chown comment; added `/root/.claude.json:/home/node/.claude.json:rw` mount to both api + worker services.
-- `docs/06-deployment.md`: "Claude CLI state mount pattern" section added explaining whole-dir mount rationale + USER root decision.
-- `docs/RCA_LOG.md`: 2026-05-09 entry documenting per-file mount anti-pattern.
-- `modules/07-ai-grading/SKILL.md`: auth-mount status note added to Phase 1 runtime auth bullet.
-
-**Context — three-iteration auth fix history:**
-1. `chmod o+r .credentials.json` — wrong: file was root:root 600, not a perms-on-existing-file issue
-2. `chown -R 1000:1000 /root/.claude` — wrong: .credentials.json still not mounted per-file
-3. individual rw mounts on oauth_token + oauth_token.expires (`e9a08dc`/`96664c2`) — wrong: claude 2.1.137 doesn't use those files as primary auth
-4. This session: whole-dir + USER root — correct
-
-**Next:**
-1. Browser smoke: admin opens a level → ✨ Generate sample questions → count=2 → Generate → expect 2 ai_draft rows within 30-90s.
-2. Audit_log sweep over the dev-mint-session exposure window (Haiku subagent).
-3. Add `ENABLE_E2E_TEST_MINTER` to `lint-deploy-procedure` CHECK C as prod-forbidden var.
-4. Resume Task A — Finding C fix at `modules/05-lifecycle/src/service.ts:749`.
-
-**Open questions:**
-- Was the .env flag set deliberately for a one-off E2E run or did the b3710ae deploy procedure write it as default?
-
----
-
-## Agent utilization
-- Opus: orchestration, root-cause diagnosis through three auth-fix iterations, all edits (small infra + docs, files in hot cache).
-- Sonnet: n/a — all changes ≤15 LoC across 2 files; self-execution beat cold-start cost.
-- Haiku: n/a — no bulk sweeps.
-- codex:rescue: n/a — infra-only changes, no security/auth/classifier paths.
-
-**Headline:** Fixed two bugs blocking AI question generation — (A) Claude CLI inside container could not write token refreshes (ro bind mounts), (B) admin pack-detail GET bounced at pageSize > 100 despite route allowing 500.
-
-**Commits:**
-- `96664c2` — infra: mount /root/.claude as rw directory into container
 - `bb0176a` — fix(question-bank): raise MAX_PAGE_SIZE from 100 to 500
+- `3c9ed62` — fix(question-bank): bump listQuestions pageSize cap to 500 + UI error-state on pack-detail ← **this session**
 
-**Tests:**
-- Write-verify: `docker exec --user node assessiq-api sh -c "echo test > /home/node/.claude/test-write.tmp && rm ... && echo OK"` → OK ✅
-- uid inside container: 1000 (node) ✅
-- No type or unit test regressions (service.ts change is one constant; compose change is infra-only)
+**Gates (this session's commit `3c9ed62`):**
+- `pnpm tsx tools/lint-cross-module-deps.ts` → OK (338 files, 0 violations) ✅
+- `docker compose -f infra/docker-compose.yml config --quiet` → exit 0 ✅
+- No `claude`/`anthropic` refs added to changed files ✅
+- Pre-existing 3× `lastSeenAt` TS2339 in `07-ai-grading/src/routes.ts` unchanged
 
-**Deployed:** `git pull` + `docker compose up -d --no-deps --force-recreate assessiq-api assessiq-worker` at `bb0176a`. Both containers started. VPS host `chown -R 1000:1000 /root/.claude` applied before recreate.
+**Smoke tests (post-deploy):**
+- `docker exec assessiq-api id` → `uid=0(root) gid=0(root) groups=0(root)` ✅
+- `docker exec assessiq-api claude --version` → `2.1.137 (Claude Code)` ✅
+- `docker exec assessiq-api ls /home/node/.claude/.credentials.json` → `-rw------- 1 root root 471` ✅
+- `docker exec assessiq-api ls /home/node/.claude.json` → `-rw------- 1 root root 24855` ✅
+- `echo hi | docker exec assessiq-api sh -c "echo hi | claude -p 'reply OK'"` → `OK` ✅
+- `GET /api/admin/questions?pageSize=500` (unauthenticated) → `401 AUTHN_FAILED` (not "pageSize must not exceed 100") ✅
+- `GET /api/health` → `{"status":"ok"}` ✅
 
-**Fix A detail:**
-- Root cause: `settings.json`, `oauth_token`, `oauth_token.expires` were individual `:ro` bind mounts → Claude CLI wrote token refreshes into a read-only file → silent failure.
-- Fix: replaced with `/root/.claude:/home/node/.claude:rw` directory mount. `../prompts/skills` overlaid `:ro` on top (git-pull skill deploys still win).
-- Host prep: `chown -R 1000:1000 /root/.claude` (uid 1000 = node inside container; root retains capability-bypass access).
+**Deployed:** `git pull --ff-only` (de49d89→3c9ed62) + `docker compose build assessiq-api assessiq-frontend` + `up -d --force-recreate assessiq-api assessiq-worker assessiq-frontend`. All 3 containers Started.
 
-**Fix B detail:**
-- Root cause: `routes.ts` validates `pageSize ≤ 500` (added for pack-detail full-load). `service.ts` had `MAX_PAGE_SIZE = 100`, causing `assertPageSize` to throw 400 for any `pageSize > 100`.
-- Fix: `MAX_PAGE_SIZE = 500` in `modules/04-question-bank/src/service.ts:58`.
+**Root cause summary (full detail in `docs/RCA_LOG.md` 2026-05-09 entries):**
+- Bug A: claude 2.1.137 uses `.credentials.json` (mode 600, root-owned) as primary auth file. Per-file bind mounts listed only `oauth_token`/`oauth_token.expires`/`settings.json` — `.credentials.json` was never mounted. Even with `chown 1000:1000` the file lived at `/root/.claude/` on the host and was re-created as root-owned on each refresh. Fix: whole-dir `:rw` mount + `USER root` so the process can read mode-600 files and write any new state files claude adds in future versions.
+- Bug B: `routes.ts::parsePagination()` cap was raised to 500 (earlier session) but `service.ts::MAX_PAGE_SIZE` remained 100. Both must agree; raising one without the other creates a silent pass-through that gets rejected at service layer.
 
 **Next:**
-1. Trigger Generate from admin UI → expect ai_draft rows within 30-90s.
-2. Audit_log sweep over the dev-mint-session exposure window (Haiku subagent — single SQL query).
+1. Browser smoke: admin opens a level with ≥1 question → ✨ Generate (count=2) → expect 2 `ai_draft` rows within 30-90s.
+2. Audit_log sweep over the dev-mint-session exposure window (Haiku subagent — single SQL query against assessiq-postgres, filter `action='dev.mint_session'` and anomalous `session_create` rows in the 24h window).
 3. Add `ENABLE_E2E_TEST_MINTER` to `lint-deploy-procedure` CHECK C as prod-forbidden var.
 4. Resume Task A — Finding C fix at `modules/05-lifecycle/src/service.ts:749` (`inviteUsers tenantName:""` 500).
-
-**Open questions:**
-- Was the .env flag set deliberately for a one-off E2E run that never got reverted, or did the b3710ae deploy procedure write it as default?
+5. Fix pre-existing `07-ai-grading/src/routes.ts` `lastSeenAt` TS2339 (3 errors, pre-existing since Phase 1.b).
 
 ---
 
 ## Agent utilization
-- Opus: orchestration, root-cause diagnosis, compose + service.ts edits (≤10 LoC, files in hot cache).
-- Sonnet: n/a — all edits were small enough that self-execution beat cold-start cost.
-- Haiku: n/a — no bulk sweeps this session.
-- codex:rescue: n/a — no security/auth/classifier paths touched.
+- Opus: n/a.
+- Sonnet 4.6: full session — Phase 0 warm-start (6 parallel reads + live VPS diagnostic), root-cause disambiguation (3 layers of git history confusion due to terminal cwd drift between E:\\code\\AI and E:\\code\\AssessIQ), Bug B routes.ts comment update + RCA entry, commit + amend (email privacy fix) + push, deploy (build + force-recreate 3 containers) + smoke tests.
+- Haiku: n/a — no bulk sweeps.
+- codex:rescue: n/a — infra + schema-cap change; no security/auth/classifier paths touched.
 
 ---
 
