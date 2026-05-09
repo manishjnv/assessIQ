@@ -40,6 +40,10 @@ default.
 - **Not shipping `generate-scenario-opus` in Stage 1.** A future escalation skill for L3
   packs where eval data shows scenario quality regression versus the omnibus. Deferred until
   Stage 2 eval results are available to justify the Opus wall-clock cost.
+- **Not generating SPL or Sigma rules.** `generate-kql` covers Microsoft Sentinel and
+  Defender table schemas only (Stage 1 and beyond). SPL (Splunk SPL) and Sigma rule
+  generation are explicitly out of scope; if demand emerges, they ship as separate skills
+  (`generate-spl`, `generate-sigma`) in a future stage and must not bloat `generate-kql`.
 
 ---
 
@@ -53,6 +57,7 @@ default.
 | `generate-log-analysis` | claude-sonnet-4-6 | Requires constructing synthetic multi-line log excerpts with exact field names (Sysmon EventID 1, Windows Event 4625 fields, JSON syslog schemas). Haiku produces plausible-looking but field-incorrect log snippets at non-trivial rates. |
 | `generate-scenario` | claude-sonnet-4-6 | Multi-step narrative coherence and DAG branching require reasoning beyond Haiku's reliable range. Opus would be stronger but is the wall-clock bottleneck (see §4); Sonnet is the pragmatic choice. |
 | `generate-kql` | claude-sonnet-4-6 | KQL questions require syntactically valid queries against real Microsoft Sentinel/Defender table schemas (`SecurityEvent`, `DeviceProcessEvents`, `SigninLogs`). Haiku's KQL reliability is insufficient for exam-grade content. |
+| `generate-subjective` *(future — Stage 3)* | claude-sonnet-4-6 | Subjective questions fold into the omnibus skill in Stage 1 (transitional invariant only). A dedicated skill ships in Stage 3 alongside omnibus removal, enabling improved rubric pre-population for the `generate-rubric` downstream skill. |
 
 **Decision (2026-05-09, Q1): All four skills use claude-sonnet-4-6.** Opus would improve
 scenario narrative quality but its lower throughput (~5K t/min vs Sonnet's ~20K t/min) makes
@@ -99,32 +104,33 @@ caching (Phase 2), static skill content cached across runs reduces the gap.
 Every KB source has: `id`, `name`, `citation`, `url`, `level_fit`, `function`, `description`,
 `tags[]`, `kb_version`. Slicing operates on `tags` and `function`.
 
-### Per-skill slice criteria
+### KB source list — single list for all skills
 
-| Skill | Include sources where… | Rationale |
+**Decision (2026-05-09, Q2):** The handler reads the full pack KB, filters by `level_fit`
+matching the requested level and (optionally) by `topic_focus` if the admin has set a topic
+filter, and passes the resulting list unchanged to **all four type skills** in the fan-out.
+Each type-skill prompt receives identical KB source material.
+
+Per-skill KB slicing (e.g., governance-tagged refs for MCQ, EDR-tagged refs for
+`generate-log-analysis`) is deferred to a **Stage 4 optimization**. Per-skill slicing would
+improve topical precision but introduces a second filtering axis before the eval harness has
+established per-type quality baselines; deferring it keeps Stage 1 tractable and avoids
+compounding two experimental variables.
+
+### Fallback: fewer than 3 sources in the filtered list
+
+If `level_fit` + `topic_focus` filtering yields fewer than 3 sources, fall back to the full
+level KB (topic_focus relaxed) for that fan-out invocation — same behavior as the current
+omnibus. Log `generation.kb_slice.fallback` with the filtered size so the KB can be enriched
+over time. The fallback is silent to the admin (no UI warning in Stage 1).
+
+### Estimated source counts per level (treat as illustrative — verify against actual JSON)
+
+| Level | Sources at level (est.) | Passed to all type skills |
 |---|---|---|
-| `generate-mcq` | All sources at the requested `level_fit` | MCQ can span any SOC concept; breadth is desirable to avoid topic repetition. |
-| `generate-log-analysis` | `tags` contains any of: `windows-event`, `sysmon`, `eventlog`, `edr`, `SIEM`, `event-4625`, `event-4769`, `event-4104`, `4625`, `network-analysis`, `beacon`, `JA3` | Log analysis questions need concrete log-artifact evidence. Sources without log references produce artificially constrained excerpts. |
-| `generate-scenario` | `function` is `response` OR `incident-response` OR `triage` OR `hunting`; OR `tags` contains any of: `incident-response`, `containment`, `lateral-movement`, `ransomware`, `triage` | Scenario questions require a narrative arc — an incident that unfolds across steps. Detection-only or governance sources don't give the analyst a "decision chain" to traverse. |
-| `generate-kql` | `function` is `detection` OR `hunting`; OR `tags` contains any of: `SIEM`, `KQL`, `Sigma`, `hunting`, `C2`, `beacon`, `threat-hunting` | KQL questions must reference log tables that exist in Microsoft Sentinel/Defender. Detection-tagged sources describe events observable via KQL. |
-
-### Fallback: fewer than 3 sources match
-
-If a slice produces fewer than 3 sources, fall back to the full level KB for that skill —
-same behavior as the current omnibus. Log `generation.kb_slice.fallback` with the slice size
-and the triggering skill so the KB can be enriched over time. The fallback is silent to
-the admin (no UI warning in Phase 1).
-
-### Estimated slice sizes (based on partial KB reads; **treat as illustrative — verify against actual JSON**)
-
-| Level | Total sources (est.) | `generate-mcq` | `generate-log-analysis` | `generate-scenario` | `generate-kql` |
-|---|---|---|---|---|---|
-| L1 | ~20 | ~20 | ~6–9 | ~5–7 | ~4–6 |
-| L2 | ~25 | ~25 | ~10–14 | ~7–10 | ~6–9 |
-| L3 | ~20 | ~20 | ~6–9 | ~6–8 | ~7–10 |
-
-Open question Q5 asks for exact counts — implementation must verify these before wiring
-the KB-source-count preview in the UI.
+| L1 | ~20 | ~20 |
+| L2 | ~25 | ~25 |
+| L3 | ~20 | ~20 |
 
 ---
 
@@ -156,18 +162,18 @@ POST /admin/packs/:packId/levels/:levelId/generate
 handleAdminGenerate() — validates per-type counts (each 0–12, total 1–30)
   │
   ▼
-singleFlight.acquire("generation:packId:levelId")   ← same mutex as today
-  │  rejected → 409 Conflict (same as today)
+singleFlight.acquire("generation:packId:levelId")   ← same mutex as today; covers the
+  │  rejected → 409 Conflict (same as today)           full fan-out (see §4 Q1 decision)
   │
   ▼
-sliceKbSources(allSources) → { mcqSources, logSources, scenarioSources, kqlSources }
+filterKbSources(allSources, levelId, topicFocus?) → kbSources   ← one list; all skills receive identical source set (see §3)
   │
   ▼
 Promise.allSettled([
-  counts.mcq > 0      → generateMcqQuestions(mcqSources, counts.mcq),
-  counts.log_analysis > 0 → generateLogAnalysisQuestions(logSources, counts.log_analysis),
-  counts.scenario > 0 → generateScenarioQuestions(scenarioSources, counts.scenario),
-  counts.kql > 0      → generateKqlQuestions(kqlSources, counts.kql),
+  counts.mcq > 0      → generateMcqQuestions(kbSources, counts.mcq),
+  counts.log_analysis > 0 → generateLogAnalysisQuestions(kbSources, counts.log_analysis),
+  counts.scenario > 0 → generateScenarioQuestions(kbSources, counts.scenario),
+  counts.kql > 0      → generateKqlQuestions(kbSources, counts.kql),
 ])
   │   (capped at 2 concurrent via semaphore — Stage 1; raise to 4 after Stage 1.5 gate)
   │
@@ -194,15 +200,23 @@ its own type branch.
 
 ### Single-flight shape
 
-**Recommendation: per-pack:level mutex, N types within one slot (current shape, unchanged).**
+**Decision (2026-05-09, Q1): Per-pack:level mutex covers the full sharded fan-out.** The
+`Promise.allSettled` across all four type skills runs entirely inside the acquired
+singleFlight slot; the slot is released only after all type calls complete.
 
-Alternatives considered and rejected:
+A per-skill mutex (per-pack:level:type) was considered and rejected: it would allow two
+simultaneous admin "Generate" clicks for the same pack+level to proceed concurrently on
+different type skills. Each concurrent request would read `existingTopics` before the other
+has inserted its drafts, violating the topic-dedupe invariant and producing duplicate topics.
+The per-pack:level shape is the only option that preserves dedup atomicity.
 
-| Option | Shape | Rejected because |
+Alternatives considered:
+
+| Option | Shape | Outcome |
 |---|---|---|
-| Per-pack:level:type (5 slots) | Allow concurrent generation requests across types from two admin clicks | Two simultaneous admin "Generate" clicks for the same pack/level would produce overlapping topics; the dedup set is not shared across requests. |
-| Per-pack:level (current) — one slot, N types inside | One admin click fans out to N types atomically | ✓ Selected. Atomicity preserved. Topic dedup runs once on merged results. |
-| Global single-flight | Only one generation in the entire API process at a time | Too restrictive; blocks one pack while another is generating. No need. |
+| Per-pack:level:type (5 slots) | Allow concurrent generation requests across types from two admin clicks | Rejected — two simultaneous admin clicks produce overlapping topics; dedup set is not shared across requests. |
+| Per-pack:level (current) — one slot, N types inside | One admin click fans out to N types atomically | ✓ Selected. Dedup atomicity preserved. Topic dedup runs once on merged results. |
+| Global single-flight | Only one generation in the entire API process at a time | Rejected — too restrictive; blocks one pack while another is generating. No need. |
 
 **Interaction with grading mutex:** The generation mutex key is `generation:packId:levelId`.
 The grading mutex key is different (attempt-based). They share the same `singleFlight` registry
@@ -276,8 +290,9 @@ updates live. Setting any type to 0 skips that skill entirely (clean per-type of
 | L2 | 35% | 30% | 20% | 10% | 5% |
 | L3 | 20% | 20% | 25% | 20% | 15% |
 
-Subjective always routes to the omnibus skill; if Subjective count > 0, one omnibus call is
-added to the fan-out sequentially after the type-skill batches complete.
+Subjective always routes to the omnibus skill in Stage 1 (transitional invariant — see §2
+and §7 Stage 3); if Subjective count > 0, one omnibus call is added to the fan-out
+sequentially after the type-skill batches complete.
 
 **"KB sources (N sources)"** is computed client-side from the slicing criteria applied against
 the pack's SOC level, loaded eagerly when the modal opens. If any type slice shows
