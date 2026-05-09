@@ -76,6 +76,9 @@ const MCP_SUBMIT_BAND = "mcp__assessiq__submit_band";
 const DISALLOWED_TOOLS = "Bash,Write,Edit,Read,Glob,Grep";
 
 const STAGE_TIMEOUT_MS = 120_000;
+const GENERATION_BASE_TIMEOUT_MS = 60_000;
+const GENERATION_PER_ITEM_TIMEOUT_MS = 120_000;
+const RUBRIC_TIMEOUT_MS = 300_000;
 
 // ---------------------------------------------------------------------------
 // Stage 1 input wrapper schema (matches assessiq-mcp's submit_anchors shape)
@@ -357,6 +360,9 @@ export async function generateQuestions(
     allowedTools: [MCP_SUBMIT_QUESTIONS],
     attemptId: "generation",
     questionId: `${input.packId}:${input.levelId}`,
+    timeoutMs:
+      GENERATION_BASE_TIMEOUT_MS +
+      input.count * GENERATION_PER_ITEM_TIMEOUT_MS,
   });
 
   const raw = parseToolInput(events, TOOL_SUBMIT_QUESTIONS);
@@ -499,6 +505,7 @@ export async function generateRubricDraft(
     allowedTools: [MCP_SUBMIT_RUBRIC],
     attemptId: "rubric-generation",
     questionId: input.questionId,
+    timeoutMs: RUBRIC_TIMEOUT_MS,
   });
 
   const raw = parseToolInput(events, TOOL_SUBMIT_RUBRIC);
@@ -551,6 +558,7 @@ interface RunSkillOpts {
   allowedTools: string[];
   attemptId: string;
   questionId: string;
+  timeoutMs?: number;
 }
 
 function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
@@ -584,17 +592,18 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
     let stderrTail = "";
     const events: StreamJsonEvent[] = [];
 
+    const timeoutMs = opts.timeoutMs ?? STAGE_TIMEOUT_MS;
     const timer = setTimeout(() => {
       proc.kill("SIGTERM");
       reject(
         new AppError(
-          `claude subprocess timed out after ${STAGE_TIMEOUT_MS}ms (skill=${opts.skill})`,
+          `claude subprocess timed out after ${timeoutMs}ms (skill=${opts.skill})`,
           AI_GRADING_ERROR_CODES.RUNTIME_FAILURE,
           503,
           { details: { skill: opts.skill, attemptId: opts.attemptId } },
         ),
       );
-    }, STAGE_TIMEOUT_MS);
+    }, timeoutMs);
 
     proc.stdout.on("data", (chunk: Buffer) => {
       stdoutBuf += chunk.toString("utf8");
