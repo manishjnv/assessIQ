@@ -1,0 +1,87 @@
+[
+  {
+    "type": "mcq",
+    "topic": "PowerShell execution technique identification",
+    "points": 5,
+    "content": {
+      "question": "An EDR alert fires: a user process spawns powershell.exe with the argument -EncodedCommand followed by a Base64 string. The parent process is cmd.exe. Which MITRE ATT&CK technique does this execution pattern most directly represent?",
+      "options": [
+        "A. T1547.001 – Boot or Logon Autostart Execution: Registry Run Keys",
+        "B. T1059.001 – Command and Scripting Interpreter: PowerShell",
+        "C. T1078 – Valid Accounts (initial access via stolen credentials)",
+        "D. T1021.001 – Remote Services: Remote Desktop Protocol"
+      ],
+      "correct": 1,
+      "rationale": "T1059.001 covers adversary use of PowerShell for execution. The -EncodedCommand flag is a canonical obfuscation technique to evade command-line logging and detection. T1547.001 is a persistence mechanism, T1078 is an initial-access technique involving credential use, and T1021.001 is lateral movement via RDP — none describe the in-process execution via an encoded PowerShell command."
+    },
+    "knowledge_base_source_ids": ["src_l2_001"]
+  },
+  {
+    "type": "mcq",
+    "topic": "Sysmon Event ID 1 field for LOLBin detection",
+    "points": 5,
+    "content": {
+      "question": "A SOC analyst is writing a Sysmon-based detection rule targeting LOLBin (Living-Off-the-Land Binary) abuse — attacks where a legitimate Windows binary (mshta.exe, certutil.exe, regsvr32.exe) is weaponised. Which field in Sysmon Event ID 1 (ProcessCreate) is the primary indicator that should anchor the detection?",
+      "options": [
+        "A. ProcessId — the OS-assigned numeric process identifier",
+        "B. IntegrityLevel — the mandatory integrity level of the process token",
+        "C. CommandLine — the full argument string passed to the process",
+        "D. Hashes — the SHA-256 hash of the process image on disk"
+      ],
+      "correct": 2,
+      "rationale": "CommandLine captures the full argument string, revealing how a legitimate binary is being invoked — for example, certutil.exe -urlcache -split -f http://... or mshta.exe vbscript:.... ProcessId is an opaque identifier with no semantic content for the detection. IntegrityLevel indicates elevation context but does not reveal LOLBin abuse. Hashes match the legitimate binary (which is unchanged on disk), so they provide no signal that the binary is being abused."
+    },
+    "knowledge_base_source_ids": ["src_l2_002"]
+  },
+  {
+    "type": "mcq",
+    "topic": "Windows Event 4625 attack pattern classification",
+    "points": 5,
+    "content": {
+      "question": "A SIEM rule triggers on 80 Windows Security Event ID 4625 events within 3 minutes. All events originate from a single external IP (203.0.113.44), each targets a different domain user account, and SubStatus is 0xC000006A (wrong password) for every event. The password attempted across accounts is the same string. Which attack pattern does this most accurately describe?",
+      "options": [
+        "A. Password spraying — testing a small password set against many accounts to stay below lockout thresholds",
+        "B. Credential stuffing — replaying breached username:password pairs from a prior data breach",
+        "C. Kerberoasting — requesting service tickets for offline cracking (MITRE T1558.003)",
+        "D. Pass-the-Hash — authenticating with a captured NTLM hash instead of the plaintext password"
+      ],
+      "correct": 0,
+      "rationale": "Password spraying tests one or a few common passwords against many accounts to avoid triggering per-account lockout. The tell is the single external IP, many distinct target accounts, same password, all returning wrong-password SubStatus. Credential stuffing uses unique username:password pairs per attempt. Kerberoasting generates Event 4769 (TGS requests), not 4625 failures. Pass-the-Hash produces Event 4624 success events using NTLM with LogonType=3, not 4625 failures."
+    },
+    "knowledge_base_source_ids": ["src_l2_003"]
+  },
+  {
+    "type": "mcq",
+    "topic": "Incident response volatile evidence collection priority",
+    "points": 5,
+    "content": {
+      "question": "Following NIST SP 800-61r2, an analyst arrives at a live Windows workstation suspected of active compromise. The host is powered on and connected to the network. Which action should be performed FIRST?",
+      "options": [
+        "A. Pull the power cord immediately to freeze disk state and prevent further damage",
+        "B. Capture volatile artefacts — running process list, active network connections, and a RAM image — before any isolation",
+        "C. Reset the compromised user account password via Active Directory to revoke attacker access",
+        "D. Apply an emergency OS security patch to close the exploitation vector used to compromise the host"
+      ],
+      "correct": 1,
+      "rationale": "NIST SP 800-61r2 §3.3.2 specifies collecting volatile data first: RAM, running processes, open files, and network connections — all lost when power is removed or the host is isolated. Disk data persists and can be imaged later. Pulling the power destroys volatile evidence and may corrupt open files. Resetting passwords or patching before volatile capture destroys forensic artefacts that identify the attack chain and any persistence mechanisms."
+    },
+    "knowledge_base_source_ids": ["src_l2_005"]
+  },
+  {
+    "type": "mcq",
+    "topic": "JA3 TLS fingerprint C2 beacon pattern interpretation",
+    "points": 5,
+    "content": {
+      "question": "A threat hunter queries Zeek TLS logs and finds 12 internal hosts made outbound TLS connections to 4 distinct external IPs over 48 hours. Every connection shares an identical JA3 hash (d4a1b4f1de10395...2c4) that does not match any catalogued browser, enterprise application, or trusted vendor. What is the most operationally significant conclusion?",
+      "options": [
+        "A. All 12 hosts are running the same browser version, which naturally produces the same TLS fingerprint",
+        "B. A corporate TLS inspection proxy is normalising all outbound client hellos to one fingerprint",
+        "C. Malware on all 12 hosts uses a shared TLS library, likely beaconing to C2 infrastructure with IP rotation",
+        "D. An ARP spoofing attack is redirecting traffic from the 12 hosts through a single attacker-controlled machine"
+      ],
+      "correct": 2,
+      "rationale": "An identical, rare JA3 hash across 12 hosts reaching 4 rotating external IPs is the signature of a malware family with a common embedded TLS client library. C2 frameworks rotate IPs (fast-flux, domain fronting) while keeping the same TLS fingerprint. Known browser JA3 hashes are catalogued and would match; they would also connect to well-known CDN or vendor IPs. A TLS inspection proxy would produce a JA3S (server-side) change on the response, not a common client JA3. ARP spoofing does not create a shared TLS fingerprint across hosts."
+    },
+    "knowledge_base_source_ids": ["src_l2_008"]
+  }
+]
