@@ -1106,6 +1106,7 @@ export async function generateQuestions(
   levelId: string,
   count: number,
   topicFocus?: string,
+  typeCounts?: Partial<Record<string, number>>,
 ): Promise<{ questionIds: string[]; generated: number; skillSha: string }> {
   // Dynamic import to break the load-time cycle: at module load time
   // neither package has finished resolving. Dynamic import defers until
@@ -1159,6 +1160,7 @@ export async function generateQuestions(
     socLevel,
     sources,
     existingTopics,
+    ...(typeCounts !== undefined ? { typeCounts } : {}),
   });
 }
 

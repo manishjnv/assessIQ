@@ -52,3 +52,32 @@ export async function adminApi<T = unknown>(
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — generate endpoint
+// ---------------------------------------------------------------------------
+
+export type GenerateQuestionType = "mcq" | "log_analysis" | "scenario" | "kql" | "subjective";
+
+export interface GenerateQuestionsRequest {
+  count: number;
+  topic_focus?: string;
+  type_counts?: Partial<Record<GenerateQuestionType, number>>;
+}
+
+export interface GenerateQuestionsResponse {
+  questionIds: string[];
+  generated: number;
+  skillSha: string;
+}
+
+export async function generateQuestionsApi(
+  packId: string,
+  levelId: string,
+  body: GenerateQuestionsRequest,
+): Promise<GenerateQuestionsResponse> {
+  return adminApi<GenerateQuestionsResponse>(
+    `/admin/packs/${packId}/levels/${levelId}/generate`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}

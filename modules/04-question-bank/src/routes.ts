@@ -92,6 +92,78 @@ function parsePagination(q: Record<string, string | undefined>): { page: number;
 }
 
 // ---------------------------------------------------------------------------
+// Generate-body parser — exported for unit testing
+// ---------------------------------------------------------------------------
+
+/** Allowed per-type override keys. */
+const GENERATE_TYPE_KEYS = ["mcq", "log_analysis", "scenario", "kql", "subjective"] as const;
+type GenerateTypeKey = typeof GENERATE_TYPE_KEYS[number];
+
+/**
+ * Parse and validate the body for POST .../generate.
+ *
+ * @internal Exported so the unit tests in __tests__/generate-body-validation.test.ts
+ *   can exercise the validation rules without starting a Fastify server.
+ */
+export function parseGenerateBody(raw: unknown): {
+  count: number;
+  topicFocus: string | undefined;
+  typeCounts: Partial<Record<GenerateTypeKey, number>> | undefined;
+} {
+  const body = raw as {
+    count?: unknown;
+    topic_focus?: unknown;
+    type_counts?: unknown;
+  } | null | undefined;
+
+  const count = typeof body?.count === "number" ? body.count : 5;
+  if (!Number.isInteger(count) || count < 1 || count > 30) {
+    throw new ValidationError("count must be an integer between 1 and 30", {
+      details: { code: "INVALID_PARAM", param: "count" },
+    });
+  }
+
+  const topicFocus =
+    typeof body?.topic_focus === "string" && body.topic_focus.trim().length > 0
+      ? body.topic_focus.trim()
+      : undefined;
+
+  if (body?.type_counts === undefined || body?.type_counts === null) {
+    return { count, topicFocus, typeCounts: undefined };
+  }
+
+  if (typeof body.type_counts !== "object" || Array.isArray(body.type_counts)) {
+    throw new ValidationError("type_counts must be an object", {
+      details: { code: "INVALID_PARAM", param: "type_counts" },
+    });
+  }
+
+  const tc = body.type_counts as Record<string, unknown>;
+  const parsed: Partial<Record<GenerateTypeKey, number>> = {};
+  for (const key of GENERATE_TYPE_KEYS) {
+    const v = tc[key];
+    if (v !== undefined) {
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 30) {
+        throw new ValidationError(
+          `type_counts.${key} must be an integer between 0 and 30`,
+          { details: { code: "INVALID_PARAM", param: `type_counts.${key}` } },
+        );
+      }
+      parsed[key] = v;
+    }
+  }
+
+  const sum = (Object.values(parsed) as number[]).reduce((acc, v) => acc + v, 0);
+  if (sum !== count) {
+    throw new ValidationError("type_counts values must sum to count", {
+      details: { code: "INVALID_TYPE_COUNTS_SUM", sum, count },
+    });
+  }
+
+  return { count, topicFocus, typeCounts: parsed };
+}
+
+// ---------------------------------------------------------------------------
 // Plugin registrar
 // ---------------------------------------------------------------------------
 
@@ -369,7 +441,8 @@ export async function registerQuestionBankRoutes(
   // status='archived' is the only path. Hard delete is a Phase 3 admin tool.
 
   // POST /api/admin/packs/:id/levels/:levelId/generate
-  // Body: { count: number (1-30), topic_focus?: string }
+  // Body: { count: number (1-30), topic_focus?: string,
+  //         type_counts?: { mcq?, log_analysis?, scenario?, kql?, subjective? } }
   // Returns: { questionIds: string[], generated: number, skillSha: string }
   app.post(
     "/api/admin/packs/:id/levels/:levelId/generate",
@@ -378,21 +451,9 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const { id: packId, levelId } = req.params as { id: string; levelId: string };
-      const body = req.body as { count?: unknown; topic_focus?: unknown };
 
-      const count = typeof body?.count === "number" ? body.count : 5;
-      if (!Number.isInteger(count) || count < 1 || count > 30) {
-        throw new ValidationError("count must be an integer between 1 and 30", {
-          details: { code: "INVALID_PARAM", param: "count" },
-        });
-      }
-
-      const topicFocus =
-        typeof body?.topic_focus === "string" && body.topic_focus.trim().length > 0
-          ? body.topic_focus.trim()
-          : undefined;
-
-      return generateQuestions(tenantId, userId, packId, levelId, count, topicFocus);
+      const { count, topicFocus, typeCounts } = parseGenerateBody(req.body);
+      return generateQuestions(tenantId, userId, packId, levelId, count, topicFocus, typeCounts);
     },
   );
 
