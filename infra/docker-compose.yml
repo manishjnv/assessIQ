@@ -89,13 +89,15 @@ services:
     # node:22-slim (Debian/glibc) so the glibc ELF binary runs correctly.
     # Mount the whole /root/.claude directory rw so the node user can write
     # token refreshes and any new state files Claude CLI creates over time.
-    # Host dir must be chown'd to uid 1000: chown -R 1000:1000 /root/.claude
-    # (root can still operate freely; root bypasses permission checks).
+    # Container runs as root (USER root in Dockerfile) so it can read
+    # /root/.claude/.credentials.json (mode 600). No host chown needed.
+    # .claude.json lives one level above the directory — mount separately.
     # The repo's prompts/skills is overlaid ro on top so git-pull-only skill
     # deploys still work and override the host's /root/.claude/skills copy.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
       - /root/.claude:/home/node/.claude:rw
+      - /root/.claude.json:/home/node/.claude.json:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
@@ -142,6 +144,7 @@ services:
     volumes:
       - /var/log/assessiq:/var/log/assessiq
       - /root/.claude:/home/node/.claude:rw
+      - /root/.claude.json:/home/node/.claude.json:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
