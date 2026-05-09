@@ -36,6 +36,7 @@ import {
 import type {
   AnchorFinding,
   BandFinding,
+  GenerateByTypeInput,
   GenerateQuestionsInput,
   GenerateQuestionsOutput,
   GeneratedQuestionDraft,
@@ -451,6 +452,172 @@ export async function generateQuestions(
 }
 
 // ---------------------------------------------------------------------------
+// generateQuestionsByType — per-type sharded generation (Stage 1)
+// ---------------------------------------------------------------------------
+
+// Per-type skill name mapping (Stage 1). subjective is NOT type-sharded —
+// the omnibus skill handles it; if a sharded run needs subjective, the
+// handler falls back to omnibus for that slice only.
+const TYPE_SKILL_MAP: Record<string, string> = {
+  mcq: "generate-mcq",
+  log_analysis: "generate-log-analysis",
+  scenario: "generate-scenario",
+  kql: "generate-kql",
+};
+
+/**
+ * Generate questions for a single type using the corresponding per-type
+ * skill. Called from admin-generate.ts when AI_GENERATE_MODE='sharded'.
+ *
+ * Returns the same GenerateQuestionsOutput shape as generateQuestions(), plus
+ * `wrongTypeDropped` — the count of questions the model returned whose `type`
+ * field did not match the requested type. Wrong-type questions are logged and
+ * discarded; only correct-type questions are returned.
+ *
+ * NOTE (D2): Lives in claude-code-vps.ts, the only file allowed to interact
+ * with the claude subprocess via runSkill(). No new file is added to
+ * src/runtimes/ (Stage 1 architecture invariant).
+ */
+export async function generateQuestionsByType(
+  input: GenerateByTypeInput,
+): Promise<GenerateQuestionsOutput> {
+  const skillName = TYPE_SKILL_MAP[input.type];
+  if (!skillName) {
+    throw new AppError(
+      `generateQuestionsByType: no skill mapping for type '${input.type}'`,
+      AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
+      501,
+      { details: { type: input.type } },
+    );
+  }
+
+  const genSha = await skillSha(skillName);
+
+  const promptVars = {
+    level: input.level,
+    count: input.count,
+    topic_focus: input.topicFocus ?? null,
+    existing_topics: input.existingTopics,
+    sources: input.sources,
+  };
+
+  const events = await runSkill({
+    skill: skillName,
+    promptVars,
+    allowedTools: [MCP_SUBMIT_QUESTIONS],
+    attemptId: "generation",
+    questionId: `${input.packId}:${input.levelId}:${input.type}`,
+    timeoutMs:
+      GENERATION_BASE_TIMEOUT_MS +
+      input.count * GENERATION_PER_ITEM_TIMEOUT_MS,
+    model: "claude-sonnet-4-6",
+  });
+
+  const raw = parseToolInput(events, TOOL_SUBMIT_QUESTIONS);
+  if (raw === null) {
+    log.error(
+      {
+        skill: skillName,
+        type: input.type,
+        packId: input.packId,
+        expectedTool: TOOL_SUBMIT_QUESTIONS,
+        rawStreamTruncated: JSON.stringify(events).slice(0, 2048),
+      },
+      "generation.submit_tool.missing",
+    );
+    throw new AppError(
+      `expected ${TOOL_SUBMIT_QUESTIONS} tool use in stream-json output`,
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { skill: skillName, type: input.type, packId: input.packId } },
+    );
+  }
+
+  const parsed = SubmitQuestionsInputSchema.safeParse(raw);
+  if (!parsed.success) {
+    log.error(
+      {
+        skill: skillName,
+        type: input.type,
+        packId: input.packId,
+        expectedTool: TOOL_SUBMIT_QUESTIONS,
+        rawPayloadTruncated: JSON.stringify(raw).slice(0, 2048),
+        issues: parsed.error.issues,
+      },
+      "generation.submit_tool.schema_failed",
+    );
+    throw new AppError(
+      "submit_questions payload failed schema validation",
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { issues: parsed.error.issues } },
+    );
+  }
+
+  const sourceById = new Map(input.sources.map((s) => [s.id, s]));
+
+  const allQuestions = parsed.data.questions;
+  let wrongTypeDropped = 0;
+  const questions: GeneratedQuestionDraft[] = [];
+
+  for (const q of allQuestions) {
+    if (q.type !== input.type) {
+      wrongTypeDropped++;
+      log.warn(
+        {
+          skill: skillName,
+          packId: input.packId,
+          expectedType: input.type,
+          actualType: q.type,
+          topic: q.topic,
+        },
+        "generation.sharded.wrong_type_dropped",
+      );
+      continue;
+    }
+    questions.push({
+      type: q.type,
+      topic: q.topic,
+      points: q.points,
+      content: q.content,
+      rubric: q.rubric ?? null,
+      knowledgeBaseSources: q.knowledge_base_source_ids
+        .map((id) => sourceById.get(id))
+        .filter((s): s is NonNullable<typeof s> => s !== undefined)
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          citation: s.citation,
+          url: s.url,
+          level_fit: s.level_fit,
+          function: s.function,
+          kb_version: s.kb_version,
+        })),
+    });
+  }
+
+  log.info(
+    {
+      packId: input.packId,
+      levelId: input.levelId,
+      level: input.level,
+      type: input.type,
+      generated: questions.length,
+      wrongTypeDropped,
+      skillSha: genSha.short,
+    },
+    "generation.skill.complete",
+  );
+
+  return {
+    questions,
+    skillSha: genSha.short,
+    model: genSha.model,
+    ...(wrongTypeDropped > 0 ? { wrongTypeDropped } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // generateRubricDraft — Rubric generation using the generate-rubric skill
 // ---------------------------------------------------------------------------
 
@@ -650,7 +817,12 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
     // For grading skills the gate stays closed: stderr is captured in memory but
     // NEVER logged or persisted (candidate-answer leakage risk per D8/docs/11-observability.md).
     const isGenerationSkill =
-      opts.skill === "generate-questions" || opts.skill === "generate-rubric";
+      opts.skill === "generate-questions" ||
+      opts.skill === "generate-rubric" ||
+      opts.skill === "generate-mcq" ||
+      opts.skill === "generate-log-analysis" ||
+      opts.skill === "generate-scenario" ||
+      opts.skill === "generate-kql";
 
     const timeoutMs = opts.timeoutMs ?? STAGE_TIMEOUT_MS;
     const timer = setTimeout(() => {

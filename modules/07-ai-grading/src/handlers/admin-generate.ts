@@ -33,9 +33,11 @@
 import { AppError, config, streamLogger, uuidv7 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
-import { generateQuestions } from "../runtime-selector.js";
+import { generateQuestions, generateQuestionsByType } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
-import type { GenerateQuestionsInput, GenerateQuestionsOutput } from "../types.js";
+import { allocateByWeight } from "../auto-weight.js";
+import { withConcurrencyLimit } from "../concurrency.js";
+import type { GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput } from "../types.js";
 import type { PoolClient } from "pg";
 
 const log = streamLogger("generation");
@@ -311,6 +313,159 @@ export async function handleAdminGenerate(
 
   try {
     capturedOutput = await withTenant(input.tenantId, async (client) => {
+      // ── Mode branch ───────────────────────────────────────────────────────
+      // AI_GENERATE_MODE='omnibus' (default) → existing chunked/single path.
+      // AI_GENERATE_MODE='sharded' → per-type fan-out path (Stage 1).
+      if (config.AI_GENERATE_MODE === "sharded") {
+        // ── Sharded path ──────────────────────────────────────────────────
+        const typeAllocation = allocateByWeight(input.socLevel, input.count);
+
+        // Stage 1: subjective is NOT type-sharded. If the allocator assigns
+        // any count to subjective, fold it into mcq (largest sharded type)
+        // as a safe fallback. A future prompt will add generate-subjective.
+        const shardedAllocation = { ...typeAllocation };
+        if (shardedAllocation.subjective > 0) {
+          shardedAllocation.mcq += shardedAllocation.subjective;
+          shardedAllocation.subjective = 0;
+        }
+
+        // Build one GenerateByTypeInput per non-zero type
+        const typeEntries = (
+          ["mcq", "log_analysis", "scenario", "kql"] as const
+        ).filter((t) => shardedAllocation[t] > 0);
+
+        chunksPlanned = typeEntries.length;
+
+        const plan: Record<string, number> = {};
+        for (const t of typeEntries) plan[t] = shardedAllocation[t];
+
+        log.info(
+          { attemptId, plan, level: input.socLevel },
+          "generation.sharded.start",
+        );
+
+        const typeInputs: GenerateByTypeInput[] = typeEntries.map((type) => ({
+          level: input.socLevel,
+          type,
+          count: shardedAllocation[type],
+          existingTopics: input.existingTopics,
+          sources: input.sources,
+          packId: input.packId,
+          levelId: input.levelId,
+        }));
+
+        // 2-concurrent semaphore fan-out
+        const SHARDED_CONCURRENCY = 2;
+        const settled = await withConcurrencyLimit(
+          typeInputs,
+          SHARDED_CONCURRENCY,
+          (ti) => {
+            const typeStart = Date.now();
+            return generateQuestionsByType(ti).then((output) => {
+              log.info(
+                {
+                  attemptId,
+                  type: ti.type,
+                  generated: output.questions.length,
+                  durationMs: Date.now() - typeStart,
+                  wrongTypeDropped: output.wrongTypeDropped ?? 0,
+                },
+                "generation.sharded.type.complete",
+              );
+              return output;
+            });
+          },
+        );
+
+        const fulfilled: GenerateQuestionsOutput[] = [];
+        let firstError: unknown = null;
+        let localChunksFailed = 0;
+        let totalWrongTypeDropped = 0;
+        for (const r of settled) {
+          if (r.status === "fulfilled") {
+            const out = r.value as GenerateQuestionsOutput;
+            fulfilled.push(out);
+            totalWrongTypeDropped += out.wrongTypeDropped ?? 0;
+          } else {
+            localChunksFailed++;
+            if (firstError === null) firstError = r.reason;
+            log.warn(
+              { attemptId, err: (r.reason as Error).message },
+              "generation.sharded.type.failed",
+            );
+          }
+        }
+        chunksFailed = localChunksFailed;
+
+        if (fulfilled.length === 0) {
+          throw firstError;
+        }
+
+        // Merge + topic-dedupe (case-insensitive, compare against
+        // existingTopics + already-merged questions)
+        const seenTopics = new Set(
+          input.existingTopics.map((t) => t.trim().toLowerCase()),
+        );
+        const mergedQuestions: GenerateQuestionsOutput["questions"] = [];
+        let dedupeDropped = 0;
+
+        for (const chunkOutput of fulfilled) {
+          for (const q of chunkOutput.questions) {
+            const normalised = q.topic.trim().toLowerCase();
+            if (seenTopics.has(normalised)) {
+              dedupeDropped++;
+            } else {
+              seenTopics.add(normalised);
+              mergedQuestions.push(q);
+            }
+          }
+        }
+        dedupeDroppedCount = dedupeDropped + totalWrongTypeDropped;
+
+        log.info(
+          {
+            attemptId,
+            totalGenerated: mergedQuestions.length,
+            dedupeDropped,
+            wrongTypeDropped: totalWrongTypeDropped,
+            chunksFailed: localChunksFailed,
+          },
+          "generation.sharded.complete",
+        );
+
+        // Collect per-type skill SHAs (comma-joined, truncated to 200 chars)
+        const skillShas = fulfilled.map((o) => o.skillSha).join(",").slice(0, 200);
+        const model = "claude-sonnet-4-6";
+
+        const mergedOutput: GenerateQuestionsOutput = {
+          questions: mergedQuestions,
+          skillSha: skillShas,
+          model,
+        };
+
+        // Single transaction insert
+        const ids = await insertDrafts(client, input, mergedOutput, attemptId);
+
+        log.info(
+          {
+            attemptId,
+            tenantId: input.tenantId,
+            packId: input.packId,
+            levelId: input.levelId,
+            generated: ids.length,
+            skillSha: skillShas,
+          },
+          "generation.complete",
+        );
+
+        return {
+          questionIds: ids,
+          generated: ids.length,
+          skillSha: skillShas,
+          _model: model,
+        } as HandleAdminGenerateOutput & { _model?: string };
+      }
+
       if (input.count <= CHUNK_SIZE) {
         // ── Single-call path (count 1-10) ────────────────────────────────
         chunksPlanned = 1;

@@ -86,6 +86,20 @@ const ConfigSchema = z
     AI_PIPELINE_MODE: z
       .enum(["claude-code-vps", "anthropic-api", "open-weights"])
       .default("claude-code-vps"),
+    /**
+     * Stage 1 of type-sharded generation. 'omnibus' uses the legacy
+     * generate-questions skill for all types in one call; 'sharded' fans out
+     * to per-type skills (generate-mcq, generate-log-analysis,
+     * generate-scenario, generate-kql) with auto-weighted counts and a
+     * 2-concurrent semaphore.
+     * See docs/design/2026-05-09-type-sharded-generation.md.
+     *
+     * Do NOT set to 'sharded' in .env in production until per-type skills are
+     * deployed to ~/.claude/skills/ on the VPS and Stage 1.5 evals pass.
+     */
+    AI_GENERATE_MODE: z
+      .enum(["omnibus", "sharded"])
+      .default("omnibus"),
     ANTHROPIC_API_KEY: z.string().optional(),
     // Dev-only E2E session minter — POST /api/dev/mint-session.
     // When "true", the route is registered at server startup.

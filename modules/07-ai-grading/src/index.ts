@@ -38,7 +38,7 @@ export type {
 } from "./types.js";
 
 // Runtime dispatch (D1 — single static switch)
-export { gradeSubjective, generateQuestions, generateRubricDraft } from "./runtime-selector.js";
+export { gradeSubjective, generateQuestions, generateRubricDraft, generateQuestionsByType } from "./runtime-selector.js";
 
 // Generation types
 export type {
@@ -49,6 +49,12 @@ export type {
   GenerateRubricOutput,
   LevelRubricDefaults,
 } from "./types.js";
+
+// Type-sharded generation utilities (Stage 1)
+export { allocateByWeight, applyOverride, TYPE_WEIGHTS } from "./auto-weight.js";
+export { withConcurrencyLimit } from "./concurrency.js";
+
+export type { GenerateByTypeInput, QuestionType } from "./types.js";
 
 // Repository (Session 1.b)
 export type { InsertGradingInput, QueueRow } from "./repository.js";

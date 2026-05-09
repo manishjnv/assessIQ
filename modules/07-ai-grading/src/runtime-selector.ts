@@ -23,7 +23,7 @@
 
 import { AppError, config } from "@assessiq/core";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
-import type { GradingInput, GradingProposal, GenerateQuestionsInput, GenerateQuestionsOutput, GenerateRubricInput, GenerateRubricOutput } from "./types.js";
+import type { GradingInput, GradingProposal, GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput, GenerateRubricInput, GenerateRubricOutput } from "./types.js";
 
 /**
  * Mode-agnostic core. Delegates to the active runtime per D1.
@@ -103,6 +103,29 @@ export async function generateRubricDraft(
       const mode = config.AI_PIPELINE_MODE as string;
       throw new AppError(
         `generateRubricDraft not implemented for AI_PIPELINE_MODE: ${mode}`,
+        AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
+        501,
+      );
+    }
+  }
+}
+
+/**
+ * Mode-agnostic per-type question generator for the sharded path.
+ * Only claude-code-vps implements this; sharded mode requires VPS.
+ */
+export async function generateQuestionsByType(
+  input: GenerateByTypeInput,
+): Promise<GenerateQuestionsOutput> {
+  switch (config.AI_PIPELINE_MODE) {
+    case "claude-code-vps": {
+      const m = await import("./runtimes/claude-code-vps.js");
+      return m.generateQuestionsByType(input);
+    }
+    default: {
+      const mode = config.AI_PIPELINE_MODE as string;
+      throw new AppError(
+        `generateQuestionsByType not implemented for AI_PIPELINE_MODE: ${mode}`,
         AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
         501,
       );

@@ -210,6 +210,11 @@ export interface GeneratedQuestionDraft {
 }
 
 /**
+ * Question type union — canonical alias used across generation & weighting logic.
+ */
+export type QuestionType = "mcq" | "subjective" | "kql" | "scenario" | "log_analysis";
+
+/**
  * Returned by generateQuestions() — the full set of generated drafts plus
  * the skill SHA for provenance recording.
  */
@@ -219,6 +224,48 @@ export interface GenerateQuestionsOutput {
   skillSha: string;
   /** Model identifier from skill frontmatter — populated for generation_attempts observability. */
   model?: string;
+  /**
+   * Count of questions dropped because their `type` field did not match the
+   * requested type. Populated by the sharded path only; omnibus path leaves
+   * this undefined.
+   */
+  wrongTypeDropped?: number;
+}
+
+// ---------------------------------------------------------------------------
+// GenerateByTypeInput — per-type sharded generation (Stage 1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Input to generateQuestionsByType() — one call per question type in the
+ * sharded fan-out. See docs/design/2026-05-09-type-sharded-generation.md.
+ *
+ * NOTE: `subjective` is not type-sharded in Stage 1. If a sharded run
+ * needs subjective questions, the handler falls back to the omnibus skill
+ * for the subjective slice only. This decision was made to avoid creating
+ * a generate-subjective skill before the eval harness is in place
+ * (Stage 1.5).
+ */
+export interface GenerateByTypeInput {
+  level: "L1" | "L2" | "L3";
+  /** Type of question this call will generate. Subjective excluded — see note. */
+  type: Exclude<QuestionType, "subjective">;
+  count: number;
+  topicFocus?: string | null;
+  existingTopics: string[];
+  sources: Array<{
+    id: string;
+    name: string;
+    citation: string;
+    url: string;
+    level_fit: "L1" | "L2" | "L3";
+    function: string;
+    description: string;
+    tags: string[];
+    kb_version: string;
+  }>;
+  packId: string;
+  levelId: string;
 }
 
 // ---------------------------------------------------------------------------
