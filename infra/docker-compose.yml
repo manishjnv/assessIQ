@@ -87,19 +87,18 @@ services:
     #
     # claude CLI: bind the host binary read-only. The API container base is
     # node:22-slim (Debian/glibc) so the glibc ELF binary runs correctly.
-    # /root/.claude/settings.json carries the Max OAuth token for claude on
-    # the host; bind it read-only so claude in the container authenticates.
-    # oauth_token + oauth_token.expires are rw so claude can write refreshed
-    # tokens back. Host files must be owned by uid 1000 (node user):
-    #   chown 1000:1000 /root/.claude/oauth_token /root/.claude/oauth_token.expires
+    # Mount the whole /root/.claude directory rw so the node user can write
+    # token refreshes and any new state files Claude CLI creates over time.
+    # Host dir must be chown'd to uid 1000: chown -R 1000:1000 /root/.claude
+    # (root can still operate freely; root bypasses permission checks).
+    # The repo's prompts/skills is overlaid ro on top so git-pull-only skill
+    # deploys still work and override the host's /root/.claude/skills copy.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
+      - /root/.claude:/home/node/.claude:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
-      - /root/.claude/settings.json:/home/node/.claude/settings.json:ro
-      - /root/.claude/oauth_token:/home/node/.claude/oauth_token:rw
-      - /root/.claude/oauth_token.expires:/home/node/.claude/oauth_token.expires:rw
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
@@ -140,15 +139,12 @@ services:
     # Operational logs: same bind as assessiq-api. Worker logs go to the same
     # JSONL files (stream binding distinguishes per-process emitters).
     # Skills + claude: same binds as assessiq-api (see comment there).
-    # oauth_token mounts are rw — see assessiq-api comment for ownership requirement.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
+      - /root/.claude:/home/node/.claude:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
-      - /root/.claude/settings.json:/home/node/.claude/settings.json:ro
-      - /root/.claude/oauth_token:/home/node/.claude/oauth_token:rw
-      - /root/.claude/oauth_token.expires:/home/node/.claude/oauth_token.expires:rw
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
