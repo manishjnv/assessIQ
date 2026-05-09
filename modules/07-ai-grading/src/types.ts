@@ -217,6 +217,8 @@ export interface GenerateQuestionsOutput {
   questions: GeneratedQuestionDraft[];
   /** First 8 hex chars of the generate-questions SKILL.md sha256. */
   skillSha: string;
+  /** Model identifier from skill frontmatter — populated for generation_attempts observability. */
+  model?: string;
 }
 
 // ---------------------------------------------------------------------------
