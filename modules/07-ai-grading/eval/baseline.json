@@ -1,1 +1,218 @@
-{}
+{
+  "L2-mcq": {
+    "level": "L2",
+    "type": "mcq",
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "scores": [
+      {
+        "id": "mcq-0",
+        "type": "mcq",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "mcq-1",
+        "type": "mcq",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "mcq-2",
+        "type": "mcq",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "mcq-3",
+        "type": "mcq",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "mcq-4",
+        "type": "mcq",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      }
+    ]
+  },
+  "L2-log_analysis": {
+    "level": "L2",
+    "type": "log_analysis",
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "scores": [
+      {
+        "id": "log_analysis-0",
+        "type": "log_analysis",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "log_analysis-1",
+        "type": "log_analysis",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "log_analysis-2",
+        "type": "log_analysis",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "log_analysis-3",
+        "type": "log_analysis",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "log_analysis-4",
+        "type": "log_analysis",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      }
+    ]
+  },
+  "L2-scenario": {
+    "level": "L2",
+    "type": "scenario",
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "scores": [
+      {
+        "id": "scenario-0",
+        "type": "scenario",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "scenario-1",
+        "type": "scenario",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "scenario-2",
+        "type": "scenario",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "scenario-3",
+        "type": "scenario",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "scenario-4",
+        "type": "scenario",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      }
+    ]
+  },
+  "L2-kql": {
+    "level": "L2",
+    "type": "kql",
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "scores": [
+      {
+        "id": "kql-0",
+        "type": "kql",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "kql-1",
+        "type": "kql",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "kql-2",
+        "type": "kql",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "kql-3",
+        "type": "kql",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      },
+      {
+        "id": "kql-4",
+        "type": "kql",
+        "schemaValid": true,
+        "citationsResolve": true,
+        "structuralCompleteness": true,
+        "topicNonEmpty": true,
+        "failures": []
+      }
+    ]
+  }
+}

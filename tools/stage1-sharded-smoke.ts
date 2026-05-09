@@ -1,0 +1,45 @@
+// One-shot smoke runner for the sharded generation path.
+// Runs inside assessiq-api container via:
+//   docker exec assessiq-api pnpm exec tsx /app/tools/stage1-sharded-smoke.ts
+//
+// Calls handleAdminGenerate directly (bypasses HTTP/auth). Targets
+// WIPRO-SOC L2 with count=8 to exercise mcq+log_analysis+scenario+kql.
+import { handleAdminGenerate } from "@assessiq/ai-grading";
+import { SOC_KNOWLEDGE_BASE } from "@assessiq/question-bank";
+
+const TENANT_ID = "019d8000-0001-7f00-8000-000000000001";
+const USER_ID = "26a8f5b1-979d-4188-a2dc-a0e8745a2a62";
+const PACK_ID = "019df000-44f3-7c97-9403-f7bde6a36843";
+const LEVEL_ID = "019df008-b3e0-79b0-b409-624e2037fbe6";
+const COUNT = 8;
+
+async function main() {
+  const sources = SOC_KNOWLEDGE_BASE.filter((s) => s.level_fit === "L2");
+  console.log(`[smoke] tenant=${TENANT_ID.slice(0, 8)} pack=${PACK_ID.slice(0, 8)} level=${LEVEL_ID.slice(0, 8)} count=${COUNT} sources=${sources.length}`);
+
+  const startedAt = Date.now();
+  try {
+    const result = await handleAdminGenerate({
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+      packId: PACK_ID,
+      levelId: LEVEL_ID,
+      count: COUNT,
+      socLevel: "L2",
+      sources: sources as any,
+      existingTopics: [],
+    });
+    const ms = Date.now() - startedAt;
+    console.log(`[smoke] ok generated=${result.generated} ids=${result.questionIds.length} skill=${result.skillSha} duration=${ms}ms`);
+  } catch (err) {
+    const ms = Date.now() - startedAt;
+    console.log(`[smoke] FAIL duration=${ms}ms`);
+    console.log(err);
+    process.exit(1);
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
