@@ -35,9 +35,9 @@ import { withTenant } from "@assessiq/tenancy";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { generateQuestions, generateQuestionsByType } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
-import { allocateByWeight } from "../auto-weight.js";
+import { allocateByWeight, applyOverride } from "../auto-weight.js";
 import { withConcurrencyLimit } from "../concurrency.js";
-import type { GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput } from "../types.js";
+import type { GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput, QuestionType } from "../types.js";
 import type { PoolClient } from "pg";
 
 const log = streamLogger("generation");
@@ -86,10 +86,18 @@ export interface HandleAdminGenerateInput {
    */
   sources: KbSourceRef[];
   /**
-   * Existing topic strings in this pack+level — for duplicate avoidance.
+   * Existing topics strings in this pack+level — for duplicate avoidance.
    * Loaded by the caller before invoking this handler.
    */
   existingTopics: string[];
+  /**
+   * Optional per-type count overrides from the admin UI.
+   * When set in sharded mode, applyOverride() adjusts the weight-based
+   * allocation so that overridden types hit their exact targets and the
+   * remaining types absorb any residual.
+   * Silently ignored in omnibus mode (omnibus skill does its own mixing).
+   */
+  typeCounts?: Partial<Record<QuestionType, number>>;
 }
 
 export interface HandleAdminGenerateOutput {
@@ -318,7 +326,13 @@ export async function handleAdminGenerate(
       // AI_GENERATE_MODE='sharded' → per-type fan-out path (Stage 1).
       if (config.AI_GENERATE_MODE === "sharded") {
         // ── Sharded path ──────────────────────────────────────────────────
-        const typeAllocation = allocateByWeight(input.socLevel, input.count);
+        const baseAllocation = allocateByWeight(input.socLevel, input.count);
+
+        // Apply per-type admin overrides when provided; otherwise use the
+        // pure weight-based allocation unchanged.
+        const typeAllocation = input.typeCounts
+          ? applyOverride(baseAllocation, input.typeCounts)
+          : baseAllocation;
 
         // Stage 1: subjective is NOT type-sharded. If the allocator assigns
         // any count to subjective, fold it into mcq (largest sharded type)
@@ -467,7 +481,15 @@ export async function handleAdminGenerate(
       }
 
       if (input.count <= CHUNK_SIZE) {
-        // ── Single-call path (count 1-10) ────────────────────────────────
+        // ── Single-call path (count 1-10, omnibus) ───────────────────────
+        // type_counts is intentionally ignored by the omnibus skill — the
+        // skill does its own mixing. Log at debug for traceability.
+        if (input.typeCounts !== undefined) {
+          log.debug(
+            { attemptId, typeCounts: input.typeCounts },
+            "generation.omnibus.type_counts.ignored",
+          );
+        }
         chunksPlanned = 1;
         const genInput: GenerateQuestionsInput = {
           level: input.socLevel,
@@ -501,7 +523,14 @@ export async function handleAdminGenerate(
         } as HandleAdminGenerateOutput & { _model?: string };
       }
 
-      // ── Parallel fan-out path (count 11-30) ──────────────────────────────
+      // ── Parallel fan-out path (count 11-30, omnibus) ─────────────────────
+      // type_counts is intentionally ignored by the omnibus skill.
+      if (input.typeCounts !== undefined) {
+        log.debug(
+          { attemptId, typeCounts: input.typeCounts },
+          "generation.omnibus.type_counts.ignored",
+        );
+      }
       const totalChunks = Math.min(Math.ceil(input.count / CHUNK_SIZE), MAX_PARALLEL);
       chunksPlanned = totalChunks;
       const plan: number[] = [];

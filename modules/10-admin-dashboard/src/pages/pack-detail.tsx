@@ -17,10 +17,12 @@
 //  - No claude/anthropic imports or copy.
 //  - No hardcoded test data.
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError } from "../api.js";
+import { adminApi, AdminApiError, generateQuestionsApi } from "../api.js";
+import { allocateByWeight, applyOverride } from "@assessiq/ai-grading";
+import type { QuestionType } from "@assessiq/ai-grading";
 
 type PackStatus = "draft" | "published" | "archived";
 
@@ -103,9 +105,41 @@ const SOC_FUNCTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: "architecture", label: "Architecture" },
 ];
 
+/** Ordered question types for the per-type breakdown table. */
+const TYPE_DISPLAY_ORDER: ReadonlyArray<{ key: QuestionType; label: string }> = [
+  { key: "mcq",          label: "MCQ"          },
+  { key: "log_analysis", label: "Log analysis" },
+  { key: "scenario",     label: "Scenario"     },
+  { key: "kql",          label: "KQL"          },
+  { key: "subjective",   label: "Subjective"   },
+];
+
+/** Default per-type allocation used when no override has been applied. */
+function makeDefaultTypeCounts(): Record<QuestionType, number> {
+  return { mcq: 0, log_analysis: 0, scenario: 0, kql: 0, subjective: 0 };
+}
+
+/**
+ * Derive the SOC level string from a level label.
+ * Mirrors the same logic in modules/04-question-bank/src/service.ts.
+ */
+function deriveSocLevel(label: string | undefined): "L1" | "L2" | "L3" {
+  if (!label) return "L1";
+  const upper = label.toUpperCase();
+  if (
+    upper.includes("L3") || upper.includes("LEVEL 3") ||
+    upper.includes("SENIOR") || upper.includes("THREAT HUNT")
+  ) return "L3";
+  if (
+    upper.includes("L2") || upper.includes("LEVEL 2") ||
+    upper.includes("INTERMEDIATE") || upper.includes("ANALYST")
+  ) return "L2";
+  return "L1";
+}
+
 function questionPrompt(content: Record<string, unknown>): string {
   const c = content as { prompt?: string; stem?: string; scenario?: string; question?: string; title?: string };
-  return c.prompt ?? c.stem ?? c.scenario ?? c.question ?? c.title ?? "—";
+  return c.prompt ?? c.stem ?? c.scenario ?? c.question ?? c.title ?? "";
 }
 
 /** Format a date string as relative (< 30 days) or absolute (≥ 30 days). */
@@ -155,92 +189,101 @@ function GenerationAttemptLine({
   attempt,
   detailsOpen,
   onToggleDetails,
+  pollExhausted,
 }: {
   attempt: GenerationAttempt | null | undefined;
   detailsOpen: boolean;
   onToggleDetails: () => void;
+  pollExhausted?: boolean;
 }): React.ReactElement | null {
   if (!attempt) return null;
 
   const { status, count_requested, count_inserted, error_code, error_message,
-          stderr_tail, duration_ms, started_at, chunks_failed } = attempt as GenerationAttempt & { chunks_failed?: number | null };
+          stderr_tail, duration_ms, started_at } = attempt;
 
   const dateStr = attemptDate(started_at);
   const durStr = duration_ms != null ? formatDuration(duration_ms) : null;
+  const failedCount = count_requested - count_inserted;
+
+  const detailsToggle = (color: string) =>
+    (error_message || stderr_tail) ? (
+      <>
+        {" "}
+        <button
+          type="button"
+          onClick={onToggleDetails}
+          style={{
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: "var(--aiq-text-xs)",
+            color,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            textDecoration: "underline",
+          }}
+        >
+          {detailsOpen ? "Hide" : "Details"}
+        </button>
+        {detailsOpen && (
+          <pre
+            style={{
+              display: "block",
+              marginTop: "var(--aiq-space-xs)",
+              padding: "var(--aiq-space-sm)",
+              background: "var(--aiq-color-bg-sunken)",
+              borderRadius: "var(--aiq-radius-sm)",
+              fontFamily: "var(--aiq-font-mono)",
+              fontSize: "10px",
+              color: "var(--aiq-color-fg-secondary)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              maxHeight: "160px",
+              overflowY: "auto",
+              width: "100%",
+            }}
+          >
+            {[error_message, stderr_tail].filter(Boolean).join("\n---\n")}
+          </pre>
+        )}
+      </>
+    ) : null;
 
   if (status === "running") {
     return (
-      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", marginLeft: "var(--aiq-space-sm)" }}>
-        ⟳ Generation in progress…
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)" }}>
+        {pollExhausted ? "⟳ Still running… refresh to check" : "⟳ Generation in progress…"}
       </span>
     );
   }
 
   if (status === "success") {
     return (
-      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-success)", marginLeft: "var(--aiq-space-sm)" }}>
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-success)" }}>
         ✓ Last generation: {count_inserted} question{count_inserted !== 1 ? "s" : ""}
-        {durStr ? ` in ${durStr}` : ""} ({dateStr})
+        {durStr ? ` in ${durStr}` : ""} — {dateStr}
       </span>
     );
   }
 
   if (status === "partial") {
+    const color = "var(--aiq-color-warning, #d97706)";
     return (
-      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-warning, #d97706)", marginLeft: "var(--aiq-space-sm)" }}>
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color, display: "inline-flex", alignItems: "center", gap: "4px" }}>
         ⚠ Last generation: {count_inserted} of {count_requested}
-        {chunks_failed ? ` (${chunks_failed} chunk${chunks_failed !== 1 ? "s" : ""} failed)` : ""}
-        {durStr ? ` in ${durStr}` : ""} ({dateStr})
+        {failedCount > 0 ? ` (${failedCount} chunk${failedCount !== 1 ? "s" : ""} failed)` : ""}
+        {durStr ? ` in ${durStr}` : ""} — {dateStr}
+        {detailsToggle(color)}
       </span>
     );
   }
 
   if (status === "failed") {
+    const color = "var(--aiq-color-danger)";
     return (
-      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-danger)", marginLeft: "var(--aiq-space-sm)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-        ✗ Last generation failed{error_code ? `: ${error_code}` : ""}
-        {(error_message || stderr_tail) && (
-          <>
-            {" "}
-            <button
-              type="button"
-              onClick={onToggleDetails}
-              style={{
-                fontFamily: "var(--aiq-font-mono)",
-                fontSize: "var(--aiq-text-xs)",
-                color: "var(--aiq-color-danger)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                textDecoration: "underline",
-              }}
-            >
-              {detailsOpen ? "Hide" : "Details"}
-            </button>
-            {detailsOpen && (
-              <pre
-                style={{
-                  display: "block",
-                  marginTop: "var(--aiq-space-xs)",
-                  padding: "var(--aiq-space-sm)",
-                  background: "var(--aiq-color-bg-sunken)",
-                  borderRadius: "var(--aiq-radius-sm)",
-                  fontFamily: "var(--aiq-font-mono)",
-                  fontSize: "10px",
-                  color: "var(--aiq-color-fg-secondary)",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
-                  maxHeight: "160px",
-                  overflowY: "auto",
-                  width: "100%",
-                }}
-              >
-                {[error_message, stderr_tail].filter(Boolean).join("\n---\n")}
-              </pre>
-            )}
-          </>
-        )}
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        ✗ Last generation failed{error_code ? `: ${error_code}` : ""} — {dateStr}
+        {detailsToggle(color)}
       </span>
     );
   }
@@ -276,17 +319,28 @@ export function AdminPackDetail(): React.ReactElement {
   // Archive question state (tracks which question id is being archived)
   const [archivingQuestion, setArchivingQuestion] = useState<string | null>(null);
 
-  // Client-side filter state (applies to all level question lists)
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterType, setFilterType] = useState("");
+  // Per-level client-side filter state (keyed by levelId)
+  const [levelFilters, setLevelFilters] = useState<Record<string, { status: string; type: string }>>({});
+  // Per-level poll counts for "running" generation attempts (gives up after 10 polls / 50s)
+  const [runningPollCounts, setRunningPollCounts] = useState<Record<string, number>>({});
 
   // Generate-questions drawer state
   const [generateLevelId, setGenerateLevelId] = useState<string | null>(null);
-  const [genCount, setGenCount] = useState(5);
+  const [genTotalCount, setGenTotalCount] = useState(5);
+  const [genTypeCounts, setGenTypeCounts] = useState<Record<QuestionType, number>>(makeDefaultTypeCounts);
+  const [genOverriddenSet, setGenOverriddenSet] = useState<Set<QuestionType>>(new Set());
   const [genTopicFocus, setGenTopicFocus] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ generated: number; skillSha: string } | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+
+  // Derived: SOC level inferred from the level label for the open drawer.
+  // useMemo so it only recomputes when generateLevelId or levels change.
+  const genSocLevel = React.useMemo((): "L1" | "L2" | "L3" => {
+    if (!generateLevelId) return "L1";
+    const label = levels.find((l) => l.id === generateLevelId)?.label;
+    return deriveSocLevel(label);
+  }, [generateLevelId, levels]);
 
   // Per-level last generation attempt (keyed by levelId)
   const [lastAttempts, setLastAttempts] = useState<Record<string, GenerationAttempt | null>>({});
@@ -353,6 +407,29 @@ export function AdminPackDetail(): React.ReactElement {
   useEffect(() => {
     void fetchPack();
   }, [fetchPack]);
+
+  // Stable ref so the polling effect can read poll counts without putting them
+  // in its dependency array (avoids double-scheduling on each count increment).
+  const pollCountsRef = useRef(runningPollCounts);
+  pollCountsRef.current = runningPollCounts;
+
+  // Poll generation attempts for any level in 'running' state.
+  // Uses cleanup-aware setTimeout (not setInterval) so it stops on unmount.
+  // Gives up after 10 polls (50s) and surfaces "Still running… refresh to check".
+  useEffect(() => {
+    const runningEntries = Object.entries(lastAttempts).filter(([, a]) => a?.status === "running");
+    if (runningEntries.length === 0 || !id) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      void Promise.allSettled(
+        runningEntries.map(async ([levelId]) => {
+          if ((pollCountsRef.current[levelId] ?? 0) >= 10) return;
+          setRunningPollCounts((prev) => ({ ...prev, [levelId]: (prev[levelId] ?? 0) + 1 }));
+          await refreshAttempt(id, levelId);
+        }),
+      );
+    }, 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [lastAttempts, id, refreshAttempt]);
 
   async function handleAddLevel(e: React.FormEvent) {
     e.preventDefault();
@@ -427,8 +504,8 @@ export function AdminPackDetail(): React.ReactElement {
     }
   }
 
-  async function handleArchiveQuestion(questionId: string, topic: string) {
-    if (!window.confirm(`Are you sure? This will archive "${topic || questionId.slice(0, 8)}".`)) return;
+  async function handleArchiveQuestion(questionId: string) {
+    if (!window.confirm("Archive this question? It will no longer be served to candidates.")) return;
     setArchivingQuestion(questionId);
     try {
       await adminApi(`/admin/questions/${questionId}`, {
@@ -449,12 +526,11 @@ export function AdminPackDetail(): React.ReactElement {
     setGenError(null);
     setGenResult(null);
     try {
-      const body: Record<string, unknown> = { count: genCount };
-      if (genTopicFocus) body["topic_focus"] = genTopicFocus;
-      const result = await adminApi<{ questionIds: string[]; generated: number; skillSha: string }>(
-        `/admin/packs/${id}/levels/${levelId}/generate`,
-        { method: "POST", body: JSON.stringify(body) },
-      );
+      const result = await generateQuestionsApi(id, levelId, {
+        count: genTotalCount,
+        ...(genTopicFocus ? { topic_focus: genTopicFocus } : {}),
+        type_counts: genTypeCounts,
+      });
       setGenResult({ generated: result.generated, skillSha: result.skillSha });
       // Refresh question list so drafts appear immediately
       await fetchPack();
@@ -470,8 +546,13 @@ export function AdminPackDetail(): React.ReactElement {
   }
 
   function openGenerateDrawer(levelId: string) {
+    const label = levels.find((l) => l.id === levelId)?.label;
+    const socLevel = deriveSocLevel(label);
+    const base = allocateByWeight(socLevel, 5);
     setGenerateLevelId(levelId);
-    setGenCount(5);
+    setGenTotalCount(5);
+    setGenTypeCounts(base);
+    setGenOverriddenSet(new Set());
     setGenTopicFocus(null);
     setGenResult(null);
     setGenError(null);
@@ -482,6 +563,31 @@ export function AdminPackDetail(): React.ReactElement {
     setGenerateLevelId(null);
     setGenResult(null);
     setGenError(null);
+  }
+
+  /** Called when the total-count slider moves. Rebalances non-overridden types. */
+  function handleTotalCountChange(n: number) {
+    const base = allocateByWeight(genSocLevel, n);
+    const overrides: Partial<Record<QuestionType, number>> = {};
+    genOverriddenSet.forEach((t) => { overrides[t] = genTypeCounts[t]; });
+    setGenTotalCount(n);
+    setGenTypeCounts(applyOverride(base, overrides));
+  }
+
+  /** Called when admin edits a specific type's count. */
+  function handleTypeCountChange(type: QuestionType, value: number) {
+    const newOverridden = new Set(genOverriddenSet).add(type);
+    const base = allocateByWeight(genSocLevel, genTotalCount);
+    const overrides: Partial<Record<QuestionType, number>> = {};
+    newOverridden.forEach((t) => { overrides[t] = t === type ? value : genTypeCounts[t]; });
+    setGenOverriddenSet(newOverridden);
+    setGenTypeCounts(applyOverride(base, overrides));
+  }
+
+  /** Reset all type counts to the auto-weighted values. */
+  function handleResetToAutoWeights() {
+    setGenOverriddenSet(new Set());
+    setGenTypeCounts(allocateByWeight(genSocLevel, genTotalCount));
   }
 
   if (loading) {
@@ -811,6 +917,34 @@ export function AdminPackDetail(): React.ReactElement {
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
               {levels.map((level) => {
                 const levelQs = questionsByLevel[level.id] ?? [];
+                const levelFilter = levelFilters[level.id] ?? { status: "", type: "" };
+                // Count per status/type for chip badges
+                const statusCounts: Record<string, number> = {};
+                const typeCounts: Record<string, number> = {};
+                for (const q of levelQs) {
+                  statusCounts[q.status] = (statusCounts[q.status] ?? 0) + 1;
+                  typeCounts[q.type] = (typeCounts[q.type] ?? 0) + 1;
+                }
+                const filteredQs = levelQs.filter(
+                  (q) =>
+                    (levelFilter.status === "" || q.status === levelFilter.status) &&
+                    (levelFilter.type === "" || q.type === levelFilter.type),
+                );
+                const setLevelStatus = (s: string) =>
+                  setLevelFilters((prev) => ({
+                    ...prev,
+                    [level.id]: { ...(prev[level.id] ?? { status: "", type: "" }), status: s },
+                  }));
+                const setLevelType = (t: string) =>
+                  setLevelFilters((prev) => ({
+                    ...prev,
+                    [level.id]: { ...(prev[level.id] ?? { status: "", type: "" }), type: t },
+                  }));
+                const resetLevelFilter = () =>
+                  setLevelFilters((prev) => ({
+                    ...prev,
+                    [level.id]: { status: "", type: "" },
+                  }));
                 return (
                   <div
                     key={level.id}
@@ -853,15 +987,23 @@ export function AdminPackDetail(): React.ReactElement {
                             — {level.description}
                           </span>
                         )}
-                        <GenerationAttemptLine
-                          attempt={lastAttempts[level.id]}
-                          detailsOpen={openAttemptDetails === level.id}
-                          onToggleDetails={() =>
-                            setOpenAttemptDetails((prev) =>
-                              prev === level.id ? null : level.id,
-                            )
-                          }
-                        />
+                        {lastAttempts[level.id] && (
+                          <div style={{ marginTop: "2px" }}>
+                            <GenerationAttemptLine
+                              attempt={lastAttempts[level.id]}
+                              detailsOpen={openAttemptDetails === level.id}
+                              onToggleDetails={() =>
+                                setOpenAttemptDetails((prev) =>
+                                  prev === level.id ? null : level.id,
+                                )
+                              }
+                              pollExhausted={
+                                (runningPollCounts[level.id] ?? 0) >= 10 &&
+                                lastAttempts[level.id]?.status === "running"
+                              }
+                            />
+                          </div>
+                        )}
                       </div>
                       <div
                         style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}
@@ -903,80 +1045,128 @@ export function AdminPackDetail(): React.ReactElement {
                       </div>
                     </div>
 
-                    {/* Filter chips — only when level has questions */}
+                    {/* Filter chips — per level, above the question list */}
                     {levelQs.length > 0 && (
                       <div
                         style={{
                           display: "flex",
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                          gap: "4px",
+                          flexDirection: "column",
+                          gap: "6px",
                           padding: "var(--aiq-space-sm) var(--aiq-space-lg)",
                           borderBottom: "1px solid var(--aiq-color-border)",
                           background: "var(--aiq-color-bg-raised)",
                         }}
                       >
-                        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginRight: 2 }}>Status:</span>
-                        {(["", "ai_draft", "draft", "active", "archived"] as const).map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            className={`aiq-btn aiq-btn-sm ${filterStatus === s ? "aiq-btn-primary" : "aiq-btn-outline"}`}
-                            onClick={() => setFilterStatus(s)}
-                          >
-                            {s || "all"}
-                          </button>
-                        ))}
-                        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginLeft: 8, marginRight: 2 }}>Type:</span>
-                        {(["", "mcq", "log_analysis", "scenario", "kql", "subjective"] as const).map((t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            className={`aiq-btn aiq-btn-sm ${filterType === t ? "aiq-btn-primary" : "aiq-btn-outline"}`}
-                            onClick={() => setFilterType(t)}
-                          >
-                            {t || "all"}
-                          </button>
-                        ))}
+                        {/* Status chips */}
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px" }}>
+                          <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginRight: 2 }}>Status:</span>
+                          {(["", "ai_draft", "draft", "active", "archived"] as const).map((s) => {
+                            const count = s === "" ? levelQs.length : (statusCounts[s] ?? 0);
+                            const active = levelFilter.status === s;
+                            const zero = s !== "" && count === 0;
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                disabled={zero}
+                                onClick={() => !zero && setLevelStatus(s)}
+                                style={{
+                                  fontFamily: "var(--aiq-font-mono)",
+                                  fontSize: "var(--aiq-text-xs)",
+                                  padding: "2px 8px",
+                                  borderRadius: "var(--aiq-radius-pill)",
+                                  border: `1px solid ${active ? "var(--aiq-color-accent)" : "var(--aiq-color-border)"}`,
+                                  background: active ? "var(--aiq-color-accent-soft)" : "transparent",
+                                  color: active ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)",
+                                  cursor: zero ? "default" : "pointer",
+                                  opacity: zero ? 0.4 : 1,
+                                  letterSpacing: "0.02em",
+                                }}
+                              >
+                                {s || "All"}{s !== "" ? ` (${count})` : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* Type chips */}
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px" }}>
+                          <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginRight: 2 }}>Type:</span>
+                          {(["", "mcq", "log_analysis", "scenario", "kql", "subjective"] as const).map((t) => {
+                            const count = t === "" ? levelQs.length : (typeCounts[t] ?? 0);
+                            const active = levelFilter.type === t;
+                            const zero = t !== "" && count === 0;
+                            return (
+                              <button
+                                key={t}
+                                type="button"
+                                disabled={zero}
+                                onClick={() => !zero && setLevelType(t)}
+                                style={{
+                                  fontFamily: "var(--aiq-font-mono)",
+                                  fontSize: "var(--aiq-text-xs)",
+                                  padding: "2px 8px",
+                                  borderRadius: "var(--aiq-radius-pill)",
+                                  border: `1px solid ${active ? "var(--aiq-color-accent)" : "var(--aiq-color-border)"}`,
+                                  background: active ? "var(--aiq-color-accent-soft)" : "transparent",
+                                  color: active ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)",
+                                  cursor: zero ? "default" : "pointer",
+                                  opacity: zero ? 0.4 : 1,
+                                  letterSpacing: "0.02em",
+                                }}
+                              >
+                                {t || "All"}{t !== "" ? ` (${count})` : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
 
                     {/* Questions list */}
-                    {(() => {
-                      const filteredQs = levelQs.filter(
-                        (q) =>
-                          (filterStatus === "" || q.status === filterStatus) &&
-                          (filterType === "" || q.type === filterType),
-                      );
-                      if (levelQs.length === 0) {
-                        return (
-                          <div
-                            style={{
-                              padding: "var(--aiq-space-md) var(--aiq-space-lg)",
-                              color: "var(--aiq-color-fg-muted)",
-                              fontFamily: "var(--aiq-font-sans)",
-                              fontSize: "var(--aiq-text-sm)",
-                            }}
-                          >
-                            No questions yet. Click ✦ Generate or + Add question to start.
-                          </div>
-                        );
-                      }
-                      if (filteredQs.length === 0) {
-                        return (
-                          <div
-                            style={{
-                              padding: "var(--aiq-space-md) var(--aiq-space-lg)",
-                              color: "var(--aiq-color-fg-muted)",
-                              fontFamily: "var(--aiq-font-sans)",
-                              fontSize: "var(--aiq-text-sm)",
-                            }}
-                          >
-                            No questions match the current filter.
-                          </div>
-                        );
-                      }
-                      return filteredQs.map((q, qi) => (
+                    {levelQs.length === 0 ? (
+                      <div
+                        style={{
+                          padding: "var(--aiq-space-md) var(--aiq-space-lg)",
+                          color: "var(--aiq-color-fg-muted)",
+                          fontFamily: "var(--aiq-font-sans)",
+                          fontSize: "var(--aiq-text-sm)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No questions yet. Click ✦ Generate to add the first batch.
+                      </div>
+                    ) : filteredQs.length === 0 ? (
+                      <div
+                        style={{
+                          padding: "var(--aiq-space-md) var(--aiq-space-lg)",
+                          color: "var(--aiq-color-fg-muted)",
+                          fontFamily: "var(--aiq-font-sans)",
+                          fontSize: "var(--aiq-text-sm)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No questions match this filter.{" "}
+                        <button
+                          type="button"
+                          onClick={resetLevelFilter}
+                          style={{
+                            fontFamily: "var(--aiq-font-sans)",
+                            fontSize: "var(--aiq-text-sm)",
+                            color: "var(--aiq-color-accent)",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: 0,
+                            textDecoration: "underline",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Reset filters
+                        </button>
+                        {" "}or click ✦ Generate above to add new ones.
+                      </div>
+                    ) : (
+                      filteredQs.map((q, qi) => (
                         <div
                           key={q.id}
                           style={{
@@ -989,10 +1179,11 @@ export function AdminPackDetail(): React.ReactElement {
                                 ? "1px solid var(--aiq-color-border)"
                                 : "none",
                             background: "var(--aiq-color-bg-base)",
+                            borderLeft: q.status === "ai_draft" ? "2px solid #d97706" : "2px solid transparent",
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            {/* Primary line: topic (or prompt fallback) */}
+                            {/* Primary line: topic → prompt → "Untitled" */}
                             <span
                               style={{
                                 fontFamily: "var(--aiq-font-sans)",
@@ -1004,7 +1195,7 @@ export function AdminPackDetail(): React.ReactElement {
                                 marginBottom: 2,
                               }}
                             >
-                              {q.topic && q.topic.trim() ? q.topic : questionPrompt(q.content)}
+                              {q.topic?.trim() || questionPrompt(q.content) || "Untitled"}
                             </span>
                             {/* Secondary line: type · status · points · date */}
                             <span
@@ -1020,7 +1211,7 @@ export function AdminPackDetail(): React.ReactElement {
                               {q.points != null ? ` · ${q.points} pts` : ""}
                               {q.created_at ? ` · ${relativeDate(q.created_at)}` : ""}
                             </span>
-                            {/* Citation chips */}
+                            {/* Tertiary line: all KB-source citation chips */}
                             {q.knowledge_base_sources && q.knowledge_base_sources.length > 0 && (
                               <div
                                 style={{
@@ -1073,12 +1264,7 @@ export function AdminPackDetail(): React.ReactElement {
                                 type="button"
                                 className="aiq-btn aiq-btn-ghost aiq-btn-sm"
                                 disabled={archivingQuestion === q.id}
-                                onClick={() =>
-                                  void handleArchiveQuestion(
-                                    q.id,
-                                    q.topic ?? questionPrompt(q.content),
-                                  )
-                                }
+                                onClick={() => void handleArchiveQuestion(q.id)}
                                 style={{ color: "var(--aiq-color-danger)" }}
                               >
                                 {archivingQuestion === q.id ? "…" : "Archive"}
@@ -1095,8 +1281,8 @@ export function AdminPackDetail(): React.ReactElement {
                             </button>
                           </div>
                         </div>
-                      ));
-                    })()}
+                      ))
+                    )}
                   </div>
                 );
               })}
@@ -1213,8 +1399,8 @@ export function AdminPackDetail(): React.ReactElement {
                     type="range"
                     min={1}
                     max={30}
-                    value={genCount}
-                    onChange={(e) => setGenCount(Number(e.target.value))}
+                    value={genTotalCount}
+                    onChange={(e) => handleTotalCountChange(Number(e.target.value))}
                     disabled={generating}
                     style={{ flex: 1, accentColor: "var(--aiq-color-accent)" }}
                   />
@@ -1226,7 +1412,7 @@ export function AdminPackDetail(): React.ReactElement {
                       textAlign: "right",
                     }}
                   >
-                    {genCount}
+                    {genTotalCount}
                   </span>
                 </div>
                 <p
@@ -1237,22 +1423,13 @@ export function AdminPackDetail(): React.ReactElement {
                     margin: 0,
                   }}
                 >
-                  Generation takes 30–90 seconds per question.
+                  {genTotalCount <= 10
+                    ? "Single call. Cold cache: ~30–90s per question."
+                    : genTotalCount <= 20
+                      ? "2 parallel calls (~3–4 min cold)."
+                      : "3 parallel calls (~3–5 min cold)."}
+                  {" "}When sharded mode is active, counts split per type; total wall-clock dominated by largest single type bucket.
                 </p>
-                {genCount > 10 && (
-                  <p
-                    style={{
-                      fontFamily: "var(--aiq-font-mono)",
-                      fontSize: "var(--aiq-text-xs)",
-                      color: "var(--aiq-color-fg-muted)",
-                      margin: 0,
-                    }}
-                  >
-                    {genCount <= 20
-                      ? "Splits into 2 parallel calls (~3–4 min)."
-                      : "Splits into 3 parallel calls (~3–5 min)."}
-                  </p>
-                )}
                 <p
                   style={{
                     fontFamily: "var(--aiq-font-mono)",
@@ -1264,6 +1441,111 @@ export function AdminPackDetail(): React.ReactElement {
                   Tip: to build a larger bank, click Generate again within 5 minutes of the previous run. Cached context cuts the next call to ~30–60s.
                 </p>
               </div>
+
+              {/* Per-type breakdown */}
+              {(() => {
+                const typeCountSum = (Object.values(genTypeCounts) as number[]).reduce((a, v) => a + v, 0);
+                const sumMatches = typeCountSum === genTotalCount;
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
+                      <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500 }}>
+                        Per-type breakdown
+                        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", fontWeight: 400, color: "var(--aiq-color-fg-muted)", marginLeft: "6px" }}>
+                          (auto-weighted from {genSocLevel})
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={generating}
+                        onClick={handleResetToAutoWeights}
+                        style={{
+                          fontFamily: "var(--aiq-font-mono)",
+                          fontSize: "var(--aiq-text-xs)",
+                          color: "var(--aiq-color-accent)",
+                          background: "none",
+                          border: "none",
+                          cursor: generating ? "not-allowed" : "pointer",
+                          padding: 0,
+                          textDecoration: "underline",
+                        }}
+                      >
+                        Reset to auto-weights
+                      </button>
+                    </div>
+                    <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: 0, fontStyle: "italic" }}>
+                      Auto-weighted from the {genSocLevel} question mix. Edit individual counts to override; remaining types rebalance automatically.
+                    </p>
+                    <div
+                      style={{
+                        border: "1px solid var(--aiq-color-border)",
+                        borderRadius: "var(--aiq-radius-sm)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {TYPE_DISPLAY_ORDER.map(({ key, label }, idx) => (
+                        <div
+                          key={key}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            padding: "6px 12px",
+                            borderBottom: idx < TYPE_DISPLAY_ORDER.length - 1
+                              ? "1px solid var(--aiq-color-border)"
+                              : "none",
+                            gap: "var(--aiq-space-sm)",
+                            background: genOverriddenSet.has(key) ? "var(--aiq-color-accent-soft)" : "transparent",
+                          }}
+                        >
+                          <span style={{ flex: 1, fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>
+                            {label}
+                            {key === "subjective" && (
+                              <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "10px", color: "var(--aiq-color-fg-muted)", marginLeft: "6px" }}>
+                                (folds into MCQ in sharded mode)
+                              </span>
+                            )}
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={30}
+                            step={1}
+                            value={genTypeCounts[key]}
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.min(30, Math.floor(Number(e.target.value))));
+                              if (!Number.isNaN(v)) handleTypeCountChange(key, v);
+                            }}
+                            disabled={generating}
+                            style={{
+                              width: "56px",
+                              fontFamily: "var(--aiq-font-mono)",
+                              fontSize: "var(--aiq-text-sm)",
+                              textAlign: "right",
+                              padding: "2px 6px",
+                              border: "1px solid var(--aiq-color-border)",
+                              borderRadius: "var(--aiq-radius-sm)",
+                              background: "var(--aiq-color-bg-base)",
+                              color: "var(--aiq-color-fg-base)",
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "2px" }}>
+                      <span
+                        style={{
+                          fontFamily: "var(--aiq-font-mono)",
+                          fontSize: "var(--aiq-text-xs)",
+                          color: sumMatches ? "var(--aiq-color-success)" : "var(--aiq-color-danger)",
+                        }}
+                      >
+                        Total: {typeCountSum} / {genTotalCount}
+                        {!sumMatches && " — must equal total count to generate"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Topic focus chips */}
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
@@ -1419,9 +1701,12 @@ export function AdminPackDetail(): React.ReactElement {
                   type="button"
                   className="aiq-btn aiq-btn-primary"
                   onClick={() => void handleGenerate(generateLevelId)}
-                  disabled={generating}
+                  disabled={
+                    generating ||
+                    (Object.values(genTypeCounts) as number[]).reduce((a, v) => a + v, 0) !== genTotalCount
+                  }
                 >
-                  {generating ? "Generating…" : `Generate ${genCount} draft${genCount !== 1 ? "s" : ""}`}
+                  {generating ? "Generating…" : `Generate ${genTotalCount} draft${genTotalCount !== 1 ? "s" : ""}`}
                 </button>
               )}
             </div>
