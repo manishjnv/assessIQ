@@ -1,4 +1,100 @@
-# Session — 2026-05-08 (lint-deploy-procedure shipped + 9 Check C violations on main)
+# Session — 2026-05-09 (SECURITY: dev-mint-session route was live in prod with role-escalation bug)
+
+**Headline:** codex:rescue caught 4 escalation vectors in the dev `/api/dev/mint-session` route (shipped in `b3710ae`). Fixed all 4 + added a `superRefine` config guard. On deploy the new guard hard-failed prod boot, revealing that `ENABLE_E2E_TEST_MINTER=true` had been set in `/srv/assessiq/.env` since `b3710ae` shipped — the vulnerable route was reachable on prod for ~24h. Recovered by flipping flag to false. Full RCA in `docs/RCA_LOG.md` 2026-05-09 entry.
+
+**Commits:**
+- `bd0ceb0` — security(dev-mint-session): close 4 escalation vectors flagged by codex:rescue
+
+**Tests:**
+- `apps/api/src/__tests__/routes/mint-session.test.ts` → 4/4 pass ✅
+- typecheck `@assessiq/core` → clean ✅
+- typecheck `@assessiq/api` → clean ✅
+
+**Deployed:** `git pull` on VPS at `bd0ceb0`. `assessiq-api` rebuilt + force-recreated. First boot crashed (new prod-config guard fired correctly on existing `ENABLE_E2E_TEST_MINTER=true` in `/srv/assessiq/.env`). Recovery: `sed -i s/=true/=false/` on .env line 28, second recreate succeeded. Verified: `GET /api/health` → 200, `POST /api/dev/mint-session` → 404 (route not registered).
+
+**Codex:rescue verdict:** REVISE (4 substantive findings, 1 cosmetic). All addressed.
+1. Line 170 — caller-supplied role in `sessions.create()` for existing user → fixed: use `existing.role`.
+2. Line 101 — caller-supplied role for new user with status='active' → fixed: only `candidate` may be auto-created.
+3. config.ts — no prod gate, only NODE_ENV check (which permits prod+true) → fixed: superRefine throws.
+4. Line 190 — `audit({...}).catch(...)` non-fatal on a session-minting endpoint → fixed: `await audit(...)`.
+5. Line 143 — handler-level `config.ENABLE_E2E_TEST_MINTER` re-check is dead code → removed.
+
+**Security incident exposure:** ~24h (b3710ae deploy → bd0ceb0 deploy). audit_log review for the window owed (any `dev.mint_session` rows or anomalous `session_create` rows from candidate-tier emails).
+
+**Next:**
+1. Audit_log sweep over the exposure window (Haiku subagent — single SQL query against assessiq-postgres).
+2. Add `ENABLE_E2E_TEST_MINTER` to `lint-deploy-procedure` CHECK C as prod-forbidden var (CI gate).
+3. Resume Task A — Finding C fix at `modules/05-lifecycle/src/service.ts:749` (`inviteUsers tenantName:""` 500).
+
+**Open questions:**
+- Was the .env flag set deliberately for a one-off E2E run that never got reverted, or did the b3710ae deploy procedure write it as default?
+- Should `dev.mint_session` action be allowed in prod at all in `audit-log/types.ts`, or restricted to dev/test envs in the type system?
+
+---
+
+## Agent utilization
+- Opus: orchestration, codex:rescue prompt design, Phase 3 diff critique, RCA write-up, incident triage on prod crash-loop.
+- Sonnet: n/a — edits were small enough (≤30 LoC across 2 files in hot cache) that self-execution beat the cold-start cost.
+- Haiku: n/a — no bulk sweeps this session; pending audit_log sweep is the right Haiku job.
+- codex:rescue: REVISE (4 critical + 1 cosmetic). All addressed in `bd0ceb0`. Followup advisory pass not run because all findings were direct quote-and-fix; user accepted progressing without re-rescue.
+
+---
+
+
+
+# Session — 2026-05-08 (Rubric generator shipped — generate-rubric + save-rubric + bulk-fill)
+
+**Headline:** AI rubric generator feature fully implemented end-to-end. Five commits shipped:
+1. `levels.rubric_defaults` migration + types + repo
+2. `generateRubricDraft` runtime + MCP `submit_rubric` tool + `generate-rubric/SKILL.md`
+3. Three question-bank service fns + three admin routes
+4. Admin UI State A/B (skeleton, abort, weight badge, save, re-generate)
+5. D2 lint sentinel updated + `generateRubricDraft` term + 2 new self-test fixtures
+
+**Commits:**
+- `53aa490` — feat(question-bank): levels.rubric_defaults migration + types + repo
+- `fabfe7f` — feat(ai-grading): generateRubricDraft runtime + MCP submit_rubric tool + SKILL.md
+- `ec3d644` — feat(question-bank): generate-rubric + save-rubric + bulk-fill routes
+- `73c67d7` — feat(admin-dashboard): rubric editor State A/B + optimistic skeleton + abort
+- `3b4d742` — chore(lint): add generateRubricDraft to ambient-AI sentinel + 2 self-test fixtures
+
+**Gates (all pass):**
+- `pnpm --filter @assessiq/ai-grading typecheck` → 0 errors ✅
+- `pnpm --filter @assessiq/admin-dashboard typecheck` → 0 errors ✅
+- `pnpm tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts --self-test` → 12/12 PASS ✅
+- `pnpm tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts` → OK (302 files, 0 violations) ✅
+- `pnpm tsx tools/lint-cross-module-deps.ts` → OK (338 files, 0 violations) ✅
+- `pnpm tsx tools/lint-rls-policies.ts` → OK (43 migrations, 0 violations) ✅
+- Pre-existing failures unchanged: 3× `lastSeenAt` in `07-ai-grading/src/routes.ts`
+
+**Deployed:** VPS git pull at `3b4d742`. Migration 0017 applied (ALTER TABLE + CREATE INDEX). assessiq-api + assessiq-frontend force-recreated. assessiq-api shows "unhealthy" — pre-existing infra issue (missing `wget` in health check), unrelated to rubric changes. API is listening on port 3000 (confirmed via logs).
+
+**SKILL deployed:** `~/.claude/skills/generate-rubric/SKILL.md` on VPS ✅
+
+**New API endpoints:**
+- `POST /api/admin/questions/:id/generate-rubric` — returns proposal (NOT saved)
+- `POST /api/admin/questions/:id/save-rubric` — validates weight=100 + persists (creates version snapshot)
+- `POST /api/admin/packs/:id/generate-missing-rubrics` — cursor-based bulk fill (no auto-save)
+
+**Architecture locked:**
+- D2 compliance: `generateRubricDraft` in positive list of sentinel; question-bank service.ts is not a banned path; dynamic import at call-time only
+- weight=100 invariant: RubricSchema.safeParse enforced server-side before any DB write; client badge is UX only
+- No new queue/worker introduced; bulk = one-at-a-time cursor, admin reviews each proposal
+
+**Pre-existing issues (not our changes):**
+- `07-ai-grading/src/routes.ts:200,354,495` — `lastSeenAt` TS2339 (3 errors, pre-existing since Phase 1.b)
+- `assessiq-api` Docker healthcheck fails because `wget` not in image PATH (pre-existing infra gap)
+
+**Next session options:**
+1. Fix pre-existing `07-ai-grading/src/routes.ts` lastSeenAt TypeScript errors
+2. Browser smoke: open subjective question without rubric → State A → Auto-generate → skeleton → fields populate → weight=100 badge → Save → reload → State B
+3. Bulk smoke: pack with 3 rubric-less questions → generate-missing-rubrics → first proposal → Save → next
+4. Fix the 9 CHECK C env var declaration gaps (lint-deploy-procedure punch list from prior session)
+5. Fix `assessiq-api` Docker health check (replace `wget` with `node` or `curl` in compose healthcheck)
+
+---
+
+
 
 **Headline:** `tools/lint-deploy-procedure.ts` shipped — 4-check CI lint (skill bind-mount, migration apply chain, env var declaration, email template URL↔route) with 17 self-test assertions. All gates pass. Scan on current main: A✓ B✓ D✓ — C surfaces 9 pre-existing env var declaration gaps as a punch list for the next session.
 

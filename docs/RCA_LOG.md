@@ -4,6 +4,29 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-09 — dev-mint-session route was LIVE in production with role-escalation bug
+
+**Symptom:** When the new `superRefine` config guard landed on the VPS (commit `bd0ceb0`), `assessiq-api` entered a crash loop with `ENABLE_E2E_TEST_MINTER MUST be false in production`. Investigation revealed `/srv/assessiq/.env` line 28 had `ENABLE_E2E_TEST_MINTER=true` set in production. This means the dev-only POST `/api/dev/mint-session` route — which bypasses Google SSO + TOTP and (until commit `bd0ceb0`) accepted caller-supplied `role`, allowing any candidate to escalate to admin — had been reachable on `https://assessiq.automateedge.cloud` since the route shipped in commit `b3710ae`.
+
+**Cause:** Two compounding errors:
+1. **Dev-only env var leaked into prod `.env`.** When the route was added (`b3710ae`, `feat(e2e): full admin-to-candidate workflow spec + dev test-minter endpoint`), the corresponding `ENABLE_E2E_TEST_MINTER=true` line was set in `/srv/assessiq/.env` to make the route reachable for E2E runs against prod-like infra. There was no gate preventing the same flag from being kept on after the E2E run, and no documentation flagging it as prod-forbidden.
+2. **Single line of defense.** The original mint-session.ts only had a compile-time conditional import in `apps/api/src/server.ts` as the gate. With the env flag flipped, that gate let the route register. The route then trusted the caller-supplied `role` field for `sessions.create()` (`apps/api/src/routes/dev/mint-session.ts:170` pre-fix), so any unauthenticated POST with `{role: 'admin', email: <existing-candidate-email>}` would mint an admin session for an existing candidate user.
+
+**Fix:**
+- `modules/00-core/src/config.ts:123-134` (commit `bd0ceb0`): superRefine throws when `NODE_ENV === 'production' && ENABLE_E2E_TEST_MINTER === true`. The API now refuses to boot rather than register the route in prod.
+- `apps/api/src/routes/dev/mint-session.ts:171-186` (commit `bd0ceb0`): existing users now session with their DB role (caller-supplied `role` is ignored when a user exists); new-user auto-creation is restricted to `role=candidate` only.
+- `apps/api/src/routes/dev/mint-session.ts:205-215` (commit `bd0ceb0`): audit write is now `await`-ed and fail-closed (was `.catch(...)` non-fatal).
+- VPS recovery: `/srv/assessiq/.env` line 28 set to `ENABLE_E2E_TEST_MINTER=false`, `assessiq-api` recreated. Verified post-deploy: `GET /api/health` → 200, `POST /api/dev/mint-session` → 404 (route not registered).
+
+**Exposure window:** From `b3710ae` deploy (~2026-05-08 evening) to `bd0ceb0` deploy (2026-05-09 ~17:18 IST). No exploit attempts visible in `/var/log/assessiq/api.log` for that path, but a full audit_log review for unexpected `dev.mint_session` actions is owed.
+
+**Prevention:**
+- Config-time gate (added) — production cannot boot with the flag on.
+- Defense-in-depth at handler level (added) — caller-supplied `role` no longer trusted for existing users; new-user creation gated to `candidate`.
+- Audit fail-closed (added) — every successful mint creates an audit_log row or the request fails.
+- TODO: add `ENABLE_E2E_TEST_MINTER` to `lint-deploy-procedure` CHECK C as a prod-forbidden var (any mention in `/srv/assessiq/.env` other than `=false` should fail CI).
+- TODO: review `audit_log` for any `dev.mint_session` rows or anomalous `session_create` rows during the exposure window.
+
 ## 2026-05-08 — lint-deploy-procedure: 4-check CI lint hardens against ops-vs-code drift
 
 **Symptom:** Three distinct classes of "code shipped, operational dependency missed" bugs recurred across 2026-05-03 through 2026-05-08, each causing production incidents that took 1–4 hours to diagnose:
