@@ -1,0 +1,87 @@
+[
+  {
+    "type": "mcq",
+    "topic": "Phishing email header IoC identification via DMARC",
+    "points": 5,
+    "content": {
+      "question": "An L1 analyst receives a reported phishing email from a user. The email claims to be from hr@acme-corp.com. Examining the headers, which field provides the MOST reliable machine-verifiable evidence that the sender domain has been spoofed?",
+      "options": [
+        "A. The 'From' display name shows 'Acme Corp HR' — a name that does not match any directory entry",
+        "B. The 'Reply-To' header points to hr-reply@acme-corp-help.net instead of the From domain",
+        "C. The 'Authentication-Results' header shows dmarc=fail (p=quarantine) — the sending IP is not authorised by acme-corp.com's SPF record and the DKIM signature is absent",
+        "D. The 'Subject' line contains 'URGENT: Action Required' — high-pressure language typical of phishing"
+      ],
+      "correct": 2,
+      "rationale": "Authentication-Results: dmarc=fail is the most reliable indicator because it is produced by the receiving mail server's cryptographic validation of SPF alignment and DKIM signature — both of which require the sender to control the legitimate domain's DNS records to pass. The From display name is trivially faked by an adversary with zero effort. Reply-To mismatch is a useful heuristic but is not authenticated by any protocol. Urgent subject-line language is a social-engineering indicator, not an authentication indicator, and is present in many legitimate automated notifications."
+    },
+    "knowledge_base_source_ids": ["src_l1_007", "src_l1_002"]
+  },
+  {
+    "type": "mcq",
+    "topic": "Sysmon EventID for ProcessCreate on Windows endpoints",
+    "points": 5,
+    "content": {
+      "question": "An L1 analyst needs to write a SIEM alert rule that fires whenever a new process is created on Windows endpoints instrumented with the Sysmon driver. Which Sysmon Event ID should the rule filter on, and what is the corresponding native Windows Security event that captures the same activity?",
+      "options": [
+        "A. Sysmon Event ID 3 (NetworkConnect) — Windows Security Event 5156 (Windows Filtering Platform permitted a connection)",
+        "B. Sysmon Event ID 1 (ProcessCreate) — Windows Security Event 4688 (A new process has been created)",
+        "C. Sysmon Event ID 11 (FileCreate) — Windows Security Event 4663 (An attempt was made to access an object)",
+        "D. Sysmon Event ID 7 (ImageLoad) — Windows Security Event 4657 (A registry value was modified)"
+      ],
+      "correct": 1,
+      "rationale": "Sysmon Event ID 1 (ProcessCreate) captures every new process start with fields including Image (full binary path), CommandLine, ParentImage, ParentCommandLine, IntegrityLevel, and cryptographic Hashes. The Windows Security equivalent is Event 4688 ('A new process has been created'), which requires 'Audit Process Creation' audit policy and the 'Include command line in process creation events' GPO setting to capture command-line arguments. Sysmon Event ID 3 tracks network connections; 11 tracks file creation; 7 tracks DLL/image loads — none record process creation. Correlation between Sysmon ID 1 and Event 4688 on the same host provides two independent evidence sources for process-chain analysis."
+    },
+    "knowledge_base_source_ids": ["src_l1_004"]
+  },
+  {
+    "type": "mcq",
+    "topic": "L1 triage decision for EDR alert — Office spawning PowerShell",
+    "points": 5,
+    "content": {
+      "question": "An EDR alert fires: Severity=Medium, Technique=T1059.001 (PowerShell), Initiating Process=WINWORD.EXE, New Process=powershell.exe, User=jdoe, Asset=DESKTOP-14. DESKTOP-14 is not classified as a critical production system. What is the CORRECT first action for an L1 analyst following standard SOC procedure?",
+      "options": [
+        "A. Immediately quarantine DESKTOP-14 via EDR remote isolation — the process chain is definitively malicious and containment takes priority over confirmation",
+        "B. Dismiss the alert and mark it 'Informational' — it is normal for Word macros to invoke PowerShell for document automation",
+        "C. Review the alert details, identify the full process tree, and confirm whether the activity was authorized by contacting jdoe; escalate to L2 if jdoe did not intentionally trigger a macro or if the activity cannot be explained",
+        "D. Reset jdoe's Active Directory password immediately to prevent further attacker access, then file an incident ticket"
+      ],
+      "correct": 2,
+      "rationale": "winword.exe spawning powershell.exe is a high-confidence malicious indicator (it is the canonical macro-based initial-access chain for Emotet, QakBot, and similar loaders), but L1 protocol requires verification and owner contact before taking containment action on a non-critical endpoint — quarantine disrupts the user's work and is a reversible but disruptive action that requires confirmation. Option A (immediate quarantine) skips the required verification step. Option B is incorrect — Word spawning PowerShell is not expected, normal, or safe to dismiss. Option D (resetting the password) is an unauthorized destructive action that the L1 analyst is not empowered to take unilaterally."
+    },
+    "knowledge_base_source_ids": ["src_l1_008", "src_l1_001"]
+  },
+  {
+    "type": "mcq",
+    "topic": "Windows Security Event 4625 SubStatus code interpretation",
+    "points": 5,
+    "content": {
+      "question": "The following Windows Security event appears in the SIEM: EventID=4625, TargetUserName=administrator, LogonType=3, IpAddress=10.14.50.2, SubStatus=0xC0000072. SubStatus 0xC0000072 means 'Account is disabled'. What is the most appropriate immediate triage action for an L1 analyst?",
+      "options": [
+        "A. Close the alert — a disabled account cannot authenticate, so the attempt poses no risk and no further action is warranted",
+        "B. Investigate whether 10.14.50.2 is a known authorized asset such as a vulnerability scanner; if it is not, open an incident — something is probing the administrator account name from an unrecognized internal host",
+        "C. Re-enable the administrator account temporarily so the legitimate owner can test their credentials, then re-disable it",
+        "D. Reset the administrator account password and notify the IT service desk without investigating the source IP"
+      ],
+      "correct": 1,
+      "rationale": "Even though a disabled account cannot authenticate successfully, repeated logon attempts against a known privileged account name from an internal IP warrant investigation. The attempt pattern reveals that something on 10.14.50.2 knows the account name exists and is attempting to use it — this could indicate an authorized scanner, a misconfigured application, or a compromised host probing for accounts. Closing the alert (A) ignores a useful signal. Re-enabling the account (C) creates a security risk without authorization. Resetting the password (D) is an unauthorized action that bypasses proper triage. The correct L1 action is to enrich the alert with asset context and escalate if the source is unknown."
+    },
+    "knowledge_base_source_ids": ["src_l1_003"]
+  },
+  {
+    "type": "mcq",
+    "topic": "Distinguishing malicious from benign PowerShell command lines",
+    "points": 5,
+    "content": {
+      "question": "An L1 analyst reviews four PowerShell command lines captured in Windows Event ID 4688 logs. Which command line is MOST suspicious and warrants immediate escalation to L2?",
+      "options": [
+        "A. powershell.exe -Command \"Get-ChildItem C:\\Users\\jsmith\\Documents\"",
+        "B. powershell.exe -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -enc SQBuAHYAbwBrAGUtV2ViUmVxdWVzdA==",
+        "C. powershell.exe -Command \"Get-Process | Sort-Object CPU -Descending | Select-Object -First 10\"",
+        "D. powershell.exe -File \"C:\\Program Files\\CompanyApp\\update.ps1\""
+      ],
+      "correct": 1,
+      "rationale": "Option B combines four red-flag indicators in a single command: (1) -NonInteractive prevents the user from seeing any prompts; (2) -WindowStyle Hidden suppresses the console window so the user cannot observe execution; (3) -ExecutionPolicy Bypass circumvents any PowerShell script-execution restrictions set by group policy; (4) -enc (short for -EncodedCommand) encodes the actual payload in Base64, hiding it from casual log inspection and signature-based detection. This combination is the canonical obfuscated PowerShell execution pattern used by malware loaders and post-exploitation frameworks. Options A and C are standard interactive command-line usage. Option D invokes a named script from a controlled program directory — a normal pattern for enterprise application update agents."
+    },
+    "knowledge_base_source_ids": ["src_l1_006", "src_l1_004"]
+  }
+]

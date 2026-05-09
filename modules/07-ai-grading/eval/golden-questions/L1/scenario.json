@@ -1,0 +1,123 @@
+[
+  {
+    "type": "scenario",
+    "topic": "Phishing email triage from initial report to escalation decision",
+    "points": 10,
+    "content": {
+      "title": "User Reports Suspected Phishing Email",
+      "intro": "At 10:05 UTC, a user named Sarah submits a phishing report via the security awareness portal. The email claims to be from payroll@acme-corp.com, asks Sarah to 'review your Q1 pay stub' via a link, and has an attachment named 'Q1_PayStub.docm'. The email was received at 09:47 UTC and Sarah has not clicked the link or opened the attachment. You are the L1 analyst assigned to the ticket.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "Before clicking anything in the email client, what are the first three things you examine in the email headers and body, and why does the order matter?",
+          "expected": "1. Authentication-Results header: check whether dmarc=pass, spf=pass, and dkim=pass — if any fail, the sender domain is spoofed regardless of what the From address shows. 2. The actual sender address in the Return-Path or Envelope-From header (not the From display name): the display name 'payroll@acme-corp.com' may mask a sending address from an external domain (e.g., payroll-acme@suspicious-domain.ru). 3. Hover over (do not click) the link destination to reveal the real URL — legitimate corporate payroll links point to known internal domains or specific vendor portals, not random external hosts. Order matters because the authentication headers provide machine-verifiable evidence without any risk of interaction, while the link hover and attachment analysis require caution to avoid accidental activation."
+        },
+        {
+          "prompt": "The attachment is 'Q1_PayStub.docm'. What does the .docm extension tell you, and what steps do you take to analyze it without opening it on your analyst workstation?",
+          "expected": "The .docm extension indicates a macro-enabled Word document. Malware loaders (Emotet, QakBot, Dridex) commonly use macro-enabled Office documents as first-stage droppers — when the user enables macros, a VBA script runs and downloads or executes the second-stage payload. Steps to analyze without local risk: (1) Extract the SHA-256 hash of the attachment using a safe hash tool or the email gateway and submit it to VirusTotal for existing detections. (2) Submit the file to a sandboxing service (e.g., Any.run, Hybrid Analysis, or the corporate sandboxing platform) and review dynamic analysis results for process spawns, network connections, and file drops. (3) Do NOT open the file on a standard analyst workstation — use an isolated analysis VM if local execution is required."
+        },
+        {
+          "prompt": "VirusTotal reports 34/72 engine detections for the attachment hash, flagging it as 'Trojan.Emotet' and 'W97M.Downloader'. The sending domain was registered 3 days ago. What escalation action do you take and what artifacts do you document?",
+          "expected": "Escalate immediately to L2 with the following artifacts documented in the incident ticket: (1) Sender details: From display name, envelope sender address, sending IP, and the domain registration date (3 days old — newly registered domains used for phishing are a high-confidence indicator). (2) VirusTotal result: hash value, detection count (34/72), and family names (Emotet / W97M.Downloader). (3) Email timeline: received at 09:47 UTC, reported at 10:05 UTC — confirm whether any other users received the same email by querying the email gateway for the sender address and attachment hash. (4) Sarah's endpoint status: confirm Sarah did not open the attachment — check EDR logs for any powershell.exe or cmd.exe spawned from WINWORD.EXE on Sarah's workstation in the 09:47–10:05 window. Document all findings in the incident ticket and do not delete the original email until forensics are complete."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l1_007", "src_l1_002"]
+  },
+  {
+    "type": "scenario",
+    "topic": "EDR alert triage — confirm malicious IoC or false positive",
+    "points": 10,
+    "content": {
+      "title": "EDR Alert: Office Application Spawning PowerShell",
+      "intro": "At 14:30 UTC, an EDR alert fires: Severity=High, Technique=T1059.001, Process=powershell.exe, Parent Process=WINWORD.EXE, User=mlewis, Asset=LAPTOP-07. The alert was generated at 14:28 UTC when mlewis opened an email attachment named 'Contract_Review.docm'. LAPTOP-07 is a standard end-user laptop assigned to the marketing department.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "What makes this EDR alert high-confidence (rather than a probable false positive), and what specific process-tree fields are the strongest indicators?",
+          "expected": "WINWORD.EXE spawning powershell.exe is a near-definitive malicious indicator because Microsoft Word has no legitimate need to execute PowerShell directly. Legitimate Word add-ins and macros that need scripting use VBA internally; they do not spawn child PowerShell processes. Strongest indicators: (1) Parent Process = WINWORD.EXE — Office applications should not spawn command interpreters in normal operation. (2) Technique = T1059.001 — the EDR platform already assessed this as a scripting interpreter invocation rather than a benign event. (3) The file name 'Contract_Review.docm' uses the macro-enabled .docm extension and was opened from an email attachment — a classic spearphishing delivery pattern (T1566.001). The alert is Severity=High, indicating the EDR's ML or behavioral rule assigned a high confidence score to the detection."
+        },
+        {
+          "prompt": "Before contacting mlewis, what data do you collect from the EDR console and SIEM to understand the full scope of the incident?",
+          "expected": "From the EDR console: (1) Full process tree under WINWORD.EXE — expand all child processes spawned by powershell.exe to see if a secondary payload was dropped or executed (look for processes starting from %TEMP%, %APPDATA%, or with suspicious names). (2) ProcessCommandLine of the powershell.exe invocation — Base64-encoded (-enc) or obfuscated command lines confirm malicious intent. (3) Network connections from powershell.exe or any child process — remote IPs contacted since 14:28 UTC reveal C2 infrastructure. From the SIEM: (4) Windows Event ID 4688 on LAPTOP-07 from 14:28–14:30 UTC for the same process chain as corroborating evidence. (5) Check whether any other endpoint in the environment has received the same file (by attachment hash from the email gateway) or generated the same alert in the past 24 hours — scope assessment."
+        },
+        {
+          "prompt": "You contact mlewis, who says: 'I ran a macro to fix the formatting — is that a problem?' How does this response affect your escalation decision, and what action do you take?",
+          "expected": "mlewis's response confirms a user-enabled macro execution — this is NOT a false positive. The user was social-engineered into enabling the macro (a common tactic: 'Enable editing to view document' prompt). Escalate to L2 immediately and initiate the following interim actions within your L1 authority: (1) Ask mlewis to stop using LAPTOP-07 and do not reboot it (preserves volatile memory for forensics). (2) Notify the L1 shift lead that a potential active infection is occurring. (3) Document the timeline: email received time, attachment opened time, macro enabled time, and first EDR alert time. Do NOT quarantine LAPTOP-07 without L2 authorization if it is needed for business continuity, but flag the containment decision urgently to L2. The user enabling the macro is the definitive confirmation that this is not a security tool or scanner generating the alert."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l1_008", "src_l1_006"]
+  },
+  {
+    "type": "scenario",
+    "topic": "Multiple failed login alert — VPN account lockout triage",
+    "points": 10,
+    "content": {
+      "title": "Account Lockout Alert for Finance Director VPN Account",
+      "intro": "At 22:45 UTC, a SIEM alert fires: 'Account Lockout — VIP Account'. Details: TargetUserName=cfoallan, 18 Event ID 4625 failures from IpAddress=91.108.56.14 in 4 minutes, all LogonType=3, followed by Event ID 4740 (account lockout). cfoallan is the CFO's Active Directory account. The organization does not have a UEBA system.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "What are the three most critical pieces of information you gather immediately from the SIEM, and what does each tell you about the risk level?",
+          "expected": "1. Source IP 91.108.56.14 — look up this IP in VirusTotal, AbuseIPDB, and the corporate threat intelligence platform. An external IP generating 18 failed VPN logon attempts for the CFO's account in 4 minutes is a high-risk indicator regardless of threat intel results (the volume alone warrants escalation). Geo-lookup: determine the country of origin to assess whether cfoallan would legitimately be connecting from that location. 2. LogonType=3 (network logon) — confirms this is a remote authentication attempt against the VPN gateway or a network-accessible service, not an interactive console session. This means the attacker is not physically present. 3. The 4740 (Account Lockout) event — the CFO's account is now locked. This has a business impact (the CFO cannot authenticate) and creates an incident requiring both security response AND an IT helpdesk unlock action. The combination of VIP target + external IP + high failure rate requires immediate escalation."
+        },
+        {
+          "prompt": "The IT helpdesk wants to unlock cfoallan's account so the CFO can work. How do you advise them, and what conditions must be met before the unlock is safe?",
+          "expected": "Advise the helpdesk to hold the unlock until you complete two verification steps: (1) Confirm with the CFO directly (via phone, not email — an attacker who has compromised the CFO's email could intercept an email verification) that they are attempting to connect, or confirm they were NOT attempting to connect at 22:45 UTC. If the CFO was not trying to authenticate, this may be a credential-stuffing or password-spraying attack using breached credentials from a prior data breach. (2) Verify whether 91.108.56.14 has appeared in any prior successful authentication logs for cfoallan — if the attacker previously authenticated successfully (Event 4624) from this IP, the account may already be compromised and simply unlocking it gives the attacker renewed access. Once both steps are clear, the unlock is safe with an additional MFA check. Escalate the incident to L2 before the unlock occurs."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l1_003", "src_l1_001"]
+  },
+  {
+    "type": "scenario",
+    "topic": "Scheduled task persistence discovered during routine log review",
+    "points": 10,
+    "content": {
+      "title": "Suspicious Scheduled Task on Finance Workstation",
+      "intro": "During morning log review at 08:30 UTC, an L1 analyst notices Windows Security Event 4698 on FINANCE-WS-04, logged at 03:15 UTC: TaskName=\\Microsoft\\Windows\\TelemetryUploader, TaskContent includes <Arguments>-ep bypass -enc SW52b2tlLVdlYlJlcXVlc3Q=</Arguments>, SubjectUserName=fsmith. fsmith is a standard finance user whose shift ended at 18:00 UTC the prior evening. No change ticket exists for this task.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "What makes this scheduled task suspicious, and which specific field values are the most significant red flags?",
+          "expected": "Three major red flags: (1) TaskName=\\Microsoft\\Windows\\TelemetryUploader is a name crafted to blend in with legitimate Windows telemetry tasks — adversaries frequently masquerade persistence mechanisms using plausible-sounding system task names (T1036.005 Masquerading). (2) The Arguments field contains '-ep bypass' (ExecutionPolicy Bypass) and '-enc SW52b2tlLVdlYlJlcXVlc3Q=' (Base64-encoded command) — encoding the payload in the scheduled task action is an anti-forensics technique to hide the actual malicious command from plain-text log searches. Decoding 'SW52b2tlLVdlYlJlcXVlc3Q=' yields 'Invoke-WebRequest', which is a PowerShell download cradle. (3) Registered at 03:15 UTC by fsmith — a standard finance user would not legitimately create system telemetry tasks at 03:15 AM when their shift ended nine hours earlier; this suggests fsmith's session was hijacked or credentials were used remotely."
+        },
+        {
+          "prompt": "What SIEM and EDR data do you query to understand what has already happened since 03:15 UTC, and what escalation actions do you take?",
+          "expected": "SIEM queries: (1) Event 4688 on FINANCE-WS-04 filtered to ParentProcess=taskeng.exe or schtasks.exe from 03:15 UTC onward — identifies any processes the task has already spawned. (2) Event 4624/4625 on FINANCE-WS-04 at 03:00–03:20 UTC to determine how fsmith's account was authenticated at that hour — was it a remote logon (LogonType=3) from an unusual IP, suggesting credential misuse? (3) Firewall or proxy logs for FINANCE-WS-04 from 03:15 UTC onward for outbound connections (Invoke-WebRequest would generate an outbound HTTP or HTTPS connection to retrieve a payload). EDR query: process tree under the task for any files dropped to %TEMP% or %APPDATA%. Escalation actions: immediately escalate to L2 with all findings; recommend disabling (not deleting) the scheduled task and preserving the full event log for forensics."
+        },
+        {
+          "prompt": "fsmith's manager confirms fsmith was not in the office and did not remotely access the system after 18:00 UTC. What does this confirm and what is the next step?",
+          "expected": "This confirms that fsmith's credentials were used without fsmith's knowledge — either the account was compromised via credential theft (T1003), password spray, or phishing at an earlier time, and an adversary logged in remotely at 03:15 UTC to establish persistence. The incident is now a confirmed unauthorized access event. Next steps: (1) Escalate to L2 and recommend FINANCE-WS-04 be isolated from the network to stop any active C2 beaconing while forensics proceed. (2) Disable fsmith's Active Directory account pending a password reset and investigation of where the credentials were compromised. (3) Pull the full authentication history for fsmith across all systems (VPN logs, 4624 events, cloud SSO logs) to determine the initial access vector and whether the attacker accessed any other systems using fsmith's credentials."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l1_005", "src_l1_001"]
+  },
+  {
+    "type": "scenario",
+    "topic": "Unknown executable found running on workstation — verify and escalate",
+    "points": 10,
+    "content": {
+      "title": "Unknown Process Running in TEMP Directory",
+      "intro": "At 11:20 UTC, an EDR alert fires on SALES-WS-11: an unknown executable 'svchost32.exe' is running from C:\\Users\\rchang\\AppData\\Local\\Temp\\svchost32.exe. The process has been running for 22 minutes. The file is not present in any enterprise software catalog. rchang is a remote sales employee.",
+      "step_dependency": "linear",
+      "steps": [
+        {
+          "prompt": "What three verifications do you perform immediately to determine whether this process is malicious or benign?",
+          "expected": "1. Filename and path verification: 'svchost32.exe' is designed to masquerade as the legitimate Windows 'svchost.exe'. Key differences: (a) the real svchost.exe lives in C:\\Windows\\System32\\ — any process named svchost.exe running from %TEMP%, %APPDATA%, or a user-profile path is almost certainly malicious; (b) '32' appended to the name is a masquerading technique (T1036.005). This alone is a strong indicator of malicious intent. 2. Hash-based threat intelligence: extract the SHA-256 hash of svchost32.exe from the EDR console and submit to VirusTotal. A known-malicious hash generates an immediate escalation regardless of other findings. 3. Parent process verification: review what process spawned svchost32.exe. Common parents for malware: winword.exe, excel.exe, browser processes, or unknown processes already running from %TEMP% — this reveals the initial infection vector and whether a prior stage already executed."
+        },
+        {
+          "prompt": "VirusTotal returns 0/72 detections (no antivirus engine detects the file). Does this mean the process is benign? What additional steps do you take?",
+          "expected": "Zero VirusTotal detections does NOT confirm the process is benign. New or custom malware, modified malware, or malware using packers/crypters frequently evades signature-based detection. Zero detections on a file running from %TEMP% with a name masquerading as a system binary is still a high-suspicion finding. Additional steps: (1) Dynamic behavior analysis: submit the file to a behavioral sandbox (Any.run, Hybrid Analysis) and examine process spawns, file system changes, registry modifications, and network connections. (2) Network activity: check EDR or firewall logs for outbound connections from svchost32.exe — C2 beaconing from a newly written file is malicious regardless of hash reputation. (3) File metadata: check the file creation timestamp, digital signature (or absence of signature), and whether it matches any known software vendor. Legitimate Windows binaries from C:\\System32\\ are digitally signed by Microsoft; this file is unsigned and from %TEMP%."
+        },
+        {
+          "prompt": "The sandbox shows svchost32.exe making repeated HTTPS connections to 34.102.45.19 and writing a file 'payload.dll' to %APPDATA%\\Microsoft\\. How do you document and escalate this finding?",
+          "expected": "This sandbox result confirms malicious behavior. Document in the incident ticket: (1) Process details: full path (C:\\Users\\rchang\\AppData\\Local\\Temp\\svchost32.exe), SHA-256 hash, file creation timestamp, parent process name. (2) Network IoCs: destination IP 34.102.45.19 — look up in threat intel for known C2 attribution; document port and protocol (HTTPS/443). (3) File-based IoCs: payload.dll dropped to %APPDATA%\\Microsoft\\ — this is a known persistence or second-stage loader path. Hash payload.dll if accessible. (4) Escalation: immediately escalate to L2 recommending SALES-WS-11 network isolation; mark the incident as 'Confirmed Malware' in the SIEM with Severity=Critical. Request L2 perform a memory image of the host before isolation to capture any decrypted C2 configuration. Also query whether 34.102.45.19 has connected to any other endpoint in the environment in the past 72 hours."
+        }
+      ]
+    },
+    "knowledge_base_source_ids": ["src_l1_008", "src_l1_004"]
+  }
+]
