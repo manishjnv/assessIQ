@@ -653,6 +653,27 @@ describe('acceptInvitation', () => {
         (e.details as Record<string, unknown> | undefined)?.['code'] === 'INVITATION_NOT_FOUND',
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // Test 15: acceptInvitation — malformed token input validation
+  // These exercise the INVALID_INVITATION_TOKEN guard added to fix the
+  // invite-accept 500 bug (2026-05-09). Service-layer validation ensures bad
+  // tokens never reach the SQL hash lookup regardless of HTTP layer.
+  // ---------------------------------------------------------------------------
+
+  it.each([
+    ['empty string', ''],
+    ['whitespace only', '   '],
+    ['3-char token', 'abc'],
+    ['65-char token', 'a'.repeat(65)],
+    ['contains spaces (valid length)', 'a'.repeat(21) + '   ' + 'a'.repeat(19)],
+  ])('rejects malformed token (%s) with INVALID_INVITATION_TOKEN', async (_label, token) => {
+    await expect(acceptInvitation(token)).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ValidationError &&
+        (e.details as Record<string, unknown> | undefined)?.['code'] === 'INVALID_INVITATION_TOKEN',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
