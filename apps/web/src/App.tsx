@@ -20,6 +20,7 @@ import {
   AdminAssessments,
   AdminAssessmentDetail,
   AdminReports,
+  AdminGenerationAttempts,
 } from '@assessiq/admin-dashboard';
 import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
@@ -74,6 +75,8 @@ export function App(): JSX.Element {
           <Route path="/admin/assessments/:id" element={<RequireSession role="admin"><AdminAssessmentDetail /></RequireSession>} />
           {/* Reports landing (session 2026-05-04) */}
           <Route path="/admin/reports" element={<RequireSession role="admin"><AdminReports /></RequireSession>} />
+          {/* AI generation history (session 2026-05-09) */}
+          <Route path="/admin/generation-attempts" element={<RequireSession role="admin"><AdminGenerationAttempts /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 
           {/* Candidate /take/* subtree.

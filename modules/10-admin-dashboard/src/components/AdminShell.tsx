@@ -78,6 +78,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
     { label: "Grading", href: "/admin/grading-jobs", icon: "chart" },
     { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
+    { label: "AI generation history", href: "/admin/generation-attempts", icon: "sparkle", adminOnly: true },
     { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
     { label: "Help guide", href: "/admin/guide", icon: "book" },
