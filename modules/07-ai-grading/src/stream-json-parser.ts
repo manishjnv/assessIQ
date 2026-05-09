@@ -69,10 +69,15 @@ export function parseStreamLines(buf: string): {
 const MCP_NAMESPACE = "mcp__assessiq__";
 
 /**
- * Walk all events, find the first `tool_use` content item whose `name`
+ * Walk all events, find the LAST `tool_use` content item whose `name`
  * is either the bare short name (`toolName`) or our exact MCP-namespaced
  * form (`mcp__assessiq__<toolName>`). Returns the tool's `input` payload,
  * or `null` if no matching tool use is found.
+ *
+ * "Last match" (rather than first) is intentional: when the MCP tool returns
+ * isError=true on a bad submission, the model retries with a corrected
+ * tool_use inside the same --max-turns budget. The runtime must capture the
+ * final (successful) submission, not the first (rejected) one.
  *
  * Exact-prefix match (rather than `endsWith`) prevents collision with any
  * future MCP server whose tool happens to end in the same short name.
@@ -82,6 +87,7 @@ export function parseToolInput(
   toolName: string,
 ): unknown | null {
   const namespaced = MCP_NAMESPACE + toolName;
+  let lastFound: unknown | null = null;
   for (const ev of events) {
     const content = ev.message?.content;
     if (!Array.isArray(content)) continue;
@@ -89,9 +95,9 @@ export function parseToolInput(
       if (item.type !== "tool_use") continue;
       const name = typeof item.name === "string" ? item.name : "";
       if (name === toolName || name === namespaced) {
-        return item.input ?? null;
+        lastFound = item.input ?? null;
       }
     }
   }
-  return null;
+  return lastFound;
 }

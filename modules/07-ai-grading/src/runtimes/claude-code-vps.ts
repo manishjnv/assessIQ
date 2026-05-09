@@ -422,6 +422,7 @@ export async function generateQuestions(
     points: q.points,
     content: q.content,
     rubric: q.rubric ?? null,
+    knowledge_base_source_ids: q.knowledge_base_source_ids,
     knowledgeBaseSources: q.knowledge_base_source_ids
       .map((id) => sourceById.get(id))
       .filter((s): s is NonNullable<typeof s> => s !== undefined)
@@ -584,6 +585,7 @@ export async function generateQuestionsByType(
       points: q.points,
       content: q.content,
       rubric: q.rubric ?? null,
+      knowledge_base_source_ids: q.knowledge_base_source_ids,
       knowledgeBaseSources: q.knowledge_base_source_ids
         .map((id) => sourceById.get(id))
         .filter((s): s is NonNullable<typeof s> => s !== undefined)

@@ -7,7 +7,7 @@
  * tracking, whitespace-only lines, unparseable lines.
  *
  * parseToolInput: tool_use matching by exact name, MCP-namespaced endsWith,
- * no-match cases, multiple tool_use ordering (first match wins).
+ * no-match cases, multiple tool_use ordering (last match wins — supports retry).
  */
 
 import { describe, it, expect } from "vitest";
@@ -165,7 +165,7 @@ describe("parseToolInput", () => {
     expect(parseToolInput([], "submit_anchors")).toBeNull();
   });
 
-  it("events with multiple tool_use — first matching name wins", () => {
+  it("events with multiple tool_use — last matching name wins (supports retry after rejection)", () => {
     const first = { findings: [{ anchor_id: "first", hit: true }] };
     const second = { findings: [{ anchor_id: "second", hit: false }] };
     const events: StreamJsonEvent[] = [
@@ -179,7 +179,18 @@ describe("parseToolInput", () => {
         },
       },
     ];
-    expect(parseToolInput(events, "submit_anchors")).toEqual(first);
+    expect(parseToolInput(events, "submit_anchors")).toEqual(second);
+  });
+
+  it("last tool_use across separate events wins — retry scenario", () => {
+    const rejected = { findings: [{ anchor_id: "bad", hit: false }] };
+    const accepted = { findings: [{ anchor_id: "good", hit: true }] };
+    const events: StreamJsonEvent[] = [
+      makeAssistantEvent("submit_anchors", rejected),
+      makeTextEvent("Let me correct that."),
+      makeAssistantEvent("submit_anchors", accepted),
+    ];
+    expect(parseToolInput(events, "submit_anchors")).toEqual(accepted);
   });
 
   it("matching tool_use in second event is found when first event has no match", () => {
