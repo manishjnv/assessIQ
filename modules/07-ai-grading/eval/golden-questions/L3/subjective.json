@@ -1,0 +1,47 @@
+[
+  {
+    "type": "subjective",
+    "topic": "Threat hunt plan design for suspected Volt Typhoon activity",
+    "points": 10,
+    "content": {
+      "question": "Your threat intelligence team has issued an advisory that Volt Typhoon (a state-sponsored threat actor known for living-off-the-land techniques targeting critical infrastructure) may be active in your environment. Design a structured, hypothesis-driven threat hunt plan for your Microsoft Sentinel environment. Your plan must cover: the specific TTPs you are hunting for and their ATT&CK technique IDs, the KQL queries targeting those TTPs across relevant Sentinel tables, the baselining strategy to separate anomalous from normal LOLBin usage, the hunt findings journal format you will use, and the escalation path if indicators are found."
+    },
+    "knowledge_base_source_ids": ["src_l3_001", "src_l3_008", "src_l3_002"]
+  },
+  {
+    "type": "subjective",
+    "topic": "DCSync vs DCShadow detection strategy comparison",
+    "points": 10,
+    "content": {
+      "question": "Compare the DCSync (T1003.006) and DCShadow (T1207) attack techniques from a detection engineering perspective. For each technique, describe the mechanism of operation, the specific Windows events and network artefacts that indicate its use, the detection rules you would write in Sigma format, and the operational limitations of each detection approach. Conclude with a recommendation for which technique is harder to detect and why, citing the specific evidence gaps."
+    },
+    "knowledge_base_source_ids": ["src_l3_007", "src_l3_002"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Residual risk acceptance justification for unpatched legacy system",
+    "points": 10,
+    "content": {
+      "question": "Your organisation runs a legacy industrial control system (ICS) that cannot be patched due to vendor support constraints and requalification costs. The system runs an OS with a known critical remote-code-execution vulnerability (CVSS 9.8). Justify a residual-risk acceptance decision for this system using a formal threat model: identify the relevant threat actors and their capabilities, enumerate the attack paths and compensating controls that reduce likelihood and impact, define the residual risk statement that would be presented to the CISO, and describe the monitoring and review cadence that makes acceptance defensible."
+    },
+    "knowledge_base_source_ids": ["src_l3_002", "src_l3_006"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Supply chain compromise detection strategy",
+    "points": 8,
+    "content": {
+      "question": "Following the SolarWinds SUNBURST incident pattern (T1195.002), your CISO asks you to design a detection strategy for software supply chain compromise affecting a widely deployed internal monitoring agent. Describe the pre-infection controls you would recommend in the build pipeline, the post-deployment hunt queries you would run to detect anomalous network behaviour from the agent process, the forensic artefacts you would collect if a compromise is suspected, and how you would scope the blast radius if you confirm a supply chain compromise in your environment."
+    },
+    "knowledge_base_source_ids": ["src_l3_006", "src_l3_008", "src_l3_001"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Memory forensics process for suspected process injection",
+    "points": 10,
+    "content": {
+      "question": "An endpoint's EDR has flagged suspicious RWX memory regions in a running svchost.exe process that cannot be attributed to any loaded DLL. You have a full RAM image taken by the IR team. Describe the Volatility 3 analysis process you would follow to determine whether this is process injection, the specific plugins you would use and what each output tells you, how you would correlate the memory findings with filesystem and network artefacts to reconstruct the attack chain, and what indicators you would extract for sharing with the threat intelligence team."
+    },
+    "knowledge_base_source_ids": ["src_l3_004", "src_l3_005", "src_l3_003"]
+  }
+]

@@ -23,7 +23,7 @@ const __dirname = dirname(__filename);
 // Public type contracts
 // ---------------------------------------------------------------------------
 
-export type EvalType = "mcq" | "log_analysis" | "scenario" | "kql";
+export type EvalType = "mcq" | "log_analysis" | "scenario" | "kql" | "subjective";
 
 export interface KbSourceRef {
   id: string;
@@ -85,7 +85,7 @@ const KbSourceRefSchema = z.object({
 });
 
 const GoldenBaseSchema = z.object({
-  type: z.enum(["mcq", "log_analysis", "scenario", "kql"]),
+  type: z.enum(["mcq", "log_analysis", "scenario", "kql", "subjective"]),
   topic: z.string(),
   points: z.number().int().positive(),
   content: z.unknown(),
@@ -128,6 +128,10 @@ const KqlContentSchema = z.object({
   tables: z.array(z.string()).min(1),
   expected_keywords: z.array(z.string()).min(1),
   sample_solution: z.string().min(1),
+});
+
+const SubjectiveContentSchema = z.object({
+  question: z.string().min(1),
 });
 
 // ---------------------------------------------------------------------------
@@ -252,6 +256,17 @@ export function scoreQuestion(
         schemaValid = true;
         structuralCompleteness = r.data.expected_keywords.length >= 1;
         if (!structuralCompleteness) failures.push("kql: expected_keywords.length < 1");
+      } else {
+        failures.push(`schemaValid: ${r.error.issues.map((e) => e.message).join("; ")}`);
+      }
+      break;
+    }
+    case "subjective": {
+      const r = SubjectiveContentSchema.safeParse(q.content);
+      if (r.success) {
+        schemaValid = true;
+        structuralCompleteness = r.data.question.trim().length > 0;
+        if (!structuralCompleteness) failures.push("subjective: question is empty");
       } else {
         failures.push(`schemaValid: ${r.error.issues.map((e) => e.message).join("; ")}`);
       }

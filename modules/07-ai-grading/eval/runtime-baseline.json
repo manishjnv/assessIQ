@@ -27,13 +27,22 @@
   "known_gaps": [
     "RESOLVED (2026-05-09b) — Per-type generation timeout was 60 + count*120 = 300s for count=2, exactly the boundary causing log_analysis and scenario timeouts. Fixed: bumped to 90 + count*180 = 450s for count=2. See DISALLOWED_TOOLS change in claude-code-vps.ts.",
     "RESOLVED (2026-05-09b) — Skills were invoking Skill/ToolSearch tool_use events before submit_questions, burning wall-clock. Fixed: added Skill,ToolSearch to DISALLOWED_TOOLS in claude-code-vps.ts; added Tool-use policy section to all 4 generate-* SKILL.md files (version 2026-05-09b).",
-    "Subjective fold-into-mcq is working but mcq prompt didn't generate the extra question — only 3 produced when allocation was 3 (as expected for count=8 split). For higher counts, mcq absorbs subjective allocation."
+    "RESOLVED (2026-05-09) — Subjective fold-into-mcq removed. generate-subjective skill shipped (prompts/skills/generate-subjective/SKILL.md). TYPE_SKILL_MAP in claude-code-vps.ts now includes subjective\u2192generate-subjective. sharded path typeEntries covers all 5 types.",
+    "RESOLVED (2026-05-09c) — Citation regression: model was returning external IDs (mitre.t1558.003, T1003.001) in knowledge_base_source_ids instead of verbatim source.id values. Fixed: Source-citation contract (HARD RULE) section added to all 5 generate-* SKILL.md files; versions bumped to 2026-05-09c."
   ],
   "next_smoke_targets": {
     "L2_count_8": {
       "expected_chunks_passed": 4,
       "expected_total_inserted": ">=7",
-      "expected_max_duration_ms": 600000
+      "expected_max_duration_ms": 600000,
+      "expected_type_allocation": { "mcq": 3, "log_analysis": 2, "scenario": 2, "kql": 1, "subjective": 1 },
+      "_note": "count=8 at L2 now allocates ~1 subjective chunk (Stage 1.5+, generate-subjective skill active)."
+    },
+    "L2_count_15": {
+      "expected_chunks_passed": 5,
+      "expected_total_inserted": ">=12",
+      "expected_max_duration_ms": 720000,
+      "expected_type_allocation": { "mcq": 6, "log_analysis": 4, "scenario": 3, "kql": 1, "subjective": 1 }
     }
   },
   "regression_thresholds": {

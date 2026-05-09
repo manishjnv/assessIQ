@@ -1,0 +1,47 @@
+[
+  {
+    "type": "subjective",
+    "topic": "EDR alert triage decision steps",
+    "points": 5,
+    "content": {
+      "question": "An EDR platform raises a Medium-severity alert on WORKSTATION-004: powershell.exe was spawned as a child of WINWORD.EXE. Explain the step-by-step triage process you would follow as an L1 analyst, what information you would gather from the alert and event logs, how you would determine whether to close the alert or escalate to L2, and what you would document in the ticket before closing or handing off."
+    },
+    "knowledge_base_source_ids": ["src_l1_008"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Phishing email indicator identification",
+    "points": 5,
+    "content": {
+      "question": "A helpdesk user forwards a suspicious email they received asking them to verify their account credentials by clicking a link. Describe the indicators you would examine in the email headers, body, and any attachments to determine whether it is a phishing attempt, the tools you would use at each step, and the actions you would take if you confirm it is malicious — including what you would report and to whom."
+    },
+    "knowledge_base_source_ids": ["src_l1_002", "src_l1_007"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Escalation criteria checklist construction",
+    "points": 5,
+    "content": {
+      "question": "You have been asked to create a written escalation criteria checklist for L1 analysts in your SOC. Using NIST SP 800-61r2 triage principles, outline the criteria that should trigger an immediate escalation from L1 to L2, explain why each criterion is significant, and describe one example scenario for each criterion that would meet the threshold."
+    },
+    "knowledge_base_source_ids": ["src_l1_001"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Difference between IoC and IoA and their operational use",
+    "points": 5,
+    "content": {
+      "question": "Describe the conceptual difference between an Indicator of Compromise (IoC) and an Indicator of Attack (IoA). For each type, explain what data sources in a SOC environment would provide them, give two specific examples of each drawn from common Windows event log data, and describe a scenario where an IoA would detect an attack that an IoC-only approach would miss."
+    },
+    "knowledge_base_source_ids": ["src_l1_004", "src_l1_006"]
+  },
+  {
+    "type": "subjective",
+    "topic": "Scheduled task persistence recognition and response",
+    "points": 5,
+    "content": {
+      "question": "You receive a SIEM alert: Windows Event ID 4698 fired on a workstation — a scheduled task was created by the standard user account jsmith with a task action executing a base64-encoded PowerShell command. Explain how you would confirm whether this is malicious persistence, what additional event IDs you would correlate to build the attack timeline, and what immediate containment steps you would recommend while preserving evidence for forensic review."
+    },
+    "knowledge_base_source_ids": ["src_l1_005", "src_l1_003"]
+  }
+]
