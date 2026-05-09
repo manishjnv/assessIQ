@@ -16,6 +16,7 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell.js";
 import { RubricEditor } from "../components/RubricEditor.js";
 import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
+import { QuestionContentView } from "../components/QuestionContentView.js";
 import { adminApi, AdminApiError } from "../api.js";
 
 const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis"] as const;
@@ -32,6 +33,7 @@ const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
 interface QuestionDetail {
   id: string;
   type: string;
+  status: string;
   points: number;
   content: unknown;
   rubric: unknown;
@@ -291,11 +293,35 @@ export function AdminQuestionEditor(): React.ReactElement {
 }
 
 function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
+  const navigate = useNavigate();
   const [question, setQuestion] = useState<QuestionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Approve / archive state
+  const [transitioning, setTransitioning] = useState(false);
+
+  async function handleStatusTransition(status: "active" | "archived") {
+    if (!id) return;
+    if (status === "archived") {
+      if (!window.confirm("Archive this question? It will no longer be available to candidates.")) return;
+    }
+    setTransitioning(true);
+    setError(null);
+    try {
+      await adminApi(`/admin/questions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      void load();
+    } catch (err) {
+      setError(err instanceof AdminApiError ? err.apiError.message : "Status update failed.");
+    } finally {
+      setTransitioning(false);
+    }
+  }
 
   // Rubric generation state
   const [generating, setGenerating] = useState(false);
@@ -411,7 +437,6 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
     );
   }
 
-  const contentText = typeof question.content === "string" ? question.content : JSON.stringify(question.content, null, 2);
   const supportsRubric = question.type === "subjective" || question.type === "scenario";
 
   // Live anchor weight total for the badge
@@ -424,15 +449,46 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Question Bank", question.id.slice(0, 8)]} helpPage="admin.question.editor">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-2xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.015em" }}>
-            Edit rubric
-          </h1>
-          {question.assessment_name && (
-            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)" }}>
-              {question.assessment_name} · {question.level_label} · {question.type} · {question.points} pts
+        {/* Header row: title + status badge + back button */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-xs)" }}>
+              <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-2xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.015em" }}>
+                Edit rubric
+              </h1>
+              <span
+                style={{
+                  padding: "1px 8px",
+                  borderRadius: 4,
+                  fontSize: "var(--aiq-text-xs)",
+                  fontFamily: "var(--aiq-font-mono)",
+                  background:
+                    question.status === "active" ? "var(--aiq-color-success-bg, #d1fae5)" :
+                    question.status === "ai_draft" ? "var(--aiq-color-warning-bg, #fef3c7)" :
+                    question.status === "archived" ? "var(--aiq-color-bg-secondary, #f0f0f0)" :
+                    "var(--aiq-color-bg-secondary, #f0f0f0)",
+                  color:
+                    question.status === "active" ? "var(--aiq-color-success, #065f46)" :
+                    question.status === "ai_draft" ? "var(--aiq-color-warning, #92400e)" :
+                    "var(--aiq-color-fg-muted)",
+                  flexShrink: 0,
+                }}
+              >
+                {question.status}
+              </span>
             </div>
-          )}
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
+              {[question.assessment_name, question.level_label, question.type, `${question.points} pts`].filter(Boolean).join(" · ")}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="aiq-btn aiq-btn-outline aiq-btn-sm"
+            onClick={() => navigate(-1)}
+            style={{ flexShrink: 0 }}
+          >
+            ← Back to pack
+          </button>
         </div>
 
         {saved && (
@@ -451,10 +507,49 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
           <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: "var(--aiq-space-sm)" }}>
             Question content (read-only)
           </div>
-          <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap", color: "var(--aiq-color-fg-primary)" }}>
-            {contentText}
-          </p>
+          <QuestionContentView type={question.type} content={question.content} />
         </div>
+
+        {/* Approve / archive — visible only for ai_draft */}
+        {question.status === "ai_draft" && (
+          <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
+              Review actions
+            </div>
+            <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
+              <button
+                className="aiq-btn aiq-btn-primary"
+                disabled={transitioning}
+                onClick={() => void handleStatusTransition("active")}
+              >
+                {transitioning ? "Saving…" : "Approve to active"}
+              </button>
+              <button
+                className="aiq-btn aiq-btn-ghost"
+                disabled={transitioning}
+                onClick={() => void handleStatusTransition("archived")}
+                style={{ color: "var(--aiq-color-danger)" }}
+              >
+                Reject (archive)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Archive — for active/draft questions that are not yet archived */}
+        {question.status !== "ai_draft" && question.status !== "archived" && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-ghost"
+              disabled={transitioning}
+              onClick={() => void handleStatusTransition("archived")}
+              style={{ color: "var(--aiq-color-danger)" }}
+            >
+              {transitioning ? "Saving…" : "Archive question"}
+            </button>
+          </div>
+        )}
 
         {/* Rubric section */}
         <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
