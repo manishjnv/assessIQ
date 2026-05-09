@@ -91,6 +91,8 @@ Set `LOG_DIR=/var/log/assessiq` in `/srv/assessiq/.env` so `00-core` activates t
 
 Four automated CI checks run in `.github/workflows/ci.yml` (step 12) via `pnpm lint:deploy-procedure`. Each check is independent; a violation in any one exits 1 and blocks the PR. Exit 0 means all four are clean. Exit 2 means the lint itself hit an internal error (missing file, parse failure).
 
+`score-goldens` runs in CI as the AI generation eval gate. Failures block merge; surface evidence is in the CI step log under "AI generation eval gate".
+
 Run locally:
 ```bash
 pnpm lint:deploy-procedure            # full repo scan — shows violations with file:line + fix hint

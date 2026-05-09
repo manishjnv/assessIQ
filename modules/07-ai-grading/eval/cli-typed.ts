@@ -13,7 +13,7 @@
 
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import {
   runEvalCase,
@@ -37,7 +37,7 @@ type Level = "L1" | "L2" | "L3";
 // score-goldens
 // ---------------------------------------------------------------------------
 
-async function cmdScoreGoldens(level?: Level, type?: EvalType): Promise<boolean> {
+export async function cmdScoreGoldens(level?: Level, type?: EvalType, _strict?: boolean): Promise<boolean> {
   const levels: readonly string[] = level ? [level] : LEVELS;
   const types: EvalType[] = type ? [type] : TYPES;
 
@@ -84,6 +84,9 @@ async function cmdScoreGoldens(level?: Level, type?: EvalType): Promise<boolean>
   const totalPassed = results.reduce((s, r) => s + r.passed, 0);
   const totalTotal = results.reduce((s, r) => s + r.total, 0);
   console.log(`\nTotal: ${totalPassed}/${totalTotal} passed`);
+
+  const exitCode = anyFail ? 1 : 0;
+  console.log(`EVAL GATE: ${totalPassed}/${totalTotal} goldens passed (exit ${exitCode})`);
 
   return !anyFail;
 }
@@ -429,6 +432,8 @@ async function cmdScoreCandidate(attemptId: string): Promise<void> {
 // Entry point
 // ---------------------------------------------------------------------------
 
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+
 const { positionals, values } = parseArgs({
   args: process.argv.slice(2),
   options: {
@@ -436,6 +441,7 @@ const { positionals, values } = parseArgs({
     type: { type: "string" },
     out: { type: "string" },
     "attempt-id": { type: "string" },
+    strict: { type: "boolean" },
   },
   allowPositionals: true,
 });
@@ -445,7 +451,8 @@ const subcommand = positionals[0];
 if (subcommand === "score-goldens") {
   const level = values["level"] as Level | undefined;
   const type = values["type"] as EvalType | undefined;
-  const ok = await cmdScoreGoldens(level, type);
+  const strict = values["strict"] as boolean | undefined;
+  const ok = await cmdScoreGoldens(level, type, strict);
   process.exit(ok ? 0 : 1);
 } else if (subcommand === "write-baseline") {
   const outPath =
@@ -477,3 +484,5 @@ if (subcommand === "score-goldens") {
   );
   process.exit(2);
 }
+
+} // end if (import.meta.url === pathToFileURL(...).href)
