@@ -60,6 +60,11 @@ export interface SendInvitationEmailInput {
   role: string;
   invitationLink: string;
   tenantName?: string;
+  /**
+   * When provided, the email is logged to email_log under tenant context.
+   * When omitted, falls back to dev-emails.log (legacy stub-only mode).
+   */
+  tenantId?: string;
 }
 
 /**
@@ -112,6 +117,11 @@ export interface SendAssessmentInvitationEmailInput {
   invitationLink: string;
   expiresAt: Date;
   tenantName: string;
+  /**
+   * When provided, the email is logged to email_log under tenant context.
+   * When omitted, falls back to dev-emails.log (legacy stub-only mode).
+   */
+  tenantId?: string;
 }
 
 export async function sendAssessmentInvitationEmail(

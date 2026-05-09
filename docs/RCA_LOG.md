@@ -914,3 +914,18 @@ A second prevention: every revert commit must explicitly enumerate "what was rev
 
 **Prevention:** Skill changes now deploy via `git pull` alone — no scp, no rebuild. Post-deploy smoke step documented in `docs/06-deployment.md` § Skill-deploy procedure: `docker exec assessiq-api ls /home/node/.claude/skills/` must list all expected skill directories. Consider a `tools/lint-skill-mount.ts` CI check that asserts every `prompts/skills/*/SKILL.md` has a corresponding compose bind-mount entry.
 
+## 2026-05-09 — Assessment invitation emails silently dropped; email_log always empty
+
+**Symptom:** Candidate (manishjnvk@gmail.com) invited to "Phase1 Closure Drill" never received an email. `assessment_invitations` row exists (status='pending'); `email_log` has 0 rows. Admin assessments list showed no invitation counts.
+
+**Cause:** `modules/13-notifications/src/email/legacy-shims.ts:44` (`sendAssessmentInvitationEmail`) and `:24` (`sendInvitationEmail`) called `sendEmail()` without a `tenantId` argument. `modules/13-notifications/src/email/index.ts:118` guards the `email_log` INSERT behind `if (tenantId !== undefined && tenantId.length > 0)` — an intentional Phase 0 stub-only fallback. With `tenantId` absent the INSERT was skipped; the BullMQ job was enqueued with `tenantId: null`, so the worker had no tenant context to update `email_log` on delivery either. The call sites (`modules/05-assessment-lifecycle/src/service.ts:746` and `modules/03-users/src/invitations.ts:166`) had `tenantId` in scope but did not forward it through the email shim chain.
+
+**Fix:**
+- `modules/13-notifications/src/email-stub.ts`: added `tenantId?: string` to `SendInvitationEmailInput` and `SendAssessmentInvitationEmailInput`. Field documented: provided → email_log write; omitted → dev-emails.log fallback.
+- `modules/13-notifications/src/email/legacy-shims.ts:24,44`: both shims now spread `tenantId` into the `sendEmail` options when present. Removed "email_log write is skipped" comments.
+- `modules/05-assessment-lifecycle/src/email.ts`: added `tenantId?: string` to `SendAssessmentInvitationInput`; forwarded to `sendAssessmentInvitationEmail`.
+- `modules/05-assessment-lifecycle/src/service.ts:746` (`inviteUsers`): added `tenantId` to the `sendInvitationEmail` call. `tenantId` was already the outer function parameter.
+- `modules/03-users/src/invitations.ts:166` (`inviteUser`): added `tenantId` to the `sendInvitationEmail` call. `tenantId` was already the outer function parameter.
+
+**Prevention:** Type-level — `tenantId` is now part of the shim input interfaces. Any new call site that omits it gets a TS hint (optional, not required, to preserve backward compatibility with dev environments without tenant context). Phase 3 critique: any `sendEmail`/`sendInvitationEmail`/`sendAssessmentInvitationEmail` call site inside a `withTenant` block that does not forward `tenantId` should be flagged as a potential silent-drop bug.
+

@@ -570,3 +570,60 @@ export async function findUserForInvitation(
     name: row.name,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Invitation count aggregation — used by the admin assessment list
+// ---------------------------------------------------------------------------
+
+export interface InvitationCounts {
+  total: number;
+  pending: number;
+  viewed: number;
+  started: number;
+  submitted: number;
+  expired: number;
+}
+
+/**
+ * Returns per-assessment invitation counts grouped by status, keyed by
+ * assessment ID. Uses a single grouped query (not N+1).
+ *
+ * Status values match the INVITATION_STATUSES enum in types.ts:
+ * 'pending' | 'viewed' | 'started' | 'submitted' | 'expired'
+ *
+ * Returns an empty record when assessmentIds is empty (avoids ANY($1) with
+ * an empty array which Postgres rejects).
+ */
+export async function countInvitationsByAssessment(
+  client: PoolClient,
+  assessmentIds: string[],
+): Promise<Record<string, InvitationCounts>> {
+  if (assessmentIds.length === 0) return {};
+
+  const result = await client.query<{ assessment_id: string; status: string; count: string }>(
+    `SELECT assessment_id, status, count(*)::int AS count
+     FROM assessment_invitations
+     WHERE assessment_id = ANY($1)
+     GROUP BY assessment_id, status`,
+    [assessmentIds],
+  );
+
+  const out: Record<string, InvitationCounts> = {};
+  for (const row of result.rows) {
+    const id = row.assessment_id;
+    if (out[id] === undefined) {
+      out[id] = { total: 0, pending: 0, viewed: 0, started: 0, submitted: 0, expired: 0 };
+    }
+    const counts = out[id];
+    const n = parseInt(row.count, 10);
+    counts.total += n;
+    switch (row.status) {
+      case 'pending':   counts.pending   += n; break;
+      case 'viewed':    counts.viewed    += n; break;
+      case 'started':   counts.started   += n; break;
+      case 'submitted': counts.submitted += n; break;
+      case 'expired':   counts.expired   += n; break;
+    }
+  }
+  return out;
+}

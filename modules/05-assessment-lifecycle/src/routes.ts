@@ -44,6 +44,7 @@ import {
   listInvitations,
   inviteUsers,
   revokeInvitation,
+  getInvitationCounts,
 } from "./service.js";
 import type {
   AssessmentStatus,
@@ -136,7 +137,19 @@ export async function registerAssessmentLifecycleRoutes(
       if (q["status"] !== undefined) filters.status = q["status"] as AssessmentStatus;
       if (q["pack_id"] !== undefined) filters.packId = q["pack_id"];
 
-      return listAssessments(tenantId, filters);
+      const result = await listAssessments(tenantId, filters);
+      const assessmentIds = result.items.map((a) => a.id);
+      const invitationCounts = await getInvitationCounts(tenantId, assessmentIds);
+
+      return {
+        ...result,
+        items: result.items.map((a) => ({
+          ...a,
+          invitations: invitationCounts[a.id] ?? {
+            total: 0, pending: 0, viewed: 0, started: 0, submitted: 0, expired: 0,
+          },
+        })),
+      };
     },
   );
 
