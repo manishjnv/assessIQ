@@ -87,6 +87,92 @@ docker exec assessiq-api ls -la /var/log/assessiq      # expect: writable by con
 
 Set `LOG_DIR=/var/log/assessiq` in `/srv/assessiq/.env` so `00-core` activates the on-disk JSONL fan-out (without it, all logs only go to stdout / Docker json-file). Restart the `assessiq-api` and `assessiq-worker` containers after first set: `docker compose -f /srv/assessiq/docker-compose.yml up -d assessiq-api assessiq-worker`.
 
+## Pre-deploy lint gates
+
+Four automated CI checks run in `.github/workflows/ci.yml` (step 12) via `pnpm lint:deploy-procedure`. Each check is independent; a violation in any one exits 1 and blocks the PR. Exit 0 means all four are clean. Exit 2 means the lint itself hit an internal error (missing file, parse failure).
+
+Run locally:
+```bash
+pnpm lint:deploy-procedure            # full repo scan — shows violations with file:line + fix hint
+pnpm lint:deploy-procedure:self-test  # validates the lint logic itself (17 assertions); run after editing the lint
+pnpm lint:deploy-procedure --json     # machine-readable JSON output for scripted checks
+```
+
+RCA reference: `docs/RCA_LOG.md` 2026-05-08 entry documents the three incident classes (skill mount, env var, template URL) that drove this lint's creation.
+
+---
+
+### CHECK A — Skill bind-mount integrity
+
+**What it catches:** A skill is committed under `prompts/skills/<name>/SKILL.md` but `infra/docker-compose.yml` has no volume mount mapping the skills directory into `assessiq-api` (and `assessiq-worker`). The running container reads the image's baked-in filesystem; `git pull` alone cannot update skills that aren't bind-mounted.
+
+**Inverse:** If the mount exists but `prompts/skills/` contains no `SKILL.md` files, the lint also fires (dead bind-mount).
+
+**Last incident:** 2026-05-08 — skill committed, runtime invisible. Root cause: bind-mount added after the fact.
+
+**Canonical fix:**
+```yaml
+# infra/docker-compose.yml → services.assessiq-api.volumes (and assessiq-worker.volumes)
+- ../prompts/skills:/home/node/.claude/skills:ro
+```
+
+---
+
+### CHECK B — Migration apply chain
+
+**What it catches:** A `.sql` file under `modules/` or `apps/` is not at the exact depth `modules/<name>/migrations/<file>.sql` — the only pattern `tools/migrate.ts` discovers. A file at `modules/foo/subdir/migrations/001.sql` or `apps/api/seeds/001.sql` is silently skipped at deploy time; the schema diverges from code without any error at startup.
+
+**Exemption (manual migrations):** SQL files that are intentionally not run by the migration runner (fixtures, reference data, seed scripts) may carry this comment at the top of the file to suppress the violation:
+```sql
+-- DEPLOY: manual; not part of migration sequence
+```
+
+**Canonical fix for a violation:** Move the file to `modules/<name>/migrations/<file>.sql`, or add the exemption marker and document the manual apply step below under § Migrations.
+
+---
+
+### CHECK C — Env var declaration coverage
+
+**What it catches:** `process.env.VAR_NAME` referenced in production source code but `VAR_NAME` does not appear anywhere in `.env.example` — not even in a comment. Operators provisioning a fresh deployment have no visibility that the variable exists or what it should contain.
+
+**Last incident:** 2026-05-08 — `SMTP_URL` in `config.ts` Zod schema and used in code, but absent from `.env.example`. Email feature silently fell back to the dev stub on production.
+
+**Skip list** (exempt by default — standard Node/CI system vars never in `.env.example`):
+`NODE_ENV`, `NODE_VERSION`, `HOME`, `PATH`, `USER`, `HOSTNAME`, `SHELL`, `PWD`, `OLDPWD`,
+`TERM`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TMPDIR`, `TMP`, `TEMP`, `XDG_RUNTIME_DIR`, `LOGNAME`,
+`CI`, `GITHUB_ACTIONS`, `GITHUB_TOKEN`, `GITHUB_WORKSPACE`, `GITHUB_SHA`, `GITHUB_REF`,
+`RUNNER_OS`, `PORT`, `LOG_DIR`.
+
+**Canonical fix for a violation:** Add a placeholder line and an explanatory comment to `.env.example`. If the var is optional with a sensible default, declare it as `z.optional()` or `z.default()` in `modules/00-core/src/config.ts`.
+
+**Pre-existing violations on current main** (punch list as of 2026-05-08 — tracked as follow-up sessions):
+
+| Var | Read at | Action |
+| --- | --- | --- |
+| `ASSESSIQ_PUBLIC_URL` | `modules/05-assessment-lifecycle/src/service.ts:85` | alias for `ASSESSIQ_BASE_URL`; remove or alias in config.ts |
+| `ASSESSIQ_DEV_EMAILS_LOG` | `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts:1148` | dev-only email log path; add to `.env.example` with comment |
+| `AIQ_ADMIN_USER_ID` | `modules/07-ai-grading/eval/cli.ts:609` | eval CLI override; add to `.env.example` as optional |
+| `S3_BUCKET` | `modules/14-audit-log/src/archive-job.ts:65` | audit-log S3 archival target; add to `.env.example` |
+| `ENABLE_EMBED_TEST_MINTER` | `apps/api/src/routes/auth/embed.ts:173` | embed test gate; add to `.env.example` with prod=false note |
+| `ENABLE_E2E_TEST_MINTER` | `apps/api/src/__tests__/routes/mint-session.test.ts:192` | in `config.ts` but missing from `.env.example`; add line |
+| `PLAYWRIGHT_BASE_URL` | `apps/web/e2e/fixtures/factories.ts:24` | E2E test base URL; add to `.env.example` under E2E section |
+| `E2E_API_BASE_URL` | `apps/web/e2e/fixtures/factories.ts:25` | E2E API base URL; add to `.env.example` under E2E section |
+| `E2E_CANDIDATE_TOKEN` | `apps/web/e2e/take-happy-path.spec.ts:7` | E2E fixture token; add to `.env.example` under E2E section |
+
+---
+
+### CHECK D — Email template URL ↔ SPA route consistency
+
+**What it catches:** A URL path constructed in email-sending service code (template literal `${base}/path/${segment}`) or a hardcoded `href` in a template HTML file uses a path whose first segment is not registered as a route in `apps/web/src/App.tsx`. The candidate clicks the link and lands on the SPA's 404 catch-all.
+
+**Last incident:** 2026-05-04 — `modules/05-assessment-lifecycle/src/service.ts` built invitation links as `${PUBLIC_URL}/invite/${token}`. The SPA has no `/invite/:token` route; `/take/:token` is the correct candidate entry point. Candidates clicked the link and saw the 404 fallback.
+
+**What is intentionally NOT checked:** Pure Handlebars placeholders (`href="{{invitationLink}}"`) — the URL is supplied by the caller, not embedded in the template. `https://` absolute URLs without a literal path fragment are also skipped.
+
+**Canonical fix for a violation:** Either update the URL in service code / the template to use a registered SPA route, or add the missing route to `apps/web/src/App.tsx`. See `modules/13-notifications/src/__tests__/notifications.test.ts` for the regression guard that asserts `/take/` in candidate invitation emails.
+
+---
+
 ## Reverse-proxy plan — additive Caddyfile block
 
 The ti-platform Caddyfile (at `/opt/ti-platform/caddy/Caddyfile`) already has Cloudflare IPs in `trusted_proxies` and uses bridge-gateway upstreams (`172.17.0.1:<port>`) to reach apps on other Docker networks (this is the pattern roadmap and accessbridge use today). Match that pattern — no edits to ti-platform's `docker-compose.yml`, no `extra_hosts`, no shared-network coupling.
