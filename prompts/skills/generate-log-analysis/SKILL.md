@@ -1,6 +1,6 @@
 ---
 name: generate-log-analysis
-version: "DRAFT-2026-05-09"
+version: "2026-05-09"
 model: claude-sonnet-4-6
 description: |
   Generate log_analysis questions with realistic synthetic log excerpts grounded

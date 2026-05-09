@@ -1,6 +1,6 @@
 ---
 name: generate-kql
-version: "DRAFT-2026-05-09"
+version: "2026-05-09"
 model: claude-sonnet-4-6
 description: |
   Generate KQL (Kusto Query Language) questions for SOC analyst assessments

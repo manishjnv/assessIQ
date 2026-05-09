@@ -1,6 +1,6 @@
 ---
 name: generate-scenario
-version: "DRAFT-2026-05-09"
+version: "2026-05-09"
 model: claude-sonnet-4-6
 description: |
   Generate multi-step scenario questions for SOC analyst assessments grounded
