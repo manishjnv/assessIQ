@@ -15,12 +15,15 @@ Replace the single omnibus `generate-questions` skill (one Claude subprocess, al
 with four type-specialist skills — `generate-mcq`, `generate-log-analysis`, `generate-scenario`,
 `generate-kql` — each receiving a KB slice containing only sources relevant to its question type.
 Fan the four skills out in parallel within a single admin-click handler invocation to reduce
-wall-clock from ~3 min (30 mixed questions, cold) to ≤90 s. Assign models per skill based on
-output complexity: Haiku-4-5 for MCQ, Sonnet-4-6 for the rest. Allow per-type tuning of count,
-model, and KB scope independently of one another. Maintain the no-ambient-AI invariant: all calls
-remain sync-on-admin-click, inside the existing `singleFlight` mutex, never in a worker or cron.
-Deliver an eval baseline that lets per-type quality be compared against the omnibus before
-promotion to default.
+wall-clock from ~3 min (30 mixed questions, cold). Stage 1 targets ~135–180 s with a concurrency
+cap of 2 subprocesses (VPS shared-tenant RAM constraint; see §4). Stage 1.5 raises the cap to 4
+after 1 week of clean operation and a peak-RSS measurement, targeting ≤90 s. Assign
+claude-sonnet-4-6 to all four type skills (homogeneous model stack; see §2). Allow per-type count
+allocation via auto-weighted defaults (from the existing omnibus weight table) with admin override;
+set any type to 0 to skip it entirely. Maintain the no-ambient-AI invariant: all calls remain
+sync-on-admin-click, inside the existing `singleFlight` mutex, never in a worker or cron. Deliver
+an eval baseline that lets per-type quality be compared against the omnibus before promotion to
+default.
 
 ### Non-goals
 
@@ -34,6 +37,9 @@ promotion to default.
   is explicitly deferred to a post-eval follow-up; this design does not compose them.
 - **Not changing the Phase 1 vs Phase 2 boundary.** All skills run through the
   `claude-code-vps` runtime (Max OAuth on VPS), never through the Anthropic API or BullMQ.
+- **Not shipping `generate-scenario-opus` in Stage 1.** A future escalation skill for L3
+  packs where eval data shows scenario quality regression versus the omnibus. Deferred until
+  Stage 2 eval results are available to justify the Opus wall-clock cost.
 
 ---
 
@@ -43,17 +49,17 @@ promotion to default.
 
 | Skill | Model | Justification |
 |---|---|---|
-| `generate-mcq` | claude-haiku-4-5 | MCQ content is structurally simple: one question + 4 options + rationale. Haiku reliably handles this format at L1–L2 depth. L3 MCQs have denser distractors; risk is medium — see §8. |
+| `generate-mcq` | claude-sonnet-4-6 | MCQ content is structurally simple, but L3 distractors require precise TTP sub-technique discrimination. A homogeneous Sonnet stack trades Haiku's cost advantage for consistent quality across all levels; see §8 Risk #1. |
 | `generate-log-analysis` | claude-sonnet-4-6 | Requires constructing synthetic multi-line log excerpts with exact field names (Sysmon EventID 1, Windows Event 4625 fields, JSON syslog schemas). Haiku produces plausible-looking but field-incorrect log snippets at non-trivial rates. |
 | `generate-scenario` | claude-sonnet-4-6 | Multi-step narrative coherence and DAG branching require reasoning beyond Haiku's reliable range. Opus would be stronger but is the wall-clock bottleneck (see §4); Sonnet is the pragmatic choice. |
 | `generate-kql` | claude-sonnet-4-6 | KQL questions require syntactically valid queries against real Microsoft Sentinel/Defender table schemas (`SecurityEvent`, `DeviceProcessEvents`, `SigninLogs`). Haiku's KQL reliability is insufficient for exam-grade content. |
 
-**Note on Opus for scenario:** The user's hypothesis mentioned "scenario on Opus." Opus would
-improve narrative quality but its lower output throughput (~5K t/min vs Sonnet's ~20K t/min)
-makes it the wall-clock bottleneck. With Opus generating 10 scenario questions (≈4K output tokens),
-wall-clock is 80–120 s for that skill alone, blowing the 90 s total budget. `generate-scenario`
-uses Sonnet; a separate `generate-scenario-opus` escalation skill (similar to `grade-escalate`)
-is proposed as a follow-up for L3 pack authoring where quality outweighs speed.
+**Decision (2026-05-09, Q1): All four skills use claude-sonnet-4-6.** Opus would improve
+scenario narrative quality but its lower throughput (~5K t/min vs Sonnet's ~20K t/min) makes
+it a wall-clock bottleneck at any concurrency cap. A deferred `generate-scenario-opus`
+escalation skill (analogous to `grade-escalate`) is planned for L3 packs where Stage 2 eval
+shows scenario quality regression versus the omnibus. It is **not shipped in Stage 1** (see §1
+Non-goals).
 
 ### Token and cost estimates
 
@@ -67,18 +73,22 @@ is proposed as a follow-up for L3 pack authoring where quality outweighs speed.
 
 | Skill | Input tokens | Output tokens (10 Qs) | Cache creation | Wall-clock target | Phase 2 cost / call |
 |---|---|---|---|---|---|
-| `generate-mcq` | ~7 K (2.5 K system + 4.5 K KB slice) | ~2.5 K | ~7 K | 20–35 s | ~$0.016 |
+| `generate-mcq` | ~7 K (2.5 K system + 4.5 K KB slice) | ~2.5 K | ~7 K | 25–40 s | ~$0.058 |
 | `generate-log-analysis` | ~7.5 K (2.5 K system + 5 K KB slice) | ~6.5 K (log excerpts are large) | ~7.5 K | 45–70 s | ~$0.120 |
 | `generate-scenario` | ~7 K (2.5 K system + 4.5 K KB slice) | ~4 K | ~7 K | 30–50 s | ~$0.081 |
 | `generate-kql` | ~6.5 K (2.5 K system + 4 K KB slice) | ~3.5 K | ~6.5 K | 25–40 s | ~$0.073 |
 
-**Composite for 30 questions (MCQ:10, log_analysis:10, scenario:7, kql:3) in parallel:**  
-Wall-clock = max(35, 70, 44, 32) + 15 s cold-start ≈ **85 s** — within 90 s target.
+**Composite for 30 questions (MCQ:10, log_analysis:10, scenario:7, kql:3), Stage 1 cap=2:**  
+At full parallelism (cap=4): max(40, 70, 50, 40) + 15 s cold-start ≈ 85 s.  
+At Stage 1 cap=2: two sequential batches. Batch 1 (log_analysis + MCQ): ~70 s + 15 s
+cold-start = 85 s. Batch 2 (scenario + KQL): ~50 s. Total ≈ **135 s** — within Stage 1
+target of ≤180 s. Stage 1.5 target after cap raised to 4: ≤90 s.
 
 **Omnibus baseline (30 questions):**  
 ~25 K input + ~10 K output on Sonnet → $0.225 per request.  
-Type-sharded: ~$0.290 per request — ~29% more expensive at Phase 2 due to per-skill overhead.  
-With prompt caching (Phase 2), the KB-slice cache hits on repeat requests reduce this gap.
+Type-sharded (all four skills on Sonnet): ~$0.332 per request — ~48% more expensive at Phase 2.
+MCQ moving from Haiku to Sonnet accounts for the majority of the delta (~$0.042). With prompt
+caching (Phase 2), static skill content cached across runs reduces the gap.
 
 ---
 
