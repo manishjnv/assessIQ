@@ -1,0 +1,87 @@
+[
+  {
+    "type": "log_analysis",
+    "topic": "SSH brute-force attack recognition from Linux auth logs",
+    "points": 5,
+    "content": {
+      "question": "The following syslog entries were collected from web-srv-01 over an 8-second window. Identify (a) what attack is occurring, (b) the two key log-field values that confirm it, and (c) the immediate containment step an L1 analyst should take.",
+      "log_format": "syslog",
+      "log_excerpt": "May 09 08:14:12 web-srv-01 sshd[1823]: Failed password for root from 45.33.32.156 port 54310 ssh2\nMay 09 08:14:14 web-srv-01 sshd[1823]: Failed password for root from 45.33.32.156 port 54312 ssh2\nMay 09 08:14:16 web-srv-01 sshd[1823]: Failed password for root from 45.33.32.156 port 54314 ssh2\nMay 09 08:14:18 web-srv-01 sshd[1823]: Failed password for root from 45.33.32.156 port 54316 ssh2\nMay 09 08:14:20 web-srv-01 sshd[1823]: Failed password for root from 45.33.32.156 port 54318 ssh2",
+      "expected_findings": [
+        "SSH brute-force against the root account — 5 consecutive failed password attempts in 8 seconds from the single source IP 45.33.32.156 targeting the root username indicate automated credential guessing",
+        "Incrementing source port numbers (54310, 54312, 54314, 54316, 54318) confirm automated tooling rather than a human operator, since automated tools open a new TCP connection per attempt"
+      ],
+      "sample_solution": "1. The pattern is an SSH brute-force attack: all five events are 'Failed password for root' from the same external IP 45.33.32.156 at 2-second intervals — the rate and target are consistent with an automated password-spraying or dictionary-attack tool (e.g., Hydra, Medusa). 2. Key field values: (a) 'root' as the target username — adversaries target root because a successful authentication would immediately yield maximum privilege; (b) 45.33.32.156 as the repeated single source — a single IP generating high-velocity failures is the defining brute-force signature. 3. Immediate L1 containment: request a firewall rule to block 45.33.32.156 at the perimeter, escalate to L2 with the source IP and time window, and check whether 'PermitRootLogin' is set in /etc/ssh/sshd_config (it should be 'no' or 'prohibit-password'). Also confirm whether any subsequent successful authentication ('Accepted password for root') appears for this IP.",
+      "hint": "Count how many failures appear for the same username — if every record targets the same account from the same IP, that is a single-account brute-force pattern."
+    },
+    "knowledge_base_source_ids": ["src_l1_003"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "Windows 4625 single-account credential brute-force identification",
+    "points": 5,
+    "content": {
+      "question": "The following Windows Security events were collected from FILESERVER-01 over a 10-second window. Identify (a) the attack pattern, (b) what the SubStatus value tells you, and (c) why the source IP is notable.",
+      "log_format": "windows_event",
+      "log_excerpt": "Time=09:02:01 | EventID=4625 | TargetUserName=jmorgan | IpAddress=192.168.3.55 | LogonType=3 | SubStatus=0xC000006A\nTime=09:02:03 | EventID=4625 | TargetUserName=jmorgan | IpAddress=192.168.3.55 | LogonType=3 | SubStatus=0xC000006A\nTime=09:02:05 | EventID=4625 | TargetUserName=jmorgan | IpAddress=192.168.3.55 | LogonType=3 | SubStatus=0xC000006A\nTime=09:02:07 | EventID=4625 | TargetUserName=jmorgan | IpAddress=192.168.3.55 | LogonType=3 | SubStatus=0xC000006A",
+      "expected_findings": [
+        "Credential brute-force targeting a single account (jmorgan) — four consecutive network logon failures (LogonType=3) from the same IP in 6 seconds, all returning SubStatus=0xC000006A (wrong password), indicate an automated password-guessing attack against a known username",
+        "The source IP 192.168.3.55 is an internal RFC 1918 address — the attack originates from inside the network, which may indicate a compromised internal workstation or an authorized vulnerability scanner; an internal source raises the urgency because the attacker is already past perimeter controls"
+      ],
+      "sample_solution": "1. Four Event 4625 failures in 6 seconds, all targeting jmorgan from 192.168.3.55 with SubStatus=0xC000006A, represent a credential brute-force attack against a known account. 2. SubStatus=0xC000006A means 'wrong password' — the account name is valid but the password is incorrect, confirming the attacker knows the username and is guessing the password (as opposed to 0xC000006D, which means wrong username). 3. The source IP 192.168.3.55 is within the internal RFC 1918 address space — this means the attack is not coming from the internet but from inside the corporate network, either a compromised host or an authorized scanner. Triage steps: (a) check CMDB or DHCP logs to identify the owner of 192.168.3.55; (b) verify whether this IP is listed as an authorized vulnerability scanner; (c) escalate to L2 if the host is unrecognized.",
+      "hint": "Check whether TargetUserName stays the same across all records — if yes, the attacker is targeting one specific account (focused brute force) rather than spreading attempts across many accounts (password spray)."
+    },
+    "knowledge_base_source_ids": ["src_l1_003"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "Outbound beacon to known-malicious IP in firewall logs",
+    "points": 5,
+    "content": {
+      "question": "The following firewall log entries were captured for internal host 10.10.1.42 over a 10-second window. Identify (a) the suspicious pattern, (b) why this is not typical user-generated web traffic, and (c) the first triage step.",
+      "log_format": "json",
+      "log_excerpt": "{\"ts\":\"10:15:03\",\"src\":\"10.10.1.42\",\"src_port\":52001,\"dst\":\"185.220.101.32\",\"dst_port\":443,\"protocol\":\"TCP\",\"action\":\"ALLOW\",\"bytes_out\":1240}\n{\"ts\":\"10:15:04\",\"src\":\"10.10.1.42\",\"src_port\":52002,\"dst\":\"185.220.101.32\",\"dst_port\":443,\"protocol\":\"TCP\",\"action\":\"ALLOW\",\"bytes_out\":1182}\n{\"ts\":\"10:15:06\",\"src\":\"10.10.1.42\",\"src_port\":52003,\"dst\":\"185.220.101.32\",\"dst_port\":443,\"protocol\":\"TCP\",\"action\":\"ALLOW\",\"bytes_out\":1225}\n{\"ts\":\"10:15:08\",\"src\":\"10.10.1.42\",\"src_port\":52004,\"dst\":\"185.220.101.32\",\"dst_port\":443,\"protocol\":\"TCP\",\"action\":\"ALLOW\",\"bytes_out\":1210}",
+      "expected_findings": [
+        "Automated beaconing pattern — four outbound HTTPS connections from 10.10.1.42 to the same external destination in 5 seconds at regular short intervals, with very similar outbound byte counts (1182–1240), is characteristic of malware check-in traffic rather than human-initiated browsing",
+        "Check destination 185.220.101.32 against threat intelligence — the 185.220.101.x/24 range is widely documented as Tor exit node infrastructure frequently associated with anonymized C2 traffic; any internal host connecting to this range warrants escalation"
+      ],
+      "sample_solution": "1. Four rapid, near-simultaneous connections from 10.10.1.42 to a single fixed external IP on port 443 with highly consistent byte counts indicates automated beaconing — human browsing produces variable timing, multiple destination IPs, and widely varying packet sizes based on page content. 2. The 185.220.101.x range is a known Tor exit node block; legitimate user web traffic does not typically traverse Tor exit nodes. Look up 185.220.101.32 in VirusTotal, AbuseIPDB, or the corporate threat intelligence platform. 3. First triage step: identify what process on 10.10.1.42 is generating these connections by checking EDR process-network telemetry for that host at 10:15 UTC — the InitiatingProcessFileName field in Defender for Endpoint or CrowdStrike will reveal whether a browser, system process, or unexpected binary is making the connections.",
+      "hint": "Look at how consistent the outbound byte counts are across records — near-identical values suggest automated serialized network requests, not user-driven page loads which vary substantially."
+    },
+    "knowledge_base_source_ids": ["src_l1_008"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "ICMP host discovery sweep identification in firewall logs",
+    "points": 5,
+    "content": {
+      "question": "The following firewall log entries were captured in a 1-second window. Identify (a) what activity this represents, (b) the MITRE ATT&CK technique it maps to, and (c) whether this is more likely an internal or external threat actor.",
+      "log_format": "syslog",
+      "log_excerpt": "May 09 11:30:01 firewall01 kernel: ICMP: src=10.10.50.5 dst=10.10.1.1 type=8 code=0 ALLOW\nMay 09 11:30:01 firewall01 kernel: ICMP: src=10.10.50.5 dst=10.10.1.2 type=8 code=0 ALLOW\nMay 09 11:30:01 firewall01 kernel: ICMP: src=10.10.50.5 dst=10.10.1.3 type=8 code=0 ALLOW\nMay 09 11:30:01 firewall01 kernel: ICMP: src=10.10.50.5 dst=10.10.1.4 type=8 code=0 ALLOW\nMay 09 11:30:01 firewall01 kernel: ICMP: src=10.10.50.5 dst=10.10.1.5 type=8 code=0 ALLOW",
+      "expected_findings": [
+        "ICMP echo request (ping) sweep — host 10.10.50.5 is sending ICMP Type 8 (Echo Request) packets to five sequential destination IPs (10.10.1.1 through 10.10.1.5) simultaneously within the same second, indicating an automated network host-discovery scan (MITRE T1046 — Network Service Discovery)",
+        "Because both the source (10.10.50.5) and all destinations are RFC 1918 private addresses, this represents internal reconnaissance — either an authorized network scanner (IT asset discovery, vulnerability assessment) or a compromised internal host conducting lateral-movement preparation"
+      ],
+      "sample_solution": "1. ICMP Type 8 Code 0 is an Echo Request (ping). Five simultaneous pings to sequential /24 subnet IPs from a single internal host in one second is the signature of an automated ping sweep, used in the Discovery phase to map live hosts before lateral movement. This maps to MITRE T1046 (Network Service Discovery). 2. All addresses are internal RFC 1918 addresses (10.x.x.x), so the threat actor — if malicious — is already inside the network. External attackers typically probe public-facing hosts, not entire internal /24 ranges. 3. Triage steps: (a) look up 10.10.50.5 in CMDB/DHCP to identify the asset owner; (b) check whether this host is an authorized scanner (Nessus, Qualys, Nmap-based IT auditing tool); (c) if the host is a user workstation with no scanner role, investigate for compromise and escalate to L2.",
+      "hint": "Look at the pattern of destination addresses — do they increment sequentially across the same subnet? Sequential IPs probed in rapid succession indicate a host discovery sweep, not random traffic."
+    },
+    "knowledge_base_source_ids": ["src_l1_001"]
+  },
+  {
+    "type": "log_analysis",
+    "topic": "Suspicious scheduled task creation with encoded payload",
+    "points": 5,
+    "content": {
+      "question": "The following Windows Security events were collected from WORKSTATION-22. Identify (a) the attack technique, (b) the two field values that make this high-priority, and (c) the MITRE ATT&CK sub-technique.",
+      "log_format": "windows_event",
+      "log_excerpt": "Time=14:22:03 | EventID=4688 | SubjectUserName=tsmith | NewProcessName=C:\\Windows\\System32\\schtasks.exe | CommandLine=schtasks /create /tn \"\\Microsoft\\Windows\\UpdateHelper\" /tr \"powershell.exe -ExecutionPolicy Bypass -enc SQBuAHYAbwBrAGU=\" /sc ONSTART /ru SYSTEM\nTime=14:22:03 | EventID=4698 | SubjectUserName=tsmith | TaskName=\\Microsoft\\Windows\\UpdateHelper | TaskContent=<Actions><Exec><Command>powershell.exe</Command><Arguments>-ExecutionPolicy Bypass -enc SQBuAHYAbwBrAGU=</Arguments></Exec></Actions>\nTime=14:23:00 | EventID=4688 | SubjectUserName=SYSTEM | NewProcessName=C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe | CommandLine=powershell.exe -ExecutionPolicy Bypass -enc SQBuAHYAbwBrAGU= | ParentProcessName=C:\\Windows\\System32\\taskeng.exe",
+      "expected_findings": [
+        "Persistence via scheduled task (MITRE T1053.005) — Event 4698 records a new task named '\\Microsoft\\Windows\\UpdateHelper' registered by standard user tsmith, configured to run as SYSTEM on startup with a Base64-encoded PowerShell payload (-enc SQBuAHYAbwBrAGU=), which hides the actual malicious command from plain-text log inspection",
+        "The third event (14:23:00) confirms the task has already executed — taskeng.exe spawning powershell.exe with the encoded command proves the persistence mechanism is active; this is now an active execution incident, not just a creation alert"
+      ],
+      "sample_solution": "1. The three events tell a complete persistence story: (a) schtasks.exe is used to register a new task (4688 + 4698) that runs as SYSTEM at every system start; (b) the task action is powershell.exe -ExecutionPolicy Bypass -enc SQBuAHYAbwBrAGU= — the -enc flag Base64-encodes the payload to hide it; (c) taskeng.exe spawning powershell.exe one minute later confirms the task fired. 2. High-priority indicators: (a) '/ru SYSTEM' — a task registered by a standard user account (tsmith) but configured to run as SYSTEM is anomalous; standard users cannot legitimately create SYSTEM-privilege tasks. (b) '/sc ONSTART' with -enc argument — encoding the payload in a persistence mechanism is a classic anti-forensics technique. 3. MITRE sub-technique: T1053.005 (Scheduled Task/Job: Scheduled Task). Immediate action: escalate to L2 for PowerShell Script Block Log (Event 4104) review to decode and analyze the payload.",
+      "hint": "Check the /ru parameter in the schtasks command — it specifies the run-as account. If a non-admin user registers a task to run as SYSTEM, that is a red flag regardless of the task content."
+    },
+    "knowledge_base_source_ids": ["src_l1_005", "src_l1_006"]
+  }
+]

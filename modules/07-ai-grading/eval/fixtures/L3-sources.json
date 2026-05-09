@@ -1,0 +1,90 @@
+[
+  {
+    "id": "src_l3_001",
+    "name": "Threat Hunting — Sqrrl Funnel of Fidelity and Hypothesis-Driven Methodology",
+    "citation": "SANS Whitepaper: A Guide to Hunting in the Enterprise (Sqrrl / Amazon)",
+    "url": "https://www.sans.org/white-papers/38900/",
+    "level_fit": "L3",
+    "function": "hunting",
+    "description": "Threat hunting proactively searches for attackers that have evaded automated detections. The Sqrrl Funnel of Fidelity model progresses from high-volume, low-fidelity data (machine learning alerts) to low-volume, high-fidelity targeted queries, with human analysts adding context at each stage. L3 hunters formulate hypotheses from TTP patterns (e.g. 'APT29 uses GoldFinder for HTTP-based C2 on port 443 — hunt for fixed-interval low-byte-count HTTPS sessions to cloud providers'), express them as structured hunt queries in Splunk SPL/KQL/Sigma, and track findings in a hunt-ops journal with MITRE technique references. Hunts that find nothing are still valuable: they extend dwell-time visibility.",
+    "tags": ["threat-hunting", "hypothesis", "Sqrrl", "SANS", "Sigma", "dwell-time"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l3_002",
+    "name": "APT Group Attribution and Campaign Analysis",
+    "citation": "MITRE ATT&CK Groups Catalog",
+    "url": "https://attack.mitre.org/groups/",
+    "level_fit": "L3",
+    "function": "intelligence",
+    "description": "MITRE ATT&CK documents 130+ tracked adversary groups with their associated TTPs, software, and campaigns. L3 analysts perform attribution by matching observed TTPs against group profiles: Lazarus Group (G0032) favors BLINDINGCAN/COPPERHEDGE malware and targets financial institutions; APT29/Cozy Bear (G0016) uses SUNBURST/NOBELIUM toolchain and targets government/think tanks; FIN7 (G0046) uses Carbanak RAT against retail/hospitality POS. Attribution is probabilistic, not deterministic — Diamond Model elements (adversary, infrastructure, capability, victim) and confidence levels must accompany every attribution claim.",
+    "tags": ["APT", "attribution", "Diamond-Model", "MITRE-Groups", "threat-intelligence"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l3_003",
+    "name": "Malware Static Analysis — PE File Structure and Import Analysis",
+    "citation": "SANS FOR610: Reverse-Engineering Malware, Section 2",
+    "url": "https://www.sans.org/cyber-security-courses/reverse-engineering-malware-malware-analysis-tools-techniques/",
+    "level_fit": "L3",
+    "function": "forensics",
+    "description": "Static analysis extracts intelligence from a malware binary without executing it. Key techniques: PE header parsing (suspicious section names, abnormal section permissions RWX, low image size vs. overlay size indicating packers), import table analysis (VirtualAlloc+WriteProcessMemory+CreateRemoteThread = injection capability, InternetOpen+HttpSendRequest = C2 capable), string extraction (CyberChef for base64/hex/XOR decoding), and import hash (imphash) for family classification. Tools: PE-bear, pestudio, Ghidra (static RE), Cutter/Rizin. Entropy > 7.2 in the .text section indicates a packer; run through UPX or DIE (Detect-It-Easy) before further analysis.",
+    "tags": ["static-analysis", "PE-structure", "imphash", "packer", "FOR610", "SANS", "GREM"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l3_004",
+    "name": "Advanced Memory Forensics with Volatility 3",
+    "citation": "SANS FOR508: Advanced Incident Response, Threat Hunting, and Digital Forensics",
+    "url": "https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/",
+    "level_fit": "L3",
+    "function": "forensics",
+    "description": "Volatility 3 provides modular memory forensics against full RAM images. L3 analysts use: windows.malfind to detect process-hollowed or reflective-injected regions (MZ header in uncommitted RWX memory), windows.dlllist + windows.dumpfiles to extract injected DLLs not present on disk, windows.handles to enumerate open handles revealing C2 mutex names, windows.cmdline for reconstructing attacker command sequences, and windows.netscan for established connections that may have closed by the time EDR logged them. Correlating Volatility output with timeline analysis (plaso log2timeline) provides full attack sequencing.",
+    "tags": ["Volatility", "memory-forensics", "malfind", "process-hollow", "FOR508", "GCFE"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l3_005",
+    "name": "Super Timeline Analysis (log2timeline / plaso)",
+    "citation": "SANS FOR508: Advanced Incident Response, Section 4",
+    "url": "https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/",
+    "level_fit": "L3",
+    "function": "forensics",
+    "description": "A super timeline aggregates artifacts from NTFS MFT (file creation/modification/access/$MFT entries), Windows Event Logs, browser history, prefetch files, registry hives (ShimCache, AmCache, UserAssist, MRU), and network logs into a single chronologically sorted event stream. Tools: log2timeline.py (plaso), Timesketch for collaborative analysis, KAPE (Kroll Artifact Parser and Extractor) for rapid triage collection. Key forensic insights: $STANDARD_INFORMATION vs. $FILE_NAME timestamp discrepancies indicate timestomping (T1070.006); prefetch file creation timestamps reveal first execution times for living-off-the-land tools.",
+    "tags": ["timeline", "plaso", "log2timeline", "NTFS-MFT", "timestomping", "FOR508"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l3_006",
+    "name": "Supply Chain Attack (Initial Access)",
+    "citation": "MITRE ATT&CK T1195",
+    "url": "https://attack.mitre.org/techniques/T1195/",
+    "level_fit": "L3",
+    "function": "detection",
+    "description": "Adversaries compromise the software or hardware supply chain to insert malicious code into trusted products. SolarWinds SUNBURST (T1195.002 — Compromise Software Supply Chain) involved a malicious DLL injected into Orion build pipeline and digitally signed with SolarWinds certificates. Detection is extremely difficult post-infection; hunting indicators include: SUNBURST-specific domain generation algorithm (DGA) patterns, binary hash deviation from vendor-published checksums, and anomalous Orion process network connections to avsvmcloud.com sub-domains. Prevention: build pipeline integrity controls (Sigstore, SLSA framework), vendor security questionnaires, and software composition analysis (SBOM).",
+    "tags": ["supply-chain", "T1195", "SolarWinds", "SUNBURST", "SLSA", "SBOM", "MITRE"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l3_007",
+    "name": "Sigma Generic Detection Rule Format",
+    "citation": "Sigma Project GitHub — pySigma / sigmahq",
+    "url": "https://github.com/SigmaHQ/sigma",
+    "level_fit": "L3",
+    "function": "detection",
+    "description": "Sigma is a generic, vendor-neutral YAML format for describing detection rules that can be compiled to Splunk SPL, Elastic Query DSL, Microsoft Sentinel KQL, Chronicle YARA-L, and other SIEM query languages via pySigma backends. L3 analysts write Sigma rules with: logsource (category/product/service triplet), detection (keywords, condition, filters), falsepositives, and level (informational/low/medium/high/critical). Rules in the SigmaHQ/sigma repository cover 3000+ ATT&CK-mapped detections and are the de facto standard for portable detection engineering. Testing: sigma-rule-tester, evtx-attack-samples corpus.",
+    "tags": ["Sigma", "detection-engineering", "SIEM", "KQL", "SPL", "pySigma"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l3_008",
+    "name": "KQL Threat Hunting in Microsoft Sentinel / Defender XDR",
+    "citation": "Microsoft Sentinel KQL Hunting Query Documentation",
+    "url": "https://learn.microsoft.com/en-us/azure/sentinel/hunting",
+    "level_fit": "L3",
+    "function": "hunting",
+    "description": "KQL (Kusto Query Language) is the query language for Microsoft Sentinel, Defender XDR, and Azure Monitor. L3 hunters use KQL for: join operations across SecurityEvent, DeviceProcessEvents, and EmailEvents tables to correlate phishing receipt → malicious execution → C2 connection; extend + mv-expand to parse JSON payloads within event fields; and let statements for reusable sub-queries. Bookmark flagging and entity mapping convert hunt findings into incidents. Microsoft's 'Threat Hunter Playbook' (github.com/OTRF/ThreatHunter-Playbook) provides 200+ KQL-based hunt patterns mapped to ATT&CK techniques.",
+    "tags": ["KQL", "Sentinel", "Defender-XDR", "threat-hunting", "Microsoft", "SIEM"],
+    "kb_version": "2026-05-09"
+  }
+]

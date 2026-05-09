@@ -1,0 +1,90 @@
+[
+  {
+    "id": "src_l1_001",
+    "name": "Incident Triage and Prioritization",
+    "citation": "NIST SP 800-61 Rev 2, Section 3.2",
+    "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+    "level_fit": "L1",
+    "function": "triage",
+    "description": "Structured approach to prioritizing security incidents using functional impact (None/Low/Medium/High), informational impact, and recoverability ratings. L1 analysts apply the two-axis triage matrix before escalation to determine ticket urgency, SLA category, and whether containment can be deferred.",
+    "tags": ["triage", "incident-priority", "NIST", "CySA", "SLA"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l1_002",
+    "name": "Phishing (Initial Access)",
+    "citation": "MITRE ATT&CK T1566",
+    "url": "https://attack.mitre.org/techniques/T1566/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Adversaries send crafted emails with malicious links or attachments to gain initial access. L1 analysts identify phishing by examining sender spoofing, mismatched reply-to headers, urgent call-to-action language, hoverable link destinations, and payload file extensions. All three sub-techniques (spearphishing attachment T1566.001, spearphishing link T1566.002, spearphishing via service T1566.003) should be distinguishable at L1.",
+    "tags": ["phishing", "initial-access", "MITRE", "email", "social-engineering"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l1_003",
+    "name": "Windows Event ID 4625 — Failed Account Logon",
+    "citation": "Microsoft Security Auditing Reference: Event 4625",
+    "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4625",
+    "level_fit": "L1",
+    "function": "analysis",
+    "description": "Generated on the computer where a logon attempt was made when it fails. Key fields: Account Name, Logon Type (2=interactive, 3=network, 10=RemoteInteractive), Failure Reason, Caller Process Name, and Source Network Address. Logon Type 3 failures from external IPs are high-priority triage signals. Sub-Status 0xC000006D means wrong username; 0xC000006A means wrong password — useful for distinguishing typo-caused lockouts from credential stuffing.",
+    "tags": ["windows-event", "4625", "failed-logon", "SIEM"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l1_004",
+    "name": "Windows Event ID 4688 — Process Created",
+    "citation": "Microsoft Security Auditing Reference: Event 4688",
+    "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4688",
+    "level_fit": "L1",
+    "function": "analysis",
+    "description": "Logged whenever a new process is created, including Parent Process Name, New Process Name, Token Elevation Type, and (when command-line auditing is enabled) the full command line. L1 analysts use 4688 to verify whether cmd.exe or powershell.exe was spawned by an Office application (parent-process chaining), which is a key Emotet/Qakbot indicator. Requires 'Audit Process Creation' and 'Include command line in process creation events' GPO settings.",
+    "tags": ["windows-event", "4688", "process-creation", "parent-process", "SIEM"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l1_005",
+    "name": "Windows Event ID 4698 — Scheduled Task Created",
+    "citation": "Microsoft Security Auditing Reference: Event 4698",
+    "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4698",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Generated when a new scheduled task is registered. Adversaries use scheduled tasks for persistence (MITRE T1053.005). L1 analysts should examine Task Name, Task Content (especially Action URI), and Subject Account — tasks created by non-administrative accounts or with base64-encoded command-line actions are high-priority escalations. Companion events: 4702 (task modified), 4699 (task deleted).",
+    "tags": ["windows-event", "4698", "scheduled-task", "persistence", "MITRE-T1053"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l1_006",
+    "name": "Command and Scripting Interpreter",
+    "citation": "MITRE ATT&CK T1059",
+    "url": "https://attack.mitre.org/techniques/T1059/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Adversaries abuse command and script interpreters to execute commands, scripts, or binaries. L1 analysts flag anomalous interpreter usage: PowerShell (T1059.001) spawned by Office applications, cmd.exe (T1059.003) launched by web server processes (IIS w3wp.exe), and wscript/cscript (T1059.005) running from temp or user download directories. ExecutionPolicy Bypass flags (-ep bypass, -exec bypass) in event 4688 command-line data are mandatory escalation triggers.",
+    "tags": ["scripting", "T1059", "PowerShell", "cmd", "MITRE", "execution"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l1_007",
+    "name": "Phishing Indicators of Compromise (IOC) Identification",
+    "citation": "CompTIA Security+ SY0-701 Objective 2.4",
+    "url": "https://www.comptia.org/certifications/security",
+    "level_fit": "L1",
+    "function": "analysis",
+    "description": "IOCs extracted from phishing emails include sender domain/IP reputation, malicious URL patterns (typosquatting, homograph attacks), attachment hash values matched against VirusTotal/MalwareBazaar, and macro-enabled Office document metadata. L1 analysts submit IOCs to the threat intelligence platform and check existing blacklists before determining whether wider investigation is warranted. False IOC submission (e.g. submitting internal scanner IP) degrades the shared intelligence feed quality.",
+    "tags": ["phishing", "IOC", "email-analysis", "VirusTotal", "CompTIA"],
+    "kb_version": "2026-05-09"
+  },
+  {
+    "id": "src_l1_008",
+    "name": "EDR Alert Triage (CrowdStrike / Defender for Endpoint)",
+    "citation": "CompTIA CySA+ CS0-003 Objective 2.2",
+    "url": "https://www.comptia.org/certifications/cybersecurity-analyst",
+    "level_fit": "L1",
+    "function": "triage",
+    "description": "Endpoint Detection and Response platforms generate behavioral detections based on process telemetry, file events, registry changes, and network connections. L1 analysts review alert severity (Informational/Low/Medium/High/Critical), the detection technique mapping to MITRE ATT&CK, and the parent-process tree. Quarantine actions on endpoints should only be taken after L1 confirms with the asset owner that the host is not business-critical, or after L2 escalation for production systems.",
+    "tags": ["EDR", "CrowdStrike", "Defender", "triage", "endpoint", "MITRE"],
+    "kb_version": "2026-05-09"
+  }
+]

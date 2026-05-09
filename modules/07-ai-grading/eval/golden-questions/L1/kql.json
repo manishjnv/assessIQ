@@ -1,0 +1,62 @@
+[
+  {
+    "type": "kql",
+    "topic": "Filter SecurityEvent for failed network logons from external IPs",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against the Microsoft Sentinel SecurityEvent table to find all failed network logon attempts (Event ID 4625, LogonType 3) originating from external (non-RFC-1918) IP addresses in the past 24 hours. Return the target username, source IP, failure reason (SubStatus), and timestamp, sorted by most recent first. Limit to 100 results.",
+      "tables": ["SecurityEvent"],
+      "expected_keywords": ["SecurityEvent", "4625", "where", "project", "sort", "take"],
+      "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4625\n| where LogonType == 3\n| where IpAddress !startswith \"10.\"\n    and IpAddress !startswith \"192.168.\"\n    and IpAddress !startswith \"172.\"\n    and IpAddress != \"-\"\n| project TimeGenerated, TargetUserName, IpAddress, SubStatus, WorkstationName, Computer\n| sort by TimeGenerated desc\n| take 100"
+    },
+    "knowledge_base_source_ids": ["src_l1_003"]
+  },
+  {
+    "type": "kql",
+    "topic": "Find process creation events where Office apps spawn command interpreters",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against the Microsoft Sentinel SecurityEvent table to detect process creation events (Event ID 4688) where a Microsoft Office application (WINWORD.EXE, EXCEL.EXE, or POWERPNT.EXE) is the parent process of a command interpreter (cmd.exe or powershell.exe) in the past 48 hours. Return the parent process, child process, command line, user, and host, sorted by most recent first.",
+      "tables": ["SecurityEvent"],
+      "expected_keywords": ["SecurityEvent", "4688", "where", "contains", "project", "sort"],
+      "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(48h)\n| where EventID == 4688\n| where ParentProcessName has_any (\"WINWORD.EXE\", \"EXCEL.EXE\", \"POWERPNT.EXE\")\n| where NewProcessName has_any (\"cmd.exe\", \"powershell.exe\", \"pwsh.exe\", \"wscript.exe\", \"cscript.exe\")\n| project TimeGenerated, Computer, SubjectUserName, ParentProcessName, NewProcessName, CommandLine\n| sort by TimeGenerated desc"
+    },
+    "knowledge_base_source_ids": ["src_l1_004"]
+  },
+  {
+    "type": "kql",
+    "topic": "Find newly created scheduled tasks registered by non-SYSTEM accounts",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against the Microsoft Sentinel SecurityEvent table to find all scheduled task creation events (Event ID 4698) in the past 7 days where the registering account is not a SYSTEM account (SubjectUserName does not end in '$' and is not 'SYSTEM'). Return the task name, registering account, host, and timestamp, sorted by most recent first.",
+      "tables": ["SecurityEvent"],
+      "expected_keywords": ["SecurityEvent", "4698", "where", "project", "sort"],
+      "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(7d)\n| where EventID == 4698\n| where SubjectUserName != \"SYSTEM\"\n| where SubjectUserName !endswith \"$\"\n| project TimeGenerated, Computer, SubjectUserName, SubjectDomainName, TaskName, EventData\n| sort by TimeGenerated desc"
+    },
+    "knowledge_base_source_ids": ["src_l1_005"]
+  },
+  {
+    "type": "kql",
+    "topic": "Detect PowerShell with execution-bypass flags in SecurityEvent 4688",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against the Microsoft Sentinel SecurityEvent table to find process creation events (Event ID 4688) where powershell.exe was launched with execution-policy bypass flags (-ep bypass, -ExecutionPolicy Bypass, -exec bypass) or encoded-command flags (-enc, -EncodedCommand) in the past 24 hours. Return the user, host, full command line, and timestamp.",
+      "tables": ["SecurityEvent"],
+      "expected_keywords": ["SecurityEvent", "4688", "where", "contains", "project", "sort"],
+      "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4688\n| where NewProcessName has \"powershell\"\n| where CommandLine has_any (\n    \"-ExecutionPolicy Bypass\",\n    \"-ep bypass\",\n    \"-exec bypass\",\n    \"-EncodedCommand\",\n    \"-enc \",\n    \"-ec \"\n  )\n| project TimeGenerated, Computer, SubjectUserName, NewProcessName, CommandLine, ParentProcessName\n| sort by TimeGenerated desc"
+    },
+    "knowledge_base_source_ids": ["src_l1_006", "src_l1_004"]
+  },
+  {
+    "type": "kql",
+    "topic": "Find external interactive logons in SigninLogs outside business hours",
+    "points": 5,
+    "content": {
+      "question": "Write a KQL query against the Microsoft Sentinel SigninLogs table to find successful interactive sign-ins (ResultType == 0) from IP addresses outside the corporate IP range (not starting with 10.0.) that occurred outside typical business hours (before 07:00 or after 20:00 UTC) in the past 7 days. Return the user, source IP, location, and timestamp.",
+      "tables": ["SigninLogs"],
+      "expected_keywords": ["SigninLogs", "where", "project", "contains"],
+      "sample_solution": "SigninLogs\n| where TimeGenerated > ago(7d)\n| where ResultType == 0\n| where IPAddress !startswith \"10.0.\"\n| where hourofday(TimeGenerated) < 7 or hourofday(TimeGenerated) >= 20\n| project TimeGenerated, UserPrincipalName, IPAddress, Location, AppDisplayName, DeviceDetail\n| sort by TimeGenerated desc"
+    },
+    "knowledge_base_source_ids": ["src_l1_002"]
+  }
+]
