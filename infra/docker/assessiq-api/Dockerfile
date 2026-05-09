@@ -71,9 +71,14 @@ WORKDIR /app
 # preserves directory contents.
 COPY --from=deps /app/. ./
 
-# Drop privileges. The `node` user is uid 1000 in node:22-alpine.
 RUN chown -R node:node /app
-USER node
+
+# Runs as root: container needs to read /root/.claude/.credentials.json
+# (mode 600, root-owned) for claude CLI auth. Per 2026-05-09 RCA,
+# whole-dir mount + USER root replaces the per-file mount pattern
+# that broke on every claude version bump. Single-tenant admin container;
+# node-user isolation adds little real security here.
+USER root
 
 WORKDIR /app/apps/api
 
