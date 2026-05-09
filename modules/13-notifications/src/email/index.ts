@@ -190,12 +190,17 @@ export async function processEmailSendJob(
 
   // Mark 'sending' before opening SMTP connection.
   if (tenantId !== null) {
-    await withTenant(tenantId, (client) =>
+    const rowsAffected = await withTenant(tenantId, (client) =>
       repo.updateEmailLogStatus(client, emailLogId, {
         status: 'sending',
         attempts: 1,
       }),
     );
+    if (rowsAffected === 0) {
+      log.error({ emailLogId }, 'email_log.update.no_rows_affected');
+    } else {
+      log.debug({ emailLogId, rowsAffected }, 'email_log.update.ok');
+    }
   }
 
   try {
@@ -210,7 +215,7 @@ export async function processEmailSendJob(
     const providerMessageId = String(result.messageId ?? '');
 
     if (tenantId !== null) {
-      await withTenant(tenantId, (client) =>
+      const rowsAffected = await withTenant(tenantId, (client) =>
         repo.updateEmailLogStatus(client, emailLogId, {
           status: 'sent',
           providerMessageId,
@@ -218,6 +223,11 @@ export async function processEmailSendJob(
           attempts: 1,
         }),
       );
+      if (rowsAffected === 0) {
+        log.error({ emailLogId }, 'email_log.update.no_rows_affected');
+      } else {
+        log.debug({ emailLogId, rowsAffected }, 'email_log.update.ok');
+      }
     }
 
     log.info({ emailLogId, to, template: templateId, providerMessageId }, 'email.sent');
@@ -247,13 +257,18 @@ export async function processEmailSendJob(
         // ignore secondary error
       }
 
-      await withTenant(tenantId, (client) =>
+      const failRowsAffected = await withTenant(tenantId, (client) =>
         repo.updateEmailLogStatus(client, emailLogId, {
           status: 'failed',
           lastError: errorMessage,
           attempts: currentAttempts,
         }),
       );
+      if (failRowsAffected === 0) {
+        log.error({ emailLogId }, 'email_log.update.no_rows_affected');
+      } else {
+        log.debug({ emailLogId, rowsAffected: failRowsAffected }, 'email_log.update.ok');
+      }
     }
 
     // Re-throw so BullMQ retries.

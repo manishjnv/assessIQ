@@ -101,6 +101,15 @@ export async function insertEmailLog(
   return rowToEmailRecord(result.rows[0]!);
 }
 
+/**
+ * Update email_log status fields. Returns the number of rows affected.
+ *
+ * Returns 0 when no row matched `id` — callers MUST log an error in that
+ * case so RLS misses and stale-id bugs are immediately detectable.
+ *
+ * `id` is typed as `string` (never `number`) so TypeScript rejects
+ * uuid.length–style coercions at the call site.
+ */
 export async function updateEmailLogStatus(
   client: PoolClient,
   id: string,
@@ -111,8 +120,8 @@ export async function updateEmailLogStatus(
     sentAt?: Date;
     attempts?: number;
   },
-): Promise<void> {
-  await client.query(
+): Promise<number> {
+  const result = await client.query(
     `UPDATE email_log SET
        status = $2,
        provider_message_id = COALESCE($3, provider_message_id),
@@ -129,6 +138,7 @@ export async function updateEmailLogStatus(
       updates.attempts ?? null,
     ],
   );
+  return result.rowCount ?? 0;
 }
 
 export async function getEmailLogById(

@@ -113,14 +113,17 @@ function buildRedis(): Redis {
 // ---------------------------------------------------------------------------
 
 /**
- * Result shape emitted in the success log. Contains only integer counts —
- * never raw row data — so the redaction layer at pino is purely defence-in-depth.
+ * Result shape emitted in the success log.
+ * Cron jobs return integer counts; per-email/webhook jobs return string IDs
+ * and status strings. Using `unknown` so TypeScript rejects numeric coercions
+ * (e.g. uuid.length) at the call site — the type check on the DB helper
+ * (id: string) already rejects numbers at the repository layer.
  *
  * `tenant_id` is null at this wrapper level because boundary-cron and
  * timer-sweep iterate ALL tenants in a single tick rather than targeting one.
  * Future per-tenant jobs will populate this field.
  */
-type JobResult = Record<string, number>;
+type JobResult = Record<string, unknown>;
 
 /**
  * Wraps a job processor `fn` with structured start/end log lines and
@@ -350,17 +353,11 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processTimerSweepTick);
         case EMAIL_SEND_JOB_NAME:
           return runJobWithLogging(job, () =>
-            processEmailSendJob(job.data as EmailSendJobData).then((r) => ({
-              emailLogId: r.emailLogId.length,
-              status: r.status === 'sent' ? 1 : 0,
-            })),
+            processEmailSendJob(job.data as EmailSendJobData),
           );
         case WEBHOOK_DELIVER_JOB_NAME:
           return runJobWithLogging(job, () =>
-            processWebhookDeliverJob(job as Job<WebhookDeliverJobData>).then((r) => ({
-              deliveryId: r.deliveryId.length,
-              status: r.httpStatus ?? 0,
-            })),
+            processWebhookDeliverJob(job as Job<WebhookDeliverJobData>),
           );
         case MV_REFRESH_JOB_NAME:
           return runJobWithLogging(job, processRefreshMvJob);

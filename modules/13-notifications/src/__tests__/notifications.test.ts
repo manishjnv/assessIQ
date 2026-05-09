@@ -130,7 +130,7 @@ vi.mock('../repository.js', () => ({
     sent_at: null,
     created_at: new Date(),
   }),
-  updateEmailLogStatus: vi.fn().mockResolvedValue(undefined),
+  updateEmailLogStatus: vi.fn().mockResolvedValue(1),
   getEmailLogById: vi.fn().mockResolvedValue(null),
   insertWebhookEndpoint: vi.fn().mockImplementation((_, input) => ({
     id: input.id,
