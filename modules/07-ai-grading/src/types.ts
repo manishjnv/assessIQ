@@ -197,6 +197,13 @@ export interface GeneratedQuestionDraft {
   points: number;
   content: unknown;
   rubric: unknown | null;
+  /**
+   * Raw source IDs exactly as emitted by the model via submit_questions.
+   * Preserved through the runtime so the handler can enforce the citation
+   * HARD RULE mechanically (any ID not in input.sources[].id causes the
+   * question to be dropped). See admin-generate.ts filterByCitation().
+   */
+  knowledge_base_source_ids: string[];
   /** KbSource.id values from the KB slice — for provenance chips. */
   knowledgeBaseSources: Array<{
     id: string;
