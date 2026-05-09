@@ -1,6 +1,6 @@
 ---
 name: generate-mcq
-version: "2026-05-09c"
+version: "2026-05-09d"
 model: claude-sonnet-4-6
 description: |
   Generate multiple-choice questions (MCQ) for SOC analyst assessments grounded
@@ -100,6 +100,31 @@ Call `submit_questions` exactly once with a JSON array. Each object must be:
 `correct` is the 0-based index of the correct option in the `options` array.
 Points: L1 = 1–2, L2 = 2–3, L3 = 3–5.
 
+## Question content shape (HARD RULE)
+
+Every question you submit MUST use the exact `content` object
+shape below. Field names are case-sensitive and not negotiable.
+Synonym names ("stem" for "question", "explanation" for
+"rationale", "answer_key" etc.) WILL cause the question to be
+rejected at the comparator and to render as a JSON dump in the
+admin UI.
+
+Required content shape for mcq:
+```json
+{
+  "question": "<clear question text>",
+  "options": ["<A>", "<B>", "<C>", "<D>"],
+  "correct": 0,
+  "rationale": "<explains correct answer and why each distractor is wrong>"
+}
+```
+
+Field synonyms that are FORBIDDEN — do not use any of these:
+  stem, prompt, explanation, correct_answer, answer, answer_key
+
+If you find yourself wanting to rename a field for clarity, DON'T.
+The field names are the contract.
+
 ## Source-citation contract (HARD RULE)
 
 For every question you generate, `knowledge_base_source_ids`
@@ -121,6 +146,29 @@ real concepts:
 If you cannot identify at least one matching `source.id` for
 a question, drop the question rather than inventing or
 substituting a citation.
+
+### Forbidden citation patterns (re-emphasis)
+
+These patterns appear repeatedly in past failed runs and MUST be
+avoided:
+
+  knowledge_base_source_ids: ["mitre.t1003"]                  WRONG
+  knowledge_base_source_ids: ["mitre.t1558.003"]              WRONG
+  knowledge_base_source_ids: ["T1003.001"]                    WRONG
+  knowledge_base_source_ids: ["T1558.003"]                    WRONG
+  knowledge_base_source_ids: ["sysmon-event-10"]              WRONG
+  knowledge_base_source_ids: ["nist-csf"]                     WRONG
+  knowledge_base_source_ids: ["mitre-attack"]                 WRONG
+
+These are MITRE technique IDs, framework names, or invented topic
+tags. They are NOT entries in the `sources` array. The ONLY
+acceptable values are strings that appear verbatim as `id` fields
+in the `sources` array provided in the prompt — e.g. "src_l1_001",
+"src_l2_007", "src_l3_004".
+
+Before you call submit_questions, mentally check: for each value
+in knowledge_base_source_ids, can I find that exact string in the
+sources array under the `id` key? If no, drop the question.
 
 ## Tool-use policy
 
