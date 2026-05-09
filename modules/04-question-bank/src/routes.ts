@@ -504,6 +504,122 @@ export async function registerQuestionBankRoutes(
     },
   );
 
+  // GET /api/admin/generation-attempts
+  // Cross-pack history view for AI question-generation attempts.
+  // Query params (all optional):
+  //   status   — filter by status enum (success/partial/failed/running)
+  //   model    — substring match on model column
+  //   pack_id  — exact UUID match
+  //   level_id — exact UUID match
+  //   since    — ISO-8601; only attempts with started_at >= since
+  //   limit    — int 1-100, default 50
+  //   offset   — int >= 0, default 0
+  // Returns: { items: GenerationAttempt[], total: number, limit, offset }
+  app.get(
+    "/api/admin/generation-attempts",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const q = req.query as Record<string, string | undefined>;
+
+      const rawStatus = q["status"];
+      const rawModel = q["model"];
+      const rawPackId = q["pack_id"];
+      const rawLevelId = q["level_id"];
+      const rawSince = q["since"];
+
+      const rawLimit = parseInt(q["limit"] ?? "50", 10);
+      const rawOffset = parseInt(q["offset"] ?? "0", 10);
+
+      const limitVal = !isNaN(rawLimit) && rawLimit >= 1 && rawLimit <= 100 ? rawLimit : 50;
+      const offsetVal = !isNaN(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+
+      const validStatuses = ["success", "partial", "failed", "running"];
+      const statusVal = rawStatus && validStatuses.includes(rawStatus) ? rawStatus : null;
+
+      const { withTenant: wt } = await import("@assessiq/tenancy");
+      return wt(tenantId, async (client) => {
+        // Build dynamic WHERE clause — always tenant-scoped (RLS enforces it, but
+        // explicit params give the query planner better selectivity).
+        const conditions: string[] = [];
+        const params: unknown[] = [];
+
+        if (statusVal) {
+          params.push(statusVal);
+          conditions.push(`status = $${params.length}`);
+        }
+        if (rawModel) {
+          params.push(`%${rawModel}%`);
+          conditions.push(`model ILIKE $${params.length}`);
+        }
+        if (rawPackId) {
+          params.push(rawPackId);
+          conditions.push(`pack_id = $${params.length}`);
+        }
+        if (rawLevelId) {
+          params.push(rawLevelId);
+          conditions.push(`level_id = $${params.length}`);
+        }
+        if (rawSince) {
+          const sinceDate = new Date(rawSince);
+          if (!isNaN(sinceDate.getTime())) {
+            params.push(sinceDate.toISOString());
+            conditions.push(`started_at >= $${params.length}`);
+          }
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        // Two-query pattern (mirrors the existing list endpoints in this file):
+        // 1. COUNT(*) — cheap planning estimate
+        // 2. Page select with ORDER BY + LIMIT/OFFSET
+        const countResult = await client.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM generation_attempts ${where}`,
+          params,
+        );
+        const total = parseInt(countResult.rows[0]?.count ?? "0", 10);
+
+        params.push(limitVal);
+        const limitParam = params.length;
+        params.push(offsetVal);
+        const offsetParam = params.length;
+
+        const itemsResult = await client.query<{
+          id: string;
+          status: string;
+          count_requested: number;
+          count_inserted: number;
+          error_code: string | null;
+          error_message: string | null;
+          stderr_tail: string | null;
+          skill_sha: string | null;
+          model: string | null;
+          chunks_planned: number | null;
+          chunks_failed: number | null;
+          dedupe_dropped: number | null;
+          duration_ms: number | null;
+          started_at: string;
+          finished_at: string | null;
+          pack_id: string;
+          level_id: string;
+          user_id: string | null;
+        }>(
+          `SELECT id, status, count_requested, count_inserted,
+                  error_code, error_message, stderr_tail, skill_sha,
+                  model, chunks_planned, chunks_failed, dedupe_dropped,
+                  duration_ms, started_at, finished_at, pack_id, level_id, user_id
+           FROM generation_attempts
+           ${where}
+           ORDER BY started_at DESC
+           LIMIT $${limitParam} OFFSET $${offsetParam}`,
+          params,
+        );
+
+        return { items: itemsResult.rows, total, limit: limitVal, offset: offsetVal };
+      });
+    },
+  );
+
   // GET /api/admin/packs/:packId/levels/:levelId/generation-attempts
   // Returns the most recent 5 generation attempts for this pack+level so admins
   // can diagnose why a "Generate" click produced 0 rows without SSH'ing the VPS.
