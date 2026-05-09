@@ -229,6 +229,61 @@ export interface RecordEventInput {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical candidate-answer payload schemas (Stage 1.5d shape lock)
+// ---------------------------------------------------------------------------
+//
+// Zod schemas for the five canonical answer shapes. The service layer stores
+// answers as `unknown`; grading and reporting callers use these schemas to
+// safely narrow the stored answer to its canonical type.
+//
+// Field names are locked to the sharded-generation output — do NOT rename.
+
+export const McqAnswerPayloadSchema = z.object({
+  /** Index into content.options[], 0–3. */
+  selected: z.number().int().min(0).max(3),
+});
+
+export const LogAnalysisAnswerPayloadSchema = z.object({
+  /** Candidate's anchor list — each item is a cited log field / value. */
+  findings: z.array(z.string()),
+  /** Candidate's reasoning paragraph explaining what the findings indicate. */
+  explanation: z.string(),
+});
+
+export const ScenarioStepAnswerSchema = z.object({
+  stepIndex: z.number().int().nonnegative(),
+  response: z.string(),
+});
+
+export const ScenarioAnswerPayloadSchema = z.object({
+  steps: z.array(ScenarioStepAnswerSchema),
+});
+
+export const KqlAnswerPayloadSchema = z.object({
+  /** The candidate's KQL query text. */
+  query: z.string(),
+});
+
+export const SubjectiveAnswerPayloadSchema = z.object({
+  /** The candidate's free-text response. */
+  response: z.string(),
+});
+
+export type McqAnswerPayload = z.infer<typeof McqAnswerPayloadSchema>;
+export type LogAnalysisAnswerPayload = z.infer<typeof LogAnalysisAnswerPayloadSchema>;
+export type ScenarioAnswerPayload = z.infer<typeof ScenarioAnswerPayloadSchema>;
+export type KqlAnswerPayload = z.infer<typeof KqlAnswerPayloadSchema>;
+export type SubjectiveAnswerPayload = z.infer<typeof SubjectiveAnswerPayloadSchema>;
+
+/** Discriminated union of all five canonical candidate-answer payload types. */
+export type CandidateAnswerPayload =
+  | McqAnswerPayload
+  | LogAnalysisAnswerPayload
+  | ScenarioAnswerPayload
+  | KqlAnswerPayload
+  | SubjectiveAnswerPayload;
+
+// ---------------------------------------------------------------------------
 // Error codes
 // ---------------------------------------------------------------------------
 

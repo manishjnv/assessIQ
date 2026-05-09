@@ -58,16 +58,61 @@ type PageState =
   | { tag: 'network_error' }        // 5xx / fetch failure → IntegrityBanner
   | { tag: 'ready'; view: CandidateAttemptViewWire };
 
-// Narrowed content types for the answer area (FrozenQuestionWire.content is unknown)
-interface McqOption {
-  id: string;
-  text: string;
+// ─── Canonical content types (Stage 1.5d shape lock) ──────────────────────────
+//
+// Field names are locked to the sharded-generation output.
+// Any question whose content contains a FORBIDDEN SYNONYM key must render
+// <MalformedQuestion> — no partial render of legacy DB rows.
+const FORBIDDEN_SYNONYM_KEYS: ReadonlySet<string> = new Set([
+  'stem', 'explanation', 'log_snippet', 'answer_key', 'task', 'correct_answer',
+]);
+
+function hasForbiddenSynonym(content: unknown): boolean {
+  if (typeof content !== 'object' || content === null) return false;
+  return Object.keys(content as object).some((k) => FORBIDDEN_SYNONYM_KEYS.has(k));
 }
+
+// mcq: { question, options: string[], correct: number, rationale? }
 interface McqContent {
-  options: McqOption[];
+  question: string;
+  options: string[];   // 4 option texts, indexed 0–3
+  correct: number;     // not rendered to candidate
+  rationale?: string;  // not rendered to candidate
 }
+
+// log_analysis: { question, log_format?, log_excerpt, expected_findings?, sample_solution?, hint? }
+interface LogAnalysisContent {
+  question: string;
+  log_format?: string;
+  log_excerpt: string;
+  expected_findings?: string[];
+  sample_solution?: string;
+  hint?: string;
+}
+
+// scenario: { title, intro, step_dependency?, steps[{ prompt, expected? }] }
+interface ScenarioStep {
+  prompt: string;
+  expected?: string; // not rendered to candidate
+}
+interface ScenarioContent {
+  title: string;
+  intro: string;
+  step_dependency?: 'linear' | 'dag';
+  steps: ScenarioStep[];
+}
+
+// kql: { question, tables?, expected_keywords?, sample_solution? }
+interface KqlContent {
+  question: string;
+  tables?: string[];
+  expected_keywords?: string[];
+  sample_solution?: string; // not rendered to candidate
+}
+
+// subjective: { question }
 interface SubjectiveContent {
-  expected_word_count?: number;
+  question: string;
 }
 
 // ─── Style constants ─────────────────────────────────────────────────────────
@@ -121,29 +166,35 @@ function McqAnswerArea({
   question: FrozenQuestionWire;
   answer: unknown;
   disabled: boolean;
-  onAnswerChange: (value: string) => void;
+  onAnswerChange: (value: unknown) => void;
 }): JSX.Element {
   const content = question.content as McqContent;
-  const options: McqOption[] = Array.isArray(content?.options) ? content.options : [];
-  const selectedId = typeof answer === 'string' ? answer : null;
+  const options: string[] = Array.isArray(content?.options) ? (content.options as string[]) : [];
+  // Canonical answer shape: { selected: number } — index into options[].
+  const answerObj =
+    answer !== null && typeof answer === 'object'
+      ? (answer as { selected?: unknown })
+      : null;
+  const selected: number | null =
+    typeof answerObj?.selected === 'number' ? answerObj.selected : null;
 
   return (
     <div role="radiogroup" aria-label="Answer options" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
-      {options.map((opt) => {
-        const isSelected = opt.id === selectedId;
+      {options.map((text, idx) => {
+        const isSelected = selected === idx;
         return (
           <label
-            key={opt.id}
+            key={idx}
             style={{ display: 'block', cursor: disabled ? 'not-allowed' : 'pointer' }}
           >
             {/* Hidden radio for a11y — Card is the visual affordance */}
             <input
               type="radio"
               name={question.question_id}
-              value={opt.id}
+              value={String(idx)}
               checked={isSelected}
               disabled={disabled}
-              onChange={() => onAnswerChange(opt.id)}
+              onChange={() => onAnswerChange({ selected: idx })}
               style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
             />
             <Card
@@ -168,7 +219,7 @@ function McqAnswerArea({
                   lineHeight: 1.5,
                 }}
               >
-                {opt.text}
+                {text}
               </span>
             </Card>
           </label>
@@ -185,21 +236,22 @@ function countWords(text: string): number {
 }
 
 function SubjectiveAnswerArea({
-  question,
   answer,
   disabled,
   onAnswerChange,
   onBlur,
 }: {
-  question: FrozenQuestionWire;
   answer: unknown;
   disabled: boolean;
-  onAnswerChange: (value: string) => void;
+  onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
 }): JSX.Element {
-  const content = question.content as SubjectiveContent | null;
-  const expectedWordCount = content?.expected_word_count ?? null;
-  const text = typeof answer === 'string' ? answer : '';
+  // Canonical answer shape: { response: string }
+  const answerObj =
+    answer !== null && typeof answer === 'object'
+      ? (answer as { response?: unknown })
+      : null;
+  const text = typeof answerObj?.response === 'string' ? answerObj.response : '';
   const wordCount = countWords(text);
 
   return (
@@ -207,7 +259,7 @@ function SubjectiveAnswerArea({
       <textarea
         value={text}
         disabled={disabled}
-        onChange={(e) => onAnswerChange(e.target.value)}
+        onChange={(e) => onAnswerChange({ response: e.target.value })}
         onBlur={onBlur}
         aria-label="Your answer"
         style={{
@@ -234,54 +286,80 @@ function SubjectiveAnswerArea({
           textAlign: 'right',
         }}
       >
-        {wordCount} / {expectedWordCount !== null ? expectedWordCount : '—'} words
+        {wordCount} words
       </div>
     </div>
   );
 }
 
 function KqlAnswerArea({
+  question,
   answer,
   disabled,
   onAnswerChange,
   onBlur,
 }: {
+  question: FrozenQuestionWire;
   answer: unknown;
   disabled: boolean;
-  onAnswerChange: (value: string) => void;
+  onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
 }): JSX.Element {
   // TODO(phase-2): Monaco-based <KqlEditor> with KQL grammar — Phase 2 deferred
   // (decision #11 in PHASE_1_KICKOFF.md). Phase 1 uses a textarea.
-  const text = typeof answer === 'string' ? answer : '';
+  const content = question.content as KqlContent;
+  const tables: string[] = Array.isArray(content?.tables) ? (content.tables as string[]) : [];
+  // Canonical answer shape: { query: string }
+  const answerObj =
+    answer !== null && typeof answer === 'object'
+      ? (answer as { query?: unknown })
+      : null;
+  const text = typeof answerObj?.query === 'string' ? answerObj.query : '';
+
   return (
-    <textarea
-      value={text}
-      disabled={disabled}
-      onChange={(e) => onAnswerChange(e.target.value)}
-      onBlur={onBlur}
-      aria-label="KQL query"
-      style={{
-        width: '100%',
-        minHeight: 200,
-        padding: 'var(--aiq-space-md)',
-        fontFamily: 'var(--aiq-font-mono)',
-        fontSize: 13,
-        lineHeight: 1.6,
-        color: 'var(--aiq-color-fg-primary)',
-        background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
-        border: '1px solid var(--aiq-color-border)',
-        borderRadius: 'var(--aiq-radius-md)',
-        resize: 'vertical',
-        boxSizing: 'border-box',
-        outline: 'none',
-      }}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
+      {tables.length > 0 && (
+        <div
+          style={{
+            fontFamily: 'var(--aiq-font-mono)',
+            fontSize: 12,
+            color: 'var(--aiq-color-fg-muted)',
+            padding: 'var(--aiq-space-xs) var(--aiq-space-sm)',
+            background: 'var(--aiq-color-bg-raised)',
+            borderRadius: 'var(--aiq-radius-sm)',
+          }}
+        >
+          Tables: {tables.join(', ')}
+        </div>
+      )}
+      <textarea
+        value={text}
+        disabled={disabled}
+        onChange={(e) => onAnswerChange({ query: e.target.value })}
+        onBlur={onBlur}
+        aria-label="KQL query"
+        style={{
+          width: '100%',
+          minHeight: 200,
+          padding: 'var(--aiq-space-md)',
+          fontFamily: 'var(--aiq-font-mono)',
+          fontSize: 13,
+          lineHeight: 1.6,
+          color: 'var(--aiq-color-fg-primary)',
+          background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
+          border: '1px solid var(--aiq-color-border)',
+          borderRadius: 'var(--aiq-radius-md)',
+          resize: 'vertical',
+          boxSizing: 'border-box',
+          outline: 'none',
+        }}
+      />
+    </div>
   );
 }
 
-function UnsupportedAnswerArea({ type }: { type: string }): JSX.Element {
-  const isKnownDeferred = type === 'scenario' || type === 'log_analysis';
+/** Shown when question content contains a forbidden synonym key (Stage 1.5d shape lock). */
+function MalformedQuestion(): JSX.Element {
   return (
     <Card padding="md">
       <p
@@ -293,11 +371,377 @@ function UnsupportedAnswerArea({ type }: { type: string }): JSX.Element {
           lineHeight: 1.5,
         }}
       >
-        {isKnownDeferred
-          ? `${type === 'scenario' ? 'Scenario' : 'Log-analysis'} questions are not yet supported in this build. Skip and proceed.`
-          : `Unsupported question type: ${type}`}
+        This question content is malformed — contact your administrator.
       </p>
     </Card>
+  );
+}
+
+/** Shown for any type string not in the known set (future-proofing). */
+function UnknownTypeArea({ type }: { type: string }): JSX.Element {
+  return (
+    <Card padding="md">
+      <p
+        style={{
+          fontFamily: 'var(--aiq-font-sans)',
+          fontSize: 15,
+          color: 'var(--aiq-color-fg-secondary)',
+          margin: 0,
+          lineHeight: 1.5,
+        }}
+      >
+        Unsupported question type: {type}
+      </p>
+    </Card>
+  );
+}
+
+function LogAnalysisAnswerArea({
+  question,
+  answer,
+  disabled,
+  onAnswerChange,
+  onBlur,
+}: {
+  question: FrozenQuestionWire;
+  answer: unknown;
+  disabled: boolean;
+  onAnswerChange: (value: unknown) => void;
+  onBlur: () => void;
+}): JSX.Element {
+  const content = question.content as LogAnalysisContent;
+  const logExcerpt = typeof content?.log_excerpt === 'string' ? content.log_excerpt : '';
+  const logFormat = typeof content?.log_format === 'string' ? content.log_format : '';
+  const hint = typeof content?.hint === 'string' ? content.hint : '';
+
+  // Canonical answer shape: { findings: string[], explanation: string }
+  const answerObj =
+    answer !== null && typeof answer === 'object'
+      ? (answer as { findings?: unknown; explanation?: unknown })
+      : null;
+  const findingsRaw = Array.isArray(answerObj?.findings)
+    ? (answerObj.findings as unknown[])
+    : [];
+  const findings: string[] = findingsRaw.map((f) =>
+    typeof f === 'string' ? f : '',
+  );
+  const displayFindings = findings.length > 0 ? findings : [''];
+  const explanation =
+    typeof answerObj?.explanation === 'string' ? answerObj.explanation : '';
+
+  function emitAnswer(nextFindings: string[], nextExplanation: string): void {
+    onAnswerChange({ findings: nextFindings, explanation: nextExplanation });
+  }
+  function updateFinding(idx: number, val: string): void {
+    const next = [...displayFindings];
+    next[idx] = val;
+    emitAnswer(next, explanation);
+  }
+  function addFinding(): void {
+    emitAnswer([...displayFindings, ''], explanation);
+  }
+  function removeFinding(idx: number): void {
+    const next = displayFindings.filter((_, i) => i !== idx);
+    emitAnswer(next.length > 0 ? next : [''], explanation);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-lg)' }}>
+      {logExcerpt && (
+        <div>
+          {logFormat && (
+            <div
+              style={{
+                fontFamily: 'var(--aiq-font-mono)',
+                fontSize: 11,
+                color: 'var(--aiq-color-fg-muted)',
+                marginBottom: 'var(--aiq-space-2xs)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+              }}
+            >
+              {logFormat}
+            </div>
+          )}
+          <pre
+            style={{
+              fontFamily: 'var(--aiq-font-mono)',
+              fontSize: 12,
+              lineHeight: 1.6,
+              color: 'var(--aiq-color-fg-primary)',
+              background: 'var(--aiq-color-bg-raised)',
+              border: '1px solid var(--aiq-color-border)',
+              borderRadius: 'var(--aiq-radius-md)',
+              padding: 'var(--aiq-space-md)',
+              overflowX: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              margin: 0,
+            }}
+          >
+            {logExcerpt}
+          </pre>
+        </div>
+      )}
+      {hint && (
+        <p
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 14,
+            color: 'var(--aiq-color-fg-secondary)',
+            margin: 0,
+            fontStyle: 'italic',
+          }}
+        >
+          Hint: {hint}
+        </p>
+      )}
+      {/* Findings list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-xs)' }}>
+        <div
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--aiq-color-fg-primary)',
+          }}
+        >
+          Suspicious findings
+        </div>
+        <div
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 12,
+            color: 'var(--aiq-color-fg-muted)',
+            marginBottom: 'var(--aiq-space-2xs)',
+          }}
+        >
+          List each suspicious finding. Cite the specific log field or value.
+        </div>
+        {displayFindings.map((finding, idx) => (
+          <div
+            key={idx}
+            style={{ display: 'flex', gap: 'var(--aiq-space-xs)', alignItems: 'center' }}
+          >
+            <input
+              type="text"
+              value={finding}
+              disabled={disabled}
+              onChange={(e) => updateFinding(idx, e.target.value)}
+              onBlur={onBlur}
+              aria-label={`Finding ${idx + 1}`}
+              placeholder={`Finding ${idx + 1}`}
+              style={{
+                flex: 1,
+                padding: 'var(--aiq-space-sm) var(--aiq-space-md)',
+                fontFamily: 'var(--aiq-font-sans)',
+                fontSize: 14,
+                color: 'var(--aiq-color-fg-primary)',
+                background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
+                border: '1px solid var(--aiq-color-border)',
+                borderRadius: 'var(--aiq-radius-md)',
+                boxSizing: 'border-box',
+                outline: 'none',
+              }}
+            />
+            {!disabled && displayFindings.length > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => removeFinding(idx)}
+                aria-label={`Remove finding ${idx + 1}`}
+              >
+                ×
+              </Button>
+            )}
+          </div>
+        ))}
+        {!disabled && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addFinding}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            + Add finding
+          </Button>
+        )}
+      </div>
+      {/* Explanation */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-xs)' }}>
+        <div
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--aiq-color-fg-primary)',
+          }}
+        >
+          Explanation
+        </div>
+        <div
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 12,
+            color: 'var(--aiq-color-fg-muted)',
+            marginBottom: 'var(--aiq-space-2xs)',
+          }}
+        >
+          Explain your reasoning. Describe what the findings indicate.
+        </div>
+        <textarea
+          value={explanation}
+          disabled={disabled}
+          onChange={(e) => emitAnswer(displayFindings, e.target.value)}
+          onBlur={onBlur}
+          aria-label="Explanation"
+          style={{
+            width: '100%',
+            minHeight: 120,
+            padding: 'var(--aiq-space-md)',
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 15,
+            lineHeight: 1.6,
+            color: 'var(--aiq-color-fg-primary)',
+            background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
+            border: '1px solid var(--aiq-color-border)',
+            borderRadius: 'var(--aiq-radius-md)',
+            resize: 'vertical',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ScenarioAnswerArea({
+  question,
+  answer,
+  disabled,
+  onAnswerChange,
+  onBlur,
+}: {
+  question: FrozenQuestionWire;
+  answer: unknown;
+  disabled: boolean;
+  onAnswerChange: (value: unknown) => void;
+  onBlur: () => void;
+}): JSX.Element {
+  const content = question.content as ScenarioContent;
+  const intro = typeof content?.intro === 'string' ? content.intro : '';
+  const steps: ScenarioStep[] = Array.isArray(content?.steps)
+    ? (content.steps as ScenarioStep[])
+    : [];
+
+  // Canonical answer shape: { steps: Array<{ stepIndex: number; response: string }> }
+  const answerObj =
+    answer !== null && typeof answer === 'object'
+      ? (answer as { steps?: unknown })
+      : null;
+  const savedSteps = Array.isArray(answerObj?.steps)
+    ? (answerObj.steps as Array<{ stepIndex?: unknown; response?: unknown }>)
+    : [];
+
+  function getResponse(stepIndex: number): string {
+    const saved = savedSteps.find((s) => s.stepIndex === stepIndex);
+    return typeof saved?.response === 'string' ? saved.response : '';
+  }
+
+  function updateStep(stepIndex: number, val: string): void {
+    const nextSteps = steps.map((_, i) => ({
+      stepIndex: i,
+      response: i === stepIndex ? val : getResponse(i),
+    }));
+    onAnswerChange({ steps: nextSteps });
+  }
+
+  if (steps.length === 0) {
+    return (
+      <Card padding="md">
+        <p
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 15,
+            color: 'var(--aiq-color-fg-secondary)',
+            margin: 0,
+          }}
+        >
+          This scenario has no steps — contact your administrator.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-xl)' }}>
+      {intro && (
+        <p
+          style={{
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 16,
+            lineHeight: 1.6,
+            color: 'var(--aiq-color-fg-secondary)',
+            margin: 0,
+          }}
+        >
+          {intro}
+        </p>
+      )}
+      {steps.map((step, idx) => (
+        <div
+          key={idx}
+          style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--aiq-font-mono)',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--aiq-color-fg-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+          >
+            Step {idx + 1}
+          </div>
+          <p
+            style={{
+              fontFamily: 'var(--aiq-font-serif)',
+              fontSize: 17,
+              lineHeight: 1.55,
+              color: 'var(--aiq-color-fg-primary)',
+              margin: 0,
+            }}
+          >
+            {step.prompt}
+          </p>
+          <textarea
+            value={getResponse(idx)}
+            disabled={disabled}
+            onChange={(e) => updateStep(idx, e.target.value)}
+            onBlur={onBlur}
+            aria-label={`Step ${idx + 1} response`}
+            style={{
+              width: '100%',
+              minHeight: 100,
+              padding: 'var(--aiq-space-md)',
+              fontFamily: 'var(--aiq-font-sans)',
+              fontSize: 15,
+              lineHeight: 1.6,
+              color: 'var(--aiq-color-fg-primary)',
+              background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
+              border: '1px solid var(--aiq-color-border)',
+              borderRadius: 'var(--aiq-radius-md)',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+              outline: 'none',
+            }}
+          />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -682,14 +1126,25 @@ export function AttemptPage(): JSX.Element {
 
           {currentQuestion !== null ? (
             <>
-              {/* Question text */}
-              <p className="aiq-serif" style={QUESTION_TEXT}>
-                {typeof (currentQuestion.content as Record<string, unknown>)?.stem === 'string'
-                  ? (currentQuestion.content as Record<string, unknown>).stem as string
-                  : typeof currentQuestion.content === 'string'
-                    ? currentQuestion.content
-                    : `Question ${currentQuestion.position}`}
-              </p>
+              {/* Question text — canonical field names per type; no forbidden-synonym reads.
+                   For scenario, title is the stem; intro is rendered inside ScenarioAnswerArea.
+                   For all others, content.question is the stem.
+                   If the content is malformed (forbidden synonym), skip the text; MalformedQuestion
+                   is rendered by AnswerArea. */}
+              {(() => {
+                if (hasForbiddenSynonym(currentQuestion.content)) return null;
+                const c = currentQuestion.content as Record<string, unknown>;
+                const text =
+                  currentQuestion.type === 'scenario'
+                    ? (typeof c.title === 'string' ? c.title : null)
+                    : (typeof c.question === 'string' ? c.question : null);
+                if (text === null) return null;
+                return (
+                  <p className="aiq-serif" style={QUESTION_TEXT}>
+                    {text}
+                  </p>
+                );
+              })()}
 
               {/* Type-switched answer area */}
               <AnswerArea
@@ -828,6 +1283,12 @@ function AnswerArea({
   onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
 }): JSX.Element {
+  // Stage 1.5d shape lock: any forbidden synonym key in content triggers a
+  // hard malformed fallback — no partial render of legacy rows.
+  if (hasForbiddenSynonym(question.content)) {
+    return <MalformedQuestion />;
+  }
+
   switch (question.type) {
     case 'mcq':
       return (
@@ -842,7 +1303,6 @@ function AnswerArea({
     case 'subjective':
       return (
         <SubjectiveAnswerArea
-          question={question}
           answer={answer}
           disabled={disabled}
           onAnswerChange={onAnswerChange}
@@ -853,6 +1313,18 @@ function AnswerArea({
     case 'kql':
       return (
         <KqlAnswerArea
+          question={question}
+          answer={answer}
+          disabled={disabled}
+          onAnswerChange={onAnswerChange}
+          onBlur={onBlur}
+        />
+      );
+
+    case 'log_analysis':
+      return (
+        <LogAnalysisAnswerArea
+          question={question}
           answer={answer}
           disabled={disabled}
           onAnswerChange={onAnswerChange}
@@ -861,8 +1333,17 @@ function AnswerArea({
       );
 
     case 'scenario':
-    case 'log_analysis':
+      return (
+        <ScenarioAnswerArea
+          question={question}
+          answer={answer}
+          disabled={disabled}
+          onAnswerChange={onAnswerChange}
+          onBlur={onBlur}
+        />
+      );
+
     default:
-      return <UnsupportedAnswerArea type={question.type} />;
+      return <UnknownTypeArea type={question.type} />;
   }
 }
