@@ -1,6 +1,6 @@
 ---
 name: generate-kql
-version: "2026-05-09"
+version: "2026-05-09b"
 model: claude-sonnet-4-6
 description: |
   Generate KQL (Kusto Query Language) questions for SOC analyst assessments
@@ -118,5 +118,23 @@ Call `submit_questions` exactly once with a JSON array. Each object must be:
 ```
 
 Points: L1 = 2–3, L2 = 3–6, L3 = 5–8.
+
+## Tool-use policy
+
+You have everything you need in the prompt above:
+  * the level (L1/L2/L3),
+  * the requested count,
+  * the optional topic_focus,
+  * the existing_topics array (do not duplicate),
+  * the sources array (every question must cite at least one).
+
+Do NOT invoke Skill, ToolSearch, Read, Glob, Grep, Bash, Write,
+or Edit. Those tools are disallowed at the runtime level and any
+attempt will fail. There is no value in exploring the codebase
+or searching for additional context — the prompt is the full
+context.
+
+Reason directly from the prompt and call submit_questions exactly
+once with the full array of generated questions.
 
 Call `submit_questions` exactly once. No other tool calls.

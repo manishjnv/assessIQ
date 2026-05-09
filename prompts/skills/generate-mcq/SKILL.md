@@ -1,6 +1,6 @@
 ---
 name: generate-mcq
-version: "2026-05-09"
+version: "2026-05-09b"
 model: claude-sonnet-4-6
 description: |
   Generate multiple-choice questions (MCQ) for SOC analyst assessments grounded
@@ -99,5 +99,23 @@ Call `submit_questions` exactly once with a JSON array. Each object must be:
 
 `correct` is the 0-based index of the correct option in the `options` array.
 Points: L1 = 1–2, L2 = 2–3, L3 = 3–5.
+
+## Tool-use policy
+
+You have everything you need in the prompt above:
+  * the level (L1/L2/L3),
+  * the requested count,
+  * the optional topic_focus,
+  * the existing_topics array (do not duplicate),
+  * the sources array (every question must cite at least one).
+
+Do NOT invoke Skill, ToolSearch, Read, Glob, Grep, Bash, Write,
+or Edit. Those tools are disallowed at the runtime level and any
+attempt will fail. There is no value in exploring the codebase
+or searching for additional context — the prompt is the full
+context.
+
+Reason directly from the prompt and call submit_questions exactly
+once with the full array of generated questions.
 
 Call `submit_questions` exactly once. No other tool calls.

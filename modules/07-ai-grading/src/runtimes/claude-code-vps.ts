@@ -74,11 +74,14 @@ const TOOL_SUBMIT_BAND = "submit_band";
 const MCP_SUBMIT_ANCHORS = "mcp__assessiq__submit_anchors";
 const MCP_SUBMIT_BAND = "mcp__assessiq__submit_band";
 
-const DISALLOWED_TOOLS = "Bash,Write,Edit,Read,Glob,Grep";
+// RCA 2026-05-09: Skill and ToolSearch were burning wall-clock before
+// submit_questions by exploring the codebase. Banned here so the model
+// must reason directly from the prompt data already provided.
+const DISALLOWED_TOOLS = "Bash,Write,Edit,Read,Glob,Grep,Skill,ToolSearch";
 
 const STAGE_TIMEOUT_MS = 120_000;
-const GENERATION_BASE_TIMEOUT_MS = 60_000;
-const GENERATION_PER_ITEM_TIMEOUT_MS = 120_000;
+const GENERATION_BASE_TIMEOUT_MS = 90_000;
+const GENERATION_PER_ITEM_TIMEOUT_MS = 180_000;
 const RUBRIC_TIMEOUT_MS = 300_000;
 
 // ---------------------------------------------------------------------------
