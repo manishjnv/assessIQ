@@ -24,7 +24,9 @@
     "lint:deploy-procedure:self-test": "tsx tools/lint-deploy-procedure.ts --self-test",
     "aiq:eval:run": "tsx modules/07-ai-grading/eval/cli.ts run",
     "aiq:eval:compare": "tsx modules/07-ai-grading/eval/cli.ts compare",
-    "aiq:eval:bless": "tsx modules/07-ai-grading/eval/cli.ts bless"
+    "aiq:eval:bless": "tsx modules/07-ai-grading/eval/cli.ts bless",
+    "eval:goldens": "pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-goldens",
+    "eval:goldens-strict": "pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-goldens --strict"
   },
   "dependencies": {
     "pg": "^8.13.0",

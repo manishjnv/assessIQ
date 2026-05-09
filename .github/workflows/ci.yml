@@ -49,6 +49,17 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # 7a. AI generation eval gate — Stage 1.5+
+      # Validates the 75 golden questions (5 types × L1+L2+L3) parse
+      # against the structural Zod schemas in eval/runner.ts. Catches:
+      #  - accidental edits to goldens that break the canonical shape
+      #  - schema drift in runner.ts that diverges from the canonical
+      #    shape (e.g. someone tightens mcq.options to length 5)
+      # Does NOT call claude or the DB. Pure structural check.
+      # If this fails, the goldens or the comparator are out of sync.
+      - name: AI generation eval gate (score-goldens)
+        run: pnpm eval:goldens-strict
+
       # 8. RLS policy linter
       - name: RLS policy lint
         run: pnpm lint:rls
