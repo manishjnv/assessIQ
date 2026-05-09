@@ -20,7 +20,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, generateQuestionsApi } from "../api.js";
+import { adminApi, AdminApiError, generateQuestionsApi, bulkUpdateQuestionStatus } from "../api.js";
 import { allocateByWeight, applyOverride } from "../auto-weight.js";
 import type { QuestionType } from "../auto-weight.js";
 
@@ -319,6 +319,24 @@ export function AdminPackDetail(): React.ReactElement {
   // Archive question state (tracks which question id is being archived)
   const [archivingQuestion, setArchivingQuestion] = useState<string | null>(null);
 
+  // Bulk multi-select state — keyed by levelId
+  const [levelSelections, setLevelSelections] = useState<Record<string, Set<string>>>({});
+  // Pending bulk confirm modal (non-null = modal open)
+  const [bulkConfirm, setBulkConfirm] = useState<{
+    levelId: string;
+    action: "active" | "archived";
+    ids: string[];
+  } | null>(null);
+  // Which level is currently executing a bulk request
+  const [bulkingLevel, setBulkingLevel] = useState<string | null>(null);
+  // Last bulk result for the success banner (cleared on fetchPack re-run)
+  const [bulkResult, setBulkResult] = useState<{
+    levelId: string;
+    updated: number;
+    ids: string[];
+  } | null>(null);
+  const [bulkResultDetailsOpen, setBulkResultDetailsOpen] = useState(false);
+
   // Per-level client-side filter state (keyed by levelId)
   const [levelFilters, setLevelFilters] = useState<Record<string, { status: string; type: string }>>({});
   // Per-level poll counts for "running" generation attempts (gives up after 10 polls / 50s)
@@ -517,6 +535,28 @@ export function AdminPackDetail(): React.ReactElement {
       console.warn("archive-question error:", err instanceof AdminApiError ? err.apiError.message : err);
     } finally {
       setArchivingQuestion(null);
+    }
+  }
+
+  async function handleBulkAction() {
+    if (!bulkConfirm) return;
+    const { levelId, action, ids } = bulkConfirm;
+    setBulkConfirm(null);
+    setBulkingLevel(levelId);
+    setBulkResult(null);
+    setBulkResultDetailsOpen(false);
+    try {
+      const result = await bulkUpdateQuestionStatus({ ids, status: action });
+      setBulkResult({ levelId, updated: result.updated.length, ids: result.updated });
+      setLevelSelections((prev) => ({ ...prev, [levelId]: new Set() }));
+      await fetchPack();
+    } catch (err) {
+      console.warn(
+        "bulk-update error:",
+        err instanceof AdminApiError ? err.apiError.message : err,
+      );
+    } finally {
+      setBulkingLevel(null);
     }
   }
 
@@ -930,21 +970,52 @@ export function AdminPackDetail(): React.ReactElement {
                     (levelFilter.status === "" || q.status === levelFilter.status) &&
                     (levelFilter.type === "" || q.type === levelFilter.type),
                 );
-                const setLevelStatus = (s: string) =>
+                const setLevelStatus = (s: string) => {
                   setLevelFilters((prev) => ({
                     ...prev,
                     [level.id]: { ...(prev[level.id] ?? { status: "", type: "" }), status: s },
                   }));
-                const setLevelType = (t: string) =>
+                  setLevelSelections((prev) => ({ ...prev, [level.id]: new Set() }));
+                };
+                const setLevelType = (t: string) => {
                   setLevelFilters((prev) => ({
                     ...prev,
                     [level.id]: { ...(prev[level.id] ?? { status: "", type: "" }), type: t },
                   }));
+                  setLevelSelections((prev) => ({ ...prev, [level.id]: new Set() }));
+                };
                 const resetLevelFilter = () =>
                   setLevelFilters((prev) => ({
                     ...prev,
                     [level.id]: { status: "", type: "" },
                   }));
+
+                // Bulk selection helpers for this level
+                const selection = levelSelections[level.id] ?? new Set<string>();
+                const visibleIds = filteredQs.map((q) => q.id);
+                const allFiltered = visibleIds.length > 0 && visibleIds.every((id) => selection.has(id));
+                const someFiltered = !allFiltered && visibleIds.some((id) => selection.has(id));
+                const selectedItems = filteredQs.filter((q) => selection.has(q.id));
+                // Approve is enabled only when every selected question is ai_draft
+                const canApprove = selectedItems.length > 0 && selectedItems.every((q) => q.status === "ai_draft");
+                // Archive is enabled only when no selected question is already archived
+                const canArchive = selectedItems.length > 0 && selectedItems.every((q) => q.status !== "archived");
+
+                const toggleQuestion = (qId: string) => {
+                  setLevelSelections((prev) => {
+                    const cur = new Set(prev[level.id] ?? []);
+                    if (cur.has(qId)) cur.delete(qId); else cur.add(qId);
+                    return { ...prev, [level.id]: cur };
+                  });
+                };
+                const toggleAllFiltered = () => {
+                  setLevelSelections((prev) => {
+                    const cur = new Set(prev[level.id] ?? []);
+                    if (allFiltered) { visibleIds.forEach((id) => cur.delete(id)); }
+                    else { visibleIds.forEach((id) => cur.add(id)); }
+                    return { ...prev, [level.id]: cur };
+                  });
+                };
                 return (
                   <div
                     key={level.id}
@@ -1119,6 +1190,163 @@ export function AdminPackDetail(): React.ReactElement {
                             );
                           })}
                         </div>
+                        {/* Master select-all for bulk actions */}
+                        {filteredQs.length > 0 && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", paddingTop: "2px" }}>
+                            <input
+                              type="checkbox"
+                              id={`select-all-${level.id}`}
+                              checked={allFiltered}
+                              ref={(el) => { if (el) el.indeterminate = someFiltered; }}
+                              onChange={toggleAllFiltered}
+                              style={{ accentColor: "var(--aiq-color-accent)", cursor: "pointer" }}
+                            />
+                            <label
+                              htmlFor={`select-all-${level.id}`}
+                              style={{
+                                fontFamily: "var(--aiq-font-mono)",
+                                fontSize: "var(--aiq-text-xs)",
+                                color: "var(--aiq-color-fg-muted)",
+                                cursor: "pointer",
+                                userSelect: "none",
+                              }}
+                            >
+                              Select all filtered ({filteredQs.length})
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Bulk action bar — shown when 1+ questions are selected */}
+                    {selection.size > 0 && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "var(--aiq-space-sm) var(--aiq-space-lg)",
+                          background: "var(--aiq-color-accent-soft)",
+                          borderBottom: "1px solid var(--aiq-color-accent)",
+                          gap: "var(--aiq-space-md)",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "var(--aiq-font-mono)",
+                            fontSize: "var(--aiq-text-xs)",
+                            color: "var(--aiq-color-accent)",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {selection.size} selected
+                        </span>
+                        <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                            disabled={!canApprove || bulkingLevel === level.id}
+                            title={canApprove ? undefined : "Only ai_draft questions can be approved"}
+                            onClick={() =>
+                              setBulkConfirm({ levelId: level.id, action: "active", ids: [...selection] })
+                            }
+                          >
+                            Approve to active
+                          </button>
+                          <button
+                            type="button"
+                            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                            disabled={!canArchive || bulkingLevel === level.id}
+                            title={canArchive ? undefined : "All selected questions are already archived"}
+                            onClick={() =>
+                              setBulkConfirm({ levelId: level.id, action: "archived", ids: [...selection] })
+                            }
+                            style={{ color: "var(--aiq-color-danger)" }}
+                          >
+                            {bulkingLevel === level.id ? "Working…" : "Archive"}
+                          </button>
+                          <button
+                            type="button"
+                            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                            onClick={() =>
+                              setLevelSelections((prev) => ({ ...prev, [level.id]: new Set() }))
+                            }
+                          >
+                            Clear selection
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bulk result success banner */}
+                    {bulkResult?.levelId === level.id && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "var(--aiq-space-sm) var(--aiq-space-lg)",
+                          background: "var(--aiq-color-success-soft)",
+                          borderBottom: "1px solid var(--aiq-color-success-border, var(--aiq-color-success))",
+                          gap: "var(--aiq-space-md)",
+                        }}
+                      >
+                        <div>
+                          <span
+                            style={{
+                              fontFamily: "var(--aiq-font-sans)",
+                              fontSize: "var(--aiq-text-sm)",
+                              fontWeight: 500,
+                              color: "var(--aiq-color-success)",
+                            }}
+                          >
+                            Updated {bulkResult.updated} question{bulkResult.updated !== 1 ? "s" : ""}.
+                          </span>
+                          {bulkResult.updated <= 20 && (
+                            <>
+                              {" "}
+                              <button
+                                type="button"
+                                onClick={() => setBulkResultDetailsOpen((v) => !v)}
+                                style={{
+                                  fontFamily: "var(--aiq-font-mono)",
+                                  fontSize: "var(--aiq-text-xs)",
+                                  color: "var(--aiq-color-success)",
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  textDecoration: "underline",
+                                }}
+                              >
+                                {bulkResultDetailsOpen ? "Hide details" : "Show details"}
+                              </button>
+                              {bulkResultDetailsOpen && (
+                                <pre
+                                  style={{
+                                    display: "block",
+                                    marginTop: "4px",
+                                    fontFamily: "var(--aiq-font-mono)",
+                                    fontSize: "10px",
+                                    color: "var(--aiq-color-fg-secondary)",
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-all",
+                                  }}
+                                >
+                                  {bulkResult.ids.join("\n")}
+                                </pre>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                          onClick={() => setBulkResult(null)}
+                          aria-label="Dismiss"
+                        >
+                          ✕
+                        </button>
                       </div>
                     )}
 
@@ -1178,10 +1406,25 @@ export function AdminPackDetail(): React.ReactElement {
                               qi < filteredQs.length - 1
                                 ? "1px solid var(--aiq-color-border)"
                                 : "none",
-                            background: "var(--aiq-color-bg-base)",
+                            background: selection.has(q.id)
+                              ? "var(--aiq-color-accent-soft)"
+                              : "var(--aiq-color-bg-base)",
                             borderLeft: q.status === "ai_draft" ? "2px solid #d97706" : "2px solid transparent",
                           }}
                         >
+                          {/* Row checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={selection.has(q.id)}
+                            onChange={() => toggleQuestion(q.id)}
+                            style={{
+                              flexShrink: 0,
+                              marginRight: "var(--aiq-space-sm)",
+                              marginTop: 3,
+                              accentColor: "var(--aiq-color-accent)",
+                              cursor: "pointer",
+                            }}
+                          />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             {/* Primary line: topic → prompt → "Untitled" */}
                             <span
@@ -1290,6 +1533,109 @@ export function AdminPackDetail(): React.ReactElement {
           )}
         </div>
       </div>
+
+      {/* Bulk action confirm modal */}
+      {bulkConfirm !== null && (
+        <>
+          <div
+            onClick={() => setBulkConfirm(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.40)",
+              zIndex: 200,
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={bulkConfirm.action === "archived" ? "Confirm bulk archive" : "Confirm bulk approve"}
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 201,
+              background: "var(--aiq-color-bg-base)",
+              border: "1px solid var(--aiq-color-border)",
+              borderRadius: "var(--aiq-radius-lg)",
+              padding: "var(--aiq-space-xl)",
+              width: "min(480px, 90vw)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--aiq-space-md)",
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: "var(--aiq-text-xl)",
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              {bulkConfirm.action === "archived"
+                ? `Archive ${bulkConfirm.ids.length} question${bulkConfirm.ids.length !== 1 ? "s" : ""}?`
+                : `Approve ${bulkConfirm.ids.length} question${bulkConfirm.ids.length !== 1 ? "s" : ""} to active?`}
+            </h3>
+            <p
+              style={{
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+                color: "var(--aiq-color-fg-secondary)",
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              {bulkConfirm.action === "archived" ? (
+                <>
+                  {bulkConfirm.ids.length} question{bulkConfirm.ids.length !== 1 ? "s" : ""} will no longer be
+                  available to candidates. This cannot be undone in bulk — reversal must be
+                  per-question. To reactivate an archived question, open its Edit page.
+                </>
+              ) : (
+                <>
+                  {bulkConfirm.ids.length} ai_draft question{bulkConfirm.ids.length !== 1 ? "s" : ""} will move to{" "}
+                  <strong>active</strong> status and become immediately visible to the question
+                  pool. Bulk approve skips per-question rubric review — ensure these questions
+                  have been manually checked before confirming.
+                </>
+              )}
+            </p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "var(--aiq-space-sm)",
+                marginTop: "var(--aiq-space-sm)",
+              }}
+            >
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline"
+                onClick={() => setBulkConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={
+                  bulkConfirm.action === "archived"
+                    ? "aiq-btn aiq-btn-ghost"
+                    : "aiq-btn aiq-btn-primary"
+                }
+                onClick={() => void handleBulkAction()}
+                style={bulkConfirm.action === "archived" ? { color: "var(--aiq-color-danger)" } : undefined}
+              >
+                {bulkConfirm.action === "archived"
+                  ? `Archive ${bulkConfirm.ids.length}`
+                  : `Approve ${bulkConfirm.ids.length}`}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Generate Questions Drawer */}
       {generateLevelId !== null && (
