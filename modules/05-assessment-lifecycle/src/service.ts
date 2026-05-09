@@ -68,6 +68,7 @@ import type {
   UpdateAssessmentPatch,
   InviteUsersResult,
 } from "./types.js";
+import type { InvitationCounts } from "./repository.js";
 
 const log = streamLogger("app");
 
@@ -189,6 +190,30 @@ export async function listAssessments(
     return { items, page, pageSize, total };
   });
 }
+
+// ---------------------------------------------------------------------------
+// getInvitationCounts
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns per-assessment invitation counts for the given assessment IDs, keyed
+ * by assessment ID. Uses a single grouped query via countInvitationsByAssessment.
+ * Assessments with no invitations are absent from the returned record.
+ *
+ * Intended for enriching the admin assessment list response so the UI can
+ * display invitation status at a glance without a per-row N+1 query.
+ */
+export async function getInvitationCounts(
+  tenantId: string,
+  assessmentIds: string[],
+): Promise<Record<string, InvitationCounts>> {
+  if (assessmentIds.length === 0) return {};
+  return withTenant(tenantId, (client) =>
+    repo.countInvitationsByAssessment(client, assessmentIds),
+  );
+}
+
+export type { InvitationCounts };
 
 // ---------------------------------------------------------------------------
 // getAssessment
@@ -744,6 +769,7 @@ export async function inviteUsers(
       // Send via 13-notifications shim — never inline SMTP here.
       // tenantName resolved above via tenancyRepo.findTenantById (same client).
       await sendInvitationEmail({
+        tenantId,
         to: user.email,
         candidateName: user.name,
         assessmentName: assessment.name,

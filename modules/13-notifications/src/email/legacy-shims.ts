@@ -32,8 +32,7 @@ export async function sendInvitationEmail(input: SendInvitationEmailInput): Prom
       tenantName: input.tenantName,
       expiresInDays: 7,
     },
-    // No tenantId at this call site — legacy callers don't pass it.
-    // The email_log write is skipped; stub-fallback logs to dev-emails.log.
+    ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
   });
 }
 
@@ -54,6 +53,6 @@ export async function sendAssessmentInvitationEmail(
       expiresAt: input.expiresAt.toISOString(),
       tenantName: input.tenantName,
     },
-    // No tenantId at this call site — legacy callers don't pass it.
+    ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
   });
 }

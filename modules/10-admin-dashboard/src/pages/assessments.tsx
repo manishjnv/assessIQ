@@ -27,6 +27,15 @@ import { adminApi, AdminApiError } from "../api.js";
 
 type AssessmentStatus = "draft" | "published" | "active" | "closed";
 
+interface InvitationCounts {
+  total: number;
+  pending: number;
+  viewed: number;
+  started: number;
+  submitted: number;
+  expired: number;
+}
+
 interface AssessmentListItem {
   id: string;
   name: string;
@@ -35,6 +44,7 @@ interface AssessmentListItem {
   opens_at: string | null;
   closes_at: string | null;
   created_at: string;
+  invitations?: InvitationCounts;
 }
 
 interface AssessmentsResponse {
@@ -187,6 +197,44 @@ export function AdminAssessments(): React.ReactElement {
             }}
           >
             {row.status}
+          </span>
+        );
+      },
+    },
+    {
+      key: "invitations",
+      label: "Invited",
+      render: (row: AssessmentListItem) => {
+        const inv = row.invitations;
+        const total = inv?.total ?? 0;
+        if (total === 0) {
+          return (
+            <span
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-fg-muted)",
+              }}
+            >
+              —
+            </span>
+          );
+        }
+        const nonPending = total - (inv?.pending ?? 0);
+        return (
+          <span
+            style={{
+              display: "inline-flex",
+              flexDirection: "column",
+              gap: "2px",
+              fontFamily: "var(--aiq-font-mono)",
+              fontSize: "var(--aiq-text-xs)",
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>{total} invited</span>
+            <span style={{ color: "var(--aiq-color-fg-muted)" }}>
+              {nonPending} sent · {inv?.pending ?? 0} pending
+            </span>
           </span>
         );
       },

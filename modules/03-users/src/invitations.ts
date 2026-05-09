@@ -167,6 +167,7 @@ export async function inviteUser(
   if (sentEmail) {
     const invitationLink = `${config.ASSESSIQ_BASE_URL}/admin/invite/accept?token=${plaintextToken}`;
     await sendInvitationEmail({
+      tenantId,
       to: normalizedEmail,
       role: input.role,
       invitationLink,

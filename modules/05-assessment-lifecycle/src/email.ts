@@ -24,6 +24,7 @@ export interface SendAssessmentInvitationInput {
   invitationLink: string;
   expiresAt: Date;
   tenantName: string;
+  tenantId?: string;
 }
 
 /**
@@ -46,5 +47,6 @@ export async function sendInvitationEmail(
     invitationLink: input.invitationLink,
     expiresAt: input.expiresAt,
     tenantName: input.tenantName,
+    ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
   });
 }
