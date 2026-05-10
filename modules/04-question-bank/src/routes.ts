@@ -25,7 +25,20 @@
 // reads are impossible at the DB layer.
 
 import type { FastifyInstance } from "fastify";
-import { ValidationError } from "@assessiq/core";
+import { ValidationError, NotFoundError } from "@assessiq/core";
+import {
+  scoreQuestion,
+  loadFixture,
+  loadRuntimeThresholds,
+  loadBaseline,
+  scoreRuntimeMetrics,
+} from "@assessiq/ai-grading/eval";
+import type {
+  GoldenQuestion,
+  KbSourceRef,
+  EvalType,
+  EvalRuntimeMetricRow,
+} from "@assessiq/ai-grading/eval";
 import {
   listPacks,
   createPack,
@@ -659,6 +672,282 @@ export async function registerQuestionBankRoutes(
         );
         return result.rows;
       });
+    },
+  );
+
+  // POST /api/admin/generation-attempts/:id/score
+  //
+  // Server-side structural + runtime scoring for a single generation attempt.
+  // READ-ONLY — no writes to any table. Sub-100ms for typical attempt sizes
+  // (≤30 questions × Zod parse + fixture file reads cached by Node's module loader).
+  //
+  // Behavior:
+  //   1. Resolves the attempt row via RLS (tenant-scoped; 404 if not in this tenant).
+  //   2. Loads inserted questions for the attempt (same filter as cli-typed.ts cmdScoreCandidate).
+  //   3. Resolves level label → L1/L2/L3 for fixture lookup.
+  //   4. Loads eval/fixtures/{level}-sources.json; if absent, uses a synthetic
+  //      fixture so that citationsResolve is effectively n/a (passes) for all candidates.
+  //   5. Runs scoreQuestion (pure; from eval/runner.ts) per inserted question.
+  //   6. Compares per-type pass rates against eval/baseline.json regression_thresholds.
+  //   7. Loads eval/runtime-baseline.json regression_thresholds; skips gracefully if absent.
+  //   8. Computes runtime metrics (chunk_success_rate, total_inserted_pct, n/a for the rest).
+  //   9. Derives overall verdict: pass / regression / warning / n/a.
+  //
+  // Returns: ScoreAttemptResponse (documented in modules/10-admin-dashboard/src/api.ts).
+  app.post(
+    "/api/admin/generation-attempts/:id/score",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const { id } = req.params as { id: string };
+
+      // ── Step 1: Resolve attempt row + level label + inserted questions ──────
+      // All within a single withTenant call so RLS is consistently applied.
+      const { withTenant: wt } = await import("@assessiq/tenancy");
+
+      interface AttemptRow {
+        id: string;
+        status: string;
+        pack_id: string;
+        level_id: string;
+        count_requested: number;
+        count_inserted: number;
+        duration_ms: number | null;
+        chunks_planned: number | null;
+        chunks_failed: number | null;
+        dedupe_dropped: number | null;
+        citation_dropped: number | null;
+        model: string | null;
+        skill_sha: string | null;
+        error_code: string | null;
+        error_message: string | null;
+        stderr_tail: string | null;
+        started_at: Date;
+        finished_at: Date | null;
+      }
+
+      interface QuestionRow {
+        id: string;
+        type: string;
+        topic: string;
+        points: number;
+        content: unknown;
+        knowledge_base_sources: Array<{ id: string }>;
+      }
+
+      const dbResult = await wt(tenantId, async (client) => {
+        const attemptRes = await client.query<AttemptRow>(
+          `SELECT id, status, pack_id, level_id,
+                  count_requested, count_inserted,
+                  duration_ms, chunks_planned, chunks_failed,
+                  dedupe_dropped, citation_dropped,
+                  model, skill_sha, error_code, error_message, stderr_tail,
+                  started_at, finished_at
+             FROM generation_attempts
+            WHERE id = $1`,
+          [id],
+        );
+
+        const attempt = attemptRes.rows[0];
+        if (!attempt) return null;
+
+        // Level label — needed to derive L1/L2/L3 for fixture path.
+        const levelRes = await client.query<{ label: string }>(
+          `SELECT label FROM levels WHERE id = $1`,
+          [attempt.level_id],
+        );
+        const levelLabel = levelRes.rows[0]?.label ?? "";
+
+        // Inserted questions — same filter as cmdScoreCandidate in cli-typed.ts.
+        const qParams: unknown[] = [attempt.pack_id, attempt.level_id, attempt.started_at];
+        const finishedClause = attempt.finished_at !== null ? "AND created_at <= $4" : "";
+        if (attempt.finished_at !== null) qParams.push(attempt.finished_at);
+
+        const questionsRes = await client.query<QuestionRow>(
+          `SELECT id, type, topic, points, content, knowledge_base_sources
+             FROM questions
+            WHERE pack_id = $1 AND level_id = $2
+              AND created_at >= $3
+              ${finishedClause}
+              AND status IN ('ai_draft', 'active')
+            ORDER BY created_at ASC`,
+          qParams,
+        );
+
+        return { attempt, levelLabel, questions: questionsRes.rows };
+      });
+
+      if (dbResult === null) {
+        throw new NotFoundError(`generation attempt ${id} not found`);
+      }
+
+      const { attempt: attemptRow, levelLabel, questions: questionRows } = dbResult;
+
+      // ── Step 2: Determine SOC level from label ─────────────────────────────
+      const SOC_LEVELS = ["L1", "L2", "L3"] as const;
+      const socLevel: "L1" | "L2" | "L3" =
+        SOC_LEVELS.find((l) => levelLabel.includes(l)) ?? "L2";
+
+      // ── Step 3: Load fixture — graceful degradation when missing ───────────
+      let fixture: KbSourceRef[];
+      let fixtureSkipped = false;
+
+      try {
+        fixture = await loadFixture(socLevel);
+      } catch {
+        fixtureSkipped = true;
+        fixture = [];
+      }
+
+      // ── Step 4: Map question rows to GoldenQuestion shape ─────────────────
+      const candidates: GoldenQuestion[] = questionRows.map((row) => ({
+        type: row.type as EvalType,
+        topic: row.topic,
+        points: row.points,
+        content: row.content,
+        knowledge_base_source_ids: (row.knowledge_base_sources ?? []).map((s) => s.id),
+      }));
+
+      // Build synthetic fixture when no fixture file exists — same as CLI.
+      // citationsResolve becomes effectively n/a (passes) for all candidates.
+      if (fixtureSkipped) {
+        const allSourceIds = new Set(candidates.flatMap((q) => q.knowledge_base_source_ids));
+        fixture = Array.from(allSourceIds).map((sid) => ({
+          id: sid,
+          name: sid,
+          citation: sid,
+          url: "n/a",
+          level_fit: socLevel,
+          function: "n/a",
+          description: "n/a",
+          tags: [],
+          kb_version: "n/a",
+        }));
+      }
+
+      // ── Step 5: Score per candidate, aggregate by type ─────────────────────
+      type TypeStats = { total: number; passed: number; failed: number; failures: string[] };
+      const byType = new Map<string, TypeStats>();
+
+      for (const [i, candidate] of candidates.entries()) {
+        const score = scoreQuestion(candidate, fixture, i);
+        const isPass =
+          score.schemaValid &&
+          score.citationsResolve &&
+          score.structuralCompleteness &&
+          score.topicNonEmpty;
+
+        const entry: TypeStats = byType.get(candidate.type) ?? {
+          total: 0,
+          passed: 0,
+          failed: 0,
+          failures: [],
+        };
+        entry.total++;
+        if (isPass) {
+          entry.passed++;
+        } else {
+          entry.failed++;
+          entry.failures.push(...score.failures.slice(0, 2));
+        }
+        byType.set(candidate.type, entry);
+      }
+
+      const perType = Array.from(byType.entries()).map(([type, stats]) => ({
+        type,
+        total: stats.total,
+        passed: stats.passed,
+        failed: stats.failed,
+        failures: stats.failures.slice(0, 3),
+      }));
+
+      const totalPassed = perType.reduce((s, r) => s + r.passed, 0);
+      const totalTotal = perType.reduce((s, r) => s + r.total, 0);
+      const totalFailed = perType.reduce((s, r) => s + r.failed, 0);
+
+      // ── Step 6: Baseline regression comparison ─────────────────────────────
+      const baseline = await loadBaseline();
+
+      type BaselineDiffEntry = { level: string; type: string; was_passed: number; now_passed: number };
+      const regressions: BaselineDiffEntry[] = [];
+      const improvements: BaselineDiffEntry[] = [];
+
+      for (const [type, stats] of byType.entries()) {
+        const key = `${socLevel}-${type}`;
+        const base = baseline[key];
+        if (base === undefined) continue;
+        // Compare pass-rates to handle different question counts vs golden counts.
+        const candidateRate = stats.total > 0 ? stats.passed / stats.total : 0;
+        const baseRate = base.total > 0 ? base.passed / base.total : 0;
+        if (candidateRate < baseRate) {
+          regressions.push({ level: socLevel, type, was_passed: base.passed, now_passed: stats.passed });
+        } else if (candidateRate > baseRate) {
+          improvements.push({ level: socLevel, type, was_passed: base.passed, now_passed: stats.passed });
+        }
+      }
+
+      // ── Step 7: Runtime threshold comparison ───────────────────────────────
+      const thresholds = await loadRuntimeThresholds();
+      const runtimeMetrics = scoreRuntimeMetrics(
+        {
+          chunks_planned: attemptRow.chunks_planned,
+          chunks_failed: attemptRow.chunks_failed,
+          count_inserted: attemptRow.count_inserted,
+          count_requested: attemptRow.count_requested,
+        },
+        thresholds,
+      );
+
+      // ── Step 8: Overall verdict ────────────────────────────────────────────
+      // "n/a"         — no fixtures AND no thresholds (degenerate scoring)
+      // "regression"  — structural regression vs baseline
+      // "warning"     — structural pass but at least one runtime metric fails
+      // "pass"        — structural pass + no runtime failures (or no thresholds)
+      let overall: "pass" | "regression" | "warning" | "n/a";
+      if (fixtureSkipped && !runtimeMetrics.hasThresholds) {
+        overall = "n/a";
+      } else if (regressions.length > 0) {
+        overall = "regression";
+      } else if (runtimeMetrics.anyFail) {
+        overall = "warning";
+      } else {
+        overall = "pass";
+      }
+
+      // Narrow the runtime metric rows to the serialisable shape expected by the UI
+      const runtimeRows: EvalRuntimeMetricRow[] = runtimeMetrics.rows;
+
+      return {
+        attempt: {
+          id: attemptRow.id,
+          status: attemptRow.status,
+          count_requested: attemptRow.count_requested,
+          count_inserted: attemptRow.count_inserted,
+          duration_ms: attemptRow.duration_ms,
+          chunks_planned: attemptRow.chunks_planned,
+          chunks_failed: attemptRow.chunks_failed,
+          dedupe_dropped: attemptRow.dedupe_dropped,
+          citation_dropped: attemptRow.citation_dropped,
+          model: attemptRow.model,
+          skill_sha: attemptRow.skill_sha,
+          error_code: attemptRow.error_code,
+          error_message: attemptRow.error_message,
+          stderr_tail: attemptRow.stderr_tail,
+          started_at: attemptRow.started_at.toISOString(),
+          finished_at: attemptRow.finished_at?.toISOString() ?? null,
+        },
+        structural: {
+          per_type: perType,
+          total: totalTotal,
+          passed: totalPassed,
+          failed: totalFailed,
+          baseline_diff: { regressions, improvements },
+        },
+        runtime: {
+          metrics: runtimeRows,
+        },
+        overall,
+      };
     },
   );
 }

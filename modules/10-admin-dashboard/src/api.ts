@@ -104,3 +104,74 @@ export async function bulkUpdateQuestionStatus(
     { method: "POST", body: JSON.stringify(body) },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — score generation attempt endpoint
+// ---------------------------------------------------------------------------
+
+export interface ScoreAttemptRuntimeMetric {
+  name: string;
+  /** Numeric value; null when not derivable from the attempt row (e.g. peak_rss). */
+  value: number | null;
+  /** Threshold expression, e.g. "≥0.60" or "≤1000". */
+  threshold: string;
+  verdict: "pass" | "fail" | "n/a";
+}
+
+export interface ScoreAttemptPerTypeEntry {
+  type: string;
+  total: number;
+  passed: number;
+  failed: number;
+  /** Top 3 failure reasons (truncated). */
+  failures: string[];
+}
+
+export interface ScoreAttemptBaselineDiffEntry {
+  level: string;
+  type: string;
+  was_passed: number;
+  now_passed: number;
+}
+
+export interface ScoreAttemptResponse {
+  attempt: {
+    id: string;
+    status: string;
+    count_requested: number;
+    count_inserted: number;
+    duration_ms: number | null;
+    chunks_planned: number | null;
+    chunks_failed: number | null;
+    dedupe_dropped: number | null;
+    citation_dropped: number | null;
+    model: string | null;
+    skill_sha: string | null;
+    error_code: string | null;
+    error_message: string | null;
+    stderr_tail: string | null;
+    started_at: string;
+    finished_at: string | null;
+  };
+  structural: {
+    per_type: ScoreAttemptPerTypeEntry[];
+    total: number;
+    passed: number;
+    failed: number;
+    baseline_diff: {
+      regressions: ScoreAttemptBaselineDiffEntry[];
+      improvements: ScoreAttemptBaselineDiffEntry[];
+    };
+  };
+  runtime: {
+    metrics: ScoreAttemptRuntimeMetric[];
+  };
+  overall: "pass" | "regression" | "warning" | "n/a";
+}
+
+export async function scoreGenerationAttempt(id: string): Promise<ScoreAttemptResponse> {
+  return adminApi<ScoreAttemptResponse>(
+    `/admin/generation-attempts/${encodeURIComponent(id)}/score`,
+    { method: "POST" },
+  );
+}
