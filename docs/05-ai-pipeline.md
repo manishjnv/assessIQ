@@ -67,6 +67,22 @@ Two structural shifts from a typical async pipeline:
 1. **No BullMQ worker for grading.** BullMQ stays for non-AI work (emails, webhooks, exports). Grading is synchronous.
 2. **Claude Code's output is a *proposal*, not a verdict.** The admin's click is what makes a grade real. This is why the architecture is compliance-defensible: the AI is assisting the human admin, not replacing them.
 
+### Per-type grading dispatch
+
+`POST /admin/attempts/:id/grade` (implemented in `modules/07-ai-grading/src/handlers/admin-grade.ts`) iterates every frozen question in the attempt and routes by type. The five types split into two paths — deterministic and AI-graded:
+
+| Type | Path | Answer shape | Notes |
+|---|---|---|---|
+| `mcq` | **Deterministic** (module 09 scoring) | `{ selected: number }` | `answer.selected === content.correct`; never reaches the AI pipeline |
+| `kql` | **Keyword-match** (module 09 scoring) | `{ query: string }` | Count of `content.expected_keywords` present in `answer.query`; never reaches the AI pipeline |
+| `subjective` | **AI-graded** → `gradeSubjective()` | `{ response: string }` | Uses admin-authored rubric from DB; rubric required at question-activation time |
+| `scenario` | **AI-graded** → `gradeSubjective()` | `{ steps: [{stepIndex, response}] }` | Uses admin-authored rubric from DB; `serializeAnswer` concatenates step responses (max 10 steps; extra steps truncated with a note in the prompt) |
+| `log_analysis` | **AI-graded** → `gradeSubjective()` | `{ findings: string[], explanation: string }` | Rubric is **synthesised at grade-time** from `content.expected_findings` (70 % anchor weight split evenly across findings, 30 % reasoning band); not persisted to `questions.rubric` |
+
+**log_analysis rubric synthesis** (Stage 1 contract): admins historically have not authored rubrics for `log_analysis` questions, and `rubricRequiredFor('log_analysis')` returns `false`. At grade-time, if `questions.rubric` is null or has no anchors, the handler synthesises an in-memory rubric: each `expected_finding` becomes one anchor (`id: "anchor-{i}"`, `concept: finding`, `synonyms: [finding]`, `weight: floor(70 / N)` with the remainder added to the first anchor). The synthesised rubric is ephemeral — it is passed directly to `gradeSubjective()` and never written back to the DB.
+
+**Prompt serialisation**: `serializeQuestion` exposes `content.log_excerpt` to the model for `log_analysis` (so the AI can verify whether the candidate's findings are supported by the log text); it renders `content.intro + steps[].prompt` for `scenario`. `serializeAnswer` extracts `answer.response` for `subjective`, formats `answer.findings + explanation` as a numbered list for `log_analysis`, and renders `answer.steps[].response` as `Step N: ...` blocks for `scenario`.
+
 ### Headless invocation
 
 Claude Code's `--print` (`-p`) mode is built exactly for scripting your own workflows non-interactively:
