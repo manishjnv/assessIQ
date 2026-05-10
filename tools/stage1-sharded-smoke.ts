@@ -11,10 +11,11 @@ import { getPool } from "@assessiq/tenancy";
 const TENANT_ID = "019d8000-0001-7f00-8000-000000000001";
 const USER_ID = "26a8f5b1-979d-4188-a2dc-a0e8745a2a62";
 const PACK_ID = "019df000-44f3-7c97-9403-f7bde6a36843";
-const LEVEL_ID = "019df008-b3e0-79b0-b409-624e2037fbe6";
-const COUNT = 15;
+const LEVEL_ID = process.env.SMOKE_LEVEL_ID ?? "019df008-b3e0-79b0-b409-624e2037fbe6";
+const COUNT = parseInt(process.env.SMOKE_COUNT ?? "15", 10);
 
 async function main() {
+  console.log(`[smoke] starting level=${LEVEL_ID} count=${COUNT}`);
   const sources = SOC_KNOWLEDGE_BASE.filter((s) => s.level_fit === "L2");
   console.log(`[smoke] tenant=${TENANT_ID.slice(0, 8)} pack=${PACK_ID.slice(0, 8)} level=${LEVEL_ID.slice(0, 8)} count=${COUNT} sources=${sources.length}`);
 
