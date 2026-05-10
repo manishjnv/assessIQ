@@ -1,4 +1,62 @@
-# Session — 2026-05-10 (Stage 1.5+ sweep — mechanical gates + admin UI completion)
+# Session — 2026-05-10 (Stage 3.0 commission + sharded smoke diagnose)
+
+**Headline:** Stage 3.0 plumbing shipped (per-tenant `tenant_settings.ai_generate_mode` column + handler precedence + Stage 3 watch cron + design doc with §8 decisions locked). First clean L2 count=15 sharded smoke achieved (`019e103a`, 15/15, chunks_failed=0). Per-chunk stderr aggregation confirmed live in production. Diagnosis: scenario chunk timeout is a non-deterministic model retry-loop on `submit_questions`, not a fundamental skill defect; G2 (citation fidelity) blocked by a divergence between the runtime KB ID set and `eval/fixtures/L*-sources.json`.
+
+**Commits this session:**
+- `b7e5552` — fix(ai-grading): per-chunk stderr aggregation for sharded fan-out
+- `80e713a` — feat(ai-grading): Stage 3.0 -- per-tenant ai_generate_mode column (Opus adversarial review: ACCEPT)
+- `05ea435` — feat(ops): Stage 3 watch cron + design doc
+
+All pushed to `origin/main`. VPS at `05ea435`. Migration 0044 applied + recorded in `schema_migrations`. `assessiq-api` container rebuilt + recreated (healthy). `assessiq-stage3-watch.{service,timer}` units installed at `/etc/systemd/system/` but **not enabled** — service file hardcodes `/usr/local/bin/tsx` which doesn't exist on this VPS (tsx is via npx); needs path correction before enabling.
+
+**Tests:** pnpm -C modules/07-ai-grading typecheck ✅ (clean after both c1 revert and c2 re-apply) | pnpm -C modules/02-tenancy typecheck ✅ | pnpm -C apps/api typecheck ✅ | new test admin-generate-tenant-mode.test.ts (Docker-gated, expected skip in non-CI). Smoke: `019e103a` 15/15 success, `019e103c` 12/15 partial (scenario chunk timeout exit 143).
+
+**Next:** (1) Fix the systemd service-file path: replace `/usr/local/bin/tsx` with the right invocation (npx-based or absolute path to the corepack shim); enable `assessiq-stage3-watch.timer`. (2) Diagnose the scenario retry-loop — read MCP `submit_questions` rejection messages from the failed chunk to understand why the model can't recover. (3) Close the G2 fixture gap: re-extract `eval/fixtures/L*-sources.json` from `modules/04-question-bank/src/knowledge-base/soc-l*.json`. (4) Run 4 more L2 smokes to satisfy G1's 5-consecutive-clean criterion. Then L1 + L3 smokes for G3.
+
+**Open questions:**
+- Should the scenario-timeout fix (bump `base + count*180` to `base + count*240`) ship as a quick belt-and-braces while the retry-loop is investigated, or wait for the root cause?
+- The 5 in-flight Sonnet prompts (score-attempt route, eval cli-typed enhancements, generation-attempts UI, help-text refresh, eval runner additions) are still uncommitted in the working tree — review + commit + ship as a separate session?
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, Phase 3 critique on both Sonnet diffs, adversarial Stage 3.0 review (`opus takeover` per user direction; codex:rescue not invoked), VPS deploy + migration application + smoke firing + diagnosis from logs + score-candidate interpretation, runtime-baseline + handoff authorship, untangling 3 commits from a tangled working tree.
+- Sonnet: 2 parallel dispatches. Sonnet A delivered Stage 3.0 plumbing (migration + handler + types + test); typecheck clean; Opus review verdict ACCEPT. Sonnet C delivered stage3-watch script + systemd units + 18 unit tests; typecheck clean; service file needed manual path correction (deferred). Both worked in parallel during the smoke wait window.
+- Haiku: n/a — no bulk grep sweeps needed; investigation was concentrated in the handler + runtime-baseline + smoke-output JSONL.
+- codex:rescue: n/a — `opus takeover` invoked by user. Adversarial review on commit 80e713a (Stage 3.0 plumbing) ran in main session: ACCEPT, no revisions, with one forward-looking note (future admin UI toggle for `ai_generate_mode` MUST emit an `audit_log` row per CLAUDE.md hard rule).
+
+---
+
+## Phase 0 reads honored
+
+- `PROJECT_BRAIN.md` — non-negotiable principles: multi-tenant from day one ✓; AI-grading runs sync-on-admin-click ✓; no ambient AI ✓.
+- `docs/01-architecture-overview.md` — system context unchanged.
+- `docs/SESSION_STATE.md` (prior) — picked up from "Re-fire sharded smoke" + Stage 3 design queued.
+- `docs/RCA_LOG.md` — patterns honored: shared-VPS additive-only, pre-deploy git pull, codex:rescue gate scope.
+- `docs/design/2026-05-09-type-sharded-generation.md` — design substrate.
+- `docs/design/2026-05-10-stage-3-promotion-rollout.md` — was DRAFT; now APPROVED with §8 decisions locked.
+- `modules/07-ai-grading/eval/runtime-baseline.json` — known_gaps updated this session with 3 new entries (CONFIRMED LIVE stderr; OPEN scenario timeout retry-loop; OPEN G2 fixture divergence).
+
+---
+
+## Diagnostic data — sharded smoke results
+
+**`019e103a` (success — first clean smoke on record):**
+- Status: success, 15/15 inserted, chunks_failed=0, citation_dropped=0, duration 764s
+- Per-type: mcq=5, log_analysis=4, scenario=3 (succeeded!), kql=2, subjective=1
+- All 5 skill SHAs distinct: 25c28a16,e2327863,7b042863,d90a077f,eb268094
+- score-candidate: 16/27 (59%) pass — failures all "unknown source ids"
+
+**`019e103c` (partial — scenario timeout):**
+- Status: partial, 12/15 inserted, chunks_failed=1 (scenario), citation_dropped=0, duration 894s
+- Scenario chunk: 3 submit_questions emissions (at +51s, +200s, +290s); the 2nd and 3rd had empty `tool_input_keys=[]`. Model retry-loop on MCP rejection until SIGTERM at 630s.
+- stderr_tail: `--- chunk: scenario ---\n(none)\n` — aggregation header is the canonical proof commit `b7e5552` is live; (none) is correct because SIGTERM kills before stderr surfaces.
+
+**Concurrent execution note:** the two attempts ran simultaneously because the smoke script was fired twice (first invocation got SIGPIPE on `head -3`, but the docker exec inside the container kept running independently). Each `pnpm exec tsx` spawns its own Node process with its own in-memory `singleFlight` mutex, so they didn't block each other. Two-data-points-for-the-price-of-one and a useful cross-check on variance.
+
+---
+
+
 
 **Headline:** Closed the type-sharded generation loop end-to-end. Structural shape now enforced at the MCP boundary (Stage 1.5e); citation IDs enforced at the handler boundary (Stage 1.5f); per-chunk stderr aggregation makes any failure diagnosable; admin web UI now covers every operator surface (no SSH/CLI required for normal admin workflows); candidate take flow renders all 5 question types correctly; invitation emails actually deliver via SMTP with `email_log` rows. Production at `AI_GENERATE_MODE=omnibus`; sharded mode is feature-complete but blocked from default-flip by 2 chunks (log_analysis + scenario) failing exit-1 on every smoke — diagnosis unblocked once the next sharded smoke runs (per-chunk stderr aggregation now live).
 
