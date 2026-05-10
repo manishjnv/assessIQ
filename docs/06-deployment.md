@@ -785,6 +785,45 @@ For v1 piggyback on whatever ti-platform already exposes (likely Prometheus + Gr
 
 > See § Disaster recovery → § Recovery readiness for the additional freshness alerts that watch the backup pipeline itself (backup file age, offsite sync staleness, restore-drill recency). Those signals are read from filesystem mtimes + rclone log + a drill marker file rather than from the runtime stack, so they live in the DR section rather than this table.
 
+## Diagnostics — generation_attempts inspection
+
+Use inspect-attempt to surface the full diagnostic state of a generation_attempts row when a smoke run exits non-zero without a visible root cause (e.g., log_analysis and scenario chunks silently fail with exit-1):
+
+```bash
+docker exec -w /app/modules/07-ai-grading assessiq-api \
+  pnpm exec tsx /app/modules/07-ai-grading/eval/cli-typed.ts inspect-attempt \
+  --attempt-id 019e0deb-4dcf-70b1-83fe-8c88e20b7b62 \
+  --show-stderr --show-questions
+```
+
+Or via the local wrapper (requires SSH access to ssessiq-vps):
+
+```bash
+bash tools/inspect-attempt.sh 019e0deb-4dcf-70b1-83fe-8c88e20b7b62
+```
+
+The --show-stderr flag prints the 1024-byte-truncated stderr_tail column — the primary signal for diagnosing chunk-level subprocess failures that are not otherwise visible. --show-questions prints each inserted question's contentKeys and knowledgeBaseSourceIds, useful for verifying MCP gate output. The command is read-only and exits 0 on success, 2 on attempt-not-found or DB error.
+
+
+## Operational hygiene
+
+Recurring ops sweeps keep the `questions` and `generation_attempts` tables
+clean between smoke campaigns and deploys. See `tools/README.md` for the
+full catalog, including argument reference and example invocations.
+
+Key scripts:
+
+- **`tools/cleanup-stale-drafts.ts`** — bulk-archive `ai_draft` questions older
+  than N days (default 7). Run weekly or after every smoke campaign.
+- **`tools/cleanup-orphaned-attempts.ts`** — mark `running` generation attempt
+  rows older than N minutes (default 30) as `failed` with `error_code='ORPHANED'`.
+  Run hourly or after any deploy that may have killed in-flight generation.
+
+Both scripts default to **dry-run** (print-only); pass `--apply` to write.
+Both use `SET LOCAL ROLE assessiq_system` for cross-tenant access.
+
+---
+
 ## Disaster recovery
 
 This section pins the procedure for restoring AssessIQ after a catastrophic failure of the Hostinger VPS, the Postgres data volume, or the broader shared-infra stack. It is procedure-only; setting up the offsite target (rclone + B2 bucket), wiring monitoring agents, and shipping a `dr-drill.sh` automation script are explicitly out of scope here and tracked separately. This section consumes the `## Backups` cron, the secret files at `/srv/assessiq/secrets/`, and the additive Caddy block at `/opt/ti-platform/caddy/Caddyfile`; it produces the operational confidence that a known-bad event has a known-good recovery path inside the documented RTO.

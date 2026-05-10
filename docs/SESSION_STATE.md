@@ -1,3 +1,25 @@
+# Session — 2026-05-09
+
+**Headline:** Heartbeat bumped to 5 min, blank-red page fixed with dismissible banner, eval fixtures realigned to real KB IDs (75/75 goldens green).
+
+**Commits:** `cd352c7` — fix(grading): heartbeat 60s->5min, dismissible error banner, eval fixtures realigned to real KB IDs
+
+**Tests:** pnpm -C modules/07-ai-grading typecheck ✅ | pnpm -C apps/api typecheck ✅ | pnpm -C modules/10-admin-dashboard typecheck ✅ | pnpm eval:goldens-strict: 75/75 passed ✅
+
+**Next:** Deploy is not required (no API surface changes; eval and handler files are local). Next session can pick up Phase 2 work per `docs/plans/PHASE_2_KICKOFF.md`.
+
+**Open questions:** none
+
+---
+
+## Agent utilization
+- Opus: Drove entire session — planning, file edits, fixture replacements, verification
+- Sonnet: n/a — all edits were ≤30 lines across ≤2-3 files, within Opus hot-cache
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — no security/auth/classifier diffs; pre-flight confirmed companion MCP not needed
+
+---
+
 # Session — 2026-05-02 (Phase 2 Kickoff Plan authored)
 
 **Headline:** `docs/plans/PHASE_2_KICKOFF.md` shipped — full Phase 2 plan for modules 07-ai-grading + 08-rubric-engine + 09-scoring + 10-admin-dashboard, mirroring Phase 1's structure: discovery summary, 18-row decisions table (D1–D8 verbatim from `docs/05-ai-pipeline.md` § Decisions captured (2026-05-01) + 10 new orchestrator-default resolutions P2.D9–P2.D18), G2.A → G2.B → G2.C session DAG with file paths, contracts, verification checklists, anti-pattern guards, four-step DoD per session.
