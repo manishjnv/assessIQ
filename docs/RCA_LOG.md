@@ -929,3 +929,76 @@ A second prevention: every revert commit must explicitly enumerate "what was rev
 
 **Prevention:** Type-level — `tenantId` is now part of the shim input interfaces. Any new call site that omits it gets a TS hint (optional, not required, to preserve backward compatibility with dev environments without tenant context). Phase 3 critique: any `sendEmail`/`sendInvitationEmail`/`sendAssessmentInvitationEmail` call site inside a `withTenant` block that does not forward `tenantId` should be flagged as a potential silent-drop bug.
 
+## 2026-05-09 — `email_log` row stays `queued` despite successful SMTP delivery
+
+**Symptom:** Worker delivered an invitation email via SMTP (Gmail providerMessageId returned, `worker.job.finished status=succeeded`), but `email_log` row for the message stayed `status='queued'`, `attempts=0`, `sent_at=NULL` indefinitely. Admin observability blind for actual delivery state.
+
+**Cause:** The post-send `email_log` UPDATE in the BullMQ email-send processor did not flow the canonical UUID through to the repo helper. `worker.job.finished` log line surfaced `result: { emailLogId: 36, status: 1 }` — `36` is the character-length of a UUIDv7, suggesting a `String#length` leak somewhere on the success path; the UPDATE then targeted a non-existent row id and silently affected 0 rows.
+
+**Fix:** modules/13-notifications/src/email/index.ts (post-send path) + modules/13-notifications/src/repository.ts: tightened the worker→repo handoff so `email_log.id` flows through as the canonical UUID string. TypeScript signature on the repository helper rejects number-coerced ids at the type level so this exact regression cannot recur. Commit `c6d1992`.
+
+**Prevention:** Type-level — `updateEmailLogStatus(id: string, …)` no longer accepts `number`. New `email-send-flow.test.ts` (12 cases) covers happy-path UPDATE + failure-path UPDATE + the type-level guard.
+
+## 2026-05-10 — Forbidden field-name synonyms leaked through 3 SKILL.md revisions
+
+**Symptom:** Sharded smokes (attempts `019e0d59`, `019e0da1`) inserted `ai_draft` questions whose `content` jsonb used SOC-authoring synonyms (`stem`, `explanation`, `correct_answer`, `log_snippet`, `answer_key`, `task`) instead of the canonical schema (`question`, `options`, `correct`, `rationale`, `log_excerpt`, `expected_findings`, `sample_solution`, `tables`). `score-candidate` reported `schemaValid: Required; Required;` for every inserted candidate; admin question-editor `QuestionContentView` couldn't render and fell back to JSON dump.
+
+**Cause:** Prompt-level rules don't override Sonnet's strong priors on SOC content authoring. Three SKILL.md revisions (`2026-05-09b → c → d`) added increasingly explicit Tool-use policy + Source-citation contract + Question content shape (HARD RULE) sections with verbatim forbidden-synonym lists. Model continued to substitute synonyms anyway. The `submit_questions` MCP tool's Zod schema accepted any payload with a top-level `questions` array — content shape was schema-free at the MCP boundary.
+
+**Fix (Stage 1.5e):** Move structural enforcement from prompt-level (advisory) to MCP-tool boundary (mechanical). `tools/assessiq-mcp/src/tools/submit-questions.ts` now uses a discriminated-union Zod schema with `.strict()` per-type content shapes. Any unknown key (every forbidden synonym) is rejected automatically. Validation rejection returns `isError: true` with a humanized Zod issue tree (max 1.5 KB) so the model gets feedback inside its `--max-turns` budget and can retry. Also: `modules/07-ai-grading/src/stream-json-parser.ts` `parseToolInput` switched from first-match to last-match so a model retry after rejection captures the corrected submission. Commits `3a7906d` + `bb17254`.
+
+**Prevention:** The 5 SKILL.md HARD RULE sections stay as documentation but are no longer load-bearing — a Sonnet model emitting `stem` instead of `question` now sees an MCP tool error inside the same turn budget, not a silent schema-drift insert. New `tools/assessiq-mcp/src/__tests__/submit-questions.test.ts` covers 6 rejection cases per type. Verified live on attempt `019e0deb` (2026-05-09 18:06): inserted candidates have canonical `question/options/correct/rationale` content keys.
+
+## 2026-05-10 — Citation HARD RULE wording leaked external IDs (mitre.t1003 etc.)
+
+**Symptom:** Despite three SKILL.md revisions including a Source-citation contract + Forbidden citation patterns subsection, sharded-smoke candidates emitted `knowledge_base_source_ids: ["mitre.t1003", "T1558.003"]` — MITRE technique IDs instead of the verbatim `source.id` values from the prompt's `input.sources` array.
+
+**Cause:** Same class of bug as the field-name synonym leak — prompt-level "verbatim copy" rules don't override the model's prior to cite by familiar identifiers. Compounded: the runtime's `sourceById.get(id)` lookup silently dropped unresolved IDs from `knowledgeBaseSources` (the displayed objects), but `knowledge_base_source_ids` (the raw model output) was preserved through to the DB. Citation correctness was unverifiable post-insert.
+
+**Fix (Stage 1.5f):** Move citation enforcement from prompt-level to handler-level. `modules/07-ai-grading/src/handlers/admin-generate.ts` now runs `filterByCitation()` after `Promise.allSettled`: every `q.knowledge_base_source_ids` value is validated against `input.sources[].id`; questions with empty arrays OR any invalid id are dropped and counted in `citationDropped`. Migration 0043 added `generation_attempts.citation_dropped INTEGER`. All three generation paths (sharded, omnibus single-call, omnibus chunked) apply the same filter uniformly. Commit `13f6231`.
+
+**Prevention:** The 5 SKILL.md citation HARD RULE wording stays as documentation but is no longer load-bearing — a model emitting `mitre.t1003` instead of the prompt-provided `id` now sees its question silently dropped pre-insert with a structured warn log including top-5 invalid IDs and a sample valid id. New `admin-generate-citation.test.ts` covers the 4-question scenario (valid / invalid / empty / mixed). Discovered side-effect: the eval/fixtures/L*-sources.json files used invented `src_l*_NNN` IDs while the real SOC KB uses `mitre.t*` IDs — fixtures realigned in commit `cd352c7`.
+
+## 2026-05-10 — `generation_attempts.stderr_tail` always NULL on chunk-level failures
+
+**Symptom:** `inspect-attempt --attempt-id 019e0deb --show-stderr` returned `(none)` despite 2 of 5 chunks (log_analysis + scenario) failing exit-1. Diagnostic surface for sharded chunk failures was effectively zero — the actual exit-1 reason existed in `claude-code-vps.ts` `claude.subprocess.summary` log lines (docker logs only) but never persisted to the DB row.
+
+**Cause:** The runtime captures `stderrFull` (privacy-gated for generation skills) and attaches it to the thrown `AppError.details.stderrTail` on non-zero exit. The handler's sharded-branch `Promise.allSettled` iteration logged `err.message` on rejected entries but did NOT extract `details.stderrTail` from the error and pass it to `tryFinalizeAttempt`. The finalize path only populated `stderr_tail` on attempt-level failures (whole attempt threw before completing); chunk-level failures left the column NULL.
+
+**Fix:** modules/07-ai-grading/src/handlers/admin-generate.ts now accumulates per-chunk stderr into `chunkStderrParts` with header markers (`--- chunk: <type> ---`), joins and slices the LAST 1024 bytes into `aggregatedStderrTail`, then passes it to `tryFinalizeAttempt` on both the partial-success path and (via a pre-throw call) the all-failed path. Chunk errors without `stderrTail` write `(none)` to the buffer entry instead of crashing. Privacy gate unchanged — only generation-skill stderr enters the buffer. Also: `claude-code-vps.ts` extended the timeout-path AppError to carry `stderrTail` when `isGenerationSkill === true`. Captured under runtime-baseline.json gap entry 2026-05-10.
+
+**Prevention:** Post-fix, every chunk failure leaves diagnostic content in `generation_attempts.stderr_tail` keyed by per-chunk header markers. `inspect-attempt --show-stderr` surfaces it without SSH. Open known_gap on `log_analysis + scenario exit-1 mystery` is now diagnosable on the next sharded smoke.
+
+## 2026-05-10 — Eval fixtures used invented IDs vs real SOC KB IDs
+
+**Symptom:** Sharded smoke (attempt `019e0deb`) inserted candidates citing real SOC KB IDs (`mitre.t1059.001`, `mitre.t1003`, `mitre.t1558.003`). `score-candidate` flagged ALL of them as "unknown source ids" — reported 0/8 passed despite the candidates being structurally + citation-correct. Operator confusion: the gate said "regression" when the candidates were actually correct.
+
+**Cause:** `modules/07-ai-grading/eval/fixtures/L{1,2,3}-sources.json` were authored from scratch in the Stage 1.5 goldens prompt with invented placeholder IDs (`src_l2_001`...`src_l2_008`). The real SOC KB in `modules/04-question-bank/src/knowledge-base/soc-l*.json` uses canonical MITRE-prefixed IDs. The runtime correctly resolved against the real KB; the comparator fixtures were the wrong reference.
+
+**Fix:** Realigned `eval/fixtures/L1-sources.json` + `L2-sources.json` + `L3-sources.json` to mirror real entries from `soc-l1.json` + `soc-l2.json` + `soc-l3.json` verbatim. Updated all 75 goldens to cite real `mitre.t*` IDs from the matching level fixture. `pnpm eval:goldens-strict` continues to print 75/75 after realign. Commit `cd352c7`.
+
+**Prevention:** Eval fixtures now mirror the canonical KB. Future SOC KB additions will require regenerating the eval fixtures in lock-step (no auto-sync; manual). Phase 3 critique: any fixture entry whose `id` doesn't appear in the level-matched `soc-l*.json` should be flagged.
+
+## 2026-05-10 — Session-idle 60s heartbeat + blank-red attempt-detail on grade error
+
+**Symptom:** Admin opened `/admin/attempts/<id>`, took >60s to read the question + answer (normal grading workflow), clicked Grade, got 409 `HEARTBEAT_STALE`. The SPA's error renderer at `attempt-detail.tsx:236-239` treated ANY error as page-level and replaced the entire page content with a giant red error block — admin couldn't see the question, couldn't refresh, couldn't recover without F5. Pre-existing 2× `lastSeenAt` TS errors on `modules/07-ai-grading/src/routes.ts:354,495` because the FastifyRequest session type augmentation was missing the `lastSeenAt` field.
+
+**Cause:** Three coupled defects:
+1. `modules/07-ai-grading/src/handlers/admin-grade.ts:163` (and admin-rerun.ts:153) checked `Date.now() - sessionLastActivity.getTime() > 60_000` — 60-second heartbeat too aggressive for any normal grading workflow that involves reading the question.
+2. `modules/10-admin-dashboard/src/pages/attempt-detail.tsx:236` `if (error || !detail)` short-circuited to a blank-red full-page render. Treated transient grade errors with same severity as load failures.
+3. Fastify session type augmentation didn't declare `lastSeenAt: string`, so `req.session!.lastSeenAt` typecheck-failed via project references for weeks.
+
+**Fix:** admin-grade.ts + admin-rerun.ts: heartbeat 60_000 → 300_000 ms (5 min). attempt-detail.tsx: split fatal vs transient render — fatal block only when `!detail`; transient errors render an inline banner with Refresh + Dismiss buttons that doesn't replace the page content. apps/api session type augmentation declares `lastSeenAt: string`, closing the 2 pre-existing TS errors. Commit `cd352c7`.
+
+**Prevention:** Type-level — `lastSeenAt` is now part of the augmented Fastify session shape. Phase 3 critique on any future SPA admin page: avoid `if (error || !detail)` blanket-fatal patterns; transient errors deserve banner-not-replacement UX.
+
+## 2026-05-10 — `assessiq-api` healthcheck `wget: not found` (FailingStreak=1589)
+
+**Symptom:** `docker inspect assessiq-api --format '{{.State.Health.Status}}'` reported "unhealthy" continuously. `docker ps` showed `(unhealthy)` next to the container despite `/api/health` returning 200 OK from the host. FailingStreak counter at 1589 — health probe had been failing for weeks. False alarm masking real health regressions.
+
+**Cause:** `infra/docker-compose.yml` healthcheck was `["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]`. The api container is built FROM `node:22-slim` (Debian bookworm-slim) which does NOT include `wget` in its base image. The exec failed with `exec: "wget": executable file not found in $PATH`. The actual API service was always healthy; the probe was the only failing component.
+
+**Fix:** Replaced the wget healthcheck with a Node fetch: `["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]`. Node 22 ships built-in fetch. No new image layer, no wget install. After redeploy, `docker ps` shows `(healthy)`. Bundled into commit `cd352c7`.
+
+**Prevention:** Any healthcheck command that depends on a binary not in the base image should be flagged at compose-validate time. The 127.0.0.1 (vs localhost) IPv6/IPv4 invariant from a prior RCA still applies — Fastify binds 0.0.0.0 (IPv4 only); localhost would hit ::1 first.
+
