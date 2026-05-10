@@ -975,6 +975,13 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
 // Question / answer serialisation for prompt embedding
 // ---------------------------------------------------------------------------
 
+// Maximum number of scenario answer steps evaluated in the prompt.
+// Steps beyond this limit are truncated with a note so the prompt stays within
+// a reasonable token budget (each step response can be multi-sentence).
+// The scenario content schema has no max-step constraint; this constant is the
+// runtime guardrail. See docs/05-ai-pipeline.md § "Per-type grading dispatch".
+const MAX_SCENARIO_STEPS = 10;
+
 function serializeQuestion(content: unknown): string {
   if (typeof content === "string") return content;
   if (content && typeof content === "object") {
@@ -983,6 +990,23 @@ function serializeQuestion(content: unknown): string {
     if (typeof c["title"] === "string" && typeof c["body"] === "string") {
       return `${c["title"]}\n\n${c["body"]}`;
     }
+    // log_analysis: expose question + log_excerpt so the AI understands the
+    // artifact the candidate was asked to analyse.
+    if (typeof c["log_excerpt"] === "string") {
+      const q = typeof c["question"] === "string" ? c["question"] : "";
+      const fmt = typeof c["log_format"] === "string" ? c["log_format"] : "freeform";
+      return `${q}\n\n[Log excerpt (${fmt})]:\n${c["log_excerpt"]}`;
+    }
+    // scenario: title + intro text + numbered step prompts.
+    if (typeof c["intro"] === "string" && Array.isArray(c["steps"])) {
+      const title = typeof c["title"] === "string" ? `${c["title"]}\n\n` : "";
+      const steps = (c["steps"] as Array<Record<string, unknown>>)
+        .map((s, i) => `Step ${i + 1}: ${typeof s["prompt"] === "string" ? s["prompt"] : JSON.stringify(s)}`)
+        .join("\n");
+      return `${title}${c["intro"]}\n\n${steps}`;
+    }
+    // subjective / kql / generic: prefer the question string if present.
+    if (typeof c["question"] === "string") return c["question"];
   }
   return JSON.stringify(content);
 }
@@ -993,6 +1017,40 @@ function serializeAnswer(answer: unknown): string {
   if (typeof answer === "object") {
     const a = answer as Record<string, unknown>;
     if (typeof a["text"] === "string") return a["text"];
+    // subjective: { response: string }
+    if (typeof a["response"] === "string") return a["response"];
+    // log_analysis: { findings: string[], explanation: string }
+    if (Array.isArray(a["findings"])) {
+      const findings = (a["findings"] as unknown[])
+        .map((f, i) => `${i + 1}. ${typeof f === "string" ? f : JSON.stringify(f)}`)
+        .join("\n");
+      const explanation =
+        typeof a["explanation"] === "string"
+          ? `\n\nExplanation: ${a["explanation"]}`
+          : "";
+      return `Findings:\n${findings}${explanation}`;
+    }
+    // scenario: { steps: [{stepIndex, response}] }
+    if (Array.isArray(a["steps"])) {
+      const steps = a["steps"] as Array<Record<string, unknown>>;
+      const limited = steps.slice(0, MAX_SCENARIO_STEPS);
+      const truncationNote =
+        steps.length > MAX_SCENARIO_STEPS
+          ? `\n\n[${steps.length - MAX_SCENARIO_STEPS} additional steps truncated — max ${MAX_SCENARIO_STEPS} evaluated]`
+          : "";
+      return (
+        limited
+          .map(
+            (s) =>
+              `Step ${s["stepIndex"] ?? "?"}: ${
+                typeof s["response"] === "string"
+                  ? s["response"]
+                  : JSON.stringify(s["response"])
+              }`,
+          )
+          .join("\n\n") + truncationNote
+      );
+    }
   }
   return JSON.stringify(answer);
 }

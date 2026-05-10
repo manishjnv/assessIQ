@@ -1101,3 +1101,301 @@ describe("handleAdminBudget", () => {
     expect(result.period_start).toBeNull();
   });
 });
+
+// ===========================================================================
+// 9. Per-type dispatch — all 5 question types
+//
+// Verifies that handleAdminGrade routes each question type to the correct
+// grading path:
+//   mcq         → skipped (NOT in AI_GRADEABLE_TYPES); gradeSubjective never called
+//   kql         → skipped (NOT in AI_GRADEABLE_TYPES); gradeSubjective never called
+//   subjective  → gradeSubjective called with DB rubric
+//   log_analysis → gradeSubjective called with synthesised rubric from expected_findings
+//   scenario    → gradeSubjective called with DB rubric + concatenated step answers
+//
+// Each test seeds a single-question attempt so the dispatch assertion is unambiguous.
+// All tests share the testcontainer started in the outer beforeAll.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Shared rubric fixture — valid for subjective + scenario DB rubrics
+// ---------------------------------------------------------------------------
+
+const VALID_RUBRIC = {
+  anchors: [
+    { id: "a1", concept: "test concept", weight: 70, synonyms: ["test"] },
+  ],
+  reasoning_bands: {
+    band_4: "Excellent",
+    band_3: "Good",
+    band_2: "Adequate",
+    band_1: "Poor",
+    band_0: "None",
+  },
+  anchor_weight_total: 70,
+  reasoning_weight_total: 30,
+};
+
+// ---------------------------------------------------------------------------
+// Helper — seed a single-question attempt of any type
+// ---------------------------------------------------------------------------
+
+async function seedSingleTypeAttempt(
+  type: string,
+  content: object,
+  rubric: object | null,
+  answer: unknown,
+): Promise<{ attemptId: string; questionId: string }> {
+  const candidateId = randomUUID();
+  let attemptId!: string;
+  let questionId!: string;
+
+  await withSuperClient(async (client) => {
+    await insertCandidateUser(
+      client,
+      candidateId,
+      TENANT_ID,
+      `dispatch-${type}-${randomUUID().slice(0, 8)}@test.local`,
+    );
+
+    const packId = randomUUID();
+    const levelId = randomUUID();
+    const slug = `dp-${type}-${randomUUID().slice(0, 8)}`;
+    questionId = randomUUID();
+    attemptId = randomUUID();
+    const assessmentId = randomUUID();
+
+    await client.query(
+      `INSERT INTO question_packs
+         (id, tenant_id, slug, name, domain, status, version, created_by)
+       VALUES ($1, $2, $3, $4, 'soc', 'published', 2, $5)`,
+      [packId, TENANT_ID, slug, `Pack-${type}`, ADMIN_ID],
+    );
+    await client.query(
+      `INSERT INTO levels (id, pack_id, position, label, duration_minutes, default_question_count)
+       VALUES ($1, $2, 1, 'L1', 30, 1)`,
+      [levelId, packId],
+    );
+    await client.query(
+      `INSERT INTO questions
+         (id, pack_id, level_id, type, topic, points, status, version, content, rubric, created_by)
+       VALUES ($1, $2, $3, $4, $5, 10, 'active', 1, $6::jsonb, $7, $8)`,
+      [
+        questionId, packId, levelId, type, `topic-${type}`,
+        JSON.stringify(content),
+        rubric !== null ? JSON.stringify(rubric) : null,
+        ADMIN_ID,
+      ],
+    );
+    await client.query(
+      `INSERT INTO question_versions
+         (id, question_id, version, content, rubric, saved_by)
+       VALUES ($1, $2, 1, $3::jsonb, $4, $5)`,
+      [
+        randomUUID(), questionId,
+        JSON.stringify(content),
+        rubric !== null ? JSON.stringify(rubric) : null,
+        ADMIN_ID,
+      ],
+    );
+    await client.query(
+      `INSERT INTO assessments
+         (id, tenant_id, pack_id, level_id, pack_version, name, question_count, status, created_by)
+       VALUES ($1, $2, $3, $4, 2, $5, 1, 'active', $6)`,
+      [assessmentId, TENANT_ID, packId, levelId, `Assessment-${type}`, ADMIN_ID],
+    );
+    await client.query(
+      `INSERT INTO assessment_invitations
+         (id, assessment_id, user_id, token_hash, expires_at, invited_by, status)
+       VALUES ($1, $2, $3, $4, now() + interval '7 days', $5, 'started')`,
+      [randomUUID(), assessmentId, candidateId, randomUUID(), ADMIN_ID],
+    );
+    await client.query(
+      `INSERT INTO attempts
+         (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds)
+       VALUES ($1, $2, $3, $4, 'submitted', now(), now() + interval '30 minutes', now(), 1800)`,
+      [attemptId, TENANT_ID, assessmentId, candidateId],
+    );
+    await client.query(
+      `INSERT INTO attempt_questions
+         (attempt_id, question_id, position, question_version)
+       VALUES ($1, $2, 1, 1)`,
+      [attemptId, questionId],
+    );
+    await client.query(
+      `INSERT INTO attempt_answers
+         (attempt_id, question_id, answer, client_revision, flagged, time_spent_seconds, edits_count)
+       VALUES ($1, $2, $3::jsonb, 0, false, 10, 1)`,
+      [attemptId, questionId, JSON.stringify(answer)],
+    );
+  });
+
+  return { attemptId, questionId };
+}
+
+describe("Per-type dispatch (handleAdminGrade routes by question type)", () => {
+  const freshActivity = (): Date => new Date(Date.now() - 5_000);
+
+  beforeEach(() => {
+    mockGradeSubjective.mockReset();
+    drainSingleFlight();
+  });
+
+  it("9.1 mcq — NOT AI-graded; gradeSubjective is never called", async () => {
+    const { attemptId } = await seedSingleTypeAttempt(
+      "mcq",
+      { question: "Which tool detects lateral movement?", options: ["A", "B", "C", "D"], correct: 2, difficulty: "l1" },
+      null,
+      { selected: 2 },
+    );
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    // MCQ is not in AI_GRADEABLE_TYPES — no proposals, no claude spawn.
+    expect(result.proposals).toHaveLength(0);
+    expect(mockGradeSubjective).not.toHaveBeenCalled();
+  });
+
+  it("9.2 kql — NOT AI-graded; gradeSubjective is never called", async () => {
+    const { attemptId } = await seedSingleTypeAttempt(
+      "kql",
+      {
+        question: "Write a KQL query to find failed logins",
+        tables: ["SecurityEvent"],
+        expected_keywords: ["EventID", "4625"],
+      },
+      null,
+      { query: "SecurityEvent | where EventID == 4625" },
+    );
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    // KQL is not in AI_GRADEABLE_TYPES — no proposals, no claude spawn.
+    expect(result.proposals).toHaveLength(0);
+    expect(mockGradeSubjective).not.toHaveBeenCalled();
+  });
+
+  it("9.3 subjective — routed to gradeSubjective with DB rubric", async () => {
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "subjective",
+      { question: "Explain the kill chain model." },
+      VALID_RUBRIC,
+      { response: "The kill chain model describes the stages of a cyberattack..." },
+    );
+
+    mockGradeSubjective.mockResolvedValue(makeProposal(attemptId, questionId));
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    expect(result.proposals).toHaveLength(1);
+    expect(mockGradeSubjective).toHaveBeenCalledOnce();
+    // DB rubric passed as-is — anchors present, not synthesised.
+    const call = mockGradeSubjective.mock.calls[0]![0];
+    expect(call.question_id).toBe(questionId);
+    const rubric = call.rubric as typeof VALID_RUBRIC;
+    expect(rubric.anchors[0]!.id).toBe("a1");
+  });
+
+  it("9.4 log_analysis — gradeSubjective called with synthesised rubric from expected_findings", async () => {
+    const expectedFindings = ["Lateral movement detected via SMB", "Credential dumping via LSASS"];
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "log_analysis",
+      {
+        question: "Analyse the log excerpt and identify the attack stages.",
+        log_excerpt: "Jan 10 10:00:01 host sshd[1234]: Failed password for root",
+        log_format: "syslog",
+        expected_findings: expectedFindings,
+      },
+      null, // No admin-authored rubric — must be synthesised
+      { findings: ["Lateral movement detected via SMB"], explanation: "SMB traffic observed." },
+    );
+
+    mockGradeSubjective.mockResolvedValue(makeProposal(attemptId, questionId));
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    expect(result.proposals).toHaveLength(1);
+    expect(mockGradeSubjective).toHaveBeenCalledOnce();
+
+    const call = mockGradeSubjective.mock.calls[0]![0];
+    expect(call.question_id).toBe(questionId);
+
+    // Verify synthesised rubric structure.
+    const rubric = call.rubric as {
+      anchors: Array<{ id: string; concept: string; weight: number; synonyms: string[] }>;
+      anchor_weight_total: number;
+      reasoning_weight_total: number;
+    };
+    expect(Array.isArray(rubric.anchors)).toBe(true);
+    expect(rubric.anchors).toHaveLength(expectedFindings.length);
+    // Each anchor maps to an expected_finding.
+    for (let i = 0; i < expectedFindings.length; i++) {
+      expect(rubric.anchors[i]!.id).toBe(`anchor-${i}`);
+      expect(rubric.anchors[i]!.concept).toBe(expectedFindings[i]);
+      expect(rubric.anchors[i]!.synonyms).toEqual([expectedFindings[i]]);
+    }
+    // Weights must sum to anchor_weight_total and total must be 100.
+    const anchorWeightSum = rubric.anchors.reduce((acc, a) => acc + a.weight, 0);
+    expect(anchorWeightSum).toBe(rubric.anchor_weight_total);
+    expect(rubric.anchor_weight_total + rubric.reasoning_weight_total).toBe(100);
+  });
+
+  it("9.5 scenario — routed to gradeSubjective with DB rubric; step answers forwarded", async () => {
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "scenario",
+      {
+        title: "Incident Response Scenario",
+        intro: "A host is beaconing to a known C2 IP.",
+        steps: [
+          { id: "s1", type: "subjective", prompt: "What is your first action?" },
+          { id: "s2", type: "subjective", prompt: "How do you contain the threat?" },
+        ],
+        step_dependency: "linear",
+      },
+      VALID_RUBRIC,
+      { steps: [{ stepIndex: 0, response: "Isolate the host immediately." }, { stepIndex: 1, response: "Block the C2 IP at the firewall." }] },
+    );
+
+    mockGradeSubjective.mockResolvedValue(makeProposal(attemptId, questionId));
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    expect(result.proposals).toHaveLength(1);
+    expect(mockGradeSubjective).toHaveBeenCalledOnce();
+
+    const call = mockGradeSubjective.mock.calls[0]![0];
+    expect(call.question_id).toBe(questionId);
+    // DB rubric is passed as-is for scenario.
+    const rubric = call.rubric as typeof VALID_RUBRIC;
+    expect(rubric.anchors[0]!.id).toBe("a1");
+    // Answer is forwarded (steps not stripped by the handler).
+    const answer = call.answer as { steps: unknown[] };
+    expect(Array.isArray(answer.steps)).toBe(true);
+    expect(answer.steps).toHaveLength(2);
+  });
+});
