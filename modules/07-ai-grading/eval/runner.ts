@@ -380,6 +380,163 @@ export async function writeBaseline(
 }
 
 // ---------------------------------------------------------------------------
+// RuntimeThresholds — used by cli-typed.ts score-candidate --strict-runtime
+// ---------------------------------------------------------------------------
+
+export interface RuntimeThresholds {
+  min_chunk_success_rate: number;
+  max_peak_rss_mib: number;
+  max_per_type_duration_ms_at_count_le_2: number;
+  min_total_inserted_pct: number;
+}
+
+/**
+ * Read eval/runtime-baseline.json and project regression_thresholds.
+ * Returns null if the file is missing, the regression_thresholds key is
+ * absent, or any required field is not a number — never throws.
+ * Matches the loadBaseline() error-handling pattern.
+ */
+export async function loadRuntimeThresholds(): Promise<RuntimeThresholds | null> {
+  const filePath = join(__dirname, "runtime-baseline.json");
+  if (!existsSync(filePath)) return null;
+  try {
+    const raw = await readFile(filePath, "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const obj = parsed as Record<string, unknown>;
+    const t = obj["regression_thresholds"];
+    if (t === null || typeof t !== "object" || Array.isArray(t)) return null;
+    const thresholds = t as Record<string, unknown>;
+    const minCsr = thresholds["min_chunk_success_rate"];
+    const maxRss = thresholds["max_peak_rss_mib"];
+    const maxDur = thresholds["max_per_type_duration_ms_at_count_le_2"];
+    const minPct = thresholds["min_total_inserted_pct"];
+    if (
+      typeof minCsr !== "number" ||
+      typeof maxRss !== "number" ||
+      typeof maxDur !== "number" ||
+      typeof minPct !== "number"
+    ) {
+      return null;
+    }
+    return {
+      min_chunk_success_rate: minCsr,
+      max_peak_rss_mib: maxRss,
+      max_per_type_duration_ms_at_count_le_2: maxDur,
+      min_total_inserted_pct: minPct,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// scoreRuntimeMetrics — used by the POST /admin/generation-attempts/:id/score
+// route handler and available for the CLI to re-use.
+//
+// Returns route-oriented shapes (value: number | null; verdict "n/a" not "na")
+// so the route can return clean JSON without any post-processing.
+// cli-typed.ts keeps its own CLI-formatted RuntimeMetricRow (value: string)
+// for the printed table — that file is not modified here.
+// ---------------------------------------------------------------------------
+
+/** Per-metric row for the in-app score endpoint and route consumers. */
+export interface EvalRuntimeMetricRow {
+  name: string;
+  /** Computed numeric value; null when not derivable from the attempt row. */
+  value: number | null;
+  /** Threshold expression, e.g. "≥0.60" or "≤1000". */
+  threshold: string;
+  verdict: "pass" | "fail" | "n/a";
+}
+
+export interface EvalRuntimeMetricsResult {
+  rows: EvalRuntimeMetricRow[];
+  /** True when at least one metric was computed AND failed its threshold. */
+  anyFail: boolean;
+  /** False when thresholds is null — caller should treat runtime as inconclusive. */
+  hasThresholds: boolean;
+}
+
+/**
+ * Compute runtime metric rows from attempt data and thresholds.
+ *
+ * Pure function — no I/O, no side effects. Metrics unavailable from the
+ * attempt row (peak_rss, per_type_duration) receive verdict "n/a" and never
+ * contribute to anyFail.
+ *
+ * chunk_success_rate threshold uses ≥ (not >): 0.6 exactly is a pass.
+ */
+export function scoreRuntimeMetrics(
+  attempt: {
+    chunks_planned: number | null;
+    chunks_failed: number | null;
+    count_inserted: number;
+    count_requested: number;
+  },
+  thresholds: RuntimeThresholds | null,
+): EvalRuntimeMetricsResult {
+  if (thresholds === null) {
+    return { rows: [], anyFail: false, hasThresholds: false };
+  }
+
+  const rows: EvalRuntimeMetricRow[] = [];
+
+  // chunk_success_rate = (chunks_planned - chunks_failed) / chunks_planned
+  {
+    const planned = attempt.chunks_planned;
+    let value: number | null = null;
+    let verdict: "pass" | "fail" | "n/a" = "n/a";
+    if (planned !== null && planned > 0) {
+      const failed = attempt.chunks_failed ?? 0;
+      value = (planned - failed) / planned;
+      verdict = value >= thresholds.min_chunk_success_rate ? "pass" : "fail";
+    }
+    rows.push({
+      name: "chunk_success_rate",
+      value,
+      threshold: `\u2265${thresholds.min_chunk_success_rate.toFixed(2)}`,
+      verdict,
+    });
+  }
+
+  // total_inserted_pct = count_inserted / count_requested
+  {
+    let value: number | null = null;
+    let verdict: "pass" | "fail" | "n/a" = "n/a";
+    if (attempt.count_requested > 0) {
+      value = attempt.count_inserted / attempt.count_requested;
+      verdict = value >= thresholds.min_total_inserted_pct ? "pass" : "fail";
+    }
+    rows.push({
+      name: "total_inserted_pct",
+      value,
+      threshold: `\u2265${thresholds.min_total_inserted_pct.toFixed(2)}`,
+      verdict,
+    });
+  }
+
+  // per_type_duration (max) — not stored in the attempt row; measured at smoke time.
+  rows.push({
+    name: "per_type_duration_ms (max)",
+    value: null,
+    threshold: `\u2264${thresholds.max_per_type_duration_ms_at_count_le_2}`,
+    verdict: "n/a",
+  });
+
+  // peak_rss_mib — not stored in the attempt row; measured at smoke time.
+  rows.push({
+    name: "peak_rss_mib",
+    value: null,
+    threshold: `\u2264${thresholds.max_peak_rss_mib}`,
+    verdict: "n/a",
+  });
+
+  const anyFail = rows.some((r) => r.verdict === "fail");
+  return { rows, anyFail, hasThresholds: true };
+}
+
+// ---------------------------------------------------------------------------
 // AttemptDiagnostic — used by cli-typed.ts inspect-attempt subcommand
 // ---------------------------------------------------------------------------
 
