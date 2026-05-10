@@ -186,3 +186,35 @@ When a new question type lands (e.g. `kql`, `scenario`), add 50+ cases under `ca
 ## Canonical contract reference
 
 `docs/05-ai-pipeline.md` § D5 — Eval-harness baseline contract (lines 662–714).
+
+## Diagnostics — generation_attempts inspection
+
+Use `inspect-attempt` to dump the full diagnostic surface of a `generation_attempts`
+row when a smoke attempt exits non-zero with no visible detail (e.g. attempts
+`019e0d59`, `019e0da1`, `019e0deb` fail with exit-1 in every smoke run but
+`score-candidate` strips the `stderr_tail`).
+
+```bash
+# From inside the api container (or with DATABASE_URL set):
+pnpm exec tsx modules/07-ai-grading/eval/cli-typed.ts inspect-attempt \
+  --attempt-id 019e0deb-4dcf-70b1-83fe-8c88e20b7b62 \
+  --show-stderr --show-questions
+```
+
+**One-liner via the tools/ wrapper (SSH from local):**
+
+```bash
+bash tools/inspect-attempt.sh 019e0deb-4dcf-70b1-83fe-8c88e20b7b62
+```
+
+The `--show-stderr` flag prints the 1024-byte-truncated `stderr_tail` column
+(captured by the writer path, privacy-gated — generation skills only). This is
+the primary surface for diagnosing `log_analysis` / `scenario` chunk failures
+that produce exit-1 without a human-readable error message in the API logs.
+
+The `--show-questions` flag prints each inserted question's `contentKeys` and
+`knowledgeBaseSourceIds`, useful for verifying the MCP gate is producing
+canonical field names.
+
+**Exit codes:** 0 = attempt found and rendered. 2 = attempt not found or DB
+connect failure. This command is read-only — it never modifies any table.
