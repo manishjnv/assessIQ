@@ -1,6 +1,6 @@
 ---
 name: generate-scenario
-version: "2026-05-09d"
+version: "2026-05-10a"
 model: claude-sonnet-4-6
 description: |
   Generate multi-step scenario questions for SOC analyst assessments grounded
@@ -92,11 +92,8 @@ Call `submit_questions` exactly once with a JSON array. Each object must be:
     "step_dependency": "linear",
     "steps": [
       {
-        "id": "step-1",
-        "type": "mcq",
         "prompt": "<analyst decision question for this step>",
-        "options": ["<A — correct analyst action>", "<B>", "<C>", "<D>"],
-        "correct": 0
+        "expected": "<the correct analyst action in one sentence>"
       }
     ]
   },
@@ -124,11 +121,8 @@ Required content shape for scenario:
   "step_dependency": "linear",
   "steps": [
     {
-      "id": "step-1",
-      "type": "mcq",
       "prompt": "<analyst decision question for this step>",
-      "options": ["<A — correct analyst action>", "<B>", "<C>", "<D>"],
-      "correct": 0
+      "expected": "<the correct analyst action in one sentence>"
     }
   ]
 }
@@ -140,6 +134,19 @@ Field synonyms that are FORBIDDEN — do not use any of these:
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
+
+Each step has exactly TWO fields — `prompt` and `expected`.
+- `prompt`: the question the analyst faces at this decision point.
+- `expected`: the single correct analyst action written as a
+  complete sentence (NOT an index, NOT a multi-choice list).
+
+Forbidden keys (Zod .strict() will reject): `id`, `type`,
+`options`, `correct`, `correct_answer`, `answer`, `choices`.
+
+If submit_questions is rejected with "unrecognized key(s)" or
+"Required", read the error path, correct ONLY the named field(s),
+include the FULL questions array (NOT an empty object), and
+resubmit. Maximum two resubmissions after each correction.
 
 ## Source-citation contract (HARD RULE)
 
@@ -201,7 +208,6 @@ attempt will fail. There is no value in exploring the codebase
 or searching for additional context — the prompt is the full
 context.
 
-Reason directly from the prompt and call submit_questions exactly
-once with the full array of generated questions.
-
-Call `submit_questions` exactly once. No other tool calls.
+Reason directly from the prompt and call submit_questions with
+the full array. If rejected, read the error, correct the named
+fields, and resubmit. Maximum two resubmissions.

@@ -1,6 +1,6 @@
 ---
 name: generate-kql
-version: "2026-05-09d"
+version: "2026-05-10a"
 model: claude-sonnet-4-6
 description: |
   Generate KQL (Kusto Query Language) questions for SOC analyst assessments
@@ -109,7 +109,6 @@ Call `submit_questions` exactly once with a JSON array. Each object must be:
   "content": {
     "question": "<question text describing the detection goal>",
     "tables": ["<TableName1>", "<TableName2>"],
-    "hint": "<optional — one sentence hint, e.g. 'Look at LogonType values'>",
     "expected_keywords": ["<keyword1>", "<keyword2>", "<keyword3>"],
     "sample_solution": "<complete, runnable KQL query>"
   },
@@ -140,10 +139,17 @@ Required content shape for kql:
 ```
 
 Field synonyms that are FORBIDDEN — do not use any of these:
-  stem, task, answer_key, query, target_query, keywords
+  stem, task, answer_key, query, target_query, keywords,
+  hint   — the content schema does not include an optional hint
+           field; omit it entirely. If hint context is genuinely
+           needed, fold it into the `question` string.
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
+
+If submit_questions is rejected, read the error path, correct
+ONLY the named field(s), include the FULL questions array, and
+resubmit. Maximum two resubmissions.
 
 ## Source-citation contract (HARD RULE)
 
@@ -205,7 +211,6 @@ attempt will fail. There is no value in exploring the codebase
 or searching for additional context — the prompt is the full
 context.
 
-Reason directly from the prompt and call submit_questions exactly
-once with the full array of generated questions.
-
-Call `submit_questions` exactly once. No other tool calls.
+Reason directly from the prompt and call submit_questions with
+the full array. If rejected, read the error, correct the named
+fields, and resubmit. Maximum two resubmissions.
