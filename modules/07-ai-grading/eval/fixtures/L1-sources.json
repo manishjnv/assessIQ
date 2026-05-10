@@ -7,7 +7,29 @@
     "level_fit": "L1",
     "function": "triage",
     "description": "Structured approach to prioritizing security incidents using functional impact (None/Low/Medium/High), informational impact, and recoverability ratings. L1 analysts apply the two-axis triage matrix before escalation to determine ticket urgency, SLA category, and whether containment can be deferred.",
-    "tags": ["triage", "incident-priority", "NIST", "CySA", "SLA"],
+    "tags": [
+      "triage",
+      "incident-priority",
+      "NIST",
+      "CySA",
+      "SLA"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "nist.ir.lifecycle",
+    "name": "Incident Response Lifecycle (Preparation, Detection, Containment, Recovery)",
+    "citation": "NIST SP 800-61 Rev 2, Section 3",
+    "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+    "level_fit": "L1",
+    "function": "response",
+    "description": "The four-phase NIST IR lifecycle — Preparation, Detection & Analysis, Containment/Eradication/Recovery, and Post-Incident Activity — is the foundational framework every L1 analyst is expected to map their actions against. L1 work is concentrated in Detection & Analysis: validating alerts, gathering initial evidence, and deciding escalation vs. closure.",
+    "tags": [
+      "incident-response",
+      "lifecycle",
+      "NIST",
+      "phases"
+    ],
     "kb_version": "2026-05-08"
   },
   {
@@ -18,7 +40,30 @@
     "level_fit": "L1",
     "function": "detection",
     "description": "Adversaries send crafted emails with malicious links or attachments to gain initial access. L1 analysts identify phishing by examining sender spoofing, mismatched reply-to headers, urgent call-to-action language, hoverable link destinations, and payload file extensions. All three sub-techniques (spearphishing attachment T1566.001, spearphishing link T1566.002, spearphishing via service T1566.003) should be distinguishable at L1.",
-    "tags": ["phishing", "initial-access", "MITRE", "email", "social-engineering"],
+    "tags": [
+      "phishing",
+      "initial-access",
+      "MITRE",
+      "email",
+      "social-engineering"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "mitre.t1110",
+    "name": "Brute Force (Credential Access)",
+    "citation": "MITRE ATT&CK T1110",
+    "url": "https://attack.mitre.org/techniques/T1110/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Repeated authentication attempts using guessed or enumerated credentials. L1 analysts detect brute force through Windows Event ID 4625 (failed logon) volume spikes, account lockout events (4740), and SIEM rules that alert when failure count exceeds threshold (e.g. 10 failures in 5 minutes from a single source). Sub-technique T1110.003 (Password Spraying) shows low-velocity failures spread across many accounts — harder to trigger lockout policies.",
+    "tags": [
+      "brute-force",
+      "credential-access",
+      "MITRE",
+      "event-4625",
+      "account-lockout"
+    ],
     "kb_version": "2026-05-08"
   },
   {
@@ -29,7 +74,12 @@
     "level_fit": "L1",
     "function": "analysis",
     "description": "Generated on the computer where a logon attempt was made when it fails. Key fields: Account Name, Logon Type (2=interactive, 3=network, 10=RemoteInteractive), Failure Reason, Caller Process Name, and Source Network Address. Logon Type 3 failures from external IPs are high-priority triage signals. Sub-Status 0xC000006D means wrong username; 0xC000006A means wrong password — useful for distinguishing typo-caused lockouts from credential stuffing.",
-    "tags": ["windows-event", "4625", "failed-logon", "SIEM"],
+    "tags": [
+      "windows-event",
+      "4625",
+      "failed-logon",
+      "SIEM"
+    ],
     "kb_version": "2026-05-08"
   },
   {
@@ -39,8 +89,31 @@
     "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4688",
     "level_fit": "L1",
     "function": "analysis",
-    "description": "Logged whenever a new process is created, including Parent Process Name, New Process Name, Token Elevation Type, and (when command-line auditing is enabled) the full command line. L1 analysts use 4688 to verify whether cmd.exe or powershell.exe was spawned by an Office application (parent-process chaining), which is a key Emotet/Qakbot indicator. Requires 'Audit Process Creation' and 'Include command line in process creation events' GPO settings.",
-    "tags": ["windows-event", "4688", "process-creation", "parent-process", "SIEM"],
+    "description": "Logged whenever a new process is created, including Parent Process Name, New Process Name, Token Elevation Type, and (when command-line auditing is enabled) the full command line. L1 analysts use 4688 to verify whether `cmd.exe` or `powershell.exe` was spawned by an Office application (parent-process chaining), which is a key Emotet/Qakbot indicator. Requires 'Audit Process Creation' and 'Include command line in process creation events' GPO settings.",
+    "tags": [
+      "windows-event",
+      "4688",
+      "process-creation",
+      "parent-process",
+      "SIEM"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "win.event.1102",
+    "name": "Windows Event ID 1102 — Security Log Cleared",
+    "citation": "Microsoft Security Auditing Reference: Event 1102",
+    "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-1102",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Logged when the Security audit log is cleared. Because this event signals a potential cover-up of prior malicious activity, it should trigger an automatic escalation to L2 and an immediate memory-image request from the affected host. L1 analysts must also check 4719 (System Audit Policy Changed) and 4616 (System Time Changed) as companion anti-forensics events. Any single occurrence is high-priority regardless of time-of-day.",
+    "tags": [
+      "windows-event",
+      "1102",
+      "log-cleared",
+      "anti-forensics",
+      "SIEM"
+    ],
     "kb_version": "2026-05-08"
   },
   {
@@ -51,7 +124,13 @@
     "level_fit": "L1",
     "function": "detection",
     "description": "Generated when a new scheduled task is registered. Adversaries use scheduled tasks for persistence (MITRE T1053.005). L1 analysts should examine Task Name, Task Content (especially Action URI), and Subject Account — tasks created by non-administrative accounts or with base64-encoded command-line actions are high-priority escalations. Companion events: 4702 (task modified), 4699 (task deleted).",
-    "tags": ["windows-event", "4698", "scheduled-task", "persistence", "MITRE-T1053"],
+    "tags": [
+      "windows-event",
+      "4698",
+      "scheduled-task",
+      "persistence",
+      "MITRE-T1053"
+    ],
     "kb_version": "2026-05-08"
   },
   {
@@ -62,7 +141,134 @@
     "level_fit": "L1",
     "function": "detection",
     "description": "Adversaries abuse command and script interpreters to execute commands, scripts, or binaries. L1 analysts flag anomalous interpreter usage: PowerShell (T1059.001) spawned by Office applications, cmd.exe (T1059.003) launched by web server processes (IIS w3wp.exe), and wscript/cscript (T1059.005) running from temp or user download directories. ExecutionPolicy Bypass flags (-ep bypass, -exec bypass) in event 4688 command-line data are mandatory escalation triggers.",
-    "tags": ["scripting", "T1059", "PowerShell", "cmd", "MITRE", "execution"],
+    "tags": [
+      "scripting",
+      "T1059",
+      "PowerShell",
+      "cmd",
+      "MITRE",
+      "execution"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "mitre.t1046",
+    "name": "Network Service Discovery / Port Scanning",
+    "citation": "MITRE ATT&CK T1046",
+    "url": "https://attack.mitre.org/techniques/T1046/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Adversaries scan networks to identify active hosts, open ports, and service banners during the Discovery phase. L1 analysts identify port scans via firewall logs showing one source IP hitting many destination ports (horizontal) or one destination IP receiving probes from many sources (vertical). SYN scan patterns (half-open TCP, RST response) are the most common Nmap default profile and produce characteristic firewall log signatures.",
+    "tags": [
+      "port-scan",
+      "discovery",
+      "MITRE-T1046",
+      "firewall",
+      "network"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "mitre.t1071.004",
+    "name": "DNS as C2 Application Layer Protocol",
+    "citation": "MITRE ATT&CK T1071.004",
+    "url": "https://attack.mitre.org/techniques/T1071/004/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Adversaries encode C2 commands and exfiltrated data inside DNS queries and TXT record responses to blend with legitimate resolver traffic. L1 indicators: unusually long subdomain labels (>63 chars), high query frequency to a single domain, entropy anomalies in subdomain strings (base64/hex), and TXT queries from internal hosts. Comparison against DNS baseline is essential — anomaly detection requires knowing the normal daily query volume per endpoint.",
+    "tags": [
+      "DNS",
+      "C2",
+      "T1071.004",
+      "MITRE",
+      "exfiltration",
+      "SIEM"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "mitre.t1078",
+    "name": "Valid Accounts (Credential Misuse)",
+    "citation": "MITRE ATT&CK T1078",
+    "url": "https://attack.mitre.org/techniques/T1078/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Adversaries obtain and use existing valid credentials — often purchased on dark-web marketplaces from prior data breaches — to authenticate without triggering brute-force detections. L1 analysts look for logon time anomalies (off-hours access for a normally 9-5 account), impossible travel (two logins from geographically distant locations within minutes), and first-seen source IP alerts. Integration with threat intelligence to flag known leaked credentials is a compensating control.",
+    "tags": [
+      "valid-accounts",
+      "credential-misuse",
+      "T1078",
+      "MITRE",
+      "UEBA"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "mitre.t1091",
+    "name": "Replication Through Removable Media",
+    "citation": "MITRE ATT&CK T1091",
+    "url": "https://attack.mitre.org/techniques/T1091/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Adversaries copy malware to removable media to spread across air-gapped or network-isolated systems. L1 indicators: Autorun.inf file creation events, new process creation from drive letters D: through Z:, and Defender/EDR alerts tied to removable storage. USB event correlation uses Windows Event IDs from the System log (20001: Device Configured, 20003: Device Started) combined with 4688 to attribute which process was launched from the inserted device.",
+    "tags": [
+      "removable-media",
+      "USB",
+      "T1091",
+      "MITRE",
+      "lateral-movement"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "mitre.t1053",
+    "name": "Scheduled Task/Job (Persistence)",
+    "citation": "MITRE ATT&CK T1053",
+    "url": "https://attack.mitre.org/techniques/T1053/",
+    "level_fit": "L1",
+    "function": "detection",
+    "description": "Adversaries use task schedulers to execute programs at system startup, user login, or predefined time intervals, achieving persistence without modifying disk-resident executables. Sub-technique T1053.005 (Windows Task Scheduler) and T1053.003 (Cron on Linux) are the most common. L1 analysts review newly registered tasks via event 4698 and check that Task Action paths are within expected system directories rather than TEMP, AppData, or user profile paths.",
+    "tags": [
+      "persistence",
+      "scheduled-task",
+      "cron",
+      "T1053",
+      "MITRE"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "siem.alert.tuning",
+    "name": "SIEM Alert Tuning and False-Positive Reduction",
+    "citation": "CompTIA CySA+ CS0-003 Objective 2.1",
+    "url": "https://www.comptia.org/certifications/cybersecurity-analyst",
+    "level_fit": "L1",
+    "function": "triage",
+    "description": "The process of adjusting SIEM detection rules to reduce alert fatigue while preserving true-positive fidelity. L1 analysts are expected to identify common benign patterns that should be whitelisted (e.g. IT asset-scanner generating port-scan alerts, backup agent spawning cmd.exe nightly), document suppression rationale, and escalate suppression requests to L2 for approval. Blind suppression of alerts without documentation is a SOC hygiene failure.",
+    "tags": [
+      "SIEM",
+      "false-positive",
+      "alert-tuning",
+      "CySA",
+      "triage"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "nist.sp800-92.log",
+    "name": "Log Management and Retention",
+    "citation": "NIST SP 800-92, Section 3",
+    "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-92.pdf",
+    "level_fit": "L1",
+    "function": "governance",
+    "description": "Defines log generation, transmission, storage, analysis, and disposal. L1 analysts must understand minimum retention periods (90 days online, 1 year offline for most compliance frameworks), log integrity requirements (write-once or signed forwarding to prevent tampering), and the difference between raw event logs and aggregated SIEM-stored normalized records. Forensic investigations rely on raw logs; SIEM queries alone are insufficient for chain-of-custody evidence.",
+    "tags": [
+      "log-management",
+      "retention",
+      "NIST",
+      "SIEM",
+      "compliance"
+    ],
     "kb_version": "2026-05-08"
   },
   {
@@ -73,7 +279,30 @@
     "level_fit": "L1",
     "function": "analysis",
     "description": "IOCs extracted from phishing emails include sender domain/IP reputation, malicious URL patterns (typosquatting, homograph attacks), attachment hash values matched against VirusTotal/MalwareBazaar, and macro-enabled Office document metadata. L1 analysts submit IOCs to the threat intelligence platform and check existing blacklists before determining whether wider investigation is warranted. False IOC submission (e.g. submitting internal scanner IP) degrades the shared intelligence feed quality.",
-    "tags": ["phishing", "IOC", "email-analysis", "VirusTotal", "CompTIA"],
+    "tags": [
+      "phishing",
+      "IOC",
+      "email-analysis",
+      "VirusTotal",
+      "CompTIA"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "dns.sinkhole",
+    "name": "DNS Sinkhole and Domain Blackhole Response",
+    "citation": "SANS Reading Room: DNS Sinkholing",
+    "url": "https://www.sans.org/white-papers/33523/",
+    "level_fit": "L1",
+    "function": "response",
+    "description": "A DNS sinkhole redirects resolved queries for known-malicious domains to a controlled IP, preventing malware beaconing while generating visibility data. L1 analysts use sinkhole hit logs to identify infected endpoints (any host resolving a sinkholen domain is likely compromised), initiate the containment workflow, and prepare the escalation ticket with sinkhole query frequency and first-seen timestamps. Sinkhole hits are high-confidence, low-false-positive signals.",
+    "tags": [
+      "DNS-sinkhole",
+      "C2",
+      "containment",
+      "response",
+      "malware"
+    ],
     "kb_version": "2026-05-08"
   },
   {
@@ -84,7 +313,119 @@
     "level_fit": "L1",
     "function": "triage",
     "description": "Endpoint Detection and Response platforms generate behavioral detections based on process telemetry, file events, registry changes, and network connections. L1 analysts review alert severity (Informational/Low/Medium/High/Critical), the detection technique mapping to MITRE ATT&CK, and the parent-process tree. Quarantine actions on endpoints should only be taken after L1 confirms with the asset owner that the host is not business-critical, or after L2 escalation for production systems.",
-    "tags": ["EDR", "CrowdStrike", "Defender", "triage", "endpoint", "MITRE"],
+    "tags": [
+      "EDR",
+      "CrowdStrike",
+      "Defender",
+      "triage",
+      "endpoint",
+      "MITRE"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "itil.escalation",
+    "name": "Incident Escalation Matrix (ITIL v4)",
+    "citation": "ITIL 4 Foundation, Service Management Practices",
+    "url": "https://www.axelos.com/certifications/itil-service-management/itil-4-foundation",
+    "level_fit": "L1",
+    "function": "triage",
+    "description": "Defines the functional escalation path from L1 to L2 and L2 to L3 based on technical complexity, time-to-resolve risk, and business impact. L1 analysts trigger functional escalation when: (a) triage effort exceeds defined SLA threshold (typically 30 min), (b) a critical asset is involved, or (c) a confirmed IoC indicates active threat actor presence. Hierarchical escalation (L1 to management) is triggered for incidents with media, legal, or regulatory implications.",
+    "tags": [
+      "escalation",
+      "ITIL",
+      "L1",
+      "L2",
+      "triage",
+      "SLA"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "nist.sp800-40.patch",
+    "name": "Patch Management and Vulnerability Remediation Prioritization",
+    "citation": "NIST SP 800-40 Rev 4, Section 4",
+    "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-40r4.pdf",
+    "level_fit": "L1",
+    "function": "governance",
+    "description": "Provides guidance on deploying patches in a timely manner commensurate with risk. L1 analysts are often responsible for reviewing vulnerability scan outputs and mapping findings to CVSS scores, then classifying remediation urgency: Critical (CVSS 9.0+) within 24-48h, High (7.0-8.9) within 7 days, Medium (4.0-6.9) within 30 days. Understanding that CVSS Base Score must be contextualized with Environmental Metrics (asset criticality) is a key L1 competency.",
+    "tags": [
+      "patch-management",
+      "CVSS",
+      "vulnerability",
+      "NIST",
+      "remediation"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "cis.control.17",
+    "name": "Incident Response Management (CIS Controls v8 Control 17)",
+    "citation": "CIS Controls v8, Control 17",
+    "url": "https://www.cisecurity.org/controls/incident-response-management",
+    "level_fit": "L1",
+    "function": "governance",
+    "description": "CIS Control 17 establishes a formal IR program covering policy, plan, procedure, and trained personnel. L1 analysts operate within the procedures defined by Control 17.1-17.9, including designation of IR personnel (17.2), incident tracking (17.3), and maintaining an artifact repository for investigation evidence (17.8). CIS Safeguard 17.6 (Train Staff on Incident Handling) sets the baseline that L1 certification is tested against.",
+    "tags": [
+      "CIS-Controls",
+      "incident-response",
+      "governance",
+      "L1",
+      "training"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "win.event.4648",
+    "name": "Windows Event ID 4648 — Explicit Credential Logon (Pass-the-Cred Precursor)",
+    "citation": "Microsoft Security Auditing Reference: Event 4648",
+    "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4648",
+    "level_fit": "L1",
+    "function": "analysis",
+    "description": "Generated when a process attempts to log on using explicitly specified credentials (e.g. `runas`, `WinRM`, or programmatic `LogonUser` calls). Often appears as a precursor to Pass-the-Hash or lateral movement. Key fields: Account Whose Credentials Were Used (the target account), Target Server Name (destination), and the Process spawning the logon. Clusters of 4648 from the same source to multiple destinations in a short window are lateral movement indicators requiring L2 escalation.",
+    "tags": [
+      "windows-event",
+      "4648",
+      "explicit-logon",
+      "runas",
+      "lateral-movement"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "web.proxy.analysis",
+    "name": "Web Proxy Log Analysis (HTTP/HTTPS Categories)",
+    "citation": "CompTIA CySA+ CS0-003 Objective 3.3",
+    "url": "https://www.comptia.org/certifications/cybersecurity-analyst",
+    "level_fit": "L1",
+    "function": "analysis",
+    "description": "Proxy logs capture URL, user agent, referrer, response code, and bytes transferred for every web request. L1 analysts identify anomalies: high byte-out on non-business-hours requests (exfiltration), user agent strings matching known malware families (Cobalt Strike default malleable C2 UA), repeated 200 OK to rare domains, and C2 beacon periodicity (fixed-interval requests to the same host). Proxy decryption (TLS inspection) is required to analyze HTTPS destinations — without it, only CN/SNI fields are visible.",
+    "tags": [
+      "proxy",
+      "HTTP",
+      "user-agent",
+      "C2",
+      "exfiltration",
+      "SIEM"
+    ],
+    "kb_version": "2026-05-08"
+  },
+  {
+    "id": "file.hash.verification",
+    "name": "File Hash Verification and Malware IOC Matching",
+    "citation": "NIST SP 800-61 Rev 2, Section 3.2.2",
+    "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+    "level_fit": "L1",
+    "function": "analysis",
+    "description": "MD5, SHA-1, and SHA-256 hashes uniquely identify files and are the primary IOC type exchanged via STIX bundles and threat intelligence feeds. L1 analysts compute or retrieve hashes for suspicious files, submit them to multi-engine scanners (VirusTotal, MalwareBazaar), and cross-check against local SIEM threat-intel enrichment. A single malicious hash hit on a production endpoint is an automatic L2 escalation. Hash-based detections are bypass-prone (single-byte change defeats it) — behavioral IOCs from EDR are higher fidelity.",
+    "tags": [
+      "hash",
+      "SHA-256",
+      "IOC",
+      "VirusTotal",
+      "malware",
+      "CySA"
+    ],
     "kb_version": "2026-05-08"
   }
 ]

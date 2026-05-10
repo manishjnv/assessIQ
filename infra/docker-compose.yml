@@ -109,6 +109,12 @@ services:
       # mount + that registration, claude has no tool to deliver structured
       # output and exits with code 1 (RCA 2026-05-09).
       - ../tools/assessiq-mcp:/opt/assessiq-mcp:ro
+      # tools/: ops-side scripts (stage1-sharded-smoke, stage3-watch,
+      # cleanup-stale-drafts, cleanup-orphaned-attempts, inspect-attempt
+      # wrapper). Mounted ro so `docker exec assessiq-api pnpm exec tsx
+      # /app/tools/<script>.ts` works without copying files in. Source of
+      # truth lives in repo; git pull on VPS picks up changes immediately.
+      - ../tools:/app/tools:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
