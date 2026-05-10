@@ -12,6 +12,7 @@
 /* eslint-disable no-console */
 
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -172,6 +173,34 @@ async function cmdDiffAgainstBaseline(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// score-candidate — fixture freshness helper (exported for testing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the symmetric difference between a fixture's ID set and the
+ * authoritative KB's ID set for a given SOC level.
+ *
+ * Pure function — no I/O, no process.exit. Exported for unit testing.
+ *
+ * @param _socLevel - Unused in the computation; present so callers can pass
+ *   the level for clarity and so future per-level logic has a hook point.
+ * @param fixtureIds - IDs from the loaded eval fixture file.
+ * @param kbIds     - IDs from the corresponding soc-l*.json sources array.
+ */
+export function checkFixtureFreshness(
+  _socLevel: "L1" | "L2" | "L3",
+  fixtureIds: string[],
+  kbIds: string[],
+): { stale: boolean; inKbNotFix: string[]; inFixNotKb: string[] } {
+  const kbSet = new Set(kbIds);
+  const fixSet = new Set(fixtureIds);
+  const inKbNotFix = [...kbSet].filter((id) => !fixSet.has(id));
+  const inFixNotKb = [...fixSet].filter((id) => !kbSet.has(id));
+  const stale = inKbNotFix.length > 0 || inFixNotKb.length > 0;
+  return { stale, inKbNotFix, inFixNotKb };
+}
+
+// ---------------------------------------------------------------------------
 // score-candidate — runtime metrics helpers (exported for testing)
 // ---------------------------------------------------------------------------
 
@@ -289,8 +318,15 @@ export function scoreRuntimeMetrics(
  *   1 — at least one (level, type) passed-rate is below baseline (regression)
  *       OR at least one runtime metric fails AND --strict-runtime is set
  *   2 — usage error or DB connect / attempt-not-found failure
+ *   3 — fixture is stale: eval/fixtures/<L>-sources.json diverges from soc-<L>.json.
+ *       Re-run `pnpm exec tsx tools/extract-eval-fixtures.ts --apply` to fix.
+ *       Use --skip-fixture-check to bypass this guard.
  */
-async function cmdScoreCandidate(attemptId: string, strictRuntime = false): Promise<void> {
+async function cmdScoreCandidate(
+  attemptId: string,
+  strictRuntime = false,
+  skipFixtureCheck = false,
+): Promise<void> {
   // Guard: @assessiq/tenancy transitively imports @assessiq/core which
   // validates ALL env vars at module load time. If DATABASE_URL is missing
   // the import itself throws — check before importing.
@@ -379,6 +415,63 @@ async function cmdScoreCandidate(attemptId: string, strictRuntime = false): Prom
   } else {
     fixtureSkipped = true;
     fixture = []; // will be replaced with synthetic fixture after candidates load
+  }
+
+  // ── Fixture freshness guard ──────────────────────────────────────────────
+  // Compares the loaded fixture's ID set against the live KB slice that the
+  // runtime handler uses.  If they diverge by even one ID the fixture is stale
+  // and score-candidate results are misleading.  Exit immediately so the
+  // operator knows to re-run tools/extract-eval-fixtures.ts.
+  //
+  // Only runs when a fixture file was successfully loaded (fixtureSkipped===false)
+  // and --skip-fixture-check has not been passed.
+  // When the KB file is absent (unusual dev setup) the guard is skipped
+  // silently — a missing KB is a separate problem.
+  if (!fixtureSkipped && !skipFixtureCheck) {
+    const kbFileName = `soc-l${socLevel.slice(1)}.json`;
+    const kbFilePath = join(
+      __dirname,
+      "..",
+      "..",
+      "04-question-bank",
+      "src",
+      "knowledge-base",
+      kbFileName,
+    );
+    if (existsSync(kbFilePath)) {
+      const kbRaw = JSON.parse(await readFile(kbFilePath, "utf8")) as {
+        sources?: Array<{ id: string }>;
+      };
+      const { stale, inKbNotFix, inFixNotKb } = checkFixtureFreshness(
+        socLevel,
+        fixture.map((s) => s.id),
+        (kbRaw.sources ?? []).map((s) => s.id),
+      );
+      if (stale) {
+        const totalDiff = inKbNotFix.length + inFixNotKb.length;
+        const diffParts: string[] = [];
+        if (inKbNotFix.length > 0) {
+          const shown = inKbNotFix.slice(0, 5);
+          const ellipsis = inKbNotFix.length > 5 ? `, …(${inKbNotFix.length - 5} more)` : "";
+          diffParts.push(`+KB[${shown.join(", ")}${ellipsis}]`);
+        }
+        if (inFixNotKb.length > 0) {
+          const shown = inFixNotKb.slice(0, 5);
+          const ellipsis = inFixNotKb.length > 5 ? `, …(${inFixNotKb.length - 5} more)` : "";
+          diffParts.push(`-fix[${shown.join(", ")}${ellipsis}]`);
+        }
+        console.error(
+          `\nFIXTURE STALE: eval/fixtures/${socLevel}-sources.json diverges from ` +
+            `soc-l${socLevel.slice(1)}.json by ${totalDiff} ID${totalDiff === 1 ? "" : "s"}. ` +
+            `Re-run \`pnpm exec tsx tools/extract-eval-fixtures.ts --apply\` to regenerate. ` +
+            `Diff: ${diffParts.join(" ")}`,
+        );
+        console.error(
+          "  (Use --skip-fixture-check to bypass this guard for archaeology on known-stale fixtures.)",
+        );
+        process.exit(3);
+      }
+    }
   }
 
   // ── Step 4: Load candidate questions (tenant-scoped via RLS) ────────────
@@ -754,6 +847,7 @@ const { positionals, values } = parseArgs({
     "strict-runtime": { type: "boolean" },
     "show-stderr": { type: "boolean" },
     "show-questions": { type: "boolean" },
+    "skip-fixture-check": { type: "boolean" },
   },
   allowPositionals: true,
 });
@@ -775,11 +869,15 @@ if (subcommand === "score-goldens") {
 } else if (subcommand === "score-candidate") {
   const attemptId = values["attempt-id"];
   if (!attemptId) {
-    console.error("Usage: cli-typed.ts score-candidate --attempt-id <uuid> [--strict-runtime]");
+    console.error("Usage: cli-typed.ts score-candidate --attempt-id <uuid> [--strict-runtime] [--skip-fixture-check]");
     process.exit(2);
   }
   try {
-    await cmdScoreCandidate(attemptId, values["strict-runtime"] === true);
+    await cmdScoreCandidate(
+      attemptId,
+      values["strict-runtime"] === true,
+      values["skip-fixture-check"] === true,
+    );
   } catch (err) {
     console.error(
       "score-candidate failed:",
