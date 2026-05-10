@@ -945,3 +945,326 @@ admin.settings.help_content.markdown:
     - Custom CSS classes — the design system renders Markdown in a sandboxed
       `aiq-prose` container with fixed styles.
 
+# ─── Stage 1.5+ admin features (shipped week of 2026-05-10) ─────────────────
+
+admin.generation-attempts.history:
+  audience: admin
+  short_text: "Cross-pack history of every AI question-generation run. Filter by status, score in-app, and inspect stderr without SSH."
+  long_md: |
+    ## AI generation attempt history
+
+    The **Generation history** page (`/admin/generation-attempts`) lists every
+    call to the AI question-generation pipeline across all packs and levels.
+
+    **What you can do here:**
+
+    - Filter by status (`success`, `partial`, `failed`, `running`) or by pack
+      using the chip row at the top.
+    - Expand a row to see `stderr_tail` — the last lines of output from the
+      generation run — useful for diagnosing failures without SSH access.
+    - Click **Score this attempt** to run structural quality checks and runtime
+      metric comparisons server-side and see the results inline — no CLI or SSH
+      required.
+    - Page forward and backward through older runs via offset-based pagination.
+
+    **Status meanings:**
+
+    | Status | Meaning |
+    |---|---|
+    | `success` | All requested questions were generated and inserted |
+    | `partial` | Some questions were inserted; one or more chunks failed |
+    | `failed` | No questions were inserted; the run terminated with an error |
+    | `running` | Generation is in progress |
+
+    ### Score this attempt
+
+    Clicking **Score this attempt** runs two checks server-side and renders the
+    results directly in the expanded row — no terminal or VPS access needed.
+
+    **Structural quality table** — each question type (mcq, kql, subjective,
+    log_analysis, scenario) shows how many questions passed four deterministic
+    checks: schema validation, citation resolution, structural completeness, and
+    non-empty topic. Failed questions show the top 3 failure reasons.
+
+    **Runtime metrics table** — compares chunk success rate and total inserted
+    percentage against the regression thresholds in `runtime-baseline.json`.
+    Per-type duration and peak RSS are shown as `n/a` when not derivable from
+    the attempt row.
+
+    **Verdict pill colors:**
+
+    | Color | Verdict | Meaning |
+    |---|---|---|
+    | Green | Pass | Structural checks passed; no runtime regressions |
+    | Amber | Warning | Structural pass but at least one runtime metric failed its threshold |
+    | Red | Regression | At least one structural regression vs baseline |
+    | Grey | Insufficient data | No fixture file and no thresholds — scoring is degenerate |
+
+    Results are cached per attempt: re-expanding the row shows the last result
+    without a fresh request. Clicking **Score** on a different attempt fetches
+    independently.
+
+    This page is read-only — generation is triggered from pack-detail, not here.
+    The score endpoint is also read-only: it makes no changes to any table.
+
+admin.questions.bulk.archive:
+  audience: admin
+  short_text: "Archive up to 200 questions at once from pack-detail. Archived questions leave the active pool immediately."
+  long_md: |
+    ## Bulk archive
+
+    The bulk-archive action removes questions from the active pool in one
+    operation. Select individual rows with the per-row checkbox, or use
+    **Select all (filtered)** to grab every question matching the current
+    filter. A sticky action bar appears when any row is checked.
+
+    **Limits and constraints:**
+
+    - Maximum 200 question IDs per request. For larger batches, filter and
+      archive in multiple passes.
+    - Questions already `archived` are silently skipped in the batch.
+    - `archived → active` transitions are **not available in bulk** for audit
+      reasons. To reactivate an archived question, open it individually.
+
+    **Audit trail:** each bulk-archive operation is recorded as a single audit
+    entry with the list of IDs and the acting admin's user ID.
+
+    > **Caution:** archive is not reversible in bulk. Reactivate per-question
+    > if you archived something by mistake.
+
+admin.questions.bulk.approve:
+  audience: admin
+  short_text: "Activate up to 200 ai_draft questions at once. Each draft enters the active pool immediately on approval."
+  long_md: |
+    ## Bulk approve (activate)
+
+    Bulk approve transitions selected `ai_draft` questions to `active` in one
+    operation, adding them to the question pool immediately. Use this after
+    reviewing a generation batch where the drafts look consistent and correct.
+
+    **Workflow:**
+
+    1. Generate questions on a level row.
+    2. Review a sample of the `ai_draft` questions individually.
+    3. Select all (or a subset) that pass review.
+    4. Click **Approve** in the sticky action bar and confirm in the modal.
+
+    **Limits:**
+
+    - Maximum 200 IDs per request.
+    - Only `ai_draft` and `inactive` questions can be approved in bulk.
+      Questions already `active` or `archived` are skipped silently.
+
+    > **Caution:** bulk approve bypasses individual review for each question.
+    > Sample the batch first; only bulk-approve when quality is consistent.
+
+admin.questions.generate.modal:
+  audience: admin
+  short_text: "Control how many questions to generate per type. Auto-weighted defaults come from L1/L2/L3 weight tables."
+  long_md: |
+    ## Generate questions modal — per-type distribution
+
+    The Generate modal shows a **per-type chip row** alongside the total count
+    input. Each chip (MCQ, KQL, Scenario, Subjective) shows the auto-weighted
+    count calculated from the pack's L1/L2/L3 weight table.
+
+    **Using per-type overrides:**
+
+    - Click a chip to open the per-type count spinner.
+    - Adjust the count for each type. The total across types must equal the
+      requested count — a running-sum indicator validates this in real time.
+    - Click **Reset** to restore the auto-weighted defaults.
+
+    **Subjective handling:**
+
+    - In **omnibus mode**, subjective questions fold into the MCQ quota and
+      use the same generation call.
+    - In **sharded mode** (Stage 2+), subjective is its own generation call
+      with a separate `generate-rubric` skill pass before insert.
+
+    ### Notes
+
+    - The 1–30 cap applies to the total, not per type.
+    - Overrides are one-time — they reset on the next modal open.
+    - Parallel chunking (1–10 / 11–20 / 21–30) and the 5-minute prompt
+      cache window still apply; see `admin.questions.generate.draft` for
+      timing details.
+
+admin.questions.subjective:
+  audience: admin
+  short_text: "Open-ended written-reasoning questions scored via AI rubric. Rubric is generated separately; admin must activate."
+  long_md: |
+    ## Subjective questions
+
+    Subjective questions present a freeform prompt to candidates, who type a
+    written response. There are no multiple-choice options, no expected syntax,
+    and no keyword hints. Scoring is AI-driven against rubric anchors.
+
+    **Authoring flow:**
+
+    1. Generate (or import) a subjective question — it enters `ai_draft`.
+    2. Open the draft in the question editor.
+    3. Review or edit the rubric anchors (auto-generated via the
+       `generate-rubric` skill during generation in sharded mode).
+    4. Activate the question to add it to the pool.
+
+    **Candidate experience:**
+
+    - Sees the prompt and a freeform text area.
+    - No syntax hints or expected-keyword display.
+    - Response length is unconstrained within the attempt time limit.
+
+    **Grading:** AI scores the written response against the rubric anchors
+    using Stage 2 (Sonnet) by default. Admin can re-run or override.
+
+admin.questions.attempt-status:
+  audience: admin
+  short_text: "Color-coded status on each level row shows the latest generation-attempt result. Expands to show details on failure."
+  long_md: |
+    ## Generation-attempt status on level rows
+
+    Each level row in pack-detail shows a small status indicator reflecting
+    the most recent generation attempt for that pack + level combination.
+
+    **Status colors:**
+
+    | Color | Status | Meaning |
+    |---|---|---|
+    | Green | `success` | Last run succeeded; all requested questions inserted |
+    | Amber | `partial` | Some questions inserted; one or more chunks failed |
+    | Red | `failed` | No questions inserted; run terminated with an error |
+    | Blue (animated) | `running` | Generation is in progress |
+
+    The row **polls automatically** when status is `running`, re-fetching
+    every few seconds. After 10 consecutive polls with no status change,
+    polling stops — refresh the page or visit the generation-history page for
+    the full `stderr_tail`.
+
+    For `failed` or `partial` rows, expand the status disclosure to see a
+    brief error summary. The full `stderr_tail` is available on the
+    generation-history page (`/admin/generation-attempts`).
+
+admin.ops.cli.cleanup:
+  audience: admin
+  short_text: "Server-side CLI scripts to archive stale ai_draft questions and mark orphaned running attempts as failed."
+  long_md: |
+    ## Operational cleanup CLI scripts
+
+    Two CLI helpers are available on the VPS for periodic housekeeping. They
+    are not exposed in the admin UI — run them via SSH when needed.
+
+    ### Archive stale ai_draft questions
+
+    ```bash
+    pnpm tsx tools/cleanup-stale-drafts.ts [--dry-run] [--older-than-days N]
+    ```
+
+    Archives `ai_draft` questions that have been in draft state for more than
+    N days (default: 30). Use `--dry-run` to preview affected IDs before
+    committing.
+
+    ### Mark orphaned running attempts as failed
+
+    ```bash
+    pnpm tsx tools/cleanup-orphaned-attempts.ts [--dry-run] [--older-than-minutes N]
+    ```
+
+    Marks `generation_attempts` rows stuck in `running` state for more than
+    N minutes (default: 30) as `failed`. Useful after a server restart that
+    left in-flight attempts hanging.
+
+    **When to run:**
+
+    - After a VPS restart or deployment that interrupted a generation run.
+    - During monthly housekeeping to clear accumulated stale drafts.
+    - If the generation-history page shows many `running` rows that never
+      transitioned.
+
+admin.ops.cli.inspect-attempt:
+  audience: admin
+  short_text: "Diagnostic dump for any generation_attempts row — status, timing, inserted question IDs, and stderr. CLI only."
+  long_md: |
+    ## inspect-attempt CLI tool
+
+    The `inspect-attempt` subcommand produces a structured diagnostic report
+    for a single `generation_attempts` row. Use it when the generation-history
+    page shows a failure but you need more detail than `stderr_tail` provides.
+
+    ```bash
+    pnpm tsx tools/inspect-attempt.ts <attempt-id>
+    ```
+
+    **Output includes:**
+
+    - Attempt metadata: status, pack, level, skill SHA, model, duration.
+    - Chunk plan: how many chunks were planned vs failed.
+    - Inserted question IDs (if any succeeded before the failure).
+    - Full `stderr_tail` (not truncated as in the UI).
+    - Dedupe drop count and topic list.
+
+    **When to use:**
+
+    - A `partial` run left some questions but you need to know which chunks
+      failed and why.
+    - A `failed` run shows no stderr in the UI; the full output may have been
+      captured earlier in the log.
+    - Support escalations where you need to attach the full run context.
+
+    The attempt ID is visible on the generation-history page row.
+
+admin.attempts.grading-dispatch:
+  audience: admin
+  short_text: "Each question type routes to a different grading method: mcq direct-compare, kql keyword-match, others via AI."
+  long_md: |
+    ## Per-type grading dispatch
+
+    When grading runs for a submitted attempt, each question is routed to the
+    appropriate scoring method based on its type:
+
+    | Type | Method |
+    |---|---|
+    | `mcq` | Direct comparison against the correct answer key — no AI call |
+    | `kql` | Keyword-match against `expected_keywords` plus AI syntactic check |
+    | `log_analysis` | AI rubric scoring; rubric synthesized at grade-time from `expected_findings` — no admin rubric authoring needed |
+    | `scenario` | AI rubric scoring using admin-authored anchors |
+    | `subjective` | AI rubric scoring using admin-authored or generated anchors |
+
+    **log_analysis note:** the rubric for `log_analysis` questions is derived
+    automatically from `expected_findings` — admins do not need to author
+    rubric anchors for this type. The AI synthesizes scoring criteria at
+    grade-time from the expected findings field.
+
+    MCQ and KQL grading is deterministic and fast (< 50 ms per question).
+    AI-routed types add 15–90 s per question depending on model and cache.
+
+admin.attempts.session-idle:
+  audience: admin
+  short_text: "If the grading tab is idle for 5 minutes, a dismissible banner warns you. Click Refresh to resume without data loss."
+  long_md: |
+    ## Session-idle heartbeat and error banner
+
+    The attempt-detail page sends a heartbeat to the server every 5 minutes
+    while open. If the tab goes idle (backgrounded or the browser throttles
+    JavaScript timers), the heartbeat may miss a tick.
+
+    **What you see:**
+
+    - After the first missed heartbeat, a yellow **"Session idle"** banner
+      appears at the top of the grading panel.
+    - If a grade action fails with a server error, a red **error banner**
+      appears instead of the blank-red page that appeared in earlier versions.
+
+    **Recovering:**
+
+    - Click **Refresh** in the banner. The page re-fetches the latest attempt
+      state from the server. Grades already accepted are preserved; unsaved
+      override text in the form is lost.
+    - No data is corrupted by the idle period — the heartbeat is advisory
+      only and does not gate grading operations.
+
+    **When this typically happens:**
+
+    - Long review sessions (> 5 min on a single question without interaction).
+    - Browser tab backgrounding with aggressive timer throttling.
+    - Brief network interruptions that resolve before the next action.
+
