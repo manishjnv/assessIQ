@@ -363,6 +363,9 @@ export async function handleAdminGenerate(
   let citationDroppedCount: number | undefined;
   let capturedOutput: HandleAdminGenerateOutput | undefined;
   let capturedErr: unknown;
+  // Aggregated per-chunk stderr from the sharded path.  Null on omnibus paths
+  // or when no sharded chunk failed.  Written inside withTenant, read in finally.
+  let aggregatedStderrTail: string | null = null;
 
   try {
     capturedOutput = await withTenant(input.tenantId, async (client) => {
@@ -434,7 +437,9 @@ export async function handleAdminGenerate(
         let firstError: unknown = null;
         let localChunksFailed = 0;
         let totalWrongTypeDropped = 0;
-        for (const r of settled) {
+        const chunkStderrParts: string[] = [];
+        for (let i = 0; i < settled.length; i++) {
+          const r = settled[i]!;
           if (r.status === "fulfilled") {
             const out = r.value as GenerateQuestionsOutput;
             fulfilled.push(out);
@@ -442,6 +447,13 @@ export async function handleAdminGenerate(
           } else {
             localChunksFailed++;
             if (firstError === null) firstError = r.reason;
+            const chunkType = typeInputs[i]?.type ?? "unknown";
+            const chunkErrDetails = (r.reason as { details?: { stderrTail?: unknown } }).details;
+            const stderrEntry =
+              typeof chunkErrDetails?.stderrTail === "string"
+                ? chunkErrDetails.stderrTail
+                : "(none)";
+            chunkStderrParts.push(`--- chunk: ${chunkType} ---\n${stderrEntry}\n`);
             log.warn(
               { attemptId, err: (r.reason as Error).message },
               "generation.sharded.type.failed",
@@ -450,7 +462,28 @@ export async function handleAdminGenerate(
         }
         chunksFailed = localChunksFailed;
 
+        // Persist aggregated stderr into the outer scope so the finally block
+        // can write it to generation_attempts.stderr_tail regardless of path.
+        aggregatedStderrTail =
+          chunkStderrParts.length === 0
+            ? null
+            : chunkStderrParts.join("").slice(-1024);
+
         if (fulfilled.length === 0) {
+          // All chunks failed.  Finalize the row NOW (before the throw) so
+          // generation_attempts.stderr_tail carries the aggregated diagnostic
+          // from every failed chunk, not just the first error's details.
+          if (attemptInserted) {
+            await tryFinalizeAttempt(input.tenantId, attemptId, {
+              status: "failed",
+              errorCode: (firstError as { code?: string })?.code ?? null,
+              errorMessage: (firstError as Error)?.message?.slice(0, 1024) ?? null,
+              stderrTail: aggregatedStderrTail,
+              chunksPlanned: chunksPlanned ?? null,
+              chunksFailed: localChunksFailed,
+              durationMs: Date.now() - generationStartedAt,
+            });
+          }
           throw firstError;
         }
 
@@ -788,15 +821,23 @@ export async function handleAdminGenerate(
           message?: string;
           details?: Record<string, unknown>;
         };
+        // Prefer the multi-chunk aggregated value (sharded path) over the
+        // single-error stderrTail from the thrown error (which covers only
+        // the first failed chunk).  Falls back to the error's stderrTail for
+        // non-sharded failures (omnibus single-call / omnibus chunked).
         const stderrTail =
-          typeof ae.details?.["stderrTail"] === "string"
-            ? (ae.details["stderrTail"] as string)
-            : null;
+          aggregatedStderrTail !== null
+            ? aggregatedStderrTail
+            : typeof ae.details?.["stderrTail"] === "string"
+              ? (ae.details["stderrTail"] as string)
+              : null;
         await tryFinalizeAttempt(input.tenantId, attemptId, {
           status: "failed",
           errorCode: ae.code ?? null,
           errorMessage: ae.message?.slice(0, 1024) ?? null,
           stderrTail,
+          chunksPlanned: chunksPlanned ?? null,
+          chunksFailed: chunksFailed ?? null,
           durationMs,
         });
       } else if (capturedOutput !== undefined) {
@@ -812,6 +853,7 @@ export async function handleAdminGenerate(
           dedupeDropped: dedupeDroppedCount ?? null,
           citationDropped: citationDroppedCount ?? null,
           durationMs,
+          stderrTail: aggregatedStderrTail,
         });
       }
     }
