@@ -26,7 +26,8 @@
     "aiq:eval:compare": "tsx modules/07-ai-grading/eval/cli.ts compare",
     "aiq:eval:bless": "tsx modules/07-ai-grading/eval/cli.ts bless",
     "eval:goldens": "pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-goldens",
-    "eval:goldens-strict": "pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-goldens --strict"
+    "eval:goldens-strict": "pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-goldens --strict",
+    "eval:fixtures-check": "tsx tools/extract-eval-fixtures.ts --dry-run"
   },
   "dependencies": {
     "pg": "^8.13.0",

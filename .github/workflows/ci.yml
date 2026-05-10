@@ -60,6 +60,16 @@ jobs:
       - name: AI generation eval gate (score-goldens)
         run: pnpm eval:goldens-strict
 
+      # 7b. Eval fixture freshness gate
+      # Compares eval/fixtures/L*-sources.json against the authoritative
+      # SOC KB (soc-l*.json). A soc-l*.json edit without a corresponding
+      # fixture regen fails here with exit code 1 before any score-candidate
+      # run produces misleading results.
+      # To fix: run `pnpm exec tsx tools/extract-eval-fixtures.ts --apply`
+      # and commit the updated fixture files.
+      - name: Eval fixture freshness check
+        run: pnpm eval:fixtures-check
+
       # 8. RLS policy linter
       - name: RLS policy lint
         run: pnpm lint:rls
