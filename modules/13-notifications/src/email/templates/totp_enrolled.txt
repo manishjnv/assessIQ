@@ -2,8 +2,8 @@ Subject: Two-factor authentication enrolled — AssessIQ
 
 Hi {{recipientName}},
 
-This is a confirmation that two-factor authentication (TOTP) was successfully enrolled on your AssessIQ account{{#if tenantName}} ({{tenantName}}){{/if}} on {{enrolledAt}}.
+Two-factor authentication (TOTP) was enrolled on your AssessIQ account{{#if tenantName}} ({{tenantName}}){{/if}} on {{enrolledAt}}.
 
-If you did not perform this action, please contact your administrator immediately and change your password.
+If you did not perform this action, contact your administrator immediately and change your password.
 
-— The AssessIQ Team
+— AssessIQ

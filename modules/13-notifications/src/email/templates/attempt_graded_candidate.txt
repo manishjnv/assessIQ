@@ -2,9 +2,9 @@ Subject: Your assessment results are ready — {{assessmentName}}
 
 Hi {{candidateName}},
 
-Your results for "{{assessmentName}}" on {{tenantName}} are now available.
+Your results for "{{assessmentName}}" on {{tenantName}} are available.
 
-{{#if resultsLink}}View your results here:
-{{resultsLink}}{{else}}Please log in to AssessIQ to view your results.{{/if}}
+{{#if resultsLink}}Review your results:
+{{resultsLink}}{{else}}Log in to AssessIQ to view your results.{{/if}}
 
-— The AssessIQ Team
+— AssessIQ
