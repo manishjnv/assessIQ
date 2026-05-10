@@ -23,8 +23,9 @@ import {
   loadFixture,
   scoreQuestion,
   loadAttemptDiagnostic,
+  loadRuntimeThresholds,
 } from "./runner.js";
-import type { EvalResult, EvalType, GoldenQuestion, KbSourceRef, AttemptDiagnostic } from "./runner.js";
+import type { EvalResult, EvalType, GoldenQuestion, KbSourceRef, AttemptDiagnostic, RuntimeThresholds } from "./runner.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -171,6 +172,110 @@ async function cmdDiffAgainstBaseline(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// score-candidate — runtime metrics helpers (exported for testing)
+// ---------------------------------------------------------------------------
+
+export interface RuntimeMetricRow {
+  metric: string;
+  /** Computed value formatted as string, or "n/a" when not derivable. */
+  value: string;
+  /** Threshold expression, e.g. "≥0.60" or "≤1000". */
+  threshold: string;
+  verdict: "pass" | "fail" | "na";
+}
+
+export interface RuntimeMetricsResult {
+  rows: RuntimeMetricRow[];
+  /** True when at least one metric computed and failed its threshold. */
+  anyFail: boolean;
+  /** False when thresholds is null — caller should print "(no thresholds available)". */
+  hasThresholds: boolean;
+}
+
+/**
+ * Compute runtime metric rows from attempt data and thresholds.
+ *
+ * Pure function — no I/O, no process.exit. Metrics unavailable from the
+ * attempt row (peak_rss, per_type_duration) receive verdict "na" and never
+ * contribute to anyFail. Exported for unit testing.
+ *
+ * chunk_success_rate threshold uses ≥ (not >): 0.6 exactly is a pass.
+ */
+export function scoreRuntimeMetrics(
+  attempt: {
+    chunks_planned: number | null;
+    chunks_failed: number | null;
+    count_inserted: number;
+    count_requested: number;
+  },
+  thresholds: RuntimeThresholds | null,
+): RuntimeMetricsResult {
+  if (thresholds === null) {
+    return { rows: [], anyFail: false, hasThresholds: false };
+  }
+
+  const rows: RuntimeMetricRow[] = [];
+
+  // chunk_success_rate = (chunks_planned - chunks_failed) / chunks_planned
+  // Only when chunks_planned > 0 to avoid division by zero.
+  {
+    const planned = attempt.chunks_planned;
+    let value = "n/a";
+    let verdict: "pass" | "fail" | "na" = "na";
+    if (planned !== null && planned > 0) {
+      const failed = attempt.chunks_failed ?? 0;
+      const rate = (planned - failed) / planned;
+      value = rate.toFixed(2);
+      verdict = rate >= thresholds.min_chunk_success_rate ? "pass" : "fail";
+    }
+    rows.push({
+      metric: "chunk_success_rate",
+      value,
+      threshold: `\u2265${thresholds.min_chunk_success_rate.toFixed(2)}`,
+      verdict,
+    });
+  }
+
+  // total_inserted_pct = count_inserted / count_requested
+  {
+    let value = "n/a";
+    let verdict: "pass" | "fail" | "na" = "na";
+    if (attempt.count_requested > 0) {
+      const pct = attempt.count_inserted / attempt.count_requested;
+      value = pct.toFixed(2);
+      verdict = pct >= thresholds.min_total_inserted_pct ? "pass" : "fail";
+    }
+    rows.push({
+      metric: "total_inserted_pct",
+      value,
+      threshold: `\u2265${thresholds.min_total_inserted_pct.toFixed(2)}`,
+      verdict,
+    });
+  }
+
+  // per_type_duration (max) — not stored in the attempt row; measured at smoke
+  // time via docker stats. Never fails even with --strict-runtime.
+  rows.push({
+    metric: "per_type_duration (max)",
+    value: "n/a",
+    threshold: `\u2264${thresholds.max_per_type_duration_ms_at_count_le_2}`,
+    verdict: "na",
+  });
+
+  // peak_rss_mib — written into runtime-baseline.json by hand after smoke.
+  // Not derivable from a single attempt row.
+  rows.push({
+    metric: "peak_rss_mib",
+    value: "n/a",
+    threshold: `\u2264${thresholds.max_peak_rss_mib}`,
+    verdict: "na",
+  });
+
+  const anyFail = rows.some((r) => r.verdict === "fail");
+  return { rows, anyFail, hasThresholds: true };
+}
+
+// ---------------------------------------------------------------------------
 // score-candidate
 // ---------------------------------------------------------------------------
 
@@ -182,9 +287,10 @@ async function cmdDiffAgainstBaseline(): Promise<void> {
  * Exit codes:
  *   0 — all (level, type) passed-rates meet or exceed baseline
  *   1 — at least one (level, type) passed-rate is below baseline (regression)
+ *       OR at least one runtime metric fails AND --strict-runtime is set
  *   2 — usage error or DB connect / attempt-not-found failure
  */
-async function cmdScoreCandidate(attemptId: string): Promise<void> {
+async function cmdScoreCandidate(attemptId: string, strictRuntime = false): Promise<void> {
   // Guard: @assessiq/tenancy transitively imports @assessiq/core which
   // validates ALL env vars at module load time. If DATABASE_URL is missing
   // the import itself throws — check before importing.
@@ -208,6 +314,7 @@ async function cmdScoreCandidate(attemptId: string): Promise<void> {
     tenant_id: string;
     pack_id: string;
     level_id: string;
+    count_requested: number;
     count_inserted: number;
     status: string;
     model: string | null;
@@ -226,9 +333,9 @@ async function cmdScoreCandidate(attemptId: string): Promise<void> {
     await rawClient.query("BEGIN");
     await rawClient.query("SET LOCAL ROLE assessiq_system");
     const res = await rawClient.query<AttemptRow>(
-      `SELECT id, tenant_id, pack_id, level_id, count_inserted, status, model,
-              skill_sha, duration_ms, chunks_planned, chunks_failed, dedupe_dropped,
-              started_at
+      `SELECT id, tenant_id, pack_id, level_id, count_requested, count_inserted,
+              status, model, skill_sha, duration_ms, chunks_planned, chunks_failed,
+              dedupe_dropped, started_at
          FROM generation_attempts
         WHERE id = $1`,
       [attemptId],
@@ -396,6 +503,44 @@ async function cmdScoreCandidate(attemptId: string): Promise<void> {
   console.log(`  skill_sha      : ${attempt.skill_sha ?? "n/a"}`);
   console.log(`  model          : ${attempt.model ?? "n/a"}`);
   console.log(`  status         : ${attempt.status}`);
+
+  // ── Step 7b: Runtime threshold comparison ────────────────────────────────
+  const runtimeThresholds = await loadRuntimeThresholds();
+  const runtimeMetrics = scoreRuntimeMetrics(
+    {
+      chunks_planned: attempt.chunks_planned,
+      chunks_failed: attempt.chunks_failed,
+      count_inserted: attempt.count_inserted,
+      count_requested: attempt.count_requested,
+    },
+    runtimeThresholds,
+  );
+
+  console.log("\nRuntime threshold comparison:");
+  if (!runtimeMetrics.hasThresholds) {
+    console.log(
+      "  (no thresholds available — see runtime-baseline.json regression_thresholds)",
+    );
+  } else {
+    console.log("metric                       | value   | threshold   | verdict");
+    console.log("-----------------------------+---------+-------------+--------");
+    for (const row of runtimeMetrics.rows) {
+      const verdictStr =
+        row.verdict === "pass" ? "\u2713" : row.verdict === "fail" ? "\u2717 FAIL" : "n/a";
+      console.log(
+        `${row.metric.padEnd(28)} | ${row.value.padEnd(7)} | ${row.threshold.padEnd(11)} | ${verdictStr}`,
+      );
+    }
+
+    if (runtimeMetrics.anyFail && strictRuntime) {
+      for (const row of runtimeMetrics.rows.filter((r) => r.verdict === "fail")) {
+        console.error(
+          `RUNTIME REGRESSION: ${row.metric} ${row.value} below threshold ${row.threshold}`,
+        );
+      }
+      process.exit(1);
+    }
+  }
 
   // ── Step 8: Regression check against baseline ────────────────────────────
   const baseline = await loadBaseline();
@@ -606,6 +751,7 @@ const { positionals, values } = parseArgs({
     out: { type: "string" },
     "attempt-id": { type: "string" },
     strict: { type: "boolean" },
+    "strict-runtime": { type: "boolean" },
     "show-stderr": { type: "boolean" },
     "show-questions": { type: "boolean" },
   },
@@ -629,11 +775,11 @@ if (subcommand === "score-goldens") {
 } else if (subcommand === "score-candidate") {
   const attemptId = values["attempt-id"];
   if (!attemptId) {
-    console.error("Usage: cli-typed.ts score-candidate --attempt-id <uuid>");
+    console.error("Usage: cli-typed.ts score-candidate --attempt-id <uuid> [--strict-runtime]");
     process.exit(2);
   }
   try {
-    await cmdScoreCandidate(attemptId);
+    await cmdScoreCandidate(attemptId, values["strict-runtime"] === true);
   } catch (err) {
     console.error(
       "score-candidate failed:",
@@ -657,9 +803,10 @@ if (subcommand === "score-goldens") {
     `Unknown subcommand: ${subcommand ?? "(none)"}\n` +
       "Usage: cli-typed.ts score-goldens|write-baseline|diff-against-baseline|score-candidate|inspect-attempt\n" +
       "         [--level L1|L2|L3] [--type mcq|log_analysis|scenario|kql] [--out <path>]\n" +
-      "         [--attempt-id <uuid>]  (score-candidate / inspect-attempt)\n" +
-      "         [--show-stderr]        (inspect-attempt: print stderr_tail block)\n" +
-      "         [--show-questions]     (inspect-attempt: print per-question content keys)",
+      "         [--attempt-id <uuid>]      (score-candidate / inspect-attempt)\n" +
+      "         [--strict-runtime]         (score-candidate: exit 1 when runtime metrics fail thresholds)\n" +
+      "         [--show-stderr]            (inspect-attempt: print stderr_tail block)\n" +
+      "         [--show-questions]         (inspect-attempt: print per-question content keys)",
   );
   process.exit(2);
 }
