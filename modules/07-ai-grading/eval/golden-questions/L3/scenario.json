@@ -30,7 +30,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l3_004", "src_l3_007"]
+    "knowledge_base_source_ids": ["volatility3.advanced", "sigma.rules"]
   },
   {
     "type": "scenario",
@@ -59,7 +59,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l3_001", "src_l3_002"]
+    "knowledge_base_source_ids": ["threat.hunting.sqf", "mitre.attack.groups"]
   },
   {
     "type": "scenario",
@@ -92,7 +92,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l3_006", "src_l3_005"]
+    "knowledge_base_source_ids": ["mitre.t1195", "timeline.analysis"]
   },
   {
     "type": "scenario",
@@ -125,7 +125,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l3_002", "src_l3_007"]
+    "knowledge_base_source_ids": ["mitre.attack.groups", "sigma.rules"]
   },
   {
     "type": "scenario",
@@ -154,6 +154,6 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l3_004", "src_l3_005"]
+    "knowledge_base_source_ids": ["volatility3.advanced", "timeline.analysis"]
   }
 ]

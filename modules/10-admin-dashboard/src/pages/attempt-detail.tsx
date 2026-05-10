@@ -135,6 +135,7 @@ export function AdminAttemptDetail(): React.ReactElement {
       );
       const map: Record<string, GradingProposal> = {};
       for (const p of res.proposals) map[p.question_id] = p;
+      setError(null);
       setProposals(map);
     } catch (err) {
       const msg = err instanceof AdminApiError ? err.apiError.message : "Grade request failed.";
@@ -203,6 +204,7 @@ export function AdminAttemptDetail(): React.ReactElement {
       );
       const p = res.proposals.find((p) => p.question_id === questionId);
       if (p) {
+        setError(null);
         setEscalationProposals((prev) => ({ ...prev, [questionId]: p }));
       }
     } catch (err) {
@@ -233,7 +235,7 @@ export function AdminAttemptDetail(): React.ReactElement {
     );
   }
 
-  if (error || !detail) {
+  if (!detail) {
     return (
       <AdminShell breadcrumbs={["Attempts", "Detail"]} helpPage="admin.attempts.detail">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
@@ -281,8 +283,24 @@ export function AdminAttemptDetail(): React.ReactElement {
         </div>
 
         {error && (
-          <div style={{ color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
-            {error}
+          <div className="aiq-banner aiq-banner-error" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-danger-subtle, #fff0f0)", border: "1px solid var(--aiq-color-danger)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
+            <span style={{ flex: 1 }}>{error}</span>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-sm"
+              style={{ flexShrink: 0 }}
+              onClick={() => { setError(null); void load(); }}
+            >
+              Refresh
+            </button>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-sm aiq-btn-outline"
+              style={{ flexShrink: 0 }}
+              onClick={() => setError(null)}
+            >
+              Dismiss
+            </button>
           </div>
         )}
 

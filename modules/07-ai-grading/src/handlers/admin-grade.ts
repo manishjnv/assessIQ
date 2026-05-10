@@ -158,13 +158,13 @@ export async function handleAdminGrade(
     );
   }
 
-  // D7 — heartbeat: admin must have been active within the last 60s
+  // D7 — heartbeat: admin must have been active within the last 300s (5 min)
   if (
     sessionLastActivity === null ||
-    Date.now() - sessionLastActivity.getTime() > 60_000
+    Date.now() - sessionLastActivity.getTime() > 300_000
   ) {
     throw new AppError(
-      "Session idle — refresh the page and re-confirm to grade",
+      "Your session was idle for more than 5 minutes — refresh the page to continue grading.",
       AI_GRADING_ERROR_CODES.HEARTBEAT_STALE,
       409,
     );
@@ -213,12 +213,56 @@ export async function handleAdminGrade(
 
       const answer = answers.get(q.question_id) ?? null;
 
+      // For log_analysis questions, rubrics are not required to be
+      // admin-authored (rubricRequiredFor returns false for log_analysis).
+      // Synthesize a rubric at grade-time from content.expected_findings so
+      // gradeSubjective always receives a valid rubric object.
+      // This synthesized rubric is ephemeral — it is NEVER persisted to the
+      // questions.rubric column (D8 / Stage 1 acceptance contract).
+      let effectiveRubric = q.rubric;
+      if (q.type === "log_analysis") {
+        const rubricVal = q.rubric as { anchors?: unknown[] } | null | undefined;
+        if (
+          !rubricVal ||
+          !Array.isArray(rubricVal.anchors) ||
+          rubricVal.anchors.length === 0
+        ) {
+          const content = q.content as { expected_findings?: unknown } | null | undefined;
+          const rawFindings = content?.expected_findings;
+          const findings: string[] = Array.isArray(rawFindings)
+            ? rawFindings.filter((f): f is string => typeof f === "string")
+            : [];
+          if (findings.length > 0) {
+            const ANCHOR_WEIGHT = 70;
+            const perBase = Math.floor(ANCHOR_WEIGHT / findings.length);
+            const firstExtra = ANCHOR_WEIGHT - perBase * findings.length;
+            effectiveRubric = {
+              anchors: findings.map((finding, i) => ({
+                id: `anchor-${i}`,
+                concept: finding,
+                weight: i === 0 ? perBase + firstExtra : perBase,
+                synonyms: [finding],
+              })),
+              reasoning_bands: {
+                band_4: "Identifies all expected findings with clear supporting evidence from the log",
+                band_3: "Identifies most expected findings with adequate supporting evidence",
+                band_2: "Identifies some expected findings; evidence partially supported",
+                band_1: "Identifies few findings; reasoning unclear or unsupported",
+                band_0: "No relevant findings identified or completely incorrect analysis",
+              },
+              anchor_weight_total: ANCHOR_WEIGHT,
+              reasoning_weight_total: 30,
+            };
+          }
+        }
+      }
+
       try {
         const proposal = await gradeSubjective({
           attempt_id: attemptId,
           question_id: q.question_id,
           question_content: q.content,
-          rubric: q.rubric,
+          rubric: effectiveRubric,
           answer,
         });
         proposals.push(proposal);

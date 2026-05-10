@@ -14,7 +14,7 @@
       "correct": 0,
       "rationale": "T1218.005 (Signed Binary Proxy Execution: Mshta) is the correct primary classification because the defining adversary behavior is abusing the signed, trusted Windows binary mshta.exe to proxy execution of a malicious HTA script — the intent is to bypass application allowlists and AppLocker policies that permit signed Microsoft binaries. T1059.005 describes the scripting language used but misses the allowlist-bypass intent that is the operationally significant element. Detection engineering impact: a rule targeting T1218.005 blocks any mshta.exe invocation with UNC paths, external URLs, or javascript: / vbscript: protocol handlers, regardless of payload scripting language. T1021.002 and T1105 describe secondary effects (SMB file access, file retrieval) rather than the primary evasion-via-proxy-execution technique."
     },
-    "knowledge_base_source_ids": ["src_l3_001"]
+    "knowledge_base_source_ids": ["threat.hunting.sqf"]
   },
   {
     "type": "mcq",
@@ -31,7 +31,7 @@
       "correct": 0,
       "rationale": "T1548.002 (Bypass User Account Control) is correct: fodhelper.exe is a Microsoft-signed binary that is configured for auto-elevation (it elevates to High integrity without a UAC prompt) and it reads the ms-settings URI handler from the registry before launching. By writing a malicious command to HKCU\\Software\\Classes\\ms-settings\\shell\\open\\command, an adversary hijacks what fodhelper.exe executes at High integrity — a classic UAC auto-elevation bypass documented by Matt Nelson (enigma0x3). T1574.001 (DLL Search Order Hijacking) is the plausible L2 confusion because both involve a registry write that affects process behavior, but DLL hijacking requires dropping a physical DLL file into a search-order-prioritized directory. T1055.012 (Process Hollowing) requires memory-level process replacement, not registry manipulation."
     },
-    "knowledge_base_source_ids": ["src_l3_007"]
+    "knowledge_base_source_ids": ["sigma.rules"]
   },
   {
     "type": "mcq",
@@ -48,7 +48,7 @@
       "correct": 0,
       "rationale": "Modern RaaS ecosystems have a three-tier structure: (1) Operators (ALPHV/BlackCat development team) maintain the ransomware codebase, encryption keys, negotiation portals, and affiliate panel; (2) Affiliates register on the portal, obtain the encryptor binary and configuration tools, conduct the entire intrusion (lateral movement, data exfiltration, encryption) using their own TTPs, and split the ransom payment — paying 15–30% to the operator; (3) Access Brokers are independent threat actors who compromise organizations and sell validated network access to affiliates via dark-web marketplaces. This three-tier separation is operationally significant for attribution: the TTPs observed in the network (initial access, lateral movement, pre-encryption staging) belong to the affiliate, not the operator — so behavioral detections must target affiliate tradecraft, not just the ransomware binary."
     },
-    "knowledge_base_source_ids": ["src_l3_002"]
+    "knowledge_base_source_ids": ["mitre.attack.groups"]
   },
   {
     "type": "mcq",
@@ -65,7 +65,7 @@
       "correct": 0,
       "rationale": "T1195.002 (Compromise Software Supply Chain) is correct: the adversary tampered with the build process of a software vendor, inserting malicious code that was compiled, signed with the vendor's legitimate Authenticode certificate, and distributed as an official update. This means binary-hash blocklists, signature verification, and antivirus were all ineffective — the file was 'legitimate' by every static measure. The most operationally effective customer-side detection was network behavioral analysis: SUNBURST implemented a multi-stage activation delay (14+ days dormant), then initiated C2 via DNS A-record lookups to procedurally generated subdomains of avsvmcloud.com. Customers with DNS query logging and behavioral baselines for the Orion process's normal network destinations could detect this anomaly. T1195.001 applies to hardware-level modifications (network equipment firmware). T1190 is exploitation of an internet-facing application."
     },
-    "knowledge_base_source_ids": ["src_l3_006"]
+    "knowledge_base_source_ids": ["mitre.t1195"]
   },
   {
     "type": "mcq",
@@ -82,6 +82,6 @@
       "correct": 1,
       "rationale": "The L2 assessment is incorrect. The combination of three indicators makes this a high-confidence injection finding: (1) MZ header (4D5A — PE executable signature) present in memory indicates a PE file was loaded into this region, but (2) 'not backed by a file on disk' means it did not arrive via a normal DllMain/LoadLibrary call (which maps a disk file into virtual address space) — instead it was manually written into memory by another process or by reflective loading; (3) PAGE_EXECUTE_READWRITE is the triple-permission signature of shellcode stagers and reflective loaders — legitimate DLL code sections are mapped PAGE_EXECUTE_READ (not writable). Legitimate EDR and security software inject into lsass.exe via mapped file sections (e.g., Microsoft's AV hooks), not via manually allocated private anonymous memory. Anti-cheat software operates in game processes, not lsass.exe. The 0x7ff9 address prefix is a valid user-mode high address on 64-bit Windows, not kernel-mode (kernel addresses start at 0xffff8000... on x64)."
     },
-    "knowledge_base_source_ids": ["src_l3_004"]
+    "knowledge_base_source_ids": ["volatility3.advanced"]
   }
 ]

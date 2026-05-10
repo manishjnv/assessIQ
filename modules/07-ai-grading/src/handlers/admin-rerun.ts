@@ -144,13 +144,13 @@ export async function handleAdminRerun(
     );
   }
 
-  // D7 — heartbeat
+  // D7 — heartbeat: admin must have been active within the last 300s (5 min)
   if (
     sessionLastActivity === null ||
-    Date.now() - sessionLastActivity.getTime() > 60_000
+    Date.now() - sessionLastActivity.getTime() > 300_000
   ) {
     throw new AppError(
-      "Session idle — refresh the page and re-confirm to re-run grading",
+      "Your session was idle for more than 5 minutes — refresh the page to continue re-grading.",
       AI_GRADING_ERROR_CODES.HEARTBEAT_STALE,
       409,
     );

@@ -9,7 +9,7 @@
       "expected_keywords": ["DeviceProcessEvents", "ProcessCommandLine", "EncodedCommand", "powershell", "project", "sort"],
       "sample_solution": "DeviceProcessEvents\n| where Timestamp > ago(24h)\n| where FileName =~ \"powershell.exe\" or FileName =~ \"pwsh.exe\"\n| where ProcessCommandLine has_any (\"-EncodedCommand\", \"-enc \", \"-ec \")\n| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine\n| sort by Timestamp desc"
     },
-    "knowledge_base_source_ids": ["src_l2_004", "src_l2_007"]
+    "knowledge_base_source_ids": ["mitre.t1087", "mitre.t1087"]
   },
   {
     "type": "kql",
@@ -21,7 +21,7 @@
       "expected_keywords": ["SecurityEvent", "4625", "summarize", "count", "dcount", "where", "IpAddress"],
       "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4625\n| where LogonType == 3\n| summarize AttemptCount = count(), DistinctAccounts = dcount(TargetUserName), StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by IpAddress, bin(TimeGenerated, 5m)\n| where AttemptCount > 20 and DistinctAccounts >= 5\n| project IpAddress, AttemptCount, DistinctAccounts, StartTime, EndTime\n| sort by AttemptCount desc"
     },
-    "knowledge_base_source_ids": ["src_l2_004", "src_l2_003"]
+    "knowledge_base_source_ids": ["mitre.t1087", "mitre.t1550.002"]
   },
   {
     "type": "kql",
@@ -33,7 +33,7 @@
       "expected_keywords": ["SecurityEvent", "4624", "LogonType", "NTLM", "summarize", "dcount", "make_set"],
       "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4624\n| where LogonType == 3\n| where AuthenticationPackageName =~ \"NTLM\"\n| where WorkstationName != Computer\n| summarize TargetCount = dcount(Computer), Targets = make_set(Computer, 20) by WorkstationName, TargetUserName, bin(TimeGenerated, 1h)\n| where TargetCount > 3\n| project WorkstationName, TargetUserName, TargetCount, Targets\n| sort by TargetCount desc"
     },
-    "knowledge_base_source_ids": ["src_l2_004", "src_l2_006"]
+    "knowledge_base_source_ids": ["mitre.t1087", "mitre.ta0008"]
   },
   {
     "type": "kql",
@@ -45,7 +45,7 @@
       "expected_keywords": ["SecurityEvent", "4769", "TicketEncryptionType", "0x17", "summarize", "dcount"],
       "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4769\n| where TicketEncryptionType == \"0x17\"\n| where ServiceName !endswith \"$\"\n| summarize ServiceCount = dcount(ServiceName), Services = make_set(ServiceName, 20), StartTime = min(TimeGenerated) by SubjectUserName, IpAddress, bin(TimeGenerated, 10m)\n| where ServiceCount > 3\n| project SubjectUserName, IpAddress, ServiceCount, Services, StartTime\n| sort by ServiceCount desc"
     },
-    "knowledge_base_source_ids": ["src_l2_004", "src_l2_009"]
+    "knowledge_base_source_ids": ["mitre.t1087", "mitre.t1558.003"]
   },
   {
     "type": "kql",
@@ -57,6 +57,6 @@
       "expected_keywords": ["DeviceNetworkEvents", "make-series", "RemoteIP", "summarize", "mv-expand", "avg"],
       "sample_solution": "DeviceNetworkEvents\n| where Timestamp > ago(24h)\n| where RemoteIPType == \"Public\"\n| summarize ConnectionTimes = make_list(Timestamp, 500) by DeviceName, RemoteIP\n| mv-expand ConnectionTimes to typeof(datetime)\n| sort by DeviceName asc, RemoteIP asc, ConnectionTimes asc\n| serialize\n| extend PrevTime = prev(ConnectionTimes, 1)\n| extend IntervalSec = datetime_diff('second', ConnectionTimes, PrevTime)\n| where isnotnull(IntervalSec) and IntervalSec > 0\n| summarize ConnCount = count(), AvgIntervalSec = avg(IntervalSec), StdDevInterval = stdev(IntervalSec) by DeviceName, RemoteIP\n| where ConnCount > 5 and AvgIntervalSec between (60 .. 600)\n| project DeviceName, RemoteIP, ConnCount, AvgIntervalSec, StdDevInterval\n| sort by ConnCount desc"
     },
-    "knowledge_base_source_ids": ["src_l2_004", "src_l2_008"]
+    "knowledge_base_source_ids": ["mitre.t1087", "mitre.t1071"]
   }
 ]

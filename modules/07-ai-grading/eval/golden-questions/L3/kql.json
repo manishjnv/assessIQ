@@ -9,7 +9,7 @@
       "expected_keywords": ["DeviceProcessEvents", "DeviceNetworkEvents", "join", "where", "project", "datetime_diff", "extend"],
       "sample_solution": "let officeApps = dynamic([\"WINWORD.EXE\", \"EXCEL.EXE\", \"POWERPNT.EXE\", \"OUTLOOK.EXE\"]);\nlet suspiciousChildren = dynamic([\"powershell.exe\", \"cmd.exe\", \"mshta.exe\", \"wscript.exe\", \"cscript.exe\"]);\nlet suspiciousProcs = DeviceProcessEvents\n| where Timestamp > ago(24h)\n| where InitiatingProcessFileName has_any (officeApps)\n| where FileName has_any (suspiciousChildren)\n| project ProcTime = Timestamp, DeviceName, AccountName,\n          ParentProcess = InitiatingProcessFileName,\n          ChildProcess = FileName,\n          ProcessCommandLine,\n          ProcessId;\nlet netEvents = DeviceNetworkEvents\n| where Timestamp > ago(24h)\n| where RemoteIPType == \"Public\"\n| where ActionType == \"ConnectionSuccess\"\n| project NetTime = Timestamp, DeviceName, RemoteIP, RemotePort,\n          InitiatingProcessId;\nsuspiciousProcs\n| join kind=inner netEvents\n    on DeviceName, $left.ProcessId == $right.InitiatingProcessId\n| where NetTime >= ProcTime\n| extend ElapsedSeconds = datetime_diff('second', NetTime, ProcTime)\n| where ElapsedSeconds <= 120\n| project ProcTime, DeviceName, AccountName, ParentProcess,\n          ChildProcess, ProcessCommandLine, RemoteIP, RemotePort, ElapsedSeconds\n| sort by ElapsedSeconds asc"
     },
-    "knowledge_base_source_ids": ["src_l3_008"]
+    "knowledge_base_source_ids": ["threat.hunting.kql"]
   },
   {
     "type": "kql",
@@ -21,7 +21,7 @@
       "expected_keywords": ["IdentityLogonEvents", "DeviceProcessEvents", "join", "summarize", "project", "datetime_diff"],
       "sample_solution": "let lateralLogons = IdentityLogonEvents\n| where Timestamp > ago(24h)\n| where LogonType in (\"Interactive\", \"RemoteInteractive\")\n| where Protocol == \"Ntlm\"\n| where ActionType == \"LogonSuccess\"\n| project LogonTime = Timestamp,\n          AccountUpn,\n          TargetDevice = DestinationDeviceName;\nlateralLogons\n| join kind=inner (\n    DeviceProcessEvents\n    | where Timestamp > ago(24h)\n    | where FileName has_any (\"cmd.exe\", \"powershell.exe\", \"net.exe\", \"whoami.exe\", \"ipconfig.exe\")\n    | project ExecTime = Timestamp,\n              DeviceName,\n              AccountName,\n              FileName,\n              ProcessCommandLine\n) on $left.TargetDevice == $right.DeviceName\n| where ExecTime > LogonTime\n| extend MinutesElapsed = datetime_diff('minute', ExecTime, LogonTime)\n| where MinutesElapsed <= 5\n| summarize\n    FirstCommand = arg_min(ExecTime, ProcessCommandLine),\n    CommandCount = count()\n    by AccountUpn, TargetDevice, LogonTime, MinutesElapsed\n| project LogonTime, AccountUpn, TargetDevice, MinutesElapsed,\n          FirstCommand, CommandCount\n| sort by LogonTime desc"
     },
-    "knowledge_base_source_ids": ["src_l3_008"]
+    "knowledge_base_source_ids": ["threat.hunting.kql"]
   },
   {
     "type": "kql",
@@ -33,7 +33,7 @@
       "expected_keywords": ["DeviceNetworkEvents", "summarize", "bin_at", "avg", "stdev", "where", "extend"],
       "sample_solution": "let fixedRef = datetime(2026-01-01T00:00:00Z);\nlet binSize = 1m;\nDeviceNetworkEvents\n| where Timestamp > ago(48h)\n| where RemoteIPType == \"Public\"\n| where ActionType == \"ConnectionSuccess\"\n| summarize ConnectionCount = count(),\n            FirstSeen = min(Timestamp),\n            LastSeen = max(Timestamp),\n            BinCount = dcount(bin_at(Timestamp, binSize, fixedRef))\n    by DeviceName, RemoteIP\n| where ConnectionCount >= 6\n| join kind=inner (\n    DeviceNetworkEvents\n    | where Timestamp > ago(48h)\n    | where RemoteIPType == \"Public\"\n    | where ActionType == \"ConnectionSuccess\"\n    | summarize ConnectionTimes = make_list(Timestamp, 500)\n        by DeviceName, RemoteIP\n    | mv-expand ConnectionTimes to typeof(datetime)\n    | sort by DeviceName asc, RemoteIP asc, ConnectionTimes asc\n    | serialize\n    | extend PrevTime = prev(ConnectionTimes, 1)\n    | extend PrevDevice = prev(DeviceName, 1)\n    | extend PrevIP = prev(RemoteIP, 1)\n    | where DeviceName == PrevDevice and RemoteIP == PrevIP\n    | extend IntervalSec = datetime_diff('second', ConnectionTimes, PrevTime)\n    | where IntervalSec > 0\n    | summarize AvgInterval = avg(IntervalSec), StdDevInterval = stdev(IntervalSec)\n        by DeviceName, RemoteIP\n) on DeviceName, RemoteIP\n| where AvgInterval between (60 .. 3600)\n| extend CoeffVariation = StdDevInterval / AvgInterval\n| where CoeffVariation < 0.25\n| project DeviceName, RemoteIP, ConnectionCount,\n          AvgIntervalSec = round(AvgInterval, 0),\n          JitterPct = round(CoeffVariation * 100, 1)\n| sort by JitterPct asc"
     },
-    "knowledge_base_source_ids": ["src_l3_008", "src_l3_001"]
+    "knowledge_base_source_ids": ["threat.hunting.kql", "threat.hunting.sqf"]
   },
   {
     "type": "kql",
@@ -45,7 +45,7 @@
       "expected_keywords": ["DeviceProcessEvents", "extract", "mv-expand", "parse", "base64_decode_tostring", "project"],
       "sample_solution": "DeviceProcessEvents\n| where Timestamp > ago(24h)\n| where FileName =~ \"powershell.exe\" or FileName =~ \"pwsh.exe\"\n| where ProcessCommandLine has_any (\"-EncodedCommand\", \"-enc \", \"-ec \")\n| extend EncodedBlob = extract(@\"-(?:EncodedCommand|enc|ec)\\s+([A-Za-z0-9+/=]+)\",\n    1, ProcessCommandLine)\n| where isnotempty(EncodedBlob)\n| extend DecodedScript = base64_decode_tostring(EncodedBlob)\n| where isnotempty(DecodedScript)\n| parse DecodedScript with * \"://\" UrlSuffix\n| mv-expand Tokens = split(DecodedScript, ' ') to typeof(string)\n| where Tokens startswith \"http://\" or Tokens startswith \"https://\"\n    or Tokens startswith \"ftp://\"\n| summarize\n    C2Candidates = make_set(Tokens, 20),\n    SampleDecoded = any(DecodedScript),\n    EncodedPayload = any(EncodedBlob),\n    CmdLine = any(ProcessCommandLine)\n    by Timestamp = bin(Timestamp, 1h), DeviceName, AccountName\n| project Timestamp, DeviceName, AccountName,\n          CmdLine, EncodedPayload, SampleDecoded, C2Candidates\n| sort by Timestamp desc"
     },
-    "knowledge_base_source_ids": ["src_l3_008", "src_l3_007"]
+    "knowledge_base_source_ids": ["threat.hunting.kql", "sigma.rules"]
   },
   {
     "type": "kql",
@@ -57,6 +57,6 @@
       "expected_keywords": ["let", "materialize", "DeviceProcessEvents", "DeviceNetworkEvents", "join", "summarize", "project"],
       "sample_solution": "let lookback = 7d;\nlet suspiciousDropped = materialize(\n    DeviceFileEvents\n    | where Timestamp > ago(lookback)\n    | where ActionType == \"FileCreated\"\n    | where FolderPath has_any (@\"\\Temp\\\", @\"\\AppData\\\", @\"\\Downloads\\\")\n    | where FileName endswith \".exe\" or FileName endswith \".dll\"\n        or FileName endswith \".ps1\"\n    | where SHA256 != \"\"\n    | distinct SHA256, FileName\n);\nlet executions = DeviceProcessEvents\n| where Timestamp > ago(lookback)\n| where SHA256 in ((suspiciousDropped | project SHA256))\n| project ExecTime = Timestamp, DeviceName, AccountName,\n          SHA256, FileName, ProcessCommandLine, ProcessId;\nlet networkHits = DeviceNetworkEvents\n| where Timestamp > ago(lookback)\n| where RemoteIPType == \"Public\"\n| where ActionType == \"ConnectionSuccess\"\n| project NetTime = Timestamp, DeviceName, InitiatingProcessId,\n          RemoteIP, RemotePort;\nexecutions\n| join kind=leftouter networkHits\n    on DeviceName, $left.ProcessId == $right.InitiatingProcessId\n| where isnull(NetTime) or datetime_diff('minute', NetTime, ExecTime) <= 10\n| summarize\n    AffectedDevices = dcount(DeviceName),\n    ExecutionCount = count(),\n    C2IPs = make_set(RemoteIP, 50)\n    by SHA256, FileName\n| where ExecutionCount >= 1\n| extend HasC2 = array_length(C2IPs) > 0\n| sort by AffectedDevices desc, ExecutionCount desc"
     },
-    "knowledge_base_source_ids": ["src_l3_008", "src_l3_001"]
+    "knowledge_base_source_ids": ["threat.hunting.kql", "threat.hunting.sqf"]
   }
 ]
