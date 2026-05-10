@@ -14,7 +14,7 @@
       "correct": 2,
       "rationale": "Authentication-Results: dmarc=fail is the most reliable indicator because it is produced by the receiving mail server's cryptographic validation of SPF alignment and DKIM signature — both of which require the sender to control the legitimate domain's DNS records to pass. The From display name is trivially faked by an adversary with zero effort. Reply-To mismatch is a useful heuristic but is not authenticated by any protocol. Urgent subject-line language is a social-engineering indicator, not an authentication indicator, and is present in many legitimate automated notifications."
     },
-    "knowledge_base_source_ids": ["src_l1_007", "src_l1_002"]
+    "knowledge_base_source_ids": ["phishing.ioc", "mitre.t1566"]
   },
   {
     "type": "mcq",
@@ -31,7 +31,7 @@
       "correct": 1,
       "rationale": "Sysmon Event ID 1 (ProcessCreate) captures every new process start with fields including Image (full binary path), CommandLine, ParentImage, ParentCommandLine, IntegrityLevel, and cryptographic Hashes. The Windows Security equivalent is Event 4688 ('A new process has been created'), which requires 'Audit Process Creation' audit policy and the 'Include command line in process creation events' GPO setting to capture command-line arguments. Sysmon Event ID 3 tracks network connections; 11 tracks file creation; 7 tracks DLL/image loads — none record process creation. Correlation between Sysmon ID 1 and Event 4688 on the same host provides two independent evidence sources for process-chain analysis."
     },
-    "knowledge_base_source_ids": ["src_l1_004"]
+    "knowledge_base_source_ids": ["win.event.4688"]
   },
   {
     "type": "mcq",
@@ -48,7 +48,7 @@
       "correct": 2,
       "rationale": "winword.exe spawning powershell.exe is a high-confidence malicious indicator (it is the canonical macro-based initial-access chain for Emotet, QakBot, and similar loaders), but L1 protocol requires verification and owner contact before taking containment action on a non-critical endpoint — quarantine disrupts the user's work and is a reversible but disruptive action that requires confirmation. Option A (immediate quarantine) skips the required verification step. Option B is incorrect — Word spawning PowerShell is not expected, normal, or safe to dismiss. Option D (resetting the password) is an unauthorized destructive action that the L1 analyst is not empowered to take unilaterally."
     },
-    "knowledge_base_source_ids": ["src_l1_008", "src_l1_001"]
+    "knowledge_base_source_ids": ["edr.alert.triage", "nist.ir.triage"]
   },
   {
     "type": "mcq",
@@ -65,7 +65,7 @@
       "correct": 1,
       "rationale": "Even though a disabled account cannot authenticate successfully, repeated logon attempts against a known privileged account name from an internal IP warrant investigation. The attempt pattern reveals that something on 10.14.50.2 knows the account name exists and is attempting to use it — this could indicate an authorized scanner, a misconfigured application, or a compromised host probing for accounts. Closing the alert (A) ignores a useful signal. Re-enabling the account (C) creates a security risk without authorization. Resetting the password (D) is an unauthorized action that bypasses proper triage. The correct L1 action is to enrich the alert with asset context and escalate if the source is unknown."
     },
-    "knowledge_base_source_ids": ["src_l1_003"]
+    "knowledge_base_source_ids": ["win.event.4625"]
   },
   {
     "type": "mcq",
@@ -82,6 +82,6 @@
       "correct": 1,
       "rationale": "Option B combines four red-flag indicators in a single command: (1) -NonInteractive prevents the user from seeing any prompts; (2) -WindowStyle Hidden suppresses the console window so the user cannot observe execution; (3) -ExecutionPolicy Bypass circumvents any PowerShell script-execution restrictions set by group policy; (4) -enc (short for -EncodedCommand) encodes the actual payload in Base64, hiding it from casual log inspection and signature-based detection. This combination is the canonical obfuscated PowerShell execution pattern used by malware loaders and post-exploitation frameworks. Options A and C are standard interactive command-line usage. Option D invokes a named script from a controlled program directory — a normal pattern for enterprise application update agents."
     },
-    "knowledge_base_source_ids": ["src_l1_006", "src_l1_004"]
+    "knowledge_base_source_ids": ["mitre.t1059", "win.event.4688"]
   }
 ]

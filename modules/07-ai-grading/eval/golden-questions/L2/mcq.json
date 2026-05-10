@@ -14,7 +14,7 @@
       "correct": 1,
       "rationale": "T1059.001 covers adversary use of PowerShell for execution. The -EncodedCommand flag is a canonical obfuscation technique to evade command-line logging and detection. T1547.001 is a persistence mechanism, T1078 is an initial-access technique involving credential use, and T1021.001 is lateral movement via RDP — none describe the in-process execution via an encoded PowerShell command."
     },
-    "knowledge_base_source_ids": ["src_l2_001"]
+    "knowledge_base_source_ids": ["mitre.t1059.001"]
   },
   {
     "type": "mcq",
@@ -31,7 +31,7 @@
       "correct": 2,
       "rationale": "CommandLine captures the full argument string, revealing how a legitimate binary is being invoked — for example, certutil.exe -urlcache -split -f http://... or mshta.exe vbscript:.... ProcessId is an opaque identifier with no semantic content for the detection. IntegrityLevel indicates elevation context but does not reveal LOLBin abuse. Hashes match the legitimate binary (which is unchanged on disk), so they provide no signal that the binary is being abused."
     },
-    "knowledge_base_source_ids": ["src_l2_002"]
+    "knowledge_base_source_ids": ["mitre.t1059.001"]
   },
   {
     "type": "mcq",
@@ -48,7 +48,7 @@
       "correct": 0,
       "rationale": "Password spraying tests one or a few common passwords against many accounts to avoid triggering per-account lockout. The tell is the single external IP, many distinct target accounts, same password, all returning wrong-password SubStatus. Credential stuffing uses unique username:password pairs per attempt. Kerberoasting generates Event 4769 (TGS requests), not 4625 failures. Pass-the-Hash produces Event 4624 success events using NTLM with LogonType=3, not 4625 failures."
     },
-    "knowledge_base_source_ids": ["src_l2_003"]
+    "knowledge_base_source_ids": ["mitre.t1550.002"]
   },
   {
     "type": "mcq",
@@ -65,7 +65,7 @@
       "correct": 1,
       "rationale": "NIST SP 800-61r2 §3.3.2 specifies collecting volatile data first: RAM, running processes, open files, and network connections — all lost when power is removed or the host is isolated. Disk data persists and can be imaged later. Pulling the power destroys volatile evidence and may corrupt open files. Resetting passwords or patching before volatile capture destroys forensic artefacts that identify the attack chain and any persistence mechanisms."
     },
-    "knowledge_base_source_ids": ["src_l2_005"]
+    "knowledge_base_source_ids": ["mitre.t1486"]
   },
   {
     "type": "mcq",
@@ -82,6 +82,6 @@
       "correct": 2,
       "rationale": "An identical, rare JA3 hash across 12 hosts reaching 4 rotating external IPs is the signature of a malware family with a common embedded TLS client library. C2 frameworks rotate IPs (fast-flux, domain fronting) while keeping the same TLS fingerprint. Known browser JA3 hashes are catalogued and would match; they would also connect to well-known CDN or vendor IPs. A TLS inspection proxy would produce a JA3S (server-side) change on the response, not a common client JA3. ARP spoofing does not create a shared TLS fingerprint across hosts."
     },
-    "knowledge_base_source_ids": ["src_l2_008"]
+    "knowledge_base_source_ids": ["mitre.t1071"]
   }
 ]

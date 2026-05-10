@@ -22,7 +22,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l1_007", "src_l1_002"]
+    "knowledge_base_source_ids": ["phishing.ioc", "mitre.t1566"]
   },
   {
     "type": "scenario",
@@ -47,7 +47,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l1_008", "src_l1_006"]
+    "knowledge_base_source_ids": ["edr.alert.triage", "mitre.t1059"]
   },
   {
     "type": "scenario",
@@ -68,7 +68,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l1_003", "src_l1_001"]
+    "knowledge_base_source_ids": ["win.event.4625", "nist.ir.triage"]
   },
   {
     "type": "scenario",
@@ -93,7 +93,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l1_005", "src_l1_001"]
+    "knowledge_base_source_ids": ["win.event.4698", "nist.ir.triage"]
   },
   {
     "type": "scenario",
@@ -118,6 +118,6 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l1_008", "src_l1_004"]
+    "knowledge_base_source_ids": ["edr.alert.triage", "win.event.4688"]
   }
 ]

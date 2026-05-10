@@ -15,7 +15,7 @@
       "sample_solution": "1. The -EncodedCommand flag indicates Base64-encoded PowerShell obfuscation (T1059.001). Decoding the payload reveals an Invoke-WebRequest download cradle to 192.168.1.1/da. 2. The powershell.exe process spawns multiple net.exe children performing domain enumeration — T1087.002 (Account Discovery). 3. High IntegrityLevel for a non-admin user (jsmith) suggests a prior privilege escalation. Detection improvements: (a) Enable PowerShell Script Block Logging (Event 4104) to capture the decoded script content. (b) Alert on Sysmon ID 1 where ParentImage contains cmd.exe and CommandLine contains -enc or -EncodedCommand. Baseline legitimate powershell.exe invocations for this user population.",
       "hint": "Decode the Base64 string in -EncodedCommand — the decoded Unicode content will reveal the next-stage payload retrieval method."
     },
-    "knowledge_base_source_ids": ["src_l2_001", "src_l2_002"]
+    "knowledge_base_source_ids": ["mitre.t1059.001", "mitre.t1059.001"]
   },
   {
     "type": "log_analysis",
@@ -32,7 +32,7 @@
       "sample_solution": "1. All 4625 events share IpAddress=185.220.101.47 and SubStatus=0xC000006A (wrong password), but each targets a different TargetUserName — the defining signature of password spraying. 2. The regular 2-second cadence indicates automated tooling. 3. LogonType=3 (network logon) confirms this is a remote attempt, not an interactive one. Immediate triage: (a) Block or geo-fence 185.220.101.47 at the perimeter; (b) check if any account was successfully authenticated (Event 4624) from this IP; (c) query the full 24-hour 4625 window from this IP to scope the full account list targeted.",
       "hint": "Look for the pattern: single IpAddress, multiple distinct TargetUserName values, all with the same SubStatus code and a consistent time cadence."
     },
-    "knowledge_base_source_ids": ["src_l2_003"]
+    "knowledge_base_source_ids": ["mitre.t1550.002"]
   },
   {
     "type": "log_analysis",
@@ -49,7 +49,7 @@
       "sample_solution": "1. The process chain services.exe → PSEXESVC.EXE → cmd.exe → whoami is the canonical PsExec execution artifact (T1021.002). PSEXESVC.EXE is the PsExec service binary that PsExec installs on the target host. 2. The preceding Event 4624 shows NTLM network logon (LogonType=3) from WS-HR-07 using svc_backup — a service account should not authenticate interactively from an HR workstation, suggesting credential theft (T1003) or Pass-the-Hash (T1550.002). 3. Triage: check WS-HR-07 for svc_backup credential exposure; pull all Sysmon ID 1 events from WS-HR-07 in the prior 30 minutes for the initial compromise path.",
       "hint": "The key artifact is services.exe spawning a binary named PSEXESVC.EXE — this is not normal Windows service behavior."
     },
-    "knowledge_base_source_ids": ["src_l2_006"]
+    "knowledge_base_source_ids": ["mitre.ta0008"]
   },
   {
     "type": "log_analysis",
@@ -66,7 +66,7 @@
       "sample_solution": "1. Five Event 4769 records in 5 seconds from jsmith@CORP.LOCAL, all requesting RC4-encrypted service tickets (TicketEncryptionType=0x17) for different service accounts, constitutes Kerberoasting (T1558.003). The attack requests TGS tickets that are encrypted with the service account's password hash, enabling offline dictionary attacks. 2. The key indicator is TicketEncryptionType=0x17 — modern environments default to AES256 (0x12). RC4 requests from a regular user account are anomalous. 3. Response: identify all service accounts targeted and reset their passwords to long random strings; audit SPNs for service accounts that have unnecessary user-account associations.",
       "hint": "The TicketEncryptionType value is the smoking gun — 0x17 (RC4) is weak and exploitable; 0x12 (AES256) is the expected value in a hardened environment."
     },
-    "knowledge_base_source_ids": ["src_l2_009"]
+    "knowledge_base_source_ids": ["mitre.t1558.003"]
   },
   {
     "type": "log_analysis",
@@ -83,6 +83,6 @@
       "sample_solution": "1. The 5 DNS queries occur at intervals of 312s, 313s, 314s, 314s — near-identical spacing with slight jitter, characteristic of beacon software adding randomness to evade timing-based detection. 2. Each query returns a different IP answer (fast-flux) — legitimate CDN telemetry endpoints use stable IPs or well-known CDN ranges. 3. The domain telemetry.analytics-cdn.net is designed to appear legitimate but does not match known analytics vendor domains. Next steps: (a) query all internal hosts for DNS queries to this domain to scope compromise breadth; (b) pull Sysmon ID 3 (NetworkConnect) for WORKSTATION-03 to identify which process is making these connections; (c) check TLS metadata for JA3 fingerprinting.",
       "hint": "Calculate the intervals between timestamps — consistent spacing with minor variance is the beacon jitter signature. Also compare the DNS answers across queries."
     },
-    "knowledge_base_source_ids": ["src_l2_008"]
+    "knowledge_base_source_ids": ["mitre.t1071"]
   }
 ]

@@ -14,7 +14,7 @@
       "sample_solution": "1. The pattern is an SSH brute-force attack: all five events are 'Failed password for root' from the same external IP 45.33.32.156 at 2-second intervals — the rate and target are consistent with an automated password-spraying or dictionary-attack tool (e.g., Hydra, Medusa). 2. Key field values: (a) 'root' as the target username — adversaries target root because a successful authentication would immediately yield maximum privilege; (b) 45.33.32.156 as the repeated single source — a single IP generating high-velocity failures is the defining brute-force signature. 3. Immediate L1 containment: request a firewall rule to block 45.33.32.156 at the perimeter, escalate to L2 with the source IP and time window, and check whether 'PermitRootLogin' is set in /etc/ssh/sshd_config (it should be 'no' or 'prohibit-password'). Also confirm whether any subsequent successful authentication ('Accepted password for root') appears for this IP.",
       "hint": "Count how many failures appear for the same username — if every record targets the same account from the same IP, that is a single-account brute-force pattern."
     },
-    "knowledge_base_source_ids": ["src_l1_003"]
+    "knowledge_base_source_ids": ["win.event.4625"]
   },
   {
     "type": "log_analysis",
@@ -31,7 +31,7 @@
       "sample_solution": "1. Four Event 4625 failures in 6 seconds, all targeting jmorgan from 192.168.3.55 with SubStatus=0xC000006A, represent a credential brute-force attack against a known account. 2. SubStatus=0xC000006A means 'wrong password' — the account name is valid but the password is incorrect, confirming the attacker knows the username and is guessing the password (as opposed to 0xC000006D, which means wrong username). 3. The source IP 192.168.3.55 is within the internal RFC 1918 address space — this means the attack is not coming from the internet but from inside the corporate network, either a compromised host or an authorized scanner. Triage steps: (a) check CMDB or DHCP logs to identify the owner of 192.168.3.55; (b) verify whether this IP is listed as an authorized vulnerability scanner; (c) escalate to L2 if the host is unrecognized.",
       "hint": "Check whether TargetUserName stays the same across all records — if yes, the attacker is targeting one specific account (focused brute force) rather than spreading attempts across many accounts (password spray)."
     },
-    "knowledge_base_source_ids": ["src_l1_003"]
+    "knowledge_base_source_ids": ["win.event.4625"]
   },
   {
     "type": "log_analysis",
@@ -48,7 +48,7 @@
       "sample_solution": "1. Four rapid, near-simultaneous connections from 10.10.1.42 to a single fixed external IP on port 443 with highly consistent byte counts indicates automated beaconing — human browsing produces variable timing, multiple destination IPs, and widely varying packet sizes based on page content. 2. The 185.220.101.x range is a known Tor exit node block; legitimate user web traffic does not typically traverse Tor exit nodes. Look up 185.220.101.32 in VirusTotal, AbuseIPDB, or the corporate threat intelligence platform. 3. First triage step: identify what process on 10.10.1.42 is generating these connections by checking EDR process-network telemetry for that host at 10:15 UTC — the InitiatingProcessFileName field in Defender for Endpoint or CrowdStrike will reveal whether a browser, system process, or unexpected binary is making the connections.",
       "hint": "Look at how consistent the outbound byte counts are across records — near-identical values suggest automated serialized network requests, not user-driven page loads which vary substantially."
     },
-    "knowledge_base_source_ids": ["src_l1_008"]
+    "knowledge_base_source_ids": ["edr.alert.triage"]
   },
   {
     "type": "log_analysis",
@@ -65,7 +65,7 @@
       "sample_solution": "1. ICMP Type 8 Code 0 is an Echo Request (ping). Five simultaneous pings to sequential /24 subnet IPs from a single internal host in one second is the signature of an automated ping sweep, used in the Discovery phase to map live hosts before lateral movement. This maps to MITRE T1046 (Network Service Discovery). 2. All addresses are internal RFC 1918 addresses (10.x.x.x), so the threat actor — if malicious — is already inside the network. External attackers typically probe public-facing hosts, not entire internal /24 ranges. 3. Triage steps: (a) look up 10.10.50.5 in CMDB/DHCP to identify the asset owner; (b) check whether this host is an authorized scanner (Nessus, Qualys, Nmap-based IT auditing tool); (c) if the host is a user workstation with no scanner role, investigate for compromise and escalate to L2.",
       "hint": "Look at the pattern of destination addresses — do they increment sequentially across the same subnet? Sequential IPs probed in rapid succession indicate a host discovery sweep, not random traffic."
     },
-    "knowledge_base_source_ids": ["src_l1_001"]
+    "knowledge_base_source_ids": ["nist.ir.triage"]
   },
   {
     "type": "log_analysis",
@@ -82,6 +82,6 @@
       "sample_solution": "1. The three events tell a complete persistence story: (a) schtasks.exe is used to register a new task (4688 + 4698) that runs as SYSTEM at every system start; (b) the task action is powershell.exe -ExecutionPolicy Bypass -enc SQBuAHYAbwBrAGU= — the -enc flag Base64-encodes the payload to hide it; (c) taskeng.exe spawning powershell.exe one minute later confirms the task fired. 2. High-priority indicators: (a) '/ru SYSTEM' — a task registered by a standard user account (tsmith) but configured to run as SYSTEM is anomalous; standard users cannot legitimately create SYSTEM-privilege tasks. (b) '/sc ONSTART' with -enc argument — encoding the payload in a persistence mechanism is a classic anti-forensics technique. 3. MITRE sub-technique: T1053.005 (Scheduled Task/Job: Scheduled Task). Immediate action: escalate to L2 for PowerShell Script Block Log (Event 4104) review to decode and analyze the payload.",
       "hint": "Check the /ru parameter in the schtasks command — it specifies the run-as account. If a non-admin user registers a task to run as SYSTEM, that is a red flag regardless of the task content."
     },
-    "knowledge_base_source_ids": ["src_l1_005", "src_l1_006"]
+    "knowledge_base_source_ids": ["win.event.4698", "mitre.t1059"]
   }
 ]

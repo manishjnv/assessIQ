@@ -17,7 +17,7 @@
       "sample_solution": "The attack chain is: (1) update_helper.exe dropped from a browser process (msedge.exe — likely a drive-by download) on WORKSTATION-08. (2) update_helper.exe opens svchost.exe PID 1452 with PROCESS_ALL_ACCESS (0x1fffff) via EventID=10 and creates a remote thread via EventID=8 — the StartModule=UNKNOWN confirms the thread entry point is a reflectively loaded payload not backed by a disk-mapped module (T1055, reflective DLL injection). (3) The injected payload initiates C2 to 185.220.101.9:443 (Tor exit node range) from the now-trusted svchost.exe process. (4) cmd.exe spawned by the injected svchost makes an SMB connection to 10.10.5.20 (SERVER-APP01), triggering PsExec lateral movement authenticated with dward's NTLM credentials. (5) On SERVER-APP01, the attacker immediately creates a backdoor local account. ATT&CK chain: T1055 → T1071.001 (C2 via HTTPS) → T1021.002 (PsExec) → T1136.001 (Account Creation). Memory forensics priority: RAM image of WORKSTATION-08 svchost.exe PID 1452 to extract the injected DLL for IOC extraction.",
       "hint": "Sysmon EventID=8 (CreateRemoteThread) with StartModule=UNKNOWN is the definitive injection indicator — a legitimate thread always starts within a module mapped from disk. Trace the TargetPid across all subsequent events to follow what the injected code does."
     },
-    "knowledge_base_source_ids": ["src_l3_004", "src_l3_001"]
+    "knowledge_base_source_ids": ["volatility3.advanced", "threat.hunting.sqf"]
   },
   {
     "type": "log_analysis",
@@ -37,7 +37,7 @@
       "sample_solution": "The attack is DCSync (T1003.006): itadmin (a user account, not a machine account) is performing AD replication requests against DC01 using the MS-DRSR protocol, which normally only domain controllers invoke. Event 4662 fires when a replication-privileged operation is performed on the domain object. The GUIDs {1131f6aa} and {1131f6ab} are the 'DS-Replication-Get-Changes' and 'DS-Replication-Get-Changes-All' extended rights — any account granted these rights can replicate all AD objects including password hashes. Mimikatz's 'lsadump::dcsync' module abuses this via LDAP without touching NTDS.dit on disk. The attack sequence: local credential dump → DCSync → possible Golden Ticket creation (krbtgt hash). Severity: forest-level compromise. Response: isolate WS-IT-03, disable itadmin, rotate krbtgt password twice, audit all privileged accounts for credential exposure.",
       "hint": "Focus on the Properties GUIDs in Event 4662 — not all 4662 events indicate DCSync. The replication GUIDs {1131f6aa} and {1131f6ab} on ObjectType=domainDNS are the specific indicators. A domain controller machine account performing these operations is normal; a user account is not."
     },
-    "knowledge_base_source_ids": ["src_l3_005", "src_l3_007"]
+    "knowledge_base_source_ids": ["timeline.analysis", "sigma.rules"]
   },
   {
     "type": "log_analysis",
@@ -57,7 +57,7 @@
       "sample_solution": "The attack is T1574.002 (DLL Side-Loading) with a supply-chain delivery mechanism (T1195.002). The signed vendorapp.exe was distributed legitimately but the update package included a malicious version.dll placed in the application directory. Windows DLL search order loads application-directory DLLs before System32 — so vendorapp.exe loads the malicious version.dll instead of the legitimate Windows one, giving the attacker code execution within a trusted, signed process. The malicious DLL immediately initiates C2 and on DESKTOP-09 spawns cmd.exe for interactive access. Three hosts are confirmed compromised with the same DLL hash (dc3f8a11). Response: block 91.195.240.7 at the firewall, push an emergency clean version.dll via endpoint management, quarantine actively C2-communicating hosts, and notify the software vendor of their compromised update pipeline.",
       "hint": "Compare where version.dll is loaded FROM — a path inside the application directory rather than C:\\Windows\\System32\\ is the DLL side-loading indicator. Then correlate the Signed=false flag with the same DLL hash appearing on multiple hosts."
     },
-    "knowledge_base_source_ids": ["src_l3_006", "src_l3_003"]
+    "knowledge_base_source_ids": ["mitre.t1195", "sans.for610.static"]
   },
   {
     "type": "log_analysis",
@@ -77,7 +77,7 @@
       "sample_solution": "The NTFS $SI vs $FN timestamp discrepancy is the definitive proof of timestomping (T1070.006). On Windows, the SetFileTime() Win32 API modifies only the $STANDARD_INFORMATION attribute (user-accessible). The $FILE_NAME attribute is updated exclusively by the NTFS kernel driver when the file is created, renamed, or moved — it is not modifiable by user-mode tools. The attack sequence: (1) svc_updater.exe written on 2026-05-09 11:22:14; (2) timestomping tool (e.g., Timestomp, BulkFileChanger) sets $SI timestamps to 2026-01-15 08:00:00; (3) execution begins at 11:22:18 per prefetch. The $FN and prefetch timestamps cannot be faked by standard user-mode timestomping tools, making them reliable forensic anchors. Tool identification: the round timestamp (08:00:00 exactly) and all-equal MACB values are characteristic of Timestomp.exe (Metasploit) or similar tools that set all timestamps to the same value in one call.",
       "hint": "Compare the $STANDARD_INFORMATION timestamps against the $FILE_NAME timestamps for the same MFT entry — if $SI shows an earlier date than $FN, the $SI was modified after file creation (timestomping). Prefetch provides independent verification of actual first execution time."
     },
-    "knowledge_base_source_ids": ["src_l3_005"]
+    "knowledge_base_source_ids": ["timeline.analysis"]
   },
   {
     "type": "log_analysis",
@@ -97,6 +97,6 @@
       "sample_solution": "This is a full-chain targeted intrusion. Timeline: 13:00 phishing delivery → 13:14 macro execution → 13:14 PowerShell C2 → 14:02 credential dump → 14:10 lateral movement to DC → 14:45 data collection → 14:55 exfiltration. The 90-minute dwell on LAPTOP-HR-05 before moving to DC02 suggests deliberate reconnaissance or waiting for a specific timeframe. The SYSVOL exfiltration is particularly dangerous as Group Policy files may reveal additional privileged account names, configuration weaknesses, or logon scripts containing credentials. Full response scope: (1) Isolate LAPTOP-HR-05 and DC02; (2) Rotate svc_backup credentials; (3) Review all GPO contents for embedded credentials; (4) Block 34.107.221.82 and update.cdn-delivery.net at the perimeter; (5) Run Volatility malfind on LAPTOP-HR-05 to extract svch0st.exe's C2 configuration.",
       "hint": "Track the C2 IP 34.107.221.82 — if it appears on multiple different hosts at different stages, it anchors the entire campaign to a single operator. Then map each cluster of events to a kill-chain phase and assign ATT&CK technique IDs."
     },
-    "knowledge_base_source_ids": ["src_l3_002", "src_l3_001"]
+    "knowledge_base_source_ids": ["mitre.attack.groups", "threat.hunting.sqf"]
   }
 ]

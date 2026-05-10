@@ -22,7 +22,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l2_005"]
+    "knowledge_base_source_ids": ["mitre.t1486"]
   },
   {
     "type": "scenario",
@@ -47,7 +47,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l2_006", "src_l2_003"]
+    "knowledge_base_source_ids": ["mitre.ta0008", "mitre.t1550.002"]
   },
   {
     "type": "scenario",
@@ -72,7 +72,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l2_001", "src_l2_002"]
+    "knowledge_base_source_ids": ["mitre.t1059.001", "mitre.t1059.001"]
   },
   {
     "type": "scenario",
@@ -97,7 +97,7 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l2_010"]
+    "knowledge_base_source_ids": ["mitre.t1562"]
   },
   {
     "type": "scenario",
@@ -122,6 +122,6 @@
         }
       ]
     },
-    "knowledge_base_source_ids": ["src_l2_008"]
+    "knowledge_base_source_ids": ["mitre.t1071"]
   }
 ]
