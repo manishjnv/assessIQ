@@ -378,3 +378,177 @@ export async function writeBaseline(
 ): Promise<void> {
   await writeFile(outPath, JSON.stringify(data, null, 2), "utf8");
 }
+
+// ---------------------------------------------------------------------------
+// AttemptDiagnostic — used by cli-typed.ts inspect-attempt subcommand
+// ---------------------------------------------------------------------------
+
+export interface AttemptDiagnostic {
+  id: string;
+  packId: string;
+  levelId: string;
+  status: "success" | "partial" | "failed" | "running";
+  countRequested: number;
+  countInserted: number;
+  chunksPlanned: number | null;
+  chunksFailed: number | null;
+  dedupeDropped: number | null;
+  citationDropped: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  stderrTail: string | null;
+  skillSha: string | null;       // comma-joined per-chunk SHAs
+  model: string | null;
+  durationMs: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+  insertedQuestions: Array<{
+    id: string;
+    type: string;
+    topic: string;
+    points: number;
+    contentKeys: string[];
+    knowledgeBaseSourceIds: string[];
+    createdAt: string;
+  }>;
+}
+
+/**
+ * Load a generation_attempts row plus its inserted questions for diagnostics.
+ *
+ * Uses the assessiq_system (BYPASSRLS) role so the CLI can resolve the attempt
+ * without knowing the tenant_id upfront — same pattern as score-candidate.
+ * Questions are then fetched tenant-scoped via RLS through withTenant().
+ *
+ * Throws with an error whose .code === "ATTEMPT_NOT_FOUND" if the attempt row
+ * does not exist. The CLI maps that to exit code 2.
+ *
+ * NOTE: this function requires DATABASE_URL and dynamically imports
+ * @assessiq/tenancy. It MUST NOT be called from golden/fixture/scoring paths.
+ */
+export async function loadAttemptDiagnostic(
+  attemptId: string,
+): Promise<AttemptDiagnostic> {
+  const { getPool, withTenant } = await import("@assessiq/tenancy");
+
+  // ── Step 1: Resolve attempt row (BYPASSRLS) ───────────────────────────────
+  interface AttemptRow {
+    id: string;
+    tenant_id: string;
+    pack_id: string;
+    level_id: string;
+    count_requested: number;
+    count_inserted: number;
+    status: "success" | "partial" | "failed" | "running";
+    error_code: string | null;
+    error_message: string | null;
+    stderr_tail: string | null;
+    skill_sha: string | null;
+    model: string | null;
+    chunks_planned: number | null;
+    chunks_failed: number | null;
+    dedupe_dropped: number | null;
+    citation_dropped: number | null;
+    duration_ms: number | null;
+    started_at: Date;
+    finished_at: Date | null;
+  }
+
+  const pool = getPool();
+  const rawClient = await pool.connect();
+  let attempt: AttemptRow;
+  try {
+    await rawClient.query("BEGIN");
+    await rawClient.query("SET LOCAL ROLE assessiq_system");
+    const res = await rawClient.query<AttemptRow>(
+      `SELECT id, tenant_id, pack_id, level_id,
+              count_requested, count_inserted, status,
+              error_code, error_message, stderr_tail,
+              skill_sha, model,
+              chunks_planned, chunks_failed, dedupe_dropped, citation_dropped,
+              duration_ms, started_at, finished_at
+         FROM generation_attempts
+        WHERE id = $1`,
+      [attemptId],
+    );
+    await rawClient.query("COMMIT");
+    const row = res.rows[0];
+    if (!row) {
+      const err = new Error(`attempt ${attemptId} not found`);
+      (err as NodeJS.ErrnoException).code = "ATTEMPT_NOT_FOUND";
+      throw err;
+    }
+    attempt = row;
+  } catch (err) {
+    await rawClient.query("ROLLBACK").catch(() => {
+      // swallow secondary rollback failure
+    });
+    throw err;
+  } finally {
+    rawClient.release();
+  }
+
+  // ── Step 2: Fetch inserted questions (tenant-scoped via RLS) ─────────────
+  interface QuestionRow {
+    id: string;
+    type: string;
+    topic: string;
+    points: number;
+    content: Record<string, unknown>;
+    knowledge_base_sources: Array<{ id: string }>;
+    created_at: Date;
+  }
+
+  const questionRows = await withTenant(attempt.tenant_id, async (c) => {
+    const params: unknown[] = [attempt.pack_id, attempt.level_id, attempt.started_at];
+    const finishedClause =
+      attempt.finished_at !== null
+        ? `AND created_at <= $4`
+        : "";
+    if (attempt.finished_at !== null) {
+      params.push(attempt.finished_at);
+    }
+    const res = await c.query<QuestionRow>(
+      `SELECT id, type, topic, points, content, knowledge_base_sources, created_at
+         FROM questions
+        WHERE pack_id = $1 AND level_id = $2
+          AND created_at >= $3
+          ${finishedClause}
+          AND status IN ('ai_draft', 'active')
+        ORDER BY created_at ASC`,
+      params,
+    );
+    return res.rows;
+  });
+
+  // ── Step 3: Map to AttemptDiagnostic ─────────────────────────────────────
+  return {
+    id: attempt.id,
+    packId: attempt.pack_id,
+    levelId: attempt.level_id,
+    status: attempt.status,
+    countRequested: attempt.count_requested,
+    countInserted: attempt.count_inserted,
+    chunksPlanned: attempt.chunks_planned,
+    chunksFailed: attempt.chunks_failed,
+    dedupeDropped: attempt.dedupe_dropped,
+    citationDropped: attempt.citation_dropped,
+    errorCode: attempt.error_code,
+    errorMessage: attempt.error_message,
+    stderrTail: attempt.stderr_tail,
+    skillSha: attempt.skill_sha,
+    model: attempt.model,
+    durationMs: attempt.duration_ms,
+    startedAt: attempt.started_at.toISOString(),
+    finishedAt: attempt.finished_at ? attempt.finished_at.toISOString() : null,
+    insertedQuestions: questionRows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      topic: row.topic,
+      points: row.points,
+      contentKeys: Object.keys(row.content ?? {}),
+      knowledgeBaseSourceIds: (row.knowledge_base_sources ?? []).map((s) => s.id),
+      createdAt: row.created_at.toISOString(),
+    })),
+  };
+}

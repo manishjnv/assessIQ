@@ -22,8 +22,9 @@ import {
   writeBaseline,
   loadFixture,
   scoreQuestion,
+  loadAttemptDiagnostic,
 } from "./runner.js";
-import type { EvalResult, EvalType, GoldenQuestion, KbSourceRef } from "./runner.js";
+import type { EvalResult, EvalType, GoldenQuestion, KbSourceRef, AttemptDiagnostic } from "./runner.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -429,6 +430,169 @@ async function cmdScoreCandidate(attemptId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// inspect-attempt
+// ---------------------------------------------------------------------------
+
+/**
+ * Render an AttemptDiagnostic into a human-readable report string.
+ * Exported for unit testing — does NOT call process.exit.
+ */
+export function renderAttemptReport(
+  d: AttemptDiagnostic,
+  opts: { showStderr: boolean; showQuestions: boolean },
+): string {
+  const lines: string[] = [];
+
+  // ── Section 1: Attempt header ─────────────────────────────────────────────
+  const durationStr = d.durationMs !== null ? fmtDuration(d.durationMs) : "n/a";
+  const shortId = d.id.slice(0, 8);
+
+  lines.push(`Attempt ${d.id}`);
+  lines.push(`Pack ${d.packId} / Level ${d.levelId}`);
+  lines.push(
+    `Status: ${d.status.padEnd(10)} Started: ${d.startedAt}`,
+  );
+  lines.push(
+    `Duration: ${durationStr.padEnd(10)} Finished: ${d.finishedAt ?? "(running)"}`,
+  );
+  lines.push(
+    `Counts: requested=${d.countRequested} inserted=${d.countInserted}`,
+  );
+  lines.push(
+    `Chunks: planned=${d.chunksPlanned ?? "n/a"} failed=${d.chunksFailed ?? "n/a"}` +
+      `  Dedupe: ${d.dedupeDropped ?? "n/a"}  Citation: ${d.citationDropped ?? "n/a"}`,
+  );
+  lines.push(`Model: ${d.model ?? "n/a"}`);
+  lines.push(`Skill SHAs: ${fmtSkillShas(d.skillSha)}`);
+  if (d.errorCode || d.errorMessage) {
+    const truncMsg = (d.errorMessage ?? "").slice(0, 200);
+    lines.push(`Error: ${d.errorCode ?? "(none)"}: ${truncMsg}`);
+  }
+
+  // ── Section 2: Per-type insert summary ────────────────────────────────────
+  lines.push("");
+  lines.push(`type           total inserted   topics (truncated)`);
+  lines.push(`--------------+----------------+-------------------------------`);
+
+  const allTypes: AttemptDiagnostic["insertedQuestions"][0]["type"][] = [
+    "mcq",
+    "log_analysis",
+    "scenario",
+    "kql",
+    "subjective",
+  ];
+
+  // Build per-type map from inserted questions
+  const byType = new Map<string, AttemptDiagnostic["insertedQuestions"]>();
+  for (const q of d.insertedQuestions) {
+    const arr = byType.get(q.type) ?? [];
+    arr.push(q);
+    byType.set(q.type, arr);
+  }
+
+  // Determine which types "failed" vs "not requested"
+  // A type is considered "chunk-failed" when chunksPlanned > 0 && chunksFailed > 0
+  // and no questions of that type were inserted. We show "— (chunk failed)" for
+  // types present in no inserted rows when there were chunk failures overall.
+  const hasChunkFailures =
+    (d.chunksFailed ?? 0) > 0 && (d.chunksPlanned ?? 0) > 0;
+
+  for (const t of allTypes) {
+    const qs = byType.get(t) ?? [];
+    const inserted = qs.length;
+    if (inserted === 0) {
+      const label = hasChunkFailures ? "— (chunk failed)" : "— ";
+      lines.push(`${t.padEnd(14)} ${String(0).padEnd(16)} ${label}`);
+    } else {
+      const topics = qs
+        .map((q) => `"${q.topic.slice(0, 32)}"`)
+        .join(", ")
+        .slice(0, 80);
+      lines.push(`${t.padEnd(14)} ${String(inserted).padEnd(16)} ${topics}`);
+    }
+  }
+
+  // ── Optional: stderr_tail ─────────────────────────────────────────────────
+  if (opts.showStderr) {
+    lines.push("");
+    lines.push("--- stderr_tail ---");
+    lines.push(d.stderrTail ?? "(none)");
+    lines.push("--- end stderr_tail ---");
+  }
+
+  // ── Optional: per-question detail ────────────────────────────────────────
+  if (opts.showQuestions) {
+    lines.push("");
+    lines.push(`Inserted questions (${d.insertedQuestions.length}):`);
+    for (const q of d.insertedQuestions) {
+      lines.push(`  ${q.id}  [${q.type}]`);
+      lines.push(`    contentKeys           : ${q.contentKeys.join(", ") || "(none)"}`);
+      lines.push(`    knowledgeBaseSources  : ${q.knowledgeBaseSourceIds.join(", ") || "(none)"}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function fmtDuration(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function fmtSkillShas(raw: string | null): string {
+  if (!raw) return "n/a";
+  // skill_sha may be a single sha or comma-joined list
+  return raw
+    .split(",")
+    .map((s) => s.trim().slice(0, 8))
+    .filter(Boolean)
+    .join(", ");
+}
+
+/**
+ * inspect-attempt subcommand.
+ *
+ * Exit codes:
+ *   0 — attempt found and rendered
+ *   2 — attempt not found OR DB connect failed
+ *   (NEVER exits 1 — this is a diagnostic command, not a regression gate)
+ */
+async function cmdInspectAttempt(
+  attemptId: string,
+  showStderr: boolean,
+  showQuestions: boolean,
+): Promise<void> {
+  if (!process.env["DATABASE_URL"]) {
+    console.error(
+      "DATABASE_URL not set — run from inside the api container or " +
+        "set DATABASE_URL to point at the VPS postgres",
+    );
+    process.exit(2);
+  }
+
+  let diagnostic: AttemptDiagnostic;
+  try {
+    diagnostic = await loadAttemptDiagnostic(attemptId);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ATTEMPT_NOT_FOUND") {
+      console.error(`attempt ${attemptId} not found`);
+    } else {
+      console.error(
+        "inspect-attempt failed:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    process.exit(2);
+  }
+
+  const report = renderAttemptReport(diagnostic, { showStderr, showQuestions });
+  console.log(report);
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -442,6 +606,8 @@ const { positionals, values } = parseArgs({
     out: { type: "string" },
     "attempt-id": { type: "string" },
     strict: { type: "boolean" },
+    "show-stderr": { type: "boolean" },
+    "show-questions": { type: "boolean" },
   },
   allowPositionals: true,
 });
@@ -475,12 +641,25 @@ if (subcommand === "score-goldens") {
     );
     process.exit(2);
   }
+} else if (subcommand === "inspect-attempt") {
+  const attemptId = values["attempt-id"];
+  if (!attemptId) {
+    console.error("Usage: cli-typed.ts inspect-attempt --attempt-id <uuid> [--show-stderr] [--show-questions]");
+    process.exit(2);
+  }
+  await cmdInspectAttempt(
+    attemptId,
+    values["show-stderr"] === true,
+    values["show-questions"] === true,
+  );
 } else {
   console.error(
     `Unknown subcommand: ${subcommand ?? "(none)"}\n` +
-      "Usage: cli-typed.ts score-goldens|write-baseline|diff-against-baseline|score-candidate\n" +
+      "Usage: cli-typed.ts score-goldens|write-baseline|diff-against-baseline|score-candidate|inspect-attempt\n" +
       "         [--level L1|L2|L3] [--type mcq|log_analysis|scenario|kql] [--out <path>]\n" +
-      "         [--attempt-id <uuid>]  (score-candidate only)",
+      "         [--attempt-id <uuid>]  (score-candidate / inspect-attempt)\n" +
+      "         [--show-stderr]        (inspect-attempt: print stderr_tail block)\n" +
+      "         [--show-questions]     (inspect-attempt: print per-question content keys)",
   );
   process.exit(2);
 }
