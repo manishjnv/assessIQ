@@ -9,8 +9,11 @@
  * (tsx is already a devDependency; node:test is built-in for Node >=22)
  */
 
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { handleSubmitQuestions } from "../tools/submit-questions.js";
 
 // ---------------------------------------------------------------------------
@@ -283,5 +286,108 @@ describe("rejection — top-level array violations", () => {
   it("non-array questions value → isError:true", async () => {
     const result = (await handleSubmitQuestions({ questions: "not-an-array" })) as MaybeError;
     assertRejected(result, "questions not array");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rejection logger tests
+// ---------------------------------------------------------------------------
+
+describe("rejection logger — JSONL file output", () => {
+  let tmpLog: string;
+
+  before(() => {
+    tmpLog = path.join(os.tmpdir(), `mcp-rejections-test-${Date.now()}.log`);
+    process.env.MCP_REJECTION_LOG = tmpLog;
+  });
+
+  after(() => {
+    delete process.env.MCP_REJECTION_LOG;
+    try { fs.unlinkSync(tmpLog); } catch { /* ignore */ }
+  });
+
+  /**
+   * Wait for the async fs.appendFile callback to have flushed.
+   * The callback fires on the next event-loop tick after the OS write,
+   * so 50 ms is more than enough on any reasonable machine.
+   */
+  const flush = () => new Promise<void>((r) => setTimeout(r, 50));
+
+  it("rejection writes a JSONL line to the configured log path", async () => {
+    const badPayload = { questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] };
+    const result = (await handleSubmitQuestions(badPayload)) as MaybeError;
+    assertRejected(result, "logger basic write");
+
+    await flush();
+
+    const raw = fs.readFileSync(tmpLog, "utf8").trim();
+    assert.ok(raw.length > 0, "log file must not be empty after rejection");
+    const line = JSON.parse(raw.split("\n").at(-1)!);
+    assert.ok(typeof line.timestamp === "string", "entry must have timestamp");
+    assert.ok(typeof line.pid === "number", "entry must have pid");
+    assert.ok(typeof line.type === "string", "entry must have type");
+    assert.ok(typeof line.issues === "string", "entry must have issues");
+    assert.ok(typeof line.payload_excerpt === "string", "entry must have payload_excerpt");
+  });
+
+  it("payload_excerpt is truncated to ≤2048 chars", async () => {
+    // Build a payload with a very long field to exceed 2 KB when serialised.
+    const big = "x".repeat(5000);
+    const badPayload = {
+      questions: [{ ...VALID_MCQ, content: { stem: big } }],
+    };
+    await handleSubmitQuestions(badPayload);
+    await flush();
+
+    const lines = fs.readFileSync(tmpLog, "utf8").trim().split("\n");
+    const line = JSON.parse(lines.at(-1)!);
+    assert.ok(
+      line.payload_excerpt.length <= 2048,
+      `payload_excerpt must be ≤2048 chars, got ${line.payload_excerpt.length}`,
+    );
+  });
+
+  it("concurrent rejections don't interleave JSON lines", async () => {
+    const badPayload = () => ({ questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] });
+    // Fire 10 concurrent rejections.
+    await Promise.all(Array.from({ length: 10 }, () => handleSubmitQuestions(badPayload())));
+    await flush();
+
+    const raw = fs.readFileSync(tmpLog, "utf8").trim();
+    const lines = raw.split("\n").filter(Boolean);
+    // Every line must be independently parseable JSON — no interleaving.
+    for (const line of lines) {
+      assert.doesNotThrow(() => JSON.parse(line), `Line is not valid JSON: ${line.slice(0, 80)}`);
+    }
+  });
+
+  it("write failure → rejection response still returned, only stderr gets the error", async () => {
+    // Point log path to an unwritable location.
+    process.env.MCP_REJECTION_LOG = "/no-such-dir/mcp-rejections.log";
+
+    const stderrChunks: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr) as typeof process.stderr.write;
+    process.stderr.write = (chunk: string | Uint8Array, ...rest: unknown[]) => {
+      stderrChunks.push(typeof chunk === "string" ? chunk : String(chunk));
+      return (origWrite as (...a: unknown[]) => boolean)(chunk, ...rest);
+    };
+
+    try {
+      const badPayload = { questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] };
+      const result = (await handleSubmitQuestions(badPayload)) as MaybeError;
+      // The MCP response must still be a proper rejection.
+      assertRejected(result, "write failure — response");
+
+      await flush();
+
+      const stderrOutput = stderrChunks.join("");
+      assert.ok(
+        stderrOutput.includes("rejection-log write failed"),
+        `Expected "rejection-log write failed" in stderr, got: ${stderrOutput.slice(0, 300)}`,
+      );
+    } finally {
+      process.stderr.write = origWrite;
+      process.env.MCP_REJECTION_LOG = tmpLog;
+    }
   });
 });
