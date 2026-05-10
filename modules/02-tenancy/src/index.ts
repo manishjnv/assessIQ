@@ -8,6 +8,7 @@ export {
   updateTenantSettings,
   suspendTenant,
 } from "./service.js";
+export { findTenantSettings } from "./repository.js";
 export type {
   Tenant,
   TenantSettings,

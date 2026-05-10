@@ -31,7 +31,7 @@
  */
 
 import { AppError, config, streamLogger, uuidv7 } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, findTenantSettings } from "@assessiq/tenancy";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { generateQuestions, generateQuestionsByType } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
@@ -369,10 +369,19 @@ export async function handleAdminGenerate(
 
   try {
     capturedOutput = await withTenant(input.tenantId, async (client) => {
+      // ── Per-tenant mode resolution ────────────────────────────────────────
+      // Stage 3.0: tenant_settings.ai_generate_mode takes precedence over the
+      // global AI_GENERATE_MODE env var. NULL means "use global default".
+      // findTenantSettings uses the client already inside this withTenant
+      // transaction — no additional DB round-trip or withTenant nesting.
+      const tenantSettings = await findTenantSettings(client);
+      const generateMode: "omnibus" | "sharded" =
+        tenantSettings?.ai_generate_mode ?? config.AI_GENERATE_MODE;
+
       // ── Mode branch ───────────────────────────────────────────────────────
-      // AI_GENERATE_MODE='omnibus' (default) → existing chunked/single path.
-      // AI_GENERATE_MODE='sharded' → per-type fan-out path (Stage 1).
-      if (config.AI_GENERATE_MODE === "sharded") {
+      // generateMode='omnibus' (default) → existing chunked/single path.
+      // generateMode='sharded' → per-type fan-out path (Stage 1).
+      if (generateMode === "sharded") {
         // ── Sharded path ──────────────────────────────────────────────────
         const baseAllocation = allocateByWeight(input.socLevel, input.count);
 

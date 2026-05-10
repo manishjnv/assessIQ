@@ -4,7 +4,7 @@ import type { Tenant, TenantSettings } from "./types.js";
 
 const TENANT_COLUMNS = `id, slug, name, domain, branding, status, created_at, updated_at`;
 
-const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, updated_at`;
+const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, updated_at`;
 
 interface TenantRow {
   id: string;
@@ -25,6 +25,7 @@ interface SettingsRow {
   features: unknown;
   webhook_secret: string | null;
   data_region: string;
+  ai_generate_mode: string | null;
   updated_at: Date;
 }
 
@@ -50,6 +51,7 @@ function mapSettingsRow(row: SettingsRow): TenantSettings {
     features: (row.features as Record<string, unknown>) ?? {},
     webhook_secret: row.webhook_secret,
     data_region: row.data_region,
+    ai_generate_mode: (row.ai_generate_mode as TenantSettings["ai_generate_mode"]) ?? null,
     updated_at: row.updated_at,
   };
 }
