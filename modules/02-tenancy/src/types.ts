@@ -60,5 +60,13 @@ export interface TenantSettings {
   features: Record<string, unknown>;
   webhook_secret: string | null;   // encrypted on the wire — do NOT log this field
   data_region: string;
+  /**
+   * Per-tenant override for AI_GENERATE_MODE.
+   * NULL means "use the global AI_GENERATE_MODE env var".
+   * Non-NULL values override the env var for this tenant only, effective
+   * on the next request with no container restart.
+   * See docs/design/2026-05-10-stage-3-promotion-rollout.md §3.
+   */
+  ai_generate_mode: "omnibus" | "sharded" | null;
   updated_at: Date;
 }
