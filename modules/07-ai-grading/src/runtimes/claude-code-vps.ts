@@ -833,12 +833,26 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
     const timeoutMs = opts.timeoutMs ?? STAGE_TIMEOUT_MS;
     const timer = setTimeout(() => {
       proc.kill("SIGTERM");
+      // Privacy gate: include any accumulated stderr in the timeout error only
+      // for generation skills — same gate as the close-path below.
+      const timeoutStderrTail =
+        isGenerationSkill && stderrFull.length > 0
+          ? stderrFull.slice(-1024)
+          : undefined;
       reject(
         new AppError(
           `claude subprocess timed out after ${timeoutMs}ms (skill=${opts.skill})`,
           AI_GRADING_ERROR_CODES.RUNTIME_FAILURE,
           503,
-          { details: { skill: opts.skill, attemptId: opts.attemptId } },
+          {
+            details: {
+              skill: opts.skill,
+              attemptId: opts.attemptId,
+              ...(timeoutStderrTail !== undefined
+                ? { stderrTail: timeoutStderrTail }
+                : {}),
+            },
+          },
         ),
       );
     }, timeoutMs);
