@@ -20,7 +20,8 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError } from "../api.js";
+import { adminApi, AdminApiError, scoreGenerationAttempt } from "../api.js";
+import type { ScoreAttemptResponse } from "../api.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,13 +144,196 @@ function dateRangeToSince(range: DateRange): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Verdict pill
+// ---------------------------------------------------------------------------
+
+const VERDICT_STYLES: Record<
+  "pass" | "regression" | "warning" | "n/a",
+  { bg: string; fg: string; label: string }
+> = {
+  pass:       { bg: "var(--aiq-color-success-soft)", fg: "var(--aiq-color-success)",           label: "Pass"              },
+  regression: { bg: "#fee2e2",                        fg: "var(--aiq-color-danger)",             label: "Regression"        },
+  warning:    { bg: "#fef3c7",                        fg: "var(--aiq-color-warning, #d97706)",   label: "Warning"           },
+  "n/a":      { bg: "var(--aiq-color-bg-raised)",    fg: "var(--aiq-color-fg-muted)",           label: "Insufficient data" },
+};
+
+function VerdictPill({ verdict }: { verdict: "pass" | "regression" | "warning" | "n/a" }): React.ReactElement {
+  const { bg, fg, label } = VERDICT_STYLES[verdict] ?? VERDICT_STYLES["n/a"];
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 10px",
+        borderRadius: "var(--aiq-radius-full, 9999px)",
+        background: bg,
+        color: fg,
+        fontFamily: "var(--aiq-font-sans)",
+        fontSize: "var(--aiq-text-xs)",
+        fontWeight: 700,
+        letterSpacing: "0.03em",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Score result block — rendered below attempt metadata after button click
+// ---------------------------------------------------------------------------
+
+function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.ReactElement {
+  const ALL_TYPES = ["mcq", "kql", "subjective", "log_analysis", "scenario"] as const;
+  const typeMap = new Map(result.structural.per_type.map((r) => [r.type, r]));
+
+  // Pad rows so all five types always appear (zero rows for absent types)
+  const rows = ALL_TYPES.map((t) => typeMap.get(t) ?? { type: t, total: 0, passed: 0, failed: 0, failures: [] });
+
+  const tableStyle: React.CSSProperties = {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontFamily: "var(--aiq-font-mono)",
+    fontSize: "10px",
+    marginTop: "var(--aiq-space-sm)",
+  };
+  const thStyle: React.CSSProperties = {
+    padding: "4px 8px",
+    textAlign: "left",
+    fontFamily: "var(--aiq-font-sans)",
+    fontSize: "10px",
+    fontWeight: 600,
+    color: "var(--aiq-color-fg-muted)",
+    borderBottom: "1px solid var(--aiq-color-border)",
+    whiteSpace: "nowrap",
+  };
+  const tdStyle: React.CSSProperties = {
+    padding: "3px 8px",
+    color: "var(--aiq-color-fg-secondary)",
+    borderBottom: "1px solid var(--aiq-color-border)",
+    whiteSpace: "nowrap",
+    verticalAlign: "top",
+  };
+
+  return (
+    <div style={{ marginTop: "var(--aiq-space-md)" }}>
+      {/* Overall verdict */}
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-sm)" }}>
+        <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+          Overall verdict:
+        </span>
+        <VerdictPill verdict={result.overall} />
+      </div>
+
+      {/* Structural quality table */}
+      <p
+        style={{
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: "var(--aiq-text-xs)",
+          fontWeight: 600,
+          color: "var(--aiq-color-fg-secondary)",
+          margin: "0 0 4px",
+        }}
+      >
+        Structural quality
+      </p>
+      <div style={{ overflowX: "auto" }}>
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              {["type", "total", "passed", "failed", "reasons"].map((h) => (
+                <th key={h} style={thStyle}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.type}>
+                <td style={tdStyle}>{row.type}</td>
+                <td style={{ ...tdStyle, textAlign: "center" }}>{row.total}</td>
+                <td style={{ ...tdStyle, textAlign: "center", color: row.failed > 0 ? "var(--aiq-color-fg-secondary)" : "var(--aiq-color-success)" }}>
+                  {row.passed}
+                </td>
+                <td style={{ ...tdStyle, textAlign: "center", color: row.failed > 0 ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-secondary)" }}>
+                  {row.failed}
+                </td>
+                <td style={{ ...tdStyle, maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {row.failures.length > 0 ? row.failures.slice(0, 3).join("; ") : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "10px", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
+        Total: {result.structural.passed}/{result.structural.total} passed.{" "}
+        Baseline regressions: {result.structural.baseline_diff.regressions.length}.
+      </p>
+
+      {/* Runtime metrics table — only when thresholds are available */}
+      {result.runtime.metrics.length > 0 && (
+        <>
+          <p
+            style={{
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-xs)",
+              fontWeight: 600,
+              color: "var(--aiq-color-fg-secondary)",
+              margin: "var(--aiq-space-sm) 0 4px",
+            }}
+          >
+            Runtime metrics
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  {["metric", "value", "threshold", "verdict"].map((h) => (
+                    <th key={h} style={thStyle}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {result.runtime.metrics.map((m) => {
+                  const verdictColor =
+                    m.verdict === "pass" ? "var(--aiq-color-success)"
+                    : m.verdict === "fail" ? "var(--aiq-color-danger)"
+                    : "var(--aiq-color-fg-muted)";
+                  const verdictLabel =
+                    m.verdict === "pass" ? "✓ pass"
+                    : m.verdict === "fail" ? "✗ fail"
+                    : "n/a";
+                  return (
+                    <tr key={m.name}>
+                      <td style={tdStyle}>{m.name}</td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>
+                        {m.value !== null ? m.value.toFixed(2) : "n/a"}
+                      </td>
+                      <td style={tdStyle}>{m.threshold}</td>
+                      <td style={{ ...tdStyle, color: verdictColor, fontWeight: 600 }}>{verdictLabel}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Row expansion — details panel
 // ---------------------------------------------------------------------------
 
-function AttemptDetails({ attempt, packName, levelLabel }: {
+function AttemptDetails({ attempt, packName, levelLabel, scoreResult, scoreLoading, scoreError, onScore }: {
   attempt: GenerationAttempt;
   packName: string;
   levelLabel: string;
+  scoreResult: ScoreAttemptResponse | null;
+  scoreLoading: boolean;
+  scoreError: string | null;
+  onScore: () => void;
 }): React.ReactElement {
   const cliCommand =
     `pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts \\\n` +
@@ -258,36 +442,120 @@ function AttemptDetails({ attempt, packName, levelLabel }: {
         </div>
       )}
 
-      {/* Score this attempt — renders CLI command for ops to copy-run server-side */}
+      {/* Score this attempt — in-app button that calls the server-side scorer */}
       <div style={{ marginTop: "var(--aiq-space-md)" }}>
-        <p
+        {/* Primary action: Score this attempt */}
+        <button
+          type="button"
+          disabled={scoreLoading}
+          onClick={onScore}
           style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
             fontFamily: "var(--aiq-font-sans)",
-            fontSize: "var(--aiq-text-xs)",
-            color: "var(--aiq-color-fg-muted)",
-            margin: "0 0 6px",
-          }}
-        >
-          Score this attempt — run on the VPS:
-        </p>
-        <pre
-          style={{
-            margin: 0,
-            padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-            background: "var(--aiq-color-bg-base)",
-            border: "1px solid var(--aiq-color-border)",
+            fontSize: "var(--aiq-text-sm)",
+            fontWeight: 600,
+            padding: "5px 14px",
             borderRadius: "var(--aiq-radius-sm)",
-            fontFamily: "var(--aiq-font-mono)",
-            fontSize: "11px",
-            color: "var(--aiq-color-fg-primary)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            userSelect: "all",
+            background: scoreLoading ? "var(--aiq-color-bg-raised)" : "var(--aiq-color-accent)",
+            color: scoreLoading ? "var(--aiq-color-fg-muted)" : "#fff",
+            border: "none",
+            cursor: scoreLoading ? "not-allowed" : "pointer",
+            opacity: scoreLoading ? 0.7 : 1,
+            transition: "opacity 0.1s",
           }}
         >
-          {cliCommand}
-        </pre>
+          {scoreLoading && (
+            <span
+              style={{
+                display: "inline-block",
+                width: "12px",
+                height: "12px",
+                border: "2px solid currentColor",
+                borderTopColor: "transparent",
+                borderRadius: "50%",
+                animation: "spin 0.6s linear infinite",
+              }}
+            />
+          )}
+          {scoreLoading ? "Scoring…" : "Score this attempt"}
+        </button>
+
+        {/* Error state */}
+        {scoreError && (
+          <div
+            style={{
+              marginTop: "var(--aiq-space-sm)",
+              padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
+              background: "#fee2e2",
+              border: "1px solid var(--aiq-color-danger)",
+              borderRadius: "var(--aiq-radius-sm)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-xs)",
+              color: "var(--aiq-color-danger)",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--aiq-space-sm)",
+            }}
+          >
+            <span>Could not score this attempt: {scoreError}</span>
+            <button
+              type="button"
+              onClick={onScore}
+              style={{
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-danger)",
+                background: "none",
+                border: "1px solid currentColor",
+                borderRadius: "var(--aiq-radius-sm)",
+                cursor: "pointer",
+                padding: "1px 8px",
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Score result tables */}
+        {scoreResult && <ScoreResultBlock result={scoreResult} />}
+
+        {/* Footnote: CLI command for deeper diagnostics (ops only) */}
+        <div style={{ marginTop: "var(--aiq-space-md)" }}>
+          <p
+            style={{
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-xs)",
+              color: "var(--aiq-color-fg-muted)",
+              margin: "0 0 4px",
+            }}
+          >
+            For deeper diagnostics, run on the VPS:
+          </p>
+          <pre
+            style={{
+              margin: 0,
+              padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+              background: "var(--aiq-color-bg-base)",
+              border: "1px solid var(--aiq-color-border)",
+              borderRadius: "var(--aiq-radius-sm)",
+              fontFamily: "var(--aiq-font-mono)",
+              fontSize: "11px",
+              color: "var(--aiq-color-fg-secondary)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              userSelect: "all",
+            }}
+          >
+            {cliCommand}
+          </pre>
+        </div>
       </div>
+
+      {/* Spinner keyframe — injected once via a style tag */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -313,6 +581,32 @@ export function AdminGenerationAttempts(): React.ReactElement {
 
   // Expanded row for details panel (attempt id)
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Score state — cached per attempt id so re-expanding doesn't re-fetch.
+  // scoreResultMap: attemptId → ScoreAttemptResponse | null (null = not yet scored)
+  // scoreLoadingId: the attempt id currently being scored (only one in-flight at a time)
+  // scoreErrorMap: attemptId → error message string
+  const [scoreResultMap, setScoreResultMap] = useState<Map<string, ScoreAttemptResponse>>(new Map());
+  const [scoreLoadingId, setScoreLoadingId] = useState<string | null>(null);
+  const [scoreErrorMap, setScoreErrorMap] = useState<Map<string, string>>(new Map());
+
+  const handleScore = useCallback(async (attemptId: string) => {
+    setScoreLoadingId(attemptId);
+    setScoreErrorMap((prev) => {
+      const next = new Map(prev);
+      next.delete(attemptId);
+      return next;
+    });
+    try {
+      const result = await scoreGenerationAttempt(attemptId);
+      setScoreResultMap((prev) => new Map(prev).set(attemptId, result));
+    } catch (e) {
+      const msg = e instanceof AdminApiError ? e.message : "Scoring failed";
+      setScoreErrorMap((prev) => new Map(prev).set(attemptId, msg));
+    } finally {
+      setScoreLoadingId(null);
+    }
+  }, []);
 
   const LIMIT = 50;
 
@@ -406,7 +700,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
   const hasMore = attempts.length < total;
 
   return (
-    <AdminShell breadcrumbs={["AI generation history"]}>
+    <AdminShell breadcrumbs={["AI generation history"]} helpPage="admin.generation-attempts.history">
       {/* ── Page header ── */}
       <div style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
         <h1
@@ -720,6 +1014,10 @@ export function AdminGenerationAttempts(): React.ReactElement {
                             attempt={attempt}
                             packName={packName}
                             levelLabel={levelLabel}
+                            scoreResult={scoreResultMap.get(attempt.id) ?? null}
+                            scoreLoading={scoreLoadingId === attempt.id}
+                            scoreError={scoreErrorMap.get(attempt.id) ?? null}
+                            onScore={() => { void handleScore(attempt.id); }}
                           />
                         </td>
                       </tr>
