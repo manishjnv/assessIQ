@@ -1,0 +1,40 @@
+# assessiq-stage3-watch.timer
+#
+# Fires assessiq-stage3-watch.service hourly.
+#
+# Stage 3 frequency schedule (docs/design/2026-05-10-stage-3-promotion-rollout.md §6):
+#   Stage 3.1/3.2 (hourly watch): OnCalendar=hourly   ← this file
+#   Stage 3.3+   (daily watch):   change OnCalendar=daily and reload
+#
+# To switch to daily at Stage 3.3:
+#   1. Edit this file: OnCalendar=hourly → OnCalendar=daily
+#   2. scp to VPS, then: systemctl daemon-reload && systemctl restart assessiq-stage3-watch.timer
+#   3. Optionally also update the --window flag in the .service to --window 24h
+#      for a 24-hour look-back instead of 1h.
+#
+# Namespace rule (CLAUDE.md hard rule #8): prefixed "assessiq-" for VPS isolation.
+#
+# Deploy steps:
+#   scp infra/systemd/assessiq-stage3-watch.timer \
+#       root@assessiq-vps:/etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now assessiq-stage3-watch.timer
+
+[Unit]
+Description=AssessIQ Stage 3 watch timer — hourly chunk-failure + citation-drop check
+Documentation=https://github.com/manishjnv/assessIQ/blob/main/docs/design/2026-05-10-stage-3-promotion-rollout.md
+
+[Timer]
+# Fire on the hour, every hour.
+OnCalendar=hourly
+
+# If the system was down when the timer was supposed to fire, catch up
+# immediately on next boot / timer start rather than waiting for the next
+# calendar slot. This is important for overnight VPS reboots.
+Persistent=true
+
+# Activate the matching .service unit.
+Unit=assessiq-stage3-watch.service
+
+[Install]
+WantedBy=timers.target

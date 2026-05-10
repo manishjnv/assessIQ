@@ -1,0 +1,67 @@
+# assessiq-stage3-watch.service
+#
+# One-shot service: runs the Stage 3 watch script and exits.
+# Activated by assessiq-stage3-watch.timer (hourly during Stage 3.1/3.2,
+# daily during Stage 3.3+).
+#
+# DECISION LOCKED (docs/design/2026-05-10-stage-3-promotion-rollout.md §8 Q4):
+#   Alert-only. This service NEVER edits .env, restarts containers, or
+#   modifies any application state. Non-zero exit means a breach was detected
+#   and logged to /var/log/assessiq/stage3-watch.log; no automated rollback.
+#
+# Namespace rule (CLAUDE.md hard rule #8): all AssessIQ systemd units are
+# prefixed "assessiq-" to avoid collisions with other apps on the shared VPS.
+#
+# Deploy steps:
+#   scp infra/systemd/assessiq-stage3-watch.service \
+#       root@assessiq-vps:/etc/systemd/system/
+#   systemctl daemon-reload
+#   (timer unit enables and starts this service; do not enable this unit directly)
+
+[Unit]
+Description=AssessIQ Stage 3 watch — chunk-failure + citation-drop alert
+Documentation=https://github.com/manishjnv/assessIQ/blob/main/docs/design/2026-05-10-stage-3-promotion-rollout.md
+# Do not auto-restart on failure — the timer fires again on the next interval.
+# Restart=no is the Type=oneshot default; listed explicitly for clarity.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# Run as the assessiq user (same user that owns /var/log/assessiq).
+# The assessiq user must have read access to DATABASE_URL.
+User=assessiq
+Group=assessiq
+
+# Load the production environment file so DATABASE_URL is available.
+# The file is owned root:root 0640 with assessiq in the group, or
+# root:assessiq 0640 — adjust to match your VPS env-file permissions.
+EnvironmentFile=/srv/assessiq/.env
+
+# STAGE3_WATCH_LOG can be overridden here if a different log path is needed.
+# Defaults to /var/log/assessiq/stage3-watch.log (see tools/stage3-watch.ts).
+# Environment=STAGE3_WATCH_LOG=/var/log/assessiq/stage3-watch.log
+
+# Invocation: use tsx (same as all other tools/ scripts on the VPS).
+# If the VPS runs the compiled dist/ instead, change to:
+#   ExecStart=node /srv/assessiq/dist/tools/stage3-watch.js --window 1h
+ExecStart=/usr/local/bin/tsx /srv/assessiq/tools/stage3-watch.ts --window 1h
+
+# Allow non-zero exit without marking the unit as "failed" in systemd:
+#   exit 1 = breach detected and logged (expected, not a service error)
+#   exit 2 = genuine error (DB down, missing env) — keep as failure
+SuccessExitStatus=0 1
+
+# Resource limits — this is a lightweight DB aggregate + file append.
+MemoryMax=256M
+CPUQuota=25%
+
+# Prevent the script from writing outside its expected paths.
+# /var/log/assessiq is the only writable directory needed.
+ReadWritePaths=/var/log/assessiq
+ReadOnlyPaths=/srv/assessiq
+
+[Install]
+# The timer controls activation; this service has no [Install] WantedBy.
+# Listed here as a reminder — do not run: systemctl enable assessiq-stage3-watch.service
