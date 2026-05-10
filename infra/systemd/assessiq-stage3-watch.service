@@ -29,24 +29,22 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 
-# Run as the assessiq user (same user that owns /var/log/assessiq).
-# The assessiq user must have read access to DATABASE_URL.
-User=assessiq
-Group=assessiq
+# Run as root — the only thing this service does is invoke `docker exec`
+# against the assessiq-api container. The actual tsx script runs INSIDE
+# the container, with workspace deps + DATABASE_URL + /var/log/assessiq
+# bind-mount already wired by docker-compose. No host-side tsx, no host
+# .env access, no host log-path permission juggling.
+# (Earlier draft tried User=assessiq + /usr/local/bin/tsx; tsx isn't on
+# the VPS PATH — it's only inside the api image's pnpm exec env.)
+User=root
+Group=root
 
-# Load the production environment file so DATABASE_URL is available.
-# The file is owned root:root 0640 with assessiq in the group, or
-# root:assessiq 0640 — adjust to match your VPS env-file permissions.
-EnvironmentFile=/srv/assessiq/.env
-
-# STAGE3_WATCH_LOG can be overridden here if a different log path is needed.
-# Defaults to /var/log/assessiq/stage3-watch.log (see tools/stage3-watch.ts).
-# Environment=STAGE3_WATCH_LOG=/var/log/assessiq/stage3-watch.log
-
-# Invocation: use tsx (same as all other tools/ scripts on the VPS).
-# If the VPS runs the compiled dist/ instead, change to:
-#   ExecStart=node /srv/assessiq/dist/tools/stage3-watch.js --window 1h
-ExecStart=/usr/local/bin/tsx /srv/assessiq/tools/stage3-watch.ts --window 1h
+# Invocation: docker exec into the running assessiq-api container.
+# tools/ is bind-mounted to /app/tools:ro by infra/docker-compose.yml so
+# `git pull` on the VPS picks up script changes without an image rebuild.
+# pnpm exec tsx is the same invocation pattern tools/stage1-sharded-smoke.ts
+# uses successfully for ad-hoc admin script runs.
+ExecStart=/usr/bin/docker exec -w /app assessiq-api pnpm exec tsx /app/tools/stage3-watch.ts --window 1h
 
 # Allow non-zero exit without marking the unit as "failed" in systemd:
 #   exit 1 = breach detected and logged (expected, not a service error)
@@ -54,13 +52,14 @@ ExecStart=/usr/local/bin/tsx /srv/assessiq/tools/stage3-watch.ts --window 1h
 SuccessExitStatus=0 1
 
 # Resource limits — this is a lightweight DB aggregate + file append.
+# Limits apply to the docker exec process, NOT the spawned container.
 MemoryMax=256M
 CPUQuota=25%
 
-# Prevent the script from writing outside its expected paths.
-# /var/log/assessiq is the only writable directory needed.
-ReadWritePaths=/var/log/assessiq
-ReadOnlyPaths=/srv/assessiq
+# With docker exec invocation, the host filesystem isn't touched directly
+# by this service — sandboxing is provided by the docker container's own
+# bind-mount limits. ReadWritePaths/ReadOnlyPaths intentionally omitted so
+# /usr/bin/docker can talk to its socket without a sandbox conflict.
 
 [Install]
 # The timer controls activation; this service has no [Install] WantedBy.

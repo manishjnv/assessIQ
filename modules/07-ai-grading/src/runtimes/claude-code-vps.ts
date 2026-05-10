@@ -81,7 +81,12 @@ const DISALLOWED_TOOLS = "Bash,Write,Edit,Read,Glob,Grep,Skill,ToolSearch";
 
 const STAGE_TIMEOUT_MS = 120_000;
 const GENERATION_BASE_TIMEOUT_MS = 90_000;
-const GENERATION_PER_ITEM_TIMEOUT_MS = 180_000;
+// Bumped 180_000 → 240_000 (2026-05-10) — belt-and-suspenders against
+// the scenario chunk retry-loop observed on attempt 019e103c. Model
+// emitted submit_questions 3 times (51s/200s/290s); MCP rejected the
+// 2nd+3rd as empty-input; SIGTERM at 630s. New formula at count=3 is
+// 90 + 720 = 810s; at count=10 is 90 + 2400 = ~42min hard ceiling.
+const GENERATION_PER_ITEM_TIMEOUT_MS = 240_000;
 const RUBRIC_TIMEOUT_MS = 300_000;
 
 // ---------------------------------------------------------------------------
