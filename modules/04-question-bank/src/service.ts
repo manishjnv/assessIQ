@@ -1169,7 +1169,33 @@ export async function generateQuestions(
 // ===========================================================================
 
 /**
- * Generate a rubric proposal for a subjective or scenario question.
+ * Derive the questionText to pass to generateRubricDraft().
+ *
+ * For log_analysis: the full JSON-serialized content object is passed so the
+ * skill can read question + log_format + log_excerpt + expected_findings +
+ * sample_solution + hint and produce one anchor per expected_finding.
+ *
+ * For all other types: the `question` string field is used if present (subjective
+ * and kql both have a plain-text question field); falls back to full JSON for
+ * types that don't have a top-level question field (e.g. scenario).
+ *
+ * Extracted as a helper to avoid duplication between generateRubricForQuestion
+ * and bulkGenerateMissingRubrics.
+ */
+function deriveQuestionTextForRubric(
+  question: { type: string; content: unknown },
+): string {
+  if (question.type === "log_analysis") {
+    return JSON.stringify(question.content);
+  }
+  const content = question.content as Record<string, unknown>;
+  return typeof content?.question === "string"
+    ? (content.question as string)
+    : JSON.stringify(question.content);
+}
+
+/**
+ * Generate a rubric proposal for a subjective, scenario, or log_analysis question.
  * Returns a proposal WITHOUT persisting — admin must POST to save-rubric.
  *
  * D2 compliance: uses dynamic import to call generateRubricDraft from
@@ -1195,10 +1221,15 @@ export async function generateRubricForQuestion(
       });
     }
 
-    if (question.type !== "subjective" && question.type !== "scenario") {
+    if (
+      question.type !== "subjective" &&
+      question.type !== "scenario" &&
+      question.type !== "log_analysis"
+    ) {
       throw new ValidationError(
-        "rubric generation only supported for subjective and scenario questions",
-        { details: { code: "UNSUPPORTED_TYPE", type: question.type } },
+        `rubric generation not supported for question type '${question.type}': ` +
+          "mcq and kql use deterministic grading and have no rubric semantics",
+        { details: { code: QB_ERROR_CODES.UNSUPPORTED_TYPE_FOR_RUBRIC, type: question.type } },
       );
     }
 
@@ -1209,16 +1240,25 @@ export async function generateRubricForQuestion(
       });
     }
 
-    const questionText =
-      typeof (question.content as Record<string, unknown>)?.question === "string"
-        ? (question.content as Record<string, unknown>).question as string
-        : JSON.stringify(question.content);
+    // For log_analysis, validate expected_findings exists before calling the
+    // skill (the skill requires ≥1 finding to produce ≥2 anchors; without
+    // this guard the skill fails with an opaque schema violation).
+    if (question.type === "log_analysis") {
+      const content = question.content as Record<string, unknown>;
+      const findings = content?.expected_findings;
+      if (!Array.isArray(findings) || findings.length === 0) {
+        throw new ValidationError(
+          "log_analysis rubric generation requires at least one expected_finding in question content",
+          { details: { code: QB_ERROR_CODES.INVALID_CONTENT } },
+        );
+      }
+    }
 
     const { generateRubricDraft } = await import("@assessiq/ai-grading");
 
     const output = await generateRubricDraft({
-      questionText,
-      questionType: question.type as "subjective" | "scenario",
+      questionText: deriveQuestionTextForRubric(question),
+      questionType: question.type as "subjective" | "scenario" | "log_analysis",
       levelOrdinal: level.position,
       levelDefaults: level.rubric_defaults ?? null,
       existingRubric: question.rubric ?? undefined,
@@ -1310,7 +1350,7 @@ export async function bulkGenerateMissingRubrics(
        FROM questions q
        WHERE q.pack_id = $1
          AND q.rubric IS NULL
-         AND q.type IN ('subjective', 'scenario')
+         AND q.type IN ('subjective', 'scenario', 'log_analysis')
        ORDER BY q.created_at ASC`,
       [packId],
     );
@@ -1341,16 +1381,24 @@ export async function bulkGenerateMissingRubrics(
       });
     }
 
-    const questionText =
-      typeof (question.content as Record<string, unknown>)?.question === "string"
-        ? (question.content as Record<string, unknown>).question as string
-        : JSON.stringify(question.content);
+    // Validate expected_findings before calling the skill (same guard as
+    // generateRubricForQuestion — avoids opaque schema-violation errors).
+    if (question.type === "log_analysis") {
+      const content = question.content as Record<string, unknown>;
+      const findings = content?.expected_findings;
+      if (!Array.isArray(findings) || findings.length === 0) {
+        throw new ValidationError(
+          "log_analysis rubric generation requires at least one expected_finding in question content",
+          { details: { code: QB_ERROR_CODES.INVALID_CONTENT } },
+        );
+      }
+    }
 
     const { generateRubricDraft } = await import("@assessiq/ai-grading");
 
     const output = await generateRubricDraft({
-      questionText,
-      questionType: question.type as "subjective" | "scenario",
+      questionText: deriveQuestionTextForRubric(question),
+      questionType: question.type as "subjective" | "scenario" | "log_analysis",
       levelOrdinal: level.position,
       levelDefaults: level.rubric_defaults ?? null,
       questionId: currentQuestionId,

@@ -288,10 +288,14 @@ export interface LevelRubricDefaults {
  * Constructed by the question-bank service layer.
  */
 export interface GenerateRubricInput {
-  /** Full question prompt text — passed verbatim into the skill. */
+  /** Full question prompt text — passed verbatim into the skill.
+   * For log_analysis questions this is the JSON-serialized content object
+   * (question, log_format, log_excerpt, expected_findings, sample_solution, hint)
+   * so the skill can derive one anchor per expected_finding. */
   questionText: string;
-  /** Question type — controls anchor depth guidance. */
-  questionType: "subjective" | "scenario";
+  /** Question type — controls anchor depth guidance.
+   * mcq and kql are excluded: they use deterministic grading and have no rubric semantics. */
+  questionType: "subjective" | "scenario" | "log_analysis";
   /** Level ordinal (1-5) — calibrates complexity when levelDefaults is null. */
   levelOrdinal: number;
   /** Optional level-defaults from levels.rubric_defaults JSONB. */
@@ -360,3 +364,21 @@ export const AI_GRADING_ERROR_CODES = {
 
 export type AiGradingErrorCode =
   (typeof AI_GRADING_ERROR_CODES)[keyof typeof AI_GRADING_ERROR_CODES];
+
+// ---------------------------------------------------------------------------
+// RuntimeFailureDetails — typed shape for AppError.details on RUNTIME_FAILURE
+// ---------------------------------------------------------------------------
+
+/**
+ * Typed details attached to AppError when AI_GRADING_ERROR_CODES.RUNTIME_FAILURE
+ * is thrown by the claude-code-vps runtime.  Cast to this shape when extracting
+ * stderrTail in handler code.
+ */
+export interface RuntimeFailureDetails {
+  skill?: string;
+  attemptId?: string;
+  exitCode?: number | null;
+  /** Last ≤1024 bytes of the subprocess stderr. Present only for generation
+   *  skills (privacy gate: grading skill stderr is never persisted). */
+  stderrTail?: string;
+}

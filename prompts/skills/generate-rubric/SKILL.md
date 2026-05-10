@@ -1,6 +1,6 @@
 ---
 name: generate-rubric
-version: "2026-05-08"
+version: "2026-05-10"
 model: claude-sonnet-4-6
 description: |
   Generate a level-calibrated assessment rubric for a single question.
@@ -21,8 +21,8 @@ You receive a JSON object with the following fields:
 
 ```json
 {
-  "questionText": "The full question prompt text",
-  "questionType": "subjective | scenario",
+  "questionText": "The full question prompt text (or JSON-serialized content object for log_analysis)",
+  "questionType": "subjective | scenario | log_analysis",
   "levelOrdinal": 1,
   "levelDefaults": {
     "profile": "foundational | practitioner | expert",
@@ -34,8 +34,25 @@ You receive a JSON object with the following fields:
 ```
 
 - **questionText**: The full text of the question the rubric will grade.
-- **questionType**: The type of question. Subjective and scenario questions
-  require rich rubrics with 2-6 anchors.
+  For `log_analysis` questions this is the JSON-serialized content object
+  containing `question`, `log_format`, `log_excerpt`, `expected_findings`,
+  `sample_solution`, and `hint`. Parse it as JSON and use all fields.
+- **questionType**: The type of question. Subjective, scenario, and
+  log_analysis questions require rich rubrics with 2-6 anchors.
+
+# Per-type input contract
+
+The `questionText` field carries different content depending on `questionType`:
+
+| questionType  | questionText content                                         |
+|---------------|--------------------------------------------------------------|
+| subjective    | Plain string — the question text the candidate reads.        |
+| scenario      | JSON string — `{ title, intro, step_dependency, steps[] }`. Parse as JSON; derive anchors from the scenario steps. |
+| log_analysis  | JSON string — `{ question, log_format, log_excerpt, expected_findings[], sample_solution?, hint? }`. Parse as JSON; derive anchors from `expected_findings`. |
+
+NOT SUPPORTED (these types do not go through AI grading):
+- `mcq` — direct compare; rubric not applicable.
+- `kql` — keyword-match; rubric not applicable.
 - **levelOrdinal**: Integer 1-5. Higher → more anchors, stricter band-4 bar,
   denser technical language. Used when `levelDefaults` is null.
 - **levelDefaults**: If non-null, overrides ordinal-based calibration:
@@ -118,6 +135,47 @@ You MUST call `submit_rubric` exactly once with a JSON object satisfying:
 - band_0 description should describe a total non-answer or off-topic response.
 - The `bandStrictness` input calibrates band_4's reachability — adjust
   accordingly but keep all 5 bands non-empty and distinct.
+
+## Quality standards — log_analysis specific
+
+When `questionType === "log_analysis"`, parse `questionText` as JSON and apply
+these additional rules:
+
+- **Anchor-per-finding**: Produce one anchor per `expected_findings` entry.
+  Each anchor's `concept` must map to a specific finding from that list.
+  The anchor's `synonyms` should capture alternative phrasings a candidate
+  might use to express the same finding.
+- **Weight distribution**:
+  - 2 findings: weight 40 + 30 (lighter second anchor leaves room for reasoning).
+  - 3+ findings: distribute equally across anchors (rounding to integers,
+    with the difference absorbed by the last anchor). Example: 3 findings →
+    25 + 25 + 20 with anchor_weight_total = 70 and reasoning_weight_total = 30.
+  - In all cases, `anchor_weight_total` ≥ 50 and ≤ 75.
+- **Reasoning bands** for log_analysis must describe how completely the
+  candidate's findings match `expected_findings`:
+  - band_4: identifies all expected findings with correct log evidence.
+  - band_3: identifies most expected findings; minor gaps in log citation or
+    one missing finding.
+  - band_2: identifies some expected findings but misses 1-2 core ones, or
+    cites findings without referencing the log evidence.
+  - band_1: identifies at most one finding vaguely, or describes the log
+    without naming any specific finding.
+  - band_0: no findings identified; response is off-topic or contradicts the log.
+- If `sample_solution` is present, use it to understand what a full-credit
+  answer looks like and set band_4 accordingly.
+- `sample_solution` and `hint` are for context ONLY. **NEVER** copy text
+  verbatim from these fields into anchor `concept` or `synonyms`. Anchors
+  must describe what analytical behaviour to look for in a candidate response,
+  not reproduce the reference answer. Violating this rule leaks the solution
+  to candidates via the grading rubric.
+- If `hint` is present, use it only to identify which conceptual area is
+  hardest and bias a heavier anchor toward that concept.
+
+## Tool-use policy
+
+You MUST call `submit_rubric` exactly once. No other tool calls are permitted.
+Do NOT invoke Skill, ToolSearch, Read, Write, Bash, or any other tool.
+All information needed to generate the rubric is provided in the input JSON.
 
 ## Weight allocation guidance
 

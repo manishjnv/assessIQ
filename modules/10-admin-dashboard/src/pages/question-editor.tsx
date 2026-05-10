@@ -437,7 +437,10 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
     );
   }
 
-  const supportsRubric = question.type === "subjective" || question.type === "scenario";
+  const supportsRubric =
+    question.type === "subjective" ||
+    question.type === "scenario" ||
+    question.type === "log_analysis";
 
   // Live anchor weight total for the badge
   const anchorWeightTotal = rubricDraft
@@ -565,6 +568,12 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
                   <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-muted)" }}>
                     No rubric yet.
                   </p>
+                  {question.type === "log_analysis" && (
+                    <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+                      log_analysis questions auto-synthesize a rubric at grade time from expected_findings.
+                      Generate a draft here and click <strong>Save rubric</strong> only if you want to override the auto-synth with a curated anchor list.
+                    </p>
+                  )}
                   <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
                     <button
                       className="aiq-btn aiq-btn-primary"
