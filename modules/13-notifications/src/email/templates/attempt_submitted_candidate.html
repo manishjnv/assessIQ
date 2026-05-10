@@ -3,32 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- i18n: page title not yet externalized -->
 <title>Submission received</title>
 </head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0">
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden">
-<tr><td style="background:#1a1a2e;padding:32px 40px">
-  <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">AssessIQ</h1>
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e8e8">
+<!-- Header — white, editorial wordmark -->
+<tr><td style="background:#ffffff;padding:24px 40px;border-bottom:1px solid #e8e8e8">
+  <!-- i18n: brand wordmark (fixed string, not yet externalized) -->
+  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">AssessIQ</p>
 </td></tr>
+<!-- Body -->
 <tr><td style="padding:40px">
-  <h2 style="margin:0 0 16px;color:#111;font-size:20px">Submission received ✓</h2>
-  <p style="margin:0 0 16px;color:#444;line-height:1.6">
-    Hi <strong>{{candidateName}}</strong>,
+  <!-- i18n: greeting not yet externalized -->
+  <p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">Hi {{candidateName}},</p>
+  <!-- i18n: body copy not yet externalized -->
+  <p style="margin:0 0 16px;font-size:15px;color:#5f6368;line-height:1.6">
+    Your submission for <strong style="color:#1a1a1a">{{assessmentName}}</strong> on {{tenantName}} was received at {{submittedAt}}.
   </p>
-  <p style="margin:0 0 16px;color:#444;line-height:1.6">
-    We received your submission for <strong>&#34;{{assessmentName}}&#34;</strong>
-    on <strong>{{tenantName}}</strong> at {{submittedAt}}.
-  </p>
-  <p style="margin:0;color:#444;line-height:1.6">
-    Your responses are now being reviewed. You'll receive another email when grading is complete.
-    Thank you for taking the time to complete this assessment.
+  <p style="margin:0;font-size:15px;color:#5f6368;line-height:1.6">
+    You will receive another email when grading is complete.
   </p>
 </td></tr>
-<tr><td style="background:#f4f4f5;padding:24px 40px;border-top:1px solid #e5e7eb">
-  <p style="margin:0;color:#9ca3af;font-size:12px">
-    &copy; AssessIQ. All rights reserved.
+<!-- Footer -->
+<tr><td style="background:#f5f5f5;padding:20px 40px;border-top:1px solid #e8e8e8">
+  <!-- i18n: footer copy not yet externalized -->
+  <p style="margin:0;font-size:11px;color:#9aa0a6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
+    &copy; AssessIQ &middot; All rights reserved.
   </p>
 </td></tr>
 </table>

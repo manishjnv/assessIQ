@@ -2,11 +2,11 @@ Subject: Attempt ready for review — {{candidateName}} on {{assessmentName}}
 
 Hello,
 
-An attempt by {{candidateName}} on "{{assessmentName}}" ({{tenantName}}) is ready for human review.
+{{candidateName}} completed {{assessmentName}} ({{tenantName}}).
 
-Attempt ID: {{attemptId}}
+Attempt: {{attemptId}}
 
-Review the attempt here:
+Review the attempt:
 {{reviewLink}}
 
-— The AssessIQ Team
+— AssessIQ

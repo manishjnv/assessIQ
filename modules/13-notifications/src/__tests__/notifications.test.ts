@@ -855,3 +855,317 @@ describe('audit.* capability gate (P3.D16)', () => {
     expect(ageMs).toBeGreaterThan(5 * 60 * 1000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Section 12: Brand color compliance — post-rebrand template guard
+//
+// These tests assert that the rendered HTML contains the EXACT hex color strings
+// from docs/10-branding-guideline.md (sRGB approximations of the OKLCH tokens).
+// If you find yourself changing one of these strings to "close enough", stop and
+// re-read the branding guideline first.
+// ---------------------------------------------------------------------------
+
+describe('brand color compliance (post-rebrand guard)', () => {
+  // Hex values derived from docs/10-branding-guideline.md OKLCH tokens.
+  // Source annotation: tokens.md says oklch(0.58 0.17 258) ≈ #1a73e8.
+  const BRAND = {
+    accent:      '#1a73e8',  // oklch(0.58 0.17 258) — per tokens.md annotation
+    danger:      '#e64242',  // oklch(0.62 0.20 25)  — computed sRGB approximation
+    border:      '#e8e8e8',  // --aiq-color-border   — explicit hex in branding doc
+    bgSunken:    '#f5f5f5',  // --aiq-color-bg-sunken — explicit hex in branding doc
+    fgPrimary:   '#1a1a1a',  // --aiq-color-fg-primary — explicit hex in branding doc
+    fgSecondary: '#5f6368',  // --aiq-color-fg-secondary — explicit hex in branding doc
+    fgMuted:     '#9aa0a6',  // --aiq-color-fg-muted — explicit hex in branding doc
+  } as const;
+
+  // Legacy off-brand values that must no longer appear after the rebrand.
+  const LEGACY = {
+    navyHeader:    '#1a1a2e',  // old dark header bg — not in brand palette
+    indigoButton:  '#4f46e5',  // old button color — Tailwind indigo-600, wrong hue
+    tailwindBorder:'#e5e7eb',  // old Tailwind gray-200 border — replaced by brand token
+    tailwindMuted: '#9ca3af',  // old Tailwind gray-400 — replaced by brand token
+    tailwindRed:   '#ef4444',  // old Tailwind red-500 danger — replaced by brand danger
+    offBrandPurple:'#a5b4fc',  // old weekly-digest header subtext — off-brand indigo-300
+  } as const;
+
+  it('invitation_candidate: HTML uses brand accent for CTA', () => {
+    const { html } = renderTemplate('invitation_candidate', {
+      candidateName: 'Alice', assessmentName: 'Cloud Ops', tenantName: 'Cloudco',
+      invitationLink: 'https://assessiq.test/take/t1', expiresAt: '2026-06-01T00:00:00Z',
+    });
+    expect(html).toContain(BRAND.accent);
+    expect(html).toContain(BRAND.border);
+    expect(html).toContain(BRAND.bgSunken);
+  });
+
+  it('invitation_admin: HTML uses brand accent for CTA', () => {
+    const { html } = renderTemplate('invitation_admin', {
+      recipientEmail: 'admin@co.com', role: 'admin',
+      invitationLink: 'https://assessiq.test/invite/t2', expiresInDays: 7,
+    });
+    expect(html).toContain(BRAND.accent);
+  });
+
+  it('totp_enrolled: HTML uses brand danger color for security warning', () => {
+    const { html } = renderTemplate('totp_enrolled', {
+      recipientName: 'Bob', enrolledAt: '2026-05-10T12:00:00Z',
+    });
+    expect(html).toContain(BRAND.danger);
+    // Must not use old Tailwind red-500 for danger
+    expect(html).not.toContain(LEGACY.tailwindRed);
+  });
+
+  it('weekly_digest_admin: HTML uses brand danger color for pending review count', () => {
+    const { html } = renderTemplate('weekly_digest_admin', {
+      tenantName: 'X', weekEnding: '2026-05-10', totalAttempts: 5, completedAttempts: 4,
+      pendingReview: 1, gradedThisWeek: 3, dashboardLink: 'https://x.com/dash',
+    });
+    expect(html).toContain(BRAND.danger);
+    expect(html).not.toContain(LEGACY.tailwindRed);
+    expect(html).not.toContain(LEGACY.offBrandPurple);
+  });
+
+  it('no template uses legacy off-brand colors (navy header, indigo button, old border)', () => {
+    const allTemplates = [
+      { name: 'invitation_admin' as const, vars: {
+        recipientEmail: 'a@b.com', role: 'admin',
+        invitationLink: 'https://x.com', tenantName: 'X', expiresInDays: 7,
+      }},
+      { name: 'invitation_candidate' as const, vars: {
+        candidateName: 'Jane', assessmentName: 'Test', expiresAt: '2026-01-01T00:00:00Z',
+        invitationLink: 'https://x.com', tenantName: 'X',
+      }},
+      { name: 'totp_enrolled' as const, vars: {
+        recipientName: 'Jane', enrolledAt: '2026-01-01T00:00:00Z',
+      }},
+      { name: 'attempt_submitted_candidate' as const, vars: {
+        candidateName: 'Jane', assessmentName: 'SOC', submittedAt: '2026-01-01T00:00:00Z',
+        tenantName: 'X',
+      }},
+      { name: 'attempt_graded_candidate' as const, vars: {
+        candidateName: 'Jane', assessmentName: 'SOC', tenantName: 'X',
+        resultsLink: 'https://x.com/r',
+      }},
+      { name: 'attempt_ready_for_review_admin' as const, vars: {
+        assessmentName: 'SOC', candidateName: 'Jane', attemptId: 'att_1',
+        reviewLink: 'https://x.com/review', tenantName: 'X',
+      }},
+      { name: 'weekly_digest_admin' as const, vars: {
+        tenantName: 'X', weekEnding: '2026-01-01', totalAttempts: 10,
+        completedAttempts: 8, pendingReview: 2, gradedThisWeek: 6,
+        dashboardLink: 'https://x.com/dashboard',
+      }},
+    ] as const;
+
+    for (const { name, vars } of allTemplates) {
+      const { html } = renderTemplate(name, vars as Parameters<typeof renderTemplate<typeof name>>[1]);
+      expect(html, `${name}: must not use legacy navy header`).not.toContain(LEGACY.navyHeader);
+      expect(html, `${name}: must not use legacy indigo button`).not.toContain(LEGACY.indigoButton);
+      expect(html, `${name}: must not use legacy Tailwind border`).not.toContain(LEGACY.tailwindBorder);
+      expect(html, `${name}: must not use legacy Tailwind muted text`).not.toContain(LEGACY.tailwindMuted);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 13: HTML / plain-text content parity
+//
+// Key information must appear in both the HTML and text variant of each template
+// so plain-text email clients receive the same essential content.
+// ---------------------------------------------------------------------------
+
+describe('html/text content parity', () => {
+  it('invitation_candidate: name, assessment, link, tenant all present in both variants', () => {
+    const vars = {
+      candidateName: 'Alice Patel',
+      assessmentName: 'Cloud Ops L2',
+      invitationLink: 'https://assessiq.test/take/tok_xyz',
+      expiresAt: '2026-07-01T00:00:00Z',
+      tenantName: 'Cloudco',
+    };
+    const { html, text } = renderTemplate('invitation_candidate', vars);
+    expect(html).toContain('Alice Patel');   expect(text).toContain('Alice Patel');
+    expect(html).toContain('Cloud Ops L2'); expect(text).toContain('Cloud Ops L2');
+    expect(html).toContain('Cloudco');      expect(text).toContain('Cloudco');
+    expect(html).toContain('https://assessiq.test/take/tok_xyz');
+    expect(text).toContain('https://assessiq.test/take/tok_xyz');
+  });
+
+  it('invitation_admin: role and link present in both variants', () => {
+    const vars = {
+      recipientEmail: 'owner@corp.com', role: 'owner',
+      invitationLink: 'https://assessiq.test/invite/tok_abc',
+      tenantName: 'Corp Inc', expiresInDays: 14,
+    };
+    const { html, text } = renderTemplate('invitation_admin', vars);
+    expect(html).toContain('owner'); expect(text).toContain('owner');
+    expect(html).toContain('Corp Inc'); expect(text).toContain('Corp Inc');
+    expect(html).toContain('https://assessiq.test/invite/tok_abc');
+    expect(text).toContain('https://assessiq.test/invite/tok_abc');
+  });
+
+  it('attempt_graded_candidate: resultsLink present in both when provided', () => {
+    const vars = {
+      candidateName: 'Bob Smith', assessmentName: 'DevSecOps', tenantName: 'SecureCo',
+      resultsLink: 'https://assessiq.test/results/att_789',
+    };
+    const { html, text } = renderTemplate('attempt_graded_candidate', vars);
+    expect(html).toContain('Bob Smith');   expect(text).toContain('Bob Smith');
+    expect(html).toContain('https://assessiq.test/results/att_789');
+    expect(text).toContain('https://assessiq.test/results/att_789');
+  });
+
+  it('attempt_graded_candidate: login fallback consistent in both when no resultsLink', () => {
+    const vars = { candidateName: 'Carol White', assessmentName: 'Python', tenantName: 'Edu' };
+    const { html, text } = renderTemplate('attempt_graded_candidate', vars);
+    expect(html).not.toContain('{{resultsLink}}');
+    expect(text).not.toContain('{{resultsLink}}');
+    // Both should show the login prompt (not the CTA button)
+    expect(html).toContain('Log in');
+    expect(text).toContain('Log in');
+  });
+
+  it('weekly_digest_admin: all four stats appear in both variants', () => {
+    const vars = {
+      tenantName: 'DataCorp', weekEnding: '2026-05-10',
+      totalAttempts: 42, completedAttempts: 38, pendingReview: 3, gradedThisWeek: 35,
+      dashboardLink: 'https://assessiq.test/admin/dashboard',
+    };
+    const { html, text } = renderTemplate('weekly_digest_admin', vars);
+    expect(html).toContain('42'); expect(text).toContain('42');
+    expect(html).toContain('38'); expect(text).toContain('38');
+    expect(html).toContain('35'); expect(text).toContain('35');
+    expect(html).toContain('https://assessiq.test/admin/dashboard');
+    expect(text).toContain('https://assessiq.test/admin/dashboard');
+  });
+
+  it('attempt_ready_for_review_admin: attemptId and link in both variants', () => {
+    const vars = {
+      assessmentName: 'SOC L1', candidateName: 'Dave Kim',
+      attemptId: 'att_A-2841', reviewLink: 'https://assessiq.test/admin/review/att_A-2841',
+      tenantName: 'SecureOrg',
+    };
+    const { html, text } = renderTemplate('attempt_ready_for_review_admin', vars);
+    expect(html).toContain('att_A-2841'); expect(text).toContain('att_A-2841');
+    expect(html).toContain('https://assessiq.test/admin/review/att_A-2841');
+    expect(text).toContain('https://assessiq.test/admin/review/att_A-2841');
+  });
+
+  it('totp_enrolled: name and timestamp appear in both variants', () => {
+    const vars = { recipientName: 'Eve', enrolledAt: '2026-05-10T09:30:00Z', tenantName: 'Corp' };
+    const { html, text } = renderTemplate('totp_enrolled', vars);
+    expect(html).toContain('Eve');   expect(text).toContain('Eve');
+    expect(html).toContain('Corp'); expect(text).toContain('Corp');
+    expect(html).toContain('2026-05-10T09:30:00Z');
+    expect(text).toContain('2026-05-10T09:30:00Z');
+  });
+
+  it('attempt_submitted_candidate: submission timestamp in both variants', () => {
+    const vars = {
+      candidateName: 'Frank', assessmentName: 'ML Ops', tenantName: 'Acme',
+      submittedAt: '2026-05-10T14:22:00Z',
+    };
+    const { html, text } = renderTemplate('attempt_submitted_candidate', vars);
+    expect(html).toContain('Frank'); expect(text).toContain('Frank');
+    expect(html).toContain('2026-05-10T14:22:00Z');
+    expect(text).toContain('2026-05-10T14:22:00Z');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 14: Voice compliance
+//
+// Verifies the brand voice rules from copy-and-voice.md are honoured:
+// no "click here/below", no exclamation marks in body copy.
+// ---------------------------------------------------------------------------
+
+describe('voice compliance', () => {
+  const allTemplateVars = [
+    { name: 'invitation_admin' as const, vars: {
+      recipientEmail: 'a@b.com', role: 'admin',
+      invitationLink: 'https://x.com', tenantName: 'X', expiresInDays: 7,
+    }},
+    { name: 'invitation_candidate' as const, vars: {
+      candidateName: 'Jane', assessmentName: 'Test', expiresAt: '2026-01-01T00:00:00Z',
+      invitationLink: 'https://x.com', tenantName: 'X',
+    }},
+    { name: 'totp_enrolled' as const, vars: {
+      recipientName: 'Jane', enrolledAt: '2026-01-01T00:00:00Z',
+    }},
+    { name: 'attempt_submitted_candidate' as const, vars: {
+      candidateName: 'Jane', assessmentName: 'SOC', submittedAt: '2026-01-01T00:00:00Z',
+      tenantName: 'X',
+    }},
+    { name: 'attempt_graded_candidate' as const, vars: {
+      candidateName: 'Jane', assessmentName: 'SOC', tenantName: 'X',
+    }},
+    { name: 'attempt_ready_for_review_admin' as const, vars: {
+      assessmentName: 'SOC', candidateName: 'Jane', attemptId: 'att_1',
+      reviewLink: 'https://x.com/review', tenantName: 'X',
+    }},
+    { name: 'weekly_digest_admin' as const, vars: {
+      tenantName: 'X', weekEnding: '2026-01-01', totalAttempts: 10,
+      completedAttempts: 8, pendingReview: 2, gradedThisWeek: 6,
+      dashboardLink: 'https://x.com/dashboard',
+    }},
+  ] as const;
+
+  it('no template uses "click here" or "click below" (copy-and-voice.md)', () => {
+    for (const { name, vars } of allTemplateVars) {
+      const { html, text } = renderTemplate(name, vars as Parameters<typeof renderTemplate<typeof name>>[1]);
+      expect(html.toLowerCase(), `${name} HTML`).not.toContain('click here');
+      expect(text.toLowerCase(), `${name} text`).not.toContain('click here');
+      expect(html.toLowerCase(), `${name} HTML`).not.toContain('click below');
+      expect(text.toLowerCase(), `${name} text`).not.toContain('click below');
+    }
+  });
+
+  it('no template body copy contains exclamation marks', () => {
+    for (const { name, vars } of allTemplateVars) {
+      const { html, text } = renderTemplate(name, vars as Parameters<typeof renderTemplate<typeof name>>[1]);
+      // Strip HTML tags from html before checking to avoid false positives from attribute values
+      const htmlText = html.replace(/<[^>]+>/g, ' ');
+      expect(htmlText, `${name} HTML`).not.toContain('!');
+      expect(text, `${name} text`).not.toContain('!');
+    }
+  });
+
+  it('no template uses "click" as a standalone verb instruction', () => {
+    for (const { name, vars } of allTemplateVars) {
+      const { html, text } = renderTemplate(name, vars as Parameters<typeof renderTemplate<typeof name>>[1]);
+      // Strip tags for HTML
+      const htmlText = html.replace(/<[^>]+>/g, ' ');
+      expect(htmlText.toLowerCase(), `${name} HTML`).not.toMatch(/\bclick\b/);
+      expect(text.toLowerCase(), `${name} text`).not.toMatch(/\bclick\b/);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 15: Snapshot tests — invitation_candidate (HTML + text)
+//
+// Snapshots are created on the first run (.snap file in __snapshots__/).
+// They guard against unintentional template drift across future edits.
+// If a template is intentionally changed, update snapshots with: pnpm test -- --update-snapshots
+// ---------------------------------------------------------------------------
+
+describe('template snapshots — invitation_candidate', () => {
+  const SNAPSHOT_VARS = {
+    candidateName: 'Alice Patel',
+    assessmentName: 'SOC L1 Skills Assessment',
+    invitationLink: 'https://assessiq.test/take/tok_snapshot_test',
+    expiresAt: '2026-07-01T00:00:00Z',
+    tenantName: 'Wipro',
+  };
+
+  it('HTML renders to a stable snapshot', () => {
+    const { html } = renderTemplate('invitation_candidate', SNAPSHOT_VARS);
+    expect(html).toMatchSnapshot();
+  });
+
+  it('text renders to a stable snapshot', () => {
+    const { text, subject } = renderTemplate('invitation_candidate', SNAPSHOT_VARS);
+    expect(subject).toMatchSnapshot();
+    expect(text).toMatchSnapshot();
+  });
+});

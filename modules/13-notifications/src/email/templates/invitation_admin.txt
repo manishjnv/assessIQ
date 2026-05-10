@@ -4,9 +4,10 @@ Hello,
 
 You've been invited to join AssessIQ{{#if tenantName}} ({{tenantName}}){{/if}} as {{role}}.
 
-Accept your invitation by clicking the link below:
+Accept your invitation:
 {{invitationLink}}
 
-This link expires in {{expiresInDays}} days. If you did not expect this email, you can safely ignore it.
+This link expires in {{expiresInDays}} days.
+If you did not expect this email, you can ignore it.
 
-— The AssessIQ Team
+— AssessIQ
