@@ -1,4 +1,62 @@
 import { z } from "zod";
+import fs from "node:fs";
+import path from "node:path";
+
+// ---------------------------------------------------------------------------
+// MCP Rejection Logger
+// ---------------------------------------------------------------------------
+
+const DEFAULT_REJECTION_LOG = "/var/log/assessiq/mcp-rejections.log";
+
+/**
+ * Append a single JSONL entry to the rejection log.
+ * Failures are reported to stderr only — never thrown.
+ */
+function logRejection(
+  type: string,
+  issues: string,
+  payloadExcerpt: unknown,
+): void {
+  // Re-read env at call time so tests can override MCP_REJECTION_LOG per-case.
+  const logPath = process.env.MCP_REJECTION_LOG ?? DEFAULT_REJECTION_LOG;
+  const entry = JSON.stringify({
+    timestamp: new Date().toISOString(),
+    pid: process.pid,
+    type,
+    issues,
+    payload_excerpt: JSON.stringify(payloadExcerpt).slice(0, 2048),
+  });
+  // fs.appendFile is async; we intentionally do NOT await — any write failure
+  // is caught below and routed to stderr so it cannot affect the return value.
+  fs.appendFile(logPath, entry + "\n", (err) => {
+    if (err) {
+      process.stderr.write(
+        `[assessiq-mcp] rejection-log write failed: ${err.message} (path=${logPath})\n`,
+      );
+    }
+  });
+}
+
+/**
+ * Infer the question type from a raw (possibly invalid) args object.
+ * Falls back to "unknown" so the log entry is always useful.
+ */
+function inferType(args: unknown): string {
+  if (
+    args !== null &&
+    typeof args === "object" &&
+    "questions" in args &&
+    Array.isArray((args as { questions: unknown }).questions) &&
+    (args as { questions: unknown[] }).questions.length > 0
+  ) {
+    const first = (args as { questions: unknown[] }).questions[0];
+    if (first !== null && typeof first === "object" && "type" in first) {
+      const t = (first as { type: unknown }).type;
+      if (typeof t === "string") return t;
+    }
+  }
+  return "unknown";
+}
 
 // ---------------------------------------------------------------------------
 // Per-type content schemas — .strict() rejects any unrecognised key.
@@ -234,6 +292,10 @@ export async function handleSubmitQuestions(args: unknown) {
       }) + "\n",
     );
 
+    // Structured rejection log — full payload excerpt for DB-free diagnosis.
+    const issuesText = formatIssues(issues);
+    logRejection(inferType(args), issuesText, args);
+
     return {
       isError: true,
       content: [
@@ -241,7 +303,7 @@ export async function handleSubmitQuestions(args: unknown) {
           type: "text",
           text:
             `submit_questions rejected — ${issues.length} validation error(s):\n\n` +
-            formatIssues(issues) +
+            issuesText +
             "\n\nCorrect the field names/values listed above and resubmit.",
         },
       ],
