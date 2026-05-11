@@ -423,7 +423,14 @@ describe('issueCertificate — R1: issued_at second-precision round-trip', () =>
         id: input.id,
         credential_id: input.credential_id,
         signed_hash: input.signed_hash,
-        issued_at: input.issued_at,
+        // Mimic the `to_char(... 'YYYY-MM-DD"T"HH24:MI:SS"Z"')` projection
+        // INDEPENDENTLY of R1: strip a trailing `.NNN` before `Z` if present.
+        // With R1 in place, input.issued_at is already second-precision and
+        // this regex is a no-op. If R1 ever regresses, input.issued_at would
+        // re-acquire ms but the stored row would not — the recomputed hash
+        // below would then differ from input.signed_hash and the test fails.
+        // This is the actual regression pin.
+        issued_at: input.issued_at.replace(/\.\d{3}Z$/, 'Z'),
         tier: input.tier,
         tenant_id: input.tenant_id,
         candidate_id: input.candidate_id,
@@ -443,8 +450,10 @@ describe('issueCertificate — R1: issued_at second-precision round-trip', () =>
     expect(storedRow).toBeDefined();
     const row = storedRow!;
 
-    // Simulate projection: to_char strips ms → already done by R1 truncation.
     // Recompute HMAC from the stored row fields (exactly as Session 3 would).
+    // The mock above stripped any trailing .NNN from row.issued_at, so this
+    // matches input.signed_hash IFF the originally-signed value also lacked
+    // ms — i.e., IFF R1's truncation in service.ts is still in place.
     const secret = process.env[CERT_SIGNING_SECRET_ENV]!;
     const recomputedHash = signCertificate(
       {
@@ -458,13 +467,11 @@ describe('issueCertificate — R1: issued_at second-precision round-trip', () =>
         display_name: row.display_name,
         course_title: row.course_title,
         level: row.level,
-        issued_at: row.issued_at, // already second-precision (R1 fix)
+        issued_at: row.issued_at, // mock-stripped, second-precision
       },
       secret,
     );
 
-    // This is the regression pin: without R1, toISOString() has ms but
-    // the projection strips them → mismatch. With R1 they are the same.
     expect(recomputedHash).toBe(row.signed_hash);
   });
 });

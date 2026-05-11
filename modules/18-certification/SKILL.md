@@ -206,11 +206,23 @@ Recruiters look up a credential without knowing which tenant issued it
 6-char CSPRNG suffix from `[A-Z0-9]`, retry on IntegrityError, max 3 attempts.
 Prefix defaults to `AIQ`; make it configurable per tenant in Phase 5 Session 6.
 
-### D4 — `signed_hash` payload excludes mutable fields
-HMAC-SHA256 over `credential_id | candidate_id | issued_at` only. Excludes
-`tier`, `display_name`, counters. Rationale: tier upgrades and admin reissues
-must not invalidate HMAC — the signature attests "this credential exists for
-this user at this time", not the current display state. See plan §3.
+### D4 — `signed_hash` payload spans 11 identity fields; excludes only mutable post-issue state
+HMAC-SHA256 over the alphabetically-sorted closed set defined as
+`CANONICAL_FIELDS` in `src/crypto.ts`: `attempt_id, candidate_id, course_title,
+credential_id, display_name, id, issued_at, level, template_key, tenant_id,
+tier`. Excludes the mutable post-issue counters (`pdf_downloads`,
+`linkedin_shares`, `verification_views`), the row's own `signed_hash`, and
+`revoked_at` / `revoke_reason`.
+
+Rationale: the original 3-field design (`credential_id + candidate_id +
+issued_at`) was rejected during implementation. Tier upgrades preserve both
+`credential_id` and `issued_at` — a 3-field hash would let any tier
+impersonate any other on the same attempt without breaking the signature.
+Including `tier`, `display_name`, `course_title`, `level`, `template_key`,
+`id`, `tenant_id`, and `attempt_id` pins the signature to a specific
+identity-field snapshot. Tier upgrades re-sign (preserving `credential_id` +
+`issued_at`) and emit `certification.cert.upgrade` in the audit log so the
+trail is unbroken. See plan §3.
 
 ### D5 — No HMAC `==` comparison
 The verify endpoint must use `timingSafeEqual` (Node.js `crypto`) or equivalent
@@ -260,7 +272,7 @@ issueCertificate(
 
 // Read (Session 2 — shipped). RLS applies; public verify uses a separate
 // non-RLS path in Session 3.
-getByCredentialId(client: PoolClient, credentialId: string): Promise<Certificate | null>
+getByCredentialId(client: PoolClient, credentialId: string, tenantId: string): Promise<Certificate | null>
 
 // Cryptography (Session 2 — shipped)
 getCertSigningSecret(): string
