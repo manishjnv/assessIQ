@@ -17,6 +17,30 @@ A `users` row exists *before* the first login. Admins create users (or import vi
 
 ---
 
+## Roles and capabilities
+
+Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set membership** (`opts.roles.includes(sess.role)`) — passing `roles: ['admin']` does NOT admit a `super_admin` session. Each route lists every accepted role explicitly. (`modules/01-auth/src/sessions.ts:23`, `modules/01-auth/src/middleware/require-auth.ts:26`)
+
+| Role | Scope | Auth method | TOTP enforced | Typical access |
+|---|---|---|---|---|
+| `candidate` | Per-tenant | Magic link or Google SSO | Optional (tenant-configurable) | `/take/*`, `/api/me/*` |
+| `reviewer` | Per-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Read-only admin routes |
+| `admin` | Per-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Full `/api/admin/*` for their tenant |
+| `super_admin` | Cross-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Routes explicitly gated to `['super_admin']` only |
+
+**super_admin detail (commit d59ade4):** authenticates via the same Google SSO → TOTP path as admin. Session still carries a `tenant_id` (the tenant the operator authenticated against); cross-tenant writes are enabled in specific service functions (e.g. `updateAiGenerateMode` accepts a target `tenantId` as an explicit argument). Shipped endpoints gated to `roles: ['super_admin']`:
+
+| Endpoint | Purpose |
+|---|---|
+| `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip AI generation mode for any tenant (atomic audit via `auditInTx`) |
+| `POST /api/admin/analytics/refresh` | Manual materialized-view refresh (cross-tenant) |
+
+(`apps/api/src/routes/admin-super.ts:25,41`, `apps/api/src/server.ts:225,229`)
+
+> **DB caveat — migration pending:** `modules/01-auth/migrations/011_sessions.sql:23` has `CHECK (role IN ('admin','reviewer','candidate'))` — `'super_admin'` is absent. `sessions.create()` writes Postgres **first**; the CHECK violation throws before Redis is touched, so the session creation fails entirely (no dangling Redis entry, but no session either — the user gets a 500 at the TOTP-verify step). The prerequisite `ALTER TABLE` migration is tracked in `docs/design/2026-05-10-stage-3-promotion-rollout.md §3`. Do not promote a user to `super_admin` in production until that migration runs. (`modules/01-auth/src/sessions.ts:22`)
+
+---
+
 ## Flow 1 — Admin login (Google SSO + TOTP)
 
 > **Status (2026-05-01, Phase 0 closure — route layer + first API deploy live end-to-end):** library + DB layer + Fastify route layer + container deploy ALL LIVE on `origin/main`. Commits `d9cfeb4` (W4 library + migrations 010-015), `58eba33` (assessiq-api Dockerfile + auth route layer), `335d055` (dev-auth shim swap → real `@assessiq/auth` chain across `apps/api` and `apps/web`), `0789e4f` (Dockerfile build-strategy fix + `getTenantBySlug` system-role implementation). Routes serving Flow 1: `GET /api/auth/google/start?tenant=<slug>` (302 to Google, sets `aiq_oauth_state` + `aiq_oauth_nonce`), `GET /api/auth/google/cb` (mints pre-MFA `aiq_sess`, redirects to `/admin/mfa`), `POST /api/auth/totp/enroll/start` + `POST /api/auth/totp/enroll/confirm` (returns 10 plaintext recovery codes ONCE), `POST /api/auth/totp/verify` (promotes to `totp_verified`), `POST /api/auth/totp/recovery`, `POST /api/auth/logout`, `GET /api/auth/whoami`. Container live behind Caddy split-route on `https://assessiq.automateedge.cloud/api/*`; verified by direct curl on the deployed surface. **Drill B (curl `/api/auth/google/start` 302) is DEFERRED** — route + tenant resolution PASS but `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are empty in `/srv/assessiq/.env`, so the route returns 401 `"Google SSO is not configured"` cleanly (rate-limit headers populated, no leak, no stack trace). To clear: provision OAuth client in Google Cloud Console with redirect URI `https://assessiq.automateedge.cloud/api/auth/google/cb`, add credentials to `.env`, restart `assessiq-api`. **Drill 1 (full-stack browser SSO+MFA flow) is DEFERRED** — `assessiq-frontend` Dockerfile is a Phase 1+ deliverable, so the `/admin/login` HTML route currently serves the Caddy default placeholder, not the SPA. The dev-auth `FIXME(post-01-auth)` markers are now ZERO across the repo (`apps/api/src/middleware/dev-auth.ts` deleted; `apps/web` SPA edits in commit `335d055`).
@@ -239,6 +263,69 @@ AssessIQ /embed handler (Phase 4 implementation — LIVE):
 >
 > 3. **Cookie bridging** — `aiq_embed_sess` (SameSite=None) and `aiq_sess` (SameSite=Lax) are distinct cookies. An `onRequest` hook in `apps/api/src/server.ts` copies the embed cookie value to the standard cookie name so all existing auth-chain middleware works unmodified on embed requests.
 
+### Embed JWT — claim contract
+
+All claims are required. The verifier rejects any token with a missing or wrong-type field before touching the DB. (`modules/01-auth/src/embed-jwt.ts:25-36,188-199`)
+
+| Claim | Type | Constraint |
+|---|---|---|
+| `iss` | string | Host-app name; free-text label; not verified by AssessIQ |
+| `aud` | `"assessiq"` | Hard literal; any other value → rejected immediately |
+| `sub` | string | Host's internal user ID |
+| `tenant_id` | UUID string | AssessIQ tenant UUID; used to look up the embed secret |
+| `email` | string | Candidate email for JIT user lookup/create |
+| `name` | string | Display name for JIT user create |
+| `assessment_id` | UUID string | AssessIQ assessment UUID |
+| `iat` | unix seconds | Must be ≤ now + 5 s (5-second clock-skew allowance) |
+| `exp` | unix seconds | Must be > now; `exp − iat` must not exceed 600 s |
+| `jti` | UUID string | Replay guard; cached in Redis for `exp − now` seconds |
+
+### Embed secret rotation
+
+`rotateEmbedSecret()` is a two-step atomic operation within a single `withTenant` transaction:
+
+1. Mark the current `status='active'` row as `status='rotated'` (sets `rotated_at = now()`).
+2. Insert a new `status='active'` row.
+
+The verification path tries the active key first. On **signature mismatch only**, it falls back to the single most-recent rotated row (`ORDER BY rotated_at DESC LIMIT 1`). Any other failure (`alg` confusion, expired `exp`, wrong `aud`, malformed payload) does NOT trigger the fallback — it rejects immediately. No TTL is enforced on rotated rows in the DB; the 90-day rotation cadence is a convention, not a code constraint. (`modules/01-auth/src/embed-jwt.ts:244-265`, `modules/01-auth/migrations/014_embed_secrets.sql:7-10`)
+
+### Embed JWT — request sequence
+
+```
+Host app backend           Browser (iframe)           AssessIQ /embed handler
+──────────────────────────────────────────────────────────────────────────────
+Build JWT:
+  { tenant_id, email, name,
+    assessment_id, sub,
+    aud:'assessiq',
+    exp:now+600, jti:uuid }
+Sign HS256 + embed_secret
+Set iframe src="…/embed?token=<JWT>"
+                           Load iframe
+                           GET /embed?token=<JWT>
+                           ──────────────────────────────────────────────────▶
+                                                  [1] Decode header; alg must be HS256
+                                                  [2] Decode + validate all required claims
+                                                  [3] Reject if exp-iat > 600s or iat > now+5s
+                                                  [4] withTenant(tenant_id):
+                                                        load active embed_secret
+                                                        jwtVerify(HS256)
+                                                        (sig fail only → try rotated once)
+                                                  [5] Redis SET NX: aiq:embed:jti:<tid>:<jti>
+                                                        → 401 if jti already used (replay)
+                                                  [6] resolveJitUser: find or create candidate
+                                                  [7] Build per-tenant frame-ancestors CSP
+                                                  [8] mintEmbedSession → sessions row (type='embed')
+                                                  [9] startAttempt(embedOrigin=true)
+                                                  Set-Cookie: aiq_embed_sess
+                                                    (SameSite=None; Secure; HttpOnly; Path=/)
+                                                  302 → /take/a/<attemptId>?embed=true
+                           ◀──────────────────────────────────────────────────
+                           (subsequent calls: server bridges aiq_embed_sess → aiq_sess slot)
+```
+
+Consumer-facing integration guide: `docs/09-integration-guide.md`.
+
 ---
 
 ## Flow 4 — API key (back-end integration)
@@ -263,6 +350,79 @@ Authorization: Bearer aiq_live_<32-char-random>
 - `results:read`
 - `webhooks:manage`
 - `admin:*` (rare, for full automation)
+
+---
+
+## Flow 4b — Public credential verify (auth-bypass surface)
+
+> **Status: LIVE 2026-05-11 (commit 7208008).** Phase 5 Session 3.
+
+Recruiters and external verifiers check a certificate's authenticity at `GET /verify/:credentialId` — no account, session cookie, API key, or tenant context required.
+
+### Why this is safe without authentication
+
+The route accesses `certificates` via a **GUC-based RLS policy** (`public_verify_lookup`) rather than the standard `withTenant()` + `app.current_tenant` path. The policy covers SELECT only; UPDATE/INSERT/DELETE are never permitted through it. (`modules/18-certification/migrations/0074_public_verify_policy.sql`)
+
+```sql
+CREATE POLICY public_verify_lookup
+  ON certificates FOR SELECT
+  USING (current_setting('app.public_verify', true) = 'true');
+```
+
+`withPublicVerifyContext()` opens a transaction, sets the GUC transaction-local (`is_local=true`), runs the callback, and commits. The GUC reverts on COMMIT/ROLLBACK and cannot leak across pool connections. `credential_id` is globally unique across all tenants — no `tenant_id` predicate is needed or added. (`modules/18-certification/src/repository.ts:193-210`)
+
+```
+BEGIN
+SET LOCAL ROLE assessiq_app                               -- re-engages RLS (dev safety)
+SELECT set_config('app.public_verify', 'true', true)     -- transaction-local; auto-reverts
+SELECT ... FROM certificates WHERE credential_id = $1    -- public_verify_lookup allows this
+COMMIT                                                    -- GUC reverts here
+```
+
+### HMAC guard (app-layer)
+
+Every render calls `verifyCertificateSignature()` using `crypto.timingSafeEqual`. Three outcomes, all HTTP 200 when the credential exists:
+
+- **green badge** — HMAC valid, `revoked_at IS NULL`
+- **red "Revoked" badge** — `revoked_at IS NOT NULL`; revocation reason is shown
+- **red "Invalid Signature" badge** — HMAC mismatch (data tampered post-issuance)
+
+404 is returned only when `credential_id` is unknown. A recruiter who sees "Revoked" knows the credential existed but was invalidated — they do not mistake it for a forgery. (`modules/18-certification/src/routes-public.ts:327-368`)
+
+### Rate limiting and view dedup
+
+- Per-IP: 60 req/hour, fixed-window, in-memory, 10 000-bucket cap. (`routes-public.ts:54-56`)
+- Per-(IP, credentialId) view dedup: 1 h window, 50 000-entry cap. (`routes-public.ts:96-97`)
+- `verification_views` counter: fire-and-forget via a **separate** `withTenant()` transaction; the main request path uses `withPublicVerifyContext` and never sets `app.current_tenant`. (`routes-public.ts:355-361`)
+
+### Request sequence
+
+```
+Recruiter / LinkedIn crawler     apps/api (no authChain, no tenant middleware)
+────────────────────────────────────────────────────────────────────────────────
+GET /verify/<credential_id>
+────────────────────────────────────────────────────────────────────────────────▶
+                                 [1] CREDENTIAL_ID_REGEX validation → 404 HTML on fail
+                                 [2] Per-IP rate limit → 429 JSON on exceed
+                                 [3] withPublicVerifyContext():
+                                       BEGIN
+                                       SET LOCAL ROLE assessiq_app
+                                       set_config('app.public_verify','true',true)
+                                       SELECT by credential_id (no tenant_id predicate)
+                                       COMMIT
+                                 [4] null → 404 HTML
+                                 [5] revoked_at IS NOT NULL → 200 HTML (red revoked badge)
+                                 [6] verifyCertificateSignature (timingSafeEqual)
+                                       mismatch → 200 HTML (red invalid badge)
+                                       match   → 200 HTML (green verified badge)
+                                 [fire-and-forget] withTenant(cert.tenant_id) → views++
+◀────────────────────────────────────────────────────────────────────────────────
+No session cookie set or consumed. No auth header. No app.current_tenant in main path.
+```
+
+Routes are registered by `registerVerifyRoutes(app)` at `apps/api/src/server.ts:239-241` with no `authChain` argument. The global `tenantContextMiddleware` auto-skips when `req.session?.tenantId` is `undefined` (`modules/02-tenancy/src/middleware.ts:84-86`).
+
+Also ships: `GET /verify/:credentialId/og.svg` — 1200×630 SVG for LinkedIn link previews; `Cache-Control: public, max-age=3600`. Same RLS path, same HMAC check. (`routes-public.ts:374-424`)
 
 ---
 
@@ -388,3 +548,33 @@ The standard `X-RateLimit-Limit` / `X-RateLimit-Remaining` headers are NOT emitt
 - [ ] Force re-auth on email change, role change, password reset
 - [ ] HSTS header at edge with preload-eligible config
 - [ ] CSP header tight enough to prevent inline-script execution in admin UI
+
+---
+
+## Auth-bypass route inventory
+
+The canonical trust-boundary table. Every route that runs without a `requireAuth` session gate is listed here with the alternative trust model that makes it safe. Security reviews start here.
+
+(`apps/api/src/server.ts` — see registration order for context)
+
+| Route(s) | Alternative auth model | Security rationale |
+|---|---|---|
+| `GET /health` | None | Liveness probe; no user data, no side effects |
+| `GET /api/auth/google/start` | None (per-IP rate-limited) | Auth-establishing; no session exists yet |
+| `GET /api/auth/google/cb` | OIDC `state` + `nonce` (PKCE-equivalent) | OAuth callback; state param is the CSRF guard |
+| `POST /api/auth/totp/verify` | Pre-MFA session (`totp_verified=false`) | Completes the second factor; not auth-bypassing |
+| `POST /api/auth/totp/recovery` | Pre-MFA session | Recovery-code path; same session gate as totp/verify |
+| `POST /api/auth/logout` | Optional session | Idempotent; no-session logout is a safe no-op |
+| `GET /api/auth/whoami` | Optional session | Returns 401 when no session; read-only |
+| `/take/:token` | Magic-link token (sha256-hashed in DB) | Token IS the credential; session created after hash validation |
+| `GET /embed?token=<JWT>` | Embed JWT (HS256, per-tenant secret) | JWT replaces session cookie in cross-origin iframe context |
+| `GET /embed/sdk.js` | None | Static JS bundle; no user data |
+| `GET /embed/health` | None | Liveness probe |
+| `GET /verify/:credentialId` | GUC-based RLS (`public_verify_lookup`) | credential_id is globally unique; policy restricts visible rows to SELECT |
+| `GET /verify/:credentialId/og.svg` | GUC-based RLS (`public_verify_lookup`) | Same scoping as verify page; SVG only |
+| `GET /help/...` (public routes) | None | Public help content; no user data |
+| `POST /help/track` | None | Anonymous help-view analytics |
+
+> Routes using `publicChain: authChain({ requireSession: false })` (e.g. `/take/*`) still pass through the session-loader hook — a valid session is loaded if present, but its absence is not an error. This is auth-**optional**, not auth-bypassed.
+
+> Routes in `/api/auth/*` are auth-**establishing** — they CREATE or complete sessions. They are listed here because they accept unauthenticated callers, not because they skip authorization logic.
