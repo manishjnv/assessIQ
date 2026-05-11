@@ -101,3 +101,19 @@ Owns: `webhook_endpoints`, `webhook_deliveries`, `email_log`. Reads: `users` (re
 - Per-user notification preferences (Phase 4)
 - WebSocket/SSE push (Phase 4)
 - G3.A audit-log registration hook — G3.A's merge wires `handleAuditFanout` into the post-commit path
+
+## Email internationalization (2026-05-11)
+
+Email-template copy is externalized through a tiny string-registry layer at `src/email/i18n.ts`, backed by per-locale JSON bundles in `src/email/strings/<lang>.json`. Only English (`en.json`) ships today; the resolver is locale-aware so additional bundles drop in without further code changes.
+
+**Resolution order.** `render.ts` calls `buildVars(templateName, vars)` with the default locale `'en'`. The TODO in `i18n.ts` documents the future seam: when `tenant_settings.preferred_language` (or a per-recipient override) is added, the call site becomes `buildVars(name, parsed, tenantLang ?? 'en')`. There is no per-recipient locale today.
+
+**String keys.** Each template owns a flat key map (`page_title`, `greeting`, `cta`, etc.) under its own object in `en.json`. The resolver throws loudly on a missing template or missing key — typos surface in tests, not at first send. Templates reference resolved strings via `{{_t_<key>}}` placeholders; the `_t_` prefix is reserved for resolver output and must not be set by callers. Variable interpolation inside string values (`{{candidateName}}`, `{{expiresInDays}}`) is performed by the resolver before the value is injected into Handlebars.
+
+**Adding a new locale.** Drop a sibling JSON file (e.g. `strings/fr.json`) with the same template/key shape, then thread the locale through `renderTemplate` → `buildVars`. No template edits required as long as the new bundle covers every key currently in `en.json`.
+
+**Adding a new string key.** Add the key to `en.json` under the relevant template, then reference it in the template as `{{_t_<key>}}`. Any future locale bundles must mirror the addition; the resolver only falls back when the *whole template entry* is missing — a missing individual key still throws.
+
+**Brand-string exception.** `AssessIQ` (and any future white-label wordmark per tenant) is intentionally routed through the same `brand_wordmark` key so per-tenant rebranding can be added later without a template diff. Today it is constant English. URLs (invitation links, dashboard links, results links) are **never** placed in the strings bundle — they are vars passed by the caller, since a translated URL would be a phishing vector.
+
+**Partial-state note.** This pass externalizes page titles, greetings, headings, CTAs, table labels, and security warnings. Body-copy sentences ("You have been invited to take …") remain inline in the HTML templates, marked with `<!-- i18n: body copy not yet externalized -->` so the gap is visible. The `.txt` plain-text variants are also still inline. Closing both is a follow-up pass.

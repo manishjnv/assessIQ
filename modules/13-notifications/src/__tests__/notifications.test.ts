@@ -1169,3 +1169,81 @@ describe('template snapshots — invitation_candidate', () => {
     expect(text).toMatchSnapshot();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Section 16: i18n resolver unit tests
+// ---------------------------------------------------------------------------
+
+import { t } from '../email/i18n.js';
+
+describe('i18n resolver (email/i18n.ts)', () => {
+  it('t() returns the correct English string for a known key', () => {
+    const result = t('invitation_candidate', 'cta', {});
+    expect(result).toBe('Start your assessment');
+  });
+
+  it('t() substitutes {{var}} tokens from the vars bag', () => {
+    const result = t('invitation_candidate', 'greeting', { candidateName: 'Alice' });
+    expect(result).toBe('Hi Alice,');
+  });
+
+  it('t() multi-token substitution — expiry in invitation_admin', () => {
+    const result = t('invitation_admin', 'expiry', { expiresInDays: 7 });
+    expect(result).toBe(
+      'This link expires in 7 days. If you did not expect this email, you can ignore it.',
+    );
+  });
+
+  it('t() throws for a nonexistent template', () => {
+    expect(() => t('nonexistent_template', 'key', {})).toThrow(
+      /no strings found for template "nonexistent_template"/,
+    );
+  });
+
+  it('t() throws for a missing key within a known template', () => {
+    expect(() => t('invitation_candidate', 'missing_key', {})).toThrow(
+      /no string found for key "invitation_candidate\.missing_key"/,
+    );
+  });
+
+  it('t() default lang is "en" (explicit test)', () => {
+    // Passing lang explicitly and omitting it must produce the same result
+    expect(t('invitation_candidate', 'cta', {}, 'en')).toBe(
+      t('invitation_candidate', 'cta', {}),
+    );
+  });
+
+  it('renderTemplate integration: invitation_candidate CTA resolves to correct English string', () => {
+    const { html } = renderTemplate('invitation_candidate', {
+      candidateName: 'Alice Patel',
+      assessmentName: 'SOC L1',
+      invitationLink: 'https://assessiq.test/take/tok_abc',
+      expiresAt: '2026-07-01T00:00:00Z',
+      tenantName: 'Wipro',
+    });
+    expect(html).toContain('Start your assessment');
+  });
+
+  it('renderTemplate integration: totp_enrolled security warning resolves correctly', () => {
+    const { html } = renderTemplate('totp_enrolled', {
+      recipientName: 'Bob',
+      enrolledAt: '2026-05-10T12:00:00Z',
+    });
+    expect(html).toContain(
+      'If you did not perform this action, contact your administrator immediately and change your password.',
+    );
+  });
+
+  it('renderTemplate integration: weekly_digest row labels resolve correctly', () => {
+    const { html } = renderTemplate('weekly_digest_admin', {
+      tenantName: 'Acme', weekEnding: '2026-05-10',
+      totalAttempts: 5, completedAttempts: 4,
+      pendingReview: 1, gradedThisWeek: 3,
+      dashboardLink: 'https://x.com/dash',
+    });
+    expect(html).toContain('Total attempts');
+    expect(html).toContain('Completed');
+    expect(html).toContain('Graded this week');
+    expect(html).toContain('Pending review');
+  });
+});

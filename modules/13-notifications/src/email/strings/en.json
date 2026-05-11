@@ -1,0 +1,53 @@
+{
+  "invitation_candidate": {
+    "page_title": "Assessment invitation",
+    "brand_wordmark": "AssessIQ",
+    "greeting": "Hi {{candidateName}},",
+    "cta": "Start your assessment"
+  },
+  "invitation_admin": {
+    "page_title": "Invitation to AssessIQ",
+    "brand_wordmark": "AssessIQ",
+    "heading": "You have been invited.",
+    "cta": "Accept invitation",
+    "expiry": "This link expires in {{expiresInDays}} days. If you did not expect this email, you can ignore it."
+  },
+  "attempt_submitted_candidate": {
+    "page_title": "Submission received",
+    "brand_wordmark": "AssessIQ",
+    "greeting": "Hi {{candidateName}},",
+    "follow_up": "You will receive another email when grading is complete."
+  },
+  "attempt_graded_candidate": {
+    "page_title": "Your results are ready",
+    "brand_wordmark": "AssessIQ",
+    "greeting": "Hi {{candidateName}},",
+    "cta": "Review your results",
+    "login_fallback": "Log in to AssessIQ to view your results."
+  },
+  "attempt_ready_for_review_admin": {
+    "page_title": "Attempt ready for review",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Attempt ready for review.",
+    "attempt_label_prefix": "ATTEMPT",
+    "cta": "Review attempt"
+  },
+  "totp_enrolled": {
+    "page_title": "Two-factor authentication enrolled",
+    "brand_wordmark": "AssessIQ",
+    "greeting": "Hi {{recipientName}},",
+    "security_warning": "If you did not perform this action, contact your administrator immediately and change your password."
+  },
+  "weekly_digest_admin": {
+    "page_title": "Weekly digest",
+    "brand_wordmark": "AssessIQ",
+    "weekly_digest_label_prefix": "WEEKLY DIGEST",
+    "table_header_metric": "METRIC",
+    "table_header_count": "COUNT",
+    "row_total_attempts": "Total attempts",
+    "row_completed": "Completed",
+    "row_graded_this_week": "Graded this week",
+    "row_pending_review": "Pending review",
+    "cta": "View dashboard"
+  }
+}
