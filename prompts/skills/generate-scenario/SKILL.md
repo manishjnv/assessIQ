@@ -1,6 +1,6 @@
 ---
 name: generate-scenario
-version: "2026-05-10a"
+version: "2026-05-10b"
 model: claude-sonnet-4-6
 description: |
   Generate multi-step scenario questions for SOC analyst assessments grounded
@@ -52,16 +52,18 @@ as the omnibus generate-questions skill.
   ticket that triggered the analyst's attention, the affected system(s), and the
   time context ("14:32 UTC — SIEM triggers CRITICAL: …"). This mirrors real
   triage queue entries.
-- **Step types.** Individual steps use `type: "mcq"` for decision-point
-  questions. Each step must have a clear SOC action (triage, contain, escalate,
-  investigate) corresponding to the correct option.
+- **Step types.** Each step is a decision point with a `prompt` field (the
+  analyst question) and an `expected` field (the correct analyst action as a
+  complete sentence). Steps are NOT multiple-choice; do not produce option lists
+  or correct indices.
 - **Branching (DAG) scenarios.** For `step_dependency: "dag"`, steps reference
   each other's IDs in a `next_if_correct` / `next_if_incorrect` field. For
   Phase 1, generate `step_dependency: "linear"` only; DAG is optional L3 only.
 - **Step count by level:** L1: 2–3 steps. L2: 3–4 steps. L3: 4–5 steps.
-- **Each step's distractors** must reflect plausible but wrong analyst actions
-  (e.g., "contain immediately without preserving volatile evidence" vs.
-  "image memory before containment").
+- **Expected actions** must be specific and realistic SOC responses (e.g.,
+  "image volatile memory before initiating containment"). The `expected` field
+  describes the single correct analyst action in full — not an index or choice
+  identifier.
 - **MITRE technique must appear in the intro or at least one step** for L2 and
   L3 scenarios. It must be present in the referenced source's tags.
 
@@ -78,7 +80,10 @@ as the omnibus generate-questions skill.
 
 # Output Format
 
-Call `submit_questions` exactly once with a JSON array. Each object must be:
+Call `submit_questions` with the full questions array. If the tool returns
+`isError=true`, read the error path, correct ONLY the named field(s), and
+resubmit with the FULL array. Do NOT submit empty `{}`. Maximum two
+resubmissions. Each object must be:
 
 ```json
 {
@@ -208,6 +213,7 @@ attempt will fail. There is no value in exploring the codebase
 or searching for additional context — the prompt is the full
 context.
 
-Reason directly from the prompt and call submit_questions with
-the full array. If rejected, read the error, correct the named
-fields, and resubmit. Maximum two resubmissions.
+Call submit_questions with the full questions array. If the tool
+returns isError=true, read the error path, correct ONLY the named
+field(s), and resubmit with the FULL array. Do NOT submit empty {}.
+Maximum two resubmissions.

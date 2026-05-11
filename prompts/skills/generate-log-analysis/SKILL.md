@@ -1,6 +1,6 @@
 ---
 name: generate-log-analysis
-version: "2026-05-09d"
+version: "2026-05-10b"
 model: claude-sonnet-4-6
 description: |
   Generate log_analysis questions with realistic synthetic log excerpts grounded
@@ -85,7 +85,10 @@ the same semantics as the omnibus generate-questions skill.
 
 # Output Format
 
-Call `submit_questions` exactly once with a JSON array. Each object must be:
+Call `submit_questions` with the full questions array. If the tool returns
+`isError=true`, read the error path, correct ONLY the named field(s), and
+resubmit with the FULL array. Do NOT submit empty `{}`. Maximum two
+resubmissions. Each object must be:
 
 ```json
 {
@@ -96,7 +99,7 @@ Call `submit_questions` exactly once with a JSON array. Each object must be:
   "content": {
     "question": "<question text referencing the log excerpt>",
     "log_excerpt": "<realistic multi-line log snippet — max 30 lines>",
-    "log_format": "syslog" | "json" | "csv" | "freeform",
+    "log_format": "json" | "syslog" | "windows_event" | "freeform",
     "expected_findings": ["<finding 1 with MITRE reference>", "<finding 2>"],
     "hint": "<optional — one sentence hint for struggling candidates>",
     "sample_solution": "<analyst walkthrough citing specific log field values>"
@@ -135,6 +138,16 @@ Field synonyms that are FORBIDDEN — do not use any of these:
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
+
+Forbidden field VALUE — do not use this `log_format` value:
+  `log_format: "csv"` — the schema does not accept csv. For Zeek
+  or other comma-delimited log formats, use `"freeform"` with the
+  raw text in `log_excerpt`.
+
+If submit_questions is rejected with "unrecognized key(s)" or
+"Required", read the error path, correct ONLY the named field(s),
+include the FULL questions array (NOT an empty object), and
+resubmit. Maximum two resubmissions after each correction.
 
 ## Source-citation contract (HARD RULE)
 
@@ -196,7 +209,7 @@ attempt will fail. There is no value in exploring the codebase
 or searching for additional context — the prompt is the full
 context.
 
-Reason directly from the prompt and call submit_questions exactly
-once with the full array of generated questions.
-
-Call `submit_questions` exactly once. No other tool calls.
+Call submit_questions with the full questions array. If the tool
+returns isError=true, read the error path, correct ONLY the named
+field(s), and resubmit with the FULL array. Do NOT submit empty {}.
+Maximum two resubmissions. No other tool calls.
