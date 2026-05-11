@@ -31,7 +31,7 @@ import { registerEmbedAdminRoutes } from './routes/embed-admin.js';
 import { EMBED_COOKIE_NAME } from '@assessiq/embed-sdk';
 import { authChain } from './middleware/auth-chain.js';
 import { config } from '@assessiq/core';
-import { registerVerifyRoutes } from '@assessiq/certification';
+import { registerVerifyRoutes, registerCertificationRoutes } from '@assessiq/certification';
 
 const requestLog = streamLogger('request');
 const appLog = streamLogger('app');
@@ -239,6 +239,18 @@ export async function buildServer() {
   // Public verify page — no auth, no tenant context, outside /api/.
   // tenantContextMiddleware auto-skips (req.session?.tenantId is undefined).
   await registerVerifyRoutes(app);
+
+  // Certification routes (Phase 5 Session 4):
+  //   GET /api/certificates/:credentialId/pdf → PDF download (candidate or admin)
+  //   GET /api/certificates                   → list my certs (Session 5 stub)
+  //   POST /api/certificates/:id/share-linkedin → counter (Session 8 stub)
+  //   GET  /api/admin/certificates             → admin list (Session 2 stub)
+  //   POST /api/admin/certificates/:id/revoke  → revoke (Session 2 stub)
+  //   POST /api/admin/certificates/:id/reissue → reissue (Session 6 stub)
+  await registerCertificationRoutes(app, {
+    candidateAuth: authChain(),
+    adminAuth: authChain({ roles: ['admin'] }),
+  });
 
   await registerHelpPublicRoutes(app);  await registerHelpTrackRoutes(app);
   // Cast through `unknown` to satisfy strictFunctionTypes parameter
