@@ -289,6 +289,67 @@ curl -sI 'https://assessiq.automateedge.cloud/embed?token=<valid-jwt>' \
 
 ---
 
+## Integration test coverage
+
+Added 2026-05-11. Test files in `src/__tests__/`.
+
+### `embed-jwt-db.test.ts` — DB-backed integration tests (testcontainers)
+
+Uses `postgres:16-alpine` + `redis:7-alpine` containers. Applies migrations in order:
+`02-tenancy/0001-0003` → `03-users/020_users` → `01-auth/011_sessions + 014_embed_secrets` → `12-embed-sdk/0071_embed_metadata`.
+
+| Case | Test ID | Description | Result |
+|------|---------|-------------|--------|
+| T1 (happy path) | `T1: minted session…` | Valid JWT → `verifyEmbedToken` + `mintEmbedSession`; asserts token non-empty, maxAge ≤ 300s, session_type='embed' in Postgres | PASS |
+| T2 (wrong secret) | `T2: JWT signed with wrong secret…` | JWT signed with a random key not in the tenant's embed_secrets → AuthnError | PASS |
+| T4 (future iat — DB-backed) | `T4: JWT with iat 60s in the future…` | Real tenant secret, iat=now+60, exp=now+360 (valid sig); iat check stops it | PASS |
+| T6 (ghost tenant_id) | `T6: a syntactically valid UUID…` | UUID that exists in no tenant row → embed_secrets SELECT returns 0 rows → AuthnError | PASS |
+| T7 (cross-tenant forge) | `T7: JWT with tenant_id=A signed with tenant B's secret…` | Headline security test — verifyEmbedToken loads A's secret; B's sig fails | PASS |
+| T8 (replay attack) | `T8: second submission of the same valid JWT…` | JTI SET NX returns null on second call → AuthnError | PASS |
+| T12 (100 KB payload) | `T12: 100 KB assessment_id is accepted…` | **GAP**: no size limit in `verifyEmbedToken`; test documents current behaviour (accepted) | PASS/GAP |
+| T13 (Cyrillic homograph) | `T13: a tenant_id containing Cyrillic lookalikes…` | PG `::uuid` cast rejects Cyrillic chars → DB error wrapped as AuthnError | PASS |
+
+### `embed-verify.test.ts` — pre-DB unit tests (no containers required)
+
+| Case | Test ID | Description |
+|------|---------|-------------|
+| V1 | `V1: rejects alg=none` | Algorithm confusion — fires at `decodeProtectedHeader` alg check |
+| V2 | `V2: rejects RS256 signed token` | Algorithm confusion — RS256 header rejected before any DB call |
+| V3 | `V3: rejects token with exp - iat > 600s` | Lifetime cap check fires pre-DB |
+| V4 | `V4: rejects expired token` | `exp <= now` check fires pre-DB |
+| T4 (unit) | `T4: rejects token with iat 60s in the future` | `iat > now + 5` check fires pre-DB (note: unit-test version; see DB-backed T4 above for genuine regression guard) |
+| T5a | `T5a: rejects token missing tenant_id` | Claim type check fires pre-DB |
+| T5b | `T5b: rejects token missing sub` | Claim type check fires pre-DB |
+| T5c | `T5c: rejects token missing email` | Claim type check fires pre-DB |
+| T5d | `T5d: rejects token missing assessment_id` | Claim type check fires pre-DB |
+| T11 | `T11: rejects string that is not a valid JWT` | `decodeProtectedHeader` throws on non-JWT garbage |
+| T11b | `T11b: rejects a single-segment string` | Same |
+| T11c | `T11c: rejects empty string` | Same |
+
+### `session-mint.test.ts` — unit tests for `mintEmbedSession`
+
+| Case | Test ID | Description |
+|------|---------|-------------|
+| S1 | `S1: is exactly "aiq_embed_sess"` | Frozen cookie-name constant guard |
+| S2a | `S2a: maxAge = jwtRemaining when jwtRemaining < 8h` | D6 cap math: 1h JWT → 1h maxAge |
+| S2b | `S2b: maxAge is capped at 8h when jwtRemaining > 8h` | D6 cap math: 27h JWT → 8h maxAge |
+
+### Bugs flagged (not fixed)
+
+**BUG-A** — `jit-user.ts` (`resolveJitUser`): the INSERT references columns `password_hash` and `email_verified` that do not exist in the `users` table schema (`03-users/020_users.sql`). Any call to `resolveJitUser` that triggers the CREATE path will throw a PostgreSQL `column "password_hash" of relation "users" does not exist` error. The embed-sdk integration tests bypass `resolveJitUser` entirely (users are inserted directly); production embed traffic that hits the JIT-create path will fail until this is fixed.
+
+**GAP-A** — T12: no payload size validation in `verifyEmbedToken`. A JWT with a 100 KB `assessment_id` is accepted if the signature is valid. DoS protection is assumed to be at the HTTP body-size layer (Fastify). Recommend adding a size cap (e.g. 8 KB total JWT length) at the top of `verifyEmbedToken` (`modules/01-auth/src/embed-jwt.ts`).
+
+### Spot-checks (regression guard verification)
+
+Three implementation checks were temporarily disabled and the test suite re-run to confirm the tests actually catch the regression:
+
+1. **T8 replay guard** — commented out `if (setResult === null)` in `embed-jwt.ts:Step 3`. T8 went RED (`AssertionError: expected [Function] to throw`). ✓
+2. **T4 (DB-backed) iat check** — commented out `if (rawPayload.iat > now + 5)` in `embed-jwt.ts:Step 1`. T4 went RED (function resolved instead of rejecting). ✓
+3. **T1 session_type UPDATE** — commented out `withTenant(UPDATE sessions SET session_type = 'embed')` in `session-mint.ts`. T1 went RED (`expected 'standard' to equal 'embed'`). ✓
+
+---
+
 ### D9 — Webhook for embed attempts
 
 **Decision.**
