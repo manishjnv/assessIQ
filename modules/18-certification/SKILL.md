@@ -320,12 +320,77 @@ Full integration test suite (issuance + upgrade + revoke + verify) ships in Sess
 - `admin.certificates.revoke`
 - `admin.certificates.reissue`
 
+## PDF generation (Session 4)
+
+### Stack
+
+- **Renderer:** `playwright-core` (lazy-imported via `await import('playwright-core')`).
+  The import is deferred so a missing Chromium binary does NOT crash the API on startup;
+  the error surfaces only on the first PDF request. `puppeteer-core` is not available
+  in the workspace; `playwright-core@1.59.1` is a transitive dep of `@playwright/test`
+  and is hoisted to the monorepo root.
+- **Browser:** System Chromium at `process.env.PUPPETEER_EXECUTABLE_PATH ?? '/usr/bin/chromium'`.
+  On the Hostinger VPS, `chromium-browser` is installed via `apt`. The env var reuses
+  the puppeteer naming convention for ops familiarity.
+- **Playwright API note:** `waitUntil: 'networkidle'` (playwright) ≠ `'networkidle0'`
+  (puppeteer-only). `page.pdf({ format: 'A4', landscape: true, printBackground: true })`
+  produces an A4 landscape buffer (297mm × 210mm).
+- **QR codes:** `qrcode@1.5.4` (from workspace via `apps/web`). Error correction level M
+  (≈15% damage tolerance), PNG data URL embedded in `<img src="">` — no network fetch
+  at render time.
+
+### Files
+
+```
+src/pdf/
+  qr.ts        — credentialQrDataUrl(verifyUrl): Promise<string>
+  template.ts  — renderCertificateHtml(cert, qrDataUrl): string
+  render.ts    — renderCertificatePdf(cert): Promise<Buffer>  (exported public)
+```
+
+### Brand token mapping (OKLCH hue 258 → sRGB, light mode only)
+
+| Token | sRGB hex | Usage |
+|---|---|---|
+| accent | `#3177dc` | Accent bar, course title, tier badge background |
+| fg-primary | `#1a1a1a` | Body text, recipient name |
+| fg-secondary | `#5f6368` | Labels, credential ID, QR label |
+| bg-base | `#ffffff` | Page background |
+| bg-raised | `#fafafa` | Credential ID chip background |
+| border | `#e8e8e8` | Credential ID chip border |
+
+Fonts: `Newsreader, Georgia, 'Times New Roman', serif` (headlines) /
+`Geist, Helvetica, Arial, sans-serif` (body) /
+`'JetBrains Mono', 'Courier New', monospace` (credential ID).
+
+### Known gaps (punted to later sessions)
+
+- **Tier-specific accent colours** — the branding guideline (`docs/10-branding-guideline.md`)
+  does not define per-tier colours (completion / distinction / honors). All tiers use the
+  same `#3177dc` accent. Decision deferred to Session 6 (admin reissue, when the design
+  team can confirm).
+- **Custom fonts on VPS Chromium** — Newsreader and Geist are not installed on the
+  VPS system Chromium. Fallback stacks (Georgia, Helvetica) render correctly. Installing
+  the fonts as a deploy step is deferred to Session 5 or later.
+- **No server-side PDF caching** — each download triggers a fresh Chromium render.
+  Acceptable for MVP volumes. A CDN-signed URL cache can be added in Session 9+.
+
+### Endpoint security decisions
+
+- **Revoked certs: 410 Gone** (never 200). A revoked cert has no valid PDF to serve.
+- **Tampered HMAC: 500 Internal Server Error** (never a silent render). Serving a PDF
+  for a tampered row would print data that doesn't match what was cryptographically signed.
+- **Owner check:** `cert.candidate_id === session.userId` OR `role ∈ {admin, super_admin}`.
+  Reviewer role cannot download another user's cert.
+- **Counter increment:** `pdf_downloads` is incremented via `withTenant` after the PDF
+  is rendered. Errors are caught and swallowed (non-critical analytics).
+- **Cache-Control: no-cache, no-store** — caching a PDF before a potential revocation
+  would be a security issue.
+
 ## Open questions
 1. **Credential ID prefix per tenant** — should `AIQ` be configurable as a
    tenant setting (e.g. `WIPRO` for the Wipro SOC pack)? Or always `AIQ` as
    the platform issuer? Decision deferred to Session 6 when admin reissue ships.
 
-2. **Verify page public lookup DB strategy** — SECURITY DEFINER function vs
-   `assessiq_system` role vs explicit `SET LOCAL` bypass? All three work;
-   SECURITY DEFINER is the most portable. Decide in Session 3 when the verify
-   endpoint is implemented.
+2. ~~**Verify page public lookup DB strategy**~~ — Resolved in Session 3 as Option 3
+   (public-tenant GUC policy: `SET LOCAL ROLE assessiq_system`). See `SKILL.md D7`.
