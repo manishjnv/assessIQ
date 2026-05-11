@@ -12,7 +12,7 @@ export interface AdminSessionInfo {
     id: string;
     email: string | null;
     name: string | null;
-    role: "admin" | "reviewer" | "candidate" | "api-key";
+    role: "admin" | "super_admin" | "reviewer" | "candidate" | "api-key";
   };
   tenant: {
     id: string;

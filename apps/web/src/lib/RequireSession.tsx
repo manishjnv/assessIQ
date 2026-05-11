@@ -8,6 +8,9 @@ import type { ReactNode } from 'react';
 //   - no session  → redirect to /admin/login (preserving from-path in state)
 //   - mfaStatus=pending and not on /admin/mfa → redirect to /admin/mfa
 //   - role mismatch → redirect to /admin/login
+//
+// super_admin satisfies any role gate: super_admin > admin > reviewer > candidate.
+// This avoids forking every route guard when platform operators need access.
 
 export function RequireSession({
   children,
@@ -45,7 +48,9 @@ export function RequireSession({
     return <Navigate to="/admin/mfa" replace />;
   }
 
-  if (role !== undefined && session.user.role !== role) {
+  // super_admin satisfies any role requirement (super_admin > admin > reviewer).
+  const isSuperAdmin = session.user.role === 'super_admin';
+  if (role !== undefined && session.user.role !== role && !isSuperAdmin) {
     return <Navigate to="/admin/login" replace />;
   }
 

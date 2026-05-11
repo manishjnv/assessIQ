@@ -7,6 +7,10 @@
 // P2.D6, tenant_grading_budgets, "platform admin updates the database directly")
 // and replaced with answers to "what does this mean for me right now?"
 //
+// 2026-05-10: Added super-admin-only AI Generation Mode card (Stage 3 rollout).
+// Rendered only when session.user.role === 'super_admin'. Tenant admins see
+// nothing — no greyed-out control, no tooltip mentioning the option.
+//
 // Technical context (for engineers, not users):
 //   - Phase 2 grading uses the admin's Claude Max OAuth session via VPS runtime.
 //   - No per-tenant billing or token metering at this stage.
@@ -18,10 +22,12 @@
 //   - No claude/anthropic imports or user-facing references.
 //   - No new @assessiq/ui-system primitives — uses existing Card, Chip, Icon.
 
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Chip, Icon } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { useAdminSession } from "../session.js";
+import { updateTenantAiGenerateMode, type AiGenerateMode } from "../api.js";
 
 // ── Shared style objects ──────────────────────────────────────────────────────
 
@@ -69,6 +75,20 @@ const MUTED_SM: React.CSSProperties = {
 
 export function AdminBilling(): React.ReactElement {
   const navigate = useNavigate();
+  const { session } = useAdminSession();
+  const isSuperAdmin = session?.user.role === "super_admin";
+
+  // Super-admin AI mode state. Only populated / rendered when isSuperAdmin.
+  // tenantId of the CURRENT session's tenant is used as the target when the
+  // super-admin is viewing "their own" management tenant. In a multi-tenant
+  // management flow, this would come from a route param.
+  const tenantId = session?.tenant.id ?? "";
+  const [selectedMode, setSelectedMode] = useState<AiGenerateMode>(null);
+  const [confirmPending, setConfirmPending] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastAuditId, setLastAuditId] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
   return (
     <AdminShell breadcrumbs={["Settings", "Billing"]} helpPage="admin.settings.billing">
@@ -79,6 +99,135 @@ export function AdminBilling(): React.ReactElement {
           <h1 style={SERIF_H1}>Billing &amp; limits.</h1>
           <p style={MUTED_SM}>How AI grading is paid for, and how many you can run each month.</p>
         </div>
+
+        {/* Super-admin only: AI Generation Mode card.
+            Tenant admins never see this section — not even greyed out. */}
+        {isSuperAdmin && (
+          <Card>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+                <Icon name="sparkle" size={18} color="var(--aiq-color-warning, #d97706)" />
+                <h2 style={SERIF_H2}>AI Generation Mode</h2>
+                <Chip variant="default" style={{ marginLeft: "var(--aiq-space-sm)" }}>Super-admin only</Chip>
+              </div>
+
+              <p style={{ ...BODY_SM, color: "var(--aiq-color-fg-muted)", display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                ⚠️ Changes are audit-logged and take effect on the next generation request.
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+                <label
+                  htmlFor="ai-generate-mode-select"
+                  style={{ ...BODY_SM, fontWeight: 500 }}
+                >
+                  Mode
+                </label>
+                <select
+                  id="ai-generate-mode-select"
+                  value={selectedMode ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSelectedMode(v === "" ? null : (v as AiGenerateMode));
+                    setSaveError(null);
+                  }}
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
+                    borderRadius: "var(--aiq-radius-md)",
+                    border: "1px solid var(--aiq-color-border)",
+                    background: "var(--aiq-color-bg-raised)",
+                    color: "var(--aiq-color-fg-primary)",
+                    width: 260,
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="">Use global default (omnibus)</option>
+                  <option value="omnibus">omnibus</option>
+                  <option value="sharded">sharded</option>
+                </select>
+                <p style={MUTED_SM}>
+                  Current global default: <strong>omnibus</strong> (from AI_GENERATE_MODE env var).
+                </p>
+              </div>
+
+              {saveError !== null && (
+                <p style={{ ...BODY_SM, color: "var(--aiq-color-danger)" }}>{saveError}</p>
+              )}
+
+              {toastVisible && lastAuditId !== null && (
+                <p style={{ ...BODY_SM, color: "var(--aiq-color-success)" }}>
+                  AI mode updated. Audit log entry: {lastAuditId}
+                </p>
+              )}
+
+              {/* Confirmation dialog (inline, not a modal — matches existing admin UI pattern) */}
+              {confirmPending ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "var(--aiq-space-sm)",
+                    padding: "var(--aiq-space-md)",
+                    background: "var(--aiq-color-bg-sunken)",
+                    borderRadius: "var(--aiq-radius-md)",
+                    border: "1px solid var(--aiq-color-warning, #d97706)",
+                  }}
+                >
+                  <p style={{ ...BODY_SM, margin: 0 }}>
+                    Switch this tenant to{" "}
+                    <strong>{selectedMode === null ? "global default" : selectedMode}</strong>?
+                    This change is audit-logged and takes effect on the next generation request.
+                  </p>
+                  <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
+                    <button
+                      type="button"
+                      className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        setSaveError(null);
+                        try {
+                          const res = await updateTenantAiGenerateMode(tenantId, selectedMode);
+                          setLastAuditId(res.auditId);
+                          setToastVisible(true);
+                          setConfirmPending(false);
+                          setTimeout(() => setToastVisible(false), 8_000);
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : "Save failed";
+                          setSaveError(msg);
+                          setConfirmPending(false);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      {saving ? "Saving…" : "Confirm"}
+                    </button>
+                    <button
+                      type="button"
+                      className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                      disabled={saving}
+                      onClick={() => setConfirmPending(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                    onClick={() => setConfirmPending(true)}
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
 
         {/* Card 1 — How AI grading is paid for today */}
         <Card>

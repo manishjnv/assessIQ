@@ -59,7 +59,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   const path = location.pathname;
 
   // Nav config — role-aware: reviewers see grading + reports only.
-  const isAdmin = session?.user.role === "admin";
+  // super_admin satisfies the admin gate (super_admin > admin).
+  const isAdmin = session?.user.role === "admin" || session?.user.role === "super_admin";
 
   interface NavEntry {
     label: string;
