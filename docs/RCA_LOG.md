@@ -4,6 +4,39 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-11 — Finding C: `inviteUsers` papered over a missing tenant.name fallback
+
+**Symptom:** Phase 1 closure-audit Drill 1 failed at the invite step. `13-notifications`
+`sendAssessmentInvitationEmail` rejected the payload with a Zod `.min(1)` violation on
+`tenantName`. The whole `withTenant` transaction rolled back — invitation row was never
+persisted and no email was logged. Drills 3 (step 5) and 4 were blocked downstream.
+
+**Cause:** Two-step regression. The original ship of `modules/05-assessment-lifecycle/src/service.ts`
+passed `tenantName: ""` to the email shim (SKILL.md status note "tenantName is passed as
+empty string"). Commit `d681ec5` added a tenant DB fetch but with a permissive fallback
+chain — `modules/05-assessment-lifecycle/src/service.ts:697`:
+`const tenantName = tenantRow?.name || tenantRow?.slug || tenantId;`. That silently swapped
+the email body's tenant label from the canonical name to a slug (and, in the null-row case,
+to the bare UUID) — defeating the validator's intent rather than honouring it. The validator
+is correct; the caller was making it permissive.
+
+**Fix:** `modules/05-assessment-lifecycle/src/service.ts:691-708` — inside the existing
+`withTenant` transaction (same client, RLS-scoped), fetch the tenant row; throw
+`NotFoundError{code: TENANT_NAME_MISSING}` if the row is null and
+`ValidationError{code: TENANT_NAME_MISSING}` if `name?.trim()` is empty. No fallback to
+slug, no fallback to id. New error code in
+`modules/05-assessment-lifecycle/src/types.ts:199` (`TENANT_NAME_MISSING`). Three unit
+regressions added in `src/__tests__/invite-email.test.ts`: happy-path (`tenantName === "Acme Corp"`,
+never the id, never empty), null-tenant-row throws and skips dispatch, empty-name throws
+and skips dispatch.
+
+**Prevention:** Manual discipline for now — the inviteUsers callsite is the only one in 05
+that constructs a payload requiring a non-empty tenant name (grep confirmed). A
+type-level `NonEmptyString` guard at the `13-notifications` input boundary is the proper
+long-term fix; deferred because (a) it should live next to the Zod schemas in
+`13-notifications` and (b) module 13 is locked in this session under the orchestrator's
+"validator stays as-is" constraint. Filed as an open question for the orchestrator.
+
 ## 2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift
 
 **Symptom:** Four sharded-smoke attempts (019e103c, 019e11a2, 019e128e, 019e1293) each recorded

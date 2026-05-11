@@ -1,3 +1,23 @@
+# Session — 2026-05-11 (Phase 1 closure — Finding C surgical fix)
+
+**Headline:** Finding C closed in code: `modules/05-assessment-lifecycle/src/service.ts:691-708` now throws `TENANT_NAME_MISSING` if the tenant row is missing or the name is empty — no fallback to slug, no fallback to id. The `13-notifications` Zod `.min(1)` validator stays unchanged.
+**Commits:** (will be appended once the commit lands)
+**Tests:** `pnpm -C modules/05-assessment-lifecycle exec vitest run src/__tests__/invite-email.test.ts` ✅ 5/5 (2 existing + 3 new regressions) | `pnpm -C modules/13-notifications typecheck` ✅ | lint-no-ambient-claude ✅. Full `lifecycle.test.ts` integration suite is blocked at setup by the parallel G3.D session adding `auditInTx` to `04-question-bank.createPack` while the 05-testcontainer migration set doesn't include `14-audit-log` — orchestrator concern, not this fix.
+**Next:** Orchestrator re-runs Drills 1, 3 step 5, and 4 against a running stack to close the Phase 1 closure audit. After that, decide where a `NonEmptyString` type-level guard lives long-term (00-core vs 13-notifications).
+**Open questions:**
+- Should I re-run Drill 1 now, or wait until the parallel 04-question-bank G3.D session lands so the integration suite passes again?
+- Long-term `NonEmptyString` guard: lives in `00-core` (reusable across all modules) or `13-notifications` (next to its Zod schemas)? Both have a case; orchestrator's call.
+
+---
+
+## Agent utilization
+- Opus: n/a — handed off to a Sonnet subagent by the orchestrator with a self-contained 5KB prompt.
+- Sonnet: this session — Phase 0 reads, surgical edit to `service.ts` + `types.ts`, 3 new regression unit tests, RCA append, PROJECT_BRAIN row update, this handoff. Acceptance: invite-email.test.ts 5/5, 13-notifications typecheck clean, lint sentinel clean. Did NOT touch 13-notifications, 04-question-bank, 11-candidate-ui, 12-embed-sdk, 15-analytics, 18-certification per scope rules.
+- Haiku: n/a — single targeted bug, no bulk sweeps needed.
+- codex:rescue: n/a — `modules/05-assessment-lifecycle` is not load-bearing per CLAUDE.md; the change does not touch 01-auth, 02-tenancy, 07-ai-grading, 14-audit-log, or infra. Opus reviews the diff before push.
+
+---
+
 # Session — 2026-05-11 (Phase 5 Session 1 — 18-certification scaffold)
 
 **Headline:** `modules/18-certification` scaffolded: folder skeleton, types, migration 0046 with tenant_id + RLS, SKILL.md, package.json, stubs, and 29-passing unit tests. No business logic yet.
