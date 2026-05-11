@@ -175,3 +175,37 @@ export async function scoreGenerationAttempt(id: string): Promise<ScoreAttemptRe
     { method: "POST" },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — super-admin AI generation mode endpoint
+// ---------------------------------------------------------------------------
+
+export type AiGenerateMode = "omnibus" | "sharded" | null;
+
+export interface UpdateAiGenerateModeRequest {
+  mode: AiGenerateMode;
+}
+
+export interface UpdateAiGenerateModeResponse {
+  tenantId: string;
+  ai_generate_mode: AiGenerateMode;
+  previous: AiGenerateMode;
+  updatedAt: string; // ISO 8601
+  auditId: string;
+}
+
+/**
+ * PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode
+ *
+ * Super-admin only. Flips the per-tenant AI generation mode.
+ * Returns the new state + the audit log row id for the toast message.
+ */
+export async function updateTenantAiGenerateMode(
+  tenantId: string,
+  mode: AiGenerateMode,
+): Promise<UpdateAiGenerateModeResponse> {
+  return adminApi<UpdateAiGenerateModeResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/ai-generate-mode`,
+    { method: "PATCH", body: JSON.stringify({ mode }) },
+  );
+}

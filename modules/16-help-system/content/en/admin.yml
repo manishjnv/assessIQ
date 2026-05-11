@@ -976,6 +976,44 @@ admin.generation-attempts.history:
     | `failed` | No questions were inserted; the run terminated with an error |
     | `running` | Generation is in progress |
 
+# ─── Super-admin settings (Stage 3 rollout, 2026-05-10) ───
+
+admin.settings.ai_generate_mode:
+  audience: admin
+  short_text: "Per-tenant AI question generation mode. omnibus = single prompt; sharded = one prompt per question type. Effective on next request."
+  long_md: |
+    ## AI Generation Mode
+
+    Controls how AI question generation works for this tenant.
+
+    | Value | Meaning |
+    |---|---|
+    | **Use global default** | Inherits the platform-wide `AI_GENERATE_MODE` env var (currently `omnibus`). Reset to this if you want to undo a tenant-specific override. |
+    | **omnibus** | All questions are generated in a single AI prompt. Lower latency but no per-type quality tuning. |
+    | **sharded** | Questions are generated in separate per-type prompts (one each for mcq, log_analysis, scenario, kql, subjective). Higher fidelity; slightly longer wall-clock time. |
+
+    **Stage 3 rollout context:** `sharded` is the target production default once
+    five consecutive smoke runs pass all gating criteria (G1–G5, see
+    `docs/design/2026-05-10-stage-3-promotion-rollout.md §2`). Until then, the
+    global default remains `omnibus` and individual tenants are promoted to
+    `sharded` one at a time as a quality pilot.
+
+    **Audit trail:** Every change to this setting is recorded in the tenant's
+    audit log (`action: tenant_settings.ai_generate_mode.updated`) with the
+    before value, after value, and the identity of the operator who made the
+    change.
+
+    **Operator note:** If you need to flip the mode without a UI session (e.g.
+    during a hotfix), run:
+    ```sql
+    UPDATE tenant_settings SET ai_generate_mode = 'omnibus' WHERE tenant_id = '<uuid>';
+    ```
+    on the VPS. No container restart required; the change takes effect on the
+    next generation request. The global fallback remains the `AI_GENERATE_MODE`
+    env var when the column is NULL.
+  related_keys:
+    - admin.settings.billing
+
     ### Score this attempt
 
     Clicking **Score this attempt** runs two checks server-side and renders the
