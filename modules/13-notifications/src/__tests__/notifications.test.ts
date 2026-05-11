@@ -61,6 +61,12 @@ vi.mock('@assessiq/core', () => {
   };
 });
 
+// Mock @assessiq/audit-log so auditInTx calls don't require a real DB or RequestContext
+vi.mock('@assessiq/audit-log', () => ({
+  auditInTx: vi.fn().mockResolvedValue(undefined),
+  audit: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock @assessiq/tenancy so we don't need a live Postgres
 vi.mock('@assessiq/tenancy', () => ({
   withTenant: async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) =>

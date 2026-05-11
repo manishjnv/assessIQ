@@ -107,6 +107,7 @@ export async function registerNotificationsRoutes(
    */
   app.post('/api/admin/webhooks', { preHandler: adminChain }, async (req: FastifyRequest, reply: FastifyReply) => {
     const tenantId = getTenantId(req);
+    const userId = (req as AiqReq).session?.userId;
 
     const bodyParsed = CreateWebhookEndpointBodySchema.safeParse(req.body);
     if (!bodyParsed.success) {
@@ -155,6 +156,7 @@ export async function registerNotificationsRoutes(
       url,
       events,
       requiresFreshMfa,
+      actorUserId: userId,
     });
 
     return reply.code(201).send({
@@ -166,9 +168,10 @@ export async function registerNotificationsRoutes(
   /** DELETE /api/admin/webhooks/:id — delete a webhook endpoint */
   app.delete('/api/admin/webhooks/:id', { preHandler: adminChain }, async (req: FastifyRequest, reply: FastifyReply) => {
     const tenantId = getTenantId(req);
+    const userId = (req as AiqReq).session?.userId;
     const { id } = req.params as { id: string };
 
-    await webhookService.deleteWebhookEndpoint(tenantId, id);
+    await webhookService.deleteWebhookEndpoint(tenantId, id, userId);
     return reply.code(204).send();
   });
 
@@ -221,18 +224,20 @@ export async function registerNotificationsRoutes(
   /** POST /api/admin/webhooks/deliveries/:id/replay — replay (append-only) */
   app.post('/api/admin/webhooks/deliveries/:id/replay', { preHandler: adminChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
+    const userId = (req as AiqReq).session?.userId;
     const { id } = req.params as { id: string };
 
-    const result = await webhookService.replayDelivery(tenantId, id);
+    const result = await webhookService.replayDelivery(tenantId, id, userId);
     return { deliveryId: result.deliveryId };
   });
 
   /** POST /api/admin/webhook-failures/:id/retry — convenience alias for replay */
   app.post('/api/admin/webhook-failures/:id/retry', { preHandler: adminChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
+    const userId = (req as AiqReq).session?.userId;
     const { id } = req.params as { id: string };
 
-    const result = await webhookService.replayDelivery(tenantId, id);
+    const result = await webhookService.replayDelivery(tenantId, id, userId);
     return { deliveryId: result.deliveryId };
   });
 

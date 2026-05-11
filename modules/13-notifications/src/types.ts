@@ -166,6 +166,8 @@ export const CreateWebhookEndpointInputSchema = z.object({
   url: z.string().url(),
   events: z.array(z.string().min(1)).min(1),
   requiresFreshMfa: z.boolean().default(false),
+  /** G3.D: admin user performing the creation; omitted for system/programmatic calls. */
+  actorUserId: z.string().uuid().optional(),
 });
 
 export type CreateWebhookEndpointInput = z.infer<typeof CreateWebhookEndpointInputSchema>;
