@@ -5,14 +5,16 @@
 // Format: PREFIX-YYYY-MM-XXXXXX
 //   PREFIX  = 2–4 uppercase letters (default "AIQ")
 //   YYYY-MM = UTC year + month at issuance
-//   XXXXXX  = 6 chars from [A-Z0-9], drawn via CSPRNG (crypto.randomInt)
+//   XXXXXX  = 6 chars from a Crockford-style 32-char alphabet (0-9A-Z minus
+//             I, L, O, U), drawn via CSPRNG (crypto.randomInt). Homoglyph-free
+//             so credential IDs transcribed by hand are unambiguous.
 //
-// 36^6 ≈ 2.18B suffixes per (prefix, year-month). DB UNIQUE(credential_id)
+// 32^6 ≈ 1.07B suffixes per (prefix, year-month). DB UNIQUE(credential_id)
 // is the actual collision guard; the service layer retries on conflict.
 //
-// INVARIANT: NEVER Math.random. Always crypto.randomInt(0, 36). The slug
-// is part of the credential's identity — a non-CSPRNG draw makes collisions
-// predictable.
+// INVARIANT: NEVER Math.random. Always crypto.randomInt(0, CHARSET.length).
+// The slug is part of the credential's identity — a non-CSPRNG draw makes
+// collisions predictable. Full alphabet rationale at the CHARSET definition.
 //
 // CLAUDE.md rule #1: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
