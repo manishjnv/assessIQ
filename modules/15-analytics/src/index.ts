@@ -14,6 +14,7 @@ export { homeKpis, queueSummary } from './service.js';
 // ---------------------------------------------------------------------------
 export {
   cohortReport,
+  getAdminCohortReport,
   individualReport,
   topicHeatmap,
   archetypeDistribution,
@@ -47,6 +48,8 @@ export {
 export type {
   HomeKpis,
   QueueSummary,
+  AdminCohortReport,
+  AdminCohortAttemptRow,
   CohortReport,
   LevelBreakdown,
   TopicBreakdownItem,
@@ -62,4 +65,4 @@ export type {
   ExportFilter,
 } from './types.js';
 export { ReportFilterSchema, ExportFilterSchema } from './types.js';
-export { EXPORT_ROW_CAP } from './repository.js';
+export { EXPORT_ROW_CAP, COHORT_ATTEMPTS_HARD_LIMIT } from './repository.js';

@@ -179,6 +179,49 @@ export interface TopicHeatmapExportRow {
 }
 
 // ---------------------------------------------------------------------------
+// Admin cohort report (GET /api/admin/cycles/:cycleId/cohort-report)
+//
+// Shape differs from CohortReport: uses snake_case to match the HTTP JSON
+// contract in docs/03-api-contract.md, includes status-specific counts,
+// and embeds a per-attempt rows array for admin review.
+// ---------------------------------------------------------------------------
+
+export interface AdminCohortAttemptRow {
+  attempt_id: string;
+  user_id: string;
+  /** Percentage score — auto_pct from attempt_scores (0–100). */
+  total_score: number;
+  archetype: string | null;
+}
+
+export interface AdminCohortReport {
+  /** UUID of the assessment (called "cycle" in the API URL). */
+  cycle_id: string;
+  /** All attempts in the MV for this assessment (all terminal statuses). */
+  total_attempts: number;
+  /** Attempts in 'graded' or 'pending_admin_grading' status. */
+  graded_count: number;
+  /** Attempts in 'released' status. */
+  released_count: number;
+  /** Count per archetype label across all scored attempts. */
+  archetype_distribution: Record<string, number>;
+  /** Mean auto_pct. Null when no attempts exist. */
+  avg_total_score: number | null;
+  /** Median auto_pct via PERCENTILE_CONT(0.5). Null when no attempts exist. */
+  p50_total_score: number | null;
+  /** 90th-percentile auto_pct via PERCENTILE_CONT(0.9). Null when no attempts exist. */
+  p90_total_score: number | null;
+  /**
+   * Average auto_pct keyed by levels.label (e.g. "L1", "Foundation").
+   * Partial when fewer levels have data. Empty when no scored attempts exist.
+   * Since a single assessment maps to one level_id, this typically has 1 entry.
+   */
+  band_avg: Record<string, number>;
+  /** Scored attempts, ordered by total_score DESC. Capped at 500 rows. */
+  attempts: AdminCohortAttemptRow[];
+}
+
+// ---------------------------------------------------------------------------
 // Report filters
 // ---------------------------------------------------------------------------
 

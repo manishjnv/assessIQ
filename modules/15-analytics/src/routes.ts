@@ -29,6 +29,7 @@ import { z } from 'zod';
 import { config, ValidationError } from '@assessiq/core';
 import { audit } from '@assessiq/audit-log';
 import {
+  getAdminCohortReport,
   topicHeatmap,
   archetypeDistribution,
   gradingCostByMonth,
@@ -38,6 +39,7 @@ import {
 } from './service.js';
 import { ExportFilterSchema } from './types.js';
 import { EXPORT_ROW_CAP } from './repository.js';
+import { processRefreshMvJob } from './refresh-mv-job.js';
 
 // ---------------------------------------------------------------------------
 // Convenience session accessor (matches the cast pattern across all modules)
@@ -55,6 +57,14 @@ function sess(req: unknown): SessionReq['session'] {
 export interface RegisterAnalyticsRoutesOptions {
   /** Admin-gated preHandler — authChain({ roles: ['admin'] }) from apps/api. */
   adminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
+  /**
+   * Super-admin-only preHandler — authChain({ roles: ['super_admin'] }) from apps/api.
+   * Used for the POST /api/admin/analytics/refresh endpoint that triggers a
+   * manual REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv.
+   * Super-admin required because the refresh acquires a non-exclusive lock and
+   * could be used to mask data-staleness in reports — restrict to platform ops.
+   */
+  superAdminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +95,9 @@ export async function registerAnalyticsRoutes(
   const preHandler = Array.isArray(opts.adminOnly)
     ? opts.adminOnly
     : [opts.adminOnly];
+  const superAdminHandler = Array.isArray(opts.superAdminOnly)
+    ? opts.superAdminOnly
+    : [opts.superAdminOnly];
 
   // -------------------------------------------------------------------------
   // GET /api/admin/reports/topic-heatmap
@@ -267,6 +280,67 @@ export async function registerAnalyticsRoutes(
       void reply.header('Content-Type', 'text/csv; charset=utf-8');
       void reply.header('Content-Disposition', 'attachment; filename="topic-heatmap.csv"');
       return reply.send(stream);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/admin/cycles/:cycleId/cohort-report
+  //
+  // "cycle" in the URL is the assessment_id — AssessIQ uses "assessment" in
+  // the DB but the API surface uses "cycle" to match the Phase 3 plan spec.
+  //
+  // Auth: any tenant admin (admin role, scoped to their tenant via withTenant).
+  // Query: ?archetype=<label> (optional, filters attempts[] only — stats cover
+  //   the full cohort regardless of the filter).
+  // Response 200: AdminCohortReport (see modules/15-analytics/src/types.ts)
+  // Response 400: cycleId is not a valid UUID
+  // Response 403: caller is not an admin (authChain throws AuthzError → 403)
+  // Response 404: not emitted from this handler — an unknown assessmentId
+  //   returns a valid response with total_attempts=0 and empty arrays.
+  //
+  // RLS: the MV has no RLS. The WHERE tenant_id = current_setting(...)
+  // clause in queryAdminCohortReport enforces tenant isolation.
+  // -------------------------------------------------------------------------
+  app.get(
+    '/api/admin/cycles/:cycleId/cohort-report',
+    { preHandler },
+    async (req, reply) => {
+      const { cycleId } = req.params as { cycleId: string };
+      if (!/^[0-9a-f-]{36}$/i.test(cycleId)) {
+        throw new ValidationError('cycleId must be a valid UUID');
+      }
+      const query = req.query as Record<string, string | undefined>;
+      const archetypeFilter = query['archetype'];
+      const { tenantId } = sess(req);
+
+      const report = await getAdminCohortReport(tenantId, cycleId, {
+        ...(archetypeFilter !== undefined && { archetype: archetypeFilter }),
+      });
+
+      return reply.send(report);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /api/admin/analytics/refresh
+  //
+  // Triggers REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv.
+  // Restricted to super_admin: the refresh acquires a non-exclusive table lock
+  // and is a platform-operator action (not a per-tenant operation).
+  //
+  // MVP manual-only policy: the nightly BullMQ job handles scheduled refresh.
+  // This endpoint allows platform ops to force a refresh after a bulk import
+  // or a grading run without waiting for the next nightly window.
+  //
+  // Auto-refresh on every attempt write is explicitly deferred (Phase 3.D
+  // follow-up) — see modules/15-analytics/SKILL.md for rationale.
+  // -------------------------------------------------------------------------
+  app.post(
+    '/api/admin/analytics/refresh',
+    { preHandler: superAdminHandler },
+    async (_req, reply) => {
+      const result = await processRefreshMvJob();
+      return reply.code(200).send({ ok: true, duration_ms: result.duration_ms });
     },
   );
 }

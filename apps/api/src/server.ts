@@ -220,8 +220,13 @@ export async function buildServer() {
   //   - /api/admin/reports/exports/attempts.csv
   //   - /api/admin/reports/exports/attempts.jsonl
   //   - /api/admin/reports/exports/topic-heatmap.csv
+  //   - GET /api/admin/cycles/:cycleId/cohort-report (admin, Phase 3 G3.C)
+  //   - POST /api/admin/analytics/refresh (super_admin — manual MV refresh)
   // All /api/admin/* → covered by Caddy @api matcher.
-  await registerAnalyticsRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+  await registerAnalyticsRoutes(app, {
+    adminOnly: authChain({ roles: ['admin'] }),
+    superAdminOnly: authChain({ roles: ['super_admin'] }),
+  });
 
   // Embed admin routes (Phase 4 — module 12):
   //   GET    /api/admin/embed-origins

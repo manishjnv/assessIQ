@@ -20,6 +20,8 @@ import { Readable } from 'node:stream';
 import type {
   HomeKpis,
   QueueSummary,
+  AdminCohortReport,
+  AdminCohortAttemptRow,
   CohortReport,
   LevelBreakdown,
   TopicBreakdownItem,
@@ -405,6 +407,141 @@ export async function queryArchetypeDistribution(
     archetype: r.archetype,
     count: parseInt(r.count, 10),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Admin cohort report: queryAdminCohortReport — reads attempt_summary_mv
+// ---------------------------------------------------------------------------
+
+/** Hard cap on the attempts[] array returned in AdminCohortReport. */
+export const COHORT_ATTEMPTS_HARD_LIMIT = 500;
+
+/**
+ * Full admin-facing cohort report for one assessment (called "cycle" in the URL).
+ *
+ * All queries against attempt_summary_mv include the mandatory tenant filter:
+ *   WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
+ * This is enforced by tools/lint-mv-tenant-filter.ts.
+ *
+ * Optional archetype filter narrows only the attempts[] list — the aggregate
+ * stats always reflect the full cohort so admins can see the "zoomed" list
+ * while keeping the overall distribution visible.
+ */
+export async function queryAdminCohortReport(
+  client: PoolClient,
+  tenantId: string,
+  assessmentId: string,
+  filter: { archetype?: string | undefined } = {},
+): Promise<AdminCohortReport> {
+  // ---- 1. Aggregate stats ------------------------------------------------
+  // Reads attempt_summary_mv — explicit tenant filter required (no RLS on MV)
+  const aggResult = await client.query<{
+    total_attempts: string;
+    graded_count: string;
+    released_count: string;
+    avg_total_score: string | null;
+    p50_total_score: string | null;
+    p90_total_score: string | null;
+  }>(
+    `SELECT
+       COUNT(*)::text                                                           AS total_attempts,
+       COUNT(*) FILTER (WHERE attempt_status IN ('graded','pending_admin_grading'))::text
+                                                                               AS graded_count,
+       COUNT(*) FILTER (WHERE attempt_status = 'released')::text               AS released_count,
+       ROUND(AVG(auto_pct)::numeric, 2)::text                                  AS avg_total_score,
+       PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY auto_pct)::text            AS p50_total_score,
+       PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY auto_pct)::text            AS p90_total_score
+     FROM attempt_summary_mv
+     WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
+       AND assessment_id = $1`,
+    [assessmentId],
+  );
+  const agg = aggResult.rows[0];
+
+  // ---- 2. Archetype distribution -----------------------------------------
+  // Always the full cohort (no archetype filter) so admins see the whole picture.
+  // Reads attempt_summary_mv — explicit tenant filter required (no RLS on MV)
+  const archetypeResult = await client.query<{ archetype: string; count: string }>(
+    `SELECT archetype, COUNT(*)::text AS count
+     FROM attempt_summary_mv
+     WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
+       AND assessment_id = $1
+       AND archetype IS NOT NULL
+     GROUP BY archetype
+     ORDER BY count DESC`,
+    [assessmentId],
+  );
+  const archetype_distribution: Record<string, number> = {};
+  for (const r of archetypeResult.rows) {
+    archetype_distribution[r.archetype] = parseInt(r.count, 10);
+  }
+
+  // ---- 3. Band avg (mean auto_pct per level label) -----------------------
+  // Since each assessment maps to one level_id, result usually has 1 entry.
+  // Keyed by levels.label (e.g. "L1", "Foundation"). "Partial" because a
+  // future multi-level assessment pack could produce multiple entries.
+  // Reads attempt_summary_mv — explicit tenant filter required (no RLS on MV)
+  const bandResult = await client.query<{ level_label: string; avg_pct: string | null }>(
+    `SELECT
+       COALESCE(l.label, mv.level_id::text) AS level_label,
+       ROUND(AVG(mv.auto_pct)::numeric, 2)::text AS avg_pct
+     FROM attempt_summary_mv mv
+     LEFT JOIN levels l ON l.id = mv.level_id
+     WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
+       AND mv.assessment_id = $1
+     GROUP BY mv.level_id, l.label`,
+    [assessmentId],
+  );
+  const band_avg: Record<string, number> = {};
+  for (const r of bandResult.rows) {
+    if (r.avg_pct != null) {
+      band_avg[r.level_label] = parseFloat(r.avg_pct);
+    }
+  }
+
+  // ---- 4. Attempts list (optionally filtered by archetype) ---------------
+  // Reads attempt_summary_mv — explicit tenant filter required (no RLS on MV)
+  const attemptsParams: unknown[] = [assessmentId];
+  let archetypeClause = '';
+  if (filter.archetype !== undefined) {
+    attemptsParams.push(filter.archetype);
+    archetypeClause = `AND archetype = $2`;
+  }
+  const attemptsResult = await client.query<{
+    attempt_id: string;
+    user_id: string;
+    auto_pct: string;
+    archetype: string | null;
+  }>(
+    `SELECT attempt_id, user_id, auto_pct, archetype
+     FROM attempt_summary_mv
+     WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
+       AND assessment_id = $1
+       ${archetypeClause}
+     ORDER BY auto_pct DESC
+     LIMIT ${COHORT_ATTEMPTS_HARD_LIMIT}`,
+    attemptsParams,
+  );
+  const attempts: AdminCohortAttemptRow[] = attemptsResult.rows.map((r) => ({
+    attempt_id: r.attempt_id,
+    user_id: r.user_id,
+    total_score: parseFloat(r.auto_pct),
+    archetype: r.archetype,
+  }));
+
+  void tenantId; // tenantId is set via withTenant GUC; RLS enforces scope on live tables
+  return {
+    cycle_id: assessmentId,
+    total_attempts: parseInt(agg?.total_attempts ?? '0', 10),
+    graded_count: parseInt(agg?.graded_count ?? '0', 10),
+    released_count: parseInt(agg?.released_count ?? '0', 10),
+    archetype_distribution,
+    avg_total_score: agg?.avg_total_score != null ? parseFloat(agg.avg_total_score) : null,
+    p50_total_score: agg?.p50_total_score != null ? parseFloat(agg.p50_total_score) : null,
+    p90_total_score: agg?.p90_total_score != null ? parseFloat(agg.p90_total_score) : null,
+    band_avg,
+    attempts,
+  };
 }
 
 // ---------------------------------------------------------------------------
