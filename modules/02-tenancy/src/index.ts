@@ -7,7 +7,9 @@ export {
   listActiveTenantIds,
   updateTenantSettings,
   suspendTenant,
+  updateAiGenerateMode,
 } from "./service.js";
+export type { UpdateAiGenerateModeResult } from "./service.js";
 export { findTenantSettings } from "./repository.js";
 export type {
   Tenant,

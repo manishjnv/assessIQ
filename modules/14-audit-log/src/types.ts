@@ -73,6 +73,8 @@ export const ACTION_CATALOG = [
   // Dev-only E2E test-minter — off in production per ENABLE_E2E_TEST_MINTER gate.
   // Auditable so dev/staging test runs are traceable in the audit trail.
   'dev.mint_session',
+  // Super-admin — per-tenant AI generation mode flip (Stage 3 rollout).
+  'tenant_settings.ai_generate_mode.updated',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

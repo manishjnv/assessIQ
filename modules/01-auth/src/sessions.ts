@@ -14,7 +14,13 @@ import { sha256Hex, randomTokenBase64Url } from "./crypto-util.js";
 //   would be wasteful and break connection-limit budgets. The DAG remains
 //   acyclic: 02-tenancy still does NOT import from 01-auth.
 
-export type Role = "admin" | "reviewer" | "candidate";
+// "super_admin" is a platform-operator role that crosses tenant boundaries.
+// It satisfies any per-tenant "admin" gate (super_admin > admin > reviewer > candidate).
+// DB NOTE: the sessions table's role CHECK constraint must be updated via migration
+// to allow 'super_admin' before any super_admin session can be created in production.
+// The ALTER TABLE migration is tracked as a prerequisite in
+// docs/design/2026-05-10-stage-3-promotion-rollout.md §3.
+export type Role = "admin" | "super_admin" | "reviewer" | "candidate";
 
 export interface Session {
   id: string;
