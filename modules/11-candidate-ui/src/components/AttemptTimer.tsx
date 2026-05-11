@@ -162,8 +162,8 @@ export const AttemptTimer: React.FC<AttemptTimerProps> = ({
         transition: `color 300ms ease`,
       }}
     >
-      {/* Decorative — aria-hidden by default when no aria-label passed */}
-      <Icon name="clock" size={14} />
+      {/* Decorative clock — explicitly aria-hidden, consistent with IntegrityBanner pattern */}
+      <Icon name="clock" size={14} aria-hidden={true} />
       <Num
         value={displaySeconds}
         format={formatRemaining}

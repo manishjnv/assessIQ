@@ -140,3 +140,13 @@ Run locally: `pnpm --filter @assessiq/web e2e` (after `pnpm --filter @assessiq/w
 
 ## Open questions
 - (none new — Phase 1 G1.D closed all open questions in the kickoff plan; Phase 2 follow-ups tracked above)
+
+## Accessibility conventions
+
+All presentation primitives in this module target WCAG 2.1 AA. Future component authors must follow these conventions before merging. Each rule maps to the checklist item in the WCAG 2.1 audit applied on 2026-05-11.
+
+- **Semantic HTML first.** Use `<button type="button">` for interactive controls, `<nav aria-label="…">` for navigation regions, `<header>` / `<main>` / `<footer>` as landmark elements. Never use `<div onClick>` or `<span onClick>` for actionable surfaces.
+- **Every form control has an accessible name.** Use `<label htmlFor>`, `aria-label`, or `aria-labelledby`. No unlabelled `<input>`, `<textarea>`, or `<select>` — hidden visual labels still require `aria-label`.
+- **Status regions use `role="status"` or `role="alert"`.** Polite, non-urgent updates (autosave, reconnect status) use `role="status" aria-live="polite"`; urgent interruptions that demand immediate attention use `role="alert" aria-live="assertive"`. Avoid adding `aria-live` to elements that update at sub-second frequency (flag for review instead).
+- **Decorative icons carry `aria-hidden={true}` explicitly.** An icon inside a control that already has a visible text label or an `aria-label` on the parent must have `aria-hidden={true}` to suppress duplicate announcements — don't rely on the Icon component's default behaviour.
+- **Dialogs return focus to their trigger on close.** Any component that opens a modal, drawer, or panel must hold a `ref` on the trigger element and call `triggerRef.current?.focus()` in its close handler (WCAG 2.4.3 Focus Order). The `CandidateHelp` component is the reference implementation.
