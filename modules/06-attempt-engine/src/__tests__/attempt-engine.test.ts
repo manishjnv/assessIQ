@@ -203,7 +203,7 @@ async function buildActiveAssessmentWithInvite(
     },
     adminId,
   );
-  await publishAssessment(tenantId, assessment.id);
+  await publishAssessment(tenantId, assessment.id, adminId);
 
   // Flip published → active via superuser (state machine forbids direct
   // published → active; the boundary cron does it normally).
@@ -350,7 +350,7 @@ describe("startAttempt", () => {
       { pack_id: packId, level_id: levelId, name: "No invite", question_count: 3 },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
     await withSuperClient((c) =>
       c.query(`UPDATE assessments SET status='active' WHERE id=$1`, [assessment.id]),
     );
