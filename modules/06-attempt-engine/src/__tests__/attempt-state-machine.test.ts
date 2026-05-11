@@ -214,7 +214,7 @@ async function buildActiveAssessmentWithInvite(
     { pack_id: packId, level_id: levelId, name: "SM Assessment", question_count: questionCount },
     adminId,
   );
-  await publishAssessment(tenantId, assessment.id);
+  await publishAssessment(tenantId, assessment.id, adminId);
   await withSuperClient((c) =>
     c.query(`UPDATE assessments SET status = 'active' WHERE id = $1`, [assessment.id]),
   );
