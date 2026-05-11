@@ -1,5 +1,6 @@
 import { streamLogger, NotFoundError, ValidationError, ConflictError, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
+import { auditInTx } from '@assessiq/audit-log';
 import type {
   User,
   UserRole,
@@ -13,6 +14,7 @@ import { normalizeEmail } from './normalize.js';
 import { assertNotLastAdmin, assertValidStatusTransition } from './invariants.js';
 import * as repo from './repository.js';
 import { sweepUserSessions } from './redis-sweep.js';
+import { redactUserForAudit } from './audit-redact.js';
 
 const log = streamLogger('app');
 
@@ -116,7 +118,11 @@ export async function getUser(tenantId: string, id: string): Promise<User> {
 // createUser
 // ---------------------------------------------------------------------------
 
-export async function createUser(tenantId: string, input: CreateUserInput): Promise<User> {
+export async function createUser(
+  tenantId: string,
+  input: CreateUserInput,
+  actorUserId: string,
+): Promise<User> {
   const normalizedEmail = normalizeEmail(input.email);
   assertValidEmail(normalizedEmail);
   assertValidName(input.name);
@@ -126,8 +132,8 @@ export async function createUser(tenantId: string, input: CreateUserInput): Prom
   log.info({ tenantId, id, role: input.role }, 'createUser');
 
   try {
-    return await withTenant(tenantId, (client) =>
-      repo.insertUser(client, {
+    return await withTenant(tenantId, async (client) => {
+      const user = await repo.insertUser(client, {
         id,
         tenantId,
         email: normalizedEmail,
@@ -135,8 +141,24 @@ export async function createUser(tenantId: string, input: CreateUserInput): Prom
         role: input.role,
         status: 'pending', // Default per addendum § 3: createUser does NOT activate
         metadata: input.metadata ?? {},
-      }),
-    );
+      });
+      await auditInTx(client, {
+        tenantId,
+        actorKind: 'user',
+        actorUserId,
+        action: 'user.created',
+        entityType: 'user',
+        entityId: user.id,
+        after: redactUserForAudit({
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          status: user.status,
+          metadata: user.metadata,
+        }),
+      });
+      return user;
+    });
   } catch (err: unknown) {
     // Translate Postgres unique_violation (23505) to ConflictError per addendum § 10.
     if (
@@ -162,6 +184,7 @@ export async function updateUser(
   tenantId: string,
   id: string,
   patch: UpdateUserPatch,
+  actorUserId: string,
 ): Promise<User> {
   if (patch.role !== undefined) assertValidRole(patch.role);
   if (patch.status !== undefined) assertValidStatus(patch.status);
@@ -220,7 +243,54 @@ export async function updateUser(
     if (patch.status !== undefined) repoPatch.status = patch.status;
     if (patch.metadata !== undefined) repoPatch.metadata = patch.metadata;
 
-    return repo.updateUserRow(client, id, repoPatch);
+    const updated = await repo.updateUserRow(client, id, repoPatch);
+
+    // Compute changed-fields list across the four mutable columns. This is
+    // forensic diff metadata (cheap to query) and avoids logging full row
+    // dumps that mostly haven't changed.
+    const changedFields: string[] = [];
+    if (patch.name !== undefined && patch.name !== current.name) changedFields.push('name');
+    if (patch.role !== undefined && patch.role !== current.role) changedFields.push('role');
+    if (patch.status !== undefined && patch.status !== current.status) changedFields.push('status');
+    if (patch.metadata !== undefined) changedFields.push('metadata');
+
+    // Marker for downstream forensic queries: a single "what kind of update
+    // was this" tag, derivable from the diff. Disable/role-change get their
+    // own kind so audit consumers can filter on it without parsing
+    // changed_fields. role.changed and disabled would have been first-class
+    // actions but the catalog (modules/14-audit-log) is load-bearing — kind
+    // markers keep ACTION_CATALOG growth bounded (CLAUDE.md rule).
+    let kind: 'status_change' | 'role_change' | 'general' = 'general';
+    if (patch.status !== undefined && patch.status !== current.status) {
+      kind = 'status_change';
+    } else if (patch.role !== undefined && patch.role !== current.role) {
+      kind = 'role_change';
+    }
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId,
+      action: 'user.updated',
+      entityType: 'user',
+      entityId: id,
+      before: redactUserForAudit({
+        name: current.name,
+        role: current.role,
+        status: current.status,
+        metadata: current.metadata,
+      }),
+      after: redactUserForAudit({
+        name: updated.name,
+        role: updated.role,
+        status: updated.status,
+        metadata: updated.metadata,
+        changed_fields: changedFields,
+        kind,
+      }),
+    });
+
+    return updated;
   });
 
   // Redis sweep runs AFTER the transaction commits (non-transactional).
@@ -236,7 +306,11 @@ export async function updateUser(
 // softDelete
 // ---------------------------------------------------------------------------
 
-export async function softDelete(tenantId: string, id: string): Promise<void> {
+export async function softDelete(
+  tenantId: string,
+  id: string,
+  actorUserId: string,
+): Promise<void> {
   log.info({ tenantId, id }, 'softDelete');
 
   await withTenant(tenantId, async (client) => {
@@ -254,7 +328,29 @@ export async function softDelete(tenantId: string, id: string): Promise<void> {
     await repo.softDeleteUser(client, id);
 
     // Cascade: delete pending invitations for this email (addendum § 5).
-    await repo.deleteInvitationsForEmail(client, normalizeEmail(target.email));
+    const cascadedCount = await repo.deleteInvitationsForEmail(
+      client,
+      normalizeEmail(target.email),
+    );
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId,
+      action: 'user.deleted',
+      entityType: 'user',
+      entityId: id,
+      before: redactUserForAudit({
+        email: target.email,
+        name: target.name,
+        role: target.role,
+        status: target.status,
+      }),
+      after: redactUserForAudit({
+        deleted: true,
+        cascaded_pending_invitations: cascadedCount,
+      }),
+    });
   });
 
   // Sweep Redis sessions after commit (addendum § 7).
@@ -265,7 +361,11 @@ export async function softDelete(tenantId: string, id: string): Promise<void> {
 // restore
 // ---------------------------------------------------------------------------
 
-export async function restore(tenantId: string, id: string): Promise<User> {
+export async function restore(
+  tenantId: string,
+  id: string,
+  actorUserId: string,
+): Promise<User> {
   log.info({ tenantId, id }, 'restore');
 
   // restore does NOT touch invitations or sessions per addendum § 5.
@@ -274,6 +374,28 @@ export async function restore(tenantId: string, id: string): Promise<User> {
     if (target === null) {
       throw new NotFoundError(`User not found: ${id}`);
     }
-    return repo.restoreUser(client, id);
+
+    const restored = await repo.restoreUser(client, id);
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId,
+      action: 'user.restored',
+      entityType: 'user',
+      entityId: id,
+      before: redactUserForAudit({
+        deleted_at: target.deleted_at,
+        status: target.status,
+        role: target.role,
+      }),
+      after: redactUserForAudit({
+        deleted_at: restored.deleted_at,
+        status: restored.status,
+        role: restored.role,
+      }),
+    });
+
+    return restored;
   });
 }

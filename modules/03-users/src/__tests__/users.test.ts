@@ -35,13 +35,14 @@ import { setRedisForTesting, closeRedis } from '@assessiq/auth';
 import {
   listUsers,
   getUser,
-  createUser,
-  updateUser,
-  softDelete,
+  createUser as _createUserRaw,
+  updateUser as _updateUserRaw,
+  softDelete as _softDeleteRaw,
 } from '../service.js';
 import { inviteUser, acceptInvitation } from '../invitations.js';
 import { withSystemClient } from '../repository.js';
 import { ConflictError, NotFoundError, ValidationError } from '@assessiq/core';
+import type { CreateUserInput, UpdateUserPatch } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Mock @assessiq/notifications to capture invitation emails
@@ -89,6 +90,26 @@ const MODULES_ROOT = join(USERS_MODULE_ROOT, '..');           // .../modules/
 const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, '02-tenancy', 'migrations');
 const AUTH_MIGRATIONS_DIR = join(MODULES_ROOT, '01-auth', 'migrations');
 const USERS_MIGRATIONS_DIR = join(USERS_MODULE_ROOT, 'migrations');
+const AUDIT_MIGRATIONS_DIR = join(MODULES_ROOT, '14-audit-log', 'migrations');
+
+// G3.D 03-users sweep: every admin-mutating service call now writes an
+// audit_log row inside the same withTenant transaction. We need a fixed
+// actor uuid that satisfies the audit_log.actor_user_id FK to users(id).
+// One row inserted into tenantA during setup is enough — RLS only constrains
+// visibility, not FK target lookup.
+const SYSTEM_ACTOR_ID = randomUUID();
+
+// Auto-thread the system actor through every legacy test call. The
+// audit-writes.test.ts file uses the real service signatures with an
+// explicit per-test admin to assert audit-row content; this file's tests
+// pre-date the actor parameter and aren't asserting audit semantics, so
+// the wrapper preserves the existing test bodies verbatim.
+const createUser = (tid: string, input: CreateUserInput) =>
+  _createUserRaw(tid, input, SYSTEM_ACTOR_ID);
+const updateUser = (tid: string, id: string, patch: UpdateUserPatch) =>
+  _updateUserRaw(tid, id, patch, SYSTEM_ACTOR_ID);
+const softDelete = (tid: string, id: string) =>
+  _softDeleteRaw(tid, id, SYSTEM_ACTOR_ID);
 
 // ---------------------------------------------------------------------------
 // Setup helpers
@@ -149,10 +170,11 @@ beforeAll(async () => {
   // for fresh DBs; production deploys have applied 0001-0003 + 020-021 via
   // psql -f, and W4 deploys 010-015 against an already-populated DB so the
   // ordering bug never bites in production. Recorded as a Phase 1 follow-up.
-  const [tenancyFiles, authFiles, usersFiles] = await Promise.all([
+  const [tenancyFiles, authFiles, usersFiles, auditFiles] = await Promise.all([
     readdir(TENANCY_MIGRATIONS_DIR),
     readdir(AUTH_MIGRATIONS_DIR),
     readdir(USERS_MIGRATIONS_DIR),
+    readdir(AUDIT_MIGRATIONS_DIR),
   ]);
 
   const tenancySorted = tenancyFiles.filter((f) => f.endsWith('.sql')).sort()
@@ -164,19 +186,49 @@ beforeAll(async () => {
     .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
   const usersInvitations = usersSorted.filter((f) => !f.startsWith('020_'))
     .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
+  // 14-audit-log/migrations/0050_audit_log.sql — required because every
+  // wired mutation (createUser, updateUser, softDelete, restore, inviteUser)
+  // writes an audit_log row inside the same transaction.
+  const auditSorted = auditFiles.filter((f) => f.endsWith('.sql')).sort()
+    .map((f) => ({ dir: AUDIT_MIGRATIONS_DIR, file: f }));
 
   const allFiles = [
     ...tenancySorted,        // 0001-0003: tenants + RLS helpers + tenant RLS
-    ...usersTable,           // 020: users (auth FKs target this)
+    ...usersTable,           // 020: users (auth + audit FKs target this)
     ...authSorted,           // 010-015: auth tables (FK users + tenants)
     ...usersInvitations,     // 021: user_invitations
+    ...auditSorted,          // 0050: audit_log + tenant_settings.audit_retention_years
   ];
 
   await withSuperClient(async (client) => {
+    // App + system roles required by audit_log RLS + GRANT setup.
+    // Mirrors the QB / AL G3.D audit-write sweep test setup.
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
+          CREATE ROLE assessiq_app;
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
+          CREATE ROLE assessiq_system BYPASSRLS;
+        END IF;
+      END $$;
+    `);
+    await client.query(`GRANT assessiq_app TO test`);
+    await client.query(`GRANT assessiq_system TO test`);
+
     for (const { dir, file } of allFiles) {
       const sql = await readFile(join(dir, file), 'utf-8');
       await client.query(sql);
     }
+
+    // audit_log has REVOKE UPDATE/DELETE/TRUNCATE in its migration; explicitly
+    // GRANT SELECT+INSERT to assessiq_app so service-layer writes via withTenant succeed.
+    await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
+    await client.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
   });
 
   // 3. Point pool + Redis client at testcontainers
@@ -189,6 +241,15 @@ beforeAll(async () => {
   await withSuperClient(async (client) => {
     await insertTenant(client, tenantA, 'tenant-a', 'Tenant A');
     await insertTenant(client, tenantB, 'tenant-b', 'Tenant B');
+
+    // Seed the system actor in tenantA. The audit_log.actor_user_id FK only
+    // requires the row exist in users; tenant scoping isn't enforced by the
+    // FK so this single row satisfies actor lookups for ad-hoc tenants too.
+    await client.query(
+      `INSERT INTO users (id, tenant_id, email, name, role, status)
+       VALUES ($1, $2, $3, 'System Actor', 'admin', 'active')`,
+      [SYSTEM_ACTOR_ID, tenantA, `system-actor-${SYSTEM_ACTOR_ID.slice(0, 8)}@x.com`],
+    );
   });
 }, 90_000);
 

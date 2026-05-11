@@ -1,10 +1,12 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { streamLogger, NotFoundError, ConflictError, ValidationError, uuidv7, getRequestContext, config } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
+import { auditInTx } from '@assessiq/audit-log';
 import { sendInvitationEmail } from '@assessiq/notifications';
 import type { InviteUserInput, InviteUserResult, AcceptInvitationResult } from './types.js';
 import { normalizeEmail } from './normalize.js';
 import * as repo from './repository.js';
+import { redactUserForAudit } from './audit-redact.js';
 
 const log = streamLogger('auth');
 
@@ -97,12 +99,13 @@ export async function inviteUser(
 
       if (existing.status === 'active') {
         // Already active — return user with no invitation (addendum § 3).
+        // No mutation occurred → no audit row.
         return { user: existing, invitation: null };
       }
 
       // status === 'pending': replace the existing invitation (addendum § 3).
       // Delete all pending invitations for this email, then insert a fresh one.
-      await repo.deleteInvitationsForEmail(client, normalizedEmail);
+      const replacedCount = await repo.deleteInvitationsForEmail(client, normalizedEmail);
 
       const invId = uuidv7();
       const invitation = await repo.insertInvitation(client, {
@@ -113,6 +116,27 @@ export async function inviteUser(
         tokenHash,
         invitedBy: input.invited_by,
         expiresAt,
+      });
+
+      // entity_id points at the user (the durable identity), not the
+      // invitation row (which is replaced on every re-invite). Forensic
+      // queries "who was invited to tenant X" stay stable across re-invites.
+      // Token material (tokenHash) deliberately NOT logged.
+      await auditInTx(client, {
+        tenantId,
+        actorKind: 'user',
+        actorUserId: input.invited_by,
+        action: 'user.invited',
+        entityType: 'user',
+        entityId: existing.id,
+        after: redactUserForAudit({
+          kind: 'reinvite',
+          invitation_id: invitation.id,
+          email: invitation.email,
+          role: invitation.role,
+          expires_at: invitation.expires_at.toISOString(),
+          replaced_invitation_count: replacedCount,
+        }),
       });
 
       sentEmail = true;
@@ -148,6 +172,22 @@ export async function inviteUser(
       tokenHash,
       invitedBy: input.invited_by,
       expiresAt,
+    });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId: input.invited_by,
+      action: 'user.invited',
+      entityType: 'user',
+      entityId: user.id,
+      after: redactUserForAudit({
+        kind: 'new',
+        invitation_id: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        expires_at: invitation.expires_at.toISOString(),
+      }),
     });
 
     sentEmail = true;

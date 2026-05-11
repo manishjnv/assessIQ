@@ -275,6 +275,9 @@ importers:
 
   modules/03-users:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth

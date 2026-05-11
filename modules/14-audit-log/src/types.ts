@@ -80,6 +80,16 @@ export const ACTION_CATALOG = [
   // See modules/18-certification/SKILL.md and docs/CERTIFICATION_PLAN_GENERIC.md.
   'certification.cert.issue',
   'certification.cert.upgrade',
+  // G3.D 03-users sweep (2026-05-11) — admin user-management mutations.
+  // Generic "something on a user changed" with before/after diff + kind marker.
+  'user.updated',
+  // Inverse of user.deleted; kept distinct so admin queries on
+  // "who restored this account" don't have to filter on a marker field.
+  'user.restored',
+  // Issued via POST /api/admin/invitations. Distinct from user.created so
+  // queries can separate "admin manually provisioned" from "admin invited
+  // and the user later accepted via magic link."
+  'user.invited',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

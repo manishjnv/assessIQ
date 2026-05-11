@@ -690,3 +690,45 @@ Semantic gaps acknowledged:
 - Read-only methods: `listAssessments`, `getAssessment`, `getInvitationCounts`, `listInvitations`, `previewAssessment`, `resolveInvitationToken`.
 - Candidate-flow mutation `markInvitationViewedByToken` (see § 16.2).
 - Cron-driven boundary transitions in `boundaries.ts` / `repo.bulkUpdateBoundaries` (see § 16.2 — orchestrator follow-up).
+
+## 17. Audit-log wiring — 03-users (G3.D slice, 2026-05-11)
+
+Every admin-mutating service method in [modules/03-users](../modules/03-users/SKILL.md) writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)` from `@assessiq/audit-log`. Mirrors the 04-question-bank G3.D template shipped in `eff0ba2` (see § 15) and the 05-assessment-lifecycle slice in `08d4b19` (see § 16). Atomicity guarantee is identical.
+
+### 17.1 Wired sites and action namespaces used
+
+| Service function | `audit_log.action` | `entity_type` | Notes |
+|---|---|---|---|
+| `createUser` | `user.created` | `user` | `after`: email, name, role, status, metadata |
+| `updateUser` | `user.updated` | `user` | `before/after`: name, role, status, metadata; `after.changed_fields` + `after.kind` (`status_change` \| `role_change` \| `general`). One row per call regardless of patch size |
+| `softDelete` | `user.deleted` | `user` | `before` snapshot; `after.deleted=true` + `after.cascaded_pending_invitations` (count of `user_invitations` rows DELETEd in the same tx by the addendum-§5 cascade) |
+| `restore` | `user.restored` | `user` | `before/after.deleted_at` + `before/after.status`. Distinct from `user.deleted` so admin queries on "who restored this account" don't have to filter on a marker field — different from QB/AL where reopen/restore are folded under shared actions with `kind` markers |
+| `inviteUser` (new user) | `user.invited` (`after.kind=new`) | `user` | `entity_id` is the newly-created user. Token material (`token_hash`, plaintext token) intentionally NOT logged |
+| `inviteUser` (re-invite of pending user) | `user.invited` (`after.kind=reinvite`) | `user` | `entity_id` is the existing user (durable identity). `after.replaced_invitation_count` records the prior pending invitations DELETEd in the same tx |
+
+`actor_kind` is always `"user"`; `actor_user_id` is the admin's session userId threaded through the service signature. Signatures changed in this slice: `createUser`, `updateUser`, `softDelete`, `restore` all gain a final `actorUserId: string` parameter; `inviteUser` already carried `invited_by`. All four route handlers in `apps/api/src/routes/admin-users.ts` updated to pass `req.session!.userId`.
+
+### 17.2 Action-catalog scope decision
+
+This slice adds **3** entries to the G3.A action catalog ([modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts)): `user.updated`, `user.restored`, `user.invited`. `user.created` and `user.deleted` (G3.A) are reused. The pre-existing `user.disabled` and `user.role.changed` are NOT emitted by this slice — they're folded into `user.updated` with `after.kind=status_change` / `kind=role_change` per the minimal-catalog-footprint pattern (same shape as 04-question-bank's `restoreVersion → question.updated kind=restore` and 05-AL's `reopenAssessment → assessment.published kind=reopen`). The pre-existing entries remain in the catalog (append-only) for legacy compatibility; new emit-sites should prefer `user.updated + kind` over the specialized strings.
+
+`user.restored` is intentionally first-class (not folded under `user.updated kind=restore`) because soft-delete + restore are an HR-significant lifecycle pair an auditor explicitly searches for. Emitting `user.deleted` and `user.restored` as distinct actions keeps the "lifecycle of user X" timeline trivially queryable without `after->>'kind'` parsing.
+
+### 17.3 Sensitive-field redaction
+
+A shared `redactUserForAudit()` helper at [modules/03-users/src/audit-redact.ts](../modules/03-users/src/audit-redact.ts) strips known credential-bearing field names (`password_hash`, `mfa_secret`, `mfa_recovery_codes_hash`, `mfa_recovery_codes`, `email_verification_token`, `password_reset_token`, `oidc_id_token`, `oauth_refresh_token`) from every `before/after` payload built from a user-derived row. Today this is a no-op for every column on `users` — credential material lives in 01-auth's separate tables (`oauth_identities`, `user_credentials`, `totp_recovery_codes`). The helper exists for schema-drift insurance: if a future migration ever inlines a credential column onto `users`, the redaction is automatic at every existing call-site, and a redaction-sweep test in `audit-writes.test.ts` (running a representative mix of operations and asserting zero redacted-field keys appear in any audit row's `before/after`) flags any leak. Adding a new credential column requires updating `USER_AUDIT_REDACTED_FIELDS` AND surfacing the addition here.
+
+### 17.4 Atomicity guarantees
+
+- Every audit write uses `auditInTx(client, ...)` inside the same `withTenant(...)` callback that owns the mutation. `withTenant` opens the BEGIN / COMMIT — the domain UPDATE/INSERT and the audit INSERT commit or roll back together.
+- Three failure-injection tests in [src/__tests__/audit-writes.test.ts](../modules/03-users/src/__tests__/audit-writes.test.ts) ("atomicity: when auditInTx throws inside updateUser / softDelete / inviteUser, the user row is NOT mutated") prove the contract by mocking `@assessiq/audit-log.auditInTx` to throw a one-shot error; the test then reads the user row from a fresh superuser connection and asserts pre-mutation state. This catches a class of regression where someone inadvertently calls `auditInTx` on a different client (breaking transaction sharing) or moves the call outside the `withTenant` callback.
+- A coverage-grep assertion at the bottom of the same test file counts `auditInTx(` occurrences in `service.ts` (expects 4) and `invitations.ts` (expects 2). Adding a new admin-mutating method without an audit write will fail this guard.
+
+### 17.5 What's NOT audited here
+
+- `acceptInvitation` — invitee acting on their own pending invitation, not an admin acting on another user. Session minting that follows is audited by 01-auth's session-event trail (`session.created`); duplicating it here would be confusing.
+- `bulkImport` — Phase-1 stub (throws `BULK_IMPORT_PHASE_1`). The Phase-1 implementation will land its own audit wiring at the same time the route stops returning 501.
+- `sweepUserSessions` — Redis-side housekeeping invoked AFTER the user-state transaction commits. The transaction that flipped `status='disabled'` already wrote the `user.updated kind=status_change` audit row; the Redis sweep is operational not behavioural and writes to `app.log` only.
+- All read-only methods: `listUsers`, `getUser`, `findUserByEmailNormalized`.
+- The `assertNotLastAdmin` / `assertValidStatusTransition` validators — pure validators, no DB write.
+- Self-service flows in the broader stack (own-profile edit, own-password change) — those belong to 01-auth's session-event audit trail, not 03-users.
