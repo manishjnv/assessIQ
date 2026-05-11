@@ -4,6 +4,92 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift
+
+**Symptom:** Four sharded-smoke attempts (019e103c, 019e11a2, 019e128e, 019e1293) each recorded
+`chunks_failed > 0` on scenario and/or log_analysis types. `stderr_tail` showed `(none)` — SIGTERM
+fires before the subprocess flushes stderr, so the MCP rejection payload was invisible at incident
+start. A separate eval fixture-mismatch (`score-candidate` "unknown source ids") was layered on
+top on the 019e103c session and masked structural health; resolved independently in commit `ce00575`
+(DO NOT re-open here).
+
+**Cause:**
+
+1. **(First hypothesis, ruled out) Timeout too tight.** Attempt 019e103c showed the model emitting
+   `submit_questions` three times (+51 s, +200 s, +290 s into the chunk), with the 2nd and 3rd
+   calls carrying `tool_input_keys=[]`. Commit `a124812` bumped `GENERATION_PER_ITEM_TIMEOUT_MS`
+   180 → 240 s (`modules/07-ai-grading/src/runtimes/claude-code-vps.ts:89`; new formula: 90 + 720
+   = 810 s at count=3). Did **not** cure the failure. The retry-loop itself was the cause, not
+   wall-clock duration. Recorded here so the next investigator does not re-propose the same
+   constant tweak.
+
+2. **Zod `.strict()` schema / SKILL.md HARD RULE box mismatch (commit `6fb4f5d`).** Two
+   structural errors in SKILL.md examples disagreed with the MCP schemas in
+   `tools/assessiq-mcp/src/tools/submit-questions.ts`:
+   - `ScenarioContent.steps` Zod schema is `{prompt, expected}.strict()` (lines 105-106).
+     Pre-fix `generate-scenario/SKILL.md` HARD RULE box showed MCQ-style
+     `{id, type, prompt, options, correct}` — every first-try scenario submission was rejected
+     by `.strict()` before the model could see a useful error.
+   - `KqlContent.strict()` rejects any unrecognised key. The first kql Output Format example
+     included a `hint` field absent from the schema — identical first-try rejection pattern.
+     `6fb4f5d` corrected both HARD RULE boxes and replaced the "exactly once" tool-use rule
+     with an explicit recovery rule. Post-deploy smokes 019e1293 (scenario) and 019e128e
+     (log_analysis) still failed.
+
+3. **Residual prose and enum mismatch (commit `573aed7`).** `6fb4f5d` fixed the HARD RULE box
+   but not the Quality Standards prose above it. The line
+   `"Individual steps use \`type: \"mcq\"\` for decision-point questions"` remained at
+   `generate-scenario/SKILL.md:55` (6fb4f5d version). The model reads SKILL.md top-down; the
+   prose anchored its first attempt to MCQ-shaped steps; the residual "exactly once" wording
+   (not fully excised in 6fb4f5d) let the model exit after one rejection without retrying.
+   Separately, `generate-log-analysis/SKILL.md:99` (6fb4f5d version) showed
+   `"log_format": "syslog" | "json" | "csv" | "freeform"`. The `LogAnalysisContent` Zod enum
+   (`submit-questions.ts:88`) is `json|syslog|windows_event|freeform` — `csv` is not a member
+   and `windows_event` was absent from the SKILL entirely. The model emitted `"csv"` for
+   Zeek-format logs; all three retries were rejected.
+
+**Fix:**
+
+- `a124812` — `claude-code-vps.ts:89`: `GENERATION_PER_ITEM_TIMEOUT_MS` 180 → 240 (belt-and-
+  braces; did not cure root cause).
+- `6fb4f5d` — `generate-scenario/SKILL.md` HARD RULE box: steps rewritten to `{prompt, expected}`.
+  `generate-kql/SKILL.md` first example: `hint` removed; added to FORBIDDEN synonyms.
+  Tool-use policy in both SKILLs: "exactly once" → explicit recovery rule. (Partial fix —
+  Quality Standards prose and log_analysis enum left untouched.)
+- `ab39667` — `tools/assessiq-mcp/src/tools/submit-questions.ts:15` (`logRejection()`): appends
+  JSONL to `/var/log/assessiq/mcp-rejections.log` on every `isError=true`. Entry carries
+  timestamp, pid, inferred type, Zod issues, and 2 KB payload excerpt. Diagnostic surface only —
+  no schema or prompt change. Requires MCP dist rebuild + api container recreate on VPS.
+- `573aed7` — `generate-scenario/SKILL.md` Quality Standards prose: "Individual steps use
+  `type: \"mcq\"`" removed; steps contract unified with HARD RULE box; exactly-once contradiction
+  resolved. `generate-log-analysis/SKILL.md`: `log_format` enum aligned to Zod
+  (`json|syslog|windows_event|freeform`); `windows_event` guidance added; `csv` moved to FORBIDDEN.
+  Both SKILL versions bumped to `2026-05-10b`. Suspected full cure; re-baseline smoke pending.
+
+**Prevention:**
+
+- **Audit the whole SKILL.md, not just the HARD RULE box.** The model reads top-down. A
+  "type: 'mcq'" prose line above a corrected HARD RULE silently re-anchors the first attempt.
+  When changing any SKILL.md example, `grep` the entire file for the OLD wording across every
+  section — Quality Standards, Output Format, HARD RULE, FORBIDDEN, tool-use policy footer.
+- **Zod `.strict()` schema changes must land with a paired SKILL.md edit in the same commit.**
+  A field added/renamed/removed without a matching SKILL.md update guarantees the next smoke will
+  fail. Follow-up candidate: lint that diffs the SKILL.md JSON example against `z.toJSON()` at
+  CI time — **not yet shipped**.
+- **Log rejection payloads before investigating.** Early sessions burned hours grepping host-side
+  logs for `tool_input_keys` sequences. `mcp-rejections.log` (`ab39667`) lets the next
+  investigator query rejection JSONL directly. Wire this surface before the next class of incident.
+- **Don't bump timeouts as a first response.** When `chunks_failed` shows SIGTERM (exit 143) with
+  `stderr_tail "(none)"`, the subprocess was killed inside the retry-loop, not after a slow run.
+  Go to log archaeology + schema audit first.
+- **Single-type smokes via `SMOKE_TYPE` (commit `5d9b548`) cost ~1/5 of a full smoke.** Use them
+  for fix-verification loops; reserve `count=15` for G1/G3 gate progression.
+
+**Open follow-ups (out of scope for this incident):**
+- SKILL.md ↔ Zod schema lint at CI (not yet shipped)
+- Auto-refresh `attempt_summary_mv` on grade (Phase 3.D)
+- Eval re-baseline after `573aed7` deploy (post-verification smoke pending in a separate session)
+
 ## 2026-05-09 — pack-detail "pageSize must not exceed 100" blocks question list on packs with 200+ questions
 
 **Symptom:** Admin pack-detail page rendered "Couldn't load questions. pageSize must not exceed 100" whenever a pack had more than 100 questions (typical for L1/L2/L3 fully-populated packs). The fetch `GET /admin/questions?pack_id=…&pageSize=500` reached the API, passed `parsePagination()` (cap=500 in `routes.ts`), but was rejected by `assertPageSize()` inside `service.ts` because `MAX_PAGE_SIZE` there was still `100`.
