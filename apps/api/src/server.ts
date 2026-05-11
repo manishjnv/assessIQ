@@ -12,6 +12,7 @@ import { registerInvitationRoutes } from './routes/invitations.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
+import { registerAdminSuperRoutes } from './routes/admin-super.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
 import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes } from '@assessiq/attempt-engine';
@@ -157,6 +158,11 @@ export async function buildServer() {
   // (legacy convention preserved so any future global hook can opt out
   // uniformly), but the per-route chain is authoritative.
   await registerAuthRoutes(app);
+
+  // Super-admin-only routes — platform-operator operations that cross tenant
+  // boundaries. Gate: role = 'super_admin'. Prefix: /api/admin/super/*.
+  // Currently ships one endpoint: PATCH .../ai-generate-mode.
+  await registerAdminSuperRoutes(app);
   // Question-bank admin routes — same admin-gated authChain. The module
   // accepts the chain as an injected dep so the library stays Fastify-shape-
   // compatible without a hard apps/api import.
