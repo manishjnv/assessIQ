@@ -11,6 +11,17 @@
  *   gates the HTTP call).
  * - emitWebhook enqueues one BullMQ 'webhook.deliver' job per matching endpoint.
  * - replayDelivery writes a NEW row — NEVER updates the original (append-only).
+ *
+ * G3.D audit-write sweep (2026-05-11):
+ * - createWebhookEndpoint, deleteWebhookEndpoint, replayDelivery each emit one
+ *   audit_log row via auditInTx() inside the same withTenant transaction as the
+ *   domain mutation. webhook.created / webhook.deleted / webhook.replayed.
+ * - @assessiq/audit-log is imported statically. The fanout path in that module
+ *   uses a dynamic import back to @assessiq/notifications (webhook-fanout.ts),
+ *   so there is no static circular dependency.
+ * - Operational paths (emitWebhook, emitWebhookToEndpoint, deliver-job) are
+ *   intentionally NOT audited — they are delivery-tracking telemetry, not admin
+ *   config mutations.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -18,6 +29,7 @@ import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { config, streamLogger, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
+import { auditInTx } from '@assessiq/audit-log';
 import * as repo from '../repository.js';
 import { encrypt, decrypt } from './crypto.js';
 import type {
@@ -68,54 +80,41 @@ export async function createWebhookEndpoint(
   // Generate a high-entropy secret.
   const plaintextSecret = randomBytes(32).toString('base64url');
   const secretEnc = encrypt(plaintextSecret);
+  const endpointId = uuidv7();
 
-  const endpoint = await withTenant(input.tenantId, (client) =>
-    repo.insertWebhookEndpoint(client, {
-      id: uuidv7(),
+  // Single transaction: INSERT webhook_endpoint + auditInTx (G3.D pattern).
+  const endpoint = await withTenant(input.tenantId, async (client) => {
+    const result = await repo.insertWebhookEndpoint(client, {
+      id: endpointId,
       tenantId: input.tenantId,
       name: input.name,
       url: input.url,
       secretEnc,
       events: input.events,
       requiresFreshMfa: input.requiresFreshMfa,
-    }),
-  );
+    });
+    await auditInTx(client, {
+      tenantId: input.tenantId,
+      actorKind: input.actorUserId != null ? 'user' : 'system',
+      ...(input.actorUserId != null ? { actorUserId: input.actorUserId } : {}),
+      action: 'webhook.created',
+      entityType: 'webhook_endpoint',
+      entityId: endpointId,
+      // no 'before' — INSERT, no prior state
+      after: {
+        name: input.name,
+        url: input.url,
+        events: input.events as unknown as Record<string, unknown>,
+        requires_fresh_mfa: input.requiresFreshMfa,
+      },
+    });
+    return result;
+  });
 
   log.info(
     { endpointId: endpoint.id, tenantId: input.tenantId, events: input.events },
     'webhook.endpoint.created',
   );
-
-  // G3.A audit hook — dynamic import to avoid circular dep:
-  // @assessiq/audit-log statically imports @assessiq/notifications (for fanout),
-  // so @assessiq/notifications must dynamically import @assessiq/audit-log.
-  // This is intentionally best-effort: audit failure here does NOT block
-  // webhook creation (the hook is secondary; the audit module's own failures
-  // propagate from its own call sites).
-  await (async () => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval
-      const mod = await (Function('m', 'return import(m)')('@assessiq/audit-log') as Promise<{
-        audit: (input: {
-          tenantId: string; actorKind: 'user' | 'api_key' | 'system';
-          action: string; entityType: string; entityId?: string;
-          after?: Record<string, unknown>;
-        }) => Promise<void>;
-      }>).catch(() => null);
-      if (mod !== null) {
-        await mod.audit({
-          tenantId: input.tenantId,
-          actorKind: 'system',
-          action: 'webhook.created',
-          entityType: 'webhook_endpoint',
-          entityId: endpoint.id,
-          after: { endpointId: endpoint.id, url: endpoint.url, events: endpoint.events },
-        });
-      }
-    } catch (auditErr) {
-      log.warn({ auditErr, endpointId: endpoint.id }, 'webhook.created: audit hook failed (dynamic import)');
-    }
-  })();
 
   return { endpoint, plaintextSecret };
 }
@@ -123,35 +122,24 @@ export async function createWebhookEndpoint(
 export async function deleteWebhookEndpoint(
   tenantId: string,
   endpointId: string,
+  actorUserId?: string,
 ): Promise<void> {
-  await withTenant(tenantId, (client) =>
-    repo.deleteWebhookEndpoint(client, endpointId),
-  );
+  // Single transaction: snapshot before, DELETE webhook_endpoint, auditInTx.
+  await withTenant(tenantId, async (client) => {
+    const before = await repo.getWebhookEndpointById(client, endpointId);
+    await repo.deleteWebhookEndpoint(client, endpointId);
+    await auditInTx(client, {
+      tenantId,
+      actorKind: actorUserId != null ? 'user' : 'system',
+      ...(actorUserId != null ? { actorUserId } : {}),
+      action: 'webhook.deleted',
+      entityType: 'webhook_endpoint',
+      entityId: endpointId,
+      ...(before !== null ? { before: { name: before.name, url: before.url, events: before.events as unknown as Record<string, unknown>, status: before.status } } : {}),
+      // no 'after' — DELETE
+    });
+  });
   log.info({ endpointId, tenantId }, 'webhook.endpoint.deleted');
-
-  // G3.A audit hook — dynamic import (see webhook.created comment above).
-  await (async () => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval
-      const mod = await (Function('m', 'return import(m)')('@assessiq/audit-log') as Promise<{
-        audit: (input: {
-          tenantId: string; actorKind: 'user' | 'api_key' | 'system';
-          action: string; entityType: string; entityId?: string;
-        }) => Promise<void>;
-      }>).catch(() => null);
-      if (mod !== null) {
-        await mod.audit({
-          tenantId,
-          actorKind: 'system',
-          action: 'webhook.deleted',
-          entityType: 'webhook_endpoint',
-          entityId: endpointId,
-        });
-      }
-    } catch (auditErr) {
-      log.warn({ auditErr, endpointId }, 'webhook.deleted: audit hook failed (dynamic import)');
-    }
-  })();
 }
 
 export async function sendTestEvent(
@@ -180,10 +168,15 @@ export async function listDeliveries(
 /**
  * Replay a delivery by writing a NEW row referencing the same endpoint + event.
  * NEVER updates the original row — append-only delivery history.
+ *
+ * G3.D: bypasses emitWebhookToEndpoint() to keep insertWebhookDelivery +
+ * auditInTx in a single withTenant transaction. BullMQ enqueue happens after
+ * the transaction commits (same ordering as emitWebhookToEndpoint).
  */
 export async function replayDelivery(
   tenantId: string,
   deliveryId: string,
+  actorUserId?: string,
 ): Promise<{ deliveryId: string }> {
   const original = await withTenant(tenantId, (client) =>
     repo.getWebhookDeliveryById(client, deliveryId),
@@ -193,12 +186,50 @@ export async function replayDelivery(
     throw new Error(`Delivery not found: ${deliveryId}`);
   }
 
-  return emitWebhookToEndpoint(
-    tenantId,
-    original.endpoint_id,
-    original.event,
-    original.payload,
+  const newDeliveryId = uuidv7();
+
+  // Single transaction: INSERT new delivery row + auditInTx (G3.D).
+  await withTenant(tenantId, async (client) => {
+    await repo.insertWebhookDelivery(client, {
+      id: newDeliveryId,
+      endpointId: original.endpoint_id,
+      event: original.event,
+      payload: original.payload,
+    });
+    await auditInTx(client, {
+      tenantId,
+      actorKind: actorUserId != null ? 'user' : 'system',
+      ...(actorUserId != null ? { actorUserId } : {}),
+      action: 'webhook.replayed',
+      entityType: 'webhook_delivery',
+      entityId: original.id,
+      after: {
+        new_delivery_id: newDeliveryId,
+        original_delivery_id: original.id,
+        endpoint_id: original.endpoint_id,
+        event: original.event,
+      },
+    });
+  });
+
+  const queue = getWebhookQueue();
+  await queue.add(
+    'webhook.deliver',
+    { deliveryId: newDeliveryId, tenantId },
+    {
+      attempts: 5,
+      backoff: { type: 'custom' },
+      removeOnComplete: 50,
+      removeOnFail: 50,
+    },
   );
+
+  log.info(
+    { deliveryId: newDeliveryId, originalDeliveryId: deliveryId, tenantId },
+    'webhook.delivery.replayed',
+  );
+
+  return { deliveryId: newDeliveryId };
 }
 
 /**
