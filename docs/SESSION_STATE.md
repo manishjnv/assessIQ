@@ -1,3 +1,28 @@
+# Session — 2026-05-11 (G3.D slice — 04-question-bank audit-write sweep)
+
+**Headline:** Every admin-mutating service method in `modules/04-question-bank` now writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx`. 9 service functions wired across 12 call-sites; 11 new audit-coverage tests pass alongside the original 50-case integration suite.
+**Commits:** (orchestrator commits after Opus diff review — no push from this session per G3.D contract)
+**Tests:**
+- `pnpm -C modules/04-question-bank typecheck` ✅ (only pre-existing 07-ai-grading `lastSeenAt` errors — unrelated; this slice adds 0 new errors)
+- `pnpm -C modules/04-question-bank test -- audit-writes question-bank` ✅ 72/72 passed across the two suites covering every wired site
+- Full `pnpm -C modules/04-question-bank test` ⚠️ 2 file failures pre-exist (`bulk-status-route.test.ts` SQL schema bug — INSERT INTO levels with non-existent `tenant_id` column; `score-attempt-route.test.ts` missing-slug INSERT). Both predate this slice (`git stash` baseline reproduces them); not introduced by audit wiring.
+- `pnpm -C modules/07-ai-grading exec tsx ci/lint-no-ambient-claude.ts` ✅ (323 files scanned, 0 violations)
+- Coverage grep: 12 `auditInTx(` call-sites across `modules/04-question-bank/src/service.ts` — listed in observability doc §15.1.
+**Next:** Opus diff review on the service.ts seams (transaction boundary + action-string choices); if ACCEPT, commit + push, then run the same slice against the next module in the G3.D fan-out (05-assessment-lifecycle or 03-users).
+**Open questions:**
+- Should we accept the 3 catalog gaps (no `pack.updated`, no `level.*`, no distinct `question.restored` / `question.rubric_saved` / `question.bulk_*` actions) as documented in observability §15.2, or extend the catalog in 14-audit-log as a follow-up before more G3.D slices? Catalog edits trigger `codex:rescue` per CLAUDE.md.
+- Two pre-existing test failures (bulk-status-route, score-attempt-route) — should we fix them in a separate cleanup commit before G3.D progresses, or leave them for the test-owner?
+
+---
+
+## Agent utilization
+- Opus: n/a — dispatched as a Sonnet subagent by the orchestrator with a self-contained ~7KB prompt; Opus reviews this slice's diff before push.
+- Sonnet: this session — Phase 0 mandatory reads (PROJECT_BRAIN, CLAUDE.md, 14-audit-log SKILL + audit.ts, 04-question-bank SKILL + service/routes/repository, 02-tenancy reference call-site), 9 service-layer wirings, 3 route handlers updated to thread userId, package.json dep declaration, new `audit-writes.test.ts` (11 cases), 5 test-call-site signature updates in `question-bank.test.ts`, migration-setup update to apply 14-audit-log in test container, observability doc §15 append.
+- Haiku: n/a — single module, no bulk grep needed.
+- codex:rescue: n/a — `modules/04-question-bank` is not on the load-bearing list (`01-auth | 02-tenancy | 07-ai-grading | 14-audit-log | infra`); this slice calls `auditInTx` but does not modify 14-audit-log itself. Opus diff review gates the push.
+
+---
+
 # Session — 2026-05-11 (Phase 1 closure — Finding C surgical fix)
 
 **Headline:** Finding C closed in code: `modules/05-assessment-lifecycle/src/service.ts:691-708` now throws `TENANT_NAME_MISSING` if the tenant row is missing or the name is empty — no fallback to slug, no fallback to id. The `13-notifications` Zod `.min(1)` validator stays unchanged.

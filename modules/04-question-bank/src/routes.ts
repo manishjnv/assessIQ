@@ -269,8 +269,9 @@ export async function registerQuestionBankRoutes(
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return archivePack(tenantId, id);
+      return archivePack(tenantId, id, userId);
     },
   );
 
@@ -283,8 +284,9 @@ export async function registerQuestionBankRoutes(
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return activateAllQuestionsForPack(tenantId, id);
+      return activateAllQuestionsForPack(tenantId, id, userId);
     },
   );
 

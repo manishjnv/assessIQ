@@ -606,3 +606,46 @@ When `SMTP_URL` is unset or empty, `sendEmail()` writes a JSONL line to `~/.asse
 - **Considered and rejected:** (a) emitting per-tenant `worker.job.start` lines from inside the boundary/timer-sweep loop — rejected because it would 10–100× the log volume and obscure the single-tick lifecycle; tenant-specific errors are emitted as separate context lines instead. (b) BullMQ's `Queue.getMetrics()` for the stats endpoint — rejected because it requires the metrics collector worker which would add a second BullMQ subscription; `getJobCounts()` is one round-trip. (c) Per-tenant queue stats — rejected because BullMQ has no per-tenant column on the queue; would require iterating all jobs which doesn't scale.
 - **Explicitly NOT included:** alerting wire-up (still per § 11 — alerting comes with metrics in Phase 3); per-tenant filtering on `/failed` (deferred until a per-tenant job ships, see § 13.4); a UI panel for the admin routes (Phase 2 G2.C — module 10 admin dashboard); a CI lint forbidding new jobs without `JOB_RETRY_POLICY` entries (manual discipline + the checklist in § 13.3).
 - **Downstream impact on other modules:** [docs/03-api-contract.md § Admin — Worker observability](03-api-contract.md) gains 3 endpoints + an error-contract table; [docs/06-deployment.md § Monitoring](06-deployment.md) gains a queue-depth row reading from `/api/admin/worker/stats`; [infra/logrotate.d/assessiq](../infra/logrotate.d/assessiq) needs no change (the `*.log` glob already covers `worker.log`). When [modules/07-ai-grading](../modules/07-ai-grading/SKILL.md) ships its Phase 2 BullMQ grading worker, it will use the same `runJobWithLogging` wrapper + `JOB_RETRY_POLICY` table and emit to the same `worker.log` — single triage surface for all background work.
+
+## 15. Audit-log wiring — 04-question-bank (G3.D slice, 2026-05-11)
+
+Every admin-mutating service method in [modules/04-question-bank](../modules/04-question-bank/SKILL.md) writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)` from `@assessiq/audit-log`. The atomicity guarantee is the entire reason this slice exists: a successful state change without an audit row is a compliance violation, and vice-versa.
+
+### 15.1 Wired sites and action namespaces used
+
+| Service function | `audit_log.action` | `entity_type` | Notes |
+|---|---|---|---|
+| `createPack` (explicit slug) | `pack.created` | `question_pack` | `after`: slug, name, domain, status |
+| `createPack` (auto-slug retry loop) | `pack.created` | `question_pack` | Same shape; one row regardless of retry attempts |
+| `publishPack` | `pack.published` | `question_pack` | `before/after`: status + version; `after.question_count` |
+| `archivePack` | `pack.archived` | `question_pack` | `before/after.status` |
+| `activateAllQuestionsForPack` | `question.updated` | `question_pack` | Summary row: `after.kind=bulk_activate`, counts of activated / already-active / archived |
+| `createQuestion` | `question.created` | `question` | `after`: pack_id, level_id, type, topic, points, status, tag_count |
+| `updateQuestion` | `question.updated` | `question` | `before/after.version`, `after.changed_fields` (no full content/rubric — JSONB may be KBs) |
+| `restoreVersion` | `question.updated` | `question` | `after.kind=restore`, `after.restored_from_version` |
+| `bulkImport` | `pack.created` + `question.imported` | `question_pack` | Two rows: one for pack, one summary with `levels_created`, `questions_created`, `tags_created`, `tags_reused`. Per-question rows are intentionally NOT emitted — a 200-question import would dump 200 near-identical rows |
+| `saveRubric` | `question.updated` | `question` | `after.kind=save_rubric` |
+| `bulkUpdateQuestionStatus` | `question.updated` | `question` | Summary row (no `entity_id` — N rows targeted); `after.kind=bulk_status`, `to_status`, `updated_count`, `not_found_count`, capped `updated_ids` list |
+
+`actor_kind` is always `user`; `actor_user_id` is the admin's session userId threaded through the service signature (added to `archivePack`, `activateAllQuestionsForPack`, `bulkUpdateQuestionStatus` in this slice).
+
+### 15.2 Action-catalog scope decision
+
+This slice intentionally re-uses the existing `pack.*` / `question.*` namespaces from the G3.A action catalog ([modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts)). It does NOT add new entries because the audit-log module is load-bearing and changing it triggers `codex:rescue`. Three semantic gaps live with the question-bank module rather than the catalog:
+
+1. **`updatePack` is NOT audit-wired** — no `pack.updated` action in the catalog. Future G3.D follow-up should add `pack.updated` to the catalog and wire it. Until then, pack-metadata edits (name/domain/description) are observable only via operational `app.log` (`log.info({tenantId, id}, "updatePack")`).
+2. **`addLevel` and `updateLevel` are NOT audit-wired** — no `level.*` actions in the catalog. Level CRUD is less compliance-sensitive than question CRUD (a level is structural metadata; the questions inside it carry the actual exam content), but a future slice should still close the gap.
+3. **Multiple semantically-distinct events share `question.updated`** — `restoreVersion`, `saveRubric`, `bulkUpdateQuestionStatus`, and `activateAllQuestionsForPack` all use `question.updated` and distinguish themselves via `after.kind`. Forensic queries filter on `after->>'kind'`. Promoting these to distinct actions (e.g. `question.restored`, `question.rubric_saved`, `question.bulk_status_updated`, `question.bulk_activated`) is desirable but requires catalog expansion.
+
+### 15.3 Atomicity guarantees
+
+- Every audit write uses `auditInTx(client, ...)` inside the same `withTenant(...)` callback that owns the mutation. `withTenant` opens the BEGIN / COMMIT — the domain UPDATE and the audit INSERT commit or roll back together.
+- If `auditInTx` throws (catalog-mismatch, RLS denial, FK violation), the outer try/catch in `withTenant` triggers a ROLLBACK that drops the domain mutation too. There is no fire-and-forget audit path in this module.
+- Failure-injection tests live in [src/__tests__/audit-writes.test.ts](../modules/04-question-bank/src/__tests__/audit-writes.test.ts): the "publishPack on a non-existent pack throws and writes NO audit row" case proves the atomicity contract from the error path.
+
+### 15.4 What's NOT audited here
+
+- GET routes (read-only) — these write only to operational `request.log`.
+- Service methods that delegate to other modules (`generateQuestions` → `handleAdminGenerate` in [07-ai-grading](../modules/07-ai-grading/SKILL.md)); audit wiring lives at the runtime boundary in 07, not the question-bank service.
+- `generateRubricForQuestion` and `bulkGenerateMissingRubrics` — these return rubric proposals without persisting; the persistence step is `saveRubric` which is audit-wired.
+- Tag CRUD via direct `upsertTag` calls — tags are mutated as a side effect of question create/update and ride those audit rows.

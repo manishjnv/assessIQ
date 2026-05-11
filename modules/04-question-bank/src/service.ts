@@ -22,6 +22,7 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import * as repo from "./repository.js";
 import {
   validateQuestionContent,
@@ -248,8 +249,8 @@ export async function createPack(
     log.info({ tenantId, id, slug, auto: false }, "createPack");
 
     try {
-      return await withTenant(tenantId, (client) =>
-        repo.insertPack(client, {
+      return await withTenant(tenantId, async (client) => {
+        const pack = await repo.insertPack(client, {
           id,
           tenantId,
           slug,
@@ -257,8 +258,18 @@ export async function createPack(
           domain: input.domain,
           ...(input.description !== undefined ? { description: input.description } : {}),
           createdBy: createdByUserId,
-        }),
-      );
+        });
+        await auditInTx(client, {
+          tenantId,
+          actorKind: "user",
+          actorUserId: createdByUserId,
+          action: "pack.created",
+          entityType: "question_pack",
+          entityId: pack.id,
+          after: { slug: pack.slug, name: pack.name, domain: pack.domain, status: pack.status },
+        });
+        return pack;
+      });
     } catch (err: unknown) {
       rethrowUnique(
         err,
@@ -285,8 +296,8 @@ export async function createPack(
     const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
 
     try {
-      return await withTenant(tenantId, (client) =>
-        repo.insertPack(client, {
+      return await withTenant(tenantId, async (client) => {
+        const pack = await repo.insertPack(client, {
           id,
           tenantId,
           slug,
@@ -294,8 +305,18 @@ export async function createPack(
           domain: input.domain,
           ...(input.description !== undefined ? { description: input.description } : {}),
           createdBy: createdByUserId,
-        }),
-      );
+        });
+        await auditInTx(client, {
+          tenantId,
+          actorKind: "user",
+          actorUserId: createdByUserId,
+          action: "pack.created",
+          entityType: "question_pack",
+          entityId: pack.id,
+          after: { slug: pack.slug, name: pack.name, domain: pack.domain, status: pack.status },
+        });
+        return pack;
+      });
     } catch (err: unknown) {
       if (isUniqueViolation(err)) {
         // Slug already taken — try the next suffix on the next loop iteration.
@@ -426,7 +447,24 @@ export async function publishPack(
     }
 
     // 4. Flip status to 'published', bump pack version (so next publish lands a new row)
-    return repo.updatePackRow(client, id, { status: "published", version: pack.version + 1 });
+    const updated = await repo.updatePackRow(client, id, { status: "published", version: pack.version + 1 });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: savedByUserId,
+      action: "pack.published",
+      entityType: "question_pack",
+      entityId: id,
+      before: { status: pack.status, version: pack.version },
+      after: {
+        status: updated.status,
+        version: updated.version,
+        question_count: questions.length,
+      },
+    });
+
+    return updated;
   });
 }
 
@@ -434,7 +472,11 @@ export async function publishPack(
 // archivePack
 // ---------------------------------------------------------------------------
 
-export async function archivePack(tenantId: string, id: string): Promise<QuestionPack> {
+export async function archivePack(
+  tenantId: string,
+  id: string,
+  archivedByUserId: string,
+): Promise<QuestionPack> {
   log.info({ tenantId, id }, "archivePack");
 
   return withTenant(tenantId, async (client) => {
@@ -463,7 +505,20 @@ export async function archivePack(tenantId: string, id: string): Promise<Questio
       }
     }
 
-    return repo.updatePackRow(client, id, { status: "archived" });
+    const updated = await repo.updatePackRow(client, id, { status: "archived" });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: archivedByUserId,
+      action: "pack.archived",
+      entityType: "question_pack",
+      entityId: id,
+      before: { status: pack.status },
+      after: { status: updated.status },
+    });
+
+    return updated;
   });
 }
 
@@ -496,6 +551,7 @@ export async function archivePack(tenantId: string, id: string): Promise<Questio
 export async function activateAllQuestionsForPack(
   tenantId: string,
   packId: string,
+  actorUserId: string,
 ): Promise<{ activated: number; alreadyActive: number; archived: number }> {
   log.info({ tenantId, packId }, "activateAllQuestionsForPack");
 
@@ -526,6 +582,28 @@ export async function activateAllQuestionsForPack(
         },
       );
     }
+
+    // Audit-summary row: bulk draft → active transition. One row per call (not
+    // per question) keeps the audit_log volume bounded for packs with hundreds
+    // of questions; the metadata.kind=bulk_activate marker distinguishes this
+    // from per-question status flips that go through bulkUpdateQuestionStatus.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: actorUserId,
+      action: "question.updated",
+      entityType: "question_pack",
+      entityId: packId,
+      after: {
+        kind: "bulk_activate",
+        from_status: "draft",
+        to_status: "active",
+        activated: result.activated,
+        already_active: result.alreadyActive,
+        archived: result.archived,
+      },
+    });
+
     return result;
   });
 }
@@ -727,6 +805,24 @@ export async function createQuestion(
       }
     }
 
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: createdByUserId,
+      action: "question.created",
+      entityType: "question",
+      entityId: question.id,
+      after: {
+        pack_id: question.pack_id,
+        level_id: question.level_id,
+        type: question.type,
+        topic: question.topic,
+        points: question.points,
+        status: question.status,
+        ...(input.tags !== undefined ? { tag_count: input.tags.length } : {}),
+      },
+    });
+
     return question;
   });
 }
@@ -827,7 +923,27 @@ export async function updateQuestion(
     if (patch.rubric !== undefined) repoPatch.rubric = patch.rubric;
     if (versionBump) repoPatch.version = current.version + 1;
 
-    return repo.updateQuestionRow(client, id, repoPatch);
+    const updated = await repo.updateQuestionRow(client, id, repoPatch);
+
+    // Audit the field-level change. Avoid logging full content/rubric JSON
+    // (potentially KBs) — record only which fields changed plus version bump.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: savedByUserId,
+      action: "question.updated",
+      entityType: "question",
+      entityId: id,
+      before: { version: current.version, status: current.status },
+      after: {
+        version: updated.version,
+        status: updated.status,
+        changed_fields: Object.keys(repoPatch),
+        ...(patch.tags !== undefined ? { tags_replaced: true, tag_count: patch.tags.length } : {}),
+      },
+    });
+
+    return updated;
   });
 }
 
@@ -892,11 +1008,30 @@ export async function restoreVersion(
     });
 
     // Restore: apply target content/rubric and bump version
-    return repo.updateQuestionRow(client, questionId, {
+    const updated = await repo.updateQuestionRow(client, questionId, {
       content: target.content,
       rubric: target.rubric,
       version: current.version + 1,
     });
+
+    // restore is semantically a question.updated event with a marker so audit
+    // consumers can distinguish "edit" from "restore from prior version".
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: savedByUserId,
+      action: "question.updated",
+      entityType: "question",
+      entityId: questionId,
+      before: { version: current.version },
+      after: {
+        kind: "restore",
+        version: updated.version,
+        restored_from_version: version,
+      },
+    });
+
+    return updated;
   });
 }
 
@@ -1065,6 +1200,42 @@ export async function bulkImport(
         }
       }
     }
+
+    // Audit: one pack.created row + one question.imported summary row.
+    // Per-question audit rows are intentionally NOT emitted — a 200-question
+    // import would dump 200 audit rows that all duplicate the same actor,
+    // pack, and timestamp. The summary row carries enough metadata for
+    // forensic replay (counts + pack pointer).
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: createdByUserId,
+      action: "pack.created",
+      entityType: "question_pack",
+      entityId: pack.id,
+      after: {
+        kind: "import",
+        slug: pack.slug,
+        name: pack.name,
+        domain: pack.domain,
+        status: pack.status,
+      },
+    });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: createdByUserId,
+      action: "question.imported",
+      entityType: "question_pack",
+      entityId: pack.id,
+      after: {
+        levels_created: importData.levels.length,
+        questions_created: importData.questions.length,
+        tags_created: tagsCreated,
+        tags_reused: tagsReused,
+      },
+    });
 
     return {
       packId: pack.id,
@@ -1315,9 +1486,23 @@ export async function saveRubric(
       savedBy: userId,
     });
 
-    await repo.updateQuestionRow(client, questionId, {
+    const updated = await repo.updateQuestionRow(client, questionId, {
       rubric: validated.data,
       version: question.version + 1,
+    });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: userId,
+      action: "question.updated",
+      entityType: "question",
+      entityId: questionId,
+      before: { version: question.version },
+      after: {
+        kind: "save_rubric",
+        version: updated.version,
+      },
     });
 
     return { id: questionId };
@@ -1445,6 +1630,7 @@ export async function bulkUpdateQuestionStatus(
   tenantId: string,
   ids: string[],
   status: "active" | "archived",
+  actorUserId: string,
 ): Promise<{ updated: string[]; notFound: string[] }> {
   log.info({ tenantId, count: ids.length, status }, "bulkUpdateQuestionStatus");
 
@@ -1467,6 +1653,27 @@ export async function bulkUpdateQuestionStatus(
     const updated = result.rows.map((r) => r.id);
     const updatedSet = new Set(updated);
     const notFound = ids.filter((id) => !updatedSet.has(id));
+
+    // Audit-summary row even when zero rows updated — the call itself is
+    // an admin action and the not-found list is forensic evidence (e.g.
+    // someone tried to operate on cross-tenant ids). Caps metadata size by
+    // capping the input batch at 200 ids upstream (route validation).
+    // entityId intentionally omitted: the operation targets N rows, not one.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: actorUserId,
+      action: "question.updated",
+      entityType: "question",
+      after: {
+        kind: "bulk_status",
+        to_status: status,
+        allowed_sources: [...allowedSources],
+        updated_count: updated.length,
+        not_found_count: notFound.length,
+        updated_ids: updated,
+      },
+    });
 
     return { updated, notFound };
   });
