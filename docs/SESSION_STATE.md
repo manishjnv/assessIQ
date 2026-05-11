@@ -1,3 +1,23 @@
+# Session — 2026-05-11 (Phase 5 Session 1 — 18-certification scaffold)
+
+**Headline:** `modules/18-certification` scaffolded: folder skeleton, types, migration 0046 with tenant_id + RLS, SKILL.md, package.json, stubs, and 29-passing unit tests. No business logic yet.
+**Commits:** see commit SHA at end of this session
+**Tests:** `pnpm -C modules/18-certification typecheck` ✅ | `pnpm -C modules/18-certification test` ✅ 29/29 | lint-no-ambient-claude ✅ (323 files scanned, 0 violations)
+**Next:** Phase 5 Session 2 — implement issuance engine: HMAC signing, `determineTier()` pure function, `insertCertificate` / `upgradeCertificateTier` repository bodies, trigger wiring into 06-attempt-engine, apply migration 0046 to VPS.
+**Open questions:**
+- Credential ID prefix per tenant: always `AIQ` (platform issuer) or configurable as a tenant setting (e.g. `WIPRO`)? Decide before Session 6 (reissue).
+- Verify-page public DB lookup strategy: SECURITY DEFINER function vs `assessiq_system` role vs explicit `SET LOCAL` bypass? Decide in Session 3.
+
+---
+
+## Agent utilization
+- Opus: n/a — this is a Sonnet subagent session (scaffold only, no load-bearing logic)
+- Sonnet: Phase 0 reads, all file creation (types, migration, stubs, tests, docs updates), acceptance test runs
+- Haiku: n/a
+- codex:rescue: n/a — no security/auth/classifier diffs; scaffold only
+
+---
+
 # Session — 2026-05-10 (Stage 3.0 commission + sharded smoke diagnose)
 
 **Headline:** Stage 3.0 plumbing shipped (per-tenant `tenant_settings.ai_generate_mode` column + handler precedence + Stage 3 watch cron + design doc with §8 decisions locked). First clean L2 count=15 sharded smoke achieved (`019e103a`, 15/15, chunks_failed=0). Per-chunk stderr aggregation confirmed live in production. Diagnosis: scenario chunk timeout is a non-deterministic model retry-loop on `submit_questions`, not a fundamental skill defect; G2 (citation fidelity) blocked by a divergence between the runtime KB ID set and `eval/fixtures/L*-sources.json`.

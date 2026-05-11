@@ -257,6 +257,54 @@ The `X-RateLimit-Bypass` header is observable by admin tooling and curl to confi
 | `AUTHN_FAILED` | 401 | All three routes (no session) |
 | `AUTHZ_FAILED` | 403 | All three routes (non-admin role) |
 
+### Admin — Super (cross-tenant platform operations)
+
+> **Status: LIVE 2026-05-08 (commit `e70d267`).** Implemented in `apps/api/src/routes/admin-super.ts`. Registered via `registerAdminSuperRoutes(app)` in `apps/api/src/server.ts`. Gate: `authChain({ roles: ['super_admin'] })` — tenant admins and reviewers cannot reach these endpoints.
+
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `PATCH` | `/api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip `ai_generate_mode` for a target tenant | **live 2026-05-08** |
+
+#### `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`
+
+Flips `tenant_settings.ai_generate_mode` for the named tenant. Used by platform operators during the Stage 3 generation-mode rollout.
+
+**Auth:** `super_admin` only. Tenant admin, reviewer, and candidate sessions all receive `403 AUTHZ_FAILED`.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body:** `{ mode: "omnibus" | "sharded" | null }`
+
+| `mode` value | Meaning |
+|---|---|
+| `"omnibus"` | Whole-pack AI generation (pre-Stage-3 default) |
+| `"sharded"` | Type-sharded generation (Stage 3 rollout) |
+| `null` | Remove per-tenant override; tenant falls back to platform default |
+
+**Response 200:**
+```json
+{
+  "tenantId": "uuid",
+  "ai_generate_mode": "sharded",
+  "previous": "omnibus",
+  "updatedAt": "2026-05-08T10:30:00Z",
+  "auditId": "uuid"
+}
+```
+
+- `previous` — the value before this call (for undo / audit display)
+- `auditId` — UUID of the `audit_log` row committed atomically with the `UPDATE`
+
+**Response 400:** `details.code = 'INVALID_MODE'` — `mode` not in `"omnibus" | "sharded" | null`.
+**Response 403:** `AUTHZ_FAILED` — caller is not `super_admin`.
+**Response 404:** target tenant's `tenant_settings` row is absent.
+
+**Audit:** Emits `tenant_settings.ai_generate_mode.updated` (ACTION_CATALOG in `modules/14-audit-log/src/types.ts`). The `UPDATE` and the `audit_log` INSERT share a single Postgres transaction — the UPDATE rolls back if the INSERT fails.
+
+**Design ref:** `docs/design/2026-05-10-stage-3-promotion-rollout.md` §3.
+
+**Source:** `apps/api/src/routes/admin-super.ts:41`, `modules/02-tenancy/src/service.ts` (`updateAiGenerateMode`).
+
 ### Candidate
 
 All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requireAuth({ roles: ['candidate'] })`). RLS scopes every read/write to the candidate's own tenant; service-layer ownership check denies cross-user reads with `AUTHZ_FAILED { code: AE_NOT_OWNED_BY_USER }`.
@@ -333,6 +381,37 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | `GET`  | `/api/help`      | Authenticated page-batch fetch (any role) — **live 2026-05-02** |
 | `GET`  | `/api/help/:key` | Authenticated single-key fetch with locale fallback — **live 2026-05-02** |
 | `POST` | `/api/help/track`| Telemetry (anonymous, deterministic 10% sample) — **live 2026-05-02** |
+| `POST` | `/api/_log`       | Frontend log ingest. Body: `{ entries: [{level: "info"\|"warn"\|"error", msg: string (≤200 chars), ts: number, fields?: {…}}] }` (1–50 items). Returns `204`. No auth required. Rate-limited: 600 req/min/IP. (`apps/api/src/routes/_log.ts:80`) — **live** |
+
+### Dev / Test (internal, gated)
+
+> **These routes do NOT exist in the production module graph.** `POST /api/dev/mint-session` is only registered when `ENABLE_E2E_TEST_MINTER=true` (a conditional dynamic `await import(...)` in `apps/api/src/server.ts`). Setting this env var in production is a misconfiguration.
+
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `POST` | `/api/dev/mint-session` | E2E test session minter — find-or-create a user by `(tenantSlug, email, role)` and return a fully-verified `aiq_sess` cookie | **dev/CI only** |
+
+#### `POST /api/dev/mint-session`
+
+Provides Playwright E2E specs with a real session cookie without requiring Google SSO + TOTP.
+
+**Security gates (all three must hold simultaneously):**
+1. `ENABLE_E2E_TEST_MINTER=true` env var
+2. Route file is a conditional dynamic import — it is **not present in the prod module graph** when the var is absent
+3. `super_admin` role is intentionally excluded — only `admin`, `reviewer`, `candidate` may be minted
+
+**Body:** `{ email: string, role: "admin"|"reviewer"|"candidate", tenantSlug: string }`
+
+**Security invariants (source: `apps/api/src/routes/dev/mint-session.ts`):**
+- When the email matches an existing user, the minted session uses the user's **current DB role** — never the caller-supplied `role`. Prevents privilege escalation.
+- When no user exists, `role` must be `"candidate"`. Admin/reviewer accounts must be seeded via the real invitation flow.
+- `tenantId` is derived from `tenantSlug` via a trusted slug lookup — never taken from the HTTP body.
+
+**Response 200:** Sets `aiq_sess` cookie (httpOnly, secure in prod, sameSite=lax). Body: `{ sessionId, userId, expiresAt }`.
+
+**Audit:** Every successful mint writes `dev.mint_session` to `audit_log` (ACTION_CATALOG in `modules/14-audit-log/src/types.ts`). Fail-closed — if the audit write fails, the request fails.
+
+**Source:** `apps/api/src/routes/dev/mint-session.ts:129`.
 
 ---
 
@@ -578,3 +657,193 @@ Exports the topic heatmap report as CSV.
 **Columns:** `topic_id, topic_label, avg_pct, bucket, n`
 
 **Response 400:** `packId` missing or malformed.
+
+---
+
+### `GET /api/admin/cycles/:cycleId/cohort-report`
+
+Returns a detailed cohort report for an assessment. The URL parameter is named `cycleId` (matching the Phase 3 plan spec) and maps to `assessment_id` in the database. Reads `attempt_summary_mv` (materialized view).
+
+**Data freshness:** depends on the last `REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv` invocation. Nightly BullMQ job runs at 02:00 UTC. Platform operators can force a refresh via `POST /api/admin/analytics/refresh` below.
+
+**Auth:** admin session required. Tenant isolation enforced via application-layer `WHERE tenant_id = ?` filter — the MV has no RLS.
+
+**Path params:** `cycleId` — UUID of the assessment.
+
+**Query params:** `archetype` (optional string) — filters the `attempts[]` array to that archetype label only. Summary statistics (`total_attempts`, percentiles, `archetype_distribution`) always cover the full cohort regardless of this filter.
+
+**Response 200:**
+```json
+{
+  "cycle_id": "uuid",
+  "total_attempts": 42,
+  "graded_count": 38,
+  "released_count": 35,
+  "archetype_distribution": { "methodical_diligent": 12, "practitioner": 8 },
+  "avg_total_score": 73.5,
+  "p50_total_score": 75.0,
+  "p90_total_score": 92.0,
+  "band_avg": { "L1": 73.5 },
+  "attempts": [
+    { "attempt_id": "uuid", "user_id": "uuid", "total_score": 92.0, "archetype": "methodical_diligent" }
+  ]
+}
+```
+
+- `attempts[]` capped at 500 rows, ordered by `total_score DESC`.
+- Unknown `cycleId` returns a valid 200 with `total_attempts: 0` and empty arrays — no 404 is emitted.
+
+**Response 400:** `cycleId` is not a valid UUID.
+
+**Source:** `modules/15-analytics/src/routes.ts:305` (commit `a455bd3`).
+
+---
+
+### `POST /api/admin/analytics/refresh`
+
+Triggers `REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv`. All analytics and cohort-report endpoints read this MV — use this endpoint after a large grading run or bulk import to avoid waiting for the nightly 02:00 UTC BullMQ job.
+
+**Auth:** `super_admin` only (not tenant admin — the refresh acquires a non-exclusive table lock and is a platform-operator action).
+
+**Body:** none.
+
+**Response 200:** `{ ok: true, duration_ms: number }`
+
+**Notes:** Auto-refresh on every attempt write is intentionally deferred; see `modules/15-analytics/SKILL.md` for rationale.
+
+**Source:** `modules/15-analytics/src/routes.ts:339`.
+
+---
+
+## Certification (module 18) — Phase 5
+
+> **Status: 501 Not Implemented — Phase 5 Session 2+**
+> All endpoints below are registered in `modules/18-certification/src/routes.ts` and return `501 Not Implemented` until the issuance engine and PDF generator ship. The contracts below are the authoritative design; implementations must match them exactly.
+
+### Candidate-facing
+
+---
+
+#### `GET /api/certificates`
+
+List all certificates belonging to the authenticated candidate (newest first).
+
+**Auth:** candidate session required.
+
+**Query params:** `limit` (default 20, max 100), `offset` (default 0).
+
+**Response 200:**
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "credential_id": "AIQ-2026-05-A7F3K9",
+      "tier": "distinction",
+      "course_title": "SOC Analyst Foundations",
+      "level": "L1",
+      "display_name": "Jane Smith",
+      "issued_at": "2026-05-11T10:00:00Z",
+      "revoked_at": null,
+      "pdf_downloads": 3,
+      "linkedin_shares": 1,
+      "verification_views": 12
+    }
+  ],
+  "total": 1
+}
+```
+
+**Source:** `modules/18-certification/src/routes.ts` — `GET /api/certificates`.
+
+---
+
+#### `GET /api/certificates/:credentialId/pdf`
+
+Download the PDF for a certificate. `credentialId` is matched case-insensitively (normalised to uppercase).
+
+**Auth:** candidate session required; cert must belong to the calling user.
+
+**Response 200:** `application/pdf` stream.
+Headers: `Content-Disposition: attachment; filename="<credentialId>.pdf"`, `Cache-Control: no-cache, no-store, must-revalidate`.
+Increments `pdf_downloads` counter.
+
+**Response 404:** cert not found or not owned by caller.
+
+**Response 410:** cert is revoked — do NOT serve PDFs for revoked certs.
+
+**Source:** `modules/18-certification/src/routes.ts` — `GET /api/certificates/:credentialId/pdf`.
+
+---
+
+#### `POST /api/certificates/:credentialId/share-linkedin`
+
+Increment the `linkedin_shares` counter. Fire-and-forget from the frontend before opening the LinkedIn share URL.
+
+**Auth:** candidate session required.
+
+**Body:** none.
+
+**Response 204:** no content.
+
+**Source:** `modules/18-certification/src/routes.ts` — `POST /api/certificates/:credentialId/share-linkedin`.
+
+---
+
+### Admin-facing
+
+> All admin endpoints require tenant-context middleware (CLAUDE.md rule #4). Tenant scope is derived from the session — never passed in URL or body.
+
+---
+
+#### `GET /api/admin/certificates`
+
+List all certificates for the calling tenant (paginated, filterable).
+
+**Auth:** admin session + tenant-context middleware.
+
+**Query params:** `candidate_id?` (UUID), `tier?` (completion|distinction|honors), `revoked?` (true|false), `limit` (default 20, max 100), `offset` (default 0).
+
+**Response 200:**
+```json
+{ "items": [ /* Certificate objects */ ], "total": 42 }
+```
+
+**Source:** `modules/18-certification/src/routes.ts` — `GET /api/admin/certificates`.
+
+---
+
+#### `POST /api/admin/certificates/:id/revoke`
+
+Revoke a certificate. Sets `revoked_at` + `revoke_reason`. The verify page continues to render (red badge); PDF download returns 410.
+
+**Auth:** admin session + tenant-context middleware.
+
+**Body:**
+```json
+{ "revoke_reason": "string (1–1000 chars, required)" }
+```
+
+**Response 200:** updated Certificate object.
+
+**Response 404:** cert not found in calling tenant.
+
+**Response 409:** cert already revoked.
+
+**Source:** `modules/18-certification/src/routes.ts` — `POST /api/admin/certificates/:id/revoke`.
+
+---
+
+#### `POST /api/admin/certificates/:id/reissue`
+
+Re-snapshot `display_name` from the current `users` record and recompute `signed_hash`. Does NOT rotate `credential_id` or `issued_at` — doing so would break shared LinkedIn URLs and invalidate previously verified HMAC signatures.
+
+**Auth:** admin session + tenant-context middleware.
+
+**Body:** none.
+
+**Response 200:** updated Certificate object.
+
+**Response 404:** cert not found in calling tenant.
+
+**Source:** `modules/18-certification/src/routes.ts` — `POST /api/admin/certificates/:id/reissue`.

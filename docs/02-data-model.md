@@ -27,7 +27,9 @@
 | 09-scoring | `gradings`, `attempt_scores`, `archetypes` |
 | 13-notifications | `webhook_endpoints`, `webhook_deliveries`, `email_log` |
 | 14-audit-log | `audit_log` |
+| 15-analytics | `attempt_summary_mv` (materialized view — no RLS, explicit tenant filter required) |
 | 16-help-system | `help_content` |
+| 18-certification | `certificates` |
 
 ---
 
@@ -852,3 +854,81 @@ Nightly at **02:00 UTC** via BullMQ job `analytics:refresh_mv` (registered in `a
 ```bash
 psql -U assessiq_system -c "REFRESH MATERIALIZED VIEW attempt_summary_mv"
 ```
+
+---
+
+## 18-certification — `certificates`
+
+> **Status:** SCAFFOLDED — Phase 5 Session 1 (2026-05-11). Migration at `modules/18-certification/migrations/0046_certification_init.sql`. NOT YET APPLIED to any database — deployment scheduled for Phase 5 Session 2.
+
+Point-in-time snapshot of a candidate's earned credential. Fields are frozen at issuance; profile or score changes after issuance do NOT retro-update the row (plan §1.1 "snapshot" rule). Tier upgrades update `tier` + `signed_hash` in place but preserve `credential_id` and `issued_at` to keep shared LinkedIn URLs and HMAC signatures valid.
+
+```sql
+CREATE TABLE certificates (
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  attempt_id       UUID        NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+  candidate_id     UUID        REFERENCES users(id) ON DELETE SET NULL,
+  template_key     TEXT        NOT NULL,
+  credential_id    TEXT        NOT NULL,   -- globally unique slug: PREFIX-YYYY-MM-XXXXXX
+  tier             TEXT        NOT NULL CHECK (tier IN ('completion', 'distinction', 'honors')),
+  display_name     TEXT        NOT NULL,   -- snapshotted from users.name at issuance
+  course_title     TEXT        NOT NULL,   -- snapshotted from assessments.name at issuance
+  level            TEXT        NOT NULL,   -- snapshotted level label (e.g. "L1")
+  signed_hash      TEXT        NOT NULL,   -- HMAC-SHA256 hex; payload: credential_id|candidate_id|issued_at
+  issued_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at       TIMESTAMPTZ,
+  revoke_reason    TEXT        CHECK (revoke_reason IS NULL OR length(revoke_reason) <= 1000),
+  pdf_downloads      INT NOT NULL DEFAULT 0,
+  linkedin_shares    INT NOT NULL DEFAULT 0,
+  verification_views INT NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### Constraints
+
+| Constraint | Definition | Purpose |
+|---|---|---|
+| `certificates_tenant_candidate_attempt_uniq` | `UNIQUE(tenant_id, candidate_id, attempt_id)` | One cert per attempt — idempotent issuance; DB is the race-condition firewall |
+| `certificates_credential_id_key` | `UNIQUE(credential_id)` | Globally unique public slug (not tenant-scoped — recruiters look up without knowing tenant) |
+| `tier CHECK` | `tier IN ('completion', 'distinction', 'honors')` | Enum guard at DB level |
+| `revoke_reason CHECK` | `length(revoke_reason) <= 1000` | Bounds admin input |
+
+### Indexes
+
+| Index | Columns | Hot read pattern |
+|---|---|---|
+| `certificates_candidate_idx` | `(tenant_id, candidate_id)` | "My Certificates" list; admin list filtered by candidate |
+| `certificates_credential_id_idx` | `(credential_id)` | Verify-page slug lookup (O(1) via UNIQUE, named for EXPLAIN clarity) |
+
+### RLS
+
+Three policies on `certificates` (tenant-scoped SELECT, INSERT, UPDATE). No DELETE policy — RLS denies DELETE by default. Application code never hard-deletes certificates; GDPR erasure requires `assessiq_system` role with written authorisation (same procedure as `audit_log`).
+
+```sql
+ALTER TABLE certificates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON certificates
+  FOR SELECT
+  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+
+CREATE POLICY tenant_isolation_insert ON certificates
+  FOR INSERT
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
+
+CREATE POLICY tenant_isolation_update ON certificates
+  FOR UPDATE
+  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+```
+
+**Public verify-page note:** `GET /verify/:credentialId` is a no-auth recruiter endpoint. Its repository query must bypass tenant RLS (no `app.current_tenant` GUC set). Implementation strategy (SECURITY DEFINER function vs `assessiq_system` role) is deferred to Phase 5 Session 3. Do NOT add a permissive all-tenants SELECT policy.
+
+### Design decisions
+
+- **`attempt_id` replaces `enrollment_id`** — AssessIQ has no `enrollments` table. `attempts` (module 06) is the concrete completed entity. `UNIQUE(tenant_id, candidate_id, attempt_id)` gives per-attempt idempotence. (Rejected: `assessment_id` FK — too coarse; a candidate could have multiple attempts in one assessment cycle.)
+- **`candidate_id` ON DELETE SET NULL** — preserves historical cert record (snapshotted `display_name`) after GDPR account deletion.
+- **`credential_id` is globally unique** — slug used in QR codes and LinkedIn share URLs; recruiters look it up without knowing the issuing tenant.
+- **Counters use server-side arithmetic** — `UPDATE … SET col = col + 1`. Never read-modify-write. Non-critical analytics: a lost increment is acceptable.
+- **`issued_at` must be truncated to second precision** before HMAC signing — PostgreSQL preserves microseconds; a drift between persisted value and re-signing produces a different digest. See `modules/18-certification/SKILL.md` D6.
