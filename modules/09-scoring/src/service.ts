@@ -17,6 +17,7 @@
 
 import { withTenant } from "@assessiq/tenancy";
 import { AppError } from "@assessiq/core";
+import { auditInTx } from "@assessiq/audit-log";
 import {
   computeSignals,
   deriveArchetype,
@@ -37,6 +38,7 @@ import type {
 export async function computeAttemptScore(
   tenantId: string,
   attemptId: string,
+  actorUserId?: string,
 ): Promise<AttemptScore> {
   return withTenant(tenantId, async (client) => {
     // 1. Fetch attempt metadata (status + timing + assessment linkage)
@@ -48,6 +50,14 @@ export async function computeAttemptScore(
         404,
       );
     }
+
+    // Snapshot prior score for audit before/after. Only fetched when
+    // actorUserId is provided (admin-triggered path); avoids extra round-trip
+    // on system-triggered computes. Null on first compute (INSERT-only path).
+    const beforeScore =
+      actorUserId !== undefined
+        ? await repo.getAttemptScore(client, attemptId)
+        : null;
 
     // 2. Fetch all gradings (latest per question)
     const gradings = await repo.getGradingsForAttempt(client, attemptId);
@@ -114,6 +124,36 @@ export async function computeAttemptScore(
       archetype_signals: signals,
     });
 
+    if (actorUserId !== undefined) {
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId,
+        action: "attempt_scores.recomputed_by_admin",
+        entityType: "attempt_score",
+        entityId: attemptId,
+        ...(beforeScore !== null
+          ? {
+              before: {
+                auto_pct: beforeScore.auto_pct,
+                archetype: beforeScore.archetype,
+                pending_review: beforeScore.pending_review,
+                total_earned: beforeScore.total_earned,
+                total_max: beforeScore.total_max,
+              },
+            }
+          : {}),
+        after: {
+          auto_pct: scoreRow.auto_pct,
+          archetype: scoreRow.archetype,
+          pending_review: scoreRow.pending_review,
+          total_earned: scoreRow.total_earned,
+          total_max: scoreRow.total_max,
+          computed_at: scoreRow.computed_at,
+        },
+      });
+    }
+
     return scoreRow;
   });
 }
@@ -126,8 +166,9 @@ export async function computeAttemptScore(
 export async function recomputeOnOverride(
   tenantId: string,
   attemptId: string,
+  actorUserId?: string,
 ): Promise<AttemptScore> {
-  return computeAttemptScore(tenantId, attemptId);
+  return computeAttemptScore(tenantId, attemptId, actorUserId);
 }
 
 // ---------------------------------------------------------------------------

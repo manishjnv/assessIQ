@@ -90,6 +90,11 @@ export const ACTION_CATALOG = [
   // queries can separate "admin manually provisioned" from "admin invited
   // and the user later accepted via magic link."
   'user.invited',
+  // G3.D 09-scoring sweep (2026-05-11) — admin-triggered score recompute.
+  // Fired by recomputeOnOverride() when an admin grading override causes a
+  // score rollup recompute. before/after capture the score delta for forensics.
+  // before is null on first compute (INSERT-only; no prior row to snapshot).
+  'attempt_scores.recomputed_by_admin',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];
