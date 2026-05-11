@@ -187,4 +187,55 @@ describe('inviteUsers — tenantId pass-through to email', () => {
     const callArgs = mockSendInvitationEmail.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(callArgs['tenantId']).toBe(tenantId);
   });
+
+  it('passes the freshly-fetched tenant name (not the tenant id) to sendInvitationEmail', async () => {
+    // Regression guard for Phase 1 closure-audit Finding C (RCA 2026-05-11).
+    // Pre-fix: inviteUsers passed tenantName:"" → 13-notifications Zod .min(1)
+    // rejected → invitation insert + email both rolled back. Post-fix: the
+    // service fetches the tenant row inside withTenant and uses tenant.name.
+    await inviteUsers('tenant-1', 'assessment-1', ['user-1'], 'admin-1');
+
+    expect(mockSendInvitationEmail).toHaveBeenCalledOnce();
+    const callArgs = mockSendInvitationEmail.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArgs['tenantName']).toBe('Acme Corp');
+    // never the tenant id, never an empty string
+    expect(callArgs['tenantName']).not.toBe('tenant-1');
+    expect(callArgs['tenantName']).not.toBe('');
+  });
+
+  it('throws TENANT_NAME_MISSING (NotFoundError) and does NOT dispatch when the tenant row is missing', async () => {
+    const tenancyModule = await import('../../../02-tenancy/src/repository.js');
+    vi.mocked(tenancyModule.findTenantById).mockResolvedValueOnce(null);
+
+    let caught: unknown;
+    try {
+      await inviteUsers('tenant-1', 'assessment-1', ['user-1'], 'admin-1');
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const errDetails = (caught as { details?: Record<string, unknown> }).details;
+    expect(errDetails?.['code']).toBe('TENANT_NAME_MISSING');
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled();
+  });
+
+  it('throws TENANT_NAME_MISSING (ValidationError) and does NOT dispatch when the tenant name is empty', async () => {
+    const tenancyModule = await import('../../../02-tenancy/src/repository.js');
+    vi.mocked(tenancyModule.findTenantById).mockResolvedValueOnce({
+      id: 'tenant-1', name: '   ', slug: 'acme',
+    } as Awaited<ReturnType<typeof tenancyModule.findTenantById>>);
+
+    let caught: unknown;
+    try {
+      await inviteUsers('tenant-1', 'assessment-1', ['user-1'], 'admin-1');
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const errDetails = (caught as { details?: Record<string, unknown> }).details;
+    expect(errDetails?.['code']).toBe('TENANT_NAME_MISSING');
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled();
+  });
 });

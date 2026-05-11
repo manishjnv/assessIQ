@@ -689,12 +689,25 @@ export async function inviteUsers(
   log.info({ tenantId, assessmentId, userCount: userIds.length }, "inviteUsers");
 
   return withTenant(tenantId, async (client) => {
-    // Fetch tenant name once — single DB hit, held for all invitees in this
-    // batch. Uses the already-open client (inside withTenant transaction) so
-    // no extra round-trip. Fallback: name → slug → tenantId so tenantName is
-    // always non-empty; 13-notifications Zod .min(1) stays strict.
+    // Fetch tenant name once — single DB hit on the same client (RLS + tx
+    // consistency), held for all invitees in this batch. The 13-notifications
+    // Zod validator enforces .min(1) on tenantName; we never paper over a
+    // missing name with the tenant id or slug — the validator is right, the
+    // caller must provide a real value (RCA 2026-05-11 Finding C).
     const tenantRow = await tenancyRepo.findTenantById(client, tenantId);
-    const tenantName = tenantRow?.name || tenantRow?.slug || tenantId;
+    if (tenantRow === null) {
+      throw new NotFoundError(
+        `Tenant not found while preparing invitation emails: ${tenantId}`,
+        { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
+      );
+    }
+    const tenantName = tenantRow.name?.trim() ?? "";
+    if (tenantName.length === 0) {
+      throw new ValidationError(
+        `Tenant has empty name; cannot send invitation emails (tenant ${tenantId})`,
+        { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
+      );
+    }
     // a. Read assessment
     const assessment = await repo.findAssessmentById(client, assessmentId);
     if (assessment === null) {
@@ -767,7 +780,7 @@ export async function inviteUsers(
       const invitationLink = `${PUBLIC_URL}/take/${plaintext}`;
 
       // Send via 13-notifications shim — never inline SMTP here.
-      // tenantName resolved above via tenancyRepo.findTenantById (same client).
+      // tenantName resolved above (non-empty; throws otherwise).
       await sendInvitationEmail({
         tenantId,
         to: user.email,
