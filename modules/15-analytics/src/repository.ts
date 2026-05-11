@@ -112,6 +112,17 @@ export async function queryQueueSummary(client: PoolClient, tenantId: string): P
 // Reports: cohortReport — reads attempt_summary_mv (explicit tenant filter)
 // ---------------------------------------------------------------------------
 
+/**
+ * Candidate/reviewer-facing cohort rollup for one assessment.
+ * Returns CohortReport (camelCase; p25/p50/p75/p90; levelBreakdown;
+ *   topicBreakdown from live gradings/questions tables).
+ * Caller: service.cohortReport() → 09-scoring admin cohort route
+ *   (GET /api/admin/reports/cohort/:assessmentId, admin role, tenant-scoped).
+ * DO NOT collapse with queryAdminCohortReport — they return different types
+ *   (CohortReport vs AdminCohortReport), use different sources (MV + live
+ *   tables here vs MV-only), and compute non-overlapping aggregates
+ *   (p25/p75/topicBreakdown here; graded_count/released_count/attempts[] there).
+ */
 export async function queryCohortReport(
   client: PoolClient,
   tenantId: string,
@@ -417,15 +428,16 @@ export async function queryArchetypeDistribution(
 export const COHORT_ATTEMPTS_HARD_LIMIT = 500;
 
 /**
- * Full admin-facing cohort report for one assessment (called "cycle" in the URL).
- *
- * All queries against attempt_summary_mv include the mandatory tenant filter:
- *   WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
- * This is enforced by tools/lint-mv-tenant-filter.ts.
- *
- * Optional archetype filter narrows only the attempts[] list — the aggregate
- * stats always reflect the full cohort so admins can see the "zoomed" list
- * while keeping the overall distribution visible.
+ * Admin-facing cohort report for GET /api/admin/cycles/:cycleId/cohort-report.
+ * Returns AdminCohortReport (snake_case; graded_count; released_count; p50/p90;
+ *   band_avg per level; cap-500 attempts[] with optional archetype filter).
+ *   MV-only (4 queries); archetype filter narrows attempts[] only — stats
+ *   always reflect the full cohort.
+ * Caller: service.getAdminCohortReport() → routes.ts:309 (adminOnly gate,
+ *   tenant-scoped via withTenant; lint-mv-tenant-filter enforces the filter).
+ * DO NOT collapse with queryCohortReport — different type (AdminCohortReport
+ *   vs CohortReport), MV-only vs MV+live, and non-overlapping aggregates
+ *   (graded_count/released_count/attempts[] vs p25/p75/topicBreakdown).
  */
 export async function queryAdminCohortReport(
   client: PoolClient,
