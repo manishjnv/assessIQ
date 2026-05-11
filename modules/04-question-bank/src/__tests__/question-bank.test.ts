@@ -65,6 +65,7 @@ const MODULES_ROOT = join(QB_MODULE_ROOT, "..");             // .../modules/
 
 const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
 const USERS_MIGRATIONS_DIR   = join(MODULES_ROOT, "03-users", "migrations");
+const AUDIT_MIGRATIONS_DIR   = join(MODULES_ROOT, "14-audit-log", "migrations");
 const QB_MIGRATIONS_DIR      = join(QB_MODULE_ROOT, "migrations");
 const SAMPLE_PACK_PATH       = join(QB_MODULE_ROOT, "examples", "sample-pack.json");
 
@@ -166,10 +167,13 @@ beforeAll(async () => {
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
   // 2. Apply migrations in dependency order:
-  //    tenancy (0001-0003) → users (020 only, no 021_invitations) → qb (0010-0014)
-  const [tenancyFiles, usersFiles, qbFiles] = await Promise.all([
+  //    tenancy (0001-0003) → users (020 only, no 021_invitations) → audit-log → qb (0010-0014)
+  // 14-audit-log migration must precede qb because every QB mutation now writes
+  // an audit_log row inside the same transaction (G3.D audit-write sweep).
+  const [tenancyFiles, usersFiles, auditFiles, qbFiles] = await Promise.all([
     readdir(TENANCY_MIGRATIONS_DIR),
     readdir(USERS_MIGRATIONS_DIR),
+    readdir(AUDIT_MIGRATIONS_DIR),
     readdir(QB_MIGRATIONS_DIR),
   ]);
 
@@ -185,6 +189,12 @@ beforeAll(async () => {
     .sort()
     .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
 
+  // Audit-log migration (0050)
+  const auditSorted = auditFiles
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => ({ dir: AUDIT_MIGRATIONS_DIR, file: f }));
+
   // All QB migrations (0010-0014)
   const qbSorted = qbFiles
     .filter((f) => f.endsWith(".sql"))
@@ -192,10 +202,33 @@ beforeAll(async () => {
     .map((f) => ({ dir: QB_MIGRATIONS_DIR, file: f }));
 
   await withSuperClient(async (client) => {
-    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...qbSorted]) {
+    // App role required by audit_log RLS + GRANT setup.
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
+          CREATE ROLE assessiq_app;
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
+          CREATE ROLE assessiq_system BYPASSRLS;
+        END IF;
+      END $$;
+    `);
+    await client.query(`GRANT assessiq_app TO test`);
+    await client.query(`GRANT assessiq_system TO test`);
+
+    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...auditSorted, ...qbSorted]) {
       const sql = await readFile(join(dir, file), "utf-8");
       await client.query(sql);
     }
+
+    // audit_log has REVOKE UPDATE/DELETE/TRUNCATE in its migration; explicitly
+    // GRANT SELECT+INSERT to assessiq_app so service-layer writes via withTenant succeed.
+    await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
+    await client.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
   });
 
   // 3. Point pool singleton at testcontainer
@@ -660,7 +693,7 @@ describe("Question lifecycle + versioning", () => {
       adminA,
     );
     await publishPack(tenantA, archivedPack.id, adminA);
-    await archivePack(tenantA, archivedPack.id);
+    await archivePack(tenantA, archivedPack.id, adminA);
 
     // Now attempt to add a question to the archived pack
     await expect(
@@ -1126,7 +1159,7 @@ describe("archivePack", () => {
 
   it("publishPack → archivePack succeeds; status becomes archived", async () => {
     const pack = await buildPublishedPack("archive-ok");
-    const archived = await archivePack(tenantA, pack.id);
+    const archived = await archivePack(tenantA, pack.id, adminA);
     expect(archived.status).toBe("archived");
   });
 
@@ -1137,7 +1170,7 @@ describe("archivePack", () => {
       adminA,
     );
 
-    await expect(archivePack(tenantA, pack.id)).rejects.toSatisfy(
+    await expect(archivePack(tenantA, pack.id, adminA)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ConflictError &&
         (e.details as Record<string, unknown> | undefined)?.["code"] === "PACK_NOT_PUBLISHED",
@@ -1173,14 +1206,14 @@ describe("archivePack", () => {
         );
       });
 
-      await expect(archivePack(tenantA, pack.id)).rejects.toSatisfy(
+      await expect(archivePack(tenantA, pack.id, adminA)).rejects.toSatisfy(
         (e: unknown) =>
           e instanceof ConflictError &&
           (e.details as Record<string, unknown> | undefined)?.["code"] === "PACK_HAS_ASSESSMENTS",
       );
 
       // Confirm the gate counts the referencing row
-      await expect(archivePack(tenantA, pack.id)).rejects.toSatisfy(
+      await expect(archivePack(tenantA, pack.id, adminA)).rejects.toSatisfy(
         (e: unknown) =>
           e instanceof ConflictError &&
           (e.details as Record<string, unknown> | undefined)?.["count"] === 1,
@@ -1564,7 +1597,7 @@ describe("activateAllQuestionsForPack", () => {
 
   it("happy path — flips all draft questions to active and returns counts", async () => {
     const { packId } = await buildPackWith(["draft", "draft", "draft"]);
-    const result = await activateAllQuestionsForPack(tenantA, packId);
+    const result = await activateAllQuestionsForPack(tenantA, packId, adminA);
     expect(result.activated).toBe(3);
     expect(result.alreadyActive).toBe(0);
     expect(result.archived).toBe(0);
@@ -1576,7 +1609,7 @@ describe("activateAllQuestionsForPack", () => {
 
   it("flips only draft rows; preserves already-active and archived", async () => {
     const { packId } = await buildPackWith(["draft", "active", "archived"]);
-    const result = await activateAllQuestionsForPack(tenantA, packId);
+    const result = await activateAllQuestionsForPack(tenantA, packId, adminA);
     expect(result.activated).toBe(1);
     expect(result.alreadyActive).toBe(1);
     expect(result.archived).toBe(1);
@@ -1598,7 +1631,7 @@ describe("activateAllQuestionsForPack", () => {
 
     let caught: unknown;
     try {
-      await activateAllQuestionsForPack(tenantA, pack.id);
+      await activateAllQuestionsForPack(tenantA, pack.id, adminA);
     } catch (e) {
       caught = e;
     }
@@ -1609,14 +1642,14 @@ describe("activateAllQuestionsForPack", () => {
   it("rejects with NO_DRAFT_QUESTIONS_TO_ACTIVATE when re-called on an all-active pack (idempotency surface)", async () => {
     const { packId } = await buildPackWith(["draft", "draft"]);
     // First call: flips both to active.
-    const r1 = await activateAllQuestionsForPack(tenantA, packId);
+    const r1 = await activateAllQuestionsForPack(tenantA, packId, adminA);
     expect(r1.activated).toBe(2);
 
     // Second call: nothing to flip. Throws so the admin UI can render
     // "already done" rather than misleading 200-with-zero.
     let caught: unknown;
     try {
-      await activateAllQuestionsForPack(tenantA, packId);
+      await activateAllQuestionsForPack(tenantA, packId, adminA);
     } catch (e) {
       caught = e;
     }
@@ -1630,7 +1663,7 @@ describe("activateAllQuestionsForPack", () => {
     const { packId } = await buildPackWith(["draft"]);
     let caught: unknown;
     try {
-      await activateAllQuestionsForPack(tenantB, packId);
+      await activateAllQuestionsForPack(tenantB, packId, adminA);
     } catch (e) {
       caught = e;
     }
