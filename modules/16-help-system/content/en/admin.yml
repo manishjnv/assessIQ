@@ -1346,3 +1346,107 @@ admin.attempts.session-idle:
     - Browser tab backgrounding with aggressive timer throttling.
     - Brief network interruptions that resolve before the next action.
 
+# ─── Phase 5 Credentialize — certificate management ───
+
+admin.certificates.list:
+  audience: admin
+  short_text: "View and manage credentials issued to candidates in this tenant. Revoke compromised or invalid certificates; reissue when a snapshot field needs correction."
+  long_md: |
+    ## Certificate management
+
+    The **Certificates** page (`/admin/certificates`) lists every credential
+    issued to candidates in this tenant, newest first.
+
+    **What you can do here:**
+
+    | Action | When to use |
+    |---|---|
+    | **Revoke** | Certificate was issued in error, a candidate's access should be revoked, or the credential has been compromised |
+    | **Reissue** | The candidate's display name was wrong at issuance and needs correction |
+
+    **Columns:**
+
+    - `credential_id` — the public slug used in LinkedIn share URLs and QR codes
+    - `user_email` — the candidate's current email (may differ from name on cert)
+    - `tier` — Completion, Distinction, or Honors
+    - `issued_at` — when the credential was first issued (never changes on reissue)
+    - `status` — Active or Revoked
+
+    **Filter chips:** narrow by tier or status to find specific credentials quickly.
+
+    **Counters:** pdf_downloads, linkedin_shares, and verification_views are tracked
+    per credential and visible in the audit log.
+
+  related_keys:
+    - admin.certificates.revoke
+    - admin.certificates.reissue
+
+admin.certificates.revoke:
+  audience: admin
+  short_text: "Revoking a credential makes its public verify page show a red badge and prevents PDF download. Reason is recorded in the audit log and visible on the verify page."
+  long_md: |
+    ## Revoking a certificate
+
+    Revocation is a **soft delete** — the credential record is preserved and
+    the verify page still loads, but displays a red "Revoked" badge instead of
+    a green verification check.
+
+    **Effects of revocation:**
+
+    - Public verify page (`/verify/<credential_id>`) shows red badge + revoke reason
+    - PDF download returns 410 Gone
+    - Share buttons are disabled in the candidate's "My Certificates" view
+    - Revoke reason is written atomically to the audit log
+
+    **The reason field is required** (1–500 characters). It appears on the
+    public verify page, so write it as a professional explanation that a
+    recruiter might read: e.g., "Certificate issued in error — assessment was
+    invalidated." rather than internal jargon.
+
+    **Revocation is irreversible.** A revoked certificate cannot be reissued
+    (use the issue flow to create a new certificate if the candidate re-earns
+    the credential). Revocations are logged in the audit trail with the
+    acting admin's identity.
+
+  related_keys:
+    - admin.certificates.list
+
+admin.certificates.reissue:
+  audience: admin
+  short_text: "Reissuing re-snapshots display fields (e.g., name corrections) without rotating the credential_id or issued_at — already-shared LinkedIn URLs remain valid."
+  long_md: |
+    ## Reissuing a certificate
+
+    Reissue is used for **name corrections** — when a candidate's display
+    name was wrong at issuance and needs to be fixed on the certificate.
+
+    **What reissue does:**
+
+    - Updates `display_name` to the new value (or re-snapshots from the current
+      user record if no override is provided)
+    - Recomputes the HMAC signature over the updated fields
+    - **Preserves** `credential_id` and `issued_at` — any LinkedIn share
+      URLs or QR codes the candidate already distributed continue to resolve
+      to the correct verify page
+
+    **What reissue does NOT do:**
+
+    - Rotate `credential_id` or `issued_at`
+    - Change the tier or course_title
+    - Affect revoked certificates (revoked certs return 410 if reissue is attempted)
+
+    **When to use vs. when NOT to use:**
+
+    | Use reissue | Do NOT use reissue |
+    |---|---|
+    | Legal name change on a valid cert | Candidate did not actually earn the tier |
+    | Typo in the display name | Certificate should be revoked |
+    | Re-snapshot after a profile correction | Course title changed (snapshot is intentional) |
+
+    Reissue is audited: before/after display_name is recorded with the acting
+    admin's identity.
+
+  related_keys:
+    - admin.certificates.list
+    - admin.certificates.revoke
+

@@ -186,3 +186,56 @@ export const ListCertificatesQuerySchema = z.object({
 });
 
 export type ListCertificatesQuery = z.infer<typeof ListCertificatesQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// Reissue input schema
+// ---------------------------------------------------------------------------
+
+export const ReissueCertificateInputSchema = z.object({
+  display_name: z.string().min(1).max(500).optional(),
+});
+export type ReissueCertificateInput = z.infer<typeof ReissueCertificateInputSchema>;
+
+// ---------------------------------------------------------------------------
+// View shapes (enriched responses)
+// ---------------------------------------------------------------------------
+
+/** Response shape for GET /api/certificates (candidate "My Certificates" view). */
+export interface MyCertificateView extends Certificate {
+  /** true if the stored signed_hash validates against the canonical payload. */
+  signed_hash_valid: boolean;
+  /** Public verify URL: /verify/<credential_id> */
+  verify_url: string;
+  /** PDF download URL: /api/certificates/<credential_id>/pdf */
+  pdf_url: string;
+}
+
+/** Response shape for GET /api/admin/certificates (admin list with user email). */
+export interface CertificateAdminView extends Certificate {
+  user_email: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Domain errors — thrown by service, caught by route handlers
+// ---------------------------------------------------------------------------
+
+export class CertificateNotFoundError extends Error {
+  constructor(credentialId: string) {
+    super(`Certificate not found: ${credentialId}`);
+    this.name = 'CertificateNotFoundError';
+  }
+}
+
+export class CertificateAlreadyRevokedError extends Error {
+  constructor(credentialId: string, existingReason: string | null) {
+    super(`Certificate ${credentialId} is already revoked: ${existingReason ?? '(no reason)'}`);
+    this.name = 'CertificateAlreadyRevokedError';
+  }
+}
+
+export class CertificateRevokedException extends Error {
+  constructor(credentialId: string) {
+    super(`Certificate ${credentialId} is revoked and cannot be reissued (issue a new cert)`);
+    this.name = 'CertificateRevokedException';
+  }
+}

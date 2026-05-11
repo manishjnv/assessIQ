@@ -200,3 +200,29 @@ export async function getResult(
 
 // Re-exported for callers that need to switch on the wire types.
 export type { AttemptAnswerWire };
+
+// ─── Certificate surface (Phase 5 Session 5) ─────────────────────────────────
+
+export interface MyCertificate {
+  credential_id: string;
+  tier: 'completion' | 'distinction' | 'honors';
+  course_title: string;
+  level: string;
+  issued_at: string;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+  signed_hash_valid: boolean;
+  verify_url: string;
+  pdf_url: string;
+  pdf_downloads: number;
+  linkedin_shares: number;
+  verification_views: number;
+}
+
+export interface MyCertificatesResponse {
+  certificates: MyCertificate[];
+}
+
+export async function listMyCertificates(): Promise<MyCertificatesResponse> {
+  return call<MyCertificatesResponse>('/certificates');
+}

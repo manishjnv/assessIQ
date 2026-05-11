@@ -12,3 +12,5 @@ export type { QuestionNavigatorProps, NavigatorItem } from "./QuestionNavigator"
 
 export { CandidateHelp } from "./CandidateHelp";
 export type { CandidateHelpProps } from "./CandidateHelp";
+
+export { MyCertificates } from './MyCertificates.js';

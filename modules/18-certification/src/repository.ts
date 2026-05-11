@@ -434,6 +434,119 @@ export async function revokeCertificate(
 }
 
 /**
+ * Admin certificate list — same as listCertificates but LEFT JOINs the users
+ * table to surface user_email alongside each certificate row.
+ *
+ * Tenant scoping uses the `c.tenant_id = $1` predicate on the aliased table
+ * rather than the unqualified column used in listCertificates (which has no JOIN
+ * and needs no alias). RLS is still the primary guard; the explicit predicate is
+ * defense-in-depth for service-role / migration callers.
+ */
+export async function listCertificatesAdmin(
+  client: PoolClient,
+  tenantId: string,
+  query: ListCertificatesQuery,
+): Promise<{ items: Array<Certificate & { user_email: string | null }>; total: number }> {
+  const params: unknown[] = [tenantId];
+  const conditions: string[] = ['c.tenant_id = $1'];
+
+  if (query.candidate_id !== undefined) {
+    params.push(query.candidate_id);
+    conditions.push(`c.candidate_id = $${params.length}`);
+  }
+  if (query.tier !== undefined) {
+    params.push(query.tier);
+    conditions.push(`c.tier = $${params.length}`);
+  }
+  if (query.revoked !== undefined) {
+    if (query.revoked === 'true') {
+      conditions.push('c.revoked_at IS NOT NULL');
+    } else {
+      conditions.push('c.revoked_at IS NULL');
+    }
+  }
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+  const countResult = await client.query<{ total: string }>(
+    `SELECT count(*)::text AS total FROM certificates c ${whereClause}`,
+    params,
+  );
+  const total = Number(countResult.rows[0]?.total ?? '0');
+
+  params.push(query.limit);
+  const limitParam = `$${params.length}`;
+  params.push(query.offset);
+  const offsetParam = `$${params.length}`;
+
+  const result = await client.query<Certificate & { user_email: string | null }>(
+    `SELECT
+       c.id::text,
+       c.tenant_id::text,
+       c.attempt_id::text,
+       c.candidate_id::text,
+       c.template_key,
+       c.credential_id,
+       c.tier,
+       c.display_name,
+       c.course_title,
+       c.level,
+       c.signed_hash,
+       to_char(c.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS issued_at,
+       CASE WHEN c.revoked_at IS NULL THEN NULL
+            ELSE to_char(c.revoked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+       END AS revoked_at,
+       c.revoke_reason,
+       c.pdf_downloads,
+       c.linkedin_shares,
+       c.verification_views,
+       to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+       to_char(c.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at,
+       u.email AS user_email
+     FROM certificates c
+     LEFT JOIN users u ON u.id = c.candidate_id
+     ${whereClause}
+     ORDER BY c.issued_at DESC
+     LIMIT ${limitParam} OFFSET ${offsetParam}`,
+    params,
+  );
+  return { items: result.rows, total };
+}
+
+/**
+ * Update display_name and signed_hash on a certificate (admin-initiated
+ * name correction / reissue). Preserves credential_id and issued_at — those
+ * are stable identity fields baked into shared LinkedIn URLs and the HMAC payload.
+ *
+ * Throws a plain Error when no row is matched (wrong certId or tenantId),
+ * which the service layer converts to CertificateNotFoundError before calling
+ * this function (findByCredentialId is called first, so a miss here is a
+ * programmer error / TOCTOU race — not a normal user-facing 404).
+ */
+export async function reissueCertificate(
+  client: PoolClient,
+  certId: string,
+  tenantId: string,
+  newDisplayName: string,
+  newSignedHash: string,
+): Promise<Certificate> {
+  const result = await client.query<Certificate>(
+    `UPDATE certificates
+        SET display_name = $1,
+            signed_hash = $2,
+            updated_at = now()
+      WHERE id = $3
+        AND tenant_id = $4
+      RETURNING ${CERTIFICATE_PROJECTION}`,
+    [newDisplayName, newSignedHash, certId, tenantId],
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error(`reissueCertificate: no row updated for id=${certId} tenant=${tenantId}`);
+  }
+  return row;
+}
+
+/**
  * Allowlist of counter column names accepted by incrementCounter.
  * Used as a runtime guard against SQL injection if this function is ever
  * called from a dynamic/deserialized context that bypasses TypeScript types.

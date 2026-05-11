@@ -80,6 +80,9 @@ export const ACTION_CATALOG = [
   // See modules/18-certification/SKILL.md and docs/CERTIFICATION_PLAN_GENERIC.md.
   'certification.cert.issue',
   'certification.cert.upgrade',
+  // Phase 5 Session 5 — admin revoke + reissue operations.
+  'certificates.revoked',
+  'certificates.reissued',
   // G3.D 03-users sweep (2026-05-11) — admin user-management mutations.
   // Generic "something on a user changed" with before/after diff + kind marker.
   'user.updated',

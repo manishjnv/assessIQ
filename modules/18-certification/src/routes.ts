@@ -29,16 +29,19 @@ import { renderCertificatePdf } from './pdf/render.js';
 import { findByCredentialId, incrementCounter } from './repository.js';
 import {
   adminListCertificates,
-  getByCredentialId,
   issueCertificate,
   listForUser,
   reissue,
   revoke,
 } from './service.js';
 import {
+  CertificateAlreadyRevokedError,
+  CertificateNotFoundError,
+  CertificateRevokedException,
   CREDENTIAL_ID_REGEX,
   CredentialIdSchema,
   ListCertificatesQuerySchema,
+  ReissueCertificateInputSchema,
   RevokeCertificateInputSchema,
 } from './types.js';
 
@@ -188,12 +191,10 @@ export async function registerCertificationRoutes(
     '/api/certificates',
     { preHandler: candidatePreHandler },
     async (req, reply) => {
-      void listForUser; // TODO(Phase5-S5): call service
-      return reply.status(501).send({
-        statusCode: 501,
-        error: 'Not Implemented',
-        message: 'GET /api/certificates — Phase 5 Session 5',
-      });
+      const session = (req as unknown as { session?: SessionInfo }).session;
+      if (!session) return reply.code(401).send({ error: 'Unauthorized' });
+      const result = await listForUser(session.tenantId, session.userId);
+      return reply.send(result);
     },
   );
 
@@ -228,47 +229,74 @@ export async function registerCertificationRoutes(
     '/api/admin/certificates',
     { preHandler: adminPreHandler },
     async (req, reply) => {
+      const session = (req as unknown as { session?: SessionInfo }).session;
+      if (!session) return reply.code(401).send({ error: 'Unauthorized' });
       const queryParsed = ListCertificatesQuerySchema.safeParse(req.query);
       if (!queryParsed.success) {
         throw new ValidationError(queryParsed.error.errors[0]?.message ?? 'invalid query');
       }
-      void adminListCertificates; // TODO(Phase5-S2): call service
-      return reply.status(501).send({
-        statusCode: 501,
-        error: 'Not Implemented',
-        message: 'GET /api/admin/certificates — Phase 5 Session 2',
-      });
+      const result = await adminListCertificates(session.tenantId, queryParsed.data);
+      return reply.send(result);
     },
   );
 
-  app.post(
-    '/api/admin/certificates/:id/revoke',
+  app.post<{ Params: { credentialId: string } }>(
+    '/api/admin/certificates/:credentialId/revoke',
     { preHandler: adminPreHandler },
     async (req, reply) => {
+      const session = (req as unknown as { session?: SessionInfo }).session;
+      if (!session) return reply.code(401).send({ error: 'Unauthorized' });
       const bodyParsed = RevokeCertificateInputSchema.safeParse(req.body);
       if (!bodyParsed.success) {
         throw new ValidationError(bodyParsed.error.errors[0]?.message ?? 'invalid body');
       }
-      void revoke; // TODO(Phase5-S2): call service
-      return reply.status(501).send({
-        statusCode: 501,
-        error: 'Not Implemented',
-        message: 'POST /api/admin/certificates/:id/revoke — Phase 5 Session 2',
-      });
+      try {
+        const updated = await revoke(
+          session.tenantId,
+          req.params.credentialId,
+          bodyParsed.data.revoke_reason,
+          session.userId,
+        );
+        return reply.send(updated);
+      } catch (err) {
+        if (err instanceof CertificateNotFoundError) {
+          return reply.code(404).send({ error: 'Certificate not found' });
+        }
+        if (err instanceof CertificateAlreadyRevokedError) {
+          return reply.code(409).send({ error: 'Certificate is already revoked', message: err.message });
+        }
+        throw err;
+      }
     },
   );
 
-  app.post(
-    '/api/admin/certificates/:id/reissue',
+  app.post<{ Params: { credentialId: string } }>(
+    '/api/admin/certificates/:credentialId/reissue',
     { preHandler: adminPreHandler },
     async (req, reply) => {
-      void reissue; // TODO(Phase5-S6): call service
-      void getByCredentialId; // placeholder reference
-      return reply.status(501).send({
-        statusCode: 501,
-        error: 'Not Implemented',
-        message: 'POST /api/admin/certificates/:id/reissue — Phase 5 Session 6',
-      });
+      const session = (req as unknown as { session?: SessionInfo }).session;
+      if (!session) return reply.code(401).send({ error: 'Unauthorized' });
+      const bodyParsed = ReissueCertificateInputSchema.safeParse(req.body);
+      if (!bodyParsed.success) {
+        throw new ValidationError(bodyParsed.error.errors[0]?.message ?? 'invalid body');
+      }
+      try {
+        const updated = await reissue(
+          session.tenantId,
+          req.params.credentialId,
+          bodyParsed.data.display_name,
+          session.userId,
+        );
+        return reply.send(updated);
+      } catch (err) {
+        if (err instanceof CertificateNotFoundError) {
+          return reply.code(404).send({ error: 'Certificate not found' });
+        }
+        if (err instanceof CertificateRevokedException) {
+          return reply.code(410).send({ error: 'Revoked certificate cannot be reissued' });
+        }
+        throw err;
+      }
     },
   );
 }
