@@ -12,6 +12,15 @@
 //   - After successful INSERT: triggers webhook fanout (best-effort; fanout
 //     failure does NOT rethrow — the audit row is already committed)
 //
+// auditInTx(client, input) → Promise<AuditRow>
+//   - Same validation, ip/ua fill, and redaction as audit()
+//   - Writes within the CALLER'S already-open transaction (no new withTenant)
+//   - Enables atomic domain-UPDATE + audit-INSERT on the same PoolClient
+//   - Fanout is NOT performed (best-effort; caller must fire post-commit if needed)
+//   - Caller MUST be inside a withTenant(targetTenantId, ...) callback so that
+//     SET LOCAL app.current_tenant and SET LOCAL ROLE assessiq_app are active —
+//     RLS is enforced by those session settings, not bypassed.
+//
 // ANTI-PATTERN REFUSED:
 //   Do NOT wrap the INSERT in a try/catch that swallows errors. A silent
 //   failure to write audit evidence is worse than a 500 to the user.
@@ -19,6 +28,7 @@
 //
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
+import type { PoolClient } from 'pg';
 import { getRequestContext, streamLogger } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { ACTION_CATALOG, type AuditInput, type AuditRow } from './types.js';
@@ -105,4 +115,72 @@ export async function audit(input: AuditInput): Promise<void> {
   // row is already committed. A failed fanout is logged at warn.
   // The audit trail is intact regardless of fanout status.
   await fanoutAuditEvent(insertedRow);
+}
+
+/**
+ * Write a single audit event within an already-open Postgres transaction.
+ *
+ * The caller MUST be inside a `withTenant(tenantId, async (client) => { ... })`
+ * callback. `SET LOCAL app.current_tenant` and `SET LOCAL ROLE assessiq_app`
+ * are already in effect, so the INSERT passes the audit_log RLS INSERT policy
+ * without any additional privilege elevation.
+ *
+ * Unlike `audit()`, this function does NOT call `withTenant` — it writes
+ * directly to the supplied `client` so the INSERT and the caller's domain
+ * UPDATE commit or roll back together (atomicity).
+ *
+ * Fanout is NOT triggered. If you need SIEM webhook delivery for this event,
+ * import `fanoutAuditEvent` from `./webhook-fanout.js` and call it with the
+ * returned row AFTER the enclosing `withTenant` completes.
+ *
+ * Errors propagate. Never fire-and-forget.
+ */
+export async function auditInTx(client: PoolClient, input: AuditInput): Promise<AuditRow> {
+  if (!KNOWN_ACTIONS.has(input.action)) {
+    const err = new Error(`auditInTx: unknown action "${input.action}"`);
+    log.error({ action: input.action }, 'auditInTx: unknown action — this is a programmer error');
+    throw err;
+  }
+
+  const ctx = getRequestContext();
+  const ip = input.ip ?? ctx?.ip ?? null;
+  const userAgent = input.userAgent ?? ctx?.ua ?? null;
+
+  const redactedBefore = input.before !== undefined
+    ? (redactPayload(input.before) as Record<string, unknown>)
+    : null;
+  const redactedAfter = input.after !== undefined
+    ? (redactPayload(input.after) as Record<string, unknown>)
+    : null;
+
+  const result = await client.query<AuditRow>(
+    `INSERT INTO audit_log
+       (tenant_id, actor_user_id, actor_kind, action,
+        entity_type, entity_id, before, after, ip, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::inet, $10)
+     RETURNING id::text, tenant_id::text, actor_user_id::text,
+               actor_kind, action, entity_type, entity_id::text,
+               before, after, ip::text, user_agent,
+               at::text`,
+    [
+      input.tenantId,
+      input.actorUserId ?? null,
+      input.actorKind,
+      input.action,
+      input.entityType,
+      input.entityId ?? null,
+      redactedBefore !== null ? JSON.stringify(redactedBefore) : null,
+      redactedAfter !== null ? JSON.stringify(redactedAfter) : null,
+      ip,
+      userAgent,
+    ],
+  );
+
+  const row = result.rows[0];
+  if (row === undefined) {
+    const err = new Error('auditInTx: INSERT returned no row');
+    log.error({ tenantId: input.tenantId, action: input.action }, 'auditInTx: INSERT returned no row');
+    throw err;
+  }
+  return row;
 }
