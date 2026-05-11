@@ -1,3 +1,27 @@
+# Session — 2026-05-11 (Phase 5 Credentialize — Session 2 crypto + identity core)
+
+**Headline:** HMAC-SHA256 signing helper, CSPRNG `credential_id` generator with DB-collision retry, and atomic idempotent + tier-upgrade-aware `issueCertificate` service shipped in `modules/18-certification`. 61/61 tests green. PDF, verify-page, LinkedIn share, admin revoke remain Phase 5 Session 3+ scope.
+**Commits:** (orchestrator commits after Opus diff review + `codex:rescue` adversarial pass — no push from this session; this is HMAC code, security-adjacent)
+**Tests:**
+- `pnpm -C modules/18-certification typecheck` ✅ clean
+- `pnpm -C modules/18-certification test` ✅ 61/61 across 4 files (`crypto.test.ts` 12, `credential-id.test.ts` 12, `service.test.ts` 8, pre-existing `types.test.ts` 29)
+- `pnpm -C modules/07-ai-grading exec tsx ci/lint-no-ambient-claude.ts` ✅ (325 files scanned, 0 violations)
+- Env-var safety check ✅ — `getCertSigningSecret()` throws with the documented "no default, no fallback" message when `CERT_SIGNING_SECRET` is unset.
+**Next:** Opus diff review on the HMAC + audit-atomicity seams, then `codex:rescue` adversarial pass before push (this touches signing — security-adjacent per CLAUDE.md). After push: Phase 5 Session 3 (public `/verify/:credentialId` endpoint + OG image).
+**Open questions:**
+- Should the verify-page route in Session 3 use a separate RLS-bypass DB path (`assessiq_system` role / `SECURITY DEFINER` fn) or a tenant-aware client with a public-tenant policy? SKILL.md decision D7 lists three options; pick before implementing.
+- Should we publish a JWKS-style public-key endpoint for HMAC-key rotation, or rotate via env-var redeploy + `signed_hash_v2` column? Current `docs/14-credentialing.md` documents the redeploy path; JWKS would let third parties verify offline but adds rotation infrastructure.
+
+---
+
+## Agent utilization
+- Opus: n/a — dispatched as a Sonnet subagent by the orchestrator with a self-contained prompt; Opus reviews this slice's diff before push.
+- Sonnet: this session — Phase 0 reads (PROJECT_BRAIN, CLAUDE.md, CERTIFICATION_PLAN_GENERIC.md, scaffold types/repo/service/SKILL/migration, 00-core config, 14-audit-log SKILL + audit.ts + types.ts ACTION_CATALOG, 02-tenancy withTenant + updateAiGenerateMode reference), implementation of `src/crypto.ts` (HMAC sign/verify + env getter), `src/credential-id.ts` (CSPRNG slug generator), `src/repository.ts` fill-in (findByAttempt / findByCredentialId / insertCertificate-with-CredentialIdCollisionError / upgradeCertificateTier / listCertificates / revokeCertificate / incrementCounter — all with shared `CERTIFICATE_PROJECTION` SQL fragment), `src/service.ts` (`issueCertificate(client, input, options)` with idempotent same-tier, no-op downgrade, tier-upgrade re-sign preserving issued_at + credential_id, collision-retry up to `MAX_CREDENTIAL_ID_RETRIES=3`, `auditInTx` on the same client), one minimal addition to `modules/14-audit-log/src/types.ts` ACTION_CATALOG (two strings: `certification.cert.issue`, `certification.cert.upgrade`), one Zod schema field on `IssueCertificateInputSchema` (`actor_user_id`), updated `src/index.ts` barrel, three new test files (61 tests total), SKILL.md "Cryptography and identity" rewrite, new `docs/14-credentialing.md`, this handoff.
+- Haiku: n/a — single module, no bulk sweeps required.
+- codex:rescue: pending — HMAC signing is security-adjacent; orchestrator must run the rescue gate before push.
+
+---
+
 # Session — 2026-05-11 (test cleanup — bulk-status & score-attempt routes + missing route registration)
 
 **Headline:** Two pre-existing broken test files in `modules/04-question-bank` now load and run; `POST /api/admin/questions/bulk-update-status` is registered (the missing route the grid was already calling). Test pass count goes from 102 → 111 passed.
