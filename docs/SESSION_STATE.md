@@ -1,7 +1,9 @@
 # Session — 2026-05-12 (Phase 5 Session 5 — user-facing certificate surface + G3.D notifications)
 
 **Headline:** Phase 5 Session 5 shipped in full: `GET /api/certificates` (My Certificates + HMAC validity), admin revoke + reissue endpoints with atomic `auditInTx`, `GET /api/admin/certificates` with user email JOIN, `MyCertificates` candidate UI component, `AdminCertificates` dashboard page, and 3 help-system YAML entries. Also sealed G3.D notifications audit-write sweep (committed alongside). 156 tests pass across all touched modules.
-**Commits:** TBD — two commits queued (see below)
+**Commits:**
+- `6ab8e90` — feat(notifications): G3.D atomic auditInTx wiring + SMOKE_SOC_LEVEL param
+- `190acee` — feat(certification): Phase 5 Session 5 — user-facing certificate surface
 **Tests:**
 - `pnpm -C modules/18-certification typecheck` ✅ clean
 - `pnpm -C modules/18-certification test` ✅ 115/115 (16 new across 3 test files + 99 prior)
