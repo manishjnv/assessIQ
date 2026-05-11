@@ -41,6 +41,7 @@ export const ACTION_CATALOG = [
   'question.imported',
   // Assessment lifecycle
   'assessment.created',
+  'assessment.updated',
   'assessment.published',
   'assessment.closed',
   'assessment.invite',

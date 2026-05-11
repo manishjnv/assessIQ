@@ -137,3 +137,34 @@ Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps 
 - **#19** — magic-link requires pre-existing user (`findUserForInvitation` returns null → `USER_NOT_FOUND` skip; no JIT user creation).
 - **#20** — RNG / no playback — Phase 1 lands on attempt.start in module 06; the lifecycle module does not perform selection.
 - **#22** — `(assessment_id, user_id)` UNIQUE constraint on `assessment_invitations` enforces v1's "one invitation per user per assessment" cap.
+
+## Audit-write coverage (G3.D slice, 2026-05-11)
+
+Every admin-mutating service method writes one `audit_log` row inside the same `withTenant` Postgres transaction as the domain mutation, via `auditInTx()` from `@assessiq/audit-log`. A successful state change without a corresponding audit row (or vice-versa) is structurally impossible — the transaction either commits both or rolls back both.
+
+| Service function | `audit_log.action` | `entity_type` | Notes |
+|---|---|---|---|
+| `createAssessment` | `assessment.created` | `assessment` | `after`: pack_id, level_id, pack_version, name, question_count, randomize, status |
+| `updateAssessment` | `assessment.updated` | `assessment` | `before/after`: name, question_count, randomize, opens_at, closes_at; `after.changed_fields` (no full settings JSONB) |
+| `publishAssessment` | `assessment.published` | `assessment` | `before/after.status`; `after.pool_size` + `after.question_count` |
+| `closeAssessment` | `assessment.closed` | `assessment` | `before/after.status` |
+| `reopenAssessment` | `assessment.published` (`after.kind=reopen`) | `assessment` | Reuses `assessment.published` with marker to keep the action catalog tight — same pattern as `04-question-bank`'s `restoreVersion → question.updated kind=restore` |
+| `inviteUsers` | `assessment.invite` × N | `assessment_invitation` | One row per invitation issued. Skipped users (USER_NOT_FOUND / USER_NOT_CANDIDATE / USER_INACTIVE / INVITATION_EXISTS) intentionally produce no audit row — nothing mutated |
+| `revokeInvitation` | `assessment.invite` (`after.kind=revoke`) | `assessment_invitation` | Reuses `assessment.invite` with marker. Idempotent path (already-expired) writes NO new row |
+
+`actor_kind` is always `"user"`; `actor_user_id` is the admin's session userId threaded through the service signature (added to `updateAssessment`, `publishAssessment`, `closeAssessment`, `reopenAssessment`, `revokeInvitation` in this slice).
+
+ACTION_CATALOG additions to `modules/14-audit-log/src/types.ts`: one entry — `assessment.updated`. The reopen and revoke events fold under existing `assessment.published` / `assessment.invite` namespaces using `after.kind` markers (minimal-catalog-footprint pattern from the 04-question-bank G3.D template).
+
+**Not wired in this slice:**
+
+- `markInvitationViewedByToken` — candidate-flow, not admin-mutating.
+- `resolveInvitationToken` — read-only pre-auth lookup.
+- `boundaries.processBoundariesForTenant` / `repo.bulkUpdateBoundaries` — cron-driven background state transitions, not admin-triggered. Auditing these would need a separate `actor_kind="system"` design discussion.
+- `getInvitationCounts`, `listAssessments`, `getAssessment`, `listInvitations`, `previewAssessment` — read-only.
+
+Tests:
+
+- `src/__tests__/audit-writes.test.ts` — happy-path test per wired function + atomicity proof (`publishAssessment` on non-existent id throws and writes no audit row) + coverage assertion (count of `auditInTx(` call-sites in service.ts equals 7).
+- `src/__tests__/lifecycle.test.ts` — testcontainer migration set extended to apply `14-audit-log/migrations/0050_audit_log.sql` plus the `assessiq_app` / `assessiq_system` role setup. All call-sites updated to thread `adminA` for the new signatures.
+- `src/__tests__/invite-email.test.ts` — `@assessiq/audit-log` added to the vi.mock list (this is a pure-mock unit test, no testcontainer).
