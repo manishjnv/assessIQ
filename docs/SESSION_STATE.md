@@ -1,3 +1,26 @@
+# Session — 2026-05-11 (test cleanup — bulk-status & score-attempt routes + missing route registration)
+
+**Headline:** Two pre-existing broken test files in `modules/04-question-bank` now load and run; `POST /api/admin/questions/bulk-update-status` is registered (the missing route the grid was already calling). Test pass count goes from 102 → 111 passed.
+**Commits:** (will be appended once the commit lands)
+**Tests:**
+- `pnpm -C modules/04-question-bank typecheck` ✅ (only the 3 pre-existing 07-ai-grading `lastSeenAt` errors — zero new errors in 04-question-bank)
+- `pnpm -C modules/04-question-bank test` ⚠️ 111/112 — only remaining failure is `score-attempt-route.test.ts > "overall is 'pass' for a clean attempt"` which asserts overall ∈ ["pass","n/a"] but gets "regression"; this is a behavioral assertion against `loadBaseline()` per-type pass-rate comparison, NOT a SQL-schema bug. Out of scope for this cleanup per the task spec ("scope is fix the SQL-schema bug, not make every test pass").
+- `pnpm -C modules/07-ai-grading exec tsx ci/lint-no-ambient-claude.ts` ✅ (325 files scanned, 0 violations)
+**Next:** Orchestrator Opus diff review on routes.ts route-registration seam (custom validation envelope vs the rest of the file's `throw new ValidationError(...)` convention) and the test-helper signature changes; if ACCEPT, commit + push, then re-run the parallel test owner's flow against the now-green `04-question-bank` baseline.
+**Open questions:**
+- The new bulk-update-status route uses inline `reply.code(400).send({error:{code,...}})` instead of `throw new ValidationError(...)` because the test fixture builds a minimal Fastify app without `apps/api/src/server.ts`'s `setErrorHandler` — throws would 500 in the test. Should I instead update the test fixture to register the production error handler (cleaner long-term) or keep the inline envelope (smaller, contained departure)?
+- The behavioral failure in `score-attempt-route.test.ts > "clean attempt"` is asking for `["pass","n/a"]` but the route returns `"regression"`. Is the test's expectation wrong (no baseline.json present should mean `n/a` per the route's own §8 verdict comment) or is `loadBaseline()` returning unexpected non-empty data? Outside this cleanup's scope but worth flagging.
+
+---
+
+## Agent utilization
+- Opus: n/a — dispatched as a Sonnet subagent by the orchestrator with a self-contained ~7KB prompt; Opus reviews this slice's diff before push.
+- Sonnet: this session — Phase 0 mandatory reads (PROJECT_BRAIN, CLAUDE.md, both target test files, repository.ts header, all three relevant migrations, routes.ts), schema reconciliation against `audit-writes.test.ts` working pattern, three diffs (drop bogus `tenant_id`/`sort_order`, add required `duration_minutes`/`default_question_count`/`created_by`/`slug`), audit-log migration apply added to bulk-status test setup (G3.D wired `auditInTx` into `bulkUpdateQuestionStatus`), new bulk-update-status route in `routes.ts` mirroring existing route conventions + inline 400 envelopes pinned by test assertions, `bulkUpdateQuestionStatus` import added, `docs/03-api-contract.md` appended with the new endpoint row, this handoff. Did NOT touch `service.ts`, `audit-writes.test.ts`, `question-bank.test.ts`, `modules/14-audit-log/**`, `modules/05-assessment-lifecycle/**`, or any of the parallel-session paths.
+- Haiku: n/a — small targeted cleanup, no bulk sweeps needed.
+- codex:rescue: n/a — `modules/04-question-bank` is not on the load-bearing list; the change is test-only plus one route registration that delegates to an already-shipped service function. No security/auth/classifier surface touched. Opus diff review gates the push.
+
+---
+
 # Session — 2026-05-11 (G3.D slice — 04-question-bank audit-write sweep)
 
 **Headline:** Every admin-mutating service method in `modules/04-question-bank` now writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx`. 9 service functions wired across 12 call-sites; 11 new audit-coverage tests pass alongside the original 50-case integration suite.

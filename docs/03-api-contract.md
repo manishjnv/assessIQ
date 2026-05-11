@@ -117,6 +117,7 @@ The `X-RateLimit-Bypass` header is observable by admin tooling and curl to confi
 | `POST` | `/admin/questions/:id/restore`       | Restore from a prior version (body: `{ version: number }`); snapshots current then bumps |
 | `POST` | `/admin/questions/import`            | Bulk import from JSON (Phase 1) — CSV deferred to Phase 2 |
 | `POST` | `/admin/packs/:id/levels/:levelId/generate` | **AI question generation** — generates SOC-grounded `ai_draft` questions for the given level. Body: `{ count?: number (1–10, default 5), topic_focus?: string }`. Returns `{ questionIds: string[], generated: number, skillSha: string }`. Requires `AI_PIPELINE_MODE=claude-code-vps`. Single-flight: 409 `GRADING_IN_PROGRESS` if generation already in flight for this pack/level. Questions land as `status='ai_draft'` with `knowledge_base_sources` provenance. **live 2026-05-08** |
+| `POST` | `/admin/questions/bulk-update-status` | Bulk-flip a batch of questions to `active` or `archived` (admin grid action). Body: `{ ids: string[] (1–200 UUIDs), status: 'active' \| 'archived' }`. Returns `{ updated: string[], notFound: string[] }`. Service filters source statuses (`active` only accepts `ai_draft`; `archived` accepts `ai_draft` \| `draft` \| `active`); ids in disallowed source states OR cross-tenant ids land in `notFound`. Always writes a single `bulk_status` summary audit row (G3.D). 400 `INVALID_BULK_SIZE` for empty / >200 ids; 400 `VALIDATION_ERROR` for non-UUID id or bad status. **live 2026-05-11** |
 
 ### Admin — Assessments & invitations
 

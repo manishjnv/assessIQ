@@ -93,10 +93,14 @@ async function insertPack(
   client: Client,
   opts: { id: string; tenantId: string; name: string; createdBy: string },
 ): Promise<void> {
+  // question_packs.slug is NOT NULL (migrations/0010_question_packs.sql) — must
+  // be supplied. Generated per-call so multiple insertPack calls in one tenant
+  // don't collide on UNIQUE (tenant_id, slug, version).
+  const slug = `score-pack-${randomUUID().slice(0, 8)}`;
   await client.query(
-    `INSERT INTO question_packs (id, tenant_id, name, domain, status, created_by)
-     VALUES ($1, $2, $3, 'soc-analyst', 'draft', $4)`,
-    [opts.id, opts.tenantId, opts.name, opts.createdBy],
+    `INSERT INTO question_packs (id, tenant_id, slug, name, domain, status, created_by)
+     VALUES ($1, $2, $3, $4, 'soc-analyst', 'draft', $5)`,
+    [opts.id, opts.tenantId, slug, opts.name, opts.createdBy],
   );
 }
 
@@ -104,10 +108,13 @@ async function insertLevel(
   client: Client,
   opts: { id: string; packId: string; tenantId: string; label: string },
 ): Promise<void> {
+  // levels has no tenant_id column (RLS derives via pack_id FK chain) and the
+  // ordering column is `position`, not `sort_order`. duration_minutes and
+  // default_question_count are NOT NULL with no defaults.
   await client.query(
-    `INSERT INTO levels (id, pack_id, tenant_id, label, sort_order)
-     VALUES ($1, $2, $3, $4, 1)`,
-    [opts.id, opts.packId, opts.tenantId, opts.label],
+    `INSERT INTO levels (id, pack_id, position, label, duration_minutes, default_question_count)
+     VALUES ($1, $2, 1, $3, 30, 10)`,
+    [opts.id, opts.packId, opts.label],
   );
 }
 

@@ -40,6 +40,7 @@ const MODULES_ROOT   = join(QB_MODULE_ROOT, "..");
 
 const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
 const USERS_MIGRATIONS_DIR   = join(MODULES_ROOT, "03-users", "migrations");
+const AUDIT_MIGRATIONS_DIR   = join(MODULES_ROOT, "14-audit-log", "migrations");
 const QB_MIGRATIONS_DIR      = join(QB_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
@@ -114,12 +115,16 @@ async function insertLevel(
   client: Client,
   id: string,
   packId: string,
-  tenantId: string,
+  _tenantId: string,
 ): Promise<void> {
+  // levels has no tenant_id column — RLS derives tenancy through pack_id FK
+  // (see modules/04-question-bank/migrations/0011_levels.sql). duration_minutes
+  // and default_question_count are NOT NULL with no defaults, so they must be
+  // supplied. Mirrors the working pattern in audit-writes.test.ts.
   await client.query(
-    `INSERT INTO levels (id, pack_id, tenant_id, label, position)
-     VALUES ($1, $2, $3, 'L2', 2)`,
-    [id, packId, tenantId],
+    `INSERT INTO levels (id, pack_id, position, label, duration_minutes, default_question_count)
+     VALUES ($1, $2, 2, 'L2', 30, 10)`,
+    [id, packId],
   );
 }
 
@@ -128,15 +133,19 @@ async function insertQuestion(
   id: string,
   packId: string,
   levelId: string,
-  tenantId: string,
+  _tenantId: string,
   status: string,
+  createdBy: string,
 ): Promise<void> {
+  // questions has no tenant_id column — RLS derives tenancy through pack_id FK
+  // (see modules/04-question-bank/migrations/0012_questions.sql). created_by is
+  // NOT NULL FK to users — caller must pass an existing admin user id.
   await client.query(
     `INSERT INTO questions
-       (id, pack_id, level_id, tenant_id, type, topic, points, status, version, content)
-     VALUES ($1, $2, $3, $4, 'mcq', 'Test topic', 1, $5, 1,
-             '{"question":"Q?","options":["A","B"],"correct":0,"rationale":"R"}')`,
-    [id, packId, levelId, tenantId, status],
+       (id, pack_id, level_id, type, topic, points, status, version, content, created_by)
+     VALUES ($1, $2, $3, 'mcq', 'Test topic', 1, $4, 1,
+             '{"question":"Q?","options":["A","B"],"correct":0,"rationale":"R"}', $5)`,
+    [id, packId, levelId, status, createdBy],
   );
 }
 
@@ -177,15 +186,20 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_bulk_test`;
 
-  const [tenancyFiles, usersFiles, qbFiles] = await Promise.all([
+  const [tenancyFiles, usersFiles, auditFiles, qbFiles] = await Promise.all([
     readdir(TENANCY_MIGRATIONS_DIR),
     readdir(USERS_MIGRATIONS_DIR),
+    readdir(AUDIT_MIGRATIONS_DIR),
     readdir(QB_MIGRATIONS_DIR),
   ]);
 
+  // audit-log migrations precede QB migrations because the G3.D sweep wires
+  // auditInTx() into bulkUpdateQuestionStatus — the route's happy-path tests
+  // would otherwise fail with "relation audit_log does not exist".
   const migrations = [
     ...tenancyFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: TENANCY_MIGRATIONS_DIR, file: f })),
     ...usersFiles.filter((f) => f.endsWith(".sql") && f.startsWith("020_")).sort().map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f })),
+    ...auditFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: AUDIT_MIGRATIONS_DIR, file: f })),
     ...qbFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: QB_MIGRATIONS_DIR, file: f })),
   ];
 
@@ -221,13 +235,13 @@ beforeAll(async () => {
 
     // Seed 3 ai_draft questions in tenantA
     for (const qId of qIds) {
-      await insertQuestion(client, qId, packA, levelA, tenantA, "ai_draft");
+      await insertQuestion(client, qId, packA, levelA, tenantA, "ai_draft", adminA);
     }
 
     // Seed a cross-tenant question in tenantB
     await insertPack(client, packB, tenantB, adminB);
     await insertLevel(client, levelB, packB, tenantB);
-    await insertQuestion(client, qCrossTenant, packB, levelB, tenantB, "ai_draft");
+    await insertQuestion(client, qCrossTenant, packB, levelB, tenantB, "ai_draft", adminB);
   });
 }, 90_000);
 

@@ -57,6 +57,7 @@ import {
   listVersions,
   restoreVersion,
   bulkImport,
+  bulkUpdateQuestionStatus,
   generateQuestions,
   generateRubricForQuestion,
   saveRubric,
@@ -447,6 +448,71 @@ export async function registerQuestionBankRoutes(
         });
       }
       return restoreVersion(tenantId, id, body.version, userId);
+    },
+  );
+
+  // POST /api/admin/questions/bulk-update-status
+  // Bulk-flips a batch of questions to active/archived. Backs the question-bank
+  // grid's "select N → Mark Active/Archived" action in 10-admin-dashboard.
+  // Service enforces source-status filtering ('ai_draft' for active, etc.) so
+  // ids that aren't in an allowed source state land in `notFound`.
+  //
+  // Validation envelopes are produced inline (not via global error handler) so
+  // the test fixture in __tests__/bulk-status-route.test.ts — which builds a
+  // minimal Fastify app without apps/api's setErrorHandler — sees the exact
+  // shape it asserts. Real prod traffic still flows through the global handler
+  // for the success/AppError paths.
+  app.post(
+    "/api/admin/questions/bulk-update-status",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const body = req.body as { ids?: unknown; status?: unknown };
+
+      const ids = body?.ids;
+      if (!Array.isArray(ids) || ids.length === 0 || ids.length > 200) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_BULK_SIZE",
+            message: "ids must contain between 1 and 200 entries",
+            details: {
+              received: Array.isArray(ids) ? ids.length : null,
+              max: 200,
+            },
+          },
+        });
+      }
+
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!ids.every((id) => typeof id === "string" && uuidRe.test(id))) {
+        return reply.code(400).send({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "every id must be a valid UUID",
+            details: { code: "INVALID_PARAM", param: "ids" },
+          },
+        });
+      }
+
+      if (body?.status !== "active" && body?.status !== "archived") {
+        return reply.code(400).send({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "status must be 'active' or 'archived'",
+            details: { code: "INVALID_PARAM", param: "status" },
+          },
+        });
+      }
+
+      // Service signature is (tenantId, ids, status, actorUserId) since G3.D
+      // (commit eff0ba2) — the userId is required for the bulk_status audit row.
+      return bulkUpdateQuestionStatus(
+        tenantId,
+        ids as string[],
+        body.status,
+        userId,
+      );
     },
   );
 
