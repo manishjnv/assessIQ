@@ -479,6 +479,46 @@ admin.reports.cost.empty_in_claude_code_vps_mode:
     If you switch to `anthropic-api` mode in a future deployment, the cost
     report will begin populating from that date forward.
 
+admin.analytics.cohort-report:
+  audience: admin
+  short_text: "Aggregate metrics across all attempts in an assessment cycle: score distribution, archetype mix, and per-attempt scores."
+  long_md: |
+    ## Cohort report
+
+    The cohort report summarises all scored attempts for a single assessment
+    cycle. It is available at **Reports → Cycles → [cycle] → Cohort report**.
+
+    **What you see:**
+
+    | Field | Meaning |
+    |---|---|
+    | Total attempts | All attempts present in the analytics snapshot |
+    | Graded count | Attempts in `graded` or `pending_admin_grading` status |
+    | Released count | Attempts the admin has released to candidates |
+    | Avg / P50 / P90 score | Percentage score distribution across the cohort |
+    | Archetype distribution | How many attempts landed in each performance archetype |
+    | Band avg | Mean score per assessment level (usually one level per cycle) |
+
+    **Attempts table:** the lower table lists individual attempts, ordered by
+    score descending, capped at 500 rows. Use the **archetype filter** to narrow
+    to a specific archetype cluster.
+
+    **Data freshness:** the report reads from the `attempt_summary_mv`
+    materialized view, which is refreshed nightly at 02:00 UTC. Data added
+    after the last refresh will not appear until the next refresh (or until a
+    platform operator triggers a manual refresh).
+
+    **What is excluded:** in-progress attempts (`in_progress`, `draft`) are
+    excluded from the MV — only attempts with a computed score appear.
+
+  related_keys:
+    - admin.reports.cohort.distribution
+    - admin.reports.heatmap.colors
+
+# NOTE: This entry (admin.analytics.cohort-report) was added by the Phase 3
+# G3.C analytics session. The admin-UI-toggle session also touches admin.yml —
+# merge carefully if both sessions produce conflicting adjacent lines.
+
 admin.audit.export.format:
   audience: admin
   short_text: "The audit log records admin actions (exports, grading, user changes) with actor, timestamp, and tenant scope."

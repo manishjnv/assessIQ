@@ -23,6 +23,7 @@ import { Readable } from 'node:stream';
 import type {
   HomeKpis,
   QueueSummary,
+  AdminCohortReport,
   CohortReport,
   IndividualReport,
   TopicHeatmap,
@@ -63,6 +64,24 @@ export async function cohortReport(
 ): Promise<CohortReport> {
   return withTenant(tenantId, (client) =>
     repo.queryCohortReport(client, tenantId, assessmentId),
+  );
+}
+
+/**
+ * Admin-facing cohort report for GET /api/admin/cycles/:cycleId/cohort-report.
+ *
+ * Returns richer shape than cohortReport(): includes per-status counts,
+ * an attempts[] list (capped at 500), and band_avg keyed by level label.
+ * Optional archetype filter narrows the attempts[] list only — aggregate
+ * stats always reflect the full cohort.
+ */
+export async function getAdminCohortReport(
+  tenantId: string,
+  assessmentId: string,
+  filter: { archetype?: string | undefined } = {},
+): Promise<AdminCohortReport> {
+  return withTenant(tenantId, (client) =>
+    repo.queryAdminCohortReport(client, tenantId, assessmentId, filter),
   );
 }
 
