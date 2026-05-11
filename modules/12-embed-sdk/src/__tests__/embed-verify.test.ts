@@ -1,16 +1,16 @@
 /**
- * embed-verify.test.ts — integration tests for verifyEmbedToken.
+ * embed-verify.test.ts — unit tests for verifyEmbedToken pre-DB rejection paths.
  *
- * These tests require a running PostgreSQL instance (aiq_test) and Redis.
- * They cover the security-critical attack surface for embed JWT verification.
+ * V1-V4: algorithm, lifetime, expiry rejections (fire before any DB/Redis call).
+ * V5-V6: (valid-token accept + replay) — covered by embed-jwt-db.test.ts
+ *         which requires testcontainers DB + Redis.
  *
- * Coverage:
- *   V1. alg=none rejected (algorithm confusion attack)
- *   V2. Non-HS256 alg (RS256) rejected
- *   V3. exp - iat > 600s lifetime cap rejected
- *   V4. Expired token rejected
- *   V5. Valid token accepted
- *   V6. Replay rejected on second use of same jti
+ * T4:    future-dated iat rejected (iat > now + 5s clock-skew tolerance).
+ * T5a-d: missing required claim rejected (tenant_id / sub / email / assessment_id).
+ * T11:   malformed JWT (un-parseable header) rejected.
+ *
+ * None of these tests require a running DB or Redis instance. They all trigger
+ * AuthnError from the pre-DB claim/header validation block in verifyEmbedToken.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as jose from 'jose';
@@ -151,5 +151,102 @@ describe('verifyEmbedToken — algorithm rejection (unit-level, no DB)', () => {
     } as jose.JWTPayload).setProtectedHeader({ alg: 'HS256' }).sign(key);
 
     await expect(verifyEmbedToken(token)).rejects.toThrow(AuthnError);
+  });
+});
+
+// ─── Additional pre-DB unit tests ────────────────────────────────────────────
+// These tests fire AuthnError from the pre-DB validation block in
+// verifyEmbedToken — BEFORE any call to withTenant/DB/Redis.
+// They use RAW_SECRET_B64U (a random key unrelated to any DB row) for signing.
+//
+// Why this is safe: verifyEmbedToken checks alg, claims, lifetime, and iat
+// before it opens a DB connection.  Tokens rejected here never reach the
+// signature-verification or replay-cache layers.
+
+describe('verifyEmbedToken — future-dated iat (clock-skew attack, T4)', () => {
+  it('T4: rejects token with iat 60s in the future', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const key = hs256Key(RAW_SECRET_B64U);
+    // iat = now + 60: exceeds the 5s clock-skew allowance.
+    // exp - iat = 300 ≤ 600: passes lifetime cap so that check is NOT the reason
+    // for rejection.  The iat-future-skew check fires exclusively.
+    const token = await new jose.SignJWT({
+      iss: 'test',
+      aud: 'assessiq',
+      sub: 'usr',
+      tenant_id: TENANT_ID,
+      email: 'test@test.com',
+      name: 'Test',
+      assessment_id: randomUUID(),
+      iat: now + 60,   // 60s future — well past the ±5s allowed skew
+      exp: now + 360,  // 300s after iat, not expired
+      jti: randomUUID(),
+    } as jose.JWTPayload).setProtectedHeader({ alg: 'HS256' }).sign(key);
+
+    await expect(verifyEmbedToken(token)).rejects.toThrow(AuthnError);
+  });
+});
+
+describe('verifyEmbedToken — missing required claims (T5a-T5d)', () => {
+  // Each test omits exactly one required claim to isolate the specific rejection.
+  // The signing key (RAW_SECRET_B64U) is irrelevant — the error fires at the
+  // typeof-check block before any signature verification.
+
+  async function signMissingClaim(omit: string): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    const key = hs256Key(RAW_SECRET_B64U);
+    const full: Record<string, unknown> = {
+      iss: 'test',
+      aud: 'assessiq',
+      sub: 'usr',
+      tenant_id: TENANT_ID,
+      email: 'test@test.com',
+      name: 'Test',
+      assessment_id: randomUUID(),
+      iat: now,
+      exp: now + 300,
+      jti: randomUUID(),
+    };
+    delete full[omit];
+    return new jose.SignJWT(full as jose.JWTPayload)
+      .setProtectedHeader({ alg: 'HS256' })
+      .sign(key);
+  }
+
+  it('T5a: rejects token missing tenant_id claim', async () => {
+    const token = await signMissingClaim('tenant_id');
+    await expect(verifyEmbedToken(token)).rejects.toThrow(AuthnError);
+  });
+
+  it('T5b: rejects token missing sub claim', async () => {
+    const token = await signMissingClaim('sub');
+    await expect(verifyEmbedToken(token)).rejects.toThrow(AuthnError);
+  });
+
+  it('T5c: rejects token missing email claim', async () => {
+    const token = await signMissingClaim('email');
+    await expect(verifyEmbedToken(token)).rejects.toThrow(AuthnError);
+  });
+
+  it('T5d: rejects token missing assessment_id claim', async () => {
+    const token = await signMissingClaim('assessment_id');
+    await expect(verifyEmbedToken(token)).rejects.toThrow(AuthnError);
+  });
+});
+
+describe('verifyEmbedToken — malformed JWT structure (T11)', () => {
+  it('T11: rejects string that is not a valid JWT (decodeProtectedHeader fails)', async () => {
+    // 'not.a.valid.jwt' — the first segment 'not' base64url-decodes to
+    // a 2-byte binary value, not a JSON object, so decodeProtectedHeader throws.
+    // This confirms the impl fails closed on garbage input.
+    await expect(verifyEmbedToken('not.a.valid.jwt')).rejects.toThrow(AuthnError);
+  });
+
+  it('T11b: rejects a single-segment string (no dots at all)', async () => {
+    await expect(verifyEmbedToken('onlyone')).rejects.toThrow(AuthnError);
+  });
+
+  it('T11c: rejects empty string', async () => {
+    await expect(verifyEmbedToken('')).rejects.toThrow(AuthnError);
   });
 });
