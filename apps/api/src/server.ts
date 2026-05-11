@@ -31,6 +31,7 @@ import { registerEmbedAdminRoutes } from './routes/embed-admin.js';
 import { EMBED_COOKIE_NAME } from '@assessiq/embed-sdk';
 import { authChain } from './middleware/auth-chain.js';
 import { config } from '@assessiq/core';
+import { registerVerifyRoutes } from '@assessiq/certification';
 
 const requestLog = streamLogger('request');
 const appLog = streamLogger('app');
@@ -235,8 +236,11 @@ export async function buildServer() {
   //   POST   /api/admin/webhook-secrets/rotate
   await registerEmbedAdminRoutes(app);
 
-  await registerHelpPublicRoutes(app);
-  await registerHelpTrackRoutes(app);
+  // Public verify page — no auth, no tenant context, outside /api/.
+  // tenantContextMiddleware auto-skips (req.session?.tenantId is undefined).
+  await registerVerifyRoutes(app);
+
+  await registerHelpPublicRoutes(app);  await registerHelpTrackRoutes(app);
   // Cast through `unknown` to satisfy strictFunctionTypes parameter
   // contravariance: apps/api's authChain returns FastifyHook[] (req:
   // FastifyRequest), but the library's DI shape uses (req: unknown) to

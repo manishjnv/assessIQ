@@ -14,6 +14,8 @@
 
 import type { PoolClient } from 'pg';
 
+import { getPool } from '@assessiq/tenancy';
+
 import type {
   Certificate,
   IssueCertificateInput,
@@ -144,25 +146,67 @@ export async function findByCredentialId(
 /**
  * Public credential lookup for the verify-page (Phase 5 Session 3).
  *
- * This function is intentionally NOT scoped to a tenant — the verify page is
- * unauthenticated and credential_id is globally unique. The implementation
- * will use a service-role / SECURITY DEFINER path that bypasses RLS and
- * returns only public-safe fields (NOT the internal `id` UUID or any PII
- * beyond what the certificate itself displays).
+ * Intentionally NOT scoped to a tenant — the verify page is unauthenticated
+ * and credential_id is globally unique. The caller MUST pass a client that is
+ * inside a withPublicVerifyContext() transaction so the GUC-based RLS policy
+ * (public_verify_lookup) allows the SELECT.
  *
- * TODO(Phase5-S3): implement — choose DB strategy from SKILL.md decision D7:
- *   (a) SECURITY DEFINER function, (b) assessiq_system role SET LOCAL,
- *   (c) explicit SET LOCAL ROLE bypass.
- * The returned type will be a PublicCertificateView subset (Session 3 defines
- * the exact shape). The `tenantSlug` question (O2) is deferred to Session 3.
+ * No tenant_id predicate is added here — that is by design. Adding one would
+ * break the cross-tenant lookup that is the entire point of the public page.
+ * The GUC policy is the authorization gate.
+ *
+ * Input is normalised to uppercase (credential_ids are stored uppercase).
+ * Returns null when not found.
  */
 export async function findByCredentialIdPublic(
-  _credentialId: string,
-): Promise<never> {
-  throw new Error(
-    'findByCredentialIdPublic: not yet implemented (Phase 5 Session 3). ' +
-      'Use findByCredentialId with an RLS-scoped client for tenant-side lookups.',
+  client: PoolClient,
+  credentialId: string,
+): Promise<Certificate | null> {
+  const normalised = credentialId.toUpperCase();
+  const result = await client.query<Certificate>(
+    `SELECT ${CERTIFICATE_PROJECTION}
+     FROM certificates
+     WHERE credential_id = $1
+     LIMIT 1`,
+    [normalised],
   );
+  return result.rows[0] ?? null;
+}
+
+/**
+ * Open a transaction with the GUC-based public verify context set, execute
+ * the callback, then commit. The connection is returned to the pool afterward.
+ *
+ * The GUC set_config('app.public_verify', 'true', true) is transaction-local
+ * (is_local=true) — it reverts automatically on COMMIT/ROLLBACK and cannot
+ * leak to the next caller that acquires this pool connection.
+ *
+ * SET LOCAL ROLE assessiq_app ensures RLS is enforced even in environments
+ * where the pool connects as a superuser (e.g. dev). In production the pool
+ * connects as assessiq_app already, so this is a no-op.
+ *
+ * Callers MUST NOT set app.current_tenant inside this context — the
+ * tenant_isolation_update policy requires it, and the public verify path
+ * must not trigger UPDATE operations (counter increments use a separate
+ * withTenant() transaction).
+ */
+export async function withPublicVerifyContext<T>(
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL ROLE assessiq_app');
+    await client.query("SELECT set_config('app.public_verify', 'true', true)");
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

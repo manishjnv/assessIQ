@@ -81,6 +81,9 @@ importers:
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../../modules/01-auth
+      '@assessiq/certification':
+        specifier: workspace:*
+        version: link:../../modules/18-certification
       '@assessiq/core':
         specifier: workspace:*
         version: link:../../modules/00-core
@@ -410,6 +413,9 @@ importers:
 
   modules/09-scoring:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
