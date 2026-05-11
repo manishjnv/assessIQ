@@ -61,9 +61,27 @@ CREATE TABLE tenant_settings (
   features            JSONB NOT NULL DEFAULT '{}'::jsonb,   -- feature flags
   webhook_secret      TEXT,                                  -- for outgoing webhooks (encrypted)
   data_region         TEXT DEFAULT 'in',                     -- for future multi-region
+  -- Phase 2 Stage 3 promotion (migration 0044, 2026-05-10): per-tenant override
+  -- for AI question generation path. NULL = inherit global AI_GENERATE_MODE env.
+  ai_generate_mode    TEXT DEFAULT NULL
+    CHECK (ai_generate_mode IS NULL OR ai_generate_mode IN ('omnibus','sharded')),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+### `ai_generate_mode` — per-tenant AI generation path override (Stage 3 rollout)
+
+**What it is.** Nullable `TEXT` column added by `modules/02-tenancy/migrations/0044_tenant_settings_ai_generate_mode.sql` (applied to production 2026-05-10). Valid values are exactly `'omnibus' | 'sharded' | NULL`, enforced by a `CHECK` constraint at the SQL layer and by the `TenantSettings` TypeScript type in `modules/02-tenancy/src/types.ts`. Column default is `NULL`.
+
+**NULL semantics.** `NULL` means "use the global `AI_GENERATE_MODE` env var for this tenant" — there is no implicit string fallback like `'omnibus'`. Resolution happens in `modules/04-question-bank` at request time via `tenantSettings?.ai_generate_mode ?? config.AI_GENERATE_MODE` (see `docs/05-ai-pipeline.md` § Phase 2 — Stage 3 promotion). Non-`NULL` overrides the env var for that tenant only; takes effect on the next request with no container restart.
+
+**Why not the existing `features` JSONB.** `features` is an untyped bag for tenant-specific UI experiments. A first-class operational mode flag would be invisible to TypeScript consumers, fail silently on key misspelling, and require a runtime cast in the handler. The dedicated typed column is enforced by both Postgres `CHECK` and TS types. Rationale: `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 3.
+
+**Write path is super-admin only.** Tenant admins cannot change this column — the `updateTenantSettings` service patch surface (`Pick<>` in `modules/02-tenancy/src/service.ts`) deliberately excludes `ai_generate_mode`. The only writer is `updateAiGenerateMode(superAdminUserId, targetTenantId, newMode)` at `modules/02-tenancy/src/service.ts:155`, called by the super-admin route `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode` (see `docs/03-api-contract.md` § Admin — Super). Each write emits a `tenant_settings.ai_generate_mode.updated` row in `audit_log` (action present in `modules/14-audit-log/src/types.ts` ACTION_CATALOG) inside the same Postgres transaction as the `UPDATE` via `auditInTx` — if the audit INSERT fails, the column UPDATE rolls back.
+
+**Rollback path.** Operator-driven `UPDATE tenant_settings SET ai_generate_mode = 'omnibus' WHERE …` (or `NULL`). Migration 0044 is additive-only; the column is never dropped on rollback.
+
+**Cross-reference.** `docs/05-ai-pipeline.md § Phase 2 — Stage 3 promotion: per-tenant ai_generate_mode` carries the full design context, the runtime resolution path, the cron alert wiring, and the explicit "no auto-rollback" decision.
 
 ### `uuidv7` vs `gen_random_uuid()` — column DEFAULT
 
