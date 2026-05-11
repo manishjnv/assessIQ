@@ -29,11 +29,11 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | Runtime | Node.js 22 LTS + Fastify | Matches IntelWatch ETIP; one mental model |
 | DB | PostgreSQL 16 + RLS | Tenant isolation enforced at row level |
 | Cache / queue | Redis 7 + BullMQ | Sessions, rate limits, async grading jobs |
-| AI runtime | Claude Agent SDK (TypeScript) | Same agent loop as Claude Code, production-licensed via API key |
+| AI runtime | **Phase 1:** Claude Code CLI on VPS (Max subscription, admin-in-the-loop, sync-on-click). **Phase 2 (designed, switchable via `AI_PIPELINE_MODE`):** Claude Agent SDK (TypeScript) via `ANTHROPIC_API_KEY` | Phase 1: $0 API cost, admin-in-the-loop ToS compliance. Phase 2: unlocks async + non-admin triggers. See `docs/05-ai-pipeline.md`. |
 | AI models | Sonnet 4.6 (primary), Haiku 4.5 (anchors), Opus 4.7 (escalation) | Multi-tier pipeline by stakes |
 | Frontend | React 18 + Vite + TypeScript | Fast iteration, embeds cleanly in iframe |
 | Styling | Tailwind + design-token CSS vars | Theming per tenant; UI template plugs in here |
-| Auth (admin) | Google SSO (OIDC) + TOTP MFA mandatory | Phase 1 |
+| Auth (admin) | Google SSO (OIDC) + TOTP MFA mandatory; `super_admin` role for cross-tenant ops (`d59ade4`) | Phase 1 |
 | Auth (extensible) | OIDC, SAML, magic-link, email+password | Phase 2, admin-toggleable per tenant |
 | Hosting | Hostinger VPS, Docker Compose, nginx + Let's Encrypt | Reuses your IntelWatch infra playbook |
 | Domain | `assessiq.automateedge.cloud` | Existing site, subdomain |
@@ -59,6 +59,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 15-analytics           Reports, exports, dashboards
 16-help-system         Tooltip framework, help content store, contextual drawer
 17-ui-system           Design tokens, component library, theming primitives
+18-certification       Course-completion certificates: HMAC-signed credential rows, public verify URL, admin issue/revoke
 ```
 
 ## Build phases
@@ -67,10 +68,10 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 |---|---|---|
 | **Phase 0** — Foundation (Week 1–2) | 00, 01, 02, 03, 17 | Auth + tenancy + UI kit working |
 | **Phase 1** — Author & take (Week 3–5) | 04, 05, 06, 11, 16 | SOC pack authored, candidates can take assessments end-to-end with help system. **Closure audit PARTIAL (2026-05-03):** Drills 2+3(steps 1-4)+5 PASS; Drill 1 fails at invite (Finding C: `05-lifecycle:749` `tenantName:""` × `13-notifications` Zod `.min(1)`); Drills 3(step 5)+4 BLOCKED. **Finding C FIXED 2026-05-11** in `05-lifecycle:691-708`: real tenant.name fetched in `withTenant` tx; throws `TENANT_NAME_MISSING` on null row or empty name (no fallback to slug/id). RCA logged. Orchestrator must re-run Drills 1, 3 step 5, and 4 against a running stack to close. |
-| **Phase 2** — Grade & report (Week 6–8) | 07, 08, 09, 10 | AI grading live, admin dashboard, archetype output |
-| **Phase 3** — Operate (Week 9–10) | 13, 14, 15 | Notifications, audit log, analytics |
-| **Phase 4** — Embed (Week 11–12) | 12 | iframe + JWT embed working in a host app |
-| **Phase 5** — Credentialize (post-MVP, 6–10 sessions) | 18-certification (new) | Tamper-evident course-completion certificates: idempotent `Certificate` row, downloadable PDF with QR → public HMAC-verifiable verify page, LinkedIn share, admin revoke. Out of scope for Phase 1 of cert: LinkedIn "Add to Profile" API, employer/recruiter portal, fraud detection beyond HMAC + revocation. Plan: `docs/CERTIFICATION_PLAN_GENERIC.md`. |
+| **Phase 2** — Grade & report (Week 6–8) | 07, 08, 09, 10 | ✅ shipped; type-sharded generation (Stage 1, 5 type skills) live (`f449203`); Stage 3.0 per-tenant `ai_generate_mode` plumbing shipped (`80e713a`); Stage 3.1 default flip to `sharded` pending G1/G2/G4 criteria — see `docs/design/2026-05-10-stage-3-promotion-rollout.md`. `super_admin` role + Stage 3 watch cron live (`d59ade4`, `05ea435`). |
+| **Phase 3** — Operate (Week 9–10) | 13, 14, 15 | ✅ G3.A audit-log (`43c0e45`) + G3.B notifications (`cae6d37`) + email i18n (`7a20ee2`) + G3.C analytics (`ce041e3`) shipped; G3.D atomic `auditInTx` sweep in progress (03-users `057de7d`, 05-lifecycle `08d4b19`, 04-question-bank `eff0ba2` committed; more modules in flight). |
+| **Phase 4** — Embed (Week 11–12) | 12 | ✅ shipped (`b20858b`, 2026-05-03); iframe + JWT embed + session minting + admin surface live; consumer integration guide at `docs/09-integration-guide.md`. |
+| **Phase 5** — Credentialize (post-MVP, 6–10 sessions) | 18-certification | Tamper-evident course-completion certificates: idempotent `Certificate` row, downloadable PDF with QR → public HMAC-verifiable verify page, LinkedIn share, admin revoke. Out of scope for Phase 1 of cert: LinkedIn "Add to Profile" API, employer/recruiter portal, fraud detection beyond HMAC + revocation. Plan: `docs/CERTIFICATION_PLAN_GENERIC.md`. **Progress:** Session 1 scaffold (`2835680`); Session 2 HMAC-SHA256 signing + `credential_id` + `issueCertificate` + adversarial gate closed (`35f067a`, 79/79 tests); Session 3 in flight (public `/verify/:credentialId` endpoint). |
 
 ## Decision log
 
@@ -89,6 +90,10 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | 2026-05-02 | **Phase 2 module dependency order:** 07 (single session, codex:rescue mandatory — load-bearing classifier; ships D2 lint sentinel as load-bearing-with-rescue-gate file) → 08+09 (parallel, depend on 07's `gradings` row contract) → 10 (admin dashboard + Phase 2 17-ui-system primitives). 18 decisions captured at orchestrator-default; D1–D8 are verbatim restatements of `docs/05-ai-pipeline.md` § Decisions captured (2026-05-01) and remain load-bearing. | Kickoff plan G2.A/G2.B/G2.C groupings. Docs: `docs/plans/PHASE_2_KICKOFF.md`. |
 | 2026-05-11 | **Phase 5 (Credentialize) scoped as a post-MVP sidecar.** New module `18-certification` (not yet scaffolded). Tamper-evident certificate model: snapshotted `Certificate` row with HMAC-SHA256 `signed_hash`, public `credential_id` slug (`PREFIX-YYYY-MM-XXXXXX`), `UNIQUE(user_id, enrollment_id)` for idempotence, tier upgrades only go up (never downgrade an issued cert even on state regression). PDF + QR → public verify page; LinkedIn share; admin revoke with reason. Estimated 6–10 sessions. | Additive feature, doesn't block MVP. Self-contained plan handed off as project-agnostic blueprint. Doc: `docs/CERTIFICATION_PLAN_GENERIC.md`. |
 | 2026-05-03 | **Phase 3 module dependency order:** G3.A (`14-audit-log` — load-bearing per CLAUDE.md, codex:rescue mandatory; helper API + table + GRANT enforcement + S3 archive + 9 critical wired sites) ‖ G3.B (`13-notifications` — real SMTP swap-in for Phase 0 stub, webhook delivery, in-app short-poll, audit-fanout) → G3.C (`15-analytics` — depends on Phase 2 G2.B 09-scoring `attempt_scores` + 14's `audit_log`; ships `attempt_summary_mv` eagerly, reports/exports/cost-empty-shape) → G3.D (week 10, non-blocking — cross-module audit-write sweep across remaining 26 catalog entries via parallel Sonnet dispatch). 22 decisions captured: D1–D8 verbatim restatements still load-bearing; P3.D9–P3.D22 new orchestrator-defaults. P3.D9 (SMTP=AWS SES) is the only soft-escalate; user may swap to Sendgrid mechanically. | Kickoff plan G3.A/G3.B/G3.C/G3.D groupings. Docs: `docs/plans/PHASE_3_KICKOFF.md`. |
+| 2026-05-08 | **Dev-only E2E session minter hardened.** `tools/dev-mint-session.ts` gated behind `NODE_ENV !== 'production'` compile-time check + `DEV_MINT_ENABLED` env gate + brute-force allowlist. Four escalation vectors (token-forgery, brute-force) closed by `bd0ceb0` after `codex:rescue` adversarial pass on `b3710ae`. | `b3710ae` exposed a `/api/dev/mint-session` route with no production guard; adversarial flag required immediate hardening before deploy. |
+| 2026-05-09 | **Type-sharded generation (Stage 1) shipped** — five type-specialist skills (`generate-{mcq,log-analysis,scenario,kql,subjective}`) fan out in parallel within one `singleFlight` mutex; structural Zod validation at MCP `submit_questions` boundary (Stage 1.5e); eval baseline 75/75. Commit: `f449203`. Design: `docs/design/2026-05-09-type-sharded-generation.md`. | Omnibus skill ran all types in one subprocess (~3 min); type shards target ≤90 s. Domain isolation improves schema conformance and per-type quality measurability. No-ambient-AI invariant preserved. |
+| 2026-05-10 | **Stage 3.0 per-tenant `ai_generate_mode` locked (Option A).** `tenant_settings.ai_generate_mode` ENUM (`omnibus`\|`sharded`) column; super-admin UI toggle; `assessiq-stage3-watch` cron polls every 4 h and auto-promotes tenants meeting G1 criteria. Commits: `80e713a` (column + handler), `05ea435` (cron), `d59ade4` (`super_admin` role). Design + §8 decisions: `docs/design/2026-05-10-stage-3-promotion-rollout.md`. Stage 3.1 (flip `sharded` to default) gated on G1/G2/G4. | Option B (global env-var flip + auto-rollback cron) rejected — per-tenant column gives blast-radius containment; one pilot tenant regression doesn't affect all tenants. |
+| 2026-05-11 | **Phase 5 Sessions 1–2 shipped: scaffold + HMAC signing + `credential_id` + `issueCertificate`.** Scaffold (`2835680`); crypto core (`c356160`); adversarial revisions + re-gate closure (`19d722c`, `35f067a`). 79/79 tests. R1–R7 adversarial findings addressed (CRITICAL millisecond-drift, TOCTOU tier-upgrade, homoglyph CHARSET). RLS-bypass for public verify locked as **Option 3**: public-tenant GUC policy (`SET LOCAL ROLE assessiq_system`) per SKILL.md D7. Session 3 next: `/verify/:credentialId` + OG image. | HMAC signing is security-adjacent; `codex:rescue` adversarial gate mandatory. Millisecond-drift (R1) would have broken 100% of certificates at verify — CRITICAL; RCA logged. |
 
 ## Working agreements (for Claude Code sessions)
 
@@ -98,6 +103,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 - API changes require updating `docs/03-api-contract.md` in the same PR.
 - New UI elements require a `help_id` and content entry in `16-help-system`.
 - Every AI prompt is versioned in `modules/07-ai-grading/prompts/` and referenced by hash in grading records.
+- **Every admin-mutating service function must write one `audit_log` row inside the same Postgres transaction via `auditInTx`** — never fire-and-forget, never in a separate transaction. Established by G3.D sweep (commits `eff0ba2`, `08d4b19`, `057de7d`).
 
 ## Where to look for what
 
@@ -119,3 +125,6 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | Set up an assessment cycle and invite candidates | `/admin/assessments` (list) → `/admin/assessments/:id` (detail with invite picker) |
 | View cohort or individual reports | `/admin/reports` (landing) → `/admin/reports/cohort/:id` or `/admin/reports/individual/:userId` |
 | What candidates see during their assessment | `/take/<token>` (magic-link landing) and `/take/attempt/<id>` (question runner). Help drawer: `modules/11-candidate-ui/src/components/CandidateHelp.tsx` |
+| Type-sharded question generation design | `docs/design/2026-05-09-type-sharded-generation.md` |
+| Stage 3 promotion rollout decisions | `docs/design/2026-05-10-stage-3-promotion-rollout.md` |
+| Credentialing plan + module 18 spec | `docs/CERTIFICATION_PLAN_GENERIC.md` + `docs/14-credentialing.md` |
