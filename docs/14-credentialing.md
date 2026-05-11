@@ -19,7 +19,16 @@ form `PREFIX-YYYY-MM-XXXXXX`:
 |---|---|---|
 | `PREFIX` | issuer code (default `AIQ`) | 2–4 uppercase letters |
 | `YYYY-MM` | issuance month (UTC) | for eyeballable age, not crypto |
-| `XXXXXX` | 6 chars from `[A-Z0-9]` | CSPRNG (`crypto.randomInt`), retry on DB UNIQUE conflict |
+| `XXXXXX` | 6 chars from `[0-9ABCDEFGHJKMNPQRSTVWXYZ]` | CSPRNG (`crypto.randomInt`), retry on DB UNIQUE conflict |
+
+The suffix alphabet is a **Crockford-style 32-character set** that
+deliberately excludes I, L, O, and U — characters that are visually
+ambiguous when reading a credential_id off a printed certificate, LinkedIn
+profile, or business card (I looks like 1, L looks like 1, O looks like 0).
+This means you will never see a credential_id that could be misread. The
+CREDENTIAL_ID_REGEX still accepts all `[A-Z0-9]` characters so any certs
+issued before this change (none in production at the time of this update)
+remain valid.
 
 Slugs are stored uppercase. The verify-page lookup normalises input to
 upper, so recruiters typing them lowercase still resolve correctly.
@@ -43,6 +52,14 @@ shared LinkedIn URLs continue to verify against the current row state.
 Counters (`pdf_downloads`, `linkedin_shares`, `verification_views`) and
 revocation fields are deliberately excluded from the signed payload so
 counter bumps and revocations do not require re-signing.
+
+**`issued_at` second-precision invariant.** The `issued_at` timestamp is
+truncated to second precision (`2026-05-11T17:46:23Z`, no milliseconds)
+before signing and before storage. The public verify page reconstructs the
+HMAC payload from the stored row; the DB projection also strips
+milliseconds. Both sides must agree on the format for the signature to
+verify. Sub-second precision is irrelevant for a certificate issued to a
+human.
 
 ## Secret management
 

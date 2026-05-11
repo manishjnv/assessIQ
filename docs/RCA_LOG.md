@@ -4,6 +4,33 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-11 — Certificate issued_at millisecond drift (would break every verify)
+
+**Symptom:** Session 3's public verify endpoint would have failed for 100% of certificates.
+`issueCertificate` signed the HMAC payload with `new Date().toISOString()` which produces
+`'2026-05-11T17:46:23.456Z'` (3 fractional digits). The DB projection uses
+`to_char(issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')` which strips
+milliseconds. The verify endpoint would recompute the HMAC from the projected
+`'2026-05-11T17:46:23Z'` string and compare against the stored hash computed from
+`'2026-05-11T17:46:23.456Z'` — byte mismatch on every cert, red badge every time.
+
+**Cause:** `modules/18-certification/src/service.ts:196` — `const issuedAt = new Date().toISOString()`.
+JavaScript's `Date.toISOString()` always emits 3 fractional digit seconds (`.000Z` even
+when the wall clock is exactly on a second boundary). The CERTIFICATE_PROJECTION in
+`repository.ts:77` uses a `to_char` format that strips them. The two sides of the
+HMAC pipeline had different string representations of the same timestamp.
+
+**Fix:** `modules/18-certification/src/service.ts` — changed to
+`const issuedAt = new Date().toISOString().slice(0, 19) + 'Z'` which produces
+`'2026-05-11T17:46:23Z'` with no dot, matching the `to_char` projection exactly.
+The SKILL.md D6 decision ("issued_at microseconds stripped") was documented but the
+implementation did not follow it.
+
+**Prevention:** Round-trip regression test added in `src/__tests__/service.test.ts`
+(R1 suite): issues a cert, reads back the `issued_at` from the inserted row, reconstructs
+the canonical payload, recomputes the HMAC, asserts byte-equality with the stored
+`signed_hash`. Without the fix this test fails; with it the test passes.
+
 ## 2026-05-11 — Finding C: `inviteUsers` papered over a missing tenant.name fallback
 
 **Symptom:** Phase 1 closure-audit Drill 1 failed at the invite step. `13-notifications`

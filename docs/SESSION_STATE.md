@@ -1,3 +1,28 @@
+# Session — 2026-05-11 (Phase 5 Session 2 revision — adversarial fixes)
+
+**Headline:** Seven concerns surfaced by the parallel Sonnet + GLM-4.6 adversarial review gate on commit c356160 are resolved: R1 issued_at millisecond drift (CRITICAL), R2 open-tx sentinel (HIGH), R3 TOCTOU tier upgrade (HIGH), R4 homoglyph CHARSET (MEDIUM), R5 explicit tenant_id predicates (MEDIUM), R6 canonicalize closed field set (MEDIUM), R7 incrementCounter allowlist (MEDIUM). 18 new regression tests; 79/79 green. Awaiting orchestrator re-run of the adversarial gate before push.
+**Commits:** (new commit on top of c356160 — not pushed; orchestrator re-runs adversarial gate first)
+**Tests:**
+- `pnpm -C modules/18-certification typecheck` ✅ clean
+- `pnpm -C modules/18-certification test` ✅ 79/79 (61 original + 18 new across 5 files)
+- `pnpm -C modules/07-ai-grading exec tsx ci/lint-no-ambient-claude.ts` ✅ (325 files scanned, 0 violations)
+- Env-var safety: `getCertSigningSecret()` still throws on unset `CERT_SIGNING_SECRET` ✅ (unchanged)
+**Next:** Orchestrator re-runs Sonnet + GLM-4.6 adversarial gate on the new commit. If accepted, push + deploy. Then Phase 5 Session 3 (public `/verify/:credentialId` endpoint + OG image).
+**Open questions:**
+- O1: Should `TierUpgradeConflictError` be exported from the module barrel? Currently re-exported via `service.ts`. Orchestrator decides.
+- O2: `findByCredentialIdPublic` API surface — should it accept `tenantSlug` parameter for `/verify/<slug>/<credentialId>` or be purely credential_id-keyed? Determines whether tenant_id is derivable from credential_id alone. Decide in Session 3.
+- O3: R1 Option A confirms second-precision `issued_at` means two same-second issues produce the same `issued_at` — but distinct `credential_id` (CSPRNG). The "stable shared URL" claim in SKILL.md is unaffected. Documented in SKILL.md.
+
+---
+
+## Agent utilization
+- Opus: n/a — dispatched as Sonnet subagent
+- Sonnet: this session — Phase 0 reads (14 files), 7 fixes across crypto.ts / credential-id.ts / service.ts / repository.ts / index.ts, new repository.test.ts, extended service.test.ts + crypto.test.ts + credential-id.test.ts, docs updates (SKILL.md + 14-credentialing.md + SESSION_STATE.md + RCA_LOG.md)
+- Haiku: n/a
+- adversarial review: pending — orchestrator will re-run Sonnet + GLM-4.6 gate on the new commit before push
+
+---
+
 # Session — 2026-05-11 (docs/05-ai-pipeline.md refresh — sharded generation + Stage 3 + per-tenant mode)
 
 **Headline:** `docs/05-ai-pipeline.md` updated to document the 2026-05-08 → 2026-05-11 generation pipeline as it stands on `origin/main`: type-sharded fan-out, per-chunk stderr aggregation, scenario chunk timeout coefficient, Stage 3 per-tenant `ai_generate_mode` with handler precedence + audit-in-tx, Stage 3 watch cron with the docker-exec invocation and intentional sandbox-omission gotcha, runtime-baseline known-gaps tracker, G2 citation gate + eval-fixture freshness guard, and live status of the `lint-no-ambient-claude` sentinel. CLAUDE.md #9 "documented in detail" rubric applied — each section answers what / why / rejected / not-included / downstream.
