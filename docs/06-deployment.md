@@ -285,6 +285,26 @@ of the `.claude` dir mount so git-pull-only skill deploys still work.
 RCA reference: `docs/RCA_LOG.md` 2026-05-09 entry "claude auth state mount: per-file
 approach broken across version upgrades".
 
+**MCP tool rebuild procedure (2026-05-11, commit `ab39667`):**
+
+`tools/assessiq-mcp/` is bind-mounted read-only into `assessiq-api` at `/opt/assessiq-mcp`. TypeScript source compiles to `dist/tools/*.js` (one file per tool — **not** into `dist/server.js`). The MCP server is spawned fresh per Claude session, so the new dist is picked up immediately with no container recreate required.
+
+```bash
+# On VPS — MCP tool source change deploy:
+cd /srv/assessiq && git pull --ff-only
+cd tools/assessiq-mcp && npm install --no-audit --no-fund && npx tsc
+
+# Verify the target symbol landed in the right compiled file:
+grep -c 'logRejection' /srv/assessiq/tools/assessiq-mcp/dist/tools/submit-questions.js
+# Expected: 2  (function def + call site)
+
+# Confirm container sees the new dist (bind mount — no recreate needed):
+docker exec assessiq-api grep -c 'logRejection' /opt/assessiq-mcp/dist/tools/submit-questions.js
+# Expected: same count
+```
+
+The rejection logger writes JSONL to `/var/log/assessiq/mcp-rejections.log` (bind-mounted rw from the VPS host). The file is created on first rejection — absence means no rejections have occurred yet, not a write failure.
+
 
 
 `assessiq-api`, `assessiq-worker`, and `assessiq-frontend` are all live. Phase 4 ships the full embed JWT ingestion flow, admin embed origin management, `aiq_embed_sess` cookie bridge, and 4 schema migrations.
