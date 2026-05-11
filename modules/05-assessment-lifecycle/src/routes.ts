@@ -212,6 +212,7 @@ export async function registerAssessmentLifecycleRoutes(
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
       const raw = req.body as Record<string, unknown>;
 
@@ -234,7 +235,7 @@ export async function registerAssessmentLifecycleRoutes(
         patch.closes_at = null;
       }
 
-      return updateAssessment(tenantId, id, patch);
+      return updateAssessment(tenantId, id, patch, userId);
     },
   );
 
@@ -244,8 +245,9 @@ export async function registerAssessmentLifecycleRoutes(
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return publishAssessment(tenantId, id);
+      return publishAssessment(tenantId, id, userId);
     },
   );
 
@@ -255,8 +257,9 @@ export async function registerAssessmentLifecycleRoutes(
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return closeAssessment(tenantId, id);
+      return closeAssessment(tenantId, id, userId);
     },
   );
 
@@ -267,8 +270,9 @@ export async function registerAssessmentLifecycleRoutes(
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return reopenAssessment(tenantId, id);
+      return reopenAssessment(tenantId, id, userId);
     },
   );
 
@@ -332,8 +336,9 @@ export async function registerAssessmentLifecycleRoutes(
     { preHandler: adminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      await revokeInvitation(tenantId, id);
+      await revokeInvitation(tenantId, id, userId);
       return reply.code(204).send();
     },
   );

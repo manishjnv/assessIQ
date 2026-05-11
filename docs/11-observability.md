@@ -649,3 +649,44 @@ This slice intentionally re-uses the existing `pack.*` / `question.*` namespaces
 - Service methods that delegate to other modules (`generateQuestions` → `handleAdminGenerate` in [07-ai-grading](../modules/07-ai-grading/SKILL.md)); audit wiring lives at the runtime boundary in 07, not the question-bank service.
 - `generateRubricForQuestion` and `bulkGenerateMissingRubrics` — these return rubric proposals without persisting; the persistence step is `saveRubric` which is audit-wired.
 - Tag CRUD via direct `upsertTag` calls — tags are mutated as a side effect of question create/update and ride those audit rows.
+
+## 16. Audit-log wiring — 05-assessment-lifecycle (G3.D slice, 2026-05-11)
+
+Every admin-mutating service method in [modules/05-assessment-lifecycle](../modules/05-assessment-lifecycle/SKILL.md) writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)` from `@assessiq/audit-log`. Mirrors the 04-question-bank G3.D template shipped in `eff0ba2` (see § 15). Atomicity guarantee is identical: a successful state change without an audit row is structurally impossible.
+
+### 16.1 Wired sites and action namespaces used
+
+| Service function | `audit_log.action` | `entity_type` | Notes |
+|---|---|---|---|
+| `createAssessment` | `assessment.created` | `assessment` | `after`: pack_id, level_id, pack_version, name, question_count, randomize, status |
+| `updateAssessment` | `assessment.updated` | `assessment` | `before/after`: name, question_count, randomize, opens_at, closes_at; `after.changed_fields`. Full settings JSONB is NOT logged — may grow arbitrary in Phase 2+ |
+| `publishAssessment` | `assessment.published` | `assessment` | `before/after.status`; `after.pool_size` records the question-bank pool count at publish time |
+| `closeAssessment` | `assessment.closed` | `assessment` | `before/after.status` |
+| `reopenAssessment` | `assessment.published` (`after.kind=reopen`) | `assessment` | Reuses `assessment.published` with marker — same pattern as `restoreVersion → question.updated kind=restore` in 04. Forensic queries filter on `after->>'kind' = 'reopen'` to distinguish initial publish from reopen |
+| `inviteUsers` | `assessment.invite` × N | `assessment_invitation` | **One row per invitation issued, not a summary.** Each invitation carries a unique CSPRNG token — granular audit rows answer "when was user X invited to assessment Y?" Skipped users (USER_NOT_FOUND / USER_NOT_CANDIDATE / USER_INACTIVE / INVITATION_EXISTS) produce no audit row |
+| `revokeInvitation` | `assessment.invite` (`after.kind=revoke`) | `assessment_invitation` | Reuses `assessment.invite` with marker. Idempotent path (already-expired) writes NO new row — nothing changed, nothing to audit |
+
+`actor_kind` is always `"user"`; `actor_user_id` is the admin's session userId threaded through the service signature. Signatures updated in this slice: `updateAssessment(.., updatedByUserId)`, `publishAssessment(.., publishedByUserId)`, `closeAssessment(.., closedByUserId)`, `reopenAssessment(.., reopenedByUserId)`, `revokeInvitation(.., revokedByUserId)`. `createAssessment` and `inviteUsers` already carried actor params (`createdByUserId`, `invitedByUserId`).
+
+### 16.2 Action-catalog scope decision
+
+This slice adds **one** entry to the G3.A action catalog ([modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts)): `assessment.updated`. The reopen and revoke events deliberately fold under existing `assessment.published` / `assessment.invite` actions via `after.kind` markers — same minimal-catalog-footprint pattern as 04-question-bank's `restoreVersion` / `saveRubric` / `bulk_status` collapsing under `question.updated`. The audit-log module is load-bearing per CLAUDE.md, so catalog growth is intentionally conservative.
+
+Semantic gaps acknowledged:
+
+1. **`reopen` and `revoke` are markers on shared actions, not first-class events.** Promoting them to `assessment.reopened` / `assessment.invite.revoked` would improve queryability (filter on `action` alone vs `action + after->>'kind'`). Deferred until a future catalog-expansion slice batches multiple promotions.
+2. **`markInvitationViewedByToken` is NOT audit-wired** — candidate-flow mutation, not admin. Candidate behavioural telemetry belongs in `attempt_events` (per `14-audit-log/SKILL.md` § Scope), not `audit_log`.
+3. **Cron boundary transitions are NOT audit-wired** — `boundaries.processBoundariesForTenant` advances `published → active`, `active → closed`, `published → closed` purely based on time. These are system-triggered (cron) not admin-triggered; auditing them would need an `actor_kind="system"` design discussion + likely a per-batch summary row rather than one per assessment. Flagged for orchestrator follow-up.
+
+### 16.3 Atomicity guarantees
+
+- Every audit write uses `auditInTx(client, ...)` inside the same `withTenant(...)` callback that owns the mutation. `withTenant` opens the BEGIN / COMMIT — the domain UPDATE and the audit INSERT commit or roll back together.
+- If `auditInTx` throws (catalog-mismatch, RLS denial, FK violation), the surrounding `withTenant` rolls back the domain mutation. No fire-and-forget audit path in this module.
+- Failure-from-error-path proof lives in [src/__tests__/audit-writes.test.ts](../modules/05-assessment-lifecycle/src/__tests__/audit-writes.test.ts): "publishAssessment on a non-existent id throws and writes NO audit row" exercises the contract — the mutation can never produce an `assessment.published` event when the assessment doesn't exist.
+- A coverage-grep assertion at the bottom of the same test file counts `auditInTx(` occurrences in `service.ts` and expects exactly 7. Adding a new admin-mutating method without an audit write will fail this guard.
+
+### 16.4 What's NOT audited here
+
+- Read-only methods: `listAssessments`, `getAssessment`, `getInvitationCounts`, `listInvitations`, `previewAssessment`, `resolveInvitationToken`.
+- Candidate-flow mutation `markInvitationViewedByToken` (see § 16.2).
+- Cron-driven boundary transitions in `boundaries.ts` / `repo.bulkUpdateBoundaries` (see § 16.2 — orchestrator follow-up).

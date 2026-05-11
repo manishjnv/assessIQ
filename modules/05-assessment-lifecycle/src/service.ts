@@ -36,6 +36,7 @@ import {
   config,
 } from "@assessiq/core";
 import { withTenant, getPool } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import { hashInvitationToken } from "./tokens.js";
 import type { PoolClient } from "pg";
@@ -283,7 +284,7 @@ export async function createAssessment(
     }
 
     // e+f. Insert assessment; pack_version is snapshotted from the current pack version
-    return repo.insertAssessment(client, {
+    const assessment = await repo.insertAssessment(client, {
       id,
       tenantId,
       packId: input.pack_id,
@@ -298,6 +299,26 @@ export async function createAssessment(
       settings: input.settings ?? {},
       createdBy: createdByUserId,
     });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: createdByUserId,
+      action: "assessment.created",
+      entityType: "assessment",
+      entityId: assessment.id,
+      after: {
+        pack_id: assessment.pack_id,
+        level_id: assessment.level_id,
+        pack_version: assessment.pack_version,
+        name: assessment.name,
+        question_count: assessment.question_count,
+        randomize: assessment.randomize,
+        status: assessment.status,
+      },
+    });
+
+    return assessment;
   });
 }
 
@@ -309,6 +330,7 @@ export async function updateAssessment(
   tenantId: string,
   id: string,
   patch: UpdateAssessmentPatch,
+  updatedByUserId: string,
 ): Promise<Assessment> {
   log.info({ tenantId, id }, "updateAssessment");
 
@@ -347,7 +369,35 @@ export async function updateAssessment(
     if (patch.closes_at !== undefined) repoPatch.closesAt = patch.closes_at;
     if (patch.settings !== undefined) repoPatch.settings = patch.settings;
 
-    return repo.updateAssessmentRow(client, id, repoPatch);
+    const updated = await repo.updateAssessmentRow(client, id, repoPatch);
+
+    // Field-level change: record which fields changed (not full settings JSONB
+    // since it may grow arbitrary in Phase 2+ — keeps the audit_log row small).
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: updatedByUserId,
+      action: "assessment.updated",
+      entityType: "assessment",
+      entityId: id,
+      before: {
+        name: current.name,
+        question_count: current.question_count,
+        randomize: current.randomize,
+        opens_at: current.opens_at,
+        closes_at: current.closes_at,
+      },
+      after: {
+        name: updated.name,
+        question_count: updated.question_count,
+        randomize: updated.randomize,
+        opens_at: updated.opens_at,
+        closes_at: updated.closes_at,
+        changed_fields: Object.keys(repoPatch),
+      },
+    });
+
+    return updated;
   });
 }
 
@@ -358,6 +408,7 @@ export async function updateAssessment(
 export async function publishAssessment(
   tenantId: string,
   id: string,
+  publishedByUserId: string,
 ): Promise<Assessment> {
   log.info({ tenantId, id }, "publishAssessment");
 
@@ -395,7 +446,24 @@ export async function publishAssessment(
     }
 
     // d. Transition to published
-    return repo.updateAssessmentRow(client, id, { status: "published" });
+    const updated = await repo.updateAssessmentRow(client, id, { status: "published" });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: publishedByUserId,
+      action: "assessment.published",
+      entityType: "assessment",
+      entityId: id,
+      before: { status: assessment.status },
+      after: {
+        status: updated.status,
+        pool_size: available,
+        question_count: assessment.question_count,
+      },
+    });
+
+    return updated;
   });
 }
 
@@ -406,6 +474,7 @@ export async function publishAssessment(
 export async function closeAssessment(
   tenantId: string,
   id: string,
+  closedByUserId: string,
 ): Promise<Assessment> {
   log.info({ tenantId, id }, "closeAssessment");
 
@@ -421,7 +490,20 @@ export async function closeAssessment(
     // draft → closed and closed → closed are both illegal.
     assertCanTransition(assessment.status, "closed");
 
-    return repo.updateAssessmentRow(client, id, { status: "closed" });
+    const updated = await repo.updateAssessmentRow(client, id, { status: "closed" });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: closedByUserId,
+      action: "assessment.closed",
+      entityType: "assessment",
+      entityId: id,
+      before: { status: assessment.status },
+      after: { status: updated.status },
+    });
+
+    return updated;
   });
 }
 
@@ -432,6 +514,7 @@ export async function closeAssessment(
 export async function reopenAssessment(
   tenantId: string,
   id: string,
+  reopenedByUserId: string,
 ): Promise<Assessment> {
   log.info({ tenantId, id }, "reopenAssessment");
 
@@ -449,7 +532,28 @@ export async function reopenAssessment(
     // Time-boundary check: cannot reopen past closes_at
     assertReopenAllowed(new Date(), assessment.closes_at);
 
-    return repo.updateAssessmentRow(client, id, { status: "published" });
+    const updated = await repo.updateAssessmentRow(client, id, { status: "published" });
+
+    // Reuse assessment.published with after.kind=reopen — same pattern as
+    // 04-question-bank's restoreVersion → question.updated kind=restore.
+    // Keeps the action catalog tight; forensic queries filter on
+    // after->>'kind' = 'reopen' when distinguishing initial publish from reopen.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: reopenedByUserId,
+      action: "assessment.published",
+      entityType: "assessment",
+      entityId: id,
+      before: { status: assessment.status },
+      after: {
+        kind: "reopen",
+        status: updated.status,
+        closes_at: updated.closes_at,
+      },
+    });
+
+    return updated;
   });
 }
 
@@ -791,6 +895,27 @@ export async function inviteUsers(
         tenantName,
       });
 
+      // Audit one row per invitation issued. Per-invitation granularity beats
+      // a summary here: forensic queries like "when was user X invited to
+      // assessment Y?" rely on each invitation having its own audit row.
+      // Skipped users (USER_NOT_FOUND / USER_NOT_CANDIDATE / USER_INACTIVE /
+      // INVITATION_EXISTS) intentionally produce no audit row — nothing
+      // mutated.
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: invitedByUserId,
+        action: "assessment.invite",
+        entityType: "assessment_invitation",
+        entityId: invitation.id,
+        after: {
+          assessment_id: assessmentId,
+          user_id: userId,
+          expires_at: invitation.expires_at,
+          status: invitation.status,
+        },
+      });
+
       invited.push(invitation);
     }
 
@@ -837,6 +962,7 @@ export async function listInvitations(
 export async function revokeInvitation(
   tenantId: string,
   invitationId: string,
+  revokedByUserId: string,
 ): Promise<void> {
   log.info({ tenantId, invitationId }, "revokeInvitation");
 
@@ -848,12 +974,32 @@ export async function revokeInvitation(
       });
     }
 
-    // Idempotent — already expired is a no-op (don't error)
+    // Idempotent — already expired is a no-op (don't error, don't audit
+    // again — nothing changed).
     if (invitation.status === "expired") {
       return;
     }
 
     await repo.updateInvitationStatus(client, invitationId, "expired");
+
+    // Reuse assessment.invite with after.kind=revoke — same minimal-catalog
+    // pattern as reopenAssessment. before.status records what was revoked
+    // from (pending/viewed/started/submitted) which is useful forensic context.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: revokedByUserId,
+      action: "assessment.invite",
+      entityType: "assessment_invitation",
+      entityId: invitationId,
+      before: { status: invitation.status },
+      after: {
+        kind: "revoke",
+        status: "expired",
+        assessment_id: invitation.assessment_id,
+        user_id: invitation.user_id,
+      },
+    });
   });
 }
 

@@ -88,6 +88,7 @@ const MODULES_ROOT = join(AL_MODULE_ROOT, "..");
 
 const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
 const USERS_MIGRATIONS_DIR = join(MODULES_ROOT, "03-users", "migrations");
+const AUDIT_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
 const QB_MIGRATIONS_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
 const AL_MIGRATIONS_DIR = join(AL_MODULE_ROOT, "migrations");
 
@@ -216,9 +217,10 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
-  const [tenancyFiles, usersFiles, qbFiles, alFiles] = await Promise.all([
+  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles] = await Promise.all([
     readdir(TENANCY_MIGRATIONS_DIR),
     readdir(USERS_MIGRATIONS_DIR),
+    readdir(AUDIT_MIGRATIONS_DIR),
     readdir(QB_MIGRATIONS_DIR),
     readdir(AL_MIGRATIONS_DIR),
   ]);
@@ -235,6 +237,13 @@ beforeAll(async () => {
     .sort()
     .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
 
+  // Audit-log migration (0050) — must precede 05-AL because every wired
+  // mutation now writes an audit_log row inside the same transaction.
+  const auditSorted = auditFiles
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => ({ dir: AUDIT_MIGRATIONS_DIR, file: f }));
+
   // All QB migrations (0010-0015)
   const qbSorted = qbFiles
     .filter((f) => f.endsWith(".sql"))
@@ -248,10 +257,34 @@ beforeAll(async () => {
     .map((f) => ({ dir: AL_MIGRATIONS_DIR, file: f }));
 
   await withSuperClient(async (client) => {
-    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...qbSorted, ...alSorted]) {
+    // App role required by audit_log RLS + GRANT setup (mirrors the QB
+    // G3.D audit-write sweep test setup).
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
+          CREATE ROLE assessiq_app;
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
+          CREATE ROLE assessiq_system BYPASSRLS;
+        END IF;
+      END $$;
+    `);
+    await client.query(`GRANT assessiq_app TO test`);
+    await client.query(`GRANT assessiq_system TO test`);
+
+    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...auditSorted, ...qbSorted, ...alSorted]) {
       const sql = await readFile(join(dir, file), "utf-8");
       await client.query(sql);
     }
+
+    // audit_log has REVOKE UPDATE/DELETE/TRUNCATE in its migration; explicitly
+    // GRANT SELECT+INSERT to assessiq_app so service-layer writes via withTenant succeed.
+    await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
+    await client.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
   });
 
   await setPoolForTesting(containerUrl);
@@ -621,7 +654,7 @@ describe("publishAssessment pool-size pre-flight", () => {
       adminA,
     );
 
-    await expect(publishAssessment(tenantA, assessment.id)).rejects.toSatisfy(
+    await expect(publishAssessment(tenantA, assessment.id, adminA)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ValidationError &&
         (e.details as Record<string, unknown> | undefined)?.["code"] === AL_ERROR_CODES.POOL_TOO_SMALL &&
@@ -638,7 +671,7 @@ describe("publishAssessment pool-size pre-flight", () => {
       adminA,
     );
 
-    const published = await publishAssessment(tenantA, assessment.id);
+    const published = await publishAssessment(tenantA, assessment.id, adminA);
     expect(published.status).toBe("published");
   });
 });
@@ -662,7 +695,7 @@ describe("State machine integration via service", () => {
       adminA,
     );
     // draft → closed is illegal
-    await expect(closeAssessment(tenantA, assessment.id)).rejects.toSatisfy(
+    await expect(closeAssessment(tenantA, assessment.id, adminA)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ValidationError &&
         (e.details as Record<string, unknown> | undefined)?.["code"] === AL_ERROR_CODES.INVALID_STATE_TRANSITION,
@@ -675,7 +708,7 @@ describe("State machine integration via service", () => {
       { pack_id: packId, level_id: levelId, name: "Close Active", question_count: 5 },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
 
     // Directly advance to 'active' via repo (bypasses the service to skip time dependency)
     await withSuperClient(async (client) => {
@@ -685,7 +718,7 @@ describe("State machine integration via service", () => {
       );
     });
 
-    const closed = await closeAssessment(tenantA, assessment.id);
+    const closed = await closeAssessment(tenantA, assessment.id, adminA);
     expect(closed.status).toBe("closed");
   });
 
@@ -701,7 +734,7 @@ describe("State machine integration via service", () => {
       },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
     // Force to closed
     await withSuperClient(async (client) => {
       await client.query(
@@ -710,7 +743,7 @@ describe("State machine integration via service", () => {
       );
     });
 
-    const reopened = await reopenAssessment(tenantA, assessment.id);
+    const reopened = await reopenAssessment(tenantA, assessment.id, adminA);
     expect(reopened.status).toBe("published");
   });
 
@@ -727,7 +760,7 @@ describe("State machine integration via service", () => {
       },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
     await withSuperClient(async (client) => {
       await client.query(
         `UPDATE assessments SET status = 'closed' WHERE id = $1`,
@@ -735,7 +768,7 @@ describe("State machine integration via service", () => {
       );
     });
 
-    await expect(reopenAssessment(tenantA, assessment.id)).rejects.toSatisfy(
+    await expect(reopenAssessment(tenantA, assessment.id, adminA)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ValidationError &&
         (e.details as Record<string, unknown> | undefined)?.["code"] === AL_ERROR_CODES.REOPEN_PAST_CLOSES_AT,
@@ -748,10 +781,10 @@ describe("State machine integration via service", () => {
       { pack_id: packId, level_id: levelId, name: "Re-publish Test", question_count: 5 },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
 
     // Attempt to publish again — published → published is a self-transition, illegal
-    await expect(publishAssessment(tenantA, assessment.id)).rejects.toSatisfy(
+    await expect(publishAssessment(tenantA, assessment.id, adminA)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ValidationError &&
         (e.details as Record<string, unknown> | undefined)?.["code"] === AL_ERROR_CODES.INVALID_STATE_TRANSITION,
@@ -784,7 +817,7 @@ describe("Boundary cron — processBoundariesForTenant", () => {
       },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
 
     const result = await processBoundariesForTenant(tenantA, new Date());
     expect(result.activated).toBeGreaterThanOrEqual(1);
@@ -807,7 +840,7 @@ describe("Boundary cron — processBoundariesForTenant", () => {
       },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
     // Force status to active directly
     await withSuperClient(async (client) => {
       await client.query(
@@ -837,7 +870,7 @@ describe("Boundary cron — processBoundariesForTenant", () => {
       },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
 
     const pinned = new Date();
     await processBoundariesForTenant(tenantA, pinned);
@@ -861,7 +894,7 @@ describe("Boundary cron — processBoundariesForTenant", () => {
       },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
 
     await processBoundariesForTenant(tenantA, new Date());
 
@@ -933,7 +966,7 @@ describe("Invitation flow", () => {
       { pack_id: packId, level_id: levelId, name: "Invite Test Assessment", question_count: 5 },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
     assessmentId = assessment.id;
 
     candidateU1 = randomUUID();
@@ -1013,7 +1046,7 @@ describe("Invitation flow", () => {
       { pack_id: p2, level_id: l2, name: "Revoke Test", question_count: 5 },
       adminA,
     );
-    await publishAssessment(tenantA, a2.id);
+    await publishAssessment(tenantA, a2.id, adminA);
 
     const c3 = randomUUID();
     await withSuperClient(async (client) => {
@@ -1023,7 +1056,7 @@ describe("Invitation flow", () => {
     const inviteResult = await inviteUsers(tenantA, a2.id, [c3], adminA);
     const invitationId = inviteResult.invited[0]!.id;
 
-    await revokeInvitation(tenantA, invitationId);
+    await revokeInvitation(tenantA, invitationId, adminA);
 
     const { items } = await listInvitations(tenantA, a2.id, { status: "expired" });
     const ids = items.map((i) => i.id);
@@ -1037,7 +1070,7 @@ describe("Invitation flow", () => {
       { pack_id: p3, level_id: l3, name: "Double Revoke", question_count: 5 },
       adminA,
     );
-    await publishAssessment(tenantA, a3.id);
+    await publishAssessment(tenantA, a3.id, adminA);
 
     const c4 = randomUUID();
     await withSuperClient(async (client) => {
@@ -1047,8 +1080,8 @@ describe("Invitation flow", () => {
     const invResult = await inviteUsers(tenantA, a3.id, [c4], adminA);
     const invId = invResult.invited[0]!.id;
 
-    await revokeInvitation(tenantA, invId);
-    await expect(revokeInvitation(tenantA, invId)).resolves.toBeUndefined();
+    await revokeInvitation(tenantA, invId, adminA);
+    await expect(revokeInvitation(tenantA, invId, adminA)).resolves.toBeUndefined();
   });
 
   it("token hashing: generated invitation has token_hash === sha256(plaintext)", () => {
@@ -1096,7 +1129,7 @@ describe("Cross-tenant RLS isolation", () => {
       { pack_id: pA, level_id: lA, name: "RLS Invite A", question_count: 3 },
       adminA,
     );
-    await publishAssessment(tenantA, aA2.id);
+    await publishAssessment(tenantA, aA2.id, adminA);
 
     const cRls = randomUUID();
     await withSuperClient(async (client) => {
@@ -1155,7 +1188,7 @@ describe("Dev-email log — invitation_candidate template written to stub", () =
       { pack_id: packId, level_id: levelId, name: "Email Log Test", question_count: 5 },
       adminA,
     );
-    await publishAssessment(tenantA, assessment.id);
+    await publishAssessment(tenantA, assessment.id, adminA);
     assessmentId = assessment.id;
 
     // Seed a candidate user

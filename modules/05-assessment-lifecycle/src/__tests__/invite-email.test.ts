@@ -48,6 +48,14 @@ vi.mock('@assessiq/tenancy', () => ({
   getPool: () => ({ connect: vi.fn() }),
 }));
 
+// audit-log mock — inviteUsers now writes one audit_log row per issued
+// invitation via auditInTx. The mock stub keeps the call resolvable without
+// needing a real DB; the audit-row semantics are exercised by the integration
+// suite in audit-writes.test.ts + lifecycle.test.ts.
+vi.mock('@assessiq/audit-log', () => ({
+  auditInTx: vi.fn().mockResolvedValue({ id: 'audit-row-1' }),
+}));
+
 // tenancyRepo.findTenantById → returns a tenant row so tenantName resolves
 vi.mock('../../../02-tenancy/src/repository.js', () => ({
   findTenantById: vi.fn().mockResolvedValue({ name: 'Acme Corp', slug: 'acme', id: 'tenant-1' }),
