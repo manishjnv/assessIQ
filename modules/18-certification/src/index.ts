@@ -16,6 +16,8 @@ export {
   revoke,
   reissue,
   MAX_CREDENTIAL_ID_RETRIES,
+  MAX_TIER_UPGRADE_RETRIES,
+  TierUpgradeConflictError,
   type IssueCertificateOptions,
 } from './service.js';
 
@@ -40,9 +42,17 @@ export {
 } from './credential-id.js';
 
 // ---------------------------------------------------------------------------
-// Repository (exposed for advanced callers + the collision error type)
+// Crypto extras
 // ---------------------------------------------------------------------------
-export { CredentialIdCollisionError } from './repository.js';
+export { CanonicalPayloadError } from './crypto.js';
+
+// ---------------------------------------------------------------------------
+// Repository (exposed for advanced callers + the collision error types)
+// ---------------------------------------------------------------------------
+export {
+  CredentialIdCollisionError,
+  findByCredentialIdPublic,
+} from './repository.js';
 
 // ---------------------------------------------------------------------------
 // Route registrar

@@ -74,6 +74,26 @@ describe('generateCredentialId — uniqueness', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// R4 — Crockford-style alphabet: no homoglyphs (I, L, O, U)
+// ---------------------------------------------------------------------------
+
+describe('generateCredentialId — R4: homoglyph-free alphabet', () => {
+  it('10,000 generated IDs contain no I, L, O, or U in the suffix', () => {
+    const HOMOGLYPHS = /[ILOU]/;
+    for (let i = 0; i < 10_000; i++) {
+      const id = generateCredentialId();
+      // The suffix is the last 6 characters after the final '-'.
+      const suffix = id.slice(id.lastIndexOf('-') + 1);
+      if (HOMOGLYPHS.test(suffix)) {
+        throw new Error(
+          `Generated ID at iteration ${i} contains a homoglyph: "${id}" (suffix="${suffix}")`,
+        );
+      }
+    }
+  });
+});
+
 describe('isValidCredentialId', () => {
   it('matches valid IDs', () => {
     expect(isValidCredentialId('AIQ-2026-05-A7F3K9')).toBe(true);

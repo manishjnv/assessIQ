@@ -38,6 +38,26 @@ export class CredentialIdCollisionError extends Error {
   }
 }
 
+/**
+ * Thrown by upgradeCertificateTier when the UPDATE matches zero rows because
+ * a concurrent caller has already modified the tier since this caller's last
+ * findByAttempt read (TOCTOU race). The service layer catches this, re-fetches
+ * the current state, and retries the ordinal comparison up to
+ * MAX_TIER_UPGRADE_RETRIES times.
+ */
+export class TierUpgradeConflictError extends Error {
+  constructor(
+    public readonly certId: string,
+    public readonly expectedTier: string,
+  ) {
+    super(
+      `tier upgrade conflict: cert ${certId} no longer has tier=${expectedTier} — ` +
+        'concurrent upgrade detected; caller should re-fetch and retry',
+    );
+    this.name = 'TierUpgradeConflictError';
+  }
+}
+
 // PG SQLSTATE for unique_violation (23505) — used to differentiate
 // credential_id collisions from generic INSERT failures.
 const SQLSTATE_UNIQUE_VIOLATION = '23505';
@@ -91,23 +111,58 @@ const CERTIFICATE_PROJECTION = `
 // ---------------------------------------------------------------------------
 
 /**
- * Find a certificate by its public credential_id slug.
+ * Find a certificate by its public credential_id slug within a tenant context.
+ *
+ * Includes an explicit `AND tenant_id = $2` predicate as defense-in-depth
+ * against callers that accidentally bypass RLS (e.g. data-migration scripts
+ * using a service-role connection). RLS is still the primary guard; this is
+ * belt-and-suspenders.
+ *
  * Input is normalised to uppercase (credential_ids are stored uppercase).
  * Returns null when not found.
+ *
+ * For the public verify-page lookup (no tenant context, cross-tenant) see
+ * findByCredentialIdPublic below.
  */
 export async function findByCredentialId(
   client: PoolClient,
   credentialId: string,
+  tenantId: string,
 ): Promise<Certificate | null> {
   const normalised = credentialId.toUpperCase();
   const result = await client.query<Certificate>(
     `SELECT ${CERTIFICATE_PROJECTION}
      FROM certificates
      WHERE credential_id = $1
+       AND tenant_id = $2
      LIMIT 1`,
-    [normalised],
+    [normalised, tenantId],
   );
   return result.rows[0] ?? null;
+}
+
+/**
+ * Public credential lookup for the verify-page (Phase 5 Session 3).
+ *
+ * This function is intentionally NOT scoped to a tenant — the verify page is
+ * unauthenticated and credential_id is globally unique. The implementation
+ * will use a service-role / SECURITY DEFINER path that bypasses RLS and
+ * returns only public-safe fields (NOT the internal `id` UUID or any PII
+ * beyond what the certificate itself displays).
+ *
+ * TODO(Phase5-S3): implement — choose DB strategy from SKILL.md decision D7:
+ *   (a) SECURITY DEFINER function, (b) assessiq_system role SET LOCAL,
+ *   (c) explicit SET LOCAL ROLE bypass.
+ * The returned type will be a PublicCertificateView subset (Session 3 defines
+ * the exact shape). The `tenantSlug` question (O2) is deferred to Session 3.
+ */
+export async function findByCredentialIdPublic(
+  _credentialId: string,
+): Promise<never> {
+  throw new Error(
+    'findByCredentialIdPublic: not yet implemented (Phase 5 Session 3). ' +
+      'Use findByCredentialId with an RLS-scoped client for tenant-side lookups.',
+  );
 }
 
 /**
@@ -135,17 +190,20 @@ export async function findByAttempt(
 
 /**
  * List certificates for a tenant with optional filters. Paginated.
- * Tenant scoping is enforced via RLS — no explicit tenant_id WHERE clause is
- * added (the migration's tenant_isolation policy fires automatically).
+ *
+ * Tenant scoping is enforced by BOTH RLS (primary) AND an explicit
+ * `WHERE tenant_id = $1` predicate (defense-in-depth). The explicit
+ * predicate guards against callers that accidentally bypass RLS, e.g.
+ * data-migration scripts using a service-role connection.
  */
 export async function listCertificates(
   client: PoolClient,
   tenantId: string,
   query: ListCertificatesQuery,
 ): Promise<{ items: Certificate[]; total: number }> {
-  void tenantId; // RLS scopes — kept on the signature for documentation.
-  const conditions: string[] = [];
-  const params: unknown[] = [];
+  // $1 is always tenant_id (defense-in-depth; RLS is the primary guard).
+  const params: unknown[] = [tenantId];
+  const conditions: string[] = ['tenant_id = $1'];
 
   if (query.candidate_id !== undefined) {
     params.push(query.candidate_id);
@@ -162,7 +220,7 @@ export async function listCertificates(
       conditions.push('revoked_at IS NULL');
     }
   }
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
   const countResult = await client.query<{ total: string }>(
     `SELECT count(*)::text AS total FROM certificates ${whereClause}`,
@@ -261,6 +319,14 @@ export async function insertCertificate(
  * The tenant_id parameter is for defense-in-depth: combined with RLS it
  * ensures the UPDATE cannot affect a row outside the active tenant context
  * even if a future bug surfaced one.
+ *
+ * R3 — TOCTOU guard: the `AND tier = $5` predicate implements an optimistic
+ * concurrency check. If a concurrent caller has already upgraded the tier
+ * since the service layer's last findByAttempt read, the UPDATE matches zero
+ * rows and this function throws TierUpgradeConflictError. The service layer
+ * catches that error, re-fetches, and retries up to MAX_TIER_UPGRADE_RETRIES
+ * times. This prevents two concurrent upgrades from both reading stale
+ * `existing.tier` and recording incorrect before/after audit entries.
  */
 export async function upgradeCertificateTier(
   client: PoolClient,
@@ -268,6 +334,7 @@ export async function upgradeCertificateTier(
   tenantId: string,
   newTier: string,
   newSignedHash: string,
+  currentTier: string,
 ): Promise<Certificate> {
   const result = await client.query<Certificate>(
     `UPDATE certificates
@@ -276,13 +343,17 @@ export async function upgradeCertificateTier(
             updated_at = now()
       WHERE id = $3
         AND tenant_id = $4
+        AND tier = $5
       RETURNING ${CERTIFICATE_PROJECTION}`,
-    [newTier, newSignedHash, certId, tenantId],
+    [newTier, newSignedHash, certId, tenantId, currentTier],
   );
+  if (result.rowCount === 0) {
+    throw new TierUpgradeConflictError(certId, currentTier);
+  }
   const row = result.rows[0];
   if (row === undefined) {
     throw new Error(
-      `upgradeCertificateTier: no row updated for id=${certId} tenant=${tenantId}`,
+      `upgradeCertificateTier: UPDATE returned no row for id=${certId} tenant=${tenantId}`,
     );
   }
   return row;
@@ -319,17 +390,39 @@ export async function revokeCertificate(
 }
 
 /**
+ * Allowlist of counter column names accepted by incrementCounter.
+ * Used as a runtime guard against SQL injection if this function is ever
+ * called from a dynamic/deserialized context that bypasses TypeScript types.
+ */
+const ALLOWED_COUNTERS = [
+  'pdf_downloads',
+  'linkedin_shares',
+  'verification_views',
+] as const;
+
+/**
  * Increment a non-critical analytics counter using server-side arithmetic
  * (UPDATE … = col + 1) so two simultaneous increments don't lose one.
  * Caller treats lost increments as acceptable (analytics, not business logic).
+ *
+ * R7 — SQL injection guard: even though the parameter type is a TS union,
+ * TypeScript types are compile-only. A runtime allowlist check prevents
+ * arbitrary column-name injection from dynamic/deserialized callers.
  */
 export async function incrementCounter(
   client: PoolClient,
   certId: string,
   column: 'pdf_downloads' | 'linkedin_shares' | 'verification_views',
 ): Promise<void> {
-  // Column is a literal type constrained by the parameter union — safe to
-  // interpolate (no user input reaches this site).
+  // Runtime allowlist — TypeScript union is compile-only; any runtime caller
+  // bypassing TS (dynamic import, webhook handler, deserialized payload)
+  // could inject an arbitrary column name without this guard.
+  if (!ALLOWED_COUNTERS.includes(column as (typeof ALLOWED_COUNTERS)[number])) {
+    throw new Error(
+      `incrementCounter: invalid counter column "${column}". ` +
+        `Allowed: ${ALLOWED_COUNTERS.join(', ')}`,
+    );
+  }
   await client.query(
     `UPDATE certificates
         SET ${column} = ${column} + 1,

@@ -26,8 +26,28 @@ import { CREDENTIAL_ID_REGEX } from './types.js';
  */
 export const DEFAULT_CREDENTIAL_PREFIX = 'AIQ';
 
-/** Alphanumeric character set (uppercase A-Z + 0-9) used for the suffix. */
-const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+/**
+ * Crockford-style 32-character alphabet used for the random suffix.
+ *
+ * Excludes visually ambiguous characters I, L, O, U so credential IDs
+ * transcribed by hand from a printed certificate or a LinkedIn URL are
+ * unambiguous. Based on the Crockford Base32 reference shape
+ * (https://www.crockford.com/base32.html) with U additionally excluded
+ * because it creates no ambiguity concern and avoids accidentally spelling
+ * profanities.
+ *
+ * 32^6 ≈ 1.07 billion suffixes per (prefix, year-month). Still far exceeds
+ * the expected issuance volume; the DB UNIQUE(credential_id) constraint is
+ * the actual collision guard.
+ *
+ * MIGRATION NOTE: Existing certificates use the 36-char [A-Z0-9] alphabet.
+ * There are no production certs at the time of this change (Phase 5
+ * Session 2, pre-deploy). The CREDENTIAL_ID_REGEX still accepts all
+ * uppercase letters + digits, so old-alphabet IDs remain valid (no data
+ * migration needed). New issuances will never include I, L, O, U in the
+ * suffix.
+ */
+const CHARSET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // 32 chars — Crockford-style, no I/L/O/U
 
 /** Prefix shape: 2–4 uppercase ASCII letters. */
 const PREFIX_REGEX = /^[A-Z]{2,4}$/;

@@ -73,16 +73,57 @@ export function getCertSigningSecret(): string {
 }
 
 /**
- * Canonical-serialize the payload: sort keys alphabetically, JSON.stringify
- * with no whitespace. Deterministic across Node processes and versions
- * because JSON.stringify in V8 preserves key insertion order when given
- * an object whose keys we explicitly inserted in sorted order.
+ * Closed set of fields that participate in the HMAC payload, listed in
+ * sorted alphabetical order. Using a hardcoded constant (instead of
+ * Object.keys at runtime) ensures that a caller passing an augmented
+ * object — e.g. `{ ...certRow, extra_field: 'x' }` cast to
+ * CertificateSignaturePayload — cannot silently include extra fields in
+ * the hash and thereby break signature reproducibility.
+ *
+ * Changing this list is a breaking change: every existing signed row will
+ * fail verification until a coordinated re-sign migration is run.
+ */
+const CANONICAL_FIELDS = [
+  'attempt_id',
+  'candidate_id',
+  'course_title',
+  'credential_id',
+  'display_name',
+  'id',
+  'issued_at',
+  'level',
+  'template_key',
+  'tenant_id',
+  'tier',
+] as const satisfies ReadonlyArray<keyof CertificateSignaturePayload>;
+
+/**
+ * Thrown by canonicalize when a required field is missing from the payload.
+ * This should never happen in correct usage; it signals a programmer error
+ * (e.g. a partial payload was passed where a full payload was required).
+ */
+export class CanonicalPayloadError extends Error {
+  constructor(public readonly missingField: string) {
+    super(`canonicalize: required field "${missingField}" is missing from the payload`);
+    this.name = 'CanonicalPayloadError';
+  }
+}
+
+/**
+ * Canonical-serialize the payload: iterate the fixed CANONICAL_FIELDS list
+ * in alphabetical order, build an ordered object, JSON.stringify with no
+ * whitespace. Deterministic across Node processes and versions.
+ *
+ * Throws CanonicalPayloadError if any required field is absent (undefined)
+ * from the payload — callers must pass a complete CertificateSignaturePayload.
  */
 function canonicalize(payload: CertificateSignaturePayload): string {
   const source = payload as unknown as Record<string, unknown>;
-  const sortedKeys = Object.keys(source).sort();
   const ordered: Record<string, unknown> = {};
-  for (const key of sortedKeys) {
+  for (const key of CANONICAL_FIELDS) {
+    if (!(key in source) || source[key] === undefined) {
+      throw new CanonicalPayloadError(key);
+    }
     ordered[key] = source[key];
   }
   return JSON.stringify(ordered);

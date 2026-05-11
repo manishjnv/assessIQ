@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   CERT_SIGNING_SECRET_ENV,
+  CanonicalPayloadError,
   getCertSigningSecret,
   signCertificate,
   verifyCertificateSignature,
@@ -118,6 +119,25 @@ describe('verifyCertificateSignature', () => {
     expect(
       verifyCertificateSignature(FIXED_PAYLOAD, FIXED_EXPECTED_HEX + '00', FIXED_SECRET),
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R6 — canonicalize closed-field-set: extra fields ignored, missing fields throw
+// ---------------------------------------------------------------------------
+
+describe('signCertificate — R6: closed canonical field set', () => {
+  it('extra fields on the object do NOT change the digest', () => {
+    // Cast is needed to sneak in extra_field at the call site.
+    const withExtra = { ...FIXED_PAYLOAD, extra_field: 'should-be-ignored' } as CertificateSignaturePayload;
+    expect(signCertificate(withExtra, FIXED_SECRET)).toBe(signCertificate(FIXED_PAYLOAD, FIXED_SECRET));
+  });
+
+  it('throws CanonicalPayloadError when a required field is undefined', () => {
+    // Omit 'tier' by casting through unknown.
+    const missingTier = { ...FIXED_PAYLOAD, tier: undefined } as unknown as CertificateSignaturePayload;
+    expect(() => signCertificate(missingTier, FIXED_SECRET)).toThrow(CanonicalPayloadError);
+    expect(() => signCertificate(missingTier, FIXED_SECRET)).toThrow(/tier/);
   });
 });
 

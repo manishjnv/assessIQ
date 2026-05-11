@@ -16,6 +16,11 @@
 // context, and the audit_log INSERT lives in the same transaction so the
 // domain mutation + audit row commit or roll back together.
 //
+// PRECONDITION: the PoolClient MUST be inside an open transaction (i.e. the
+// caller has already called withTenant / BEGIN). issueCertificate enforces
+// this at runtime via a pg_current_xact_id_if_assigned() sentinel. Passing
+// a raw pool connection without an open transaction will throw immediately.
+//
 // AUDIT ATOMICITY (CLAUDE.md hard rule): auditInTx runs on the same client
 // as the cert INSERT / UPDATE. If the audit write fails, the outer
 // withTenant() rolls back the cert mutation. There is never a cert row
@@ -41,6 +46,9 @@ import {
   signCertificate,
 } from './crypto.js';
 import * as repo from './repository.js';
+
+// Re-export TierUpgradeConflictError so callers can catch it by type.
+export { TierUpgradeConflictError } from './repository.js';
 import {
   TIER_ORDER,
   type Certificate,
@@ -51,10 +59,20 @@ import {
 
 /**
  * Maximum credential_id collisions tolerated before issueCertificate gives
- * up. 36^6 ≈ 2.18B suffixes per (prefix, year-month); hitting three in a
- * row indicates a degraded CSPRNG, not normal birthday-paradox math.
+ * up. 32^6 ≈ 1.07B suffixes per (prefix, year-month) with the Crockford
+ * alphabet; hitting three in a row indicates a degraded CSPRNG, not normal
+ * birthday-paradox math.
  */
 export const MAX_CREDENTIAL_ID_RETRIES = 3;
+
+/**
+ * Maximum tier-upgrade CAS retries. A tier upgrade uses an optimistic
+ * concurrency check (AND tier = $current_tier). If two concurrent callers
+ * race, one will get rowCount=0 (TierUpgradeConflictError) and retry from
+ * a fresh read. After MAX_TIER_UPGRADE_RETRIES failures the caller receives
+ * the error directly.
+ */
+export const MAX_TIER_UPGRADE_RETRIES = 3;
 
 /**
  * Optional extras the caller can pass alongside IssueCertificateInput.
@@ -125,7 +143,23 @@ export async function issueCertificate(
   input: IssueCertificateInput,
   options: IssueCertificateOptions = {},
 ): Promise<Certificate> {
-  const existing = await repo.findByAttempt(
+  // R2: runtime sentinel — require an open transaction. A raw pool connection
+  // without BEGIN will have pg_current_xact_id_if_assigned() return NULL.
+  // This catches future callers that forget to wrap in withTenant().
+  const txCheck = await client.query<{ xid: string | null }>(
+    'SELECT pg_current_xact_id_if_assigned() AS xid',
+  );
+  if (txCheck.rows[0]?.xid === null) {
+    throw new Error(
+      'issueCertificate requires an open transaction — call inside withTenant() ' +
+        '(see modules/18-certification/SKILL.md § Open-transaction precondition)',
+    );
+  }
+
+  // R3: tier upgrade is done in a CAS loop to prevent TOCTOU races.
+  // We resolve the "existing" check once up front; the upgrade branch may
+  // retry if a concurrent upgrade wins the optimistic lock.
+  let existing = await repo.findByAttempt(
     client,
     input.tenant_id,
     input.candidate_id,
@@ -133,67 +167,110 @@ export async function issueCertificate(
   );
 
   if (existing !== null) {
-    const existingOrdinal = TIER_ORDER[existing.tier];
-    const incomingOrdinal = TIER_ORDER[input.tier];
+    // Upgrade / idempotent path — wrapped in a CAS retry loop.
+    let upgradeAttempt = 0;
+    while (true) {
+      const existingOrdinal = TIER_ORDER[existing.tier];
+      const incomingOrdinal = TIER_ORDER[input.tier];
 
-    // Idempotent: same-tier re-issue, or attempted downgrade. Plan §1.3:
-    // never take a credential away from someone who already earned it.
-    // No audit row — this is a no-op from the audit trail's perspective.
-    if (incomingOrdinal <= existingOrdinal) {
-      return existing;
+      // Idempotent: same-tier re-issue, or attempted downgrade. Plan §1.3:
+      // never take a credential away from someone who already earned it.
+      // No audit row — this is a no-op from the audit trail's perspective.
+      if (incomingOrdinal <= existingOrdinal) {
+        return existing;
+      }
+
+      // Tier upgrade. Preserve credential_id + issued_at; re-sign with new
+      // tier. issued_at is already second-precision from this service (for
+      // first-time issues) or from the DB projection (already truncated
+      // via to_char). Either way the signing payload uses the stored value.
+      const secret = getCertSigningSecret();
+      const newSignedHash = signCertificate(
+        toSignaturePayload({
+          id: existing.id,
+          tenant_id: existing.tenant_id,
+          candidate_id: existing.candidate_id,
+          attempt_id: existing.attempt_id,
+          template_key: existing.template_key,
+          credential_id: existing.credential_id,
+          tier: input.tier,
+          display_name: existing.display_name,
+          course_title: existing.course_title,
+          level: existing.level,
+          issued_at: existing.issued_at,
+        }),
+        secret,
+      );
+
+      // R3: pass current_tier to upgradeCertificateTier; the SQL checks
+      // AND tier = $current_tier so concurrent races get TierUpgradeConflictError
+      // instead of silently overwriting each other's state.
+      let upgraded: Certificate;
+      try {
+        upgraded = await repo.upgradeCertificateTier(
+          client,
+          existing.id,
+          existing.tenant_id,
+          input.tier,
+          newSignedHash,
+          existing.tier, // current_tier for optimistic concurrency
+        );
+      } catch (err) {
+        if (err instanceof repo.TierUpgradeConflictError) {
+          upgradeAttempt++;
+          if (upgradeAttempt >= MAX_TIER_UPGRADE_RETRIES) {
+            throw err;
+          }
+          // Re-fetch fresh state and retry the ordinal comparison.
+          const refreshed = await repo.findByAttempt(
+            client,
+            input.tenant_id,
+            input.candidate_id,
+            input.attempt_id,
+          );
+          if (refreshed === null) {
+            // Cert was deleted between retries — extremely unlikely; treat
+            // as a programmer error and surface the original conflict.
+            throw err;
+          }
+          existing = refreshed;
+          continue;
+        }
+        throw err;
+      }
+
+      await auditInTx(client, {
+        tenantId: input.tenant_id,
+        actorKind: 'user',
+        actorUserId: input.actor_user_id,
+        action: 'certification.cert.upgrade',
+        entityType: 'certificate',
+        entityId: upgraded.id,
+        before: { tier: existing.tier },
+        after: {
+          credential_id: upgraded.credential_id,
+          tier: upgraded.tier,
+          candidate_id: upgraded.candidate_id,
+          attempt_id: upgraded.attempt_id,
+        },
+      });
+
+      return upgraded;
     }
-
-    // Tier upgrade. Preserve credential_id + issued_at; re-sign with new tier.
-    const secret = getCertSigningSecret();
-    const newSignedHash = signCertificate(
-      toSignaturePayload({
-        id: existing.id,
-        tenant_id: existing.tenant_id,
-        candidate_id: existing.candidate_id,
-        attempt_id: existing.attempt_id,
-        template_key: existing.template_key,
-        credential_id: existing.credential_id,
-        tier: input.tier,
-        display_name: existing.display_name,
-        course_title: existing.course_title,
-        level: existing.level,
-        issued_at: existing.issued_at,
-      }),
-      secret,
-    );
-
-    const upgraded = await repo.upgradeCertificateTier(
-      client,
-      existing.id,
-      existing.tenant_id,
-      input.tier,
-      newSignedHash,
-    );
-
-    await auditInTx(client, {
-      tenantId: input.tenant_id,
-      actorKind: 'user',
-      actorUserId: input.actor_user_id,
-      action: 'certification.cert.upgrade',
-      entityType: 'certificate',
-      entityId: upgraded.id,
-      before: { tier: existing.tier },
-      after: {
-        credential_id: upgraded.credential_id,
-        tier: upgraded.tier,
-        candidate_id: upgraded.candidate_id,
-        attempt_id: upgraded.attempt_id,
-      },
-    });
-
-    return upgraded;
   }
 
   // First crossing — INSERT a new row. Generate id + credential_id +
   // signed_hash client-side so the HMAC can sign across the row's identity.
   const secret = getCertSigningSecret();
   const id = randomUUID();
-  const issuedAt = new Date().toISOString();
+  // R1: truncate to second precision BEFORE signing AND before INSERT.
+  // The DB projection uses to_char(... 'YYYY-MM-DD"T"HH24:MI:SS"Z"') which
+  // strips milliseconds. If we HMAC over '2026-05-11T17:46:23.456Z' but
+  // store/project '2026-05-11T17:46:23Z', Session 3's verify path will
+  // recompute the HMAC from the projected value and never match.
+  // toISOString() always emits 3 fractional digits; slice(0,19)+'Z' forces
+  // 'YYYY-MM-DDTHH:MM:SSZ' with no dot, matching the to_char projection exactly.
+  const issuedAt = new Date().toISOString().slice(0, 19) + 'Z';
   const prefix = options.credential_prefix ?? DEFAULT_CREDENTIAL_PREFIX;
 
   let inserted: Certificate | undefined;
@@ -274,18 +351,21 @@ export async function issueCertificate(
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a certificate by its public credential_id slug. Input is
- * normalised to uppercase (slugs are stored uppercase).
+ * Look up a certificate by its public credential_id slug within a tenant.
+ * Input is normalised to uppercase (slugs are stored uppercase).
  *
  * RLS applies: this call only finds rows belonging to the active tenant
- * context. The public verify-page lookup (Phase 5 Session 3) will use a
+ * context. An explicit tenant_id predicate is added as defense-in-depth
+ * (see repository.findByCredentialId). The public verify-page lookup
+ * (Phase 5 Session 3) uses repository.findByCredentialIdPublic — a
  * separate non-RLS code path documented in SKILL.md decision D7.
  */
 export async function getByCredentialId(
   client: PoolClient,
   credentialId: string,
+  tenantId: string,
 ): Promise<Certificate | null> {
-  return repo.findByCredentialId(client, credentialId);
+  return repo.findByCredentialId(client, credentialId, tenantId);
 }
 
 // ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ import {
 
 import type { PoolClient } from 'pg';
 
-import { CERT_SIGNING_SECRET_ENV } from '../crypto.js';
+import { CERT_SIGNING_SECRET_ENV, signCertificate } from '../crypto.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be declared before the SUT import.
@@ -54,6 +54,8 @@ import { auditInTx } from '@assessiq/audit-log';
 import * as repo from '../repository.js';
 import {
   MAX_CREDENTIAL_ID_RETRIES,
+  MAX_TIER_UPGRADE_RETRIES,
+  TierUpgradeConflictError,
   issueCertificate,
 } from '../service.js';
 import { CREDENTIAL_ID_REGEX } from '../types.js';
@@ -107,8 +109,12 @@ function makeExistingCert(overrides: Partial<Certificate> = {}): Certificate {
   };
 }
 
-// Minimal stub — service only calls repo methods which are mocked.
-const fakeClient = {} as unknown as PoolClient;
+// Minimal stub — service calls repo methods (which are mocked) and the R2
+// open-tx sentinel (pg_current_xact_id_if_assigned). The query mock returns
+// a non-null xid by default so all existing tests pass the sentinel check.
+const fakeClient = {
+  query: vi.fn().mockResolvedValue({ rows: [{ xid: 'mock-xid-1234' }], rowCount: 1 }),
+} as unknown as PoolClient;
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -119,6 +125,11 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  // Reset the sentinel query mock so it returns a valid xid by default.
+  vi.mocked(fakeClient.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+    rows: [{ xid: 'mock-xid-1234' }],
+    rowCount: 1,
+  });
   vi.mocked(repo.findByAttempt).mockReset();
   vi.mocked(repo.insertCertificate).mockReset();
   vi.mocked(repo.upgradeCertificateTier).mockReset();
@@ -368,5 +379,175 @@ describe('issueCertificate — atomicity', () => {
 
     expect(repo.upgradeCertificateTier).toHaveBeenCalledTimes(1);
     expect(auditInTx).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R1 — issued_at second-precision round-trip
+// ---------------------------------------------------------------------------
+
+describe('issueCertificate — R1: issued_at second-precision round-trip', () => {
+  it('issued_at on the inserted row has no sub-second component', async () => {
+    vi.mocked(repo.findByAttempt).mockResolvedValue(null);
+    let capturedIssuedAt: string | undefined;
+    vi.mocked(repo.insertCertificate).mockImplementation(async (_c, input) => {
+      capturedIssuedAt = input.issued_at;
+      return makeExistingCert({
+        id: input.id,
+        credential_id: input.credential_id,
+        signed_hash: input.signed_hash,
+        issued_at: input.issued_at,
+        tier: input.tier,
+      });
+    });
+    vi.mocked(auditInTx).mockResolvedValue({ id: 'audit-r1' } as Awaited<ReturnType<typeof auditInTx>>);
+
+    await issueCertificate(fakeClient, makeInput('completion'));
+
+    expect(capturedIssuedAt).toBeDefined();
+    // Must end with 'Z' (no milliseconds: 'T17:46:23Z' not 'T17:46:23.456Z').
+    expect(capturedIssuedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    // Must NOT contain a dot (sub-second component).
+    expect(capturedIssuedAt).not.toContain('.');
+  });
+
+  it('signed_hash recomputed from the projected issued_at matches the stored signed_hash', async () => {
+    // Simulate what Session 3 verify would do: read the cert back via
+    // findByCredentialId (projection strips ms), reconstruct canonical
+    // payload, recompute HMAC, assert equality with stored signed_hash.
+    vi.mocked(repo.findByAttempt).mockResolvedValue(null);
+
+    let storedRow: ReturnType<typeof makeExistingCert> | undefined;
+    vi.mocked(repo.insertCertificate).mockImplementation(async (_c, input) => {
+      storedRow = makeExistingCert({
+        id: input.id,
+        credential_id: input.credential_id,
+        signed_hash: input.signed_hash,
+        issued_at: input.issued_at,
+        tier: input.tier,
+        tenant_id: input.tenant_id,
+        candidate_id: input.candidate_id,
+        attempt_id: input.attempt_id,
+        template_key: input.template_key,
+        display_name: input.display_name,
+        course_title: input.course_title,
+        level: input.level,
+      });
+      return storedRow;
+    });
+    vi.mocked(auditInTx).mockResolvedValue({ id: 'audit-r1b' } as Awaited<ReturnType<typeof auditInTx>>);
+
+    const input = makeInput('completion');
+    await issueCertificate(fakeClient, input);
+
+    expect(storedRow).toBeDefined();
+    const row = storedRow!;
+
+    // Simulate projection: to_char strips ms → already done by R1 truncation.
+    // Recompute HMAC from the stored row fields (exactly as Session 3 would).
+    const secret = process.env[CERT_SIGNING_SECRET_ENV]!;
+    const recomputedHash = signCertificate(
+      {
+        id: row.id,
+        tenant_id: row.tenant_id,
+        candidate_id: row.candidate_id,
+        attempt_id: row.attempt_id,
+        template_key: row.template_key,
+        credential_id: row.credential_id,
+        tier: row.tier,
+        display_name: row.display_name,
+        course_title: row.course_title,
+        level: row.level,
+        issued_at: row.issued_at, // already second-precision (R1 fix)
+      },
+      secret,
+    );
+
+    // This is the regression pin: without R1, toISOString() has ms but
+    // the projection strips them → mismatch. With R1 they are the same.
+    expect(recomputedHash).toBe(row.signed_hash);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R2 — open-transaction sentinel
+// ---------------------------------------------------------------------------
+
+describe('issueCertificate — R2: open-transaction sentinel', () => {
+  it('throws when the client has no active transaction (xid === null)', async () => {
+    // Simulate a raw pool client with no BEGIN (pg_current_xact_id_if_assigned returns null).
+    vi.mocked(fakeClient.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      rows: [{ xid: null }],
+      rowCount: 1,
+    });
+
+    await expect(
+      issueCertificate(fakeClient, makeInput('completion')),
+    ).rejects.toThrow(/requires an open transaction/i);
+
+    // No repo calls should have been made — the sentinel fires first.
+    expect(repo.findByAttempt).not.toHaveBeenCalled();
+    expect(repo.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('proceeds normally when the client is inside a transaction (xid non-null)', async () => {
+    // fakeClient.query is already mocked to return a non-null xid in beforeEach.
+    vi.mocked(repo.findByAttempt).mockResolvedValue(null);
+    vi.mocked(repo.insertCertificate).mockImplementation(async (_c, input) =>
+      makeExistingCert({ id: input.id, credential_id: input.credential_id }),
+    );
+    vi.mocked(auditInTx).mockResolvedValue({ id: 'a' } as Awaited<ReturnType<typeof auditInTx>>);
+
+    await expect(issueCertificate(fakeClient, makeInput('completion'))).resolves.toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R3 — TOCTOU tier upgrade CAS retry
+// ---------------------------------------------------------------------------
+
+describe('issueCertificate — R3: TOCTOU tier upgrade CAS retry', () => {
+  it('retries once on TierUpgradeConflictError then succeeds', async () => {
+    const existing = makeExistingCert({ tier: 'completion' });
+    const refreshed = makeExistingCert({ tier: 'completion' }); // same state after re-fetch
+
+    // findByAttempt: first call returns existing, second (re-fetch) also returns existing.
+    vi.mocked(repo.findByAttempt)
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(refreshed);
+
+    // upgradeCertificateTier: first call conflicts, second succeeds.
+    vi.mocked(repo.upgradeCertificateTier)
+      .mockRejectedValueOnce(new repo.TierUpgradeConflictError(existing.id, 'completion'))
+      .mockResolvedValueOnce(makeExistingCert({ ...refreshed, tier: 'distinction' }));
+
+    vi.mocked(auditInTx).mockResolvedValue({ id: 'a' } as Awaited<ReturnType<typeof auditInTx>>);
+
+    const result = await issueCertificate(fakeClient, makeInput('distinction'));
+
+    expect(result.tier).toBe('distinction');
+    expect(repo.upgradeCertificateTier).toHaveBeenCalledTimes(2);
+    expect(auditInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces TierUpgradeConflictError after MAX_TIER_UPGRADE_RETRIES consecutive conflicts', async () => {
+    const existing = makeExistingCert({ tier: 'completion' });
+
+    // findByAttempt always returns the same existing cert (re-fetch always consistent).
+    vi.mocked(repo.findByAttempt).mockResolvedValue(existing);
+
+    // upgradeCertificateTier always throws TierUpgradeConflictError.
+    vi.mocked(repo.upgradeCertificateTier).mockRejectedValue(
+      new repo.TierUpgradeConflictError(existing.id, 'completion'),
+    );
+
+    await expect(
+      issueCertificate(fakeClient, makeInput('distinction')),
+    ).rejects.toThrow(/TierUpgradeConflictError|tier upgrade conflict/i);
+
+    // Upgrade attempted MAX_TIER_UPGRADE_RETRIES times then gave up.
+    expect(repo.upgradeCertificateTier).toHaveBeenCalledTimes(MAX_TIER_UPGRADE_RETRIES);
+    // No audit row — no successful upgrade completed.
+    expect(auditInTx).not.toHaveBeenCalled();
   });
 });

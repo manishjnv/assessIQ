@@ -45,7 +45,7 @@ Full implementation plan: `docs/CERTIFICATION_PLAN_GENERIC.md`.
 - Admin revoke + reissue surfaces (Session 6/7)
 - Migration application against any database (deploy step; CLAUDE.md #8)
 
-## Cryptography and identity (Session 2)
+## Cryptography and identity (Session 2 + adversarial revision)
 
 ### HMAC signing — `src/crypto.ts`
 
@@ -54,8 +54,14 @@ Full implementation plan: `docs/CERTIFICATION_PLAN_GENERIC.md`.
   when unset or empty. Rotation invalidates every existing signature — plan
   a maintenance window if it ever needs to change.
 - **Algorithm:** HMAC-SHA256 over the canonical-JSON encoding of the
-  payload. Canonical = keys sorted alphabetically, `JSON.stringify` with no
-  whitespace. Output is 64-char lowercase hex.
+  payload. Canonical = keys from the fixed `CANONICAL_FIELDS` constant
+  (11 fields, sorted alphabetically), `JSON.stringify` with no whitespace.
+  Output is 64-char lowercase hex.
+- **Closed canonical field set (R6):** canonicalize iterates the hardcoded
+  `CANONICAL_FIELDS` constant — NOT `Object.keys` — so extra properties
+  on a spread object (`{ ...certRow, extra_field }`) are silently ignored
+  and cannot accidentally broaden the hash. Missing required fields throw
+  `CanonicalPayloadError(missingField)`.
 - **Signed payload fields** (`CertificateSignaturePayload`): `id`,
   `tenant_id`, `candidate_id`, `attempt_id`, `template_key`,
   `credential_id`, `tier`, `display_name`, `course_title`, `level`,
@@ -70,18 +76,55 @@ Full implementation plan: `docs/CERTIFICATION_PLAN_GENERIC.md`.
   malformed hex, and missing secret all return `false` rather than throw —
   the caller maps `false` → red badge.
 
+### `issued_at` second-precision invariant (R1)
+
+`issued_at` is truncated to second precision (`'YYYY-MM-DDTHH:MM:SSZ'`,
+no dot) **before** both the HMAC computation and the DB INSERT. The DB
+projection uses `to_char(... 'YYYY-MM-DD"T"HH24:MI:SS"Z"')` which strips
+milliseconds; if the signed payload included `.000Z`, Session 3's verify
+endpoint would recompute the HMAC from the projected (ms-stripped) string
+and the digest would never match — 100% of certs would fail verification.
+Implementation: `new Date().toISOString().slice(0, 19) + 'Z'` in
+`service.ts`. Tier upgrades preserve the already-stored `issued_at` from
+the row (which was already second-precision at insert time). The R1
+round-trip regression pin is in `service.test.ts`.
+
+**Stable URL note (O3):** Two `issueCertificate` calls within the same
+wall-clock second will produce the same `issued_at`. They will NOT produce
+the same row — the CSPRNG `credential_id` suffix guarantees distinct rows.
+The `issued_at` second-precision does not weaken the credential's identity
+(that is the globally unique `credential_id`).
+
 ### Credential ID generator — `src/credential-id.ts`
 
 - **Format:** `PREFIX-YYYY-MM-XXXXXX` (regex `^[A-Z]{2,4}-\d{4}-\d{2}-[A-Z0-9]{6}$`).
 - **Default prefix:** `AIQ` (`DEFAULT_CREDENTIAL_PREFIX`).
 - **Date component:** UTC year + UTC month, zero-padded.
-- **Suffix:** 6 chars from `[A-Z0-9]` drawn via `crypto.randomInt(0, 36)`.
-  `Math.random` is forbidden — the slug is part of the credential's
-  identity and predictable draws would make collisions exploitable.
+- **Suffix alphabet (R4 — Crockford-style):** 6 chars from the 32-character
+  set `0123456789ABCDEFGHJKMNPQRSTVWXYZ`, drawn via `crypto.randomInt(0, 32)`.
+  Characters **I, L, O, U** are excluded — they are visually ambiguous when
+  transcribed from a printed certificate or a LinkedIn URL (I/1, L/1, O/0
+  confusion; U excluded for cleanliness). Based on Crockford Base32.
+  `Math.random` remains forbidden. The `CREDENTIAL_ID_REGEX` still accepts
+  all `[A-Z0-9]` — existing certs with the old 36-char alphabet are valid.
 - **Collision policy:** the DB `UNIQUE(credential_id)` constraint is the
   authoritative guard. `service.issueCertificate` regenerates the slug and
   re-signs on `CredentialIdCollisionError`, up to
   `MAX_CREDENTIAL_ID_RETRIES = 3` attempts before throwing.
+
+### Open-transaction precondition (R2)
+
+`issueCertificate` **requires** the caller to pass a `PoolClient` that is
+already inside an open transaction (i.e. inside `withTenant()`). It
+enforces this at runtime via:
+```ts
+const txCheck = await client.query("SELECT pg_current_xact_id_if_assigned() AS xid");
+if (txCheck.rows[0].xid === null) throw new Error("issueCertificate requires an open transaction …");
+```
+If the sentinel fires, no repository calls are made. This prevents a future
+caller that passes a raw pool connection from producing cert rows without
+audit rows (which would be a compliance violation — they are supposed to
+commit or roll back atomically). Pinned by `service.test.ts` R2 tests.
 
 ### Tier-monotonicity invariant — `src/service.ts`
 
@@ -100,6 +143,38 @@ mutation rolls back. Audit `after`-state carries only identity fields
 (`credential_id`, `tier`, `candidate_id`, `attempt_id`); snapshot fields
 and `signed_hash` are deliberately excluded (size cap + cert row is the
 source of truth).
+
+**Tier upgrade TOCTOU guard (R3):** `upgradeCertificateTier` includes
+`AND tier = $current_tier` in the UPDATE predicate. If a concurrent caller
+has already updated the tier, the UPDATE matches zero rows and throws
+`TierUpgradeConflictError`. The service catches this, re-fetches the row,
+and retries up to `MAX_TIER_UPGRADE_RETRIES = 3` times. After exhaustion
+the error surfaces to the caller. This prevents two concurrent upgrades
+from both reading stale `existing.tier` and recording incorrect
+before/after audit entries.
+
+### Explicit tenant_id predicates (R5)
+
+`listCertificates` and `findByCredentialId` both include explicit
+`WHERE tenant_id = $N` predicates **in addition to** RLS. This is
+defense-in-depth: data-migration scripts or ops tooling that connects as
+the `assessiq_system` role (which bypasses RLS) will still return only the
+correct tenant's rows. The `void tenantId` anti-pattern has been removed.
+
+`findByCredentialIdPublic` is stubbed (throws "not yet implemented") and
+reserved for the Phase 5 Session 3 public verify endpoint. It will open
+a connection that bypasses RLS and return only public-safe fields (NOT
+the internal `id` UUID). The `tenantSlug` question is deferred to Session 3
+(see open question O2).
+
+### Counter allowlist (R7)
+
+`incrementCounter` validates the `column` parameter against a runtime
+allowlist `['pdf_downloads', 'linkedin_shares', 'verification_views']`
+before interpolating it into SQL. TypeScript union types are compile-only;
+a dynamic or deserialized caller could bypass them. The allowlist throws
+`Error('Invalid counter column …')` on any non-listed value before a query
+is issued.
 
 ## Architecture decisions
 
