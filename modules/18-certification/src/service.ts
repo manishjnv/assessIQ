@@ -44,6 +44,7 @@ import {
   type CertificateSignaturePayload,
   getCertSigningSecret,
   signCertificate,
+  verifyCertificateSignature,
 } from './crypto.js';
 import * as repo from './repository.js';
 
@@ -52,9 +53,12 @@ export { TierUpgradeConflictError } from './repository.js';
 import {
   TIER_ORDER,
   type Certificate,
+  CertificateAlreadyRevokedError,
+  CertificateNotFoundError,
+  CertificateRevokedException,
   type IssueCertificateInput,
   type ListCertificatesQuery,
-  type RevokeCertificateInput,
+  type MyCertificateView,
 } from './types.js';
 
 /**
@@ -376,63 +380,170 @@ export async function getByCredentialId(
  * List certificates for a candidate (candidate-facing "My Certificates" view).
  * Scoped to the calling tenant via withTenant + RLS.
  *
- * TODO(Phase5-S5): wire to repo.listCertificates with a candidate_id filter
- *   derived from req.session.userId.
+ * Each row is enriched with:
+ *   - signed_hash_valid: HMAC integrity check performed here so the UI can
+ *     display a tamper-evidence indicator without a separate verify call.
+ *   - verify_url: canonical public URL for sharing / QR codes.
+ *   - pdf_url:    relative URL for the PDF download endpoint.
  */
 export async function listForUser(
   tenantId: string,
-  query: ListCertificatesQuery,
-): Promise<{ items: Certificate[]; total: number }> {
+  candidateId: string,
+): Promise<{ certificates: MyCertificateView[] }> {
   return withTenant(tenantId, async (client) => {
-    void client;
-    void query;
-    throw new Error('listForUser: not implemented (Phase 5 Session 5)');
+    const { items } = await repo.listCertificates(client, tenantId, {
+      candidate_id: candidateId,
+      limit: 100,
+      offset: 0,
+    });
+    const secret = getCertSigningSecret();
+    const baseUrl = process.env['PUBLIC_BASE_URL'] ?? '';
+    const views: MyCertificateView[] = items.map((cert) => {
+      const signed_hash_valid = verifyCertificateSignature(
+        {
+          id: cert.id,
+          tenant_id: cert.tenant_id,
+          attempt_id: cert.attempt_id,
+          candidate_id: cert.candidate_id,
+          template_key: cert.template_key,
+          credential_id: cert.credential_id,
+          tier: cert.tier,
+          display_name: cert.display_name,
+          course_title: cert.course_title,
+          level: cert.level,
+          issued_at: cert.issued_at,
+        },
+        cert.signed_hash,
+        secret,
+      );
+      return {
+        ...cert,
+        signed_hash_valid,
+        verify_url: `${baseUrl}/verify/${cert.credential_id}`,
+        pdf_url: `/api/certificates/${cert.credential_id}/pdf`,
+      };
+    });
+    return { certificates: views };
   });
 }
 
 /**
  * List all certificates for a tenant (admin view — paginated, filterable).
- *
- * TODO(Phase5-S2 follow-up / S7): not in the Session 2 contract; the
- * Session 2 scope is the issuance engine. This will be wired alongside
- * the admin dashboard panel.
+ * Includes user_email via a LEFT JOIN on the users table.
  */
 export async function adminListCertificates(
   tenantId: string,
   query: ListCertificatesQuery,
-): Promise<{ items: Certificate[]; total: number }> {
+): Promise<{ items: Array<Certificate & { user_email: string | null }>; total: number }> {
   return withTenant(tenantId, async (client) => {
-    return repo.listCertificates(client, tenantId, query);
+    return repo.listCertificatesAdmin(client, tenantId, query);
   });
 }
 
 /**
- * Revoke a certificate. Stub — Phase 5 Session 7.
+ * Soft-revoke a certificate. Looks up by credential_id (public slug) within
+ * the tenant, guards against double-revoke, persists revoked_at + revoke_reason,
+ * and emits a certificates.revoked audit row atomically in the same transaction.
+ *
+ * Throws:
+ *   CertificateNotFoundError     — credential_id not found in this tenant.
+ *   CertificateAlreadyRevokedError — revoked_at is already set.
  */
 export async function revoke(
   tenantId: string,
-  certId: string,
-  input: RevokeCertificateInput,
+  credentialId: string,
+  revokeReason: string,
+  actorUserId: string,
 ): Promise<Certificate> {
   return withTenant(tenantId, async (client) => {
-    void client;
-    void certId;
-    void input;
-    throw new Error('revoke: not implemented (Phase 5 Session 7)');
+    const cert = await repo.findByCredentialId(client, credentialId.toUpperCase(), tenantId);
+    if (cert === null) {
+      throw new CertificateNotFoundError(credentialId);
+    }
+    if (cert.revoked_at !== null) {
+      throw new CertificateAlreadyRevokedError(credentialId, cert.revoke_reason);
+    }
+    const updated = await repo.revokeCertificate(client, cert.id, tenantId, revokeReason);
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId,
+      action: 'certificates.revoked',
+      entityType: 'certificate',
+      entityId: cert.id,
+      before: { revoked_at: null, revoke_reason: null },
+      after: { revoked_at: updated.revoked_at, revoke_reason: revokeReason },
+    });
+    return updated;
   });
 }
 
 /**
- * Re-snapshot a certificate (admin-initiated name correction). Stub —
- * Phase 5 Session 6.
+ * Re-snapshot a certificate — admin-initiated name correction.
+ *
+ * display_name IS part of the CANONICAL_FIELDS for signing, so updating it
+ * produces a different but valid signed_hash. credential_id and issued_at
+ * are preserved (those are stable identity fields baked into public URLs).
+ *
+ * If displayName is undefined the existing display_name is preserved and only
+ * the signature is refreshed (useful after a secret rotation in the future).
+ *
+ * Throws:
+ *   CertificateNotFoundError  — credential_id not found in this tenant.
+ *   CertificateRevokedException — cert is revoked; issue a new one instead.
  */
 export async function reissue(
   tenantId: string,
-  certId: string,
+  credentialId: string,
+  displayName: string | undefined,
+  actorUserId: string,
 ): Promise<Certificate> {
   return withTenant(tenantId, async (client) => {
-    void client;
-    void certId;
-    throw new Error('reissue: not implemented (Phase 5 Session 6)');
+    const cert = await repo.findByCredentialId(client, credentialId.toUpperCase(), tenantId);
+    if (cert === null) {
+      throw new CertificateNotFoundError(credentialId);
+    }
+    if (cert.revoked_at !== null) {
+      throw new CertificateRevokedException(credentialId);
+    }
+    const newDisplayName = displayName ?? cert.display_name;
+    // Re-sign with potentially updated display_name.
+    // display_name IS in CANONICAL_FIELDS — changing it produces a different
+    // but valid hash. This is correct/expected behaviour (see SKILL.md D8).
+    const secret = getCertSigningSecret();
+    const newSignedHash = signCertificate(
+      toSignaturePayload({
+        id: cert.id,
+        tenant_id: cert.tenant_id,
+        candidate_id: cert.candidate_id,
+        attempt_id: cert.attempt_id,
+        template_key: cert.template_key,
+        credential_id: cert.credential_id,
+        tier: cert.tier,
+        display_name: newDisplayName,
+        course_title: cert.course_title,
+        level: cert.level,
+        issued_at: cert.issued_at,
+      }),
+      secret,
+    );
+    const updated = await repo.reissueCertificate(
+      client,
+      cert.id,
+      tenantId,
+      newDisplayName,
+      newSignedHash,
+    );
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId,
+      action: 'certificates.reissued',
+      entityType: 'certificate',
+      entityId: cert.id,
+      before: { display_name: cert.display_name },
+      after: { display_name: newDisplayName },
+    });
+    return updated;
   });
 }

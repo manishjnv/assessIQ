@@ -1,0 +1,262 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] = `
+<div>
+  <main
+    style="padding: var(--aiq-space-xl); max-width: 720px;"
+  >
+    <h1
+      style="margin: 0 0 var(--aiq-space-lg); font-size: var(--aiq-text-2xl); color: var(--aiq-color-fg-primary); font-weight: 700;"
+    >
+      My Certificates
+    </h1>
+    <div>
+      <article
+        aria-labelledby="cert-CERT-001"
+        style="border-bottom: 1px solid var(--aiq-color-border); padding: var(--aiq-space-md) 0; background: transparent; transition: background 150ms ease;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: var(--aiq-space-md); flex-wrap: wrap; margin-bottom: var(--aiq-space-md);"
+        >
+          <span
+            role="status"
+            style="display: inline-block; padding: 2px 10px; border-radius: var(--aiq-radius-full, 9999px); background: var(--aiq-color-accent-soft); color: var(--aiq-color-accent); font-family: var(--aiq-font-mono); font-size: var(--aiq-text-xs); font-weight: 600;"
+          >
+            Completion
+          </span>
+        </div>
+        <p
+          style="margin: 0px 0px 4px;"
+        >
+          <span
+            id="cert-CERT-001"
+            style="font-family: var(--aiq-font-mono); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
+          >
+            CERT-001
+          </span>
+        </p>
+        <p
+          style="margin: 0px 0px 4px; font-size: var(--aiq-text-base); color: var(--aiq-color-fg-primary); font-weight: 600;"
+        >
+          JavaScript Fundamentals
+           
+          <span
+            style="color: var(--aiq-color-fg-secondary); font-weight: 400;"
+          >
+            — 
+            Beginner
+          </span>
+        </p>
+        <p
+          style="margin: 0 0 var(--aiq-space-md); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
+        >
+          Issued 
+          15 Jan 2026
+        </p>
+        <div
+          aria-label="Certificate actions"
+          role="toolbar"
+          style="display: flex; gap: var(--aiq-space-md); flex-wrap: wrap;"
+        >
+          <a
+            download=""
+            href="/api/certificates/CERT-001/pdf"
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+          >
+            Download PDF
+          </a>
+          <a
+            href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fassessiq.example.com%2Fverify%2FCERT-001"
+            rel="noopener noreferrer"
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            target="_blank"
+          >
+            Share on LinkedIn
+          </a>
+          <button
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            type="button"
+          >
+            Copy verify link
+          </button>
+          <a
+            href="https://assessiq.example.com/verify/CERT-001"
+            rel="noopener noreferrer"
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            target="_blank"
+          >
+            View public page
+          </a>
+        </div>
+      </article>
+      <article
+        aria-labelledby="cert-CERT-002"
+        style="border-bottom: 1px solid var(--aiq-color-border); padding: var(--aiq-space-md) 0; background: transparent; transition: background 150ms ease;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: var(--aiq-space-md); flex-wrap: wrap; margin-bottom: var(--aiq-space-md);"
+        >
+          <span
+            role="status"
+            style="display: inline-block; padding: 2px 10px; border-radius: var(--aiq-radius-full, 9999px); background: rgb(254, 243, 199); color: rgb(217, 119, 6); font-family: var(--aiq-font-mono); font-size: var(--aiq-text-xs); font-weight: 600;"
+          >
+            Distinction
+          </span>
+          <span
+            aria-label="Revoked: Policy violation"
+            role="status"
+            style="display: inline-block; padding: 2px 10px; border-radius: var(--aiq-radius-full, 9999px); background: var(--aiq-color-danger-soft, rgba(220,38,38,0.1)); color: var(--aiq-color-danger); font-family: var(--aiq-font-mono); font-size: var(--aiq-text-xs); font-weight: 600;"
+          >
+            Revoked
+          </span>
+        </div>
+        <p
+          style="margin: 0px 0px 4px;"
+        >
+          <span
+            id="cert-CERT-002"
+            style="font-family: var(--aiq-font-mono); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
+          >
+            CERT-002
+          </span>
+        </p>
+        <p
+          style="margin: 0px 0px 4px; font-size: var(--aiq-text-base); color: var(--aiq-color-fg-primary); font-weight: 600;"
+        >
+          React Advanced
+           
+          <span
+            style="color: var(--aiq-color-fg-secondary); font-weight: 400;"
+          >
+            — 
+            Advanced
+          </span>
+        </p>
+        <p
+          style="margin: 0 0 var(--aiq-space-md); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
+        >
+          Issued 
+          10 Feb 2026
+        </p>
+        <div
+          aria-label="Certificate actions"
+          role="toolbar"
+          style="display: flex; gap: var(--aiq-space-md); flex-wrap: wrap;"
+        >
+          <button
+            disabled=""
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: default; font-family: inherit; line-height: 1.5; opacity: 0.4; pointer-events: none;"
+            type="button"
+          >
+            Download PDF
+          </button>
+          <button
+            disabled=""
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: default; font-family: inherit; line-height: 1.5; opacity: 0.4; pointer-events: none;"
+            type="button"
+          >
+            Share on LinkedIn
+          </button>
+          <button
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            type="button"
+          >
+            Copy verify link
+          </button>
+          <a
+            href="https://assessiq.example.com/verify/CERT-002"
+            rel="noopener noreferrer"
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            target="_blank"
+          >
+            View public page
+          </a>
+        </div>
+      </article>
+      <article
+        aria-labelledby="cert-CERT-003"
+        style="border-bottom: 1px solid var(--aiq-color-border); padding: var(--aiq-space-md) 0; background: transparent; transition: background 150ms ease;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: var(--aiq-space-md); flex-wrap: wrap; margin-bottom: var(--aiq-space-md);"
+        >
+          <span
+            role="status"
+            style="display: inline-block; padding: 2px 10px; border-radius: var(--aiq-radius-full, 9999px); background: var(--aiq-color-success-soft); color: var(--aiq-color-success); font-family: var(--aiq-font-mono); font-size: var(--aiq-text-xs); font-weight: 600;"
+          >
+            Honors
+          </span>
+          <span
+            style="display: inline-block; padding: 2px 10px; border-radius: var(--aiq-radius-full, 9999px); background: var(--aiq-color-warning-soft, rgba(245,158,11,0.1)); color: var(--aiq-color-warning); font-family: var(--aiq-font-mono); font-size: var(--aiq-text-xs); font-weight: 600;"
+          >
+            Signature invalid
+          </span>
+        </div>
+        <p
+          style="margin: 0px 0px 4px;"
+        >
+          <span
+            id="cert-CERT-003"
+            style="font-family: var(--aiq-font-mono); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
+          >
+            CERT-003
+          </span>
+        </p>
+        <p
+          style="margin: 0px 0px 4px; font-size: var(--aiq-text-base); color: var(--aiq-color-fg-primary); font-weight: 600;"
+        >
+          TypeScript Mastery
+           
+          <span
+            style="color: var(--aiq-color-fg-secondary); font-weight: 400;"
+          >
+            — 
+            Expert
+          </span>
+        </p>
+        <p
+          style="margin: 0 0 var(--aiq-space-md); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
+        >
+          Issued 
+          5 Apr 2026
+        </p>
+        <div
+          aria-label="Certificate actions"
+          role="toolbar"
+          style="display: flex; gap: var(--aiq-space-md); flex-wrap: wrap;"
+        >
+          <a
+            download=""
+            href="/api/certificates/CERT-003/pdf"
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+          >
+            Download PDF
+          </a>
+          <a
+            href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fassessiq.example.com%2Fverify%2FCERT-003"
+            rel="noopener noreferrer"
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            target="_blank"
+          >
+            Share on LinkedIn
+          </a>
+          <button
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            type="button"
+          >
+            Copy verify link
+          </button>
+          <a
+            href="https://assessiq.example.com/verify/CERT-003"
+            rel="noopener noreferrer"
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            target="_blank"
+          >
+            View public page
+          </a>
+        </div>
+      </article>
+    </div>
+  </main>
+</div>
+`;

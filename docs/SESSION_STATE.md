@@ -1,3 +1,30 @@
+# Session — 2026-05-12 (Phase 5 Session 5 — user-facing certificate surface + G3.D notifications)
+
+**Headline:** Phase 5 Session 5 shipped in full: `GET /api/certificates` (My Certificates + HMAC validity), admin revoke + reissue endpoints with atomic `auditInTx`, `GET /api/admin/certificates` with user email JOIN, `MyCertificates` candidate UI component, `AdminCertificates` dashboard page, and 3 help-system YAML entries. Also sealed G3.D notifications audit-write sweep (committed alongside). 156 tests pass across all touched modules.
+**Commits:** TBD — two commits queued (see below)
+**Tests:**
+- `pnpm -C modules/18-certification typecheck` ✅ clean
+- `pnpm -C modules/18-certification test` ✅ 115/115 (16 new across 3 test files + 99 prior)
+- `pnpm -C modules/11-candidate-ui typecheck` ✅ clean
+- `pnpm -C modules/11-candidate-ui test` ✅ 41/41 (11 new MyCertificates tests + 30 prior)
+- `pnpm -C modules/10-admin-dashboard typecheck` ✅ clean
+- `pnpm -C apps/api typecheck` ✅ clean
+- `pnpm exec tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts` ✅ 332 files scanned, 0 violations
+**Next:** Push both commits (noreply env-var pattern). Deploy to VPS (`git pull` + `docker compose up -d --no-deps --force-recreate api`). Wire `AdminCertificates` and `MyCertificates` into the `apps/web` router (not done this session — see open questions). Then Phase 5 Session 6 (LinkedIn share counter + public verify view-count increment).
+**Open questions:**
+- `apps/web` router wiring for `AdminCertificates` (`/admin/certificates`) and `MyCertificates` (candidate portal) was NOT done — agents wrote the components and module exports but did not wire the page into `apps/web/src/main.tsx` or the admin nav. Next session must do this before the UI is reachable.
+- `POST /api/admin/certificates/:credentialId/reissue` route uses `:credentialId` param but `reissue()` accepts `display_name?: string`; the route correctly passes `bodyParsed.data.display_name` (may be undefined). Confirmed correct behavior but worth noting for Session 6 LinkedIn share wiring.
+
+---
+
+## Agent utilization
+- Opus: Phase 3 diff review across all 4 parallel Sonnet outputs; fixed 2-line TS typecheck regression in MyCertificates.test.tsx (`[0]` → `[0]!` non-null assertions); acceptance gate runs; SESSION_STATE.md authorship.
+- Sonnet: 4 parallel subagents — Agent 1 (modules/18-certification backend: service/repo/routes/types + 3 test files, 115/115), Agent 2 (modules/11-candidate-ui: MyCertificates.tsx + api.ts + test, 41/41), Agent 3 (modules/10-admin-dashboard: certificates.tsx + index.ts barrel), Agent 4 (modules/16-help-system: 3 admin.yml YAML entries).
+- Haiku: n/a — no bulk sweeps needed.
+- codex:rescue: n/a — certification module is not in the load-bearing list (01-auth/02-tenancy/07-ai-grading/14-audit-log/infra); revoke/reissue are admin soft-delete operations, not auth/crypto path changes. Adversarial review per feedback-adversarial-reviewer-routing.md memory: Sonnet-only sufficient for non-load-bearing admin endpoints.
+
+---
+
 # Session — 2026-05-11 (Phase 5 Session 2 revision — adversarial fixes)
 
 **Headline:** Seven concerns surfaced by the parallel Sonnet + GLM-4.6 adversarial review gate on commit c356160 are resolved: R1 issued_at millisecond drift (CRITICAL), R2 open-tx sentinel (HIGH), R3 TOCTOU tier upgrade (HIGH), R4 homoglyph CHARSET (MEDIUM), R5 explicit tenant_id predicates (MEDIUM), R6 canonicalize closed field set (MEDIUM), R7 incrementCounter allowlist (MEDIUM). 18 new regression tests; 79/79 green. Awaiting orchestrator re-run of the adversarial gate before push.
