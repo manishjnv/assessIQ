@@ -52,6 +52,7 @@ export { CanonicalPayloadError } from './crypto.js';
 export {
   CredentialIdCollisionError,
   findByCredentialIdPublic,
+  withPublicVerifyContext,
 } from './repository.js';
 
 // ---------------------------------------------------------------------------
@@ -61,6 +62,11 @@ export {
   registerCertificationRoutes,
   type RegisterCertificationRoutesOptions,
 } from './routes.js';
+
+// ---------------------------------------------------------------------------
+// Public verify routes (Phase 5 Session 3)
+// ---------------------------------------------------------------------------
+export { registerVerifyRoutes } from './routes-public.js';
 
 // ---------------------------------------------------------------------------
 // Types (public surface)

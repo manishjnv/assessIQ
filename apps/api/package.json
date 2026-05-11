@@ -28,6 +28,7 @@
     "@assessiq/notifications": "workspace:*",
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/embed-sdk": "workspace:*",
+    "@assessiq/certification": "workspace:*",
     "fastify": "^5.0.0",
     "@fastify/cookie": "^11.0.0",
     "bullmq": "^5.34.0",

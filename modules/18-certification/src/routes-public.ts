@@ -1,0 +1,425 @@
+// AssessIQ — modules/18-certification/src/routes-public.ts
+//
+// Phase 5 Session 3 — public verify page routes (no auth, no tenant context).
+//
+// Routes:
+//   GET /verify/:credentialId        → HTML page (green ✓ / red ✗ badge)
+//   GET /verify/:credentialId/og.svg → OG image for LinkedIn previews (1200×630)
+//
+// Design decisions:
+//   - Routes are mounted OUTSIDE /api/, OUTSIDE auth middleware, OUTSIDE tenant
+//     middleware. The global tenantContextMiddleware auto-skips when
+//     req.session?.tenantId is undefined — no carve-out needed.
+//   - HMAC timingSafeEqual on every render (plan §15 trap #1 — `==` is a
+//     timing oracle; must use verifyCertificateSignature which uses
+//     crypto.timingSafeEqual on equal-length Buffers).
+//   - Revoked certificates render a red revoked badge — NOT a 404.
+//     Recruiters must be able to see that a credential was revoked, not think
+//     it never existed.
+//   - In-memory fixed-window rate limiter: 60 req/IP/hour, cap 10 000 entries.
+//     Created fresh per registerVerifyRoutes() call so tests get isolation.
+//   - Per-(IP, credentialId) view dedup: 1 h window, 50 000 entry cap.
+//   - Counter increment (verification_views) is fire-and-forget via a separate
+//     withTenant() transaction. The RLS UPDATE policy requires app.current_tenant
+//     which is NOT set in withPublicVerifyContext. Analytics are non-critical;
+//     losing an increment is acceptable.
+//   - Cache-Control: no-cache on HTML (signature may change after tier upgrade).
+//     Cache-Control: public, max-age=3600 on SVG (stable for an hour).
+//
+// INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
+// CLAUDE.md rule #1.
+
+import type { FastifyInstance } from 'fastify';
+
+import { withTenant } from '@assessiq/tenancy';
+
+import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
+import {
+  findByCredentialIdPublic,
+  incrementCounter,
+  withPublicVerifyContext,
+} from './repository.js';
+import type { Certificate } from './types.js';
+import { CREDENTIAL_ID_REGEX } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Rate limiter (fixed window, in-memory)
+// ---------------------------------------------------------------------------
+
+interface RateLimitBucket {
+  count: number;
+  windowStart: number;
+}
+
+const RATE_LIMIT_MAX = 60;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const RATE_LIMIT_CAP = 10_000;
+
+function createRateLimiter() {
+  const buckets = new Map<string, RateLimitBucket>();
+
+  return function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+
+    if (buckets.size >= RATE_LIMIT_CAP) {
+      // Evict all stale entries to reclaim memory before rejecting.
+      for (const [key, bucket] of buckets) {
+        if (now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+          buckets.delete(key);
+        }
+      }
+      // If still at cap after eviction, reject to prevent unbounded growth.
+      if (buckets.size >= RATE_LIMIT_CAP) {
+        return false;
+      }
+    }
+
+    const bucket = buckets.get(ip);
+    if (bucket === undefined || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+      buckets.set(ip, { count: 1, windowStart: now });
+      return true;
+    }
+
+    if (bucket.count >= RATE_LIMIT_MAX) {
+      return false;
+    }
+
+    bucket.count++;
+    return true;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// View dedup (per IP + credentialId, 1 h window)
+// ---------------------------------------------------------------------------
+
+const VIEW_DEDUP_WINDOW_MS = 60 * 60 * 1000;
+const VIEW_DEDUP_CAP = 50_000;
+
+function createViewDedup() {
+  const seen = new Map<string, number>();
+
+  return function shouldCountView(ip: string, credentialId: string): boolean {
+    const key = `${ip}:${credentialId}`;
+    const now = Date.now();
+    const last = seen.get(key);
+    if (last !== undefined && now - last < VIEW_DEDUP_WINDOW_MS) {
+      return false;
+    }
+    // Evict stale entries when approaching cap.
+    if (seen.size >= VIEW_DEDUP_CAP) {
+      for (const [k, ts] of seen) {
+        if (now - ts >= VIEW_DEDUP_WINDOW_MS) {
+          seen.delete(k);
+        }
+      }
+    }
+    seen.set(key, now);
+    return true;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HTML rendering
+// ---------------------------------------------------------------------------
+
+type CertStatus = 'valid' | 'tampered' | 'revoked';
+
+interface VerifyPageData {
+  status: CertStatus;
+  cert: Certificate;
+}
+
+function renderVerifyPage(data: VerifyPageData): string {
+  const { status, cert } = data;
+
+  const statusLabel =
+    status === 'valid'
+      ? '✓ Verified'
+      : status === 'revoked'
+        ? '✗ Revoked'
+        : '✗ Invalid Signature';
+
+  const jsonLd =
+    status === 'valid'
+      ? `<script type="application/ld+json">${JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'EducationalOccupationalCredential',
+          name: cert.course_title,
+          credentialCategory: cert.tier,
+          identifier: cert.credential_id,
+          issuedBy: { '@type': 'Organization', name: 'AssessIQ' },
+          about: { '@type': 'Person', name: cert.display_name },
+          dateCreated: cert.issued_at,
+        })}</script>`
+      : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Certificate Verification — AssessIQ</title>
+  ${jsonLd}
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.1); padding: 2.5rem 3rem; max-width: 540px; width: 100%; }
+    .badge { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem 1.25rem; border-radius: 9999px; font-weight: 600; font-size: 1rem; margin-bottom: 1.5rem; }
+    .cert-status--valid { background: #dcfce7; color: #166534; }
+    .cert-status--revoked { background: #fee2e2; color: #991b1b; }
+    .cert-status--tampered { background: #fee2e2; color: #991b1b; }
+    .field { margin-bottom: .75rem; }
+    .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; }
+    .value { font-size: 1rem; color: #111827; font-weight: 500; }
+    .credential-id { font-family: monospace; font-size: .9rem; background: #f3f4f6; padding: .25rem .5rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge cert-status--${status}">${statusLabel}</span>
+    <div class="field">
+      <p class="label">Credential ID</p>
+      <p class="value credential-id">${escHtml(cert.credential_id)}</p>
+    </div>
+    <div class="field">
+      <p class="label">Name</p>
+      <p class="value">${escHtml(cert.display_name)}</p>
+    </div>
+    <div class="field">
+      <p class="label">Course</p>
+      <p class="value">${escHtml(cert.course_title)}</p>
+    </div>
+    <div class="field">
+      <p class="label">Level</p>
+      <p class="value">${escHtml(cert.level)}</p>
+    </div>
+    <div class="field">
+      <p class="label">Tier</p>
+      <p class="value">${escHtml(cert.tier)}</p>
+    </div>
+    <div class="field">
+      <p class="label">Issued</p>
+      <p class="value">${escHtml(cert.issued_at)}</p>
+    </div>
+    ${
+      status === 'revoked'
+        ? `<div class="field">
+      <p class="label">Revoked</p>
+      <p class="value">${escHtml(cert.revoked_at ?? '')}${cert.revoke_reason ? ` — ${escHtml(cert.revoke_reason)}` : ''}</p>
+    </div>`
+        : ''
+    }
+  </div>
+</body>
+</html>`;
+}
+
+function renderNotFoundPage(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Certificate Not Found — AssessIQ</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.1); padding: 2.5rem 3rem; max-width: 540px; width: 100%; text-align: center; }
+    h1 { font-size: 1.5rem; color: #111827; margin-bottom: .75rem; }
+    p { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Certificate Not Found</h1>
+    <p>No certificate matching that credential ID could be found. Please double-check the ID and try again.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ---------------------------------------------------------------------------
+// OG SVG rendering (1200×630)
+// ---------------------------------------------------------------------------
+
+function renderOgSvg(cert: Certificate, status: CertStatus): string {
+  // sRGB colours derived from OKLCH hue 258 palette (matches AssessIQ brand).
+  const bgColor = status === 'valid' ? '#1e3a5f' : '#5f1e1e';
+  const badgeColor = status === 'valid' ? '#22c55e' : '#ef4444';
+  const badgeText =
+    status === 'valid' ? 'VERIFIED' : status === 'revoked' ? 'REVOKED' : 'INVALID';
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="${bgColor}"/>
+  <rect x="60" y="60" width="300" height="48" rx="24" fill="${badgeColor}"/>
+  <text x="210" y="93" font-family="Newsreader, Georgia, serif" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">${badgeText}</text>
+  <text x="60" y="210" font-family="Newsreader, Georgia, serif" font-size="64" font-weight="700" fill="#fff">${escSvg(cert.display_name)}</text>
+  <text x="60" y="290" font-family="system-ui, sans-serif" font-size="32" fill="rgba(255,255,255,0.8)">${escSvg(cert.course_title)}</text>
+  <text x="60" y="340" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.6)">${escSvg(cert.level)} · ${escSvg(cert.tier)}</text>
+  <text x="60" y="540" font-family="system-ui, sans-serif" font-size="22" fill="rgba(255,255,255,0.5)">${escSvg(cert.credential_id)}</text>
+  <text x="1140" y="540" font-family="system-ui, sans-serif" font-size="22" fill="rgba(255,255,255,0.5)" text-anchor="end">AssessIQ</text>
+</svg>`;
+}
+
+function escSvg(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ---------------------------------------------------------------------------
+// Route registrar
+// ---------------------------------------------------------------------------
+
+export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> {
+  const checkRateLimit = createRateLimiter();
+  const shouldCountView = createViewDedup();
+
+  // -------------------------------------------------------------------------
+  // GET /verify/:credentialId — HTML verify page
+  // -------------------------------------------------------------------------
+  app.get<{ Params: { credentialId: string } }>(
+    '/verify/:credentialId',
+    async (req, reply) => {
+      const ip = req.ip;
+      const rawId = req.params.credentialId;
+
+      // Reject malformed IDs before touching the DB.
+      if (!CREDENTIAL_ID_REGEX.test(rawId.toUpperCase())) {
+        return reply
+          .code(404)
+          .header('content-type', 'text/html; charset=utf-8')
+          .header('cache-control', 'no-cache')
+          .send(renderNotFoundPage());
+      }
+
+      // Per-IP rate limit.
+      if (!checkRateLimit(ip)) {
+        return reply.code(429).send({ error: 'Too Many Requests' });
+      }
+
+      const credentialId = rawId.toUpperCase();
+
+      const cert = await withPublicVerifyContext(async (client) =>
+        findByCredentialIdPublic(client, credentialId),
+      );
+
+      if (cert === null) {
+        return reply
+          .code(404)
+          .header('content-type', 'text/html; charset=utf-8')
+          .header('cache-control', 'no-cache')
+          .send(renderNotFoundPage());
+      }
+
+      // Determine status.
+      let status: CertStatus;
+      if (cert.revoked_at !== null) {
+        status = 'revoked';
+      } else {
+        const secret = getCertSigningSecret();
+        const valid = verifyCertificateSignature(
+          {
+            id: cert.id,
+            tenant_id: cert.tenant_id,
+            attempt_id: cert.attempt_id,
+            candidate_id: cert.candidate_id,
+            template_key: cert.template_key,
+            credential_id: cert.credential_id,
+            tier: cert.tier,
+            display_name: cert.display_name,
+            course_title: cert.course_title,
+            level: cert.level,
+            issued_at: cert.issued_at,
+          },
+          cert.signed_hash,
+          secret,
+        );
+        status = valid ? 'valid' : 'tampered';
+      }
+
+      // Fire-and-forget view counter increment (separate tenant-scoped tx).
+      // Promise.resolve() wraps the call so .catch() is safe even if withTenant
+      // returns undefined in test environments where the mock is reset.
+      if (shouldCountView(ip, cert.credential_id)) {
+        void Promise.resolve(
+          withTenant(cert.tenant_id, async (client) => {
+            await incrementCounter(client, cert.id, 'verification_views');
+          }),
+        ).catch(() => {});
+      }
+
+      return reply
+        .code(200)
+        .header('content-type', 'text/html; charset=utf-8')
+        .header('cache-control', 'no-cache')
+        .send(renderVerifyPage({ status, cert }));
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /verify/:credentialId/og.svg — OG image for LinkedIn previews
+  // -------------------------------------------------------------------------
+  app.get<{ Params: { credentialId: string } }>(
+    '/verify/:credentialId/og.svg',
+    async (req, reply) => {
+      const rawId = req.params.credentialId;
+
+      if (!CREDENTIAL_ID_REGEX.test(rawId.toUpperCase())) {
+        return reply.code(404).send({ error: 'Not Found' });
+      }
+
+      const credentialId = rawId.toUpperCase();
+
+      const cert = await withPublicVerifyContext(async (client) =>
+        findByCredentialIdPublic(client, credentialId),
+      );
+
+      if (cert === null) {
+        return reply.code(404).send({ error: 'Not Found' });
+      }
+
+      let status: CertStatus;
+      if (cert.revoked_at !== null) {
+        status = 'revoked';
+      } else {
+        const secret = getCertSigningSecret();
+        const valid = verifyCertificateSignature(
+          {
+            id: cert.id,
+            tenant_id: cert.tenant_id,
+            attempt_id: cert.attempt_id,
+            candidate_id: cert.candidate_id,
+            template_key: cert.template_key,
+            credential_id: cert.credential_id,
+            tier: cert.tier,
+            display_name: cert.display_name,
+            course_title: cert.course_title,
+            level: cert.level,
+            issued_at: cert.issued_at,
+          },
+          cert.signed_hash,
+          secret,
+        );
+        status = valid ? 'valid' : 'tampered';
+      }
+
+      return reply
+        .code(200)
+        .header('content-type', 'image/svg+xml')
+        .header('cache-control', 'public, max-age=3600')
+        .send(renderOgSvg(cert, status));
+    },
+  );
+}
