@@ -22,6 +22,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import type { EmailTemplateName, TemplateVarsMap } from '../types.js';
+import { buildVars } from './i18n.js';
 import {
   InvitationAdminVarsSchema,
   InvitationCandidateVarsSchema,
@@ -109,8 +110,16 @@ export function renderTemplate<T extends EmailTemplateName>(
 
   const { html: htmlTpl, txt: txtTpl } = loadAndCompile(name);
 
-  const html = htmlTpl(parsed);
-  const text = txtTpl(parsed);
+  // Pre-resolve all i18n strings for this template into _t_<key> vars.
+  // Callers never see or set these — they are injected here only.
+  const i18nResolved = buildVars(name, parsed as Record<string, string | number>);
+  const i18nVars: Record<string, string> = {};
+  for (const [k, v] of Object.entries(i18nResolved)) {
+    i18nVars[`_t_${k}`] = v;
+  }
+
+  const html = htmlTpl({ ...parsed, ...i18nVars });
+  const text = txtTpl({ ...parsed, ...i18nVars });
 
   // Extract subject from the first line of the txt template (convention).
   // Templates begin with "Subject: <subject line>\n\n<body>".
