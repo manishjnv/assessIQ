@@ -1,3 +1,23 @@
+# Session — 2026-05-11 (docs/05-ai-pipeline.md refresh — sharded generation + Stage 3 + per-tenant mode)
+
+**Headline:** `docs/05-ai-pipeline.md` updated to document the 2026-05-08 → 2026-05-11 generation pipeline as it stands on `origin/main`: type-sharded fan-out, per-chunk stderr aggregation, scenario chunk timeout coefficient, Stage 3 per-tenant `ai_generate_mode` with handler precedence + audit-in-tx, Stage 3 watch cron with the docker-exec invocation and intentional sandbox-omission gotcha, runtime-baseline known-gaps tracker, G2 citation gate + eval-fixture freshness guard, and live status of the `lint-no-ambient-claude` sentinel. CLAUDE.md #9 "documented in detail" rubric applied — each section answers what / why / rejected / not-included / downstream.
+**Commits:** (single docs commit — captured at end of session)
+**Tests:** `pnpm -C modules/07-ai-grading exec tsx ci/lint-no-ambient-claude.ts` ✅ — 325 TS files scanned, allow-list intact, no code touched.
+**Next:** Orchestrator follow-ups: (1) data-model.md needs the `tenant_settings.ai_generate_mode` column documented; (2) api-contract.md needs `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode` documented. Both flagged inline.
+**Open questions:**
+- Should the two `docs/design/2026-05-*.md` files be cross-linked from 05-ai-pipeline.md only (current choice), or also surfaced from PROJECT_BRAIN.md's "Where to look for what" table?
+- The scenario-chunk retry-loop root cause is currently spread across the RCA "Sharded generation retry-loop" entry and the runtime-baseline `known_gaps` "OPEN" entry. Should it be promoted to a tracked open RCA item with explicit follow-up SHA placeholder, or stay as-is until the next smoke campaign confirms cure?
+
+---
+
+## Agent utilization
+- Opus: n/a — dispatched as a Sonnet subagent by the orchestrator with a self-contained ~9 KB prompt; Opus reviews this doc-only diff before push.
+- Sonnet: this session — Phase 0 reads (05-ai-pipeline.md head + tail, PROJECT_BRAIN, SESSION_STATE 2026-05-10 entry, RCA_LOG head + sharded retry-loop entry, both 2026-05-09/10 design docs, runtime-baseline.json, claude-code-vps.ts head, admin-generate.ts handler precedence + stderr aggregation, 02-tenancy/service.ts updateAiGenerateMode, infra/systemd stage3-watch units, tools/stage3-watch.ts, admin-super.ts route registration). Wrote ~470 lines of new doc content across 6 new top-level sections (Phase 2 sharded generation, Phase 2 Stage 3 promotion, runtime-baseline tracker, G2 citation gate, CI sentinel live status, plus a clarifying paragraph on "Phase 2 — AI Question Generation" naming). 12 commit SHAs spot-verified via `git show -s`; 19 referenced file paths verified to exist. Lint sentinel ✅.
+- Haiku: n/a — single-file doc edit; no bulk grep sweeps needed.
+- codex:rescue: n/a — docs-only session; zero code touched. The doc references the lint sentinel as load-bearing (per CLAUDE.md) but does not modify it.
+
+---
+
 # Session — 2026-05-11 (Phase 5 Credentialize — Session 2 crypto + identity core)
 
 **Headline:** HMAC-SHA256 signing helper, CSPRNG `credential_id` generator with DB-collision retry, and atomic idempotent + tier-upgrade-aware `issueCertificate` service shipped in `modules/18-certification`. 61/61 tests green. PDF, verify-page, LinkedIn share, admin revoke remain Phase 5 Session 3+ scope.
