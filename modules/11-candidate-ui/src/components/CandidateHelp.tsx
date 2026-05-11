@@ -25,7 +25,7 @@
 //      - Submit button: bottom bar (NOT top) — copy corrected from spec draft.
 //      - Magic-link TTL: 7 days per 01-auth addendum ✓
 
-import React, { useState, type CSSProperties } from "react";
+import React, { useState, useRef, type CSSProperties } from "react";
 import { Drawer } from "@assessiq/ui-system";
 
 // ---------------------------------------------------------------------------
@@ -239,11 +239,19 @@ export function CandidateHelp({
   "data-test-id": testId,
 }: CandidateHelpProps): React.ReactElement {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Return focus to the trigger element on close — WCAG 2.4.3 (Focus Order).
+  function handleClose(): void {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
 
   // ── Trigger button ────────────────────────────────────────────────────────
 
   const circularTrigger = (
     <button
+      ref={triggerRef}
       type="button"
       onClick={() => setOpen(true)}
       aria-label="Open help"
@@ -285,6 +293,7 @@ export function CandidateHelp({
 
   const textTrigger = (
     <button
+      ref={triggerRef}
       type="button"
       onClick={() => setOpen(true)}
       aria-label="Open help"
@@ -313,7 +322,7 @@ export function CandidateHelp({
       {triggerLabel !== undefined ? textTrigger : circularTrigger}
       <Drawer
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={handleClose}
         title="Help"
         width={520}
         data-test-id="candidate-help-drawer"

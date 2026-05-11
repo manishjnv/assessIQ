@@ -68,6 +68,12 @@ const USERS_MIGRATIONS_DIR = join(MODULES_ROOT, "03-users", "migrations");
 const QB_MIGRATIONS_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
 const AL_MIGRATIONS_DIR = join(MODULES_ROOT, "05-assessment-lifecycle", "migrations");
 const AE_MIGRATIONS_DIR = join(AE_MODULE_ROOT, "migrations");
+// Test-infra catch-up (2026-05-11): 12-embed-sdk migration 0073 adds the
+// embed_origin column referenced by repository.ts's ATTEMPT_COLUMNS SELECT;
+// 14-audit-log/0050 supplies the audit_log table that G3.D's auditInTx
+// wiring in 04-question-bank.createPack now requires.
+const EMBED_SDK_MIGRATIONS_DIR = join(MODULES_ROOT, "12-embed-sdk", "migrations");
+const AUDIT_LOG_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -238,6 +244,8 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, QB_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AL_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AE_MIGRATIONS_DIR);
+    await applyMigrationsFromDir(client, EMBED_SDK_MIGRATIONS_DIR, ["0073_attempt_embed_origin.sql"]);
+    await applyMigrationsFromDir(client, AUDIT_LOG_MIGRATIONS_DIR);
   });
 
   // Wire withTenant to point at the test container.

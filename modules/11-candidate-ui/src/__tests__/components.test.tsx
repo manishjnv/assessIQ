@@ -257,4 +257,13 @@ describe("CandidateHelp", () => {
     // The help trigger must never be inside the question answer form area
     expect(trigger!.closest("form")).toBeNull();
   });
+
+  it("returns focus to the trigger button after the drawer closes (WCAG 2.4.3)", () => {
+    render(<CandidateHelp />);
+    const trigger = screen.getByRole("button", { name: "Open help" });
+    fireEvent.click(trigger);
+    const closeBtn = screen.getByRole("button", { name: "Close drawer" });
+    fireEvent.click(closeBtn);
+    expect(document.activeElement).toBe(trigger);
+  });
 });
