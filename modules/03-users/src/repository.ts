@@ -491,13 +491,17 @@ export async function deleteInvitation(client: PoolClient, id: string): Promise<
  * Delete all pending (unaccepted) invitations for a given email address.
  * Used by softDelete to cascade and by inviteUser re-invite to replace old tokens.
  * lower() is defense-in-depth; the email arg should already be normalized.
+ *
+ * Returns the number of rows deleted so callers can include the cascade
+ * count in audit metadata.
  */
 export async function deleteInvitationsForEmail(
   client: PoolClient,
   normalizedEmail: string,
-): Promise<void> {
-  await client.query(
+): Promise<number> {
+  const result = await client.query(
     `DELETE FROM user_invitations WHERE lower(email) = $1 AND accepted_at IS NULL`,
     [normalizedEmail],
   );
+  return result.rowCount ?? 0;
 }

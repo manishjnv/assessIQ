@@ -72,13 +72,14 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const body = req.body as {
         email: string;
         name: string;
         role: 'admin' | 'reviewer' | 'candidate';
         metadata?: Record<string, unknown>;
       };
-      const user = await createUser(tenantId, body);
+      const user = await createUser(tenantId, body, userId);
       return reply.code(201).send(user);
     },
   );
@@ -89,6 +90,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
       const patch = req.body as {
         name?: string;
@@ -96,7 +98,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
         status?: 'active' | 'disabled' | 'pending';
         metadata?: Record<string, unknown>;
       };
-      return updateUser(tenantId, id, patch);
+      return updateUser(tenantId, id, patch, userId);
     },
   );
 
@@ -106,8 +108,9 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      await softDelete(tenantId, id);
+      await softDelete(tenantId, id, userId);
       return reply.code(204).send();
     },
   );
@@ -118,8 +121,9 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return restore(tenantId, id);
+      return restore(tenantId, id, userId);
     },
   );
 

@@ -495,3 +495,38 @@ Three items pinned here that 01-auth Window 4 must absorb. The orchestrator shou
 2. **sessionLoader rejects on `users.status != 'active'`** (§ 7 above). After the existing `aiq:sess:<sha256>` lookup succeeds, sessionLoader does a fast Postgres lookup (or a cached `aiq:user:status:<userId>` Redis key — implementation choice) and rejects with `403 user_disabled` / `403 user_deleted` if the user is no longer active. The Redis sweep above destroys most disabled-user sessions immediately, but this check is the belt for the suspenders (e.g., a session created milliseconds before disable, or a hash-collision corner case).
 
 3. **`normalizeEmail()` in Google SSO callback** (§ 10 above). Before the `(tenant_id, email)` lookup against `users`, the IdP-supplied email runs through `normalizeEmail()` (`.trim().toLowerCase()`). Same rule for any future password / magic-link / OIDC paths that receive an external email.
+
+---
+
+## Audit-write coverage (G3.D slice, 2026-05-11)
+
+Every admin-mutating service method writes one `audit_log` row inside the same `withTenant` Postgres transaction as the domain mutation, via `auditInTx()` from `@assessiq/audit-log`. A successful state change without a corresponding audit row (or vice-versa) is structurally impossible — the transaction either commits both or rolls back both.
+
+| Service function | `audit_log.action` | `entity_type` | Notes |
+|---|---|---|---|
+| `createUser` | `user.created` | `user` | `after`: email, name, role, status, metadata |
+| `updateUser` | `user.updated` | `user` | `before/after`: name, role, status, metadata; `after.changed_fields` + `after.kind` (`status_change` \| `role_change` \| `general`). One row regardless of how many fields the patch covers |
+| `softDelete` | `user.deleted` | `user` | `before`: email/name/role/status; `after.deleted=true` + `after.cascaded_pending_invitations` (count of `user_invitations` rows DELETEd in the same tx by the addendum-§5 cascade) |
+| `restore` | `user.restored` | `user` | `before/after.deleted_at` + `before/after.status` (kept distinct from `user.deleted` so admins don't have to filter on a marker field) |
+| `inviteUser` (new user) | `user.invited` (`after.kind=new`) | `user` | `entity_id` is the newly-created user. Token material (token_hash) intentionally NOT logged |
+| `inviteUser` (re-invite of pending user) | `user.invited` (`after.kind=reinvite`) | `user` | `after.replaced_invitation_count` records the prior pending invitations that were DELETEd in the same tx |
+
+`actor_kind` is always `"user"`; `actor_user_id` is the admin's session userId threaded through the service signature. Signatures changed in this slice: `createUser`, `updateUser`, `softDelete`, `restore` all gain a final `actorUserId: string` parameter. `inviteUser` already carried `invited_by` and reuses it. `acceptInvitation` is intentionally NOT audit-wired here — the invitee is acting on themselves; session minting is audited by 01-auth's session-event trail.
+
+ACTION_CATALOG additions to `modules/14-audit-log/src/types.ts` (3 new entries appended at the end of the existing catalog): `user.updated`, `user.restored`, `user.invited`. The pre-existing `user.created`, `user.disabled`, `user.role.changed`, `user.deleted` entries from G3.A: `user.created` and `user.deleted` are reused; `user.disabled` and `user.role.changed` are NOT emitted by this slice — they're folded into `user.updated` with `after.kind=status_change` / `kind=role_change` per the minimal-catalog-footprint pattern from the 04-question-bank G3.D template (`question.updated kind=restore` / `kind=save_rubric`).
+
+**Sensitive-field redaction.** Every audit payload is built via `redactUserForAudit()` from [src/audit-redact.ts](./src/audit-redact.ts), which strips known credential-bearing field names (`password_hash`, `mfa_secret`, `mfa_recovery_codes_hash`, `mfa_recovery_codes`, `email_verification_token`, `password_reset_token`, `oidc_id_token`, `oauth_refresh_token`). The current `users` table doesn't carry any of these columns — they live in 01-auth's separate tables (oauth_identities, user_credentials, totp_recovery_codes). The helper exists for schema-drift insurance: if a future migration ever inlines a credential column onto `users`, the redaction is automatic at every existing call-site, and the redaction-sweep test in `audit-writes.test.ts` flags any leaked key in `before/after`.
+
+**Not wired in this slice:**
+
+- `acceptInvitation` — invitee acting on their own pending row. Session minting is audited by 01-auth (the `auth.totp.enrolled` / `session.created` events). Audit duplication would be confusing.
+- `bulkImport` — Phase-1 stub (throws `BULK_IMPORT_PHASE_1`). The Phase-1 implementation will land its own audit wiring.
+- All read-only methods: `listUsers`, `getUser`, `findUserByEmailNormalized`.
+- `sweepUserSessions` — Redis-side housekeeping invoked AFTER the user-state transaction commits. The transaction that flipped `status='disabled'` already wrote the `user.updated kind=status_change` audit row; the Redis sweep is operational not behavioural and would log to `app.log` if logging at all (per § 2 of `docs/11-observability.md`).
+- `assertNotLastAdmin` / `assertValidStatusTransition` — pure validators, no DB write.
+
+Tests:
+
+- `src/__tests__/audit-writes.test.ts` (NEW) — 13 cases: one happy-path per wired function/path (createUser, updateUser status flip, updateUser role demotion, softDelete, restore, inviteUser new, inviteUser reinvite, inviteUser active-user no-op), three atomicity proofs (auditInTx failure injection rolls back updateUser / softDelete / inviteUser), one coverage assertion (count of `auditInTx(` in service.ts == 4 + invitations.ts == 2), and one redaction sweep (no audit row across a representative mix of operations contains any redacted-field key in before/after).
+- `src/__tests__/users.test.ts` — testcontainer migration set extended to apply `14-audit-log/migrations/0050_audit_log.sql` plus the `assessiq_app` / `assessiq_system` role setup; an `SYSTEM_ACTOR_ID` user is seeded and the existing service calls are wrapped to thread it automatically (preserves all 30+ legacy test bodies verbatim).
+- `apps/api/src/routes/admin-users.ts` — `userId = req.session!.userId` now threaded into all four mutation routes; `acceptInvitation`, `listUsers`, `getUser` unchanged (no signature change).
