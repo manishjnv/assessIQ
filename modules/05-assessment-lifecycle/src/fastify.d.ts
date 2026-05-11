@@ -21,9 +21,10 @@ declare module "fastify" {
       id: string;
       userId: string;
       tenantId: string;
-      role: "admin" | "reviewer" | "candidate";
+      role: "admin" | "super_admin" | "reviewer" | "candidate";
       totpVerified: boolean;
       expiresAt: string;
+      lastSeenAt: string;
       lastTotpAt: string | null;
     };
     apiKey?: {
