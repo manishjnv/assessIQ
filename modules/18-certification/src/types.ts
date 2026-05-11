@@ -165,6 +165,8 @@ export const IssueCertificateInputSchema = z.object({
   course_title: z.string().min(1),
   level: z.string().min(1),
   tier: TierSchema,
+  /** UUID of the admin issuing the cert — recorded on the audit_log row. */
+  actor_user_id: z.string().uuid(),
 });
 
 export type IssueCertificateInput = z.infer<typeof IssueCertificateInputSchema>;

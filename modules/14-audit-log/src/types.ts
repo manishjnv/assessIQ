@@ -75,6 +75,10 @@ export const ACTION_CATALOG = [
   'dev.mint_session',
   // Super-admin — per-tenant AI generation mode flip (Stage 3 rollout).
   'tenant_settings.ai_generate_mode.updated',
+  // Phase 5 Credentialize — certificate issuance + tier upgrade.
+  // See modules/18-certification/SKILL.md and docs/CERTIFICATION_PLAN_GENERIC.md.
+  'certification.cert.issue',
+  'certification.cert.upgrade',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

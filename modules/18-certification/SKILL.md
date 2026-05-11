@@ -1,8 +1,11 @@
 # 18-certification — Tamper-evident course-completion credentials
 
 ## Status
-**SCAFFOLDED** — Phase 5 Session 1 (2026-05-11). Schema + types + stubs shipped.
-Business logic (issuance engine, HMAC signing, PDF, verify page) starts Session 2.
+**IN PROGRESS** — Phase 5 Session 2 (2026-05-11). Cryptographic + identity
+core landed: HMAC-SHA256 signing helper, CSPRNG credential_id generator with
+DB-collision retry, idempotent + tier-upgrade-aware `issueCertificate`
+service with atomic `auditInTx`. PDF rendering, public verify endpoint,
+LinkedIn share, admin revoke still pending (Phase 5 Sessions 3+).
 
 ## Purpose
 Issue, verify, and manage tamper-evident certificates when a candidate passes
@@ -30,15 +33,73 @@ Full implementation plan: `docs/CERTIFICATION_PLAN_GENERIC.md`.
 | `13-notifications` | Email-on-issue (Phase 5 Session 2+; not wired in Session 1) |
 | `16-help-system` | Help IDs for cert UI surfaces (Phase 5 Session 5) |
 
-## Non-goals (Phase 5 Session 1)
+## Non-goals (Phase 5 Session 2)
 
-- PDF generation (Session 3)
+- PDF generation (Session 4)
 - Public verify page + OG image (Session 3)
 - LinkedIn share endpoint (Session 8)
-- HMAC signing logic (Session 2)
-- Threshold/tier determination logic (Session 2)
-- Trigger wiring into 06-attempt-engine (Session 2)
+- Threshold/tier determination logic — issueCertificate consumes a tier
+  decided upstream; the pure determine_tier() helper lands in a later
+  session when 09-scoring exposes the inputs
+- Trigger wiring into 06-attempt-engine (Session 4)
+- Admin revoke + reissue surfaces (Session 6/7)
 - Migration application against any database (deploy step; CLAUDE.md #8)
+
+## Cryptography and identity (Session 2)
+
+### HMAC signing — `src/crypto.ts`
+
+- **Secret env var:** `CERT_SIGNING_SECRET`. No default. No dev fallback.
+  `getCertSigningSecret()` reads at call time (not module load) and throws
+  when unset or empty. Rotation invalidates every existing signature — plan
+  a maintenance window if it ever needs to change.
+- **Algorithm:** HMAC-SHA256 over the canonical-JSON encoding of the
+  payload. Canonical = keys sorted alphabetically, `JSON.stringify` with no
+  whitespace. Output is 64-char lowercase hex.
+- **Signed payload fields** (`CertificateSignaturePayload`): `id`,
+  `tenant_id`, `candidate_id`, `attempt_id`, `template_key`,
+  `credential_id`, `tier`, `display_name`, `course_title`, `level`,
+  `issued_at`. Counters and revocation fields are excluded — they change
+  post-issue.
+- **Tier in the payload:** present, and a tier upgrade re-signs the row in
+  the same transaction. The verify page always recomputes from current row
+  state, so shared LinkedIn URLs remain green; what they depend on
+  (`credential_id`, `issued_at`) is preserved across upgrades.
+- **Verification:** `verifyCertificateSignature` uses
+  `crypto.timingSafeEqual` on equal-length Buffers. Length mismatch,
+  malformed hex, and missing secret all return `false` rather than throw —
+  the caller maps `false` → red badge.
+
+### Credential ID generator — `src/credential-id.ts`
+
+- **Format:** `PREFIX-YYYY-MM-XXXXXX` (regex `^[A-Z]{2,4}-\d{4}-\d{2}-[A-Z0-9]{6}$`).
+- **Default prefix:** `AIQ` (`DEFAULT_CREDENTIAL_PREFIX`).
+- **Date component:** UTC year + UTC month, zero-padded.
+- **Suffix:** 6 chars from `[A-Z0-9]` drawn via `crypto.randomInt(0, 36)`.
+  `Math.random` is forbidden — the slug is part of the credential's
+  identity and predictable draws would make collisions exploitable.
+- **Collision policy:** the DB `UNIQUE(credential_id)` constraint is the
+  authoritative guard. `service.issueCertificate` regenerates the slug and
+  re-signs on `CredentialIdCollisionError`, up to
+  `MAX_CREDENTIAL_ID_RETRIES = 3` attempts before throwing.
+
+### Tier-monotonicity invariant — `src/service.ts`
+
+`issueCertificate` is the single entry point for both first issue and tier
+upgrade. Behaviour:
+
+| State on entry | Action | Audit emitted |
+|---|---|---|
+| no existing row | INSERT new row with fresh `id`, `credential_id`, signed hash | `certification.cert.issue` |
+| existing row, incoming tier ≤ existing | return existing row unchanged | none (no-op) |
+| existing row, incoming tier > existing | UPDATE tier + re-sign, **preserve `credential_id` and `issued_at`** | `certification.cert.upgrade` |
+
+The cert UPDATE/INSERT and the `auditInTx` write happen on the **same
+PoolClient** inside the caller's `withTenant` — if audit fails, the cert
+mutation rolls back. Audit `after`-state carries only identity fields
+(`credential_id`, `tier`, `candidate_id`, `attempt_id`); snapshot fields
+and `signed_hash` are deliberately excluded (size cap + cert row is the
+source of truth).
 
 ## Architecture decisions
 
@@ -110,21 +171,36 @@ Applies after: `0001_tenants.sql` (02-tenancy), `020_users.sql` (03-users),
 **Do NOT apply in Session 1.** Migration application is a deploy step
 scheduled for Phase 5 Session 2 (CLAUDE.md rule #8).
 
-## Public surface (Session 1 stubs)
+## Public surface
+
 ```ts
-// Issuance (Session 2)
-issueCertificate(input: IssueCertificateInput): Promise<Certificate | null>
+// Issuance (Session 2 — shipped). Caller supplies an RLS-scoped PoolClient
+// already inside withTenant(); the cert mutation and audit row commit
+// atomically on that transaction. Throws on collision exhaustion.
+issueCertificate(
+  client: PoolClient,
+  input: IssueCertificateInput,
+  options?: IssueCertificateOptions,
+): Promise<Certificate>
 
-// Read (Session 3+)
-getByCredentialId(credentialId: string): Promise<Certificate | null>
-listForUser(tenantId: string, query: ListCertificatesQuery): Promise<{ items: Certificate[]; total: number }>
+// Read (Session 2 — shipped). RLS applies; public verify uses a separate
+// non-RLS path in Session 3.
+getByCredentialId(client: PoolClient, credentialId: string): Promise<Certificate | null>
 
-// Admin (Session 2)
-adminListCertificates(tenantId: string, query: ListCertificatesQuery): Promise<{ items: Certificate[]; total: number }>
-revoke(tenantId: string, certId: string, input: RevokeCertificateInput): Promise<Certificate>
+// Cryptography (Session 2 — shipped)
+getCertSigningSecret(): string
+signCertificate(payload: CertificateSignaturePayload, secret: string): string
+verifyCertificateSignature(payload, signature, secret): boolean
 
-// Admin (Session 6)
-reissue(tenantId: string, certId: string): Promise<Certificate>
+// Credential ID (Session 2 — shipped)
+generateCredentialId(prefix?: string, now?: Date): string
+isValidCredentialId(s: string): boolean
+
+// Stubs — later sessions
+listForUser(tenantId, query): Promise<{ items: Certificate[]; total: number }>     // S5
+adminListCertificates(tenantId, query): Promise<{ items: Certificate[]; total: number }> // S7
+revoke(tenantId, certId, input): Promise<Certificate>                              // S7
+reissue(tenantId, certId): Promise<Certificate>                                    // S6
 ```
 
 ## Routes (all 501 in Session 1)

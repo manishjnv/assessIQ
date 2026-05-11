@@ -1,6 +1,6 @@
 // AssessIQ — modules/18-certification/src/index.ts
 //
-// Phase 5 Session 1 — public barrel for @assessiq/certification.
+// Phase 5 Session 2 — public barrel for @assessiq/certification.
 //
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 // CLAUDE.md rule #1.
@@ -15,7 +15,34 @@ export {
   adminListCertificates,
   revoke,
   reissue,
+  MAX_CREDENTIAL_ID_RETRIES,
+  type IssueCertificateOptions,
 } from './service.js';
+
+// ---------------------------------------------------------------------------
+// Cryptography (HMAC signing helpers)
+// ---------------------------------------------------------------------------
+export {
+  CERT_SIGNING_SECRET_ENV,
+  getCertSigningSecret,
+  signCertificate,
+  verifyCertificateSignature,
+  type CertificateSignaturePayload,
+} from './crypto.js';
+
+// ---------------------------------------------------------------------------
+// Credential ID generator
+// ---------------------------------------------------------------------------
+export {
+  DEFAULT_CREDENTIAL_PREFIX,
+  generateCredentialId,
+  isValidCredentialId,
+} from './credential-id.js';
+
+// ---------------------------------------------------------------------------
+// Repository (exposed for advanced callers + the collision error type)
+// ---------------------------------------------------------------------------
+export { CredentialIdCollisionError } from './repository.js';
 
 // ---------------------------------------------------------------------------
 // Route registrar
