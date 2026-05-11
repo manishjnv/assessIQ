@@ -1,7 +1,7 @@
 # Session — 2026-05-11 (Phase 5 Session 1 — 18-certification scaffold)
 
 **Headline:** `modules/18-certification` scaffolded: folder skeleton, types, migration 0046 with tenant_id + RLS, SKILL.md, package.json, stubs, and 29-passing unit tests. No business logic yet.
-**Commits:** see commit SHA at end of this session
+**Commits:** `2835680` — feat(certification): scaffold modules/18-certification — Phase 5 Session 1 (pushed to `origin/main` as `033f993..2835680`)
 **Tests:** `pnpm -C modules/18-certification typecheck` ✅ | `pnpm -C modules/18-certification test` ✅ 29/29 | lint-no-ambient-claude ✅ (323 files scanned, 0 violations)
 **Next:** Phase 5 Session 2 — implement issuance engine: HMAC signing, `determineTier()` pure function, `insertCertificate` / `upgradeCertificateTier` repository bodies, trigger wiring into 06-attempt-engine, apply migration 0046 to VPS.
 **Open questions:**
@@ -11,10 +11,10 @@
 ---
 
 ## Agent utilization
-- Opus: n/a — this is a Sonnet subagent session (scaffold only, no load-bearing logic)
-- Sonnet: Phase 0 reads, all file creation (types, migration, stubs, tests, docs updates), acceptance test runs
-- Haiku: n/a
-- codex:rescue: n/a — no security/auth/classifier diffs; scaffold only
+- Opus: Phase 0 warm-start reads, Phase 3 diff critique on the load-bearing seams (migration RLS, routes tenant-context middleware, types schema, doc-append boundary vs parallel-session WIP), push to `origin/main`.
+- Sonnet: 1 subagent — all file creation (types, migration 0046, repository/service/routes stubs, 29 unit tests, docs/02-data-model.md + docs/03-api-contract.md appends), acceptance test runs, commit `2835680`. ~700s wall, 64 tool calls.
+- Haiku: n/a — no bulk grep / multi-file fact lookups needed.
+- codex:rescue: n/a — `modules/18-certification` is not on the load-bearing paths list (`01-auth | 02-tenancy | 07-ai-grading | 14-audit-log | infra`); first security-adjacent surface (HMAC signing + public verify endpoint that bypasses RLS) arrives in Phase 5 Session 3 and will gate on adversarial sign-off then.
 
 ---
 
