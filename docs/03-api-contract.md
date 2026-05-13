@@ -907,7 +907,7 @@ All routes require admin session; tenant-scoped via `withTenant` (RLS). Served a
 
 ### `GET /api/admin/activity/leaderboard`
 
-Catalog-wide assessment ranking by submission volume, with prior-period delta.
+Catalog-wide **question-pack** ranking by submission volume, with prior-period delta. One row per `question_packs.id` — a pack with multiple assessment cycles rolls up to a single leaderboard entry. (Per-assessment grouping was considered and rejected during Phase 9 review: it produced duplicate-pack-name rows in the Phase 11 page when a pack had >1 assessment cycle.)
 
 **Query params:** `period` (optional `week` \| `month` \| `quarter`, default `week`), `page` (optional int ≥ 1, default 1), `pageSize` (optional int in `[1, 50]`, default 10).
 
@@ -942,7 +942,8 @@ Catalog-wide assessment ranking by submission volume, with prior-period delta.
 - `deltaPct` is `null` when `priorCount = 0` and `currentCount > 0` (new entry — no baseline). Otherwise rounded to 1 decimal.
 - `direction ∈ {"up", "down", "flat"}` with a ±0.5% dead-band around zero to suppress noise.
 - **Data source: live `attempts` table** (NOT MV) — week-over-week deltas require fresh data; MV is too stale.
-- Two-CTE query: current_period (with `pack_id` join) LEFT JOINed to prior_period; assessments with no prior appearance still appear with `priorCount: 0`.
+- Two-CTE query: both `current_period` and `prior_period` JOIN `assessments` and `GROUP BY ass.pack_id`. LEFT JOIN on `pack_id`; packs with no prior-period submissions still appear with `priorCount: 0`.
+- `totalRanked` counts `DISTINCT ass.pack_id` over the current period (not assessment cycles).
 - Pagination DOS guards: `page ≤ 1000`, `pageSize ≤ 50`.
 
 **Source:** [`modules/15-analytics/src/activity/leaderboard.ts`](../modules/15-analytics/src/activity/leaderboard.ts).

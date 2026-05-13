@@ -2,11 +2,16 @@
 //
 // Phase 9 — GET /api/admin/activity/leaderboard
 //
-// Returns a paginated, ranked list of assessments by submission volume over a
-// rolling period (week / month / quarter), with a prior-period delta for
-// trend context. Rankings are computed against the live `attempts` table —
-// NOT the attempt_summary_mv — because the MV has a nightly refresh cycle
-// that makes it too stale for week-over-week deltas (anti-pattern guard per
+// Returns a paginated, ranked list of question-PACKS (not individual
+// assessment cycles) by submission volume over a rolling period (week /
+// month / quarter), with a prior-period delta for trend context.
+// "Catalog-wide" grouping: a pack with multiple assessments rolls up to one
+// row — chosen over per-assessment grouping to avoid duplicate-pack-name
+// rows in the Phase 11 Activity page (orchestrator decision 2026-05-13).
+//
+// Rankings are computed against the live `attempts` table — NOT the
+// attempt_summary_mv — because the MV has a nightly refresh cycle that
+// makes it too stale for week-over-week deltas (anti-pattern guard per
 // Phase 9 plan §9).
 //
 // RLS is enforced via the withTenant GUC (SET LOCAL app.current_tenant).
@@ -173,7 +178,6 @@ export function computeDelta(
 // ---------------------------------------------------------------------------
 
 interface LeaderboardRow {
-  assessment_id: string;
   pack_id: string | null;
   pack_name: string | null;
   domain: string | null;
@@ -188,12 +192,17 @@ interface LeaderboardRow {
 /**
  * Fetch one page of leaderboard rows ranked by submission count DESC.
  *
+ * Catalog-wide grouping: one row per `question_packs.id` (NOT per assessment
+ * cycle). A pack with multiple assessments rolls up to a single leaderboard
+ * entry — avoids the duplicate-pack-name UX bug that per-assessment grouping
+ * produces in the Phase 11 Activity page.
+ *
  * Uses two CTEs against the live `attempts` table:
  *   current_period — submissions in [currentFrom, currentTo]
  *   prior_period   — submissions in [priorFrom,  priorTo]
  *
- * The prior_period CTE is LEFT JOINed so assessments with zero prior
- * submissions still appear (their prior_count will be 0 via COALESCE).
+ * The prior_period CTE is LEFT JOINed so packs with zero prior submissions
+ * still appear (their prior_count will be 0 via COALESCE).
  *
  * RLS is enforced by the withTenant GUC; no explicit tenant filter needed.
  */
@@ -206,7 +215,6 @@ export async function queryActivityLeaderboardRows(
   const { currentFrom, currentTo, priorFrom, priorTo } = bounds;
 
   const result = await client.query<{
-    assessment_id: string;
     pack_id: string | null;
     pack_name: string | null;
     domain: string | null;
@@ -214,33 +222,33 @@ export async function queryActivityLeaderboardRows(
     prior_count: string;
   }>(
     `WITH current_period AS (
-       SELECT a.assessment_id, ass.pack_id, COUNT(*)::int AS cnt
+       SELECT ass.pack_id, COUNT(*)::int AS cnt
        FROM attempts a
        JOIN assessments ass ON ass.id = a.assessment_id
        WHERE a.submitted_at IS NOT NULL
          AND a.submitted_at >= $1::timestamptz
          AND a.submitted_at <  $2::timestamptz + interval '1 day'
          AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')
-       GROUP BY a.assessment_id, ass.pack_id
+       GROUP BY ass.pack_id
      ),
      prior_period AS (
-       SELECT a.assessment_id, COUNT(*)::int AS cnt
+       SELECT ass.pack_id, COUNT(*)::int AS cnt
        FROM attempts a
+       JOIN assessments ass ON ass.id = a.assessment_id
        WHERE a.submitted_at IS NOT NULL
          AND a.submitted_at >= $3::timestamptz
          AND a.submitted_at <  $4::timestamptz + interval '1 day'
          AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')
-       GROUP BY a.assessment_id
+       GROUP BY ass.pack_id
      )
      SELECT
-       cp.assessment_id,
        cp.pack_id,
        qp.name                      AS pack_name,
        qp.domain                    AS domain,
        cp.cnt::int                  AS current_count,
        COALESCE(pp.cnt, 0)::int     AS prior_count
      FROM current_period cp
-     LEFT JOIN prior_period pp ON pp.assessment_id = cp.assessment_id
+     LEFT JOIN prior_period pp ON pp.pack_id = cp.pack_id
      LEFT JOIN question_packs qp ON qp.id = cp.pack_id
      ORDER BY cp.cnt DESC, qp.name ASC
      LIMIT $5 OFFSET $6`,
@@ -248,7 +256,6 @@ export async function queryActivityLeaderboardRows(
   );
 
   return result.rows.map((r) => ({
-    assessment_id: r.assessment_id,
     pack_id: r.pack_id,
     pack_name: r.pack_name,
     domain: r.domain,
@@ -258,7 +265,7 @@ export async function queryActivityLeaderboardRows(
 }
 
 /**
- * Count total distinct assessments in the current period.
+ * Count total distinct packs in the current period.
  * Used to populate `totalRanked` regardless of pagination.
  *
  * Cheap separate query — avoids a window function on the main paged query.
@@ -270,8 +277,9 @@ export async function queryActivityLeaderboardTotal(
   const { currentFrom, currentTo } = bounds;
 
   const result = await client.query<{ total: string }>(
-    `SELECT COUNT(DISTINCT a.assessment_id)::text AS total
+    `SELECT COUNT(DISTINCT ass.pack_id)::text AS total
      FROM attempts a
+     JOIN assessments ass ON ass.id = a.assessment_id
      WHERE a.submitted_at IS NOT NULL
        AND a.submitted_at >= $1::timestamptz
        AND a.submitted_at <  $2::timestamptz + interval '1 day'
