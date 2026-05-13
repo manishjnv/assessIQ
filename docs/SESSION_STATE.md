@@ -1,3 +1,38 @@
+# Session — 2026-05-13 (Phase 9 leaderboard — per-pack grouping pivot)
+
+**Headline:** Follow-up to `c87cf53`. Phase 3 diff review of the original Phase 9 leaderboard caught a contract bug: SQL grouped by `(assessment_id, pack_id)` but the response shape carried only pack-level identifiers (`packId`, `packName`, `domain`) — a pack with N active assessment cycles would render N rows with identical pack names and different ranks in the Phase 11 page. User picked **option A — pivot to per-pack grouping** over the alternative of widening the response shape. Commit `d083646` flips both CTEs (`current_period` + `prior_period`) to `JOIN assessments` + `GROUP BY ass.pack_id`, LEFT JOIN on `pack_id`, and counts `DISTINCT pack_id` for `totalRanked`. Doc + SKILL.md D8 updated to match. VPS deployed; 88/88 tests still green (assertions all on pack-level fields, unchanged by the pivot).
+
+**Commits:**
+
+- `d083646` — fix(analytics): Phase 9 leaderboard — pivot to per-pack grouping (3 files, +37/-23)
+
+**Tests:** 88/88 green after the pivot (`pnpm -C modules/15-analytics test`). No test edits required — the existing assertions check `packId`, `domain`, `totalRanked`, `direction`, `period`, pagination — none touch assessment-level identifiers.
+
+**Gates:** `pnpm -C modules/15-analytics typecheck` ✓, `pnpm tsx tools/lint-mv-tenant-filter.ts` ✓ (14 files, 0 violations — no MV reads added/removed by the pivot).
+
+**Deploy:** `assessiq-api` rebuilt + force-recreated on `assessiq-vps`. VPS HEAD = `d083646` (image `10d00d2cb7b7`). Container healthy in ≤30s. Production smoke: `/healthz` 200; all 4 activity endpoints respond 401 (admin-gate firing).
+
+**Why per-pack over per-assessment:** (a) response shape already pack-shaped — widening the contract to include `assessmentId/assessmentName` would force Phase 11/12 consumers to handle a richer object; (b) catalog-wide "popular packs" semantics match the kit's Most-Attempted-Assessments pattern more naturally than per-cycle rankings; (c) `totalRanked` is more stable across the year as new cycles are created against the same pack.
+
+**Next:**
+
+1. **Phase 11 — Admin Activity page wire** (`/admin/activity`) — unchanged from the c87cf53 handoff; per-pack leaderboard rows compose 1:1 with the kit's `LeaderboardList` component.
+2. **Phase 10 — Candidate Activity backend** — unchanged from the c87cf53 handoff.
+3. Resume priority backlog (MFA, Stage 3.1, R2 sentinel, schema_migrations backfill, override_reason PII retention).
+
+**Open questions:** none for this slice.
+
+---
+
+## Agent utilization
+
+- Opus: full session — Phase 0 reads (PROJECT_BRAIN, architecture-overview, SESSION_STATE, plan §9, analytics module surface, lint guard, data-model schemas for MV/attempts/question_packs/assessments); Phase 1 dispatched ONE Sonnet subagent with the 4-endpoint contract + verbatim anti-pattern guards; Phase 3 diff critique caught the leaderboard pack-vs-assessment semantic bug; AskUserQuestion to resolve the design call; self-executed the SQL pivot + doc updates (5 Edits across 3 files, all in hot cache); typecheck + lint + test re-run; commit (noreply env-var pattern) + push + VPS git pull + assessiq-api rebuild + 5-endpoint smoke; this handoff.
+- Sonnet: 1 call — wiring + bug-fix pass over the pre-existing untracked `activity/` subfolder authored by a parallel session. Discovered the directory already complete; fixed two bugs (tenant_id ambiguous in stats.ts JOIN; pg-types Date timezone-shift in timeline.ts via `::date::text` cast); extended `analytics.test.ts` fixture with Phase 9 seed data; reported 88/88 green. No load-bearing path → no codex:rescue gate.
+- Haiku: n/a — post-deploy verification was a single curl × 5 (health + 4 endpoints), below the bulk-sweep threshold.
+- codex:rescue: n/a — `modules/15-analytics` is NOT on the CLAUDE.md load-bearing-paths list; read-only aggregation with explicit MV tenant filter (lint-enforced) + RLS on live tables. The pivot was a single-file SQL change with no auth/crypto/classifier surface touched; in-line dual review (Opus diff critique + AskUserQuestion product confirmation) was the appropriate gate magnitude.
+
+---
+
 # Session — 2026-05-13 (Phase 9 — Admin Activity backend endpoints)
 
 **Headline:** Phase 9 shipped end-to-end. Four read-only admin endpoints under `/api/admin/activity/*` (stats, heatmap, timeline, leaderboard) live in production at commit `c87cf53`. ~1,300 lines across 7 new files in an isolated sub-folder (`modules/15-analytics/src/activity/`) — Phase 11 admin Activity page + Phase 12 candidate page consumers are unblocked on the backend side. Parallel-Sonnet dispatch pattern repeated from Phase 3b; this round had 2 scope-creep incidents requiring revert + replay.
