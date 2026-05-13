@@ -264,15 +264,28 @@ What's live (UI v1.1 port — 2026-05-13):
 
    **Test infra:** `vitest` + `vitest-axe` + `@testing-library/react` + `jsdom` added as devDeps. `vitest.config.ts` (jsdom env), `vitest.setup.ts` (axe matchers + cleanup), `src/test-setup.d.ts` (vitest-axe@0.1.0 `Vi` namespace → vitest v2 `declare module "vitest"` patch). One axe assertion per primitive — precedent for the rest of the v1.1 port (17/17 tests green).
 
+What's live (UI v1.1 Phase 3b — 2026-05-13):
+
+Activity-screen primitives. All three sourced from [`AssessIQ_UI_Template/screens/activity.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/activity.jsx); none import from the kit (translated manually, ESLint blocks kit imports). All use the production `--aiq-color-chart-{1..8}` palette (NOT the kit's hardcoded `ACT_COLORS` hex array — the two palettes intentionally differ; production is Google-brand-anchored, kit is Tailwind). Each ships with one `axe(container)` assertion in its `.test.tsx` per the Phase 3a precedent.
+
+| Component | Props | CSS / tokens | Tests |
+| --- | --- | --- | --- |
+| `ActivityHeatmap` | `data: number[]` (0–4 column-major), `weeks?: number` (default 52), `monthLabels?: string[]`, `dayLabels?: string[]` (default `["M","W","F"]`), `streakSummary?: string`, `legendLessLabel?` / `legendMoreLabel?`, `aria-label?`, `data-test-id?`, `className?` | Five new tokens added to `tokens.css`: `--aiq-color-heatmap-{0..4}`. Level 0 is mapped to `--aiq-color-bg-sunken` (auto-tracks dark mode); 1–4 are explicit `oklch()` stops on hue 258 (matches `--aiq-color-accent`). Pure CSS grid; no chart lib. Out-of-range data values clamped to `[0, 4]`; `data.length < weeks*7` zero-pads, longer truncates. | 7 (incl. axe) |
+| `StackedBarChart` | `bars: StackedBarChartBar[]`, `colors?: string[]` (defaults `--aiq-color-chart-{1..8}`), `seriesLabels?: string[]`, `yAxisLabels?: string[]`, `xAxisStartLabel?` / `xAxisEndLabel?`, `height?: number` (default 200), `gap?: number` (default 4), `aria-label?`, `data-test-id?`, `className?` | Pure div/flex; no chart lib (anti-pattern guard). Per-bar height = `sum(segments) / max(totals)`; per-segment share = `segment / sum`. Empty bars (total = 0) render at 0 height — no NaN. Y-axis labels positioned absolutely at `top: i/(n-1)*100%`; chart reserves `paddingLeft: 36` when `yAxisLabels` present. Segments at `opacity: 0.85` (matches kit). | 6 (incl. axe) |
+| `LeaderboardList` | `items: LeaderboardListItem[]`, `columns?: 1\|2` (default 2), `colors?: string[]` (defaults `--aiq-color-chart-{1..8}`), `onShowMore?: () => void`, `showMoreLabel?: string`, `data-test-id?`, `className?` | Renders as semantic `<ol>` with `listStyle: none` (rank order conveyed both visually and via DOM order). Rank avatar = 32×32 outer ring at `opacity: 0.18` + 12×12 inner solid dot. **Avatar opacity fix vs kit**: the kit nests the inner dot inside the 0.18-opacity outer div, which cascades opacity and makes the dot semi-transparent too. Production splits them: outer is `position: absolute; inset: 0` with the opacity; inner is `position: relative` at full opacity. Show More uses the existing `Button` with `variant="ghost" size="sm"`. | 6 (incl. axe) |
+
+ARIA: `ActivityHeatmap` and `StackedBarChart` are `role="img"` with `aria-label`; their decorative day-labels / month-labels / y-axis labels are `aria-hidden`. `LeaderboardList` is a native `<ol>` so screen readers convey ranked order; avatars are `aria-hidden` (decorative).
+
+The new components are exported from `@assessiq/ui-system` and ready for Phases 11 (admin `/activity`) + 12 (candidate `/activity`) page consumers.
+
 What still needs to happen, on demand as later v1.1 phases land:
 
-1. **Phase 3b — Activity primitives**: `ActivityHeatmap` (52×7 grid), `StackedBarChart` (pure SVG/divs, no chart library), `LeaderboardList` (2-col grid of rank+avatar+name+metric+delta). All sourced from `AssessIQ_UI_Template/screens/activity.jsx`.
-2. **Phase 4–8 — Page refreshes** against kit screens (auth, dashboard, take flow, list pages, results/reports).
-3. **Phase 9–12 — Activity feature** (backend endpoints + `/admin/activity` + `/candidate/activity` consumer wires).
-4. **Domain composites** — `QuestionCard`, `KqlEditor`, `RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard`. Map onto the existing branding idioms.
-5. **Visual regression baseline** as components land.
-6. **Self-host fonts** if Phase 1 perf budget needs it — current build uses the Google Fonts `<link>` in `apps/web/index.html`.
-7. **Live tenant theme resolver** wired to `tenants.branding` JSONB once `02-tenancy` exposes the API.
+1. **Phase 4–8 — Page refreshes** against kit screens (auth, dashboard, take flow, list pages, results/reports).
+2. **Phase 9–12 — Activity feature** (backend endpoints + `/admin/activity` + `/candidate/activity` consumer wires).
+3. **Domain composites** — `QuestionCard`, `KqlEditor`, `RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard`. Map onto the existing branding idioms.
+4. **Visual regression baseline** as components land.
+5. **Self-host fonts** if Phase 1 perf budget needs it — current build uses the Google Fonts `<link>` in `apps/web/index.html`.
+6. **Live tenant theme resolver** wired to `tenants.branding` JSONB once `02-tenancy` exposes the API.
 
 The reference template files (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `.design-canvas.state.json`) are the omelette/Claude design-canvas wrapper that produced the template — useful for visual reference (open the HTML to see all screens) but **must not be imported by production code**. Enforcement: ESLint flat config has `no-restricted-imports` blocking `**/AccessIQ_UI_Template/**` globally; CI's no-template grep verifies.
 
