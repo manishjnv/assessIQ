@@ -594,13 +594,31 @@ The per-IP rate-limit bucket (`aiq:rl:auth:ip:<ip>`, 10/min) is bypassed for ver
 
 Admins and reviewers re-click "Sign in with Google" during testing and normal login work. The 10/min per-IP limit is designed to stop anonymous brute-force attackers, not verified staff. Before this change, an admin in an office NAT (shared IP) could exhaust the limit within seconds, causing 429 errors and disrupting their own workflow.
 
-### Bypass conditions (all three must be true simultaneously)
+### Bypass conditions (all must be true simultaneously)
 
 1. **Session loaded:** the request carries a valid `aiq_sess` cookie that `sessionLoader` resolved to a live Redis session.
-2. **Role is admin or reviewer:** `session.role IN ('admin', 'reviewer')` — explicit allowlist, NOT a denylist. Candidates are never bypassed.
-3. **TOTP verified:** `session.totpVerified === true` (strict boolean equality — not truthy coercion). Pre-MFA sessions (`totpVerified=false`) are not bypassed.
+2. **Role is admin or reviewer:** `session.role IN ('admin', 'reviewer')` — explicit allowlist, NOT a denylist. Candidates are never bypassed regardless of MFA state.
+3. **MFA gate (mirrors `requireAuth`, 2026-05-13):**
+   - `config.MFA_REQUIRED=true`  → `session.totpVerified === true` (strict boolean equality — not truthy coercion).
+   - `config.MFA_REQUIRED=false` → no TOTP check; condition 3 is dormant globally.
 
-If any condition is false, the standard 10/min/IP limit applies.
+If any of the active conditions is false, the standard 10/min/IP limit applies.
+
+#### Why the MFA-aware gate (2026-05-13, commit `<TBD>`)
+
+Before this fix, condition 3 was a strict `totpVerified === true` check **regardless of `MFA_REQUIRED`**. In production today `MFA_REQUIRED=false` (Google SSO is the only active factor; TOTP isn't enrolled), so no admin session ever sets `totpVerified=true`, so the bypass **NEVER fired** and every admin login flow (`/start` → `/cb` → `/whoami` → `/session-init`, ×retries) hit the 10/min/IP cap and 429'd itself. This is the "admin lockout" symptom users reported.
+
+The new predicate mirrors what `requireAuth` (modules/01-auth/src/middleware/require-auth.ts:30-39) was already doing: when MFA is opt-in for the whole tenant, the TOTP gate is dormant in **both** the auth check and the rate-limit bypass. When `MFA_REQUIRED` flips to `true` for production hardening, both checks re-engage together — no grandfathered bypass state in Redis or cookies (predicate is evaluated per-request, no memoization).
+
+**Safety properties preserved:**
+- Anonymous (no session) → never bypasses (condition 1 fails). Same as before.
+- Stolen candidate cookie → never bypasses (condition 2 fails — `candidate` is not in `BYPASS_ROLES`).
+- Stolen admin cookie → bypasses the IP bucket but is still capped at 60 req/min by the per-user bucket and 600 req/min by the per-tenant bucket. **This is a deliberate posture change for the no-MFA window**: when MFA isn't enforced, the per-IP cap on auth routes was throttling legitimate admins more than it was throttling attackers (who can rotate IPs anyway). The per-user bucket is the durable throttle once an attacker has a valid cookie.
+- Always-strict routes (`/api/auth/totp/*`, `/api/auth/google/cb`, `/api/take/start`) never opt into the bypass and so are unaffected by this change.
+
+**Operational note (V8 from adversarial review):** `config.MFA_REQUIRED` is parsed from env once at process start (Zod schema in `modules/00-core/src/config.ts:77-80`). Flipping the env value at runtime requires an API restart to take effect — the live process holds the boot-time value. When you flip `MFA_REQUIRED=true` for production hardening, deploy with `docker compose ... up -d --force-recreate api` to pick up the new value.
+
+**Adversarial review (2026-05-13):** Sonnet + GLM-4.6 (per `feedback-adversarial-reviewer-routing.md`). Both ACCEPT across the eight standard auth-rate-limit attack vectors (V1 anon, V2 candidate-cookie pivot, V3 admin-cookie amplification, V4 TOCTOU, V5 type coercion, V6 always-strict relaxation, V7 MFA flip grandfathering, V8 boot-vs-runtime config). V5 is structurally guaranteed by Zod's `.transform((s) => s === "true")` (the value is a real `boolean`, not a string).
 
 ### Dev-mode rate-limit lift (2026-05-13, commit `e0b8e53`)
 

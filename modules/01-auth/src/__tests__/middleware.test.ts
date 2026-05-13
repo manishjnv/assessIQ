@@ -563,6 +563,87 @@ describe("rate-limit (Redis testcontainer)", () => {
       const redis = getRedis();
       expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
     });
+
+    // B10: MFA_REQUIRED=false + admin (totpVerified=false) → bypass fires.
+    // Pre-2026-05-13 this branch was dead: a strict ===true check meant no
+    // Google-SSO admin ever bypassed and admins routinely 429'd themselves.
+    // The predicate now mirrors requireAuth's MFA gating.
+    it("B10: MFA_REQUIRED=false + admin (totpVerified=false) bypasses IP bucket", async () => {
+      const spy = vi.spyOn(config, "MFA_REQUIRED", "get").mockReturnValue(false);
+      try {
+        const handler = bypassHandler();
+        const ip = "30.1.1.10";
+        const session = verifiedSession("admin", false, "bypass-b10-user", "bypass-b10-tenant");
+
+        const reply = makeReply();
+        await handler(makeReq({
+          url: "/api/auth/google/start",
+          headers: { "cf-connecting-ip": ip },
+          session,
+        }), reply);
+
+        // Bypass header MUST be present despite totpVerified=false.
+        expect(reply.headers["X-RateLimit-Bypass"]).toBe("admin");
+        // IP bucket MUST NOT have been incremented.
+        const redis = getRedis();
+        expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
+        // User bucket MUST have been incremented (still tracked).
+        expect(Number(await redis.get(`aiq:rl:user:bypass-b10-user`))).toBe(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    // B11: MFA_REQUIRED=false + reviewer (totpVerified=false) → bypass fires.
+    // Same as B10 but for the reviewer role — confirms the bypass allowlist
+    // covers both privileged roles equally under the MFA-off branch.
+    it("B11: MFA_REQUIRED=false + reviewer (totpVerified=false) bypasses IP bucket", async () => {
+      const spy = vi.spyOn(config, "MFA_REQUIRED", "get").mockReturnValue(false);
+      try {
+        const handler = bypassHandler();
+        const ip = "30.1.1.11";
+        const session = verifiedSession("reviewer", false, "bypass-b11-user", "bypass-b11-tenant");
+
+        const reply = makeReply();
+        await handler(makeReq({
+          url: "/api/auth/whoami",
+          headers: { "cf-connecting-ip": ip },
+          session,
+        }), reply);
+
+        expect(reply.headers["X-RateLimit-Bypass"]).toBe("reviewer");
+        const redis = getRedis();
+        expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    // B12: MFA_REQUIRED=false + candidate → still NO bypass. The MFA branch
+    // relaxes the TOTP gate, NOT the role gate. Candidates are never bypassed
+    // regardless of MFA state.
+    it("B12: MFA_REQUIRED=false + candidate role still hits IP bucket (role gate is authoritative)", async () => {
+      const spy = vi.spyOn(config, "MFA_REQUIRED", "get").mockReturnValue(false);
+      try {
+        const handler = bypassHandler();
+        const ip = "30.1.1.12";
+        // Try both totpVerified states to lock down "role gate beats TOTP gate".
+        const session = verifiedSession("candidate", true, "bypass-b12-user", "bypass-b12-tenant");
+
+        const reply = makeReply();
+        await handler(makeReq({
+          url: "/api/auth/google/start",
+          headers: { "cf-connecting-ip": ip },
+          session,
+        }), reply);
+
+        expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
+        const redis = getRedis();
+        expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
   });
 });
 
