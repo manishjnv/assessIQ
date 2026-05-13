@@ -1,3 +1,37 @@
+# Session — 2026-05-13 (UI kit v1.1 refresh + folder rename to AssessIQ_UI_Template)
+
+**Headline:** Refreshed the 17-ui-system design-system kit to v1.1 (May 2026 — darker type tokens, new `screens/activity.jsx` with heatmap + leaderboard, brand assets relocated from `Logo/` → `brand/`). Renamed the outer folder from the typo-form `AccessIQ_UI_Template` to the correct `AssessIQ_UI_Template` and patched all 18 consumer references (eslint globs, 6 lint-tool SKIP_DIRS, `copy-brand-assets.mjs`, 7 apps/web pages, 4 doc files). Frontend rebuilt and recreated on VPS; root + favicon + og-image + webmanifest all return 200 in prod.
+
+**Commits:**
+- `9c03797` — chore(ui-system): refresh UI kit to v1.1 and rename folder to AssessIQ_UI_Template
+
+**Tests / verification:**
+- `pnpm -C apps/web typecheck` — clean.
+- `pnpm -C modules/17-ui-system typecheck` — clean.
+- `node apps/web/scripts/copy-brand-assets.mjs` — mirrored 12 favicon + 11 logo + 2 social assets into `apps/web/public/brand/`.
+- `pnpm tsx tools/lint-edge-routing.ts` — OK (32 files scanned, 127 mounts checked).
+- Production smoke (post-deploy): `GET /` → 200 text/html; `GET /brand/favicon/favicon.svg` → 200 image/svg+xml 313 B; `GET /brand/social/og-image.png` → 200 image/png 28075 B; `GET /brand/favicon/site.webmanifest` → 200 application/manifest+json.
+
+**VPS-side changes (additive only):**
+- `git pull` on `/srv/assessiq` to `9c03797`.
+- Rebuilt `assessiq/frontend:latest` (sha256 `bb3ced54e416…`) and force-recreated `assessiq-frontend` container. No other container touched.
+
+**Next:** Resume the priority backlog — (1) candidate login flow (Q1 from prior handoff: `RequireSession.tsx:44` redirects to `/admin/login` which is wrong UX for candidates viewing certs); (2) Phase 1 closure re-drill (Drills 1, 3 step 5, 4 against Finding C); (3) G3.D `auditInTx` sweep continuation; (4) Stage 3.1 default-flip prep; (5) R2 sentinel rewrite from earlier today.
+
+**Open questions:**
+- Vendor-side typo in kit-internal files: `CLAUDE.md`, `README.md`, `AccessIQ.html`, `brand/brand-guidelines.html`, and logo SVG filenames (`accessiq-horizontal.svg`, `accessiq-mark.svg`, etc.) all spell the product as "AccessIQ". Design-time only — no runtime references hit those names (HTML `<link>` and `<meta>` references in `apps/web/index.html` only touch `favicon/*` and `social/og-image.*`, which match across kit revisions). Decision: do not mass-rewrite vendor kit; raise with the design vendor on the next refresh. Documented in `docs/10-branding-guideline.md` and `CLAUDE.md` rule #7.
+- The new kit drops the prior `.design-canvas.state.json` (designer-tool persistence) — not referenced from app code, no impact, just noting the absence.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 alignment on existing references (18-file grep + structural diff old kit vs new kit), folder swap via `git rm -r` + `mv` + `git add`, 17 in-place reference patches across consumer code/lint/tools/docs, two `replace_all` doc sweeps, verification (typechecks + brand-mirror dry run + edge-routing lint), v1.1 deltas annotated into `docs/10-branding-guideline.md` and `PROJECT_BRAIN.md`, noreply-pattern commit + push, VPS pull + frontend rebuild + recreate + 4-URL smoke, this handoff.
+- Sonnet: n/a — work was 17 small, sequentially-trivial in-place edits visible from one Grep result; cold-start cost would have outweighed any parallel savings (per global "don't delegate when self-executing is faster" — edits ≤ ~30 lines across files already in Opus cache).
+- Haiku: n/a — single grep result identified all 18 consumers up front; no bulk fact-distillation needed.
+- codex:rescue: n/a — folder rename + reference patch is not security/auth/AI-classifier/audit-log adjacent. UI template is design reference only; ESLint already forbids runtime imports from the folder; HTML asset paths verified by direct curl rather than by adversarial review.
+
+---
+
 # Session — 2026-05-13 (Phase 5 Session 7 — VERIFIED end-to-end in prod with real cert AIQ-2026-05-DTJC72)
 
 **Headline:** Real certificate issued in production via new `tools/test-issue-cert.ts`; all three verify endpoints smoke clean end-to-end. HTML 200 with green ✓ badge + JSON-LD schema + 13 OG/Twitter meta tags pointing at absolute PNG URL. OG SVG 200 with valid SVG (1023 bytes, viewBox 1200×630). OG PNG 200 with valid PNG bytes (5329 bytes, 1200×630 8-bit RGBA). Phase 5 Session 7 is now **DoD-complete** for the first time since it was opened — verify-page UX is fully reachable, previewable on LinkedIn, and signature-verified live.
