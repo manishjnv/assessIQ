@@ -602,6 +602,26 @@ Admins and reviewers re-click "Sign in with Google" during testing and normal lo
 
 If any condition is false, the standard 10/min/IP limit applies.
 
+### Dev-mode rate-limit lift (2026-05-13, commit `e0b8e53`)
+
+While admins are still on Google SSO with no TOTP enrolled, condition (3) above NEVER holds — `session.totpVerified` is never set to `true`, so the admin-bypass branch is dead code in production today. That means every admin login flow (`/start` → `/cb` → `/whoami` → `/session-init`, ×retries) hits the standard 10/min/IP bucket and admins routinely 429 themselves while iterating locally.
+
+The dev-only mitigation in `rate-limit.ts:173-181`:
+
+| `NODE_ENV` | Per-IP `/api/auth/*` cap |
+| --- | --- |
+| `production` | 10 / min (unchanged — real protection against unauth brute force) |
+| `test`       | 10 / min (so the 11-hit threshold assertions in `middleware.test.ts` keep enforcing the boundary — do **not** widen) |
+| `development` | 100 / min (admin login retries don't self-throttle) |
+
+**What this is NOT:** a production fix. The proper production fix is to broaden the bypass predicate from `totpVerified === true` to *either* `totpVerified === true` *or* a verified Google SSO admin session, so the IP bucket is skipped for admins who have already completed the OIDC handshake. That change is load-bearing (security-adjacent in `01-auth`) and is queued as a separate diff with `codex:rescue` adversarial sign-off.
+
+**Why test mode stays strict:** test fixtures fire 11 requests and assert the 11th throws `RateLimitError` with `Retry-After`. Lifting test mode to 100 would silently break that boundary check across 42 tests in `middleware.test.ts`.
+
+**Considered and rejected:** (a) gating on `!== "production"` — too wide, breaks the test suite. (b) introducing a new `AUTH_RATE_LIMIT_DEV_MODE` env var — extra surface area for a one-line dev convenience; the existing `NODE_ENV === "development"` predicate is enough. (c) raising the per-user (60/min) and per-tenant (600/min) buckets in dev — not yet required; revisit if devs hit the 60/min/user cap.
+
+**Downstream impact:** none in production (NODE_ENV=production), none in CI/test (NODE_ENV=test). Only local `pnpm dev` shells see the lifted cap. The accompanying observability docs in `docs/11-observability.md` already note the 10/min/IP cap as the prod default; no edit required there.
+
 ### Opt-in flag is code-only
 
 The bypass is controlled by an `allowVerifiedAdminBypass: boolean` flag set **in the route definition** (in `authChain({ allowVerifiedAdminBypass: true })`). It is **never** read from `req.headers`, `req.query`, `req.body`, or `req.params`. A reviewer cannot smuggle a flag into the request to bypass the IP limiter.
