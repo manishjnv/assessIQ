@@ -1,3 +1,39 @@
+# Session — 2026-05-13 (Phase 5 Session 7 — OG meta tags + LinkedIn PNG preview; surfaced + fixed 3 pre-existing prod gaps)
+
+**Headline:** Phase 5 Session 7 (verify-page OG/Twitter meta tags + `GET /verify/:credentialId/og.png`) shipped. Smoke-testing in prod surfaced THREE pre-existing gaps that have silently broken the verify feature in production since Session 3 (2026-05-11): (a) Caddy reverse-proxy never routed `/verify/*` to assessiq-api, (b) migrations 0046 + 0074 never applied to the VPS DB, (c) `withPublicVerifyContext` missed `app.current_tenant`, causing the OR'd `tenant_isolation` policy's UUID cast on `''` to crash before `public_verify_lookup` could grant access. All three fixed this session; verify path now reachable end-to-end in prod, all three routes return correct 4xx for non-existent creds with no `unhandled error` log lines.
+
+**Commits:**
+- `0689f42` — feat(certification): Phase 5 Session 7 — OG meta tags + LinkedIn-compatible PNG preview
+- `58759d7` — fix(certification): set app.current_tenant sentinel in withPublicVerifyContext
+
+**Tests:**
+- `pnpm -C modules/18-certification typecheck` ✅ clean
+- `pnpm -C modules/18-certification test` ✅ 127/127 (was 115; +11 OG-meta/og.png tests in `verify.test.ts`, +1 R9 RLS-cast guard regression in `public-repository.test.ts`)
+- `pnpm exec tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts` ✅ 333 TS files, 0 violations
+- Live: `GET /verify/AIQ-2026-05-NOTFND` → 404 HTML (friendly page); `GET /verify/AIQ-2026-05-NOTFND/og.svg` → 404 JSON; `GET /verify/AIQ-2026-05-NOTFND/og.png` → 404 JSON. All three reach Fastify (confirmed in `assessiq-api` request log). No more `relation "certificates" does not exist` or `invalid input syntax for type uuid` in app logs.
+
+**VPS-side changes (additive only, per CLAUDE.md #8):**
+- `/opt/ti-platform/caddy/Caddyfile:82` — added `/verify/*` to the `assessiq.automateedge.cloud` `@api path` matcher. Backed up at `/opt/ti-platform/caddy/Caddyfile.bak.20260513T074746Z`. Truncate-write via `awk` + `tee` (per RCA 2026-04-30 bind-mount-inode protocol). Caddy reload-validated and reloaded.
+- VPS DB: applied `modules/18-certification/migrations/0046_certification_init.sql` then `0074_public_verify_policy.sql`. Recorded in `schema_migrations` with SHA256 checksums (`646f46c5…` and `5932b26e…`).
+- `assessiq-api` container rebuilt twice (after `0689f42` then `58759d7`) and recreated via `docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-api`. Healthy on both rebuilds.
+
+**Next:** Issue a real test certificate against a tenant (via `issueCertificate` on a passing graded attempt) to smoke the verify happy path end-to-end (200 HTML with green badge, 200 image/png PNG bytes). Then continue down the "next steps" backlog: candidate login flow (Q1 from prior handoff), Phase 1 closure re-drill (Drills 1, 3 step 5, 4 against Finding C), G3.D `auditInTx` sweep continuation, Stage 3.1 default-flip prep.
+
+**Open questions:**
+- Q1: Should the Caddyfile be checked into the repo (`infra/caddyfile/assessiq.snippet`)? Today it's VPS-only — the snippet is reviewable in this handoff and the RCA, but a config diff would benefit from PR review going forward. Deferred: broader infra refactor.
+- Q2: Migration `0074_public_verify_policy.sql` left `tenant_isolation` with an unguarded UUID cast. This session's fix is a sentinel inside `withPublicVerifyContext`, not a policy rewrite. Long-term, the policy should be `current_setting('app.current_tenant', true) IS NOT NULL AND current_setting('app.current_tenant', true) <> '' AND tenant_id = current_setting('app.current_tenant', true)::uuid` to be defensive against future GUC-setting omissions. Schedule as a follow-up migration?
+- Q3: Should pre-deploy include a `git ls-files modules/*/migrations/*.sql | diff - <(psql -c "SELECT version FROM schema_migrations …")` check that fails the deploy if any migration in the repo is missing from the DB? Would have caught the Session 3 → Session 7 migration-drift gap.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 reads (PROJECT_BRAIN, SESSION_STATE, RCA_LOG, SKILL.md, 14-credentialing.md, Caddyfile, routes-public.ts), Session 7 implementation (renderOgMeta + renderOgPng + og.png route + determineStatus helper extraction + 11 new tests), pre-existing-gap diagnosis (Caddy matcher gap, missing migrations, RLS cast crash), VPS Caddyfile truncate-write per bind-mount-inode protocol, migration application + schema_migrations recording, R9 regression test for the RLS-cast guard, RCA append covering all three gaps with prevention guidance, this handoff, two commits + two pushes + two VPS redeploys + post-redeploy smoke.
+- Sonnet: n/a — Session 7 surface is ~70 lines of edits across `routes-public.ts` + the test file plus four doc updates; the files were already in Opus's hot read cache after Phase 0 + Phase 1 reads. Cold-start cost would have outweighed token savings, especially since each gap-fix turn required reading the live VPS DB / Caddy state to decide the next action — judgment, not template-fill.
+- Haiku: n/a — no bulk grep / multi-file fact lookups. The prod-side investigation was concentrated in 1 Caddyfile + 1 RLS policy + 1 repository function.
+- codex:rescue: n/a — `modules/18-certification` is not on the load-bearing path list (`00-core | 01-auth | 02-tenancy | 07-ai-grading | 14-audit-log | infra`). The Session 7 OG/PNG code touches no auth/crypto/classifier surface. The `withPublicVerifyContext` fix sets a session-local GUC sentinel; the public_verify_lookup RLS policy itself was not modified. Per feedback-adversarial-reviewer-routing memory: Sonnet+GLM-4.6 is required for security-adjacent module diffs, but this surface (certificate **identity** is HMAC-protected; the verify SELECT path is gated by a `public_verify_lookup` policy that was already accepted in Session 3's review) is not in that scope. The Caddyfile + migration application are infra ops, not code; logged in the RCA per CLAUDE.md #8.
+
+---
+
 # Session — 2026-05-13 (Phase 5 router wiring — /admin/certificates + /candidate/certificates live)
 
 **Headline:** Wired the two Phase 5 certificate surfaces into `apps/web` — `AdminCertificates` (Session 5) and `MyCertificates` (Session 5, missing from `@assessiq/candidate-ui` barrel) are now reachable in prod. Also pulled forward the 6 commits accumulated since the last handoff (Session 6 LinkedIn share, G1 design revisions, RCA refresh) onto the VPS.
