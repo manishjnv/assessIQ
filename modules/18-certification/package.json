@@ -15,6 +15,7 @@
     "@assessiq/core": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
+    "@resvg/resvg-js": "^2.6.2",
     "fastify": "^5.0.0",
     "pg": "^8.13.0",
     "playwright-core": "^1.59.1",

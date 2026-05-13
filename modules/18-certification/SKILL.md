@@ -290,15 +290,36 @@ revoke(tenantId, certId, input): Promise<Certificate>                           
 reissue(tenantId, certId): Promise<Certificate>                                    // S6
 ```
 
-## Routes (all 501 in Session 1)
+## Routes
 ```
-GET  /api/certificates                          → list my certs (Session 5)
-GET  /api/certificates/:credentialId/pdf        → download PDF (Session 3)
-POST /api/certificates/:credentialId/share-linkedin → increment counter (Session 8)
-GET  /api/admin/certificates                    → admin list (Session 2)
-POST /api/admin/certificates/:id/revoke         → revoke (Session 2)
-POST /api/admin/certificates/:id/reissue        → re-snapshot (Session 6)
+GET  /verify/:credentialId                       → public verify HTML (Session 3)
+GET  /verify/:credentialId/og.svg                → OG image SVG, Twitter/FB (Session 3)
+GET  /verify/:credentialId/og.png                → OG image PNG, LinkedIn (Session 7)
+GET  /api/certificates                           → list my certs (Session 5)
+GET  /api/certificates/:credentialId/pdf         → download PDF (Session 4)
+POST /api/certificates/:credentialId/share-linkedin → increment counter (Session 6)
+GET  /api/admin/certificates                     → admin list (Session 5)
+POST /api/admin/certificates/:id/revoke          → revoke (Session 5)
+POST /api/admin/certificates/:id/reissue         → re-snapshot (Session 5)
 ```
+
+### OG / Twitter previews (Session 7)
+
+The verify page emits Open Graph + Twitter Card meta tags in its `<head>` so
+LinkedIn / Facebook / Twitter / Slack crawlers can render rich previews when
+the URL is shared. The tags point at the absolute `og.png` URL built from
+`PUBLIC_BASE_URL`. If that env var is unset (test environments), the meta
+tags are silently omitted and the page still renders.
+
+**Why two image formats:** LinkedIn's crawler rejects SVG previews — only
+PNG/JPEG are accepted. The PNG endpoint rasterizes the SVG at request time
+via `@resvg/resvg-js` (pure-Rust, no Chromium dependency, ~10ms per render)
+at 1200×630. The SVG endpoint stays for Twitter/Facebook/Mastodon
+(SVG-compatible) and for browsers fetching the same image directly.
+
+**Caching:** both image endpoints set `Cache-Control: public, max-age=3600`.
+A tier upgrade re-renders the image on the next fetch (the underlying
+`tier` / `display_name` etc. are read live from the row, not cached).
 
 ## Env vars
 | Var | Purpose | Required |

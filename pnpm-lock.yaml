@@ -762,6 +762,9 @@ importers:
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:../02-tenancy
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
       fastify:
         specifier: ^5.0.0
         version: 5.8.5
