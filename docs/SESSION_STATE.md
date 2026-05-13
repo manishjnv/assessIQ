@@ -1,3 +1,42 @@
+# Session — 2026-05-13 (UI v1.1 Phase 3a — easy primitives + first axe a11y wiring)
+
+**Headline:** Phase 3a of the UI kit v1.1 port shipped. Three new typed primitives (`Spinner`, `ProgressBar`, `Placeholder`) plus the module's first axe a11y test infrastructure are live in `@assessiq/ui-system` and deployed in the production CSS bundle (`/assets/index-yGEY05id.css`). Triggered by user observation "new ui template is not appearing on site" → diagnosis confirmed Phases 1+2 (token migration + atom refresh) were already live; the rest of the kit's "obvious new look" (Activity heatmap, leaderboard, refreshed page layouts) is Phases 4–12 and not yet wired.
+
+**Commits:**
+- `b959df6` — feat(ui-system): Phase 3a — easy primitives (Spinner, ProgressBar, Placeholder)
+
+**Tests:** 17/17 green (`pnpm -C modules/17-ui-system test`). Per-primitive coverage: Spinner 5, ProgressBar 6, Placeholder 6. Each suite includes one `vitest-axe` assertion — first axe wiring in this module. Typecheck clean across both `modules/17-ui-system` and `apps/web`. Storybook build deferred (no story-level smoke in this commit; stories committed but Storybook host build can land any time).
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated on `assessiq-vps`. Image rebuilt at 16:37 UTC, container healthy. Production CSS bundle hash flipped `B86xf8od` → `yGEY05id` (16.13 kB raw / 4.11 kB gzipped, +4 kB from the three new class blocks). Curl-verified `.aiq-spinner{,-sm,-lg}`, `.aiq-progress-bar{,-fill}` with `[data-height]`/`[data-variant]` selectors, and `.aiq-placeholder` are all in the live bundle.
+
+**What's NOT in this commit (intentional):**
+- No consumer wiring in `apps/web/**`. Inline spinner rings in `pages/invite-accept.tsx:139`, `pages/take/Submitted.tsx:235`, `pages/admin/mfa.tsx` still use their hand-rolled versions; their migration is deferred to the relevant page-refresh phase (P4 auth flows). This is per the plan's "Phase 3 is package-only" gate.
+- No Storybook story coverage for the previously-shipped ScoreRing/Sparkline/StatCard/Sidebar components (still deferred to Phase 14).
+- No update to the Chip story for the `warn` variant added in Phase 2 (also Phase 14).
+
+**Test infra additions (one-time cost for the rest of the v1.1 port):**
+- devDeps: `vitest@2.1.4`, `vitest-axe@0.1.0`, `@testing-library/react@16.0.1`, `@testing-library/jest-dom@6.5.0`, `axe-core@4.10.0`, `jsdom@25.0.1`.
+- `vitest.config.ts` (jsdom environment, `src/**/*.test.{ts,tsx}` include).
+- `vitest.setup.ts` (axe matcher registration + `cleanup()` afterEach).
+- `src/test-setup.d.ts` patches `vitest-axe@0.1.0`'s vitest-v1 `Vi` namespace augmentation to vitest v2's `declare module "vitest" { interface Assertion<T> }` shape — without this patch, every `toHaveNoViolations()` call in any test fails typecheck.
+- `tsconfig.json` `types` array gains `@testing-library/jest-dom` and `vitest/globals` so existing typecheck stays clean.
+
+**Next:** (1) Phase 3b — Activity primitives (`ActivityHeatmap`, `StackedBarChart`, `LeaderboardList`) — fresh session, same parallel-Sonnet dispatch pattern, ~700 lines across 9 files. (2) 07-ai-grading G3.D slice (still outstanding per prior handoff — load-bearing, codex:rescue gate). (3) Phase 11 admin Activity backend + wire is the highest-payoff "obvious new look" win once 3b lands. (4) Storybook gap-fill (deferred to Phase 14) — ScoreRing/Sparkline/StatCard/Sidebar stories + Chip.warn story update.
+
+**Open questions:** none for this slice. The vitest-axe@0.1.0 patch is a transitive-dep workaround; if vitest-axe ships a v0.2 with vitest v2 support, the `test-setup.d.ts` augmentation can be removed.
+
+**Posture note (axe a11y wiring precedent):** This commit sets the bar that every new primitive in modules/17-ui-system gets one `axe(container)` assertion in its `.test.tsx` from now on. Existing primitives (Button, Card, Chip, Field, Icon, Logo, Num, ScoreRing, Sidebar, Sparkline, StatCard) still have zero axe coverage — backfilling that is part of Phase 14 (cross-cut verify).
+
+---
+
+## Agent utilization
+- Opus: orchestrated; wrote pre-flight test-infra scaffolding (vitest config, setup, deps, CSS class blocks in tokens.css) myself since 3 parallel agents would have raced on shared files; did the Phase 3 diff review on all 9 new files; wrote barrel exports, SKILL.md + 08-ui-system.md updates, commit, deploy ops, and this handoff. Diagnosis of "new UI not appearing" (curl + bundle CSS extract) was Opus direct — single-shot, no delegation needed.
+- Sonnet: 3 parallel calls — one per primitive (`Spinner`, `ProgressBar`, `Placeholder`). Each subagent wrote `.tsx` + `.stories.tsx` + `.test.tsx` from a self-contained prompt with exact contract, source citation, test boilerplate, and report format. All 3 reported back with diffs + verification output passing. Notably all 3 independently discovered + patched the same vitest-axe@0.1.0 / vitest v2 namespace mismatch in `src/test-setup.d.ts` — last writer's converged fix was correct.
+- Haiku: n/a — post-deploy verification was a single `curl + grep` for the three CSS class signatures; below the bulk-sweep threshold.
+- codex:rescue: n/a — `modules/17-ui-system` is NOT on the load-bearing-paths list in CLAUDE.md; non-security-adjacent component code, no adversarial gate required.
+
+---
+
 # Session — 2026-05-13 (Auth: SSO admin lockout fix — MFA-aware IP-bypass predicate)
 
 **Headline:** Fixed the production "admin lockout" symptom. The per-IP rate-limit bypass in `modules/01-auth/src/middleware/rate-limit.ts` required `session.totpVerified === true`, but with `MFA_REQUIRED=false` in prod (Google SSO is the sole active factor; TOTP not enrolled) no session ever set that flag, so the bypass was dead and every admin login flow hit the 10/min/IP cap and 429'd itself. The predicate now mirrors `requireAuth` (require-auth.ts:30-39): TOTP is checked only when `config.MFA_REQUIRED=true`, dormant otherwise. Sonnet + GLM-4.6 adversarial review both ACCEPT.
