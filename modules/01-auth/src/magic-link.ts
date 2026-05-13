@@ -19,6 +19,13 @@ export interface MintCandidateSessionInput {
   tenantId: string;
   ip: string;
   ua: string;
+  /**
+   * Optional session lifetime override. Defaults to the standard SESSION_TTL_SEC (8h)
+   * for /take/<token> assessment magic-link flows. Pass CANDIDATE_SESSION_TTL_SEC
+   * (30 days) for the candidate certificate-login flow which issues a fixed-window
+   * long-lived session (non-sliding — the refresh path always uses 8h).
+   */
+  ttlSeconds?: number;
 }
 
 export async function mintCandidateSession(
@@ -31,5 +38,6 @@ export async function mintCandidateSession(
     totpVerified: true,    // candidates skip MFA — magic link IS the auth factor
     ip: input.ip,
     ua: input.ua,
+    ...(input.ttlSeconds !== undefined ? { ttlSeconds: input.ttlSeconds } : {}),
   });
 }

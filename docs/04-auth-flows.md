@@ -426,6 +426,121 @@ Also ships: `GET /verify/:credentialId/og.svg` — 1200×630 SVG for LinkedIn li
 
 ---
 
+## Flow 6 — Candidate magic-link login
+
+> **Status: LIVE 2026-05-13 (Phase 5).** Migration `0076_candidate_login_tokens.sql` applied to production. Routes `POST /api/auth/candidate/request-link` and `POST /api/auth/candidate/verify-link` registered in `apps/api/src/routes/auth/candidate.ts`. Implementation in `modules/01-auth/src/candidate-login.ts`. See `modules/01-auth/SKILL.md` § Candidate magic-link login.
+>
+> **Why the verify endpoint is POST, not GET.** Email-preview crawlers (Gmail, Outlook, Slack, Teams) prefetch link URLs with GET to render previews and scan for malware. A GET verify-link would consume the single-use token on prefetch, before the candidate ever clicked. The email link therefore points at a SPA route `/candidate/login/verify?token=…`, which is safe to prefetch (it returns HTML); the actual verification is a POST from that page's JavaScript, which crawlers do not execute. Crawlers also don't follow `Set-Cookie` headers, so even a successful crawler GET wouldn't mint a session — but the token would be burned, locking the real candidate out.
+
+This flow lets a candidate sign in to view their certificates at `/candidate/certificates` without a password. It is deliberately separate from the assessment-taking magic link (Flow 2 / `/take/:token`): that link is invitation-scoped and single-use-per-attempt; this login link is identity-scoped and produces a long-lived 30-day session so candidates can return to their certificate portfolio at any time without admin re-intervention.
+
+The trigger is the candidate navigating to `/candidate/login` on their own — either via a "View my certificates" link in a notification email or directly. There is no admin action required per login; the admin only needs to have previously registered the candidate as a `users` row in the tenant.
+
+```
+┌──────────┐              ┌────────────┐              ┌────────────┐
+│ Browser  │              │ AssessIQ   │              │  Email     │
+└────┬─────┘              └─────┬──────┘              └─────┬──────┘
+     │                          │                           │
+     │ GET /candidate/login      │                           │
+     ├─────────────────────────▶│                           │
+     │  200 — login page (email input)                      │
+     │◀─────────────────────────┤                           │
+     │                          │                           │
+     │ POST /api/auth/candidate/request-link                │
+     │  { email: "candidate@example.com",                   │
+     │    tenant_slug: "wipro-soc" }                        │
+     ├─────────────────────────▶│                           │
+     │                          │ Resolve slug →            │
+     │                          │  tenant_id (system role)  │
+     │                          │ withTenant(tenant_id):    │
+     │                          │  Look up users by email   │
+     │                          │  under RLS (Fix 1)        │
+     │                          │ If found: generate        │
+     │                          │  token = randomBytes(32)  │
+     │                          │  store sha256(token) +    │
+     │                          │  expires_at = now+15min   │
+     │                          │  in candidate_login_tokens│
+     │                          │  emit auth.candidate.     │
+     │                          │   login_link_requested    │
+     │                          ├──────────────────────────▶│
+     │                          │  Send email: click link   │
+     │                          │  → /candidate/login/      │
+     │                          │    verify?token=<t>       │
+     │                          │  (SPA route, crawler-safe)│
+     │  204 (always — even if email not found)              │
+     │◀─────────────────────────┤                           │
+     │                          │                           │
+     │  (candidate clicks link in email → SPA loads)        │
+     │  GET /candidate/login/verify?token=<t>               │
+     │  → SPA JS reads ?token=, then POSTs:                 │
+     │                          │                           │
+     │ POST /api/auth/candidate/verify-link  {token}        │
+     ├─────────────────────────▶│                           │
+     │                          │ Destroy prior aiq_sess    │
+     │                          │  cookie if present        │
+     │                          │  (Fix 4, fire-and-forget) │
+     │                          │ sha256(token) lookup in   │
+     │                          │  candidate_login_tokens   │
+     │                          │  WHERE consumed_at IS NULL│
+     │                          │  AND expires_at > now()   │
+     │                          │ atomic UPDATE consumed_at │
+     │                          │  = now() RETURNING id     │
+     │                          │ sessions.create(          │
+     │                          │  role='candidate',        │
+     │                          │  totpVerified=true,       │
+     │                          │  expiresAt=now+30d)       │
+     │                          │ emit auth.candidate.      │
+     │                          │   login_link_consumed     │
+     │  Set-Cookie: aiq_sess (httpOnly,Secure,SameSite=Lax) │
+     │  200 { ok: true, redirect: '/candidate/certificates' }│
+     │◀─────────────────────────┤                           │
+     │  (SPA navigates to /candidate/certificates)          │
+     │                          │                           │
+     │  (failure path — token invalid/expired/consumed)     │
+     │  200 { ok: false, error: 'invalid_link' }            │
+     │◀─────────────────────────┤                           │
+     │  (SPA navigates to /candidate/login?error=invalid_link)│
+```
+
+### Session cookie spec for candidate sessions
+
+The session produced by this flow uses the same `aiq_sess` cookie as admin and assessment-taking sessions; the role discriminator inside the session (`role='candidate'`) is what `requireAuth` checks.
+
+| Property | Value |
+|---|---|
+| Cookie name | `aiq_sess` |
+| Value | 32-byte CSPRNG; only `sha256` hash stored in DB |
+| Flags | `HttpOnly; Secure; SameSite=Lax; Path=/` |
+| Lifetime | **30 days fixed** — NOT sliding. `extends_at` is never updated on access. |
+| `totpVerified` | `true` — the magic link itself is the authentication factor; no TOTP step |
+| Role | `candidate` |
+| `session_type` | `standard` (not `embed`) |
+
+The 30-day fixed lifetime is intentional and differs from the 8-hour sliding admin session. Candidates are not expected to visit daily; a long fixed window avoids forcing re-auth on infrequent returners. Idle eviction (the 30-minute `lastSeenAt` check in sessionLoader) is **disabled** for candidate sessions — see `modules/01-auth/src/candidate-login.ts` for the `skipIdleEviction: true` flag on `sessions.create`.
+
+### Anti-enumeration
+
+`POST /api/auth/candidate/request-link` returns `204 No Content` regardless of whether the submitted email address matched, the tenant slug was valid, or the rate limit was exceeded. This is intentional: callers must never be able to distinguish "found" from "not found" or "slug valid" from "slug invalid" via HTTP responses.
+
+**Timing oracle defence (Fix 3 — 2026-05-13):** The no-match path (slug miss before any DB work) was measurably faster than the match path (slug resolve + RLS user SELECT + token INSERT + audit + email enqueue). `requestCandidateLoginLinkSystem` now wraps all work in `Promise.all([actualWork, sleep(200)])` so both paths complete in ≥ 200 ms. The 200 ms floor swamps the ~10–50 ms timing difference at network noise levels.
+
+Do not add any response field that differentiates "email found" from "email not found". If a future feature requires a "we could not find that address" UX, it must be implemented with a server-side hint that is time-limited and authenticated (e.g., a short-lived signed cookie), not an inline HTTP body diff.
+
+### Rate limits
+
+| Dimension | Limit | Window | Notes |
+|---|---|---|---|
+| Per (IP, email) | 5 requests | 60 minutes | Fixed-window Redis counter `aiq:rl:cand-login:<ip>:<sha256(lower(email))>`; checked before any DB work in `requestCandidateLoginLinkSystem` |
+| Response on exceed | `204 No Content` | — | Anti-enumeration: returning 429 would leak whether an email is active. The request is silently dropped. |
+| Token TTL | 15 minutes | — | `candidate_login_tokens.expires_at = now() + interval '15 minutes'` |
+| Token cardinality | Single-use | — | Atomic `UPDATE … WHERE consumed_at IS NULL RETURNING id`; a second click returns no row → redirect to `/candidate/login?error=invalid_link` |
+
+**Rate-limit key design:** The email component of the Redis key is `sha256(lower(email))` — the raw email address is never written to Redis keyspace, logs, or memory dumps. Only the IP component is plaintext (IPs are already logged by Caddy/Fastify).
+
+Unconsumed, expired tokens are swept by the existing session expiry sweeper (Phase 3 follow-up). The partial index `candidate_login_tokens_user_unconsumed_idx ON (user_id) WHERE consumed_at IS NULL` keeps the live-token lookup fast even with a long history of expired rows.
+
+---
+
 ## Flow 5 — Future auth methods (designed in)
 
 Tenant admin opens *Settings → Authentication* and toggles:
@@ -574,6 +689,8 @@ The canonical trust-boundary table. Every route that runs without a `requireAuth
 | `GET /verify/:credentialId/og.svg` | GUC-based RLS (`public_verify_lookup`) | Same scoping as verify page; SVG only |
 | `GET /help/...` (public routes) | None | Public help content; no user data |
 | `POST /help/track` | None | Anonymous help-view analytics |
+| `POST /api/auth/candidate/request-link` | None (per-IP+email rate-limited; 204 always) | Auth-establishing; anti-enumeration requires unconditional 204 |
+| `POST /api/auth/candidate/verify-link` | `candidate_login_tokens` sha256 hash (DB lookup); body `{token}` | Token IS the credential; session minted after hash validation + atomic consume. POST (not GET) to avoid email-preview crawler prefetch consuming the single-use token before the candidate clicks. |
 
 > Routes using `publicChain: authChain({ requireSession: false })` (e.g. `/take/*`) still pass through the session-loader hook — a valid session is loaded if present, but its absence is not an error. This is auth-**optional**, not auth-bypassed.
 

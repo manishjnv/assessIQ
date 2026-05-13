@@ -49,6 +49,8 @@ export {
   CandidateHelp,
   CompletionModal,
   MyCertificates,
+  CandidateShell,
+  CandidateSessionBanner,
 } from "./components";
 export type {
   AttemptTimerProps,
@@ -60,6 +62,8 @@ export type {
   NavigatorItem,
   CandidateHelpProps,
   CompletionModalProps,
+  CandidateShellProps,
+  CandidateSessionBannerProps,
 } from "./components";
 export type { MyCertificate, MyCertificatesResponse } from "./api";
 

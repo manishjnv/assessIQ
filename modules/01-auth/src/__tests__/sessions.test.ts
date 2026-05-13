@@ -637,7 +637,54 @@ it("sessions.destroyAllForUser returns 0 when user has no sessions; idempotent o
 });
 
 // ---------------------------------------------------------------------------
-// Test 15 — Multi-tenant isolation: tenant A's sessions invisible from tenant B
+// Test 15 — sessions.create with custom ttlSeconds (30-day candidate session)
+// ---------------------------------------------------------------------------
+
+it("sessions.create with ttlSeconds=30*24*60*60 produces a 30-day TTL in Redis and a matching expiresAt", async () => {
+  const THIRTY_DAYS = 30 * 24 * 60 * 60;
+  const before = Date.now();
+
+  const result = await sessions.create({
+    userId: userA,
+    tenantId: tenantA,
+    role: "candidate",
+    totpVerified: true,
+    ip: "127.0.0.1",
+    ua: "ttl-override-test/1",
+    ttlSeconds: THIRTY_DAYS,
+  });
+
+  const tokenHash = sha256Hex(result.token);
+  const redis = getRedis();
+
+  // Redis TTL should be approximately 30 days (within 5s of exact).
+  const redisTtl = await redis.ttl(`aiq:sess:${tokenHash}`);
+  expect(redisTtl).toBeGreaterThan(THIRTY_DAYS - 5);
+  expect(redisTtl).toBeLessThanOrEqual(THIRTY_DAYS);
+
+  // Returned expiresAt should be approximately now + 30 days (within 5s).
+  const expiresMs = new Date(result.expiresAt).getTime();
+  const expectedMs = before + THIRTY_DAYS * 1000;
+  expect(Math.abs(expiresMs - expectedMs)).toBeLessThan(5000);
+
+  // Per-user index TTL should outlive the session (>= 30 days).
+  const indexTtl = await redis.ttl(`aiq:user:sessions:${userA}`);
+  expect(indexTtl).toBeGreaterThan(THIRTY_DAYS);
+
+  // Postgres mirror should have the correct expires_at.
+  const pgRow = await withSuperClient(async (client) =>
+    client.query<{ expires_at: string }>(
+      `SELECT expires_at FROM sessions WHERE id = $1`,
+      [result.id],
+    ),
+  );
+  expect(pgRow.rows).toHaveLength(1);
+  const pgExpiresMs = new Date(pgRow.rows[0]!.expires_at).getTime();
+  expect(Math.abs(pgExpiresMs - expectedMs)).toBeLessThan(5000);
+});
+
+// ---------------------------------------------------------------------------
+// Test 16 — Multi-tenant isolation: tenant A's sessions invisible from tenant B
 // ---------------------------------------------------------------------------
 
 it("multi-tenant RLS isolation: tenant B context sees zero rows from tenant A sessions", async () => {

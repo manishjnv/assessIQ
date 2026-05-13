@@ -138,6 +138,89 @@ Run locally: `pnpm --filter @assessiq/web e2e` (after `pnpm --filter @assessiq/w
 - **Save-and-resume across days** — explicit non-goal v1; tenant setting in v2.
 - **Accessibility for assistive tech** (KQL editor screen-reader navigation) — pending Monaco + manual testing.
 
+---
+
+## Candidate certificate portal (Phase 5, 2026-05-13)
+
+A separate surface from the assessment-taking flow. Candidates navigate to `/candidate/login` to authenticate via magic link and then view their certificates at `/candidate/certificates`. This surface uses a distinct shell (`CandidateShell`) rather than the `<TakeRoot>` wrapper, because it has a persistent header (session status + expiry warning) and does not need the attempt-scoped `HelpProvider` setup.
+
+### Page tree
+
+```
+/candidate
+├── /login              CandidateLogin — email input + submit; 204 → shows link-sent state
+├── /login/verify       CandidateLoginVerify — intermediate route; GET ?token= triggers server-side redirect
+└── /certificates       CandidateShell > MyCertificates (already exists in 11-candidate-ui)
+```
+
+### CandidateShell
+
+**File:** `apps/web/src/pages/candidate/CandidateShell.tsx`
+
+Wrapper rendered on all `/candidate/*` routes that require an active session (`/certificates`). Provides:
+
+- `<CandidateSessionBanner>` in the page header — shows "Signed in as {email} · Expires {date}" and a "Sign out" link
+- `<Outlet>` for child pages
+- Redirects to `/candidate/login` if no valid `aiq_sess` cookie is present (detected via `GET /api/auth/whoami` returning 401)
+
+**Props:** none — reads session state from the `useWhoami()` hook (fetches `/api/auth/whoami`).
+
+**When it renders:** on any `/candidate/*` route that requires authentication. `/candidate/login` and `/candidate/login/verify` are exempt (they render standalone without CandidateShell).
+
+### CandidateSessionBanner
+
+**File:** `apps/web/src/pages/candidate/CandidateSessionBanner.tsx`
+
+Persistent header element inside `CandidateShell`. Two visual states:
+
+| State | Trigger | Content |
+|---|---|---|
+| Normal | `session.expiresAt > now + 5 days` | "Signed in as {email} · Session expires {relative date}" |
+| Expiring soon | `session.expiresAt <= now + 5 days` | Amber warning banner; "Your session expires in {N} days. [Request a new sign-in link]" |
+
+The "expiring soon" threshold (5 days = day 25 of the 30-day session) is a UX constant in the component file. Help IDs wired:
+
+- Normal state header element: `candidate.auth.session-status`
+- Expiring-soon banner: `candidate.auth.expiring-soon`
+
+**Props:**
+```ts
+interface CandidateSessionBannerProps {
+  email: string;
+  expiresAt: string;       // ISO 8601 UTC
+  onRequestNewLink: () => void;  // navigates to /candidate/login
+}
+```
+
+### CandidateLogin
+
+**File:** `apps/web/src/pages/candidate/CandidateLogin.tsx`
+
+Two internal states managed by a local state machine:
+
+| State | What renders |
+|---|---|
+| `idle` | Email input field + "Send link" button. Help ID on the input: `candidate.auth.request-link` |
+| `sent` | Success panel: "Check your email" copy. Help ID on the panel: `candidate.auth.link-sent` |
+
+On submit, calls `POST /api/auth/candidate/request-link`. Transitions to `sent` on both 204 (success) and 404/500 that cannot leak enumeration — the server always returns 204, so the client always shows the `sent` state after a non-429 response. On 429, shows an inline "Too many attempts — try again in {retryAfterMs / 1000 / 60} minutes" message and stays in `idle`.
+
+**Props:** none — standalone page component.
+
+**Accessibility:** email input uses `<label htmlFor>`. "Send link" is `<button type="submit">`. The `sent` state panel uses `role="status"` so screen readers announce the state change.
+
+### CandidateLoginVerify
+
+**File:** `apps/web/src/pages/candidate/CandidateLoginVerify.tsx`
+
+Thin intermediate route mounted at `/candidate/login/verify`. On mount, reads `?token=` from the URL and immediately navigates the browser to `GET /api/auth/candidate/verify-link?token=<t>` (the server handles the 302 redirect to `/candidate/certificates` or back to `/candidate/login?error=invalid_link`).
+
+In practice this page is only visible for the brief moment between the candidate clicking the email link and the server's 302 completing. It renders a neutral "Signing you in…" loading state. If the server redirect does not fire within 5 seconds (network error), shows "Something went wrong — [try requesting a new link]".
+
+**Props:** none — reads `useSearchParams()` from React Router.
+
+**Help IDs:** none — the page is transient and does not warrant a drawer.
+
 ## Open questions
 - (none new — Phase 1 G1.D closed all open questions in the kickoff plan; Phase 2 follow-ups tracked above)
 

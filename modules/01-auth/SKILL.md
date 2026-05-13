@@ -39,6 +39,7 @@ Reads: `users` (existence check), `tenants`, `tenant_settings`.
 - **TOTP enroll:** server generates secret + QR; user confirms; recovery codes shown once
 - **Embed:** `/embed?token=<JWT>` → verify HS256 with tenant secret → mint session → SPA in embed mode
 - **API key:** `Authorization: Bearer aiq_live_*` → sha256 lookup → tenant context set
+- **Candidate magic-link login:** `POST /api/auth/candidate/request-link` → generate token + email → `GET /api/auth/candidate/verify-link?token=<t>` → atomic consume → 30-day session → `/candidate/certificates`
 - **E2E test-minter (dev/CI only):** `POST /api/dev/mint-session` (body: `{email, role, tenantSlug}`) → find-or-create user via system-role BYPASSRLS → `sessions.create({totpVerified:true})` → sets `aiq_sess` cookie + returns `{sessionId, userId}`. Route is conditionally imported only when `ENABLE_E2E_TEST_MINTER=true` (see `apps/api/src/server.ts` conditional import). Pattern mirrors `/embed/sdk-mint` (12-embed-sdk) but uses a dedicated env var so E2E and embed are independently gated. **INVARIANT: ENABLE_E2E_TEST_MINTER must be absent or `"false"` in production `.env`.** Verify post-deploy: `curl -I /api/dev/mint-session` must return 404.
 
 ## Help/tooltip surface
@@ -294,3 +295,46 @@ Three auth-owned tables in `02-DATA:105–131` lack a direct `tenant_id` column 
 **Not included.** `sessions` already has `tenant_id` (`02-DATA:148`). `embed_secrets` and `api_keys` already have `tenant_id` (`02-DATA:175, 161`). No edits there.
 
 **Downstream impact.** None on application code (RLS is transparent to the ORM/repository layer). `tools/lint-rls-policies.ts` will validate the new policies in CI. Window 4's migrations are the only production touchpoint.
+
+---
+
+## Candidate magic-link login (Phase 5, 2026-05-13)
+
+### Purpose
+
+Lets a candidate sign in to view their certificates at `/candidate/certificates` without a password. This is separate from the assessment-taking magic link (`/take/:token` — Flow 2) because the sign-in session is identity-scoped and long-lived (30 days), whereas the assessment link is invitation-scoped and single-use-per-attempt.
+
+### File map
+
+| File | Role |
+|---|---|
+| `modules/01-auth/src/candidate-login.ts` | Core logic: `requestCandidateLoginLink(email, tenantId, ip, ua)` and `verifyCandidateLoginToken(plaintext, tenantId)` |
+| `apps/api/src/routes/auth/candidate.ts` | Fastify route handlers for `POST /api/auth/candidate/request-link` and `GET /api/auth/candidate/verify-link` |
+| `modules/01-auth/migrations/0076_candidate_login_tokens.sql` | `candidate_login_tokens` table + indexes + three RLS policies |
+
+### Session TTL knob
+
+`sessions.create` is called with an explicit `expiresAt` calculated as `Date.now() + 30 * 24 * 60 * 60 * 1000`. The knob to change this is the constant `CANDIDATE_SESSION_TTL_MS` exported from `candidate-login.ts`. Do not change the value without also updating `docs/04-auth-flows.md` § Flow 6 and the `candidate.auth.session-status` help entry.
+
+`skipIdleEviction: true` is passed to `sessions.create`. This disables the 30-minute `lastSeenAt` idle-eviction check that the sessionLoader applies to admin sessions. Candidates are expected to access their certificates infrequently; idle-eviction would log them out after 30 minutes of browser inactivity, which is a poor UX for a 30-day session.
+
+### Audit actions emitted
+
+| Action | When | `actor_kind` | `entity_type` |
+|---|---|---|---|
+| `auth.candidate.login_requested` | Token created and email dispatched | `system` | `user` |
+| `auth.candidate.login_verified` | Token consumed, session minted | `user` | `session` |
+
+No audit row is emitted when `request-link` receives an email that does not match a user (anti-enumeration). No audit row is emitted when `verify-link` fails (invalid/expired/consumed token) — failure events are observable via the absence of a `login_verified` row and via the request log, but not via `audit_log`, to avoid a timing-correlation side-channel.
+
+### Threat model summary
+
+| Threat | Mitigation |
+|---|---|
+| Email enumeration | `request-link` returns 204 unconditionally; token creation silently no-ops for unknown emails |
+| Token brute-force | 43-char base64url = 256-bit entropy; 15-minute TTL; single-use atomic consume |
+| Token replay | `UPDATE … WHERE consumed_at IS NULL RETURNING` is atomic; concurrent clicks race on the UNIQUE index; second caller gets zero rows → redirect to error |
+| Rate abuse (link spam) | 5 req / 60 min per (IP, email SHA) via Redis fixed-window counter |
+| Session hijacking | `aiq_sess` cookie is `HttpOnly; Secure; SameSite=Lax`; 30-day fixed window reduces re-auth surface without adding sliding-window extension risk |
+| Cross-tenant token use | `tenant_id` is validated on both the lookup and the RLS policy; a token from Tenant A cannot be consumed against Tenant B's endpoint because the `withTenant(tenantId)` call sets `app.current_tenant` before the UPDATE, and the RLS policy filters by that GUC |
+| Token storage leak | Only `sha256(token).hex` is persisted; plaintext lives only in the email body and the browser address bar during the redirect; it is never logged by AssessIQ |

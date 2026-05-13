@@ -17,7 +17,7 @@
 |---|---|
 | 02-tenancy | `tenants`, `tenant_settings` |
 | 03-users | `users`, `user_credentials`, `user_invitations` |
-| 01-auth | `sessions`, `api_keys`, `embed_secrets`, `oauth_identities`, `totp_recovery_codes` |
+| 01-auth | `sessions`, `api_keys`, `embed_secrets`, `oauth_identities`, `totp_recovery_codes`, `candidate_login_tokens` |
 | 12-embed-sdk | No own tables — adds columns to `tenants` (`embed_origins`, `privacy_disclosed`), `sessions` (`session_type`), and `attempts` (`embed_origin`) via migrations 0070–0073 (Phase 4, 2026-05-03) |
 | 04-question-bank | `question_packs`, `levels`, `questions`, `question_versions`, `tags`, `question_tags` |
 | 05-assessment-lifecycle | `assessments`, `assessment_invitations` |
@@ -222,6 +222,61 @@ CREATE TABLE embed_secrets (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+### `candidate_login_tokens` — passwordless candidate sign-in (Phase 5, 2026-05-13)
+
+> **Status: LIVE 2026-05-13. Security hardening applied 2026-05-13 (adversarial review cycle).** Migration `modules/01-auth/migrations/0076_candidate_login_tokens.sql` applied to production. See `docs/04-auth-flows.md` § Flow 6 for the sequence diagram and `docs/03-api-contract.md` § Candidate magic-link login for the endpoint contract.
+
+**What it is.** A short-lived, single-use token table that supports the `POST /api/auth/candidate/request-link` + `POST /api/auth/candidate/verify-link` flow. A candidate submits their email and `tenant_slug`; the server resolves the slug to a `tenant_id` (system-role only), then looks up the user under RLS inside `withTenant(tenant_id, …)`. If the user exists, a 32-byte CSPRNG token is generated, only its sha256 hex hash is stored here, and the plaintext is emailed. The candidate clicks the link, the SPA POSTs the token to the verify endpoint, the server rehashes it, finds and atomically marks the row consumed, and mints a 30-day `aiq_sess` cookie. The plaintext token is never stored.
+
+**Tenant-scoped writes (Fix 1 — 2026-05-13).** All writes to this table (INSERT on request, UPDATE on verify) happen inside `withTenant(tenant_id, client => …)`. The `tenant_id` is always known before any write — on the request path it comes from the slug resolution; on the verify path it is returned by the atomic `UPDATE … RETURNING tenant_id`. No write to this table ever happens outside an RLS-active transaction.
+
+**Why a separate table (not `user_invitations`).** `user_invitations` is assessment-scoped: its TTL is 72 hours, its single-use semantics are tied to attempt state (`status` progressing past `in_progress`), and its ownership belongs to `03-users` / `05-assessment-lifecycle`. The login token has different invariants: 15-minute TTL, single-use-on-click (no attempt involved), and ownership in `01-auth`. Sharing the table would require either a nullable `assessment_id` column (semantically wrong) or a discriminator column that the invitation flow would have to filter around in every query. A dedicated table is cleaner and cheaper.
+
+**Why not `sessions` directly.** The request endpoint must not create a session until the candidate has proved they received the email (by clicking the link). Creating a pre-session row in `candidate_login_tokens` with a 15-minute TTL is the standard pattern; it avoids orphan sessions and lets the verify endpoint be the single place where a session row appears.
+
+```sql
+-- Migration: modules/01-auth/migrations/0076_candidate_login_tokens.sql
+CREATE TABLE candidate_login_tokens (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash    TEXT NOT NULL,           -- sha256 hex of CSPRNG token; plaintext never stored
+  expires_at    TIMESTAMPTZ NOT NULL,    -- 15 minutes from creation
+  consumed_at   TIMESTAMPTZ,             -- set atomically on verify; NULL = still live
+  requested_ip  INET,
+  requested_ua  TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Unique lookup by token hash — the verify path's primary access pattern
+CREATE UNIQUE INDEX candidate_login_tokens_hash_idx
+  ON candidate_login_tokens(token_hash);
+
+-- Fast "live tokens for user X" query (rate-limit check + admin tooling)
+CREATE INDEX candidate_login_tokens_user_unconsumed_idx
+  ON candidate_login_tokens(user_id) WHERE consumed_at IS NULL;
+```
+
+**RLS: three-policy NULL-safe template (2026-05-13 pattern).** SELECT + INSERT + UPDATE policies all use the `current_setting('app.current_tenant', true) IS NOT NULL AND current_setting('app.current_tenant', true) <> '' AND tenant_id = current_setting('app.current_tenant', true)::uuid` form. The `true` parameter makes `current_setting` return `NULL` rather than raising an error when the GUC is unset; the explicit `IS NOT NULL AND <> ''` guards handle both the unset case (NULL → FALSE) and the `pg.Pool` empty-string GUC leak ('' → FALSE). All three evaluate to FALSE when the GUC is absent, making the table fail-closed. A separate `tenant_isolation_update` policy (for `FOR UPDATE`) is required because the verify path's `UPDATE … RETURNING` must be permitted by RLS — unlike the standard two-policy template used elsewhere, the token table needs the explicit UPDATE policy.
+
+**Single-use enforcement.** The verify handler runs:
+```sql
+UPDATE candidate_login_tokens
+   SET consumed_at = now()
+ WHERE token_hash = $1
+   AND consumed_at IS NULL
+   AND expires_at > now()
+RETURNING user_id, tenant_id
+```
+If the UPDATE returns zero rows (token already consumed, expired, or not found), the handler redirects to `/candidate/login?error=invalid_link`. There is no separate SELECT step — the atomic UPDATE is both the check and the mark, preventing a TOCTOU race between a check and a subsequent consume.
+
+**Relationship to `sessions`.** `candidate_login_tokens` has no FK to `sessions`. A successful verify creates a row in `sessions` (via `01-auth.sessions.create`) with `expires_at = now() + 30 days`. The token row is retained for audit purposes (`consumed_at` timestamp + `requested_ip` / `requested_ua` columns); it is not deleted on consume. Expired unconsumed tokens are swept by the session expiry sweeper (Phase 3 follow-up — same job that purges expired `sessions` rows).
+
+**What is NOT included:**
+- No FK from `candidate_login_tokens` to `sessions` — the verify path does not need to walk back from session to token, and adding the FK would create a circular dependency within `01-auth`.
+- No `tenant_id` on the linked `sessions` row beyond what `sessions.create` already receives — tenancy flows from `candidate_login_tokens.tenant_id` at verify time.
+- No per-token rate-limit column — rate limiting is enforced by the Redis counter on the request endpoint, not stored in the DB.
 
 ## Question bank
 

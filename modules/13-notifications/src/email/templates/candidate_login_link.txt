@@ -1,0 +1,14 @@
+Subject: Your AssessIQ sign-in link
+
+Hi {{display_name}},
+
+You asked for a sign-in link to your AssessIQ account. Click the link below to sign in. You won't need to type a password.
+
+{{link_url}}
+
+This link works for the next {{expires_minutes}} minutes. After that, it stops working and you'll need to request a new one.
+
+If you didn't ask for this link, you can ignore this email. Nobody can sign in to your account without clicking the link in this email.
+
+Thanks,
+The AssessIQ team

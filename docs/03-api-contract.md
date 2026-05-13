@@ -49,6 +49,88 @@ The `X-RateLimit-Bypass` header is observable by admin tooling and curl to confi
 | `POST` | `/auth/logout`         | Destroys session |
 | `GET`  | `/auth/whoami`         | Returns `{ user, tenant, roles, mfa_status }` |
 
+### Candidate magic-link login (Phase 5, 2026-05-13)
+
+> **Status: LIVE 2026-05-13.** Routes in `apps/api/src/routes/auth/candidate.ts`. Implementation in `modules/01-auth/src/candidate-login.ts`. Migration `0076_candidate_login_tokens.sql` applied to production. See `docs/04-auth-flows.md` § Flow 6 for the full sequence diagram.
+
+These two endpoints implement passwordless email sign-in for candidates who want to view their certificates at `/candidate/certificates`. They are distinct from the assessment-taking magic link (`/take/:token`) — that link is invitation-scoped and single-use-per-attempt; these routes are identity-scoped and produce a 30-day reusable session.
+
+---
+
+#### `POST /api/auth/candidate/request-link`
+
+Accepts a candidate's email address and tenant slug, resolves the slug to a `tenant_id` (system role, slug→id only), and — if a matching `users` row exists in that tenant under RLS — generates a CSPRNG token, stores its sha256 hash in `candidate_login_tokens`, and dispatches a sign-in email containing the plaintext token as a query parameter on the verify-link URL.
+
+**Auth:** none required. Route is unauthenticated (auth-establishing).
+
+**Body:**
+```json
+{ "email": "string", "tenant_slug": "string" }
+```
+
+Both fields are required strings. If either field is missing or empty the endpoint returns 204 (no structural information leaked).
+
+**Why `tenant_slug` is required (Fix 1 — 2026-05-13):** The original implementation used a BYPASSRLS system-role `SELECT` across ALL tenants to find a user by email. This leaked tenant existence — an attacker could probe whether an email is registered in any tenant by observing response timing or email-send behaviour. The new implementation requires the caller to supply `tenant_slug`. The slug is resolved to a `tenant_id` using the existing `getTenantBySlug()` system-role helper (slug→id is not sensitive; tenant slugs appear in admin SSO URLs). The user lookup then runs inside `withTenant(tenant_id, …)` under RLS, so only rows owned by that tenant are visible. An email registered in a different tenant is invisible.
+
+The web client (`CandidateLogin.tsx`) currently hardcodes `tenant_slug: 'wipro-soc'` (the only production tenant). A TODO comment marks where per-subdomain detection ships in Phase 6.
+
+**Response 204:** always — regardless of whether the email matched, the slug was valid, or the rate limit was exceeded. This is intentional anti-enumeration.
+
+**Response 400:** `VALIDATION_FAILED` — request body is not JSON.
+
+**Token properties:**
+- Generated: `crypto.randomBytes(32).toString('hex')` — 64-character hex string, 256 bits entropy
+- Stored: `sha256(token).hex` in `candidate_login_tokens.token_hash` — plaintext never persisted
+- TTL: 15 minutes (`expires_at = now() + interval '15 minutes'`)
+- Single-use: enforced by `consumed_at IS NULL` predicate on the verify path
+
+**Audit:** emits `auth.candidate.login_link_requested` to `audit_log` when a token is successfully created (`actor_kind='system'`, `entity_type='candidate_login_token'`, inside the resolved tenant's `withTenant` transaction). No audit row is emitted when the email is not found (to avoid timing correlation).
+
+**Rate-limit key:** `aiq:rl:cand-login:<ip>:<sha256(lower(email))>` — 5 requests per (IP, email) per 60-minute fixed-window Redis counter; the email is SHA-256 hashed before use as the key suffix so the raw email is never written to Redis. On exceed the endpoint still returns 204 (anti-enumeration — no 429 here).
+
+**Constant-time floor:** Both match and no-match paths are bounded to ≥ 200 ms via `Promise.all([work, sleep(200)])` in `requestCandidateLoginLinkSystem`. This prevents timing-based enumeration of registered emails even across the slug-miss fast path.
+
+---
+
+#### `POST /api/auth/candidate/verify-link`
+
+Validates the token from the sign-in email, consumes it atomically, mints a 30-day candidate session, sets the cookie, and returns a JSON instruction the SPA uses to navigate.
+
+**Why POST, not GET.** Email-preview crawlers (Gmail, Outlook, Slack, Teams) prefetch link URLs with GET to render previews / scan for malware. A GET endpoint would consume the single-use token on prefetch, locking out the real candidate. The email link therefore targets a SPA route at `/candidate/login/verify?token=…` (idempotent on GET — it returns HTML); the SPA reads `?token=` from the URL and POSTs it here. Crawlers don't execute JS or POST, so the token survives prefetch.
+
+**Auth:** none required. Token IS the credential.
+
+**Request:** `Content-Type: application/json`, body `{ token: string }` — the plaintext token from the email link.
+
+**Success path (token valid, unconsumed, not expired):**
+1. Compute `sha256(token).hex`
+2. **(Fix 4 — 2026-05-13)** If an `aiq_sess` cookie is present on the incoming request, call `sessions.destroy(priorToken)` fire-and-forget (`.catch()` — never blocks the mint). This eliminates session-fixation: any pre-existing session (stale or attacker-planted) is invalidated before the new one is minted.
+3. `UPDATE candidate_login_tokens SET consumed_at = now() WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now() RETURNING user_id, tenant_id` — atomic single-use enforcement
+4. `sessions.create({ userId, tenantId, role: 'candidate', totpVerified: true, expiresAt: now + 30d, skipIdleEviction: true })`
+5. Set `aiq_sess` cookie: `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
+6. Return `200 { ok: true, redirect: '/candidate/certificates' }`
+
+**Failure path (token invalid, expired, already consumed, or missing from body):**
+- Return `200 { ok: false, error: 'invalid_link' }` — HTTP 200 because the failure is part of the protocol, not a transport-level error. The SPA reads `ok: false` and navigates to `/candidate/login?error=invalid_link`.
+- No error detail is leaked beyond the `invalid_link` code.
+
+**Cache-Control:** `no-store` on every response — both success and failure paths must not be cached by any intermediary.
+
+**Session properties:**
+- Cookie name: `aiq_sess` (same as admin sessions; role-discriminated server-side)
+- Lifetime: **30-day fixed** (not sliding); `last_seen_at` is updated but `expires_at` is not extended
+- `totpVerified`: `true` — magic link is the auth factor; no TOTP step
+- `session_type`: `standard`
+
+**Audit:** emits `auth.candidate.login_verified` on success (`actor_kind='user'`, `entity_type='session'`, `entity_id=session.id`, payload includes `{tokenId, ip}`). No audit row on failure (to avoid timing oracle via audit-log side-channel).
+
+**What is NOT included:**
+- No refresh or re-issue of the same token — each sign-in requires a new `POST /request-link` cycle
+- No TOTP step — the magic link itself is the sole factor for candidate sessions
+- No sliding-window session extension — the 30-day window is fixed at mint time
+
+---
+
 ### Magic-link (candidate, mode B)
 
 | Method | Path | Purpose |

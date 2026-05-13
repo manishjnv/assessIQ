@@ -5,6 +5,12 @@
     "greeting": "Hi {{candidateName}},",
     "cta": "Start your assessment"
   },
+  "candidate_login_link": {
+    "page_title": "Your AssessIQ sign-in link",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Sign in to AssessIQ.",
+    "cta": "Sign in to AssessIQ"
+  },
   "invitation_admin": {
     "page_title": "Invitation to AssessIQ",
     "brand_wordmark": "AssessIQ",

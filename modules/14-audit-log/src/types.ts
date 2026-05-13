@@ -98,6 +98,11 @@ export const ACTION_CATALOG = [
   // score rollup recompute. before/after capture the score delta for forensics.
   // before is null on first compute (INSERT-only; no prior row to snapshot).
   'attempt_scores.recomputed_by_admin',
+  // Candidate passwordless magic-link login (2026-05-13).
+  // Distinct from the existing assessment magic-link (user_invitations / /take/<token>).
+  // These events track the certificate-view login flow; no PII in payload.
+  'auth.candidate.login_link_requested',
+  'auth.candidate.login_link_consumed',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];
