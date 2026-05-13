@@ -41,6 +41,7 @@ import { ExportFilterSchema } from './types.js';
 import { EXPORT_ROW_CAP } from './repository.js';
 import { processRefreshMvJob } from './refresh-mv-job.js';
 import { registerActivityRoutes } from './activity/index.js';
+import { registerActivityCandidateRoutes } from './activity-candidate/index.js';
 
 // ---------------------------------------------------------------------------
 // Convenience session accessor (matches the cast pattern across all modules)
@@ -66,6 +67,8 @@ export interface RegisterAnalyticsRoutesOptions {
    * could be used to mask data-staleness in reports — restrict to platform ops.
    */
   superAdminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
+  /** Candidate-gated preHandler — authChain({ roles: ['candidate'] }) from apps/api. */
+  candidateOnly: preHandlerHookHandler[] | preHandlerHookHandler;
 }
 
 // ---------------------------------------------------------------------------
@@ -354,4 +357,17 @@ export async function registerAnalyticsRoutes(
   // Each endpoint owns its full vertical slice in src/activity/<name>.ts.
   // -------------------------------------------------------------------------
   registerActivityRoutes(app, preHandler);
+
+  // -------------------------------------------------------------------------
+  // Phase 10 — Candidate Activity routes
+  //   GET /api/me/activity/stats
+  //   GET /api/me/activity/heatmap
+  //   GET /api/me/activity/timeline
+  //   GET /api/me/activity/leaderboard
+  // Each endpoint owns its full vertical slice in src/activity-candidate/<name>.ts.
+  // -------------------------------------------------------------------------
+  const candidatePreHandler = Array.isArray(opts.candidateOnly)
+    ? opts.candidateOnly
+    : [opts.candidateOnly];
+  registerActivityCandidateRoutes(app, candidatePreHandler);
 }

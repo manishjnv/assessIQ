@@ -227,6 +227,7 @@ export async function buildServer() {
   await registerAnalyticsRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
     superAdminOnly: authChain({ roles: ['super_admin'] }),
+    candidateOnly: authChain({ roles: ['candidate'] }),
   });
 
   // Embed admin routes (Phase 4 — module 12):
