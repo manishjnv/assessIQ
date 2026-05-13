@@ -49,6 +49,8 @@ Seven application streams plus one error mirror, all under `LOG_DIR` (default `/
 | `webhook.log` | `13-notifications` outbound webhook delivery + email queue — **live 2026-05-03** | "Did our webhook to host X fire? What did they return? Was the email queued?" | varies |
 | `frontend.log` | `apps/api/routes/_log.ts` ingest, fed by `apps/web/src/lib/logger.ts` | "What broke in the browser? Which client saw it?" | varies |
 | `worker.log` | `apps/api/src/worker.ts` BullMQ scheduler (`runJobWithLogging` wrapper) — see § 13 | "Did the cron tick? How long did it take? What failed and how many retries?" | ~200 KB at the current 60s + 30s cadence; one start + one finished line per tick |
+| `mcp-rejections.log` | `tools/assessiq-mcp/src/tools/submit-questions.ts` `logRejection()` — written by the MCP server process inside `assessiq-api` — see § 22 | "Did the model submit malformed questions? Which Zod paths failed? What was the payload?" | ~40 KB after a count=15 smoke campaign; zero on clean runs |
+| `stage3-watch.log` | `assessiq-stage3-watch.service` systemd unit (via `tools/stage3-watch.ts`); appended **only on breach** — see § 20 | "Was a Stage 3 threshold crossed? When? What metric?" | Tiny — bytes per breach entry; no writes on clean ticks |
 | `error.log` *(mirror)* | every stream, level ≥ error only | **"What broke?"** — single file to scan first, regardless of source | ~1 MB |
 
 ### Common shape
@@ -732,3 +734,265 @@ A shared `redactUserForAudit()` helper at [modules/03-users/src/audit-redact.ts]
 - All read-only methods: `listUsers`, `getUser`, `findUserByEmailNormalized`.
 - The `assertNotLastAdmin` / `assertValidStatusTransition` validators — pure validators, no DB write.
 - Self-service flows in the broader stack (own-profile edit, own-password change) — those belong to 01-auth's session-event audit trail, not 03-users.
+
+## 18. Audit-log API surface (Phase 3 G3.A + G3.D)
+
+> **Read this when:** wiring a new admin mutation to the audit trail, or triaging missing audit rows.
+> **Prerequisite:** § 2 documents the boundary between `audit_log` and operational logs.
+
+### 18.1 Two write functions — when to use which
+
+| Function | Transaction ownership | Fanout | Use when |
+|---|---|---|---|
+| `audit(input)` | Opens its own `withTenant(tenantId, …)` transaction | Yes — calls `fanoutAuditEvent` after commit (best-effort; never throws) | The audit write is a stand-alone operation that can commit independently. Example: session event writes, post-commit side effects. |
+| `auditInTx(client, input)` | Caller's already-open `PoolClient` (inside a `withTenant` callback) | No — caller must call `fanoutAuditEvent` post-commit if SIEM delivery is needed | The domain mutation and the audit row **must** commit or roll back together. Correct choice for every admin service function that mutates domain state. |
+
+Both functions validate `action` against `ACTION_CATALOG` (unknown action throws immediately), auto-fill `ip`/`userAgent` from `AsyncLocalStorage` request context when not supplied, apply `redactPayload()` to `before`/`after` fields, and propagate errors — **never** swallow silently.
+
+Source: `modules/14-audit-log/src/audit.ts`; public barrel `modules/14-audit-log/src/index.ts`.
+
+### 18.2 Webhook fanout — `fanoutAuditEvent`
+
+After a successful `audit()` INSERT, `fanoutAuditEvent` (`modules/14-audit-log/src/webhook-fanout.ts`) forwards the event to matching `webhook_endpoints` via `@assessiq/notifications.handleAuditFanout`.
+
+- **Best-effort only.** Fanout failure does NOT propagate. The audit row is committed; failure is logged at `warn` level to `webhook.log`.
+- **`before`/`after` are NOT forwarded.** SIEM webhook consumers receive `action`, `entity_type`, `entity_id`, `actor_user_id`, `ip`, `user_agent`, and `at` only. They must call the admin API (with fresh MFA) for full diff payloads.
+- `auditInTx` does NOT trigger fanout automatically. If atomicity AND SIEM delivery are both needed, call `fanoutAuditEvent(row)` after the enclosing `withTenant` completes.
+- No dead-letter queue for fanout failures — logged to `webhook.log` and dropped.
+
+### 18.3 Cross-module G3.D sweep — coverage as of 2026-05-12
+
+| Module | Doc section | Commit | Status |
+|---|---|---|---|
+| `03-users` | § 17 | `057de7d` | Live |
+| `04-question-bank` | § 15 | `eff0ba2` | Live |
+| `05-assessment-lifecycle` | § 16 | `08d4b19` | Live |
+| `09-scoring` | § 19 | `b82e82d` | Live |
+| `13-notifications` | — | `6ab8e90` | Live — full doc section pending |
+| `18-certification` | — | `190acee` | Live — full doc section pending |
+| `06-attempt-engine` (cron transitions) | — | — | Pending — needs `actor_kind="system"` design discussion |
+
+### 18.4 Reading the audit table
+
+```bash
+# All audit events for a tenant, most recent first
+docker exec -it assessiq-postgres psql -c "
+  SELECT at, action, actor_user_id, entity_type, entity_id
+  FROM audit_log
+  WHERE tenant_id = '<tenant-id>'
+  ORDER BY at DESC LIMIT 50;"
+
+# Full diff for a specific entity
+docker exec -it assessiq-postgres psql -c "
+  SELECT at, action, actor_user_id, before, after
+  FROM audit_log
+  WHERE tenant_id = '<tenant-id>'
+    AND entity_type = 'question'
+    AND entity_id = '<entity-id>'
+  ORDER BY at DESC;"
+```
+
+---
+
+## 19. Audit-log wiring — 09-scoring (G3.D slice, 2026-05-11)
+
+Admin-triggered score mutations in `modules/09-scoring` write one `audit_log` row inside the same `withTenant` transaction as the mutation, via `auditInTx`. Mirrors the G3.D template from `eff0ba2` (§ 15).
+
+### 19.1 Wired sites and action namespaces used
+
+| Service function | `audit_log.action` | `entity_type` | Notes |
+|---|---|---|---|
+| `recomputeOnOverride()` | `attempt_scores.recomputed_by_admin` | `attempt_score` | `before` is null on first compute (INSERT-only; no prior row). `after` captures the score delta. Triggered when an admin grading override causes a score-rollup recompute. |
+
+`ACTION_CATALOG` addition: `attempt_scores.recomputed_by_admin` appended in `modules/14-audit-log/src/types.ts` (`b82e82d`).
+
+Intentionally NOT audited: `refreshMaterializedView` (operational scheduling, not admin-triggered), BullMQ worker writes, internal recomputes triggered by upstream data-changes.
+
+Source: `b82e82d`, `modules/09-scoring/src/service.ts`.
+
+---
+
+## 20. Stage 3 watch cron (Phase 2 G3 diagnostic — live 2026-05-10)
+
+> **Read this when:** investigating a Stage 3 quality regression or confirming whether a threshold breach has been recorded.
+
+A read-only systemd timer that aggregates `generation_attempts` metrics and alerts when smoke-campaign quality drops below thresholds. **Alert-only — no auto-rollback** (locked decision: `docs/design/2026-05-10-stage-3-promotion-rollout.md` §8 Q4).
+
+### 20.1 Systemd units
+
+| File | Role |
+|---|---|
+| `infra/systemd/assessiq-stage3-watch.timer` | `OnCalendar=hourly`, `Persistent=true`. At Stage 3.3+ edit to `OnCalendar=daily` (and update `--window 24h` in the service). |
+| `infra/systemd/assessiq-stage3-watch.service` | `Type=oneshot`, `User=root`. `ExecStart`: `docker exec -w /app assessiq-api pnpm exec tsx /app/tools/stage3-watch.ts --window 1h`. `SuccessExitStatus=0 1` — exit 1 (breach detected) does NOT mark the unit failed; exit 2 (DB error) does. |
+
+The `tools/` directory is bind-mounted into the container as `/app/tools:ro` (`infra/docker-compose.yml`, `a124812`), so `git pull` on the VPS picks up script changes without an image rebuild.
+
+### 20.2 Metrics and breach thresholds
+
+Script: `tools/stage3-watch.ts` (initial: `05ea435`; path fix: `a124812`). Aggregates from `generation_attempts WHERE chunks_planned IS NOT NULL` (sharded runs only) within the look-back window:
+
+| Metric | Derived from | Breach condition |
+|---|---|---|
+| `chunks_failed_rate` | `SUM(chunks_failed) / SUM(chunks_planned)` | `> 0.25` (more than 25% of planned chunks failed) |
+| `citation_dropped_total` | `SUM(citation_dropped)` | `> 0` (any citation-validation drop) |
+
+### 20.3 Output channels
+
+- **Stdout (every run):** one JSON line `{ stage3_watch, breach, breach_reasons, metrics }` — captured by systemd journal.
+- **`/var/log/assessiq/stage3-watch.log` (breach only):** appends `{ ts, headline, metrics }`. Env override: `STAGE3_WATCH_LOG`.
+- **Stderr (breach, interactive):** human-readable breach summary.
+- **Exit 0:** clean. **Exit 1:** breach logged. **Exit 2:** DB error / missing `DATABASE_URL`.
+
+### 20.4 Triage runbook — "stage3-watch.log has a breach entry"
+
+```bash
+# Latest breach entries
+tail -5 /var/log/assessiq/stage3-watch.log | jq
+
+# Sharded attempts in the breach window
+docker exec -it assessiq-postgres psql -c "
+  SELECT id, started_at, chunks_planned, chunks_failed, citation_dropped
+  FROM generation_attempts
+  WHERE chunks_planned IS NOT NULL
+  ORDER BY started_at DESC LIMIT 10;"
+
+# If citation_dropped > 0 — which attempts dropped questions?
+docker exec -it assessiq-postgres psql -c "
+  SELECT id, status, chunks_failed, citation_dropped, stderr_tail
+  FROM generation_attempts
+  WHERE citation_dropped > 0
+  ORDER BY started_at DESC LIMIT 5;"
+```
+
+Rollback is a deliberate operator action after root-cause analysis, never automatic.
+
+---
+
+## 21. Per-chunk stderr aggregation (Phase 2 G2.B — live 2026-05-10)
+
+When the sharded fan-out runs multiple chunk subprocesses, `generation_attempts.stderr_tail` aggregates stderr from all failing chunks. Previously the column was only populated on whole-attempt failure; chunk-level failures left it NULL.
+
+### 21.1 Column contract
+
+- **Header per chunk:** `--- chunk: <type> ---` (e.g. `--- chunk: scenario ---`).
+- **Size:** last 1024 bytes across all failing chunks' stderr, concatenated then sliced.
+- **SIGTERM / timeout path:** subprocess is killed before stderr flushes → content is `(none)`. The presence of `--- chunk: scenario ---\n(none)\n` is the canonical proof the aggregation code is live (verified on attempt `019e103c`).
+- **Successful chunks** do not contribute — only `exit_code != 0` or SIGTERM chunks.
+
+Source: `b7e5552`, `modules/07-ai-grading/src/handlers/admin-generate.ts`.
+
+### 21.2 Reading
+
+```bash
+# Via the inspect-attempt helper (preferred)
+docker exec -w /app assessiq-api \
+  pnpm exec tsx /app/tools/inspect-attempt.sh --show-stderr <attempt-uuid>
+
+# Directly from DB
+docker exec -it assessiq-postgres psql -c "
+  SELECT stderr_tail
+  FROM generation_attempts
+  WHERE id = '<attempt-uuid>';"
+```
+
+`NULL` in `stderr_tail` on a partial-failure attempt means the attempt predates `b7e5552` (pre-2026-05-10).
+
+---
+
+## 22. MCP rejection logger (Stage 3 G2 diagnostic — live 2026-05-10)
+
+Every `isError=true` return from `submit_questions` in the AssessIQ MCP server appends a structured JSONL entry to `/var/log/assessiq/mcp-rejections.log`. This is the primary surface for diagnosing model retry-loops caused by Zod schema violations.
+
+### 22.1 Entry shape (JSONL)
+
+```jsonc
+{
+  "timestamp": "2026-05-11T17:45:01.234Z",
+  "pid": 1234,
+  "type": "scenario",   // inferred from questions[0].type; "unknown" if payload malformed
+  "issues": "questions[0].content: Unrecognized key(s) in object: 'stem'",
+  "payload_excerpt": "{\"questions\":[{\"type\":\"scenario\",\"stem\":\"...\"...}]}"
+                     // first 2 048 chars of the raw payload
+}
+```
+
+Source: `tools/assessiq-mcp/src/tools/submit-questions.ts` lines 15–37, commit `ab39667`.
+
+### 22.2 Operational notes
+
+- **Write is fire-and-forget** (`fs.appendFile` callback, never `await`ed). A write failure routes to stderr only and cannot affect the rejection response the model sees.
+- **Path override:** `MCP_REJECTION_LOG` env var (used in tests; unset in production → default path).
+- **File owner:** `root` (MCP server runs inside the container as root; see `ls -la /var/log/assessiq/`).
+- **Deploy step:** changes to `submit-questions.ts` require rebuilding the MCP dist on the VPS and recreating the `assessiq-api` container so the bind-mounted MCP dist picks up the new code. Procedure in `docs/06-deployment.md` § MCP tool rebuild procedure (`f8f62a2`).
+- mcp-rejections.log is **not relevant** to the Phase 5 verify route — the verify path does not call the MCP server.
+
+### 22.3 Triage runbook — "grading chunk exits 1 with repeated submit_questions calls"
+
+```bash
+# Most recent rejections — type and Zod path
+tail -20 /var/log/assessiq/mcp-rejections.log | jq '{ timestamp, type, issues }'
+
+# Rejections in a timestamp window
+jq 'select(.timestamp >= "2026-05-12T00:00:00Z")' \
+  /var/log/assessiq/mcp-rejections.log
+
+# Count rejections by inferred type
+jq -s 'group_by(.type) | map({ type: .[0].type, count: length })' \
+  /var/log/assessiq/mcp-rejections.log
+```
+
+If `issues` names a forbidden field (e.g. `Unrecognized key(s) in object: 'stem'`), the corresponding `generate-<type>/SKILL.md` FORBIDDEN list is the fix target. The Zod `.strict()` schema in `submit-questions.ts` is ground truth; SKILL.md forbidden lists are documentation that must stay in sync with it.
+
+---
+
+## 23. Runtime baseline — operator artifact (`modules/07-ai-grading/eval/runtime-baseline.json`)
+
+`modules/07-ai-grading/eval/runtime-baseline.json` is the living tracker of AI-grading quality across smoke campaigns. It is the canonical answer to "what is known to be broken right now in generation quality?" — not docs, not commit messages.
+
+### 23.1 Structure
+
+- **`smoke_run`:** most recent representative smoke result (attempt UUID, count, type allocation, per-type exit codes and skill SHAs).
+- **`known_gaps[]`:** array of tagged entries. Each starts with `RESOLVED`, `PARTIAL`, `OPEN`, or `CONFIRMED LIVE`, followed by a date, commit citation, and description. Entries are never deleted — the full fix history stays in the file.
+- **`regression_thresholds`:** minimum acceptable quality metrics for future smoke runs. Updated only via a deliberate baseline-refresh commit.
+- **`next_smoke_targets`:** expected results for upcoming smoke runs (type allocation, insertion count expectations, wall-clock bounds).
+
+### 23.2 Operational use
+
+Read at the start of any session touching the AI grading pipeline:
+
+```bash
+# What's currently broken?
+cat modules/07-ai-grading/eval/runtime-baseline.json \
+  | jq '[.known_gaps[] | select(startswith("OPEN") or startswith("PARTIAL"))]'
+```
+
+Updated after every diagnostic session that resolves or partially resolves a gap. The update is a git commit so the history is traceable. A failure mode not in this file has no tracking — add an `OPEN` entry when you discover one.
+
+---
+
+## 24. Phase 5 — credential verify-page surfaces (live 2026-05-11)
+
+The public verify page (`GET /verify/:credentialId`) has two operator-relevant behaviors. Source: `7208008`, `modules/18-certification/src/routes-public.ts`.
+
+### 24.1 HMAC check on every render
+
+`verifyCertificateSignature` (→ `crypto.timingSafeEqual`) runs on every request that finds a non-revoked certificate. The result sets `status` to `"valid"` or `"tampered"`. The `tampered` path renders a red "✗ Invalid Signature" badge and returns HTTP 200.
+
+**No `audit_log` row is emitted on signature mismatch.** The route is outside auth/tenant middleware and has no `audit()` call on the tampered path (confirmed: `routes-public.ts` lines 326–350, no `audit` import). Tamper events are observable only in `request.log` — but no field distinguishes a tampered-response 200 from a valid-response 200 in that log.
+
+**Follow-up gap:** adding a `warn`-level structured log line (or an `audit()` call) on `status === "tampered"` would create a durable tamper-detection signal. An `audit()` call would require a new `certificate.tamper_detected` entry in `ACTION_CATALOG` — not wired today.
+
+### 24.2 `verification_views` counter
+
+`certificates.verification_views` is incremented on each unique (IP, credentialId) view within a 1-hour dedup window (cap: 50 000 entries in-process). The increment is **fire-and-forget** via a separate `withTenant()` transaction with `.catch(() => {})`.
+
+Operational gap: the dedup map is in-process memory. Under a multi-replica deployment, distinct processes would each count the same view — counter may drift. Accepted for analytics (plan §13 trap #10, non-critical).
+
+```bash
+# View counters for a tenant's certificates
+docker exec -it assessiq-postgres psql -c "
+  SELECT credential_id, verification_views, issued_at, revoked_at
+  FROM certificates
+  WHERE tenant_id = '<tenant-id>'
+  ORDER BY verification_views DESC LIMIT 20;"
+```
