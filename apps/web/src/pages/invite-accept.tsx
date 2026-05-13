@@ -22,13 +22,14 @@
 //    pending → navigation, falling back to the success screen only
 //    when the round-trip stalls.
 //
-// 4. The pending spinner uses an inline @keyframes block (matches
-//    screens/invite-accept.jsx). Phase 1+ should hoist a typed
-//    Spinner component into @assessiq/ui-system.
+// 4. The pending spinner uses the @assessiq/ui-system Spinner primitive
+//    (Phase 3a, UI v1.1). Previously this page shipped an inline
+//    @keyframes block per screens/invite-accept.jsx; that has been
+//    promoted to the typed Spinner component.
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Card, Chip } from '@assessiq/ui-system';
+import { Card, Chip, Spinner } from '@assessiq/ui-system';
 import { api, ApiCallError } from '../lib/api';
 import { fetchWhoami } from '../lib/session';
 
@@ -136,20 +137,11 @@ export function InviteAccept(): JSX.Element {
             </Chip>
           </div>
 
-          {/* Pending spinner — matches screens/invite-accept.jsx idiom. */}
+          {/* Pending spinner — Phase 3a Spinner primitive (UI v1.1). */}
           {mode === 'pending' && (
-            <div
-              aria-hidden
-              style={{
-                margin: '0 auto 18px',
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                border: '2px solid var(--aiq-color-border)',
-                borderTopColor: 'var(--aiq-color-accent)',
-                animation: 'aiq-spin 0.8s linear infinite',
-              }}
-            />
+            <div style={{ margin: '0 auto 18px', display: 'flex', justifyContent: 'center' }}>
+              <Spinner size="lg" aria-label="Confirming invitation" />
+            </div>
           )}
 
           <h1
@@ -198,10 +190,6 @@ export function InviteAccept(): JSX.Element {
         <span style={{ flex: 1 }} />
         <span>Single-use · 72 h TTL</span>
       </footer>
-
-      {/* Spinner keyframes — co-located so the page is self-contained.
-          Phase 1+ should promote into a typed Spinner in @assessiq/ui-system. */}
-      <style>{'@keyframes aiq-spin { to { transform: rotate(360deg); } }'}</style>
     </div>
   );
 }
