@@ -307,14 +307,33 @@ Admin dashboard + AdminShell sidebar refresh. Commit `3b7e2d9`. Source: [`Assess
 
 What still needs to happen, on demand as later v1.1 phases land:
 
-1. **Phase 4–8 — Page refreshes** against kit screens (auth, dashboard, take flow, list pages, results/reports).
-2. **Phase 9–12 — Activity feature** (backend endpoints + `/admin/activity` + `/candidate/activity` consumer wires).
-3. **Domain composites** — `QuestionCard`, `KqlEditor`, `RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard`. Map onto the existing branding idioms.
-4. **Visual regression baseline** as components land.
-5. **Self-host fonts** if Phase 1 perf budget needs it — current build uses the Google Fonts `<link>` in `apps/web/index.html`.
-6. **Live tenant theme resolver** wired to `tenants.branding` JSONB once `02-tenancy` exposes the API.
+1. **Phase 6b — Attempt page** against `kit/screens/assessment.jsx` — timer header, question navigator, integrity banner.
+2. **Phase 7–8 — List pages + results/reports** against kit screens.
+3. **Phase 10/12 — Candidate Activity backend + wire.**
 
 The reference template files (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `.design-canvas.state.json`) are the omelette/Claude design-canvas wrapper that produced the template — useful for visual reference (open the HTML to see all screens) but **must not be imported by production code**. Enforcement: ESLint flat config has `no-restricted-imports` blocking `**/AccessIQ_UI_Template/**` globally; CI's no-template grep verifies.
+
+What's live (UI v1.1 Phase 6a — 2026-05-14):
+
+Candidate take-flow page refresh. Commit `7e89875`. Source: [`AssessIQ_UI_Template/screens/login.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/login.jsx) (two-column layout idiom) + Phase 3a Spinner primitive.
+
+**What changed:**
+
+| File | Change |
+| --- | --- |
+| `apps/web/src/pages/take/TakeRightPane.tsx` | **New file.** Extracts the 55-line duplicated right-pane `<aside>` that was copy-pasted across `TokenLanding`, `Expired`, and `ErrorPage`. Single source of truth: accent chip "Phase 1", serif tagline, blockquote with footer. |
+| `apps/web/src/pages/take/TokenLanding.tsx` | Replaced inline spinner ring (`div + Loading… text`) in loading state with `<Spinner aria-label="Verifying invitation" />` (Phase 3a). Replaced local `RightPane` function with `<TakeRightPane />`. |
+| `apps/web/src/pages/take/Submitted.tsx` | Removed `injectStyles()`, `STYLE_ID` constant, `@keyframes aiq-submitted-spin` injection, and the `useEffect(() => { injectStyles(); }, [])` call. Replaced "Loading…" loading state with `<Spinner aria-label="Loading submission status" />`. Replaced inline spinner ring in grading-pending card with `<Spinner size="sm" aria-label="Grading pending" style={{ flexShrink: 0 }} />`. |
+| `apps/web/src/pages/take/Expired.tsx` | Replaced copy-pasted 58-line `<aside>` block with `<TakeRightPane />`. |
+| `apps/web/src/pages/take/ErrorPage.tsx` | Same as Expired. |
+
+**Why:** Phase 3a shipped `Spinner` but Submitted.tsx kept a hand-rolled `@keyframes` injection ("no Spinner primitive yet" comment was stale). The right-pane aside was duplicated verbatim across 3 files — DRY violation discovered during this audit.
+
+**What was NOT changed:** Left-pane content (headings, body copy, buttons, chips) in all four pages matched the kit login-screen idiom already. No token substitutions needed — pages were already using `--aiq-color-*` tokens throughout.
+
+**Verification:** `pnpm -C apps/web typecheck` ✓. Zero inline hex. Zero residual `animation:` styles. `/take/expired` → HTTP 200, `/take/error` → HTTP 200.
+
+---
 
 ## Storybook
 

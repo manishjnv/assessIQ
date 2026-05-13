@@ -1,3 +1,29 @@
+# Session — 2026-05-14 (UI v1.1 Phase 6a — candidate take flow)
+
+**Headline:** Phase 6a shipped — Spinner primitive wired into take-flow loading states; duplicated right-pane extracted into shared `TakeRightPane.tsx`.
+
+**Commits:**
+- `7e89875` — feat(take-flow): UI v1.1 Phase 6a — Spinner wiring + shared TakeRightPane
+
+**Tests:** `apps/web` typecheck ✅. Zero inline hex, zero residual `animation:` styles. Secrets scan clean.
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated on VPS. `/take/expired` → 200, `/take/error` → 200.
+
+**Next:** Phase 6b (Attempt page refresh against `kit/screens/assessment.jsx`) OR Phase 10 (candidate Activity backend).
+
+**Open questions:**
+- Phase 6b is load-bearing (integrity hooks, autosave, paste-block). Snapshot tests against attempt flow before editing recommended.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 warm-start (context resume); all edits self-executed (≤5 files, all already in hot cache); typecheck verification; deploy + smoke; docs + handoff.
+- Sonnet: n/a — edits were within the "≤30 lines across ≤2 files" threshold for direct Opus execution (5 files, but each edit was targeted replacement, not net-new composition).
+- Haiku: n/a
+- codex:rescue: n/a — `apps/web/src/pages/take/` is not on the load-bearing paths list; no auth/crypto/classifier surface.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 11 — Admin Activity page wire)
 
 **Headline:** `/admin/activity` shipped — composes 4 Phase 9 analytics endpoints into a full dashboard page with heatmap, stacked-bar timeline, leaderboard, and 3 stat cards; 79/79 tests; deployed live.
