@@ -66,3 +66,20 @@ export type {
 
 export { Placeholder } from "./components/Placeholder.js";
 export type { PlaceholderProps } from "./components/Placeholder.js";
+
+// Phase 3b primitives (UI v1.1 port — activity-screen primitives)
+export { ActivityHeatmap } from "./components/ActivityHeatmap.js";
+export type { ActivityHeatmapProps } from "./components/ActivityHeatmap.js";
+
+export { StackedBarChart } from "./components/StackedBarChart.js";
+export type {
+  StackedBarChartProps,
+  StackedBarChartBar,
+} from "./components/StackedBarChart.js";
+
+export { LeaderboardList } from "./components/LeaderboardList.js";
+export type {
+  LeaderboardListProps,
+  LeaderboardListItem,
+  LeaderboardListDelta,
+} from "./components/LeaderboardList.js";
