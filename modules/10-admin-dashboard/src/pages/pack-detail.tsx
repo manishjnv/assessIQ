@@ -19,6 +19,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { Chip } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, generateQuestionsApi, bulkUpdateQuestionStatus } from "../api.js";
 import { allocateByWeight, applyOverride } from "../auto-weight.js";
@@ -676,7 +677,11 @@ export function AdminPackDetail(): React.ReactElement {
     <AdminShell breadcrumbs={["Question Bank", pack.name]} helpPage="admin.question_bank.pack">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Pack header */}
-        <div
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <Chip leftIcon="grid">{levels.length} level{levels.length !== 1 ? "s" : ""}</Chip>
+          </div>
+          <div
           style={{
             display: "flex",
             alignItems: "flex-start",
@@ -764,6 +769,7 @@ export function AdminPackDetail(): React.ReactElement {
               </button>
             )}
           </div>
+        </div>
         </div>
 
         {publishError && (

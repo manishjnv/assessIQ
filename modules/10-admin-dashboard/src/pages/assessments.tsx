@@ -20,7 +20,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Table } from "@assessiq/ui-system";
+import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -306,36 +306,46 @@ export function AdminAssessments(): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Assessments"]} helpPage="admin.assessments.list">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
-        {/* Header row */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "var(--aiq-space-md)",
-          }}
-        >
-          <h1
+        {/* Page header — count chip + serif h1 + lede + action */}
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <Chip leftIcon="grid">{items.length} assessment{items.length !== 1 ? "s" : ""}</Chip>
+          </div>
+          <div
             style={{
-              fontFamily: "var(--aiq-font-serif)",
-              fontSize: "var(--aiq-text-3xl)",
-              fontWeight: 400,
-              margin: 0,
-              letterSpacing: "-0.02em",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "var(--aiq-space-md)",
             }}
           >
-            Assessments.
-          </h1>
-          <button
-            type="button"
-            className="aiq-btn aiq-btn-primary"
-            onClick={() => {
-              setShowNewForm((v) => !v);
-              setCreateError(null);
-            }}
-          >
-            {showNewForm ? "Cancel" : "+ New Assessment"}
-          </button>
+            <div>
+              <h1
+                style={{
+                  fontFamily: "var(--aiq-font-serif)",
+                  fontSize: "var(--aiq-text-3xl)",
+                  fontWeight: 400,
+                  margin: 0,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Assessments.
+              </h1>
+              <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
+                Assessment cycles — set dates, invite candidates, track completion.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-primary"
+              onClick={() => {
+                setShowNewForm((v) => !v);
+                setCreateError(null);
+              }}
+            >
+              {showNewForm ? "Cancel" : "+ New Assessment"}
+            </button>
+          </div>
         </div>
 
         {/* Inline new-assessment form */}
