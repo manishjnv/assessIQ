@@ -67,3 +67,11 @@ Component APIs in this module stay stable; visual fidelity to the kit is the con
 - **Vite SPA** at `apps/web/` builds clean (`pnpm --filter @assessiq/web build` → 156 KB JS / 12 KB CSS gzipped to 50/3 KB). No public route until G0.C Session 5 ships `/admin/login`.
 - **Deferred to Phase 1+:** `ScoreRing`, `Sparkline`, `QuestionNavigator`, domain composites (`AnchorChip`, `BandPicker`, `RubricEditor`, `QuestionCard`, etc.), `Sidebar`/`NavItem`/`StatCard`, server-side theme resolver, visual-regression baseline, self-hosted fonts.
 - **Enforcement:** ESLint `no-restricted-imports` blocks `**/AssessIQ_UI_Template/**` everywhere. The template folder is reference only — copy idioms, never import.
+- **2026-05-13 — Phase 1 (token migration) shipped (`b95df19`).** 7 light-mode token values + serif weight 500 + dark-mode hierarchy adjustments align production to kit v1.1. Visible across every page on hard refresh.
+- **2026-05-13 — Phase 2 (atom refresh) shipped.** 5 components updated, all changes additive (no breaking signatures):
+  - `Chip`: new `"warn"` variant (auto-defaults `leftIcon: "flag"` for status-by-icon WCAG rule). Added `--aiq-color-warning-soft` token + `.aiq-chip-warn` class.
+  - `Sparkline`: switched line from `<path>` to `<polyline vector-effect="non-scaling-stroke">` and default `strokeWidth` 1.5 → 1.2px. Width stays crisp in responsive containers.
+  - `ScoreRing`: stroke-dashoffset transition extended 180ms → 1600ms to match kit v1.1 results.jsx single-timing animation.
+  - `StatCard`: optional `breakdown?: StatCardBreakdownItem[]` prop renders a mini stacked-bar + colored legend in place of sparkline. Added 8-slot `--aiq-color-chart-{1..8}` palette tokens.
+  - `Sidebar`: expanded width 220 → 240px (kit v1.1). New `footer?: ReactNode` slot. New exported `SidebarSection` sub-component for mono-uppercase eyebrow labels between nav groups.
+- **Deferred to Phase 14:** axe a11y test wiring + Storybook story coverage gaps (ScoreRing/Sparkline/StatCard/Sidebar have no stories yet; Chip story needs warn variant added).

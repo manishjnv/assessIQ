@@ -78,7 +78,7 @@ export function ScoreRing({
           strokeLinecap="round"
           strokeDasharray={circ}
           strokeDashoffset={dashOffset}
-          style={{ transition: "stroke-dashoffset 180ms var(--aiq-motion-easing-out)" }}
+          style={{ transition: "stroke-dashoffset 1600ms var(--aiq-motion-easing-out)" }}
         />
         {/* Numeric label inside ring — rotated back upright */}
         <text

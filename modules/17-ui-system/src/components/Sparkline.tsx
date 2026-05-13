@@ -20,7 +20,7 @@ export interface SparklineProps {
   fill?: boolean;
   /** Stroke color. Default: var(--aiq-color-accent). */
   color?: string;
-  /** Stroke width in px. Default: 1.5. */
+  /** Stroke width in px. Default: 1.2 (kit v1.1, with vector-effect:non-scaling-stroke). */
   strokeWidth?: number;
   /** Optional accessible label. */
   "aria-label"?: string;
@@ -33,7 +33,7 @@ export function Sparkline({
   height = 36,
   fill = true,
   color = "var(--aiq-color-accent)",
-  strokeWidth = 1.5,
+  strokeWidth = 1.2,
   "aria-label": ariaLabel,
   "data-test-id": testId,
 }: SparklineProps): React.ReactElement | null {
@@ -51,8 +51,10 @@ export function Sparkline({
   const toY = (v: number) => pad + innerH - ((v - min) / range) * innerH;
 
   const points = data.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
-  const linePath = `M ${points.split(" ").join(" L ")}`;
-  const areaPath = `${linePath} L ${toX(data.length - 1)},${pad + innerH} L ${toX(0)},${pad + innerH} Z`;
+  // Area still uses path (closed shape); line uses polyline with
+  // vector-effect:non-scaling-stroke so the 1.2px width stays crisp
+  // regardless of responsive container scaling (kit dashboard.jsx pattern).
+  const areaPath = `M ${points.split(" ").join(" L ")} L ${toX(data.length - 1)},${pad + innerH} L ${toX(0)},${pad + innerH} Z`;
 
   return (
     <svg
@@ -71,13 +73,14 @@ export function Sparkline({
           stroke="none"
         />
       )}
-      <path
-        d={linePath}
+      <polyline
+        points={points}
         fill="none"
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );

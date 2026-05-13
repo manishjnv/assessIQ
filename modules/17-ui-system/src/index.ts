@@ -35,11 +35,11 @@ export type { ScoreRingProps, ScoreRingSize } from "./components/ScoreRing.js";
 export { Sparkline } from "./components/Sparkline.js";
 export type { SparklineProps } from "./components/Sparkline.js";
 
-export { Sidebar, NavItem } from "./components/Sidebar.js";
-export type { SidebarProps, NavItemProps } from "./components/Sidebar.js";
+export { Sidebar, NavItem, SidebarSection } from "./components/Sidebar.js";
+export type { SidebarProps, NavItemProps, SidebarSectionProps } from "./components/Sidebar.js";
 
 export { StatCard } from "./components/StatCard.js";
-export type { StatCardProps } from "./components/StatCard.js";
+export type { StatCardProps, StatCardBreakdownItem } from "./components/StatCard.js";
 
 export { Table } from "./components/Table.js";
 export type { TableProps, ColumnDef, SortDirection } from "./components/Table.js";
