@@ -8,7 +8,7 @@
 
 **Phasing summary:** 14 phases, ~14–18 sessions of work. Phase 1 is the highest-impact-per-line session (7 token value changes ripple visible darker-text identity across all 25+ existing pages). Phases 9–12 (Activity feature) can be parallelized with Phases 5–8 (page refresh) since they touch independent code.
 
-**Progress:** ✅ P1 (tokens) · ✅ P2 (atoms) · ✅ P3a (Spinner/Icon) · ✅ P3b (Activity primitives) · ✅ P4 (auth flows) · ✅ P5 (admin dashboard + shell) · ✅ P6a (candidate take flow — landing/submitted/expired/error) · ✅ P6b (Attempt page) · ✅ P9 (admin activity backend) · ✅ P11 (admin Activity wire) — 10 of 14 complete. Next: P10 (candidate Activity backend) or P7a (list template).
+**Progress:** ✅ P1 (tokens) · ✅ P2 (atoms) · ✅ P3a (Spinner/Icon) · ✅ P3b (Activity primitives) · ✅ P4 (auth flows) · ✅ P5 (admin dashboard + shell) · ✅ P6a (candidate take flow — landing/submitted/expired/error) · ✅ P6b (Attempt page) · ✅ P7a (list template + Users + Attempts) · ✅ P9 (admin activity backend) · ✅ P11 (admin Activity wire) — 11 of 14 complete. Next: P7b (list ports) or P10 (candidate Activity backend).
 
 ---
 
@@ -283,7 +283,7 @@ Also refresh `AdminShell` (the layout wrapper) to use the new Sidebar section/fo
 ### Phase 6a — TokenLanding + Submitted + Expired + Error ✅ SHIPPED (7e89875)
 Lightweight pages. Refresh against `kit/screens/login.jsx` (token landing) and atoms-only patterns (terminal pages).
 
-### Phase 6b — Attempt page (1 session, isolated)
+### Phase 6b — Attempt page ✅ SHIPPED (f528fc6)
 The question runner is load-bearing (`modules/11-candidate-ui` + `apps/web/src/pages/take/Attempt.tsx`). Refresh against `kit/screens/assessment.jsx`:
 - Sticky timer header with warn-state transition (uses Chip warn from Phase 2a)
 - Question navigator (existing `QuestionNavigator` in candidate-ui module; promote to ui-system per `SKILL.md` flag — OPTIONAL this phase, can defer to Phase 14)
@@ -306,7 +306,7 @@ The question runner is load-bearing (`modules/11-candidate-ui` + `apps/web/src/p
 
 ## Phase 7 — List-page template + first 5 list ports (2 sessions: 7a then 7b)
 
-### Phase 7a — List template + Users + Attempts (1 session)
+### Phase 7a — List template + Users + Attempts ✅ SHIPPED (f528fc6)
 The repo has no `users.jsx` in the kit (documented gap, `branding-guideline.md:29`). Establish the canonical list-page composition by porting `library.jsx` patterns into a `<ListPage>` wrapper or set of recipes documented in `08-ui-system.md`:
 - Page header (icon + title + lede + actions)
 - Sticky filter row (Chip filters + search Input)

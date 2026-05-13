@@ -335,6 +335,41 @@ Candidate take-flow page refresh. Commit `7e89875`. Source: [`AssessIQ_UI_Templa
 
 ---
 
+What's live (UI v1.1 Phase 7a — 2026-05-14):
+
+Admin list-page template established + Users + Attempts refreshed. Commit `f528fc6`. Source: [`AssessIQ_UI_Template/screens/library.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/library.jsx) (count chip + serif h1 + lede + filter strip pattern).
+
+**List-page composition recipe (no shared component — pages vary too much):**
+
+```
+Chip leftIcon="grid"  — count meta above the h1
+h1 aiq-serif text-3xl fontWeight=400 letterSpacing="-0.02em"
+p color=fg-secondary fontSize=14 margin="8px 0 0"  — lede
+[action button aligned flex-end]
+---border---
+filter strip: search Field (flex 1 1 320px) + tab buttons or Chip filters
+---border--- (optional, on paddingBottom)
+Table or card grid
+empty state: dashed border, bg-raised, serif h2 + secondary p + CTA
+pager: ghost prev/next + mono "X / Y" label
+```
+
+**What changed:**
+
+| File | Change |
+| --- | --- |
+| `modules/10-admin-dashboard/src/pages/users.tsx` | **New file** (migrated from `apps/web/src/pages/admin/users.tsx`). Replaced custom top-bar with `AdminShell breadcrumbs=["Users"]`. Uses `adminApi`/`AdminApiError`. Spinner for loading. Fixed `--aiq-color-bg-elevated` → `--aiq-color-bg-raised` (3 occurrences). Kit header pattern: count Chip + serif h1 + lede + "Invite user" button. |
+| `apps/web/src/pages/admin/users.tsx` | Deleted — replaced by module page above. |
+| `modules/10-admin-dashboard/src/pages/attempts.tsx` | Added count Chip + lede paragraph above the filter tabs. |
+| `modules/10-admin-dashboard/src/index.ts` | Added `AdminUsers` export. |
+| `apps/web/src/App.tsx` | Import `AdminUsers` from `@assessiq/admin-dashboard`; remove external `<AdminShell>` wrapper from `/admin/users` route (component manages its own shell now, consistent with all other admin pages). |
+
+**Why the move to the module:** All other admin pages live in `modules/10-admin-dashboard/` and self-wrap `AdminShell`. `users.tsx` in `apps/web` was the only exception, with its own top-bar — a pattern inconsistency introduced before AdminShell existed.
+
+**Verification:** `modules/10-admin-dashboard` typecheck ✓, `apps/web` typecheck ✓. Zero `--aiq-color-bg-elevated`. `/admin/users` → 200, `/admin/attempts` → 200.
+
+---
+
 ## Storybook
 
 Run `pnpm storybook` locally. Every primitive and composite has stories covering:

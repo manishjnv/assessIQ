@@ -1,3 +1,29 @@
+# Session — 2026-05-14 (UI v1.1 Phase 7a — list-page template + Users + Attempts)
+
+**Headline:** Phase 7a shipped — AdminUsers migrated from apps/web into the module pattern; Attempts page gets kit header; list-page composition recipe established.
+
+**Commits:**
+- `f528fc6` — feat(take-flow + admin): UI v1.1 Phase 6b + 7a (Attempt page kit refresh + Users/Attempts list pattern)
+
+**Tests:** `modules/10-admin-dashboard` typecheck ✅, `apps/web` typecheck ✅. Zero `--aiq-color-bg-elevated` in new code. Secrets scan clean.
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated on VPS. `/admin/users` → 200, `/admin/attempts` → 200.
+
+**Next:** Phase 7b (Question-bank, Assessments, pack-detail, MyCertificates list ports).
+
+**Open questions:**
+- `apps/api/src/server.ts` and `modules/15-analytics/src/activity-candidate/` have unstaged Phase 10 scaffolding — commit separately in Phase 10 session.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 warm-start; diff critique; deploy + smoke; docs + handoff.
+- Sonnet: Phase 1 — new `modules/10-admin-dashboard/src/pages/users.tsx` (527 lines, full migration from apps/web).
+- Haiku: n/a
+- codex:rescue: n/a — not on load-bearing paths; no auth/crypto/classifier surface.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 6b — Attempt page)
 
 **Headline:** Phase 6b shipped — Attempt page refreshed against kit/screens/assessment.jsx: sticky header, progress strip, MCQ radio-circle layout, side panel with legend, token fixes.
