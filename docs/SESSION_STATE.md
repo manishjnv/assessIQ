@@ -1,3 +1,35 @@
+# Session — 2026-05-13 (G3.D doc backfill — §27 + §28 for 13-notifications + 18-certification)
+
+**Headline:** Backfilled the two missing G3.D §-sections in `docs/11-observability.md`. §27 documents 13-notifications' webhook-config audit surface (`createWebhookEndpoint` → `webhook.created`, `deleteWebhookEndpoint` → `webhook.deleted`, `replayDelivery` → `webhook.replayed`) — wiring shipped 2026-05-11 alongside the original sweep. §28 documents 18-certification's 4 wired sites across Phase 5 Sessions 1/5/6 (`issueCertificate`, `upgrade`, `revokeCertificate`, `reissue`). Both sections mirror the canonical §15/§17/§26 shape (wired-sites table → catalog scope → atomicity guarantees → what's NOT audited).
+
+**Commits:**
+- `92e3939` — docs(observability): backfill G3.D §-sections for 13-notifications + 18-certification (80 insertions)
+
+**Tests:** n/a — pure docs.
+
+**Deploy:** n/a — docs-only edit; VPS git clone will fast-forward on next ops deploy.
+
+**Notable decisions surfaced in the docs (not code changes):**
+- **Static-import dodge in 13-notifications.** `webhooks/service.ts` imports `@assessiq/audit-log` statically; the reverse direction (`audit-log` → `notifications`) is via dynamic import in `webhook-fanout.ts`. This is the deliberate cycle-break and is now §27.3.
+- **Action-naming inconsistency in 18-certification.** Session 1 used `certification.cert.*`, Session 5 used `certificates.*`. Both styles exist in the catalog (see also `user.created` vs `tenant_settings.ai_generate_mode.updated`). Tracked as Phase 5 polish — not a load-bearing rename. Documented in §28.2.
+- **Boundary clarity for 13-notifications.** Delivery telemetry (`emitWebhook`, `deliver-job`), email sending, and in-app notifications are *intentionally* not audited — the audit row lives on the originating admin action, not on each downstream side effect. §27.4 explains.
+
+**Sweep coverage now (final state):** 03-users, 04-question-bank, 05-lifecycle, 09-scoring, 13-notifications, 16-help-system, 18-certification — all live AND documented. 06-attempt-engine, 08-rubric-engine, 15-analytics — classified NO-OP and documented (§25). **07-ai-grading remains the only outstanding G3.D target** — deferred per CLAUDE.md load-bearing-paths rule (requires `codex:rescue` adversarial gate before push).
+
+**Next:** (1) 07-ai-grading G3.D slice in a dedicated session (load-bearing, codex:rescue gate); (2) Phase 1 closure re-drill once admin cookie is shareable (task #7, fixtures confirmed live, blocked on auth only); (3) resume priority backlog — Stage 3.1 default-flip prep, R2 sentinel rewrite, `schema_migrations` backfill, candidate-login Phase 6 follow-ups; (4) surface admin-pages WIP owner (broken `admin.yml` blocks help-keys test).
+
+**Open questions:** none for this slice. Action-naming inconsistency in 18-certification noted but explicitly accepted (append-only catalogs tolerate stylistic variation).
+
+---
+
+## Agent utilization
+- Opus: this session — diff-only Phase 0 (read just §15/§17/§26 + the relevant service.ts auditInTx call sites); inventoried wired sites and `ACTION_CATALOG` membership in parallel; drafted §27 + §28 in one Edit call (no Sonnet dispatch — the work was synthesis + writing, exactly what Opus is for); committed with noreply env-var pattern; pushed; this handoff.
+- Sonnet: n/a — single-file documentation work below the delegation threshold (one file, ~80 lines added, all in Opus's hot read cache).
+- Haiku: n/a — no bulk multi-file lookups. Direct grep + Read against a known small file set.
+- codex:rescue: n/a — docs-only change, no threat surface, no auth/crypto/classifier/audit-invariant edits. Pure observability documentation backfill.
+
+---
+
 # Session — 2026-05-13 (G3.D sweep — 16-help-system audit-write slice shipped)
 
 **Headline:** Closed the 16-help-system G3.D loop end-to-end. Both admin-mutating service methods (`upsertHelpForTenant`, `importHelp`) now write one `audit_log` row inside the same `withTenant` transaction as the domain mutation via `auditInTx`. Adds `help.content.imported` to the `ACTION_CATALOG`; reuses existing `help.content.updated`. Field shape uses `help_id` (not `key`) to dodge `redactPayload`'s `/key$/i` silent strip. Route handlers thread `req.session.userId` through new `actorUserId` params. Failure-injection + coverage-grep tests in new `audit-writes.test.ts`. Existing `help-system.test.ts` mocks `@assessiq/audit-log` to a no-op (its testcontainer doesn't apply audit-log migrations). Docs §25 records 06/08/15 NO-OP classifications + the "audit ownership boundary" pattern; §26 documents the slice fully. Live deploy verified: `assessiq-api` rebuilt + force-recreated, `db5f4b3` in container, catalog + service wiring both present.
