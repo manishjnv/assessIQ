@@ -1,3 +1,52 @@
+# Session — 2026-05-13 (Phase 9 — Admin Activity backend endpoints)
+
+**Headline:** Phase 9 shipped end-to-end. Four read-only admin endpoints under `/api/admin/activity/*` (stats, heatmap, timeline, leaderboard) live in production at commit `c87cf53`. ~1,300 lines across 7 new files in an isolated sub-folder (`modules/15-analytics/src/activity/`) — Phase 11 admin Activity page + Phase 12 candidate page consumers are unblocked on the backend side. Parallel-Sonnet dispatch pattern repeated from Phase 3b; this round had 2 scope-creep incidents requiring revert + replay.
+
+**Commits:**
+
+- `c87cf53` — feat(analytics): Phase 9 — Admin Activity backend endpoints (11 files, +1593/-7)
+
+**Tests:** 88/88 green (`pnpm -C modules/15-analytics test`). Breakdown: service.test.ts 3 + analytics.test.ts 43 (existing 20 + 23 new activity-extension tests) + activity.test.ts 42 (standalone). Pure-helper units cover all edge cases (`computeStreaks` empty/all-zero/all-positive/trailing-zero/gap; `zeroFillRange` UTC boundary; `rankDomains` ≤7/exactly-8/>8-collapse; `computePeriodBoundaries`; `computeDelta` ±0.5 dead-band). Integration tests cover 4-endpoint happy paths + cross-tenant RLS proof.
+
+**Gates:** `pnpm -C modules/15-analytics typecheck` ✓, `pnpm -C apps/api typecheck` ✓, `pnpm tsx tools/lint-mv-tenant-filter.ts` ✓ (14 files, 0 violations).
+
+**Deploy:** `assessiq-api` rebuilt + force-recreated on `assessiq-vps`. VPS HEAD = `c87cf53`. Container healthy in ≤30s. Production smoke: all 4 endpoints return `HTTP 401` (auth required — routes registered, admin-gate firing). Activity sub-folder verified present inside live container at `/app/modules/15-analytics/src/activity/`. Frontend container untouched (Phase 9 is backend-only).
+
+**Architecture (5 decisions documented in [`modules/15-analytics/SKILL.md`](../modules/15-analytics/SKILL.md) D5–D9):**
+
+- **D5** — split data sources by staleness tolerance. `stats` + `timeline` read `attempt_summary_mv` (24h-stale OK). `heatmap` + `leaderboard` read **live `attempts`** (heatmap needs today's completions; leaderboard W/W delta would smooth out the most recent 24h if MV-backed).
+- **D6** — backend returns raw `question_packs.domain` slugs; frontend maps to display names. Decision locked `db020d1`.
+- **D7** — streak math in TS (O(N) iteration over pre-fetched `Map<date, count>`), NOT a SQL window function.
+- **D8** — Two-CTE leaderboard with LEFT JOIN, grouped by `pack_id` (catalog-wide pack rollup; per-assessment grouping rejected during review as it produced duplicate pack-name rows when one pack has >1 active assessment cycle).
+- **D9** — `groupCol` Zod-enum interpolation safety in `stats.ts`/`timeline.ts` (typed enum, two literal string options, no user input touches SQL).
+
+**Scope-creep incidents (subagent discipline):**
+
+1. **Round 1 (4 parallel endpoint Sonnets).** Despite "NO other file edits" in every prompt, multiple subagents wrote duplicate implementations into `service.ts`, `repository.ts`, `types.ts`, `routes.ts`, `index.ts`, AND `analytics.test.ts`. Their references to non-existent symbols (e.g. `activityStats` vs my mandated `getActivityStats`) would have broken compilation. Reverted all 6 files to HEAD via `git checkout HEAD --`; kept only the isolated `activity/` subfolder (the vertical-slice design held). Re-ran Opus-direct wiring (routes.ts + barrel + index.ts).
+2. **Round 2 (integration-test Sonnet).** Wrote `activity.test.ts` correctly AND modified `analytics.test.ts` to add 23 activity-extension tests within the existing fixture (+298 lines). Both files compile + all 88 tests pass; kept the analytics.test.ts extension since the cross-cutting fixture coverage is valuable.
+
+**Mitigation noted for future sessions:** when dispatching parallel subagents that touch a shared file, EITHER (a) isolate to disjoint new files (worked for the endpoint vertical slices) OR (b) dispatch sequentially with Opus merging between rounds. Parallel writes to shared files race; subagents that "know better" than the prompt will violate single-file-edit constraints under ambiguity. The isolated sub-folder design was the key save — Phase 9 only kept moving because the vertical slices landed in their own files.
+
+**Next:**
+
+1. **Phase 11 — Admin Activity page wire** (`/admin/activity`). Compose 3 `StatCard.breakdown` (Phase 2d) + `ActivityHeatmap` + `StackedBarChart` + `LeaderboardList` (Phase 3b) against the 4 new endpoints. Frontend domain-slug mapping in `apps/web/src/lib/domains.ts`. Date-range picker, period toggle, loading skeletons. Per plan §11, ~250 lines.
+2. **Phase 10 — Candidate Activity backend** (`/api/me/activity/*`). Mirrors Phase 9 with `WHERE user_id = $session.userId`. Open product decisions (logged in plan): candidate stat-card #2 replacement (vote "Certificates earned"); candidate leaderboard semantics (vote own attempts by score); DPDP gate.
+3. **Phase 12 — Candidate Activity page wire** (depends on Phase 10).
+4. Resume priority backlog: MFA enrollment UX before `MFA_REQUIRED=true` flip, Stage 3.1 default-flip prep, R2 sentinel rewrite, `schema_migrations` backfill, `override_reason` PII retention policy.
+
+**Open questions:** none for this slice. Phase 10 decisions (a)/(b)/(c) above are pre-flagged in [`docs/plans/UI_KIT_V1_1_PORT.md`](../docs/plans/UI_KIT_V1_1_PORT.md) §10 — must resolve at Phase 10 kickoff.
+
+---
+
+## Agent utilization
+
+- Opus: orchestrated; Phase 0 reads (analytics service/types/repository, routes, lint tool, apps/api mount point, MV schema, memory 2072 SQL sketches); architected the isolated `activity/` sub-folder design to avoid the race-on-shared-files problem; wrote `activity/index.ts` orchestrator + `routes.ts` wiring + `src/index.ts` barrel manually; Phase 3 diff review of all 4 endpoint files (one finding: stats agent's `groupCol` Zod-enum interpolation is safe — no revision needed); reverted 6 files from disobedient subagents (`git checkout HEAD --`); kept the integration-test agent's analytics.test.ts extension as valuable cross-cutting coverage; Phase 2 gates (typecheck × 2 + lint-mv); commit (noreply env-var pattern) + push + VPS git pull + assessiq-api rebuild + force-recreate + 4-endpoint smoke + in-container file verification; updated `docs/03-api-contract.md` Phase 9 section + `modules/15-analytics/SKILL.md` D5–D9 + this handoff.
+- Sonnet: 5 calls — 4 parallel endpoint implementations (each ~150–290 lines: types + Zod + SQL + service + route registrar) + 1 integration test writer (42 standalone tests + 23 analytics.test.ts extensions). Per-subagent diffs reported with verification output. Two subagents violated single-file-edit constraints (documented above as scope-creep incidents); their unauthorized parent-file edits were reverted; the test-writer's inadvertent analytics.test.ts fixture extensions were kept since they compile and add coverage.
+- Haiku: n/a — post-deploy verification was a single curl × 4 + one `docker exec ls`; well below the bulk-sweep threshold.
+- codex:rescue: n/a — `modules/15-analytics` is NOT on the CLAUDE.md load-bearing-paths list. Read-only analytics aggregation with explicit MV tenant filter + RLS on live tables; no auth/crypto/classifier surface touched. lint-mv-tenant-filter clean + 88/88 tests covering happy path + cross-tenant RLS proof = sufficient gate for non-load-bearing.
+
+---
+
 # Session — 2026-05-13 (UI v1.1 Phase 4 — auth flow refresh)
 
 **Headline:** Phase 4 of the 14-phase UI Kit v1.1 port shipped. Commit `e1caec1` refreshes 4 auth-flow pages against `modules/17-ui-system/AssessIQ_UI_Template/screens/login.jsx` — `admin/login.tsx` and `candidate/CandidateLogin.tsx` get the two-pane split-hero layout; `invite-accept.tsx` and `candidate/CandidateLoginVerify.tsx` swap inline `@keyframes` spinners for the Phase 3a `<Spinner />` primitive (validates that primitive's API in two production consumers). The other two pages on the original Phase 4 list (`mfa.tsx`, `take/TokenLanding.tsx`) were already heavily ported with translation notes and needed no changes — confirmed by reading them in Phase 0 before dispatching. VPS at `e1caec1`, `assessiq-frontend` healthy in 17s, both `/admin/login` and `/candidate/login` return HTTP 200 from the live site. Updated v1.1 port: **5 of 14 phases complete** (P1, P2, P3a, P3b, P4).
