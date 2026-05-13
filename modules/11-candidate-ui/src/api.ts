@@ -232,3 +232,13 @@ export async function shareCertificateLinkedIn(credentialId: string): Promise<vo
     method: 'POST',
   });
 }
+
+// Generic typed GET helper — mirrors adminApi() from @assessiq/admin-dashboard.
+// Used by CandidateActivity and any future pages that need ad-hoc GETs without
+// a named wrapper function.
+export async function candidateApi<T = unknown>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  return call<T>(path, init);
+}

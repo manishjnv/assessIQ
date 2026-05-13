@@ -24,7 +24,7 @@ import {
   AdminActivity,
   AdminUsers,
 } from '@assessiq/admin-dashboard';
-import { MyCertificates, CandidateShell } from '@assessiq/candidate-ui';
+import { MyCertificates, CandidateShell, CandidateActivity } from '@assessiq/candidate-ui';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
 import { CandidateLoginVerify } from './pages/candidate/CandidateLoginVerify';
 import { InviteAccept } from './pages/invite-accept';
@@ -103,6 +103,16 @@ export function App(): JSX.Element {
                 <CandidateShell>
                   <MyCertificates />
                 </CandidateShell>
+              </RequireSession>
+            }
+          />
+
+          {/* Candidate activity page (Phase 12) — CandidateActivity wraps CandidateShell internally. */}
+          <Route
+            path="/candidate/activity"
+            element={
+              <RequireSession unauthRedirect="/candidate/login">
+                <CandidateActivity />
               </RequireSession>
             }
           />

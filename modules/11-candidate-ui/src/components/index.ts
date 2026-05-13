@@ -23,3 +23,5 @@ export type { CandidateShellProps } from './CandidateShell.js';
 
 export { CandidateSessionBanner } from './CandidateSessionBanner.js';
 export type { CandidateSessionBannerProps } from './CandidateSessionBanner.js';
+
+export { CandidateActivity } from './CandidateActivity.js';

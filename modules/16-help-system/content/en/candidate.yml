@@ -322,3 +322,46 @@ candidate.auth.expiring-soon:
     **To renew:** visit the sign-in page, enter your email address, and click
     the link in the email you receive. Your certificates and history are not
     affected — only the session changes.
+
+candidate.activity:
+  audience: candidate
+  short_text: "Your personal activity dashboard: completions, average score, 52-week heatmap, weekly chart, and your rank on every pack you have attempted."
+  long_md: |
+    ## My activity
+
+    This page gives you a full picture of your assessment history on this
+    tenant.
+
+    ### Stat cards
+
+    - **Assessments completed** — total submissions in the selected period,
+      broken down by domain.
+    - **Packs attempted** — distinct question packs you have ever submitted
+      an attempt for.
+    - **Avg. score** — your mean auto-graded score across all completed
+      attempts in the period, with a quartile breakdown.
+
+    Use the **This week / This month / This quarter** toggle to adjust the
+    stats window. The heatmap and weekly chart always show the full 52-week
+    rolling window regardless of the toggle.
+
+    ### Activity streak
+
+    The 52-week heatmap shows one cell per day. Darker cells mean more
+    completions on that day. The current streak counts consecutive days with
+    at least one submission up to and including today.
+
+    ### Weekly completions
+
+    The stacked bar chart shows how many assessments you submitted each week,
+    coloured by domain. Hover a bar to see the exact breakdown.
+
+    ### My pack rankings
+
+    One row per pack you have attempted. Shows your **best score** (the
+    highest auto-graded result across all your attempts) and your **rank**
+    among every candidate in this tenant who took the same pack. For example
+    "#3 of 24" means your best score places you third out of the 24 candidates
+    who have submitted that pack.
+
+    Ranks are computed live and update as other candidates submit new attempts.

@@ -51,6 +51,7 @@ export {
   MyCertificates,
   CandidateShell,
   CandidateSessionBanner,
+  CandidateActivity,
 } from "./components";
 export type {
   AttemptTimerProps,
