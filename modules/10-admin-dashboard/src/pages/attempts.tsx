@@ -9,7 +9,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table } from "@assessiq/ui-system";
+import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -126,9 +126,18 @@ export function AdminAttempts(): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Attempts"]} helpPage="admin.attempts.list">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
-        <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-          Attempts.
-        </h1>
+        {/* Page header — count chip + serif h1 + lede */}
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <Chip leftIcon="grid">{items.length} attempt{items.length !== 1 ? "s" : ""}</Chip>
+          </div>
+          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+            Attempts.
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
+            All candidate submissions across every active assessment cycle.
+          </p>
+        </div>
 
         {/* Status filter tabs */}
         <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>

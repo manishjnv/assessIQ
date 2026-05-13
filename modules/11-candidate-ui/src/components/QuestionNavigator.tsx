@@ -69,8 +69,7 @@ const STATUS_STYLES: Record<NavigatorItem["status"], SquareStyles> = {
   },
   flagged: {
     border:     "1px solid var(--aiq-color-warning)",
-    // TODO(token): --aiq-color-warning-soft
-    background: "oklch(0.97 0.05 70)",
+    background: "var(--aiq-color-warning-soft)",
     color:      "var(--aiq-color-fg-primary)",
   },
   current: {

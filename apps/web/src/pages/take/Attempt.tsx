@@ -27,7 +27,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
-import { Button, Card, Chip, Icon, Logo } from '@assessiq/ui-system';
+import { Button, Card, Chip, Icon, Logo, Spinner } from '@assessiq/ui-system';
 import {
   AttemptTimer,
   AutosaveIndicator,
@@ -118,6 +118,9 @@ interface SubjectiveContent {
 // ─── Style constants ─────────────────────────────────────────────────────────
 
 const TOP_BAR: CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  zIndex: 5,
   display: 'flex',
   alignItems: 'center',
   gap: 'var(--aiq-space-md)',
@@ -182,12 +185,12 @@ function McqAnswerArea({
     <div role="radiogroup" aria-label="Answer options" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
       {options.map((text, idx) => {
         const isSelected = selected === idx;
+        const letter = String.fromCharCode(65 + idx); // A, B, C, D
         return (
           <label
             key={idx}
             style={{ display: 'block', cursor: disabled ? 'not-allowed' : 'pointer' }}
           >
-            {/* Hidden radio for a11y — Card is the visual affordance */}
             <input
               type="radio"
               name={question.question_id}
@@ -197,31 +200,72 @@ function McqAnswerArea({
               onChange={() => onAnswerChange({ selected: idx })}
               style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
             />
-            <Card
-              padding="sm"
+            <div
               style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--aiq-space-md)',
+                padding: 'var(--aiq-space-md) var(--aiq-space-lg)',
+                background: isSelected ? 'var(--aiq-color-accent-soft)' : 'var(--aiq-color-bg-base)',
                 border: isSelected
-                  ? '2px solid var(--aiq-color-accent)'
+                  ? '1px solid var(--aiq-color-accent)'
                   : '1px solid var(--aiq-color-border)',
-                background: isSelected
-                  ? 'var(--aiq-color-accent-soft)'
-                  : 'var(--aiq-color-bg-base)',
+                borderRadius: 'var(--aiq-radius-md)',
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'border-color 150ms ease, background 150ms ease',
                 userSelect: 'none',
               }}
             >
+              {/* Radio circle */}
+              <span
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  border: `1.5px solid ${isSelected ? 'var(--aiq-color-accent)' : 'var(--aiq-color-border-strong)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'border-color 150ms ease',
+                }}
+              >
+                {isSelected && (
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: 'var(--aiq-color-accent)',
+                    }}
+                  />
+                )}
+              </span>
+              {/* Letter label */}
+              <span
+                style={{
+                  fontFamily: 'var(--aiq-font-mono)',
+                  fontSize: 11,
+                  color: 'var(--aiq-color-fg-muted)',
+                  width: 14,
+                  flexShrink: 0,
+                }}
+              >
+                {letter}
+              </span>
+              {/* Option text */}
               <span
                 style={{
                   fontFamily: 'var(--aiq-font-sans)',
                   fontSize: 15,
                   color: 'var(--aiq-color-fg-primary)',
                   lineHeight: 1.5,
+                  flex: 1,
                 }}
               >
                 {text}
               </span>
-            </Card>
+            </div>
           </label>
         );
       })}
@@ -921,12 +965,9 @@ export function AttemptPage(): JSX.Element {
           minHeight: '100vh',
           display: 'grid',
           placeItems: 'center',
-          fontFamily: 'var(--aiq-font-mono)',
-          fontSize: 12,
-          color: 'var(--aiq-color-fg-muted)',
         }}
       >
-        Loading attempt…
+        <Spinner size="md" />
       </div>
     );
   }
@@ -1050,7 +1091,7 @@ export function AttemptPage(): JSX.Element {
     <div
       style={{
         padding: 'var(--aiq-space-sm) var(--aiq-space-2xl)',
-        background: 'oklch(0.97 0.05 70)',
+        background: 'var(--aiq-color-warning-soft)',
         borderBottom: '1px solid var(--aiq-color-warning)',
         fontFamily: 'var(--aiq-font-sans)',
         fontSize: 14,
@@ -1068,7 +1109,7 @@ export function AttemptPage(): JSX.Element {
       className="aiq-screen"
       style={{
         display: 'grid',
-        gridTemplateRows: 'auto 1fr auto',
+        gridTemplateRows: 'auto auto 1fr auto',
         minHeight: '100vh',
         background: 'var(--aiq-color-bg-base)',
       }}
@@ -1103,13 +1144,26 @@ export function AttemptPage(): JSX.Element {
         <CandidateHelp />
       </header>
 
-      {lockedBanner}
+      {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}
+      <div>
+        <div style={{ height: 2, background: 'var(--aiq-color-bg-raised)' }}>
+          <div
+            style={{
+              width: `${sorted.length > 0 ? ((safeIdx + 1) / sorted.length) * 100 : 0}%`,
+              height: '100%',
+              background: 'var(--aiq-color-accent)',
+              transition: 'width 300ms ease',
+            }}
+          />
+        </div>
+        {lockedBanner}
+      </div>
 
       {/* ── MIDDLE ROW (main pane + side panel) ─────────────────────────── */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 280px',
+          gridTemplateColumns: '1fr 320px',
           gap: 'var(--aiq-space-xl)',
           padding: 'var(--aiq-space-lg) var(--aiq-space-2xl)',
           overflow: 'auto',
@@ -1167,6 +1221,10 @@ export function AttemptPage(): JSX.Element {
           style={{
             borderLeft: '1px solid var(--aiq-color-border)',
             paddingLeft: 'var(--aiq-space-md)',
+            background: 'var(--aiq-color-bg-raised)',
+            paddingTop: 'var(--aiq-space-lg)',
+            paddingBottom: 'var(--aiq-space-lg)',
+            paddingRight: 'var(--aiq-space-md)',
           }}
         >
           <div
@@ -1180,7 +1238,7 @@ export function AttemptPage(): JSX.Element {
               paddingLeft: 'var(--aiq-space-md)',
             }}
           >
-            Questions
+            Navigator
           </div>
           <QuestionNavigator
             items={navigatorItems}
@@ -1189,6 +1247,40 @@ export function AttemptPage(): JSX.Element {
               // Navigator click does NOT flush; debounced autosave handles it.
             }}
           />
+          {/* Legend */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--aiq-space-xs)',
+              marginTop: 'var(--aiq-space-md)',
+              paddingLeft: 'var(--aiq-space-md)',
+            }}
+          >
+            {[
+              { color: 'var(--aiq-color-accent)', label: 'Current' },
+              { color: 'var(--aiq-color-success-soft)', border: 'var(--aiq-color-success)', label: 'Answered' },
+              { color: 'var(--aiq-color-warning-soft)', border: 'var(--aiq-color-warning)', label: 'Flagged' },
+              { color: 'var(--aiq-color-bg-base)', border: 'var(--aiq-color-border)', label: 'Unseen' },
+            ].map(({ color, border, label }) => (
+              <span
+                key={label}
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--aiq-space-sm)', fontSize: 11, color: 'var(--aiq-color-fg-secondary)', fontFamily: 'var(--aiq-font-sans)' }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 3,
+                    background: color,
+                    border: border ? `1px solid ${border}` : undefined,
+                    flexShrink: 0,
+                  }}
+                />
+                {label}
+              </span>
+            ))}
+          </div>
         </aside>
       </div>
 

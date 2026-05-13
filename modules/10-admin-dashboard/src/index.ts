@@ -51,4 +51,5 @@ export { AdminReports } from "./pages/reports.js";
 export { AdminGenerationAttempts } from "./pages/generation-attempts.js";
 export { AdminCertificates } from "./pages/certificates.js";
 export { AdminActivity } from "./pages/activity.js";
+export { AdminUsers } from "./pages/users.js";
 export { domainLabel, DOMAIN_LABELS } from "./lib/domains.js";
