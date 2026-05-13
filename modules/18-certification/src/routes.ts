@@ -29,12 +29,14 @@ import { renderCertificatePdf } from './pdf/render.js';
 import { findByCredentialId, incrementCounter } from './repository.js';
 import {
   adminListCertificates,
+  incrementShareCount,
   issueCertificate,
   listForUser,
   reissue,
   revoke,
 } from './service.js';
 import {
+  CertificateAccessDeniedError,
   CertificateAlreadyRevokedError,
   CertificateNotFoundError,
   CertificateRevokedException,
@@ -206,18 +208,32 @@ export async function registerCertificationRoutes(
     '/api/certificates/:credentialId/share-linkedin',
     { preHandler: candidatePreHandler },
     async (req, reply) => {
+      const session = (req as unknown as { session?: SessionInfo }).session;
+      if (!session) return reply.code(401).send({ error: 'Unauthorized' });
+
       const parsed = CredentialIdSchema.safeParse(
         (req.params as { credentialId: string }).credentialId?.toUpperCase(),
       );
       if (!parsed.success) {
-        throw new ValidationError(parsed.error.errors[0]?.message ?? 'invalid credential_id');
+        return reply.code(422).send({ error: { code: 'INVALID_CREDENTIAL_ID', message: 'Invalid credential_id format' } });
       }
-      void issueCertificate; // placeholder reference
-      return reply.status(501).send({
-        statusCode: 501,
-        error: 'Not Implemented',
-        message: 'POST /api/certificates/:credentialId/share-linkedin — Phase 5 Session 8',
-      });
+      const credentialId = parsed.data;
+
+      try {
+        await incrementShareCount(session.tenantId, credentialId, session.userId);
+        return reply.code(204).send();
+      } catch (err) {
+        if (err instanceof CertificateNotFoundError) {
+          return reply.code(404).send({ error: { code: 'NOT_FOUND', message: (err as Error).message } });
+        }
+        if (err instanceof CertificateAccessDeniedError) {
+          return reply.code(403).send({ error: { code: 'FORBIDDEN', message: (err as Error).message } });
+        }
+        if (err instanceof CertificateRevokedException) {
+          return reply.code(410).send({ error: { code: 'REVOKED', message: (err as Error).message } });
+        }
+        throw err;
+      }
     },
   );
 

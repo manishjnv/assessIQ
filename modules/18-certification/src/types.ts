@@ -239,3 +239,10 @@ export class CertificateRevokedException extends Error {
     this.name = 'CertificateRevokedException';
   }
 }
+
+export class CertificateAccessDeniedError extends Error {
+  constructor(credentialId: string) {
+    super(`Access denied to certificate ${credentialId}`);
+    this.name = 'CertificateAccessDeniedError';
+  }
+}

@@ -226,3 +226,9 @@ export interface MyCertificatesResponse {
 export async function listMyCertificates(): Promise<MyCertificatesResponse> {
   return call<MyCertificatesResponse>('/certificates');
 }
+
+export async function shareCertificateLinkedIn(credentialId: string): Promise<void> {
+  return call<void>(`/certificates/${encodeURIComponent(credentialId)}/share-linkedin`, {
+    method: 'POST',
+  });
+}
