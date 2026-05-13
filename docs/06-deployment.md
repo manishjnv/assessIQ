@@ -650,6 +650,50 @@ Or run a specific check via `--json` for machine-readable output, and `--self-te
 -- Reason: <explain why this SQL is not part of the automated migration sequence>
 ```
 
+### CHECK B.2 — Migration-drift gate (`pnpm tsx tools/migrate.ts --check`)
+
+**What it catches:** A `.sql` migration file exists in the repo under
+`modules/*/migrations/` but is **not recorded in the live DB's
+`schema_migrations` table**, OR a recorded migration's stored checksum no
+longer matches the on-disk file's content. Both states block a clean deploy:
+the first means the deployed code expects a table/column/index that doesn't
+exist; the second means the file was edited after it was applied, which
+silently fragments history across environments.
+
+**Why it exists:** RCA `2026-05-13 — Verify path silently 404/500 in prod`.
+Migrations `0046_certification_init.sql` (Phase 5 Session 1, 2026-05-11) and
+`0074_public_verify_policy.sql` (Phase 5 Session 3) were committed and the
+Fastify code that depended on them was deployed, but neither migration was
+ever applied to the VPS DB. The certificates table didn't exist for two
+sessions; every `/verify/*` request returned HTTP 500 in prod, masked
+because nothing in the user-facing app actually linked to `/verify/*` yet.
+A pre-deploy `--check` would have failed loud and refused to ship.
+
+**How to run** (requires postgres-superuser `DATABASE_URL` — the
+`assessiq_app` role used by the running API cannot write `schema_migrations`):
+
+```bash
+DATABASE_URL='postgres://postgres:…@host:5432/assessiq' \
+  pnpm tsx tools/migrate.ts --check
+```
+
+Exit 0 → repo and `schema_migrations` are in sync; safe to deploy.
+Exit 1 → at least one pending migration **or** at least one drifted
+checksum. The JSONL log lists each offending file under
+`migration.check.pending` / `migration.check.drift` events. Resolve before
+proceeding to `docker compose build` / `up -d`.
+
+**Canonical fix for violations:**
+- `migration.check.pending`: run `pnpm tsx tools/migrate.ts` (no `--check`)
+  against the same `DATABASE_URL` to apply the missing migration(s). Then
+  re-run `--check` to confirm exit 0.
+- `migration.check.drift`: a recorded migration was edited after it was
+  applied. This is almost always a mistake (migrations are append-only).
+  Investigate before proceeding. If the edit is genuinely intentional (rare
+  — e.g. a typo-only fix in a comment), use `--force-rerun <basename>`
+  against the affected DB to re-record the new checksum. Otherwise revert
+  the edit so the on-disk content matches what was applied.
+
 ### CHECK C — Env var declaration coverage
 
 **What it catches:** `process.env.VAR_NAME` reads in `modules/*/src/` and `apps/*/src/` where `VAR_NAME` does not appear anywhere in `.env.example` (including comment mentions). This catches vars that are used in code but never documented for operators provisioning a new environment.
@@ -688,13 +732,39 @@ As of 2026-05-03 `/srv/assessiq` is a `git clone` of `manishjnv/assessIQ`. The o
 # 1. Pull latest main
 ssh assessiq-vps 'cd /srv/assessiq && git pull'
 
-# 2. Rebuild the changed service image
+# 2. Migration-drift gate (CHECK B.2) — MANDATORY before rebuild.
+#    --check exits non-zero if any modules/*/migrations/*.sql is missing
+#    from schema_migrations or any recorded checksum has drifted.
+#    Runs inside the postgres container so it connects as the superuser
+#    role with permission to write schema_migrations.
+ssh assessiq-vps 'docker compose -f /srv/assessiq/infra/docker-compose.yml exec -T \
+  assessiq-postgres psql -U assessiq -d assessiq -tA -c \
+  "SELECT version FROM schema_migrations ORDER BY version"' \
+  | sort > /tmp/db-migrations.txt
+ssh assessiq-vps 'ls /srv/assessiq/modules/*/migrations/*.sql | xargs -n1 basename' \
+  | sort > /tmp/repo-migrations.txt
+diff /tmp/repo-migrations.txt /tmp/db-migrations.txt || {
+  echo "MIGRATION DRIFT — apply pending or reconcile before deploying"; exit 1; }
+
+# 2b. If --check (or the diff above) shows pending migrations, apply them
+#     BEFORE rebuilding any container image. Run from a host with a
+#     postgres-superuser DATABASE_URL pointed at the production DB:
+ssh assessiq-vps 'docker exec -i assessiq-postgres psql -U assessiq -d assessiq \
+  -v ON_ERROR_STOP=1 < /srv/assessiq/modules/<name>/migrations/<file>.sql'
+# Record in schema_migrations with the file's SHA256:
+ssh assessiq-vps 'sha256sum /srv/assessiq/modules/<name>/migrations/<file>.sql'
+ssh assessiq-vps 'docker exec assessiq-postgres psql -U assessiq -d assessiq -c \
+  "INSERT INTO schema_migrations(version, checksum) VALUES (\"<file>.sql\", \"<sha256>\");"'
+
+# 3. Rebuild the changed service image
 ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml build <service> 2>&1 | tail -10'
 # <service> is one of: assessiq-api, assessiq-frontend (rebuild both if in doubt)
 
-# 3. Recreate the container
+# 4. Recreate the container
 ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <service>'
 ```
+
+> **Why step 2 is mandatory:** RCA `2026-05-13 — Verify path silently 404/500 in prod`. Migrations `0046_certification_init.sql` and `0074_public_verify_policy.sql` were committed and the dependent code was deployed across multiple sessions, but neither migration was ever applied. The verify feature was silently 500ing in prod for two sessions before a Session 7 smoke surfaced the gap. A pre-deploy diff between `ls modules/*/migrations/*.sql` and `SELECT version FROM schema_migrations` would have caught it immediately. Treat step 2 as a hard gate, not a courtesy check.
 
 **If `.env` changes:** use `up -d --force-recreate` (NOT `restart`) — see RCA 2026-05-01 "docker compose restart does NOT reload env_file".
 

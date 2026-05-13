@@ -10,7 +10,10 @@
  *
  * Usage:
  *   pnpm tsx tools/migrate.ts                  # apply pending
- *   pnpm tsx tools/migrate.ts --dry-run        # list pending without applying
+ *   pnpm tsx tools/migrate.ts --dry-run        # list pending without applying (no DB connection)
+ *   pnpm tsx tools/migrate.ts --check          # repo-vs-DB drift report; exits non-zero
+ *                                              # on pending or checksum-mismatched migrations.
+ *                                              # Intended as a pre-deploy gate.
  *   pnpm tsx tools/migrate.ts --force-rerun X  # re-apply X even if checksum mismatches
  *
  * Environment: DATABASE_URL must be set. Connects as the URL's role; the role
@@ -194,6 +197,7 @@ interface AppliedMigration {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const isDryRun = args.includes("--dry-run");
+  const isCheck = args.includes("--check");
 
   const forceRerunIdx = args.indexOf("--force-rerun");
   const forceRerunBasename: string | null =
@@ -201,6 +205,11 @@ async function main(): Promise<void> {
 
   if (forceRerunIdx !== -1 && forceRerunBasename === null) {
     log.error("--force-rerun requires a basename argument, e.g. --force-rerun 010_oauth_identities.sql");
+    process.exit(1);
+  }
+
+  if (isCheck && isDryRun) {
+    log.error("--check and --dry-run are mutually exclusive (--check requires a live DB connection)");
     process.exit(1);
   }
 
@@ -221,6 +230,83 @@ async function main(): Promise<void> {
     }
     log.info("dry-run complete (pass/fail status requires a live DATABASE_URL)");
     process.exit(0);
+  }
+
+  // ---------------------------------------------------------------------
+  // --check: report repo-vs-DB migration drift without applying anything.
+  // ---------------------------------------------------------------------
+  // Exit 0  → every repo migration is recorded in schema_migrations AND
+  //           every recorded checksum still matches the on-disk content.
+  // Exit 1  → at least one pending migration OR at least one drifted
+  //           checksum. Intended for pre-deploy gating; the deploy
+  //           procedure in docs/06-deployment.md runs this before any
+  //           docker build / container recreate.
+  // ---------------------------------------------------------------------
+  if (isCheck) {
+    const databaseUrl = process.env["DATABASE_URL"];
+    if (!databaseUrl) {
+      log.error("DATABASE_URL must be set for --check");
+      process.exit(1);
+    }
+    const client = new Client({ connectionString: databaseUrl });
+    try {
+      await client.connect();
+    } catch (err) {
+      log.error({ err }, "could not connect to Postgres");
+      process.exit(1);
+    }
+    try {
+      await client.query(SCHEMA_MIGRATIONS_DDL);
+      const { rows } = await client.query<AppliedMigration>(
+        "SELECT version, applied_at::text AS applied_at, checksum FROM schema_migrations",
+      );
+      const applied = new Map<string, AppliedMigration>(rows.map((r) => [r.version, r]));
+
+      const pending: string[] = [];
+      const drifted: Array<{ file: string; applied: string; current: string }> = [];
+
+      for (const filePath of files) {
+        const basename = path.basename(filePath);
+        const content = await fsp.readFile(filePath, "utf8");
+        const currentChecksum = sha256(content);
+        const existing = applied.get(basename);
+        if (existing === undefined) {
+          pending.push(basename);
+        } else if (existing.checksum !== currentChecksum) {
+          drifted.push({
+            file: basename,
+            applied: existing.checksum,
+            current: currentChecksum,
+          });
+        }
+      }
+
+      log.info(
+        { repo_count: files.length, db_count: applied.size, pending: pending.length, drifted: drifted.length },
+        "migration.check.summary",
+      );
+      for (const p of pending) {
+        log.warn({ file: p }, "migration.check.pending");
+      }
+      for (const d of drifted) {
+        log.error(
+          { file: d.file, applied_checksum: d.applied, current_checksum: d.current },
+          "migration.check.drift",
+        );
+      }
+
+      if (pending.length > 0 || drifted.length > 0) {
+        log.error(
+          { pending: pending.length, drifted: drifted.length },
+          "migration.check.fail — apply pending migrations or reconcile drift before deploying",
+        );
+        process.exit(1);
+      }
+      log.info("migration.check.pass — repo and schema_migrations are in sync");
+      process.exit(0);
+    } finally {
+      await client.end().catch(() => {});
+    }
   }
 
   // Validate DATABASE_URL
