@@ -24,6 +24,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Chip, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { GradingProposalCard } from "../components/GradingProposalCard.js";
 import { EscalationDiff } from "../components/EscalationDiff.js";
@@ -228,8 +229,8 @@ export function AdminAttemptDetail(): React.ReactElement {
   if (loading) {
     return (
       <AdminShell breadcrumbs={["Attempts", "Detail"]} helpPage="admin.attempts.detail">
-        <div style={{ padding: "var(--aiq-space-3xl)", textAlign: "center", color: "var(--aiq-color-fg-muted)", fontFamily: "var(--aiq-font-sans)" }}>
-          Loading…
+        <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
+          <Spinner aria-label="Loading attempt" />
         </div>
       </AdminShell>
     );
@@ -252,11 +253,14 @@ export function AdminAttemptDetail(): React.ReactElement {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-2xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.015em" }}>
-              {attempt.assessment_name}
+            <div style={{ marginBottom: 12 }}>
+              <Chip>{attempt.status.replace(/_/g, " ")}</Chip>
+            </div>
+            <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+              {attempt.assessment_name}.
             </h1>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)" }}>
-              {attempt.candidate_email} · {attempt.level_label} · {attempt.status}
+              {attempt.candidate_email} · {attempt.level_label}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString()}` : ""}
             </div>
           </div>
           <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
