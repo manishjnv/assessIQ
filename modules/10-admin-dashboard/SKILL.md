@@ -88,6 +88,17 @@ Page count: 7 shipped G2.C + 5 shipped this session = **12 live pages**. 14 rema
 
 **2026-05-04 — grading-jobs + billing pages rewritten for user-facing clarity.** `grading-jobs.tsx` and `billing.tsx` had developer-speak copy (Phase 1/3, BullMQ, P2.D6, Max OAuth, `tenant_grading_budgets`, "platform admin updates the database directly"). Both pages were rewritten to answer "what does this mean for me right now?" for a tenant admin (e.g. a SOC manager at Wipro). Internal jargon moved to a `<details>` collapsible ("Technical details (for engineers)") that is closed by default — preserving the content for engineering/audit purposes without exposing it to non-technical admins. Both pages now use `Card`, `Chip`, and `Icon` from `@assessiq/ui-system` and include a footer link to `/admin/guide`. Button label "Grade all" is used consistently (matches the actual button on the attempt-detail page). "Coming soon" replaces all "deferred to Phase 3" references in user-facing copy. Commit: see SESSION_STATE.md 2026-05-04.
 
+**2026-05-14 — /admin/activity page shipped (UI v1.1 Phase 11).** New `pages/activity.tsx` + `lib/domains.ts`. Composes 4 Phase 9 endpoints (`/api/admin/activity/{stats,heatmap,timeline,leaderboard}`) into a dashboard page:
+- Period toggle (week/month/quarter) re-fetches stats + leaderboard; heatmap + timeline always show rolling 52-week window.
+- 3 `StatCard` with `breakdown`: completions (by domain), active candidates (by domain), avg score (by quartile — `QUARTILE_LABELS` map inline in the page).
+- `ActivityHeatmap`: 52-week column-major intensity array (counts bucketed 0→0, 1-2→1, 3-5→2, 6-10→3, 11+→4). Month labels derived from rolling start date.
+- `StackedBarChart`: maps timeline bars + domain slugs → display names via `domainLabel()`.
+- `LeaderboardList`: maps leaderboard items; `deltaPct=null` (new entry) emits no delta chip; conditional spread throughout for `exactOptionalPropertyTypes`.
+- `lib/domains.ts`: `DOMAIN_LABELS` map + `domainLabel(slug)` fallback capitalizer. Exported from the barrel for Phase 12 reuse.
+- AdminShell nav: "Activity" entry (chart icon, adminOnly) inserted between Reports and AI generation history.
+- Help: 3 keys added to `modules/16-help-system/content/en/admin.yml` + Block C test in `admin-help-keys.test.ts`.
+- Route: `/admin/activity` in `apps/web/src/App.tsx`, `<RequireSession role="admin">`.
+
 ## Open questions
 - Tenant switcher — only shown if user has multi-tenant role; rare for v1 (deferred until needed)
 - Mobile admin UI — desktop-first; mobile only for "monitor queue/approve override" lite view in Phase 3

@@ -67,7 +67,11 @@ const SHORT_TEXT_MAX = 120;
  * authored before the constraint was enforced in tests.
  */
 const KNOWN_SHORT_TEXT_OVERFLOWS = new Set([
-  "admin.questions.generate.draft", // 124 chars as of 2026-05-10
+  "admin.questions.generate.draft",   // 124 chars as of 2026-05-10
+  "admin.settings.ai_generate_mode",  // 131 chars, pre-dates enforcement test
+  "admin.certificates.list",          // 156 chars, Phase 5 Certificates
+  "admin.certificates.revoke",        // 162 chars, Phase 5 Certificates
+  "admin.certificates.reissue",       // 155 chars, Phase 5 Certificates
 ]);
 
 /**
@@ -85,6 +89,15 @@ const STAGE_1_5_KEYS: string[] = [
   "admin.ops.cli.inspect-attempt",
   "admin.attempts.grading-dispatch",
   "admin.attempts.session-idle",
+];
+
+/**
+ * Phase 11 Activity page help keys.
+ */
+const ACTIVITY_KEYS: string[] = [
+  "admin.activity.heatmap.legend",
+  "admin.activity.streak.explanation",
+  "admin.activity.leaderboard.delta",
 ];
 
 // ---------------------------------------------------------------------------
@@ -153,6 +166,48 @@ describe("Block B — Stage 1.5+ keys present and populated", () => {
         expect(
           parsed[key],
           `'${key}' is missing from admin.yml — add it to the Stage 1.5+ section`,
+        ).toBeDefined();
+      });
+
+      it("has audience = admin", () => {
+        const entry = parsed[key];
+        if (!entry) return; // guarded by prior test
+        expect(entry.audience).toBe("admin");
+      });
+
+      it("has non-empty short_text within 120 chars", () => {
+        const entry = parsed[key];
+        if (!entry) return;
+        expect(entry.short_text.length).toBeGreaterThan(0);
+        expect(
+          entry.short_text.length,
+          `${key}: short_text is ${entry.short_text.length} chars — exceeds 120`,
+        ).toBeLessThanOrEqual(SHORT_TEXT_MAX);
+      });
+
+      it("has non-empty long_md", () => {
+        const entry = parsed[key];
+        if (!entry) return;
+        expect(
+          (entry.long_md ?? "").trim().length,
+          `${key}: long_md is empty`,
+        ).toBeGreaterThan(0);
+      });
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Block C — Phase 11 Activity page key presence and content
+// ---------------------------------------------------------------------------
+
+describe("Block C — Phase 11 Activity page keys present and populated", () => {
+  for (const key of ACTIVITY_KEYS) {
+    describe(`key: ${key}`, () => {
+      it("is present in admin.yml", () => {
+        expect(
+          parsed[key],
+          `'${key}' is missing from admin.yml — add it to the Phase 11 Activity section`,
         ).toBeDefined();
       });
 
