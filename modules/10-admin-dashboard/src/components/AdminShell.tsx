@@ -15,7 +15,7 @@
 
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Sidebar, NavItem } from "@assessiq/ui-system";
+import { Sidebar, NavItem, SidebarSection } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";
 
@@ -69,11 +69,9 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     adminOnly?: boolean;
   }
 
-  // Nav order: Dashboard → Assessments → Attempts → Grading → Reports →
-  //            Question Bank → Users → Help guide → Settings
-  // Workflow rationale: create (Assessments/QB) → run (Attempts/Grading) →
-  //                     review (Reports) → manage (Users/Settings)
-  const navEntries: NavEntry[] = [
+  // Nav split: Workspace (create/run/review) → Account (help + settings)
+  // kit dashboard.jsx: SidebarSection "Workspace" then "Account"
+  const workspaceEntries: NavEntry[] = [
     { label: "Dashboard", href: "/admin", icon: "home" },
     { label: "Assessments", href: "/admin/assessments", icon: "clock", adminOnly: true },
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
@@ -82,9 +80,70 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "AI generation history", href: "/admin/generation-attempts", icon: "sparkle", adminOnly: true },
     { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
+  ];
+
+  const accountEntries: NavEntry[] = [
     { label: "Help guide", href: "/admin/guide", icon: "book" },
     { label: "Settings", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
   ];
+
+  // User card footer — kit dashboard.jsx footer slot
+  const userInitial = (session?.user.email ?? "A").charAt(0).toUpperCase();
+  const userDisplayName = session?.user.email?.split("@")[0] ?? "";
+  const userRoleLabel =
+    session?.user.role === "super_admin"
+      ? "Super admin"
+      : session?.user.role === "admin"
+        ? "Admin"
+        : "Reviewer";
+
+  const sidebarFooter = (
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: "var(--aiq-radius-pill)",
+          background: "var(--aiq-color-accent)",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: "var(--aiq-text-sm)",
+          fontWeight: 500,
+          flexShrink: 0,
+        }}
+      >
+        {userInitial}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: "var(--aiq-font-sans)",
+            fontSize: "var(--aiq-text-sm)",
+            fontWeight: 500,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: "var(--aiq-color-fg-primary)",
+          }}
+        >
+          {userDisplayName}
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: 10,
+            color: "var(--aiq-color-fg-secondary)",
+            textTransform: "capitalize",
+          }}
+        >
+          {userRoleLabel}
+        </div>
+      </div>
+    </div>
+  );
 
   async function handleLogout() {
     await adminLogout();
@@ -102,8 +161,22 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       }}
     >
       {/* Sidebar */}
-      <Sidebar collapsed={collapsed} onToggle={toggleCollapsed}>
-        {navEntries
+      <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} footer={sidebarFooter}>
+        <SidebarSection label="Workspace" collapsed={collapsed} />
+        {workspaceEntries
+          .filter((e) => !e.adminOnly || isAdmin)
+          .map((e) => (
+            <NavItem
+              key={e.href}
+              label={e.label}
+              icon={e.icon}
+              href={e.href}
+              active={path === e.href || (e.href !== "/admin" && path.startsWith(e.href))}
+              collapsed={collapsed}
+            />
+          ))}
+        <SidebarSection label="Account" collapsed={collapsed} />
+        {accountEntries
           .filter((e) => !e.adminOnly || isAdmin)
           .map((e) => (
             <NavItem
