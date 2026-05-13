@@ -1,6 +1,6 @@
 // AssessIQ — Admin Dashboard home page.
 //
-// /admin — shows KPI StatCards + grading queue table + recent activity.
+// /admin — shows KPI StatCards + grading queue table.
 // Consumes: GET /api/admin/dashboard/queue (07-ai-grading)
 //
 // HelpProvider: page="admin.dashboard.home" (wrapped by AdminShell).
@@ -10,6 +10,12 @@
 //  - No claude/anthropic imports.
 //  - Filter state in sessionStorage only.
 //  - Bands only in score display.
+//
+// Diverges from screens/dashboard.jsx because:
+//  - Kit is candidate-facing; admin replaces "continue/performance/recommended"
+//    panels with the grading queue — the primary admin work surface.
+//  - Sparkline dropped: queue endpoint provides no time-series data.
+//  - 3 stat cards (vs kit's 4): counts derived from queue status.
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -17,14 +23,33 @@ import { StatCard, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import type { QueueRow } from "@assessiq/ai-grading";
 import { AdminShell } from "../components/AdminShell.js";
+import { useAdminSession } from "../session.js";
 import { adminApi, AdminApiError } from "../api.js";
 
 interface QueueResponse {
   items: QueueRow[];
 }
 
+function greetingPhrase(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function dateLine(): string {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  })
+    .format(new Date())
+    .replace(",", " ·");
+}
+
 export function AdminDashboard(): React.ReactElement {
   const navigate = useNavigate();
+  const { session } = useAdminSession();
   const [queueItems, setQueueItems] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +74,12 @@ export function AdminDashboard(): React.ReactElement {
     return () => clearInterval(interval);
   }, [fetchQueue]);
 
-  const pendingCount = queueItems.filter(
-    (r) => r.status === "submitted" || r.status === "pending_admin_grading",
-  ).length;
+  const submittedCount = queueItems.filter((r) => r.status === "submitted").length;
+  const pendingCount = queueItems.filter((r) => r.status === "pending_admin_grading").length;
+  const totalCount = queueItems.length;
+
+  const displayName =
+    (session?.user.email?.split("@")[0] ?? "").replace(/^./, (c) => c.toUpperCase()) || "Admin";
 
   const columns: ColumnDef<QueueRow>[] = [
     {
@@ -69,10 +97,14 @@ export function AdminDashboard(): React.ReactElement {
       key: "submitted_at",
       label: "Submitted",
       render: (row: QueueRow) => (
-        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-          {row.submitted_at
-            ? new Date(row.submitted_at).toLocaleString()
-            : "—"}
+        <span
+          style={{
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: "var(--aiq-text-xs)",
+            color: "var(--aiq-color-fg-muted)",
+          }}
+        >
+          {row.submitted_at ? new Date(row.submitted_at).toLocaleString() : "—"}
         </span>
       ),
     },
@@ -121,42 +153,105 @@ export function AdminDashboard(): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Dashboard"]} helpPage="admin.dashboard.home">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
-        {/* Page title */}
-        <h1
+        {/* Page header — kit dashboard.jsx header region */}
+        <div
           style={{
-            fontFamily: "var(--aiq-font-serif)",
-            fontSize: "var(--aiq-text-3xl)",
-            fontWeight: 400,
-            margin: 0,
-            color: "var(--aiq-color-fg-primary)",
-            letterSpacing: "-0.02em",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
           }}
         >
-          Dashboard.
-        </h1>
-
-        {/* KPI row */}
-        <div style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
-          <StatCard label="Awaiting grading" value={pendingCount} />
-        </div>
-
-        {/* Grading queue */}
-        <section>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--aiq-space-md)" }}>
-            <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: 0 }}>
-              Grading queue.
-            </h2>
+          <div>
+            <div
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-fg-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: "var(--aiq-space-xs)",
+              }}
+            >
+              {dateLine()}
+            </div>
+            <h1
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: "var(--aiq-text-3xl)",
+                fontWeight: 500,
+                margin: 0,
+                color: "var(--aiq-color-fg-primary)",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {greetingPhrase()}, {displayName}.
+            </h1>
+          </div>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}
+          >
             <button
               type="button"
-              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+              className="aiq-btn aiq-btn-outline"
               onClick={() => void fetchQueue()}
             >
               Refresh
             </button>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-primary"
+              onClick={() => navigate("/admin/assessments")}
+            >
+              New assessment
+            </button>
+          </div>
+        </div>
+
+        {/* KPI row — 3 cards derived from queue status counts */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "var(--aiq-space-md)",
+          }}
+        >
+          <StatCard label="In queue" value={totalCount} />
+          <StatCard label="Submitted" value={submittedCount} />
+          <StatCard label="Awaiting review" value={pendingCount} />
+        </div>
+
+        {/* Grading queue */}
+        <section>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "var(--aiq-space-md)",
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: "var(--aiq-text-xl)",
+                fontWeight: 500,
+                margin: 0,
+                color: "var(--aiq-color-fg-primary)",
+              }}
+            >
+              Grading queue.
+            </h2>
           </div>
 
           {error && (
-            <div style={{ padding: "var(--aiq-space-md)", color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+            <div
+              style={{
+                padding: "var(--aiq-space-md)",
+                color: "var(--aiq-color-danger)",
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+              }}
+            >
               {error}
             </div>
           )}
