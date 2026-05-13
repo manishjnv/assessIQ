@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, TENANT_FIXTURES } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
 import { AdminMfa } from './pages/admin/mfa';
-import { AdminUsers } from './pages/admin/users';
 import {
   AdminDashboard,
   AdminAttempts,
@@ -23,6 +22,7 @@ import {
   AdminGenerationAttempts,
   AdminCertificates,
   AdminActivity,
+  AdminUsers,
 } from '@assessiq/admin-dashboard';
 import { MyCertificates, CandidateShell } from '@assessiq/candidate-ui';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
@@ -60,7 +60,7 @@ export function App(): JSX.Element {
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
-          <Route path="/admin/users" element={<RequireSession role="admin"><AdminShell><AdminUsers /></AdminShell></RequireSession>} />
+          <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
           <Route path="/admin" element={<RequireSession role="admin"><AdminDashboard /></RequireSession>} />
           <Route path="/admin/attempts" element={<RequireSession role="admin"><AdminAttempts /></RequireSession>} />
           <Route path="/admin/attempts/:id" element={<RequireSession role="admin"><AdminAttemptDetail /></RequireSession>} />
