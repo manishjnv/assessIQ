@@ -1,3 +1,28 @@
+# Session — 2026-05-13 (Phase 5 router wiring — /admin/certificates + /candidate/certificates live)
+
+**Headline:** Wired the two Phase 5 certificate surfaces into `apps/web` — `AdminCertificates` (Session 5) and `MyCertificates` (Session 5, missing from `@assessiq/candidate-ui` barrel) are now reachable in prod. Also pulled forward the 6 commits accumulated since the last handoff (Session 6 LinkedIn share, G1 design revisions, RCA refresh) onto the VPS.
+**Commits:**
+- `b8084fd` — feat(web): wire AdminCertificates + MyCertificates routes
+**Tests:**
+- `pnpm -C apps/web typecheck` ✅ clean
+- `pnpm -C modules/11-candidate-ui typecheck` ✅ clean
+- `pnpm -C modules/11-candidate-ui test` ✅ 48/48 (CompletionModal 6 + MyCertificates 12 + components 30)
+- Live: `GET /admin/certificates` → 200, `GET /candidate/certificates` → 200 on `https://assessiq.automateedge.cloud`
+**Next:** Phase 5 Session 7 — public `/verify/:credentialId` view-count increment + OG image surface (per Session 6 commit body). Also: candidate login flow is a Phase 5 deliverable still unscheduled; `MyCertificates` currently bounces unauthenticated candidates to `/admin/login`, which is wrong UX long-term.
+**Open questions:**
+- Q1: Candidate login flow location — should `/candidate/login` mirror `/admin/login` (cookie session + MFA), or is the existing token-minted `/take/*` flow expected to gain a "view my certificates" extension? `RequireSession.tsx:44` currently hard-codes `/admin/login` as the unauth redirect; that file needs a parameterized fallback before candidate auth lands.
+- Q2: `AdminCertificates` is gated by `role="admin"` in App.tsx — confirm reviewers shouldn't see the cert admin page. `RequireSession` already exempts `super_admin` from role gates.
+
+---
+
+## Agent utilization
+- Opus: this session — read stale SESSION_STATE, surfaced state drift (6 unaccounted commits + Session 6 already shipped + VPS 4 commits behind), gated scope via AskUserQuestion, self-executed the 13-line edit (route wire + barrel export — well under the 30-line/2-file delegation threshold from global CLAUDE.md), commit + push + VPS deploy + prod-route HTTP verification, this handoff.
+- Sonnet: n/a — edit too small (13 lines, 2 files) and the files were already in Opus's hot read cache this turn; cold-start cost would have outweighed the token savings.
+- Haiku: n/a — no bulk sweeps; single curl trio for prod verification ran inline.
+- codex:rescue: n/a — `apps/web/src/App.tsx` and the candidate-ui barrel are not in the load-bearing path list (`00-core`, `01-auth`, `02-tenancy`, `07-ai-grading`, `14-audit-log`, infra). Pure routing wire-up with no auth/crypto/classifier surface change.
+
+---
+
 # Session — 2026-05-12 (Phase 5 Session 5 — user-facing certificate surface + G3.D notifications)
 
 **Headline:** Phase 5 Session 5 shipped in full: `GET /api/certificates` (My Certificates + HMAC validity), admin revoke + reissue endpoints with atomic `auditInTx`, `GET /api/admin/certificates` with user email JOIN, `MyCertificates` candidate UI component, `AdminCertificates` dashboard page, and 3 help-system YAML entries. Also sealed G3.D notifications audit-write sweep (committed alongside). 156 tests pass across all touched modules.
