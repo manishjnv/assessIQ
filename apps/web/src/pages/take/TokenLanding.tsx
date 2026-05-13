@@ -21,8 +21,9 @@
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Button, Chip, Logo } from '@assessiq/ui-system';
+import { Button, Chip, Logo, Spinner } from '@assessiq/ui-system';
 import { takeStart, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
+import { TakeRightPane } from './TakeRightPane.js';
 
 // ─── shared style constants (mirrors login.tsx) ───────────────────────────────
 
@@ -69,71 +70,7 @@ function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max) + '…' : str;
 }
 
-// ─── right pane (shared across all states) ────────────────────────────────────
-
-function RightPane(): JSX.Element {
-  return (
-    <aside
-      style={{
-        background: 'var(--aiq-color-bg-raised)',
-        borderLeft: '1px solid var(--aiq-color-border)',
-        padding: 48,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <div style={{ width: '100%', maxWidth: 460, textAlign: 'left' }}>
-          <Chip variant="accent" leftIcon="sparkle">Phase 1</Chip>
-          <p
-            className="aiq-serif"
-            style={{
-              fontSize: 28,
-              lineHeight: 1.3,
-              margin: '24px 0 0',
-              color: 'var(--aiq-color-fg-primary)',
-              letterSpacing: '-0.015em',
-            }}
-          >
-            Calm. Focused. One question at a time.
-          </p>
-        </div>
-      </div>
-
-      <blockquote
-        className="aiq-serif"
-        style={{
-          fontSize: 22,
-          lineHeight: 1.3,
-          margin: 0,
-          maxWidth: 480,
-          color: 'var(--aiq-color-fg-primary)',
-          letterSpacing: '-0.015em',
-        }}
-      >
-        "Read carefully. The questions are scenario-driven; there are no trick
-        options."
-        <footer
-          style={{
-            marginTop: 12,
-            fontFamily: 'var(--aiq-font-sans)',
-            fontSize: 12,
-            color: 'var(--aiq-color-fg-secondary)',
-          }}
-        >
-          assessiq.automateedge.cloud
-        </footer>
-      </blockquote>
-    </aside>
-  );
-}
+// ─── right pane lives in TakeRightPane.tsx (shared with Expired + ErrorPage) ──
 
 // ─── left-pane content per state ─────────────────────────────────────────────
 
@@ -374,21 +311,14 @@ export function TokenLanding(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Loading: full-screen centered idiom from RequireSession.tsx
+  // Loading: spinner centered — Spinner primitive from Phase 3a.
   if (state.tag === 'loading') {
     return (
       <div
         className="aiq-screen"
-        style={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-          fontFamily: 'var(--aiq-font-mono)',
-          fontSize: 12,
-          color: 'var(--aiq-color-fg-muted)',
-        }}
+        style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}
       >
-        Loading…
+        <Spinner aria-label="Verifying invitation" />
       </div>
     );
   }
@@ -448,7 +378,7 @@ export function TokenLanding(): JSX.Element {
         </div>
       </main>
 
-      <RightPane />
+      <TakeRightPane />
     </div>
   );
 }

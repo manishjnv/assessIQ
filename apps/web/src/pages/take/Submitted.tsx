@@ -28,23 +28,8 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { Chip, Card, Logo } from '@assessiq/ui-system';
+import { Chip, Card, Logo, Spinner } from '@assessiq/ui-system';
 import { getResult, CandidateApiError } from '@assessiq/candidate-ui';
-
-// ─── keyframe injection (once per page load, SSR-safe) ────────────────────────
-
-const STYLE_ID = 'aiq-submitted-style';
-
-function injectStyles(): void {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(STYLE_ID)) return;
-
-  const el = document.createElement('style');
-  el.id = STYLE_ID;
-  el.textContent =
-    '@keyframes aiq-submitted-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
-  document.head.appendChild(el);
-}
 
 // ─── page state ───────────────────────────────────────────────────────────────
 
@@ -68,11 +53,6 @@ const META_LABEL: CSSProperties = {
 export function Submitted(): JSX.Element {
   const { id: attemptId } = useParams<{ id: string }>();
   const [state, setState] = useState<PageState>({ tag: 'loading' });
-
-  // Inject the spin keyframe once on mount, SSR-safe.
-  useEffect(() => {
-    injectStyles();
-  }, []);
 
   // Initial fetch + polling setup.
   useEffect(() => {
@@ -149,16 +129,9 @@ export function Submitted(): JSX.Element {
     return (
       <div
         className="aiq-screen"
-        style={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-          fontFamily: 'var(--aiq-font-mono)',
-          fontSize: 12,
-          color: 'var(--aiq-color-fg-muted)',
-        }}
+        style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}
       >
-        Loading…
+        <Spinner aria-label="Loading submission status" />
       </div>
     );
   }
@@ -232,20 +205,7 @@ export function Submitted(): JSX.Element {
                 gap: 'var(--aiq-space-md)',
               }}
             >
-              {/* Inline spinner ring — no Spinner primitive yet per modules/17 SKILL.md */}
-              <span
-                aria-hidden="true"
-                style={{
-                  display: 'inline-block',
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  border: '2px solid var(--aiq-color-border-strong)',
-                  borderTopColor: 'var(--aiq-color-accent)',
-                  animation: 'aiq-submitted-spin 800ms linear infinite',
-                  flexShrink: 0,
-                }}
-              />
+              <Spinner size="sm" aria-label="Grading pending" style={{ flexShrink: 0 }} />
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>
                   Grading pending admin review
