@@ -1073,3 +1073,83 @@ This slice adds **one** new entry to the G3.A action catalog ([modules/14-audit-
 - `getHelpForPage` / `getHelpKey` / `exportHelp` — read-only. These write only to operational `request.log`.
 - `exportHelp` — GET route; read-only bulk fetch for the translation workflow. No state mutation.
 - Global (tenant_id IS NULL) seed rows — these are inserted by the Postgres superuser during migration (`0011_seed_help_content.sql`) and are intentionally outside the `assessiq_app` role's INSERT policy. No audit row is emitted for seed inserts; they are a deploy-time event, not an admin-actor event.
+
+## 27. Audit-log wiring — 13-notifications webhooks (G3.D slice, 2026-05-11)
+
+Every admin-mutating service method on the **webhook-config surface** of [modules/13-notifications](../modules/13-notifications/SKILL.md) writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)` from `@assessiq/audit-log`. Mirrors the G3.D template from `eff0ba2` (§ 15). Atomicity guarantee is identical.
+
+Note the **boundary**: only the admin config endpoints (create/delete an endpoint, replay a past delivery) are audited. The delivery-tracking paths (`emitWebhook`, `emitWebhookToEndpoint`, BullMQ `deliver-job`) write to `webhook.log` only — they are operational telemetry firing off downstream signals from other audited mutations, not admin config decisions.
+
+### 27.1 Wired sites and action namespaces used
+
+| Service function | `audit_log.action` | `entity_type` | `entity_id` | Notes |
+|---|---|---|---|---|
+| `createWebhookEndpoint` | `webhook.created` | `webhook_endpoint` | New endpoint UUID | `before` omitted — INSERT, no prior state. `after`: `name`, `url`, `events[]`, `requires_fresh_mfa`. The HMAC signing secret is NEVER logged (`signing_secret_enc` column is excluded from the payload). |
+| `deleteWebhookEndpoint` | `webhook.deleted` | `webhook_endpoint` | Endpoint UUID | `before` snapshots `name`, `url`, `events[]`, `status` via `getWebhookEndpointById` immediately before the DELETE inside the same tx. `after` omitted — DELETE. Used for "who removed which webhook target". |
+| `replayDelivery` | `webhook.replayed` | `webhook_delivery` | ID of the **original** delivery being replayed | `after`: `new_delivery_id`, `original_delivery_id`, `endpoint_id`, `event`. `before` omitted — replay is a new transmission, not a state mutation on the original row. The new delivery row itself gets its own lifecycle entries in `webhook.log`; this audit row is the admin-action receipt. |
+
+`actor_kind` is `"user"` when `actorUserId` is supplied by the route handler; `"system"` when the caller is internal (e.g. a system-initiated webhook secret rotation). All three functions take an optional `actorUserId` parameter that is threaded through from the admin route handlers in `apps/api/src/routes/admin-webhooks.ts`. System callers omit it and the audit row is attributed accordingly.
+
+### 27.2 Action-catalog scope decision
+
+This slice adds **0** new entries — `webhook.created`, `webhook.deleted`, `webhook.replayed`, and `webhook_secret.rotated` were all added to [modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts) at G3.A ship time as part of the foundational webhook event surface (lines 66–69). `webhook_secret.rotated` is reserved for a future rotation slice; it is in the catalog but no service function emits it yet.
+
+### 27.3 Atomicity guarantees and the circular-dependency dodge
+
+- Every audit write uses `auditInTx(client, ...)` inside the same `withTenant(...)` callback that owns the mutation. Domain INSERT/UPDATE/DELETE and the audit INSERT commit or roll back together.
+- `@assessiq/audit-log` is imported **statically** from `13-notifications/src/webhooks/service.ts`. This is safe because the reverse direction (audit-log → notifications) is via a **dynamic import** in `modules/14-audit-log/src/webhook-fanout.ts`. The dynamic import breaks what would otherwise be a static circular dependency between the two modules.
+- Failure-injection tests in [src/__tests__/audit-writes.test.ts](../modules/13-notifications/src/__tests__/audit-writes.test.ts) (file has 19 audit-related call sites — happy-path per action + atomicity per action + payload-shape assertions). Coverage-grep at file bottom asserts `auditInTx(` occurs exactly 3 times in `webhooks/service.ts`.
+
+### 27.4 What's NOT audited here
+
+- `emitWebhook` / `emitWebhookToEndpoint` — these queue deliveries in response to other modules' state changes (e.g. `attempt.submitted` fanout). The audit trail for *why* the webhook fired lives on the originating action's audit row, not here. Adding a `webhook.dispatched` row per delivery would inflate the audit trail by orders of magnitude and answer no compliance question that the originating row doesn't already answer.
+- BullMQ `deliver-job` (the worker that POSTs the HTTP request and records HTTP status) — purely operational. Outcome lands in `webhook.log` and `webhook_deliveries` table.
+- Email sending (`sendEmail`, `sendAssessmentInvitationEmail`, candidate magic-link emails) — Phase 1 dev-fallback writes to `dev-emails.log`. Phase 2+ will route via SMTP/SES. The send itself is downstream of an already-audited admin action (e.g. `assessment.invite`); duplicating the audit row at the email layer adds no compliance signal.
+- In-app notifications (`createInAppNotification`) — these are user-facing pings, not state changes auditors care about. Persistence is in `in_app_notifications`; lifecycle is the notification row itself.
+
+## 28. Audit-log wiring — 18-certification (G3.D slice + Phase 5 Sessions 1/5/6)
+
+Every admin-mutating service method in [modules/18-certification](../modules/18-certification/SKILL.md) — plus the candidate-lifecycle issuance/upgrade — writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)`. Wiring shipped incrementally across Phase 5: issue/upgrade in Session 1 (`1402`/`6ab8e90`-era), revoke/reissue in Session 5 (`190acee`). Atomicity guarantee is identical to § 15.
+
+Certificates carry HMAC integrity signatures (see [modules/18-certification/SKILL.md § Cryptography](../modules/18-certification/SKILL.md) and `docs/CERTIFICATION_PLAN_GENERIC.md`). The audit row is the **administrative receipt** for the lifecycle event; the HMAC `signed_hash` on the `certificates` row is the **cryptographic receipt** for the cert payload itself. Both are required — neither replaces the other.
+
+### 28.1 Wired sites and action namespaces used
+
+| Service function | `audit_log.action` | `entity_type` | `entity_id` | Trigger | Notes |
+|---|---|---|---|---|---|
+| `issueCertificate` | `certification.cert.issue` | `certificate` | New cert UUID | Candidate completes a passing attempt → admin sync grades it → certificate row inserted | `after`: `credential_id` (the public-facing 26-char base32 ID), `tier` (`completion` \| `distinction` \| `honors`), `candidate_id`, `attempt_id`. `before` omitted — INSERT. `actor_user_id` is the **admin** who clicked "Issue" (Phase 1 single-admin model), not the candidate. |
+| `upgrade` | `certification.cert.upgrade` | `certificate` | Existing cert UUID (id changes only if the upgrade re-issues; `credential_id` stays stable per CLAUDE.md "stable shared URL" invariant) | Candidate's tier improves on a later attempt (e.g. completion → distinction) | `before`: `{ tier: existing.tier }`. `after`: full `credential_id`, new `tier`, `candidate_id`, `attempt_id`. Distinct action (not `cert.updated`) because tier upgrades are a compliance-significant lifecycle event auditors search for explicitly. The TOCTOU concern was resolved in Phase 5 Session 2 R3 fix (see RCA log 2026-05-11). |
+| `revokeCertificate` | `certificates.revoked` | `certificate` | Cert UUID | Admin clicks "Revoke" on the certificates admin page (`/admin/certificates`) | `before`: `{ revoked_at: null, revoke_reason: null }`. `after`: `revoked_at`, `revoke_reason`. The `revoke_reason` is admin-supplied free text; not redacted because it's already admin-authored and may be needed in the audit trail. |
+| `reissue` | `certificates.reissued` | `certificate` | Cert UUID | Admin re-signs a cert after a `display_name` correction (typo fix, legal-name change) | `before`: `{ display_name: cert.display_name }`. `after`: `{ display_name: newDisplayName }`. The cert's `credential_id` and `issued_at` are preserved by invariant — reissue is a snapshot refresh, not a new issuance (see RCA log 2026-05-11 "Revoke is a state flag; reissue preserves credential_id + issued_at invariant"). |
+
+`actor_kind` is always `"user"` for all four sites — every cert lifecycle event in Phase 5 has a known admin actor (issuance via the admin grading flow, revoke/reissue via explicit admin clicks). There is no `system` cert-lifecycle path.
+
+### 28.2 Action-catalog scope decision and the naming-style inconsistency
+
+This module added **4** entries to the G3.A action catalog (lines 82–86 of [modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts)):
+
+- `certification.cert.issue` (Phase 5 Session 1)
+- `certification.cert.upgrade` (Phase 5 Session 1)
+- `certificates.revoked` (Phase 5 Session 5 — see memory observation 1750, added 2026-05-12)
+- `certificates.reissued` (Phase 5 Session 5)
+
+**Naming-style inconsistency noted but not fixed:** the issuance/upgrade pair uses `certification.cert.*` (module.entity.verb); the revoke/reissue pair uses `certificates.*` (entity_plural.past-tense-verb). This is a real inconsistency, born of Session 1 (issue/upgrade — domain-modeled actions) versus Session 5 (revoke/reissue — admin-operation-modeled actions). Both styles exist elsewhere in the catalog (`user.created` vs `tenant_settings.ai_generate_mode.updated`), so neither is wrong; consolidating would be a catalog-only rename + a one-line UPDATE for any deployed audit rows in dev. Tracked as a Phase 5 polish item, not a load-bearing rename — append-only catalogs tolerate stylistic variation by design.
+
+### 28.3 Atomicity guarantees
+
+- Every audit write uses `auditInTx(client, ...)` inside the same `withTenant(...)` callback that owns the mutation. The cert INSERT/UPDATE and the audit INSERT commit or roll back together. If the audit row fails (catalog mismatch, RLS denial), the cert mutation does too — there is no orphan-cert path.
+- The `signed_hash` HMAC is recomputed and stored on the cert row inside the same transaction for `issueCertificate`, `upgrade`, and `reissue` (revoke leaves the original signature intact — revocation is a state flag, not a payload change). All three writes therefore have audit-row + HMAC-signature + cert-row atomicity as a triple invariant.
+- Failure-injection tests live across `modules/18-certification/src/__tests__/`:
+  - `service.test.ts` — happy-path audit rows per lifecycle event
+  - `admin-revoke.test.ts` — revoke-specific audit-row assertions
+  - `admin-reissue.test.ts` — reissue-specific audit-row assertions + the credential_id-preservation invariant
+- No coverage-grep assertion is currently wired (predates the §15/§17/§26 pattern). The 4 call sites in `service.ts` are stable; future contributors adding a new lifecycle method without an audit row will fail the test-suite atomicity assertions instead.
+
+### 28.4 What's NOT audited here
+
+- `getCertificateByCredentialId` / `findCertificatesByCandidate` / `listAdminCertificates` — read paths. No state change.
+- `verifyCertificateSignature` — pure HMAC verification, no DB I/O.
+- `renderCertificatePdf` — PDF generation. Output is bytes, not state.
+- `incrementCounter` (linkedin_shares, pdf_downloads, verification_views) — fire-and-forget engagement counters, intentionally NOT audited per Phase 5 plan §13. Counter writes use UPDATE-as-statement (not read-modify-write) and tolerate row-level lock contention by design. Counter values are analytics, not compliance signal.
+- `POST /api/certificates/:credentialId/share-linkedin` — calls `incrementCounter('linkedin_shares')` only. The cert state itself doesn't change; the sharer is the cert owner (already known via the cert row); no audit row.
+- The public verify page (`GET /verify/:credentialId`) — public read path that increments `verification_views`. Anonymous actor, no audit row. Tamper detection signal here lives in `app.log` only (see § 18.1 in the credential-verify surface area).
