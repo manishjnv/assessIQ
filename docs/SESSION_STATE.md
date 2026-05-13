@@ -1,3 +1,36 @@
+# Session — 2026-05-13 (G3.D: 07-ai-grading audit-write slice — last G3.D target closed)
+
+**Headline:** Closed the final G3.D target. All 5 admin-mutating handlers in [modules/07-ai-grading](../modules/07-ai-grading/SKILL.md) now write one `audit_log` row inside the same `withTenant` transaction as the domain mutation via `auditInTx(...)`. 8 audit sites total. Catalog adds 4 new actions; pre-existing `grading.override` (atomicity FIX — moved from fire-and-forget `audit()` to in-tx) and `grading.retry` are reused. Sonnet + GLM-4.6 dual adversarial review.
+
+**Commits:**
+- `15c7728` — feat(ai-grading): G3.D audit-write slice — auditInTx for 8 admin-mutating sites (844 insertions, 26 deletions across 13 files)
+
+**Tests:** 28 new tests in [src/__tests__/audit-writes.test.ts](../modules/07-ai-grading/src/__tests__/audit-writes.test.ts) — all green. Static structural (per-file `auditInTx(` call-counts + catalog membership + negative coverage on 4 read-only handlers + anti-regression on the removed `audit()` import) plus live integration testcontainer (happy-path `grading.claimed` row shape + atomicity proof: failure-injection rolls back the `attempts.status` UPDATE). 3 pre-existing test failures in `admin-generate-{stderr,citation,tenant-mode}.test.ts` are **unrelated** — confirmed via `git stash` + re-run on clean main; same "relation 'attempts' does not exist" migration-order bug existed before G3.D. Not addressed in this slice; flagged below.
+
+**Deploy:** `assessiq-api` rebuilt + force-recreated (image `ebf7013b359f`); `assessiq-worker` rebuilt + force-recreated. VPS HEAD = `15c7728` (verified). API health 200 OK. Catalog file inside live container confirms all new action names present. Both containers healthy.
+
+**Adversarial review (per `feedback-adversarial-reviewer-routing.md`):**
+- **Sonnet (parallel, 60s):** ACCEPT with 2 non-blocker open items. V8: `override_reason` is free-text admin input that lands in the durable audit table — data-governance retention policy follow-up. V10: live atomicity proof only covers `handleAdminClaimAttempt`; add rollback-injection tests for `admin-override` (highest regression risk — was the out-of-tx site pre-G3.D) and `admin-accept` (highest compliance weight — D8 accept-before-commit) as `TODO(G3.D-followup)` in a separate session.
+- **GLM-4.6 (parallel via or.mjs, 60s):** raised a V5 BLOCKER claiming a TOCTOU race on `wasClaimed`. **Hallucinated** — the code at [admin-claim-release.ts:144-179](../modules/07-ai-grading/src/handlers/admin-claim-release.ts#L144-L179) derives `wasClaimed` from `claimResult.rowCount` AFTER the UPDATE, inside the same `withTenant` callback (single PoolClient → single Postgres tx). The cited line `:28` is in the docstring, not the claim logic. Verdict: false alarm; Sonnet's careful V5 SAFE analysis is correct. GLM's other concerns (V2/V6/V7/V8/V10) overlap with Sonnet's non-blockers or are misreadings (V8 question_ids are UUIDs not content; V6 is the by-design rerun separate-tx).
+
+**Atomicity contract per the load-bearing case (admin-accept):** N `gradings` INSERTs + 1 `attempts` UPDATE + 1 `audit_log` INSERT all commit or roll back together. If `auditInTx` throws (catalog mismatch, RLS denial, FK violation), the gradings INSERTs and attempt status flip both roll back — a graded attempt without the corresponding audit row is now structurally impossible. This is the compliance frame's load-bearing receipt for Phase 1 grading.
+
+**G3.D sweep status (final):** 03-users, 04-question-bank, 05-lifecycle, **07-ai-grading**, 09-scoring, 13-notifications, 16-help-system, 18-certification — all live AND documented in `docs/11-observability.md` §15/§17/§19/§26/§27/§28/§29. 06-attempt-engine, 08-rubric-engine, 15-analytics — classified NO-OP and documented (§25). **G3.D is fully closed.**
+
+**Next:** (1) Wire all 5 phases into admin UI (user directive S442 from earlier — still outstanding, biggest unknown scope); (2) MFA enrollment UX before flipping `MFA_REQUIRED=true` (today's earlier rate-limit fix made the IP-bypass MFA-aware but admins still on single-factor SSO); (3) `TODO(G3.D-followup)` — rollback-injection tests for `admin-override` + `admin-accept`; (4) data-governance policy for `override_reason` PII retention in the audit table; (5) Phase 1 closure re-drill once admin cookie is shareable; (6) priority backlog — Stage 3.1 default-flip, R2 sentinel rewrite, `schema_migrations` backfill, candidate-login Phase 6 follow-ups; (7) fix 3 pre-existing test-migration failures in `admin-generate-{stderr,citation,tenant-mode}.test.ts`.
+
+**Open questions:** (a) `override_reason` PII retention — truncate / hash / store out-of-band? Decide before MFA-flip session. (b) Whether `admin-rerun`'s separate-tx audit is documentation-perfect or whether to fold the rerun's logical action into the subsequent `admin-accept` row's `before:` payload. Documented as accepted per §29.1.
+
+---
+
+## Agent utilization
+- Opus: full session — Phase 0 reads in parallel (PROJECT_BRAIN.md, 07-ai-grading SKILL.md, the 5 handler diffs, audit-writes.test.ts, ACTION_CATALOG diff, docs §29); identified the prior session's drafted-but-uncommitted state; ran typecheck + tests; confirmed 3 pre-existing failures are unrelated via `git stash` + re-run; verified GLM's hallucinated V5 against the actual code; commit + push + VPS pull + docker build + recreate + verification; this handoff. All judgment work where Sonnet would lose precision (catalog-correctness, atomicity reasoning, hallucination detection).
+- Sonnet: 1 call — parallel adversarial review of the full 462-line diff (60s, returned ACCEPT with 2 non-blocker open items). Carefully traced every input through to every `actorUserId` / `action` parameter; correctly identified that V5's claim of a TOCTOU race was incorrect.
+- Haiku: n/a — post-deploy verification was a 3-step direct check (VPS HEAD SHA + API health curl + grep inside container); below the bulk-sweep threshold. Considered but rejected for the single live-container check.
+- codex:rescue: n/a — replaced by parallel Sonnet + GLM-4.6 per `feedback-adversarial-reviewer-routing.md` (security-adjacent load-bearing path). Both reviewers ran; Sonnet ACCEPT, GLM REVISE-via-hallucination — verified against the code; Sonnet's verdict is the correct one.
+
+---
+
 # Session — 2026-05-13 (UI v1.1 Phase 3a — easy primitives + first axe a11y wiring)
 
 **Headline:** Phase 3a of the UI kit v1.1 port shipped. Three new typed primitives (`Spinner`, `ProgressBar`, `Placeholder`) plus the module's first axe a11y test infrastructure are live in `@assessiq/ui-system` and deployed in the production CSS bundle (`/assets/index-yGEY05id.css`). Triggered by user observation "new ui template is not appearing on site" → diagnosis confirmed Phases 1+2 (token migration + atom refresh) were already live; the rest of the kit's "obvious new look" (Activity heatmap, leaderboard, refreshed page layouts) is Phases 4–12 and not yet wired.
