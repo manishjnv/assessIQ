@@ -18,6 +18,7 @@
 //  - No new npm dependencies — mirrors generation-attempts.tsx in all patterns.
 
 import React, { useEffect, useState, useCallback } from "react";
+import { Chip, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
@@ -362,16 +363,19 @@ export function AdminCertificates(): React.ReactElement {
     <AdminShell breadcrumbs={["Certificates"]} helpPage="admin.certificates.list">
       {/* ── Page header ── */}
       <div style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
+        <div style={{ marginBottom: 12 }}>
+          <Chip leftIcon="grid">{total} certificate{total !== 1 ? "s" : ""}</Chip>
+        </div>
         <h1
           style={{
             fontFamily: "var(--aiq-font-serif)",
-            fontSize: "var(--aiq-text-2xl)",
+            fontSize: "var(--aiq-text-3xl)",
             fontWeight: 400,
             letterSpacing: "-0.02em",
             margin: "0 0 var(--aiq-space-xs)",
           }}
         >
-          Certificates
+          Certificates.
         </h1>
         <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)", margin: 0 }}>
           Credentials issued to candidates in this tenant.
@@ -492,8 +496,8 @@ export function AdminCertificates(): React.ReactElement {
             <tbody>
               {loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={colCount} style={{ padding: "var(--aiq-space-xl)", textAlign: "center", color: "var(--aiq-color-fg-muted)" }}>
-                    Loading…
+                  <td colSpan={colCount} style={{ padding: "var(--aiq-space-xl)", textAlign: "center" }}>
+                    <Spinner aria-label="Loading certificates" />
                   </td>
                 </tr>
               )}

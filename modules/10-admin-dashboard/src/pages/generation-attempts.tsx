@@ -19,6 +19,7 @@
 //  - No claude/anthropic imports or copy.
 
 import React, { useEffect, useState, useCallback } from "react";
+import { Chip, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, scoreGenerationAttempt } from "../api.js";
 import type { ScoreAttemptResponse } from "../api.js";
@@ -703,16 +704,19 @@ export function AdminGenerationAttempts(): React.ReactElement {
     <AdminShell breadcrumbs={["AI generation history"]} helpPage="admin.generation-attempts.history">
       {/* ── Page header ── */}
       <div style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
+        <div style={{ marginBottom: 12 }}>
+          <Chip leftIcon="grid">{total} attempt{total !== 1 ? "s" : ""}</Chip>
+        </div>
         <h1
           style={{
             fontFamily: "var(--aiq-font-serif)",
-            fontSize: "var(--aiq-text-2xl)",
+            fontSize: "var(--aiq-text-3xl)",
             fontWeight: 400,
             letterSpacing: "-0.02em",
             margin: "0 0 var(--aiq-space-xs)",
           }}
         >
-          AI generation history
+          AI generation history.
         </h1>
         <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)", margin: 0 }}>
           Every question-generation run across all packs. Read-only.
@@ -858,8 +862,8 @@ export function AdminGenerationAttempts(): React.ReactElement {
             <tbody>
               {loading && attempts.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: "var(--aiq-space-xl)", textAlign: "center", color: "var(--aiq-color-fg-muted)" }}>
-                    Loading…
+                  <td colSpan={8} style={{ padding: "var(--aiq-space-xl)", textAlign: "center" }}>
+                    <Spinner aria-label="Loading generation attempts" />
                   </td>
                 </tr>
               )}
