@@ -57,7 +57,12 @@ fix (G4). **This gate is NOT met.**
 
 ---
 
-### G1 — Revision proposal (2026-05-13) — PENDING SIGN-OFF
+### G1 — Revision APPLIED (2026-05-13)
+
+**Operator sign-off received.** The original "5 consecutive clean" criterion (above)
+is superseded by the rolling-window criterion below. Window is scoped to **post-D1+D2
+deploy** (commit `5d05d15` 2026-05-13a SKILL.md + MCP inline rejection) — earlier
+smokes are not counted because they ran against the prior tightening rounds.
 
 The original "5 consecutive clean" criterion assumed chunk failures were structural
 (deterministic timeouts curable by prompt + schema fixes). Three rounds of SKILL.md
@@ -126,6 +131,17 @@ fundamentally-unreliable system flip to production.
 criterion before the next campaign run. If revised, update this section + propose
 to maintainers. If confirmed, the next 5 L2 count=15 smokes constitute the new
 window; G1 is satisfied as soon as ≥4 land clean.
+
+**Status 2026-05-13 post-D1+D2 window:**
+
+| Smoke | Result | Notes |
+| --- | --- | --- |
+| `019e1f20` | ✅ | D1+D2 verification |
+| `019e1f2c` | ✅ | New chain #2, 15/15 |
+| `019e1f37` | ❌ | subjective SIGTERM (single chunk) |
+
+Currently 2 of 3 clean, no double-failures. Need ≥4 of next 5 in window to satisfy.
+Need 2 more clean (worst case 3 more) to close G1.
 
 ---
 
