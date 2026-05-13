@@ -74,4 +74,10 @@ Component APIs in this module stay stable; visual fidelity to the kit is the con
   - `ScoreRing`: stroke-dashoffset transition extended 180ms → 1600ms to match kit v1.1 results.jsx single-timing animation.
   - `StatCard`: optional `breakdown?: StatCardBreakdownItem[]` prop renders a mini stacked-bar + colored legend in place of sparkline. Added 8-slot `--aiq-color-chart-{1..8}` palette tokens.
   - `Sidebar`: expanded width 220 → 240px (kit v1.1). New `footer?: ReactNode` slot. New exported `SidebarSection` sub-component for mono-uppercase eyebrow labels between nav groups.
-- **Deferred to Phase 14:** axe a11y test wiring + Storybook story coverage gaps (ScoreRing/Sparkline/StatCard/Sidebar have no stories yet; Chip story needs warn variant added).
+- **Deferred to Phase 14:** Storybook story coverage gaps (ScoreRing/Sparkline/StatCard/Sidebar have no stories yet; Chip story needs warn variant added).
+- **2026-05-13 — Phase 3a (easy primitives) shipped.** Three new primitives + first axe a11y wiring in the module:
+  - `Spinner`: rotating ring loader, `size: "sm" | "md" | "lg"`, CSS-only animation (no SVG), `role="status"` + `aria-live="polite"` + default `aria-label="Loading"`. Honours `prefers-reduced-motion` via `.aiq-spinner` keyframe override in `tokens.css`.
+  - `ProgressBar`: thin horizontal bar with `value`/`max`/`height: 2|4|6`/`variant: "accent"|"success"|"fg"`. Clamps `value` to `[0, max]`. `role="progressbar"` with `aria-valuenow/min/max`. `data-height` / `data-variant` only emitted for non-default values.
+  - `Placeholder`: striped diagonal `repeating-linear-gradient` panel with mono-uppercase `caption` (default `"image"`). Consumer `style` overrides take precedence; supports numeric or string `width`/`height`/`radius`. `role="img"` with `aria-label` from caption.
+  - **Test infra:** `vitest` + `vitest-axe` + `@testing-library/react` added as devDeps; `vitest.config.ts` (jsdom env) + `vitest.setup.ts` + `src/test-setup.d.ts` (vitest-axe@0.1.0 `Vi` namespace → vitest v2 `declare module "vitest"` patch). One axe assertion per primitive — precedent for the rest of the v1.1 port. 17/17 tests green.
+  - **CSS classes:** `.aiq-spinner{,-sm,-lg}` + `@keyframes aiq-spin`, `.aiq-progress-bar{,-fill}` with `[data-height]` / `[data-variant]` selectors, `.aiq-placeholder` striped gradient. All in `src/styles/tokens.css`.
