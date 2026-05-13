@@ -47,8 +47,17 @@ if (ATTEMPT_ID === undefined || ATTEMPT_ID.length === 0) {
 async function main(): Promise<void> {
   console.log(`[test-cert] issuing cert for attempt=${ATTEMPT_ID?.slice(0, 8)} tenant=${TENANT_ID.slice(0, 8)} tier=${TIER}`);
 
-  const cert = await withTenant(TENANT_ID, async (client) =>
-    issueCertificate(client, {
+  const cert = await withTenant(TENANT_ID, async (client) => {
+    // R2 sentinel inside issueCertificate uses pg_current_xact_id_if_assigned()
+    // which returns NULL until the transaction does a write. withTenant does
+    // only BEGIN + SET LOCAL + set_config, none of which assign an xid. Force
+    // xid assignment by calling pg_current_xact_id() (no `_if_assigned`)
+    // before issueCertificate so the sentinel sees an open tx.
+    // This is a tool-level workaround; the sentinel design itself has a
+    // false-positive on read-prefix transactions — flagged as a follow-up.
+    await client.query("SELECT pg_current_xact_id()");
+
+    return issueCertificate(client, {
       tenant_id: TENANT_ID,
       attempt_id: ATTEMPT_ID!,
       candidate_id: CANDIDATE_USER_ID,
@@ -58,8 +67,8 @@ async function main(): Promise<void> {
       level: LEVEL,
       tier: TIER,
       actor_user_id: ADMIN_USER_ID,
-    }),
-  );
+    });
+  });
 
   console.log(`[test-cert] OK: credential_id=${cert.credential_id}`);
   console.log(`[test-cert]     tier=${cert.tier} signed_hash=${cert.signed_hash.slice(0, 16)}...`);
