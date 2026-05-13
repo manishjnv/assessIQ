@@ -111,3 +111,29 @@ export type {
   LeaderboardItem,
   LeaderboardPeriod,
 } from './activity/index.js';
+
+// ---------------------------------------------------------------------------
+// Phase 10 — Candidate Activity surface
+// ---------------------------------------------------------------------------
+export {
+  getCandidateActivityStats,
+  getCandidateActivityHeatmap,
+  getCandidateActivityTimeline,
+  getCandidateActivityLeaderboard,
+  registerActivityCandidateRoutes,
+  queryCandidateActivityStats,
+  queryCandidateHeatmapCounts,
+  queryCandidateTimelineRows,
+  queryCandidateLeaderboardRows,
+  queryCandidateLeaderboardTotal,
+  CandidateActivityStatsQuerySchema,
+  CandidateLeaderboardQuerySchema,
+} from './activity-candidate/index.js';
+
+export type {
+  CandidateActivityStatsQuery,
+  CandidateActivityStatsResponse,
+  CandidateActivityLeaderboardResponse,
+  CandidateLeaderboardItem,
+  CandidateLeaderboardQuery,
+} from './activity-candidate/index.js';
