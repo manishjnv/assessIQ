@@ -1,0 +1,86 @@
+# AssessIQ Caddy block — assessiq.automateedge.cloud
+#
+# This file is the **source of truth** for the assessiq portion of the
+# production Caddyfile at /opt/ti-platform/caddy/Caddyfile on the
+# `assessiq-vps` host. The Caddyfile itself is shared with other apps under
+# the ti-platform umbrella (a11y-os / AccessBridge, roadmap, ti-platform-ui),
+# so we own only this one block — never the whole file.
+#
+# Deploy procedure
+# ----------------
+# Edit this file in the repo. After commit + push, on the VPS:
+#
+#   1. Back up the live Caddyfile FIRST. The bind-mount-inode trap from
+#      RCA 2026-04-30 forbids `mv` — you must truncate-write, not rename.
+#
+#        TS=$(date -u +%Y%m%dT%H%M%SZ)
+#        sudo cp /opt/ti-platform/caddy/Caddyfile \
+#                /opt/ti-platform/caddy/Caddyfile.bak.$TS
+#
+#   2. Read the live file. Locate the assessiq block
+#      (lines 65–95-ish, search for `assessiq.automateedge.cloud {`).
+#
+#   3. Replace the block with the contents of this snippet via
+#      truncate-write, NEVER `mv`. One safe pattern:
+#
+#        sudo awk '
+#          /^# ═══ AssessIQ — / { skip=1 }
+#          skip && /^}/ && !done { print SNIPPET; skip=0; done=1; next }
+#          !skip { print }
+#        ' SNIPPET="$(cat assessiq.snippet)" \
+#          /opt/ti-platform/caddy/Caddyfile > /tmp/Caddyfile.new \
+#          && sudo cat /tmp/Caddyfile.new \
+#               | sudo tee /opt/ti-platform/caddy/Caddyfile > /dev/null
+#
+#      For single-line tweaks the inline `awk … | tee` pattern from
+#      `RCA_LOG.md` 2026-05-13 is also valid.
+#
+#   4. Validate + reload:
+#
+#        docker exec ti-platform-caddy-1 caddy validate \
+#          --config /etc/caddy/Caddyfile
+#        docker exec ti-platform-caddy-1 caddy reload \
+#          --config /etc/caddy/Caddyfile
+#
+#   5. Smoke: `curl -s -o /dev/null -w '%{http_code}\n' \
+#      https://assessiq.automateedge.cloud/health` → 200.
+#
+# DO NOT use `sed -i`. DO NOT `mv` over the live file. The Caddy container
+# bind-mounts the file by inode; rename creates a new inode and the
+# container keeps reading the old one until restart.
+# ─────────────────────────────────────────────────────────────────────────
+
+# ═══ AssessIQ — assessiq.automateedge.cloud ═══
+# Phase 1 G1.A Session 2: /api/* + /embed* + /help/* → assessiq-api on 9092.
+# /help/* is the anonymous embed-friendly help endpoint shipped by
+# modules/16-help-system (registerHelpPublicRoutes mounts /help/:key directly,
+# without the /api prefix, so embed contexts can use a short public URL —
+# matches the /embed* convention for the same reason).
+# Phase 5 Session 7: /verify/* added to the matcher so the public certificate
+# verify page + OG SVG/PNG endpoints (modules/18-certification routes-public.ts)
+# reach the API instead of falling through to the SPA shell.
+# Default route → assessiq-frontend container on host port 9091 (live 2026-05-02).
+# See docs/06-deployment.md § Reverse-proxy plan.
+# Backup before any edit: /opt/ti-platform/caddy/Caddyfile.bak.<UTC-ts>.
+# Edits MUST use truncate-write (cat >), NEVER mv — bind-mount inode trap
+# from RCA 2026-04-30.
+assessiq.automateedge.cloud {
+    tls /etc/caddy/ssl/assessiq.automateedge.cloud.pem /etc/caddy/ssl/assessiq.automateedge.cloud.key
+    import security-headers
+    encode zstd gzip
+
+    # API + embed + public-help + public-verify routes → assessiq-api on host port 9092.
+    @api path /api/* /embed* /help/* /take/start /verify/*
+    handle @api {
+        reverse_proxy 172.17.0.1:9092 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # Default route — assessiq-frontend container on host port 9091.
+    handle {
+        reverse_proxy 172.17.0.1:9091 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+}
