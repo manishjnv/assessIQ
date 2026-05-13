@@ -370,6 +370,26 @@ pager: ghost prev/next + mono "X / Y" label
 
 ---
 
+What's live (UI v1.1 Phase 7b — 2026-05-14):
+
+Applied the list-page recipe (count Chip + serif h1 + lede) from Phase 7a to all 5 remaining Phase 7 targets. Commit `01b351b`.
+
+**What changed:**
+
+| File | Change |
+| --- | --- |
+| `modules/10-admin-dashboard/src/pages/assessments.tsx` | Added `Chip` import. Chip `{N} assessment(s)` above h1. Lede "Assessment cycles — set dates, invite candidates, track completion." Action button repositioned inside right side of flex row. |
+| `modules/10-admin-dashboard/src/pages/question-bank.tsx` | Same treatment. Chip `{N} pack(s)`. Lede "Question packs organised by domain and difficulty level." |
+| `modules/10-admin-dashboard/src/pages/pack-detail.tsx` | Added `Chip` import. Chip `{N} level(s)` above existing serif h1 + meta lede (domain · version · created date already present). |
+| `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` | Added `Chip` to existing ui-system import. Chip `{N} invitation(s)` above serif h1 + dates lede already present. |
+| `modules/11-candidate-ui/src/components/MyCertificates.tsx` | Added `Chip, Spinner` import. Replaced non-serif `headingStyle` with kit serif pattern (`aiq-font-serif`, weight 400, −0.02em tracking). Replaced "Loading your certificates…" `<p>` with `<Spinner>`. Added count Chip + lede above h1. Period appended to title per kit convention. |
+
+**Detail-page header treatment:** detail pages already had serif h1 + inline status pill + meta lede. Phase 7b adds only the count Chip above the header block (level/invitation count) — no structural change to the h1 row itself.
+
+**Verification:** `modules/10-admin-dashboard` typecheck ✓, `modules/11-candidate-ui` typecheck ✓. Zero inline hex introduced. Zero `--aiq-color-bg-elevated`. `/admin/assessments` → 200, `/admin/question-bank` → 200.
+
+---
+
 ## Storybook
 
 Run `pnpm storybook` locally. Every primitive and composite has stories covering:
