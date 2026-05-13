@@ -11,6 +11,7 @@
 import { type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
+import { TakeRightPane } from './TakeRightPane.js';
 
 // ─── shared style constants (mirrors login.tsx) ───────────────────────────────
 
@@ -96,66 +97,7 @@ export function Expired(): JSX.Element {
         </div>
       </main>
 
-      {/* Right — context panel (same idiom as TokenLanding) */}
-      <aside
-        style={{
-          background: 'var(--aiq-color-bg-raised)',
-          borderLeft: '1px solid var(--aiq-color-border)',
-          padding: 48,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div style={{ width: '100%', maxWidth: 460, textAlign: 'left' }}>
-            <Chip variant="accent" leftIcon="sparkle">Phase 1</Chip>
-            <p
-              className="aiq-serif"
-              style={{
-                fontSize: 28,
-                lineHeight: 1.3,
-                margin: '24px 0 0',
-                color: 'var(--aiq-color-fg-primary)',
-                letterSpacing: '-0.015em',
-              }}
-            >
-              Calm. Focused. One question at a time.
-            </p>
-          </div>
-        </div>
-
-        <blockquote
-          className="aiq-serif"
-          style={{
-            fontSize: 22,
-            lineHeight: 1.3,
-            margin: 0,
-            maxWidth: 480,
-            color: 'var(--aiq-color-fg-primary)',
-            letterSpacing: '-0.015em',
-          }}
-        >
-          "Read carefully. The questions are scenario-driven; there are no trick
-          options."
-          <footer
-            style={{
-              marginTop: 12,
-              fontFamily: 'var(--aiq-font-sans)',
-              fontSize: 12,
-              color: 'var(--aiq-color-fg-secondary)',
-            }}
-          >
-            assessiq.automateedge.cloud
-          </footer>
-        </blockquote>
-      </aside>
+      <TakeRightPane />
     </div>
   );
 }
