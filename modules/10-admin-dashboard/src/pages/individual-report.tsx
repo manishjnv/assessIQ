@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { Sparkline, StatCard } from "@assessiq/ui-system";
+import { Chip, Spinner, Sparkline, StatCard } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { ArchetypeRadar } from "../components/ArchetypeRadar.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -57,7 +57,9 @@ export function AdminIndividualReport(): React.ReactElement {
   if (loading) {
     return (
       <AdminShell breadcrumbs={["Reports", "Individual"]} helpPage="admin.reports.individual">
-        <div style={{ padding: "var(--aiq-space-3xl)", textAlign: "center", color: "var(--aiq-color-fg-muted)", fontFamily: "var(--aiq-font-sans)" }}>Loading…</div>
+        <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
+          <Spinner aria-label="Loading individual report" />
+        </div>
       </AdminShell>
     );
   }
@@ -78,12 +80,15 @@ export function AdminIndividualReport(): React.ReactElement {
     <AdminShell breadcrumbs={["Reports", "Individual", report.email]} helpPage="admin.reports.individual">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-            {report.email}
-          </h1>
-          <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)" }}>
-            {report.total_attempts} attempts
+          <div style={{ marginBottom: 12 }}>
+            <Chip leftIcon="grid">{report.total_attempts} attempt{report.total_attempts !== 1 ? "s" : ""}</Chip>
           </div>
+          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+            {report.email}.
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
+            Score history and progression across all completed assessments.
+          </p>
         </div>
 
         {/* KPI row */}

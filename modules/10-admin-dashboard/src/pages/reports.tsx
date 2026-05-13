@@ -22,6 +22,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 
@@ -121,15 +122,8 @@ function ReportSection({
           </div>
         )}
         {loading ? (
-          <div
-            style={{
-              padding: "var(--aiq-space-md) var(--aiq-space-lg)",
-              color: "var(--aiq-color-fg-muted)",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-            }}
-          >
-            Loading…
+          <div style={{ padding: "var(--aiq-space-md) var(--aiq-space-lg)", display: "flex" }}>
+            <Spinner size="sm" aria-label="Loading" />
           </div>
         ) : isEmpty ? (
           <div
@@ -220,17 +214,22 @@ export function AdminReports(): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Reports"]} helpPage="admin.reports.landing">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
-        <h1
-          style={{
-            fontFamily: "var(--aiq-font-serif)",
-            fontSize: "var(--aiq-text-3xl)",
-            fontWeight: 400,
-            margin: 0,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Reports.
-        </h1>
+        <div>
+          <h1
+            style={{
+              fontFamily: "var(--aiq-font-serif)",
+              fontSize: "var(--aiq-text-3xl)",
+              fontWeight: 400,
+              margin: 0,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Reports.
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
+            Cohort summaries and per-candidate progression across all assessments.
+          </p>
+        </div>
 
         {/* Cohort reports */}
         <ReportSection
