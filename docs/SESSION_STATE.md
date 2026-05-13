@@ -1,3 +1,46 @@
+# Session — 2026-05-13 (Phase 5 Session 7 — VERIFIED end-to-end in prod with real cert AIQ-2026-05-DTJC72)
+
+**Headline:** Real certificate issued in production via new `tools/test-issue-cert.ts`; all three verify endpoints smoke clean end-to-end. HTML 200 with green ✓ badge + JSON-LD schema + 13 OG/Twitter meta tags pointing at absolute PNG URL. OG SVG 200 with valid SVG (1023 bytes, viewBox 1200×630). OG PNG 200 with valid PNG bytes (5329 bytes, 1200×630 8-bit RGBA). Phase 5 Session 7 is now **DoD-complete** for the first time since it was opened — verify-page UX is fully reachable, previewable on LinkedIn, and signature-verified live.
+
+Two further pre-existing prod gaps surfaced + provisioned this turn:
+1. `CERT_SIGNING_SECRET` was unset on the VPS — the entire `18-certification` module had been provisioned-but-disabled since Session 1 (no cert could ever be issued in prod). Generated a 64-hex secret via `openssl rand -hex 32` on the VPS and appended to `/srv/assessiq/.env`. The secret never appeared in this session's transcript or git history. Rotation requires the documented `signed_hash_v2` resigner-column procedure per `docs/14-credentialing.md`.
+2. `PUBLIC_BASE_URL` was unset — Session 7's `renderOgMeta()` silently omits all OG tags when this env is missing (the documented fail-soft behavior), so the initial smoke returned the HTML without any social-preview meta tags. Appended `PUBLIC_BASE_URL=https://assessiq.automateedge.cloud` to `/srv/assessiq/.env`. PDF QR-code generation in `modules/18-certification/src/pdf/render.ts` was also blocked on this env, so this fix unblocks Session 4's PDF path simultaneously.
+
+Both env additions were purely additive to `/srv/assessiq/.env` (assessiq-namespaced); `assessiq-api` was force-recreated twice (per RCA 2026-05-01 "docker compose restart does NOT reload env_file") with no other container touched.
+
+**Commits:**
+- `bea339a` — test(certification): tools/test-issue-cert.ts — one-shot cert issuance smoke
+- `527032c` — fix(tools): switch test-issue-cert.ts to relative imports (workspace alias doesn't resolve from `tools/`)
+- `6a5fbac` — fix(tools): force xid assignment in test-issue-cert before R2 sentinel
+
+**Tests / verification:**
+- `pnpm tsx tools/test-issue-cert.ts` inside the assessiq-api container, `ATTEMPT_ID=019e0dd8-bcec-74cb-a290-fb4e5e333d4f` → issued `AIQ-2026-05-DTJC72`, `signed_hash=528adf52cfa0ddec…`, `issued_at=2026-05-13T08:56:55Z`.
+- `curl /verify/AIQ-2026-05-DTJC72` → 200 text/html, 2478 B, contains `cert-status--valid`, JSON-LD `EducationalOccupationalCredential`, all 13 OG/Twitter meta tags with absolute URLs.
+- `curl /verify/AIQ-2026-05-DTJC72/og.svg` → 200 image/svg+xml, 1023 B, valid SVG.
+- `curl /verify/AIQ-2026-05-DTJC72/og.png` → 200 image/png, 5329 B, 1200×630 8-bit RGBA, PNG magic bytes confirmed.
+
+**VPS-side changes (additive only):**
+- `/srv/assessiq/.env` — appended `CERT_SIGNING_SECRET=<64-hex>` and `PUBLIC_BASE_URL=https://assessiq.automateedge.cloud`. Neither key existed previously.
+- Force-recreated `assessiq-api` container twice (once per env addition).
+- One real certificate row inserted: `credential_id=AIQ-2026-05-DTJC72` for `manishjnvk+stage15@gmail.com`, `tier=completion`, attempt `019e0dd8-…`. Treat this as a permanent test fixture; deleting it would break the public verify URL share-link.
+
+**Issues surfaced (logged for follow-up, NOT fixed this session):**
+- **R2 sentinel false-positive on read-prefix transactions.** `issueCertificate`'s open-transaction check uses `pg_current_xact_id_if_assigned()` which returns NULL until the transaction does an actual write. `withTenant`'s only ops are `BEGIN` + `SET LOCAL ROLE` + `set_config(...)` — none of which assign an xid. Result: the sentinel mis-fires for any caller that hits `issueCertificate` directly without a preceding write in the same tx. The route-handler callers happen to do writes earlier in their flow (or the unit tests mock the xid check), so this was unobserved until `tools/test-issue-cert.ts` ran a pure-issuance flow. The tool works around it by calling `SELECT pg_current_xact_id()` to force xid assignment, but the sentinel itself should be rewritten to use `pg_current_xact_id()` (force-assign) or `txid_status()` (non-mutating but Postgres-version-gated). Follow-up Session 8 candidate.
+
+**Next:** Resume the priority backlog from before the Session 7 follow-ups — (1) candidate login flow (Q1 from the original handoff: `RequireSession.tsx:44` redirect to `/admin/login` is wrong UX for candidates trying to view their certificates); (2) Phase 1 closure re-drill (Drills 1, 3 step 5, 4 against Finding C); (3) G3.D `auditInTx` sweep continuation; (4) Stage 3.1 default-flip prep; (5) R2 sentinel rewrite (above).
+
+**Open questions:** none. The R2 sentinel issue is documented but explicitly scoped out.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 alignment, drafted `tools/test-issue-cert.ts` mirroring `tools/test-invite.ts`, diagnosed three blockers in sequence (`@assessiq/*` alias doesn't resolve from `tools/`; R2 sentinel false-positive on read-prefix tx; `CERT_SIGNING_SECRET` + `PUBLIC_BASE_URL` unset on VPS), provisioned both env vars on VPS without echoing the secret, three tool commits, three VPS recreate cycles, end-to-end smoke of all three verify endpoints, byte-level PNG verification, this handoff.
+- Sonnet: n/a — diagnosis was inherently sequential (each error revealed the next blocker), no parallel work available. The tool is ~70 lines; cold-start cost would outweigh the savings.
+- Haiku: n/a — no bulk grep / multi-file fact lookups. Investigation stayed in 4 files (test-invite.ts, certification types/service/repository, with-tenant.ts).
+- codex:rescue: n/a — no security/auth/classifier code change. `CERT_SIGNING_SECRET` provisioning is an ops action, not a code change; the secret is bound to the documented HMAC algorithm (no algorithm choice this session). `PUBLIC_BASE_URL` is a public config value.
+
+---
+
 # Session — 2026-05-13 (Session 7 follow-up — closed 3 open questions: Caddyfile-in-repo, migration-drift check, NULL-safe RLS)
 
 **Headline:** All three Session 7 open questions resolved in one commit. Caddyfile assessiq block now lives in `infra/caddyfile/assessiq.snippet` with explicit truncate-write deploy procedure. `tools/migrate.ts --check` provides repo-vs-DB drift gating; wired into `docs/06-deployment.md` § "Deploy procedure (steady-state)" as MANDATORY step 2. Migration `0075_tenant_isolation_null_safe_cast.sql` rewrites the certificates `tenant_isolation` SELECT/INSERT/UPDATE policies to be NULL- AND empty-string-safe, eliminating the cast-crash hazard from RCA 2026-05-13 by construction. Adversarial review via Sonnet + GLM-4.6 dual pass: ACCEPT with one ops note (DROP POLICY AccessExclusiveLock) — added inline. Migration applied to VPS; all four certificates RLS policies confirmed live; verify-path smoke still returns clean 404 / 3ms latency.
