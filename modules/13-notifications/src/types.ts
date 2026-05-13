@@ -14,6 +14,7 @@ import { z } from 'zod';
 export const EmailTemplateNameSchema = z.enum([
   'invitation_admin',
   'invitation_candidate',
+  'candidate_login_link',
   'totp_enrolled',
   'attempt_submitted_candidate',
   'attempt_graded_candidate',
@@ -41,6 +42,12 @@ export const InvitationCandidateVarsSchema = z.object({
   invitationLink: z.string().url(),
   expiresAt: z.string(), // ISO8601 string
   tenantName: z.string().min(1),
+});
+
+export const CandidateLoginLinkVarsSchema = z.object({
+  display_name: z.string().min(1),
+  link_url: z.string().url(),
+  expires_minutes: z.number().int().positive(),
 });
 
 export const TotpEnrolledVarsSchema = z.object({
@@ -83,6 +90,7 @@ export const WeeklyDigestAdminVarsSchema = z.object({
 
 export type InvitationAdminVars = z.infer<typeof InvitationAdminVarsSchema>;
 export type InvitationCandidateVars = z.infer<typeof InvitationCandidateVarsSchema>;
+export type CandidateLoginLinkVars = z.infer<typeof CandidateLoginLinkVarsSchema>;
 export type TotpEnrolledVars = z.infer<typeof TotpEnrolledVarsSchema>;
 export type AttemptSubmittedCandidateVars = z.infer<typeof AttemptSubmittedCandidateVarsSchema>;
 export type AttemptGradedCandidateVars = z.infer<typeof AttemptGradedCandidateVarsSchema>;
@@ -92,6 +100,7 @@ export type WeeklyDigestAdminVars = z.infer<typeof WeeklyDigestAdminVarsSchema>;
 export type TemplateVarsMap = {
   invitation_admin: InvitationAdminVars;
   invitation_candidate: InvitationCandidateVars;
+  candidate_login_link: CandidateLoginLinkVars;
   totp_enrolled: TotpEnrolledVars;
   attempt_submitted_candidate: AttemptSubmittedCandidateVars;
   attempt_graded_candidate: AttemptGradedCandidateVars;

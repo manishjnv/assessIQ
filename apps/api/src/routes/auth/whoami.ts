@@ -53,6 +53,9 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
             ? { id: sess.tenantId, slug: null }
             : { id: tenant.id, slug: tenant.slug },
           mfaStatus,
+          // Expose session expiry so candidate-facing UI can show the
+          // day-25 banner (CandidateSessionBanner reads this via useSession).
+          expiresAt: sess.expiresAt,
         };
       }
 

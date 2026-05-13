@@ -18,6 +18,8 @@ export interface SessionInfo {
     slug: string | null;
   };
   mfaStatus: 'verified' | 'pending' | 'n/a';
+  /** ISO 8601 UTC expiry of the current session cookie. Absent for API-key paths. */
+  expiresAt?: string;
 }
 
 // Cache state: undefined = not yet fetched; null = fetched, no session.

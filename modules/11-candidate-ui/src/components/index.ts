@@ -17,3 +17,9 @@ export { MyCertificates } from './MyCertificates.js';
 
 export { CompletionModal } from './CompletionModal.js';
 export type { CompletionModalProps } from './CompletionModal.js';
+
+export { CandidateShell } from './CandidateShell.js';
+export type { CandidateShellProps } from './CandidateShell.js';
+
+export { CandidateSessionBanner } from './CandidateSessionBanner.js';
+export type { CandidateSessionBannerProps } from './CandidateSessionBanner.js';

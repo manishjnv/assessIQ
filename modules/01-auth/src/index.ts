@@ -44,6 +44,21 @@ export { mintCandidateSession } from "./magic-link.js";
 export type { MintCandidateSessionInput } from "./magic-link.js";
 
 export {
+  requestCandidateLoginLink,
+  requestCandidateLoginLinkSystem,
+  verifyCandidateLoginToken,
+  verifyCandidateLoginTokenSystem,
+  CANDIDATE_LOGIN_TOKEN_TTL_SEC,
+  CANDIDATE_SESSION_TTL_SEC,
+  checkCandidateLinkRateLimit,
+} from "./candidate-login.js";
+export type {
+  RequestCandidateLoginLinkInput,
+  RequestCandidateLoginLinkSystemInput,
+  RequestCandidateLoginLinkOutput,
+} from "./candidate-login.js";
+
+export {
   requestIdMiddleware,
   cookieParserMiddleware,
   parseCookieHeader,

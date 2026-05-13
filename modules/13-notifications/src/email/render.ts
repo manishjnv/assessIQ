@@ -26,6 +26,7 @@ import { buildVars } from './i18n.js';
 import {
   InvitationAdminVarsSchema,
   InvitationCandidateVarsSchema,
+  CandidateLoginLinkVarsSchema,
   TotpEnrolledVarsSchema,
   AttemptSubmittedCandidateVarsSchema,
   AttemptGradedCandidateVarsSchema,
@@ -47,6 +48,7 @@ const TEMPLATES_DIR = join(__dirname, 'templates');
 const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   invitation_admin: InvitationAdminVarsSchema,
   invitation_candidate: InvitationCandidateVarsSchema,
+  candidate_login_link: CandidateLoginLinkVarsSchema,
   totp_enrolled: TotpEnrolledVarsSchema,
   attempt_submitted_candidate: AttemptSubmittedCandidateVarsSchema,
   attempt_graded_candidate: AttemptGradedCandidateVarsSchema,

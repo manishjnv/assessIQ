@@ -5,19 +5,26 @@ import type { ReactNode } from 'react';
 // Cookie-trust gate: reads /api/auth/whoami to verify the aiq_sess cookie.
 // Replaces the pre-W4 dev-mock that read sessionStorage. Behaviour matches
 // the prior contract:
-//   - no session  → redirect to /admin/login (preserving from-path in state)
+//   - no session  → redirect to unauthRedirect (default /admin/login),
+//                   preserving from-path in state
 //   - mfaStatus=pending and not on /admin/mfa → redirect to /admin/mfa
-//   - role mismatch → redirect to /admin/login
+//   - role mismatch → redirect to unauthRedirect
 //
 // super_admin satisfies any role gate: super_admin > admin > reviewer > candidate.
 // This avoids forking every route guard when platform operators need access.
+//
+// unauthRedirect (new): caller can point unauth redirects at /candidate/login
+// for candidate-facing routes. Default '/admin/login' preserves prior behaviour
+// for all existing admin routes.
 
 export function RequireSession({
   children,
   role,
+  unauthRedirect = '/admin/login',
 }: {
   children: ReactNode;
   role?: 'admin' | 'reviewer';
+  unauthRedirect?: string;
 }): JSX.Element {
   const { session, loading } = useSession();
   const loc = useLocation();
@@ -41,7 +48,7 @@ export function RequireSession({
   }
 
   if (!session) {
-    return <Navigate to="/admin/login" replace state={{ from: loc.pathname }} />;
+    return <Navigate to={unauthRedirect} replace state={{ from: loc.pathname }} />;
   }
 
   if (session.mfaStatus === 'pending' && loc.pathname !== '/admin/mfa') {
@@ -51,7 +58,7 @@ export function RequireSession({
   // super_admin satisfies any role requirement (super_admin > admin > reviewer).
   const isSuperAdmin = session.user.role === 'super_admin';
   if (role !== undefined && session.user.role !== role && !isSuperAdmin) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to={unauthRedirect} replace />;
   }
 
   return <>{children}</>;

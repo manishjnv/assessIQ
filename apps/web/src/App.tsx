@@ -23,7 +23,9 @@ import {
   AdminGenerationAttempts,
   AdminCertificates,
 } from '@assessiq/admin-dashboard';
-import { MyCertificates } from '@assessiq/candidate-ui';
+import { MyCertificates, CandidateShell } from '@assessiq/candidate-ui';
+import { CandidateLogin } from './pages/candidate/CandidateLogin';
+import { CandidateLoginVerify } from './pages/candidate/CandidateLoginVerify';
 import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
 import {
@@ -83,12 +85,24 @@ export function App(): JSX.Element {
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 
-          {/* Candidate certificate dashboard (Phase 5 Session 5).
+          {/* Candidate auth routes — no RequireSession (public pages). */}
+          <Route path="/candidate/login" element={<CandidateLogin />} />
+          <Route path="/candidate/login/verify" element={<CandidateLoginVerify />} />
+
+          {/* Candidate certificate dashboard.
               RequireSession with no role admits any authenticated user
-              (super_admin > admin > reviewer > candidate). Candidates
-              without a session redirect to /admin/login — candidate-side
-              login flow is a separate Phase 5 deliverable. */}
-          <Route path="/candidate/certificates" element={<RequireSession><MyCertificates /></RequireSession>} />
+              (super_admin > admin > reviewer > candidate). Unauthenticated
+              candidates now redirect to /candidate/login (magic-link flow). */}
+          <Route
+            path="/candidate/certificates"
+            element={
+              <RequireSession unauthRedirect="/candidate/login">
+                <CandidateShell>
+                  <MyCertificates />
+                </CandidateShell>
+              </RequireSession>
+            }
+          />
 
           {/* Candidate /take/* subtree.
               <TakeRoot> mounts <HelpProvider> over the entire candidate flow.

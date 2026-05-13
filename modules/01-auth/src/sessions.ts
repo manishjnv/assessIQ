@@ -50,6 +50,14 @@ export interface CreateSessionInput {
   totpVerified: boolean;
   ip: string;
   ua: string;
+  /**
+   * Override the session lifetime. Defaults to SESSION_TTL_SEC (8h).
+   *
+   * Use CANDIDATE_SESSION_TTL_SEC (30 days) for magic-link candidate logins.
+   * The sliding-refresh path always uses SESSION_TTL_SEC regardless of this
+   * value — candidate sessions are FIXED-window (non-sliding).
+   */
+  ttlSeconds?: number;
 }
 
 export interface CreateSessionOutput {
@@ -106,7 +114,8 @@ async function createSession(input: CreateSessionInput): Promise<CreateSessionOu
   const token = randomTokenBase64Url(32);     // 43-char base64url, 256 bits entropy
   const tokenHash = sha256Hex(token);
   const created = nowIso();
-  const expires = new Date(Date.now() + SESSION_TTL_SEC * 1000).toISOString();
+  const ttl = input.ttlSeconds ?? SESSION_TTL_SEC;
+  const expires = new Date(Date.now() + ttl * 1000).toISOString();
   const lastTotpAt = input.totpVerified ? created : null;
 
   const session: Session = {
@@ -133,11 +142,15 @@ async function createSession(input: CreateSessionInput): Promise<CreateSessionOu
   // Redis fast-path + per-user index (sweep-on-disable per 03-users carry-forward).
   // The index TTL outlives the session TTL by 1h so a session created near the
   // index's natural expiry doesn't leave a dangling SADD beyond the SET's lifetime.
+  // For long-lived sessions (e.g. 30-day candidate sessions) the index TTL is
+  // clamped to max(USER_INDEX_TTL_SEC, ttl + 3600) so the index always outlives
+  // the session it points to.
   const redis = getRedis();
+  const indexTtl = Math.max(USER_INDEX_TTL_SEC, ttl + 3600);
   const tx = redis.multi();
-  tx.set(SESSION_KEY(tokenHash), JSON.stringify(session), "EX", SESSION_TTL_SEC);
+  tx.set(SESSION_KEY(tokenHash), JSON.stringify(session), "EX", ttl);
   tx.sadd(USER_INDEX_KEY(input.userId), tokenHash);
-  tx.expire(USER_INDEX_KEY(input.userId), USER_INDEX_TTL_SEC);
+  tx.expire(USER_INDEX_KEY(input.userId), indexTtl);
   await tx.exec();
 
   return { id, token, expiresAt: expires };

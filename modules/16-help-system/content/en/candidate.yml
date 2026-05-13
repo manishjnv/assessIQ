@@ -251,3 +251,74 @@ candidate.profile.name-callout:
     The name printed on your certificates is taken from your profile at the time
     of issuance. To make sure your certificates show the correct name, keep your
     profile name up to date before completing an assessment.
+
+# ─── Sign-in (magic-link) ───
+
+candidate.auth.request-link:
+  audience: candidate
+  short_text: "Enter the email address your administrator used to register you. We will email you a sign-in link — no password needed."
+  long_md: |
+    ## Sign in with a magic link
+
+    Type the email address your administrator registered you with and click
+    **Send link**. AssessIQ will email you a one-time sign-in link that is
+    valid for 15 minutes.
+
+    You do not need a password. Clicking the link in your email is all it
+    takes to sign in and view your certificates.
+
+    **Already signed in?** If you already have an active session you will be
+    taken straight to your certificates without needing to request a new link.
+
+candidate.auth.link-sent:
+  audience: candidate
+  short_text: "Check your inbox — a sign-in link is on its way. It expires in 15 minutes. Didn't get it? Wait a minute and try again."
+  long_md: |
+    ## Check your email
+
+    A sign-in link has been sent to the address you entered. It will arrive
+    within a minute or two depending on your email provider.
+
+    **The link expires in 15 minutes.** If you do not click it in time, come
+    back to the sign-in page and request a new one.
+
+    **Did not receive anything?**
+
+    - Check your spam or junk folder.
+    - Make sure you entered the exact email address your administrator
+      registered you with.
+    - Wait at least 60 seconds before requesting another link (too many
+      requests in a short window are automatically rate-limited).
+
+    Each link is single-use — clicking it a second time will not work.
+    Request a fresh link if you need to sign in again.
+
+candidate.auth.session-status:
+  audience: candidate
+  short_text: "You are currently signed in. Your session lasts 30 days from when you first clicked your sign-in link."
+  long_md: |
+    ## Your sign-in session
+
+    You are signed in and your session is active. AssessIQ candidate sessions
+    last **30 days** from the moment you clicked your sign-in link — you do
+    not need to sign in again during that period.
+
+    The session is tied to this browser. If you switch to a different browser
+    or device you will need to request a new sign-in link.
+
+    **To sign out early**, close your browser or clear cookies. Your
+    certificates remain available; you just need a fresh link next time.
+
+candidate.auth.expiring-soon:
+  audience: candidate
+  short_text: "Your session expires in the next 5 days. Request a new sign-in link now to avoid being logged out unexpectedly."
+  long_md: |
+    ## Your session is expiring soon
+
+    Your 30-day sign-in session will expire within the next 5 days. After it
+    expires you will be signed out automatically and will need to request a
+    new link to view your certificates again.
+
+    **To renew:** visit the sign-in page, enter your email address, and click
+    the link in the email you receive. Your certificates and history are not
+    affected — only the session changes.

@@ -6,6 +6,7 @@ import { registerApiKeysRoutes } from './api-keys.js';
 import { registerEmbedSecretsRoutes } from './embed-secrets.js';
 import { registerWhoamiRoutes } from './whoami.js';
 import { registerLogoutRoutes } from './logout.js';
+import { registerCandidateAuthRoutes } from './candidate.js';
 
 // Auth routes — Fastify wrappers around @assessiq/auth library functions.
 // Each route file installs its own per-route preHandler chain via
@@ -24,4 +25,6 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   await registerEmbedSecretsRoutes(app);
   await registerWhoamiRoutes(app);
   await registerLogoutRoutes(app);
+  // Candidate passwordless magic-link login (certificate view flow).
+  await registerCandidateAuthRoutes(app);
 }
