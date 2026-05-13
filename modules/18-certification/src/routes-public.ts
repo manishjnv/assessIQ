@@ -1,10 +1,12 @@
 // AssessIQ — modules/18-certification/src/routes-public.ts
 //
 // Phase 5 Session 3 — public verify page routes (no auth, no tenant context).
+// Phase 5 Session 7 — OG/Twitter meta tags + PNG OG image for LinkedIn.
 //
 // Routes:
 //   GET /verify/:credentialId        → HTML page (green ✓ / red ✗ badge)
-//   GET /verify/:credentialId/og.svg → OG image for LinkedIn previews (1200×630)
+//   GET /verify/:credentialId/og.svg → OG image SVG for Twitter/Facebook (1200×630)
+//   GET /verify/:credentialId/og.png → OG image PNG for LinkedIn (1200×630)
 //
 // Design decisions:
 //   - Routes are mounted OUTSIDE /api/, OUTSIDE auth middleware, OUTSIDE tenant
@@ -24,11 +26,16 @@
 //     which is NOT set in withPublicVerifyContext. Analytics are non-critical;
 //     losing an increment is acceptable.
 //   - Cache-Control: no-cache on HTML (signature may change after tier upgrade).
-//     Cache-Control: public, max-age=3600 on SVG (stable for an hour).
+//     Cache-Control: public, max-age=3600 on SVG/PNG (stable for an hour).
+//   - PNG renderer: @resvg/resvg-js (pure-Rust, no Chromium). LinkedIn does not
+//     render SVG previews; the PNG endpoint is what their crawler fetches.
+//   - OG meta tags use absolute URLs derived from PUBLIC_BASE_URL. If unset
+//     (test env), meta tags are silently omitted rather than crashing the page.
 //
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 // CLAUDE.md rule #1.
 
+import { Resvg } from '@resvg/resvg-js';
 import type { FastifyInstance } from 'fastify';
 
 import { withTenant } from '@assessiq/tenancy';
@@ -154,12 +161,15 @@ function renderVerifyPage(data: VerifyPageData): string {
         })}</script>`
       : '';
 
+  const ogMeta = renderOgMeta(cert, status);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Certificate Verification — AssessIQ</title>
+  ${ogMeta}
   ${jsonLd}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -248,6 +258,68 @@ function escHtml(s: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// OG / Twitter meta tags (HTML head fragment)
+// ---------------------------------------------------------------------------
+//
+// LinkedIn / Twitter / Facebook crawlers read these tags to build link
+// previews. Without them, shared URLs render as plain title-only cards.
+//
+// Image strategy:
+//   - og:image points at the PNG endpoint (LinkedIn does NOT render SVG)
+//   - twitter:image points at the same PNG (covers all crawlers in one tag set)
+//
+// PUBLIC_BASE_URL is required for absolute URLs (crawlers don't resolve
+// relative paths). If unset (test env), this function returns an empty string
+// rather than crashing — the page still renders, the previews degrade.
+
+function renderOgMeta(cert: Certificate, status: CertStatus): string {
+  const baseUrl = process.env['PUBLIC_BASE_URL'];
+  if (!baseUrl || baseUrl.length === 0) {
+    return '';
+  }
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  const pageUrl = `${trimmed}/verify/${cert.credential_id}`;
+  const imageUrl = `${trimmed}/verify/${cert.credential_id}/og.png`;
+
+  const title =
+    status === 'valid'
+      ? `${cert.display_name} — ${cert.course_title}`
+      : status === 'revoked'
+        ? `Revoked credential — ${cert.credential_id}`
+        : `Invalid credential — ${cert.credential_id}`;
+  const description =
+    status === 'valid'
+      ? `Verified ${cert.tier} credential issued by AssessIQ — ${cert.course_title} (${cert.level}).`
+      : status === 'revoked'
+        ? `This credential has been revoked by the issuer.`
+        : `This credential's signature could not be verified.`;
+
+  return [
+    `<meta property="og:title" content="${escAttr(title)}" />`,
+    `<meta property="og:description" content="${escAttr(description)}" />`,
+    `<meta property="og:url" content="${escAttr(pageUrl)}" />`,
+    `<meta property="og:type" content="profile" />`,
+    `<meta property="og:site_name" content="AssessIQ" />`,
+    `<meta property="og:image" content="${escAttr(imageUrl)}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
+    `<meta property="og:image:type" content="image/png" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${escAttr(title)}" />`,
+    `<meta name="twitter:description" content="${escAttr(description)}" />`,
+    `<meta name="twitter:image" content="${escAttr(imageUrl)}" />`,
+  ].join('\n  ');
+}
+
+function escAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// ---------------------------------------------------------------------------
 // OG SVG rendering (1200×630)
 // ---------------------------------------------------------------------------
 
@@ -276,6 +348,52 @@ function escSvg(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ---------------------------------------------------------------------------
+// OG PNG rendering (1200×630, rasterized from the SVG via resvg)
+// ---------------------------------------------------------------------------
+//
+// LinkedIn requires PNG/JPEG for OG previews (SVG is rejected). resvg-js is
+// pure-Rust (no Chromium), ~10ms per render. fitTo width=1200 produces a
+// 1200×630 PNG matching the SVG viewBox.
+
+function renderOgPng(cert: Certificate, status: CertStatus): Buffer {
+  const svg = renderOgSvg(cert, status);
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: 'width', value: 1200 },
+    font: { loadSystemFonts: true },
+  });
+  return resvg.render().asPng();
+}
+
+// ---------------------------------------------------------------------------
+// Status determination (shared by HTML, OG SVG, OG PNG routes)
+// ---------------------------------------------------------------------------
+
+function determineStatus(cert: Certificate): CertStatus {
+  if (cert.revoked_at !== null) {
+    return 'revoked';
+  }
+  const secret = getCertSigningSecret();
+  const valid = verifyCertificateSignature(
+    {
+      id: cert.id,
+      tenant_id: cert.tenant_id,
+      attempt_id: cert.attempt_id,
+      candidate_id: cert.candidate_id,
+      template_key: cert.template_key,
+      credential_id: cert.credential_id,
+      tier: cert.tier,
+      display_name: cert.display_name,
+      course_title: cert.course_title,
+      level: cert.level,
+      issued_at: cert.issued_at,
+    },
+    cert.signed_hash,
+    secret,
+  );
+  return valid ? 'valid' : 'tampered';
 }
 
 // ---------------------------------------------------------------------------
@@ -323,31 +441,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
           .send(renderNotFoundPage());
       }
 
-      // Determine status.
-      let status: CertStatus;
-      if (cert.revoked_at !== null) {
-        status = 'revoked';
-      } else {
-        const secret = getCertSigningSecret();
-        const valid = verifyCertificateSignature(
-          {
-            id: cert.id,
-            tenant_id: cert.tenant_id,
-            attempt_id: cert.attempt_id,
-            candidate_id: cert.candidate_id,
-            template_key: cert.template_key,
-            credential_id: cert.credential_id,
-            tier: cert.tier,
-            display_name: cert.display_name,
-            course_title: cert.course_title,
-            level: cert.level,
-            issued_at: cert.issued_at,
-          },
-          cert.signed_hash,
-          secret,
-        );
-        status = valid ? 'valid' : 'tampered';
-      }
+      const status = determineStatus(cert);
 
       // Fire-and-forget view counter increment (separate tenant-scoped tx).
       // Promise.resolve() wraps the call so .catch() is safe even if withTenant
@@ -390,36 +484,50 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         return reply.code(404).send({ error: 'Not Found' });
       }
 
-      let status: CertStatus;
-      if (cert.revoked_at !== null) {
-        status = 'revoked';
-      } else {
-        const secret = getCertSigningSecret();
-        const valid = verifyCertificateSignature(
-          {
-            id: cert.id,
-            tenant_id: cert.tenant_id,
-            attempt_id: cert.attempt_id,
-            candidate_id: cert.candidate_id,
-            template_key: cert.template_key,
-            credential_id: cert.credential_id,
-            tier: cert.tier,
-            display_name: cert.display_name,
-            course_title: cert.course_title,
-            level: cert.level,
-            issued_at: cert.issued_at,
-          },
-          cert.signed_hash,
-          secret,
-        );
-        status = valid ? 'valid' : 'tampered';
-      }
+      const status = determineStatus(cert);
 
       return reply
         .code(200)
         .header('content-type', 'image/svg+xml')
         .header('cache-control', 'public, max-age=3600')
         .send(renderOgSvg(cert, status));
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /verify/:credentialId/og.png — PNG OG image for LinkedIn (Session 7)
+  // -------------------------------------------------------------------------
+  // LinkedIn's crawler rejects SVG previews. This endpoint rasterizes the
+  // same SVG via resvg (pure-Rust, no Chromium). Cache for 1 hour — the
+  // certificate identity fields are stable; tier upgrades re-render via
+  // cache expiry rather than purging.
+  app.get<{ Params: { credentialId: string } }>(
+    '/verify/:credentialId/og.png',
+    async (req, reply) => {
+      const rawId = req.params.credentialId;
+
+      if (!CREDENTIAL_ID_REGEX.test(rawId.toUpperCase())) {
+        return reply.code(404).send({ error: 'Not Found' });
+      }
+
+      const credentialId = rawId.toUpperCase();
+
+      const cert = await withPublicVerifyContext(async (client) =>
+        findByCredentialIdPublic(client, credentialId),
+      );
+
+      if (cert === null) {
+        return reply.code(404).send({ error: 'Not Found' });
+      }
+
+      const status = determineStatus(cert);
+      const png = renderOgPng(cert, status);
+
+      return reply
+        .code(200)
+        .header('content-type', 'image/png')
+        .header('cache-control', 'public, max-age=3600')
+        .send(png);
     },
   );
 }

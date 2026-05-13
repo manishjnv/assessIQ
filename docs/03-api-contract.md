@@ -383,6 +383,9 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | `GET`  | `/api/help/:key` | Authenticated single-key fetch with locale fallback — **live 2026-05-02** |
 | `POST` | `/api/help/track`| Telemetry (anonymous, deterministic 10% sample) — **live 2026-05-02** |
 | `POST` | `/api/_log`       | Frontend log ingest. Body: `{ entries: [{level: "info"\|"warn"\|"error", msg: string (≤200 chars), ts: number, fields?: {…}}] }` (1–50 items). Returns `204`. No auth required. Rate-limited: 600 req/min/IP. (`apps/api/src/routes/_log.ts:80`) — **live** |
+| `GET`  | `/verify/:credentialId`         | Public certificate verify HTML page (no auth, no tenant context). Returns 200 with green/red badge; 404 if credential not found or malformed; 429 if rate limit exceeded (60 req/IP/hour). Renders OG/Twitter meta tags in `<head>` pointing at `/og.png` so LinkedIn/Twitter previews render as rich cards. Fire-and-forget `verification_views` counter increment, deduped per (IP, credential) per hour. (`modules/18-certification/src/routes-public.ts`) — **live 2026-05-11** |
+| `GET`  | `/verify/:credentialId/og.svg`  | OG/social-preview image as SVG (1200×630). Returns `image/svg+xml`, `Cache-Control: public, max-age=3600`. Used by Twitter, Facebook, Mastodon, Slack. 404 on missing/malformed credential. — **live 2026-05-11** |
+| `GET`  | `/verify/:credentialId/og.png`  | OG/social-preview image as PNG (1200×630), rasterized from the SVG via `@resvg/resvg-js`. Returns `image/png`, `Cache-Control: public, max-age=3600`. Used by LinkedIn (which rejects SVG previews). 404 on missing/malformed credential. — **live 2026-05-13** |
 
 ### Dev / Test (internal, gated)
 

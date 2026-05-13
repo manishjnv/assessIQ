@@ -996,3 +996,16 @@ docker exec -it assessiq-postgres psql -c "
   WHERE tenant_id = '<tenant-id>'
   ORDER BY verification_views DESC LIMIT 20;"
 ```
+
+### 24.3 OG image endpoints (live 2026-05-13, Phase 5 Session 7)
+
+The verify page exposes two image endpoints for social-share previews:
+
+- `GET /verify/:credentialId/og.svg` — SVG (1200×630). Used by Twitter, Facebook, Mastodon, Slack.
+- `GET /verify/:credentialId/og.png` — PNG (1200×630), rasterized via `@resvg/resvg-js`. Used by LinkedIn, which rejects SVG previews.
+
+Both endpoints share the same lookup + `determineStatus()` path as the HTML route (no separate DB query optimization needed at MVP volumes). The PNG render is **synchronous on the request thread** — resvg-js is pure-Rust and finishes in ~10ms per render at 1200×630, no thread-pool offload required. Both responses set `Cache-Control: public, max-age=3600` so subsequent fetches within the hour skip the render entirely.
+
+`og:image` in the verify page HTML head always points at the PNG endpoint (absolute URL built from `PUBLIC_BASE_URL`). When `PUBLIC_BASE_URL` is unset (test environments), OG meta tags are silently omitted — the page still renders but social previews degrade to title-only.
+
+**Operational note:** there is no separate counter for OG-image fetches. The `verification_views` counter is incremented on HTML-page views only (the PNG/SVG endpoints are usually fetched by crawlers without a paired human pageview). Treat `verification_views` as a proxy for *clicks-through to verify*, not raw social impressions.

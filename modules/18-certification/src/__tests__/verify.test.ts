@@ -378,3 +378,147 @@ describe('GET /verify/:credentialId/og.svg — OG image', () => {
     expect(res.body).toContain('viewBox="0 0 1200 630"');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 8. OG/Twitter meta tags — Session 7
+// ---------------------------------------------------------------------------
+//
+// Without PUBLIC_BASE_URL the page must still render (meta tags silently
+// omitted). With it set, og:image must point at the absolute /og.png URL so
+// LinkedIn's crawler can fetch the PNG (LinkedIn rejects SVG previews).
+
+describe('GET /verify/:credentialId — OG meta tags', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.stubEnv('PUBLIC_BASE_URL', 'https://assessiq.automateedge.cloud');
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) =>
+      fn({} as PoolClient),
+    );
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(buildCert());
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  it('emits og:image pointing at the absolute /og.png URL', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.0.7' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(
+      `<meta property="og:image" content="https://assessiq.automateedge.cloud/verify/${CREDENTIAL_ID}/og.png"`,
+    );
+    expect(res.body).toContain('<meta property="og:image:width" content="1200"');
+    expect(res.body).toContain('<meta property="og:image:height" content="630"');
+    expect(res.body).toContain('<meta property="og:image:type" content="image/png"');
+  });
+
+  it('emits twitter:card=summary_large_image and twitter:image', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.0.8' },
+    });
+
+    expect(res.body).toContain(
+      '<meta name="twitter:card" content="summary_large_image"',
+    );
+    expect(res.body).toContain(
+      `<meta name="twitter:image" content="https://assessiq.automateedge.cloud/verify/${CREDENTIAL_ID}/og.png"`,
+    );
+  });
+
+  it('does NOT crash when PUBLIC_BASE_URL is unset (meta tags omitted)', async () => {
+    vi.stubEnv('PUBLIC_BASE_URL', '');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.0.9' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain('og:image');
+    // Page still renders the certificate.
+    expect(res.body).toContain(CREDENTIAL_ID);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. OG PNG — Session 7 (LinkedIn-compatible)
+// ---------------------------------------------------------------------------
+//
+// LinkedIn's link previewer fetches PNG only (SVG is rejected). The PNG
+// endpoint must return image/png with a valid PNG byte stream (8-byte magic
+// header: 89 50 4E 47 0D 0A 1A 0A).
+
+describe('GET /verify/:credentialId/og.png — Session 7', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) =>
+      fn({} as PoolClient),
+    );
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(buildCert());
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  it('returns 200 image/png with a valid PNG byte stream', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}/og.png`,
+      headers: { 'x-forwarded-for': '10.0.0.10' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/image\/png/);
+    expect(res.headers['cache-control']).toContain('max-age=3600');
+
+    const buf = res.rawPayload;
+    expect(buf.length).toBeGreaterThan(0);
+    // PNG magic bytes
+    expect(buf[0]).toBe(0x89);
+    expect(buf[1]).toBe(0x50);
+    expect(buf[2]).toBe(0x4e);
+    expect(buf[3]).toBe(0x47);
+  });
+
+  it('returns 404 for a malformed credential_id (DB never called)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/not-valid-id/og.png`,
+      headers: { 'x-forwarded-for': '10.0.0.11' },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(vi.mocked(repo.findByCredentialIdPublic)).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the credential is not found', async () => {
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(null);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/AIQ-2026-05-NOTFND/og.png`,
+      headers: { 'x-forwarded-for': '10.0.0.12' },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+});

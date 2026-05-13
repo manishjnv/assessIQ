@@ -87,10 +87,36 @@ Both writes occur in the same transaction as the cert INSERT/UPDATE via
 `auditInTx`. An audit failure rolls back the cert mutation; there is never
 a cert row without a corresponding audit entry, and vice versa.
 
+## Share previews (Open Graph)
+
+When a candidate shares their verify URL on LinkedIn, Twitter, or another
+crawler-driven platform, the receiving site fetches the URL to build a link
+preview. The verify page renders Open Graph + Twitter Card meta tags in its
+`<head>` so these previews come up as **rich cards** (1200×630 image, name,
+course title, tier) rather than plain title-only links.
+
+Two image endpoints back the previews:
+
+- `GET /verify/:credentialId/og.svg` — vector SVG; used by Twitter, Facebook,
+  Mastodon, Slack, and most general-purpose crawlers.
+- `GET /verify/:credentialId/og.png` — rasterized PNG (1200×630); used by
+  LinkedIn, which rejects SVG previews. Rendered server-side at request time
+  via `@resvg/resvg-js` (pure-Rust, no headless browser), cached for one hour.
+
+Both endpoints respect the cert's current status. A revoked certificate
+renders a red "REVOKED" badge in the preview image; a tampered signature
+renders "INVALID". Recruiters scrolling LinkedIn see the status before they
+even click through.
+
+`og:image` in the HTML head always points at the PNG endpoint, since
+LinkedIn is the dominant share target for credentialing. Absolute URLs are
+built from the `PUBLIC_BASE_URL` env var; if unset (test environments) the
+meta tags are silently omitted rather than crashing the page render.
+
 ## What's not in this doc
 
 - PDF generation and the `/api/certificates/:credentialId/pdf` endpoint —
   Phase 5 Session 4.
 - The public `/verify/:credentialId` page and its non-RLS DB lookup
   strategy — Phase 5 Session 3.
-- LinkedIn share counter and admin revoke surfaces — Phase 5 Sessions 6–8.
+- LinkedIn share counter and admin revoke surfaces — Phase 5 Sessions 5–6.
