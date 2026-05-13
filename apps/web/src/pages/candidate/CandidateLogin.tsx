@@ -1,18 +1,118 @@
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Button, Field, Logo } from '@assessiq/ui-system';
-import { api, ApiCallError } from '../../lib/api';
-
 // Candidate magic-link login page.
 //
-// Anti-enumeration: regardless of whether the email matched a real user the
-// same "we just sent you a sign-in link" confirmation is shown. The only
-// exception is a 429 rate-limit response, which is safe to surface (it leaks
-// nothing about account existence — only request frequency).
+// Ported from modules/17-ui-system/AssessIQ_UI_Template/screens/login.jsx
+// (two-pane idiom) with candidate-side right pane mirroring
+// apps/web/src/pages/take/TokenLanding.tsx.
 //
-// ?error=invalid_link — set by CandidateLoginVerify when the verify endpoint
-// does not 302 in time (stale / already-used magic link). We show a targeted
-// message above the form.
+// Translation notes (intentional divergences from screens/login.jsx):
+//
+// 1. NO signin/signup toggle — candidates have a single magic-link flow.
+//    There is no signup action (accounts are provisioned by admins when
+//    an assessment is assigned). The mode chip reflects the login state
+//    only.
+//
+// 2. NO password field — the kit's login.jsx includes a password input
+//    and a Google SSO button. Candidate auth is magic-link only. No
+//    password, no OAuth, no "Continue with Google" button.
+//
+// 3. NO Google SSO or SSO buttons — see note 2. The divider + outline
+//    social buttons from the kit are omitted entirely.
+//
+// 4. Right pane uses the calming-reassurance idiom (mirroring
+//    TokenLanding.tsx RightPane) rather than the score-card marketing
+//    mock from the kit. Admins see results-preview content; candidates
+//    see calm reassurance before signing in.
+//
+// Anti-enumeration: regardless of whether the email matched a real user
+// the same "we just sent you a sign-in link" confirmation is shown.
+// The only exception is a 429 rate-limit response, which is safe to
+// surface (it leaks nothing about account existence — only frequency).
+//
+// ?error=invalid_link — set by CandidateLoginVerify when the verify
+// endpoint does not 302 in time (stale / already-used magic link).
+
+import { type CSSProperties, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Button, Chip, Field, Logo } from '@assessiq/ui-system';
+import { api, ApiCallError } from '../../lib/api';
+
+// ─── shared style constants (mirrors TokenLanding.tsx) ───────────────────────
+
+const META_LABEL: CSSProperties = {
+  fontFamily: 'var(--aiq-font-mono)',
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'var(--aiq-color-fg-muted)',
+};
+
+// ─── right pane ──────────────────────────────────────────────────────────────
+
+function RightPane(): JSX.Element {
+  return (
+    <aside
+      style={{
+        background: 'var(--aiq-color-bg-raised)',
+        borderLeft: '1px solid var(--aiq-color-border)',
+        padding: 48,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: 460, textAlign: 'left' }}>
+          <Chip variant="success">Welcome</Chip>
+          <p
+            className="aiq-serif"
+            style={{
+              fontSize: 28,
+              lineHeight: 1.3,
+              margin: '24px 0 0',
+              color: 'var(--aiq-color-fg-primary)',
+              letterSpacing: '-0.015em',
+            }}
+          >
+            Your assessments are saved and waiting.
+          </p>
+        </div>
+      </div>
+
+      <blockquote
+        className="aiq-serif"
+        style={{
+          fontSize: 22,
+          lineHeight: 1.3,
+          margin: 0,
+          maxWidth: 480,
+          color: 'var(--aiq-color-fg-primary)',
+          letterSpacing: '-0.015em',
+        }}
+      >
+        "Read carefully. The questions are scenario-driven; there are no trick
+        options."
+        <footer
+          style={{
+            marginTop: 12,
+            fontFamily: 'var(--aiq-font-sans)',
+            fontSize: 12,
+            color: 'var(--aiq-color-fg-secondary)',
+          }}
+        >
+          assessiq.automateedge.cloud
+        </footer>
+      </blockquote>
+    </aside>
+  );
+}
+
+// ─── main component ───────────────────────────────────────────────────────────
 
 export function CandidateLogin(): JSX.Element {
   const [params] = useSearchParams();
@@ -52,120 +152,157 @@ export function CandidateLogin(): JSX.Element {
 
   return (
     <div
-      className="aiq-screen"
+      className="aiq-screen aiq-candidate-login"
       style={{
         minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 0,
       }}
     >
-      <main style={{ width: '100%', maxWidth: 420, padding: '48px 24px' }}>
+      <style>{`
+        @media (max-width: 900px) {
+          .aiq-candidate-login {
+            grid-template-columns: 1fr;
+          }
+          .aiq-candidate-login > aside {
+            display: none;
+          }
+        }
+      `}</style>
+      {/* ── Left pane — form ──────────────────────────────────────────── */}
+      <main
+        style={{
+          padding: '48px 64px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <Logo />
 
-        <div style={{ marginTop: 48 }}>
-          {/* Stale / already-used magic link error — shown only when redirected
-              here from CandidateLoginVerify with ?error=invalid_link. */}
-          {linkError && status === 'idle' && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: 24,
-                padding: '12px 16px',
-                borderRadius: 'var(--aiq-radius-sm)',
-                background: 'var(--aiq-color-warn-soft, #fef9ec)',
-                border: '1px solid var(--aiq-color-warn, oklch(0.72 0.15 70))',
-                color: 'var(--aiq-color-fg-primary)',
-                fontFamily: 'var(--aiq-font-sans)',
-                fontSize: 14,
-              }}
-            >
-              That link was expired or already used. Request a new one below.
-            </div>
-          )}
-
-          <h1
-            className="aiq-serif"
-            style={{
-              fontSize: 36,
-              lineHeight: 1.1,
-              margin: '0 0 8px',
-              fontWeight: 500,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Sign in to your account.
-          </h1>
-          <p
-            style={{
-              margin: '0 0 32px',
-              fontFamily: 'var(--aiq-font-sans)',
-              fontSize: 14,
-              color: 'var(--aiq-color-fg-secondary)',
-            }}
-          >
-            We'll email you a secure sign-in link — no password needed.
-          </p>
-
-          {status === 'sent' ? (
-            <div
-              role="status"
-              aria-live="polite"
-              style={{
-                padding: '16px 20px',
-                borderRadius: 'var(--aiq-radius-sm)',
-                background: 'var(--aiq-color-accent-soft)',
-                border: '1px solid var(--aiq-color-accent)',
-                color: 'var(--aiq-color-fg-primary)',
-                fontFamily: 'var(--aiq-font-sans)',
-                fontSize: 14,
-                lineHeight: 1.5,
-              }}
-            >
-              If an account exists with that email, we just sent you a sign-in
-              link. Check your inbox; the link expires in 15 minutes.
-            </div>
-          ) : status === 'rate_limited' ? (
-            <div
-              role="alert"
-              style={{
-                padding: '16px 20px',
-                borderRadius: 'var(--aiq-radius-sm)',
-                background: 'var(--aiq-color-warn-soft, #fef9ec)',
-                border: '1px solid var(--aiq-color-warn, oklch(0.72 0.15 70))',
-                color: 'var(--aiq-color-fg-primary)',
-                fontFamily: 'var(--aiq-font-sans)',
-                fontSize: 14,
-              }}
-            >
-              Too many requests, try again in an hour.
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} noValidate>
-              <Field
-                label="Email address"
-                type="email"
-                name="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ marginBottom: 24 }}
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                loading={status === 'sending'}
-                disabled={!email.trim()}
-                style={{ width: '100%', borderRadius: 9999 }}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ width: '100%', maxWidth: 380 }}>
+            {/* Stale / already-used magic link error — shown only when
+                redirected here from CandidateLoginVerify with
+                ?error=invalid_link. */}
+            {linkError && status === 'idle' && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 24,
+                  padding: '12px 16px',
+                  borderRadius: 'var(--aiq-radius-sm)',
+                  background: 'var(--aiq-color-warning-soft)',
+                  border: '1px solid var(--aiq-color-warning)',
+                  color: 'var(--aiq-color-fg-primary)',
+                  fontFamily: 'var(--aiq-font-sans)',
+                  fontSize: 14,
+                }}
               >
-                Send me a sign-in link
-              </Button>
-            </form>
-          )}
+                That link was expired or already used. Request a new one below.
+              </div>
+            )}
+
+            <h1
+              className="aiq-serif"
+              style={{
+                fontSize: 36,
+                lineHeight: 1.1,
+                margin: '0 0 8px',
+                fontWeight: 500,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Sign in to your account.
+            </h1>
+            <p
+              style={{
+                margin: '0 0 32px',
+                fontFamily: 'var(--aiq-font-sans)',
+                fontSize: 14,
+                color: 'var(--aiq-color-fg-secondary)',
+              }}
+            >
+              We'll email you a secure sign-in link — no password needed.
+            </p>
+
+            {status === 'sent' ? (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  padding: '16px 20px',
+                  borderRadius: 'var(--aiq-radius-sm)',
+                  background: 'var(--aiq-color-accent-soft)',
+                  border: '1px solid var(--aiq-color-accent)',
+                  color: 'var(--aiq-color-fg-primary)',
+                  fontFamily: 'var(--aiq-font-sans)',
+                  fontSize: 14,
+                  lineHeight: 1.5,
+                }}
+              >
+                If an account exists with that email, we just sent you a sign-in
+                link. Check your inbox; the link expires in 15 minutes.
+              </div>
+            ) : status === 'rate_limited' ? (
+              <div
+                role="alert"
+                style={{
+                  padding: '16px 20px',
+                  borderRadius: 'var(--aiq-radius-sm)',
+                  background: 'var(--aiq-color-warning-soft)',
+                  border: '1px solid var(--aiq-color-warning)',
+                  color: 'var(--aiq-color-fg-primary)',
+                  fontFamily: 'var(--aiq-font-sans)',
+                  fontSize: 14,
+                }}
+              >
+                Too many requests, try again in an hour.
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} noValidate>
+                <Field
+                  label="Email address"
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ marginBottom: 24 }}
+                />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={status === 'sending'}
+                  disabled={!email.trim()}
+                  style={{ width: '100%' }}
+                >
+                  Send me a sign-in link
+                </Button>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* Mono footer — matches TokenLanding.tsx idiom */}
+        <div style={{ ...META_LABEL, display: 'flex', gap: 16 }}>
+          <span>Phase 1 · 2026</span>
+          <span style={{ flex: 1 }} />
+          <span>Magic-link · candidate</span>
         </div>
       </main>
+
+      {/* ── Right pane — candidate-side calming idiom ─────────────────── */}
+      {/* Hidden below ~900 px via the scoped style block below.           */}
+      <RightPane />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Spinner } from '@assessiq/ui-system';
 
 // SPA landing for /candidate/login/verify?token=…
 //
@@ -84,20 +85,7 @@ export function CandidateLoginVerify(): JSX.Element {
           gap: 16,
         }}
       >
-        <span
-          role="status"
-          aria-label={message}
-          style={{
-            display: 'inline-block',
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            border: '2px solid var(--aiq-color-border)',
-            borderTopColor: 'var(--aiq-color-accent)',
-            animation: 'aiq-spin 0.8s linear infinite',
-          }}
-        />
-        <style>{`@keyframes aiq-spin { to { transform: rotate(360deg); } }`}</style>
+        <Spinner size="lg" aria-label={message} />
         <p
           style={{
             fontFamily: 'var(--aiq-font-sans)',
