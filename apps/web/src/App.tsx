@@ -21,7 +21,9 @@ import {
   AdminAssessmentDetail,
   AdminReports,
   AdminGenerationAttempts,
+  AdminCertificates,
 } from '@assessiq/admin-dashboard';
+import { MyCertificates } from '@assessiq/candidate-ui';
 import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
 import {
@@ -77,7 +79,16 @@ export function App(): JSX.Element {
           <Route path="/admin/reports" element={<RequireSession role="admin"><AdminReports /></RequireSession>} />
           {/* AI generation history (session 2026-05-09) */}
           <Route path="/admin/generation-attempts" element={<RequireSession role="admin"><AdminGenerationAttempts /></RequireSession>} />
+          {/* Certificates admin (Phase 5 Session 5) — AdminCertificates wraps AdminShell internally */}
+          <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
+
+          {/* Candidate certificate dashboard (Phase 5 Session 5).
+              RequireSession with no role admits any authenticated user
+              (super_admin > admin > reviewer > candidate). Candidates
+              without a session redirect to /admin/login — candidate-side
+              login flow is a separate Phase 5 deliverable. */}
+          <Route path="/candidate/certificates" element={<RequireSession><MyCertificates /></RequireSession>} />
 
           {/* Candidate /take/* subtree.
               <TakeRoot> mounts <HelpProvider> over the entire candidate flow.

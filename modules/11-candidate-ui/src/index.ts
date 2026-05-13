@@ -48,6 +48,7 @@ export {
   QuestionNavigator,
   CandidateHelp,
   CompletionModal,
+  MyCertificates,
 } from "./components";
 export type {
   AttemptTimerProps,
@@ -60,6 +61,7 @@ export type {
   CandidateHelpProps,
   CompletionModalProps,
 } from "./components";
+export type { MyCertificate, MyCertificatesResponse } from "./api";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 export {
