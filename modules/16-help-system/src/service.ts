@@ -28,6 +28,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "@assessiq/tenancy";
 import { withTenant } from "@assessiq/tenancy";
 import { streamLogger } from "@assessiq/core";
+import { auditInTx } from "@assessiq/audit-log";
 import type { Audience, HelpEntry, HelpReadEnvelope, UpsertHelpInput } from "./types.js";
 import {
   listHelpForPage,
@@ -200,8 +201,62 @@ export async function upsertHelpForTenant(
   tenantId: string,
   key: string,
   input: UpsertHelpInput,
+  actorUserId: string,
 ): Promise<HelpEntry> {
-  return withTenant(tenantId, (client) => upsertHelp(client, tenantId, key, input));
+  return withTenant(tenantId, async (client) => {
+    // Snapshot the most-recent active row for this (tenant, key, locale) before
+    // we write, so the audit before/after diff is meaningful. RLS restricts this
+    // SELECT to the current tenant's own rows (tenant_id IS NOT NULL AND = GUC).
+    const locale = input.locale ?? "en";
+    const existingRes = await client.query<Record<string, unknown>>(
+      `SELECT id, tenant_id, key, audience, locale, short_text, long_md,
+              version, status, updated_at
+         FROM help_content
+        WHERE tenant_id = $1 AND key = $2 AND locale = $3 AND status = 'active'
+        ORDER BY version DESC
+        LIMIT 1`,
+      [tenantId, key, locale],
+    );
+    const before: Record<string, unknown> | undefined =
+      existingRes.rows.length > 0
+        ? {
+            id: existingRes.rows[0]!["id"],
+            // Use help_id (not "key") — redactPayload strips /key$/i field names.
+            help_id: existingRes.rows[0]!["key"],
+            audience: existingRes.rows[0]!["audience"],
+            locale: existingRes.rows[0]!["locale"],
+            short_text: existingRes.rows[0]!["short_text"],
+            long_md: existingRes.rows[0]!["long_md"],
+            version: existingRes.rows[0]!["version"],
+            status: existingRes.rows[0]!["status"],
+          }
+        : undefined;
+
+    const newRow = await upsertHelp(client, tenantId, key, input);
+
+    await auditInTx(client, {
+      action: "help.content.updated",
+      actorKind: "user",
+      actorUserId,
+      tenantId,
+      entityType: "help_content",
+      entityId: newRow.id,
+      ...(before !== undefined ? { before } : {}),
+      after: {
+        id: newRow.id,
+        // Use help_id (not "key") — redactPayload strips /key$/i field names.
+        help_id: newRow.key,
+        audience: newRow.audience,
+        locale: newRow.locale,
+        short_text: newRow.shortText,
+        long_md: newRow.longMd,
+        version: newRow.version,
+        status: newRow.status,
+      },
+    });
+
+    return newRow;
+  });
 }
 
 /**
@@ -218,6 +273,7 @@ export async function importHelp(
   tenantId: string,
   locale: string,
   rows: Array<{ key: string; input: UpsertHelpInput }>,
+  actorUserId: string,
 ): Promise<{ inserted: number; skipped: number }> {
   // Normalise locale on every input row so imports using the ?locale= query
   // param don't conflict with per-row locale fields.
@@ -225,9 +281,26 @@ export async function importHelp(
     key,
     input: { ...input, locale },
   }));
-  return withTenant(tenantId, (client) =>
-    bulkUpsertHelp(client, tenantId, normalised),
-  );
+  return withTenant(tenantId, async (client) => {
+    const result = await bulkUpsertHelp(client, tenantId, normalised);
+
+    await auditInTx(client, {
+      action: "help.content.imported",
+      actorKind: "user",
+      actorUserId,
+      tenantId,
+      entityType: "help_content",
+      after: {
+        inserted: result.inserted,
+        skipped: result.skipped,
+        locale,
+        total: rows.length,
+        keys: rows.map((r) => r.key).slice(0, 50),
+      },
+    });
+
+    return result;
+  });
 }
 
 // ---------------------------------------------------------------------------

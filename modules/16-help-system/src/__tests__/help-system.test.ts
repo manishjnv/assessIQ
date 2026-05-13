@@ -18,8 +18,27 @@
  *   (NOT 3 ..)
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
+
+// ---------------------------------------------------------------------------
+// Mock @assessiq/audit-log to a no-op for this test file.
+// help-system.test.ts applies only tenancy + help-system migrations; the
+// audit_log table does not exist in its container. Since service.ts now calls
+// auditInTx inside upsertHelpForTenant, any test that calls the service
+// function would fail with "relation audit_log does not exist" without this
+// mock. The atomicity + audit-shape tests live in audit-writes.test.ts, which
+// applies the full migration set including audit-log.
+// ---------------------------------------------------------------------------
+
+vi.mock("@assessiq/audit-log", async () => {
+  const actual =
+    await vi.importActual<typeof import("@assessiq/audit-log")>("@assessiq/audit-log");
+  return {
+    ...actual,
+    auditInTx: vi.fn(async () => undefined),
+  };
+});
 import { Client, Pool } from "pg";
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -273,7 +292,7 @@ describe("Block 1 — RLS visibility", () => {
       locale: "en",
       shortText: "TENANT A OVERRIDE",
       longMd: null,
-    });
+    }, "test-actor");
 
     const result = await getHelpKey(TENANT_A, "admin.users.role", "en");
     expect(result).not.toBeNull();
@@ -287,7 +306,7 @@ describe("Block 1 — RLS visibility", () => {
       locale: "en",
       shortText: "TENANT A OVERRIDE",
       longMd: null,
-    });
+    }, "test-actor");
 
     const result = await getHelpKey(TENANT_B, "admin.users.role", "en");
     expect(result).not.toBeNull();
@@ -313,7 +332,7 @@ describe("Block 1 — RLS visibility", () => {
       locale: "en",
       shortText: "TENANT A OVERRIDE",
       longMd: null,
-    });
+    }, "test-actor");
 
     const result = await getHelpKey(null, "admin.users.role", "en");
     expect(result).not.toBeNull();
@@ -409,7 +428,7 @@ describe("Block 4 — Upsert versioning", () => {
       locale: "en",
       shortText: "First version",
       longMd: null,
-    });
+    }, "test-actor");
     expect(entry.version).toBe(1);
   });
 
@@ -422,7 +441,7 @@ describe("Block 4 — Upsert versioning", () => {
       locale: "en",
       shortText: "Version one",
       longMd: null,
-    });
+    }, "test-actor");
     expect(v1.version).toBe(1);
 
     const v2 = await upsertHelpForTenant(TENANT_A, key, {
@@ -430,7 +449,7 @@ describe("Block 4 — Upsert versioning", () => {
       locale: "en",
       shortText: "Version two",
       longMd: null,
-    });
+    }, "test-actor");
     expect(v2.version).toBe(2);
 
     // Both rows should persist in the table (versioned history).
@@ -453,7 +472,7 @@ describe("Block 4 — Upsert versioning", () => {
       locale: "en",
       shortText: "English version",
       longMd: null,
-    });
+    }, "test-actor");
     expect(enEntry.version).toBe(1);
 
     const esEntry = await upsertHelpForTenant(TENANT_A, key, {
@@ -461,7 +480,7 @@ describe("Block 4 — Upsert versioning", () => {
       locale: "es",
       shortText: "Spanish version",
       longMd: null,
-    });
+    }, "test-actor");
     // es locale has no prior row for this (tenant, key) → starts at 1.
     expect(esEntry.version).toBe(1);
   });

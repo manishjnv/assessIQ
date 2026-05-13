@@ -453,6 +453,9 @@ importers:
       '@assessiq/ai-grading':
         specifier: workspace:*
         version: link:../07-ai-grading
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
@@ -677,6 +680,9 @@ importers:
 
   modules/16-help-system:
     dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core

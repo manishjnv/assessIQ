@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@assessiq/ai-grading": "workspace:*",
+    "@assessiq/audit-log": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/help-system": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",
