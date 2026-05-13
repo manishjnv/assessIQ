@@ -17,9 +17,11 @@
 //
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
-import { issueCertificate } from "@assessiq/certification";
-import type { Tier } from "@assessiq/certification";
-import { withTenant } from "@assessiq/tenancy";
+// Relative imports because tools/ is not a pnpm workspace member; the
+// @assessiq/* package aliases only resolve from within apps/* or modules/*.
+import { issueCertificate } from "../modules/18-certification/src/index.js";
+import type { Tier } from "../modules/18-certification/src/types.js";
+import { withTenant } from "../modules/02-tenancy/src/index.js";
 
 const TENANT_ID = process.env["TENANT_ID"] ?? "019d8000-0001-7f00-8000-000000000001";
 const ATTEMPT_ID = process.env["ATTEMPT_ID"];
