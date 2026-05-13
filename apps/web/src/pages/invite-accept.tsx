@@ -1,6 +1,6 @@
 // Invite-accept — admin invitation token redemption.
 //
-// Ported from modules/17-ui-system/AccessIQ_UI_Template/screens/invite-accept.jsx
+// Ported from modules/17-ui-system/AssessIQ_UI_Template/screens/invite-accept.jsx
 // per the canonical-template rule in docs/10-branding-guideline.md § 0.
 //
 // Translation notes (intentional divergences from screens/invite-accept.jsx):

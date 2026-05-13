@@ -1,6 +1,6 @@
 // Candidate magic-link landing page. Ported from the two-column layout idiom
 // in apps/web/src/pages/admin/login.tsx (itself ported from
-// modules/17-ui-system/AccessIQ_UI_Template/screens/login.jsx).
+// modules/17-ui-system/AssessIQ_UI_Template/screens/login.jsx).
 //
 // Route: /take/:token  (registered in App.tsx by Opus)
 //

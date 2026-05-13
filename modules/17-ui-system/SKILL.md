@@ -42,11 +42,11 @@ Every primitive has:
 - Dark-mode story
 
 ## Branding base
-The folder `AccessIQ_UI_Template/` is the **complete design-system kit** for AssessIQ — the canonical brand contract, not just a visual reference. Entry point is [`AccessIQ_UI_Template/CLAUDE.md`](./AccessIQ_UI_Template/CLAUDE.md); detail lives in [`AccessIQ_UI_Template/design-system/`](./AccessIQ_UI_Template/design-system/) (`README.md` for philosophy + Do/Don't, `tokens.md` for exact values, `components.md` for primitive recipes, `patterns.md` for page layouts, `copy-and-voice.md` for tone). Reference JSX implementations live in [`AccessIQ_UI_Template/screens/`](./AccessIQ_UI_Template/screens/); browse them via `AccessIQ.html` or `component-gallery.html`.
+The folder `AssessIQ_UI_Template/` is the **complete design-system kit** for AssessIQ — the canonical brand contract, not just a visual reference. Entry point is [`AssessIQ_UI_Template/CLAUDE.md`](./AssessIQ_UI_Template/CLAUDE.md); detail lives in [`AssessIQ_UI_Template/design-system/`](./AssessIQ_UI_Template/design-system/) (`README.md` for philosophy + Do/Don't, `tokens.md` for exact values, `components.md` for primitive recipes, `patterns.md` for page layouts, `copy-and-voice.md` for tone). Reference JSX implementations live in [`AssessIQ_UI_Template/screens/`](./AssessIQ_UI_Template/screens/); browse them via `AccessIQ.html` or `component-gallery.html`.
 
 The production-translation companion lives at `docs/10-branding-guideline.md` — it explains how the kit's un-prefixed tokens (`--accent`, `--bg`, `.btn`) map to the production `--aiq-*` namespace and `aiq-*` classes, plus AssessIQ-specific deltas (banded score model, multi-tenant accent override, light-mode-only lock, accessibility deltas). The system architecture (token catalog, theming pipeline, embed posture) lives in `docs/08-ui-system.md`. **When the three disagree the kit wins, then the branding guideline, then 08.**
 
-Files under `AccessIQ_UI_Template/` are reference, not production code. The designer-tool harness (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `component-gallery.html`, `.design-canvas.state.json`) must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land. ESLint `no-restricted-imports` blocks `**/AccessIQ_UI_Template/**` globally.
+Files under `AssessIQ_UI_Template/` are reference, not production code. The designer-tool harness (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `component-gallery.html`, `.design-canvas.state.json`) must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land. ESLint `no-restricted-imports` blocks `**/AssessIQ_UI_Template/**` globally.
 
 Component APIs in this module stay stable; visual fidelity to the kit is the contract.
 
@@ -66,4 +66,4 @@ Component APIs in this module stay stable; visual fidelity to the kit is the con
 - **Storybook 8** scaffold at `apps/storybook/` with `@storybook/react-vite`. One story per component covering main variants; `withThemeByDataAttribute` decorators add `data-theme` and `data-density` toolbars.
 - **Vite SPA** at `apps/web/` builds clean (`pnpm --filter @assessiq/web build` → 156 KB JS / 12 KB CSS gzipped to 50/3 KB). No public route until G0.C Session 5 ships `/admin/login`.
 - **Deferred to Phase 1+:** `ScoreRing`, `Sparkline`, `QuestionNavigator`, domain composites (`AnchorChip`, `BandPicker`, `RubricEditor`, `QuestionCard`, etc.), `Sidebar`/`NavItem`/`StatCard`, server-side theme resolver, visual-regression baseline, self-hosted fonts.
-- **Enforcement:** ESLint `no-restricted-imports` blocks `**/AccessIQ_UI_Template/**` everywhere. The template folder is reference only — copy idioms, never import.
+- **Enforcement:** ESLint `no-restricted-imports` blocks `**/AssessIQ_UI_Template/**` everywhere. The template folder is reference only — copy idioms, never import.

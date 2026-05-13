@@ -102,7 +102,7 @@ const SKIP_DIRS = new Set([
   "build",
   "coverage",
   ".turbo",
-  "AccessIQ_UI_Template",
+  "AssessIQ_UI_Template",
   "storybook-static",
 ]);
 

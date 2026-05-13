@@ -23,7 +23,7 @@
 //   - No "Take another assessment" button — /take/dashboard not shipped in Phase 1.
 //   - No attempt_events.payload rendering.
 //   - No --aiq-color-bg-elevated (renamed to --aiq-color-bg-raised).
-//   - No import from AccessIQ_UI_Template (ESLint-forbidden).
+//   - No import from AssessIQ_UI_Template (ESLint-forbidden).
 //   - No poll interval shorter than 30 seconds.
 
 import { useEffect, useState, type CSSProperties } from 'react';

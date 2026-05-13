@@ -1,7 +1,7 @@
 /**
  * Mirror the brand kit into apps/web/public/brand/ at predev / prebuild time.
  *
- * Source of truth: modules/17-ui-system/AccessIQ_UI_Template/Logo/{favicon,logo,social}/
+ * Source of truth: modules/17-ui-system/AssessIQ_UI_Template/brand/{favicon,logo,social}/
  * Vite serves apps/web/public/ at the site root, so files appear at /brand/...
  *
  * The destination folder is gitignored — never edit it directly. To update an
@@ -14,7 +14,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const src = resolve(here, "..", "..", "..", "modules", "17-ui-system", "AccessIQ_UI_Template", "Logo");
+const src = resolve(here, "..", "..", "..", "modules", "17-ui-system", "AssessIQ_UI_Template", "brand");
 const dst = resolve(here, "..", "public", "brand");
 
 const folders = ["favicon", "logo", "social"];
