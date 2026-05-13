@@ -1,3 +1,41 @@
+# Session — 2026-05-13 (UI v1.1 Phase 1 + Phase 2 — tokens + atoms live in prod)
+
+**Headline:** Authored the 14-phase v1.1 UI port plan at `docs/plans/UI_KIT_V1_1_PORT.md`, then executed Phases 1 + 2 in this session. Phase 1 (token migration): 7 light-mode token values + serif weight 500 + 2 dark-mode hierarchy fixes, shipped as commit `b95df19` — `#0a0a0b` near-black text, darker secondaries/muted, heavier serif headings now live on every page. Phase 2 (atom refresh): Chip warn variant, Sparkline polyline + non-scaling-stroke + 1.2px default, ScoreRing 1600ms ease-out timing, StatCard `breakdown` prop with mini stacked-bar + colored legend, Sidebar width 240px + footer slot + new `SidebarSection` sub-component. New tokens: `--aiq-color-warning-soft` + 8-slot `--aiq-color-chart-{1..8}` palette. All 4 typechecks clean (17-ui-system, web, 10-admin-dashboard, 11-candidate-ui). Deployed; curl against deployed CSS bundle confirms `aiq-chip-warn` + warning-soft + all 8 chart-* tokens are live.
+
+**Commits:**
+- `85d5d4b` — docs(plans): UI kit v1.1 port — phased implementation plan
+- `b95df19` — feat(ui-system): Phase 1 — align production tokens to v1.1 kit values
+- `57ddf12` — feat(ui-system): Phase 2 — atom refresh for v1.1 kit
+
+**Tests / verification:**
+- `pnpm -C modules/17-ui-system typecheck` — clean (Phases 1 + 2).
+- `pnpm -C apps/web typecheck` — clean.
+- `pnpm -C modules/10-admin-dashboard typecheck` — clean (downstream Sidebar/StatCard consumer).
+- `pnpm -C modules/11-candidate-ui typecheck` — clean.
+- Deployed CSS verification (Phase 1): `#0a0a0b`, `#3f3f46`, `#71717a`, `font-weight:500` present; old values gone. New bundle `index-DZdyKEZf.css`.
+- Deployed CSS verification (Phase 2): `aiq-chip-warn`, `warning-soft`, `--aiq-color-chart-1..8` all live. New bundle `index-B86xf8od.css`.
+
+**VPS-side changes (additive only):**
+- `git pull` → `57ddf12` on `/srv/assessiq`.
+- Rebuilt `assessiq/frontend:latest` twice (once per phase) and force-recreated container. No other service touched.
+
+**Next:** Phase 3 of the v1.1 plan — new primitives. Phase 3a (Spinner, ProgressBar, Placeholder — promote 4 ad-hoc inline implementations into ui-system) is the next single-session candidate. Phase 3b adds the activity-screen primitives (ActivityHeatmap, StackedBarChart, LeaderboardList) and unblocks the Activity feature track (Phases 9–12).
+
+**Open questions / deferred:**
+- Axe a11y test wiring deferred from Phase 2 to Phase 14 per plan note. Scaffolding (vitest-axe install + decorators) is non-trivial; bundling with Phase 14 visual-regression baseline is cleaner.
+- Storybook stories for ScoreRing/Sparkline/StatCard/Sidebar don't exist yet (Agent 2 inventory finding 2070). Chip story still shows default/accent/success — needs a `warn` variant story. Batch with Phase 14.
+- Kit-internal "AccessIQ" typo (carried over in vendor files like `AccessIQ.html`, `accessiq-horizontal.svg`) flagged earlier — design-time only, no runtime impact. Still queued for the next vendor refresh conversation.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 ingest of 5 parallel discovery subagent reports (one was wrong about token values matching; verified by direct tokens.css read before scoping Phase 1), authored `docs/plans/UI_KIT_V1_1_PORT.md` (570 lines, 14 phases), Phase 1 token edits (9 values + serif weight + dark-mode adjustments), Phase 2 atom edits across 5 components + 2 token additions + 1 new sub-component export, 3 commits with noreply pattern, 2 VPS rebuilds + recreates, byte-level curl verification of deployed bundles, this handoff.
+- Sonnet: 5 parallel discovery subagents in Phase 0 — (1) token diff kit vs prod, (2) component inventory + consumer counts, (3) route inventory + kit-screen mapping, (4) activity-screen deep-dive + API contracts, (5) constraints/anti-patterns extraction. All returned with sources + confidence + gaps per make-plan contract. Total ~7min wall-clock for 4 of 5 (one ran longer due to deeper read of `15-analytics`).
+- Haiku: 2 discovery agents in Phase 0 (route inventory + constraints extraction — both bulk-read tasks suited to Haiku).
+- codex:rescue: n/a — UI-system token edits + atom refreshes are not security/auth/AI-classifier/audit/certification adjacent. Changes additive (no breaking signatures); ESLint already forbids runtime imports from the template folder.
+
+---
+
 # Session — 2026-05-13 (UI kit v1.1 refresh + folder rename to AssessIQ_UI_Template)
 
 **Headline:** Refreshed the 17-ui-system design-system kit to v1.1 (May 2026 — darker type tokens, new `screens/activity.jsx` with heatmap + leaderboard, brand assets relocated from `Logo/` → `brand/`). Renamed the outer folder from the typo-form `AccessIQ_UI_Template` to the correct `AssessIQ_UI_Template` and patched all 18 consumer references (eslint globs, 6 lint-tool SKIP_DIRS, `copy-brand-assets.mjs`, 7 apps/web pages, 4 doc files). Frontend rebuilt and recreated on VPS; root + favicon + og-image + webmanifest all return 200 in prod.
