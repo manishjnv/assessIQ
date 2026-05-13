@@ -198,6 +198,15 @@ export async function withPublicVerifyContext<T>(
     await client.query('BEGIN');
     await client.query('SET LOCAL ROLE assessiq_app');
     await client.query("SELECT set_config('app.public_verify', 'true', true)");
+    // The tenant_isolation RLS policy casts current_setting('app.current_tenant')
+    // to UUID on every SELECT. Without this sentinel the cast on '' throws before
+    // Postgres can OR-evaluate the public_verify_lookup policy that actually
+    // grants access. The sentinel makes the cast succeed; the equality is false,
+    // so tenant_isolation denies, and access falls through to public_verify_lookup.
+    // The sentinel is reserved (UUID_NIL); no real tenant ever uses it.
+    await client.query(
+      "SELECT set_config('app.current_tenant', '00000000-0000-0000-0000-000000000000', true)",
+    );
     const result = await fn(client);
     await client.query('COMMIT');
     return result;
