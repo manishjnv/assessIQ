@@ -28,7 +28,7 @@ import {
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
-import { audit } from "@assessiq/audit-log";
+import { auditInTx } from "@assessiq/audit-log";
 
 const log = streamLogger("grading");
 
@@ -106,6 +106,25 @@ export async function handleAdminOverride(
       override_reason: override.reason,
     });
 
+    // G3.D: audit inside the same tx so grading INSERT and audit_log INSERT
+    // commit or roll back atomically (atomicity fix — was out-of-tx before G3.D).
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: userId,
+      action: "grading.override",
+      entityType: "grading",
+      entityId: newRow.id,
+      after: {
+        new_grading_id: newRow.id,
+        override_of: newRow.override_of,
+        score_earned: newRow.score_earned,
+        score_max: newRow.score_max,
+        status: newRow.status,
+        override_reason: override.reason,
+      },
+    });
+
     return newRow;
   });
 
@@ -118,26 +137,6 @@ export async function handleAdminOverride(
     },
     "grading.override.complete",
   );
-
-  // G3.A audit hook: admin overrode an AI grading row (D8 compliance frame).
-  // The original grading row is immutable (never updated); this audit event
-  // records the admin decision with the override ID for forensic traceability.
-  await audit({
-    tenantId,
-    actorKind: "user",
-    actorUserId: userId,
-    action: "grading.override",
-    entityType: "grading",
-    entityId: grading.id,
-    after: {
-      new_grading_id: grading.id,
-      override_of: grading.override_of,
-      score_earned: grading.score_earned,
-      score_max: grading.score_max,
-      status: grading.status,
-      override_reason: override.reason,
-    },
-  });
 
   return { grading };
 }

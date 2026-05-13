@@ -32,6 +32,7 @@
 
 import { AppError, config, streamLogger, uuidv7 } from "@assessiq/core";
 import { withTenant, findTenantSettings } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { generateQuestions, generateQuestionsByType } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
@@ -574,6 +575,25 @@ export async function handleAdminGenerate(
         // Single transaction insert
         const ids = await insertDrafts(client, input, mergedOutput, attemptId);
 
+        await auditInTx(client, {
+          action: "question.ai_generated",
+          actorKind: "user",
+          actorUserId: input.userId,
+          tenantId: input.tenantId,
+          entityType: "question",
+          after: {
+            generation_attempt_id: attemptId,
+            pack_id: input.packId,
+            level_id: input.levelId,
+            count_requested: input.count,
+            count_inserted: ids.length,
+            skill_sha: skillShas,
+            model,
+            mode: "sharded",
+            question_ids: ids.slice(0, 50),
+          },
+        });
+
         log.info(
           {
             attemptId,
@@ -648,6 +668,25 @@ export async function handleAdminGenerate(
         };
 
         const ids = await insertDrafts(client, input, filteredSingleOutput, attemptId);
+
+        await auditInTx(client, {
+          action: "question.ai_generated",
+          actorKind: "user",
+          actorUserId: input.userId,
+          tenantId: input.tenantId,
+          entityType: "question",
+          after: {
+            generation_attempt_id: attemptId,
+            pack_id: input.packId,
+            level_id: input.levelId,
+            count_requested: input.count,
+            count_inserted: ids.length,
+            skill_sha: output.skillSha,
+            model: output.model,
+            mode: "omnibus",
+            question_ids: ids.slice(0, 50),
+          },
+        });
 
         log.info(
           {
@@ -796,6 +835,25 @@ export async function handleAdminGenerate(
       };
 
       const ids = await insertDrafts(client, input, mergedOutput, attemptId);
+
+      await auditInTx(client, {
+        action: "question.ai_generated",
+        actorKind: "user",
+        actorUserId: input.userId,
+        tenantId: input.tenantId,
+        entityType: "question",
+        after: {
+          generation_attempt_id: attemptId,
+          pack_id: input.packId,
+          level_id: input.levelId,
+          count_requested: input.count,
+          count_inserted: ids.length,
+          skill_sha: fulfilled[0]!.skillSha,
+          model: fulfilled[0]!.model,
+          mode: "omnibus",
+          question_ids: ids.slice(0, 50),
+        },
+      });
 
       log.info(
         {

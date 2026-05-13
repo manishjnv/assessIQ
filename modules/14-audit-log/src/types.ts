@@ -53,6 +53,25 @@ export const ACTION_CATALOG = [
   // Grading
   'grading.override',
   'grading.retry',
+  // G3.D 07-ai-grading sweep (2026-05-13) — admin-mutating handlers in the
+  // grading lifecycle. Each emits one audit row inside the same withTenant
+  // transaction as its DB mutation (auditInTx).
+  // - grading.accepted: admin commits AI proposals to gradings rows (handler:
+  //   admin-accept.ts; covers the "accept before commit" D8 invariant).
+  // - grading.claimed: admin opens the attempt page, transitioning
+  //   attempts.status submitted → pending_admin_grading (handler:
+  //   admin-claim-release.ts handleAdminClaimAttempt).
+  // - grading.released: admin releases the graded attempt to the candidate,
+  //   transitioning attempts.status graded → released (handler:
+  //   admin-claim-release.ts handleAdminReleaseAttempt).
+  'grading.accepted',
+  'grading.claimed',
+  'grading.released',
+  // G3.D 07-ai-grading sweep — admin question generation via Claude Code CLI.
+  // Distinct from question.created (manual admin authoring) so audit queries
+  // can separate AI-drafted vs human-authored creation paths. One audit row
+  // per generation batch with the inserted question_ids in the after payload.
+  'question.ai_generated',
   // API keys + embed
   'api_key.created',
   'api_key.revoked',

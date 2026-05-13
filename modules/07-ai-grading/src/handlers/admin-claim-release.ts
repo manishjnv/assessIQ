@@ -24,6 +24,7 @@
 
 import { AppError, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import { findGradingsForAttempt } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
@@ -135,17 +136,18 @@ export async function handleAdminClaimAttempt(input: {
   userId: string;
   attemptId: string;
 }): Promise<HandleAdminClaimAttemptOutput> {
-  const { tenantId, attemptId } = input;
+  const { tenantId, userId, attemptId } = input;
 
   return withTenant(tenantId, async (client) => {
     // Idempotent claim: transitions 'submitted' → 'pending_admin_grading'.
     // No-op when already 'pending_admin_grading' (rowCount = 0 is fine).
-    await client.query(
+    const claimResult = await client.query(
       `UPDATE attempts
        SET status = 'pending_admin_grading'
        WHERE id = $1 AND status = 'submitted'`,
       [attemptId],
     );
+    const wasClaimed = (claimResult.rowCount ?? 0) > 0;
 
     // Read current status
     const statusResult = await client.query<{ status: string }>(
@@ -159,6 +161,21 @@ export async function handleAdminClaimAttempt(input: {
         AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
         404,
       );
+    }
+
+    // G3.D audit: only on the actual transition. Re-claim of an already-claimed
+    // attempt produces no audit row, matching the idempotent UPDATE semantic.
+    if (wasClaimed) {
+      await auditInTx(client, {
+        action: "grading.claimed",
+        actorKind: "user",
+        actorUserId: userId,
+        tenantId,
+        entityType: "attempt",
+        entityId: attemptId,
+        before: { attempt_status: "submitted" },
+        after: { attempt_status: "pending_admin_grading" },
+      });
     }
 
     const [answers, frozen_questions, gradings] = await Promise.all([
@@ -188,7 +205,7 @@ export async function handleAdminReleaseAttempt(input: {
   userId: string;
   attemptId: string;
 }): Promise<HandleAdminReleaseAttemptOutput> {
-  const { tenantId, attemptId } = input;
+  const { tenantId, userId, attemptId } = input;
 
   await withTenant(tenantId, async (client) => {
     const result = await client.query<{ id: string }>(
@@ -218,6 +235,19 @@ export async function handleAdminReleaseAttempt(input: {
         422,
       );
     }
+
+    // G3.D audit: release succeeded; row is now 'released'. Inside the same
+    // withTenant tx so the UPDATE and audit_log INSERT are atomic.
+    await auditInTx(client, {
+      action: "grading.released",
+      actorKind: "user",
+      actorUserId: userId,
+      tenantId,
+      entityType: "attempt",
+      entityId: attemptId,
+      before: { attempt_status: "graded" },
+      after: { attempt_status: "released" },
+    });
   });
 
   // Best-effort notification — module 13 may not exist yet.

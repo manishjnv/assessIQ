@@ -192,3 +192,9 @@ Any "small refactor" that moves grading into a worker, adds auto-retry, or lets 
 ### Carry-forward (out of scope, flagged)
 
 `docs/01-architecture-overview.md:30–80` is stale: still shows BullMQ grading queue + Agent-SDK worker. Pre-2026-04-29 architecture, superseded by the sync-on-click flow in `docs/05-ai-pipeline.md`. A future architecture-overview rewrite session redraws this; not in Window D scope.
+
+## Audit-write coverage (G3.D, doc-backfilled 2026-05-13)
+
+All 5 admin-mutating handlers in `src/handlers/admin-*.ts` write one `audit_log` row inside the same `withTenant` transaction as the domain mutation via `auditInTx(...)`. Eight call sites total across the module — `admin-accept` (1, `grading.accepted`), `admin-claim-release` (2, `grading.claimed` + `grading.released`), `admin-override` (1, `grading.override`), `admin-rerun` (1, `grading.retry`), `admin-generate` (3, all `question.ai_generated`). Coverage-grep guard in `src/__tests__/audit-writes.test.ts` pins those counts; adding a new admin-mutating handler without an audit write fails the test.
+
+Why this matters: Phase 1 grading's compliance frame in [docs/05-ai-pipeline.md § Compliance frame](../../docs/05-ai-pipeline.md) hinges on every inference-triggering action being admin-attributable. The audit row + `gradings.graded_by` + `gradings.prompt_version_sha` are the three-way receipt that the call ran inside the human-in-the-loop boundary. See [docs/11-observability.md § 29](../../docs/11-observability.md) for the full per-site contract.

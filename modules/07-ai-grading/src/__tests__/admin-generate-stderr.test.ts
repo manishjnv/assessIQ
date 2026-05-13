@@ -28,6 +28,16 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
+// G3.D: mock @assessiq/audit-log (testcontainer omits audit-log migrations).
+vi.mock("@assessiq/audit-log", async () => {
+  const actual =
+    await vi.importActual<typeof import("@assessiq/audit-log")>("@assessiq/audit-log");
+  return {
+    ...actual,
+    auditInTx: vi.fn(async () => undefined),
+  };
+});
+
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
 

@@ -23,6 +23,7 @@
 
 import { AppError, config, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { gradeSubjective } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
@@ -256,6 +257,24 @@ export async function handleAdminRerun(
       },
       "grading.rerun.batch",
     );
+
+    await withTenant(tenantId, async (client) => {
+      await auditInTx(client, {
+        action: "grading.retry",
+        actorKind: "user",
+        actorUserId: input.userId,
+        tenantId,
+        entityType: "attempt",
+        entityId: attemptId,
+        after: {
+          attempt_id: attemptId,
+          question_count: questionCount,
+          proposal_count: proposals.length,
+          force_escalate: input.forceEscalate ?? false,
+          duration_ms: durationMs,
+        },
+      });
+    });
 
     return { proposals };
   } finally {
