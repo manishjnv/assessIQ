@@ -534,7 +534,7 @@ This plan was built from 5 parallel discovery agents on 2026-05-13. Their report
 
 ## Open questions that must resolve before specific phases
 
-1. **Phase 9:** Domain → display name mapping strategy (hardcoded frontend map vs schema migration vs use raw slug).
+1. **Phase 9:** Domain → display name mapping strategy. **RESOLVED 2026-05-13 (user decision):** option (a) — FE hardcoded map. Backend returns raw `domain` slugs from `question_packs.domain`. Frontend renders via a shared map (`apps/web/src/lib/domains.ts` or similar; both admin and candidate Activity pages consume it). No schema migration in v1.1; revisit if/when a tenant-admin "manage domain labels" feature is requested.
 2. **Phase 10:** Candidate stat-card #2 replacement (vote: "Certificates earned"). Candidate leaderboard semantics (vote: own attempts by score).
 3. **Phase 10:** DPDP review gate if any cross-user data surfaces.
 4. **Phase 2:** Self-host fonts vs Google CDN — `docs/08-ui-system.md` flagged "Phase 1 perf budget" but no number set. Defer to Phase 14.
