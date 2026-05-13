@@ -16,7 +16,7 @@
 //   - No localStorage for candidate session.
 //   - No attempt_events rendered to the candidate.
 //   - No --aiq-color-bg-elevated (renamed --aiq-color-bg-raised).
-//   - No import from **/AccessIQ_UI_Template/** (ESLint forbids).
+//   - No import from **/AssessIQ_UI_Template/** (ESLint forbids).
 //   - No Monaco / KQL editor (Phase 2 deferred, decision #11).
 
 import {

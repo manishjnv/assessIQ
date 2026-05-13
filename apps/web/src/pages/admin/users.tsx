@@ -1,6 +1,6 @@
 // Admin users page — list / filter / invite / role-change / soft-delete.
 //
-// Ported from modules/17-ui-system/AccessIQ_UI_Template/screens/admin-list.jsx
+// Ported from modules/17-ui-system/AssessIQ_UI_Template/screens/admin-list.jsx
 // per the canonical-template rule in docs/10-branding-guideline.md § 0.
 // admin-list.jsx is the GENERIC pattern for every admin-side list page;
 // admin/packs, admin/assessments, admin/results-list, admin/embed-secrets

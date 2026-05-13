@@ -35,7 +35,7 @@ const SCAN_ROOTS = ["apps/api/src", "modules", "tools"];
 
 const SKIP_DIRS = new Set([
   "node_modules", "dist", "build", "coverage", ".turbo",
-  "__tests__", "__mocks__", "AccessIQ_UI_Template",
+  "__tests__", "__mocks__", "AssessIQ_UI_Template",
 ]);
 
 // Files explicitly exempted (with rationale)

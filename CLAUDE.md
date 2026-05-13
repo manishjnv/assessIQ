@@ -75,7 +75,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
 
 6. **AI prompts are skills on the VPS, not code.** They live at `~/.claude/skills/grade-{anchors,band,escalate}/SKILL.md` on the production VPS. Their sha256 is recorded on every grading row. Editing prompts is a deploy event with eval-harness re-baselining (`modules/07-ai-grading/eval/`), not a normal code change.
 
-7. **Branding base.** UI work inherits from `modules/17-ui-system/AccessIQ_UI_Template/` — the folder name is a typo; the product is AssessIQ. See `docs/10-branding-guideline.md`.
+7. **Branding base.** UI work inherits from `modules/17-ui-system/AssessIQ_UI_Template/`. See `docs/10-branding-guideline.md`. (Kit-internal files still use "AccessIQ" naming — a vendor-side typo carried over from the previous kit drop; do not mass-rewrite, only update consumers.)
 
 8. **Shared VPS — deploys are additive only.** Production runs on Hostinger VPS `srv1150121.hstgr.cloud` (72.61.227.64), SSH alias `assessiq-vps`. **Other apps already run on this box** (A11yOS / AccessBridge confirmed; the broader `automateedge.cloud` umbrella likely too). Treat the VPS as shared infra:
    - All AssessIQ artifacts live under an `assessiq` namespace: `/srv/assessiq/`, `/var/log/assessiq/`, Docker containers prefixed `assessiq-`, single nginx site file `assessiq.automateedge.cloud.conf`, systemd units prefixed `assessiq-*`.

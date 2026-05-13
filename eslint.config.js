@@ -7,7 +7,7 @@ export default tseslint.config(
       "**/dist/**",
       "**/node_modules/**",
       "**/coverage/**",
-      "**/AccessIQ_UI_Template/**",
+      "**/AssessIQ_UI_Template/**",
     ],
   },
 
@@ -52,7 +52,7 @@ export default tseslint.config(
                 "Anthropic SDK is forbidden in Phase 0. See CLAUDE.md rule #1.",
             },
             {
-              group: ["**/AccessIQ_UI_Template/**"],
+              group: ["**/AssessIQ_UI_Template/**"],
               message:
                 "Do not import from the UI template at runtime. Hand-port idioms into modules/17-ui-system/src/components/.",
             },

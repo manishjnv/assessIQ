@@ -41,7 +41,7 @@ export function App(): JSX.Element {
   return (
     <BrowserRouter>
       {/* theme="light" pinned per docs/10-branding-guideline.md § 0 + § 1 —
-          AccessIQ_UI_Template/screens/* ship light-mode tokens only; the
+          AssessIQ_UI_Template/screens/* ship light-mode tokens only; the
           canonical visual identity is "white-on-white surfaces" with the
           indigo-violet accent. Auto-system would resolve dark on a Windows
           11 box and override --aiq-color-bg-base via [data-theme="dark"]

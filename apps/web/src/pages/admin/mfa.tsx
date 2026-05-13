@@ -1,6 +1,6 @@
 // Admin MFA — TOTP enrolment + verification.
 //
-// Ported from modules/17-ui-system/AccessIQ_UI_Template/screens/mfa.jsx
+// Ported from modules/17-ui-system/AssessIQ_UI_Template/screens/mfa.jsx
 // per the canonical-template rule in docs/10-branding-guideline.md § 0.
 //
 // Translation notes (intentional divergences from screens/mfa.jsx):

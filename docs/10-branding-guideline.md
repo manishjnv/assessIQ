@@ -1,20 +1,22 @@
 # 10 — Branding & Visual Guideline
 
-> **Source of truth for every page, layout, and component built going forward.** Distilled from the design-canvas template at `modules/17-ui-system/AccessIQ_UI_Template/`. Read this before opening Figma, before drafting a new screen, before adding a new component.
+> **Source of truth for every page, layout, and component built going forward.** Distilled from the design-canvas template at `modules/17-ui-system/AssessIQ_UI_Template/`. Read this before opening Figma, before drafting a new screen, before adding a new component.
 >
-> The template folder name has a typo — the product is **AssessIQ**, not AccessIQ. In all production code, copy, and titles, use *AssessIQ*.
+> The kit's internal files (`CLAUDE.md`, `README.md`, `AccessIQ.html`, `brand/brand-guidelines.html`, and logo SVG filenames like `accessiq-horizontal.svg`) still spell the product name as **AccessIQ** — a vendor-side typo carried over when the kit was authored. The outer folder is correctly named `AssessIQ_UI_Template`. In all production code, copy, page titles, and OG/meta tags, use *AssessIQ*. Do not mass-rewrite kit internals on every refresh; the typo is design-time only and never reaches runtime (HTML links in `apps/web/index.html` reference `favicon/*` and `social/og-image.*` which match across kit revisions).
 
 ## 0. Working agreement — the design-system kit is the canonical reference
 
-**Every UI change — new page, new layout, new composite, new variant of an existing component — starts at the design-system kit shipped in [`modules/17-ui-system/AccessIQ_UI_Template/`](../modules/17-ui-system/AccessIQ_UI_Template/).** That folder is the brand contract. Read it in this exact order before opening Figma, drafting a screen, or writing a component:
+**Every UI change — new page, new layout, new composite, new variant of an existing component — starts at the design-system kit shipped in [`modules/17-ui-system/AssessIQ_UI_Template/`](../modules/17-ui-system/AssessIQ_UI_Template/).** That folder is the brand contract. Read it in this exact order before opening Figma, drafting a screen, or writing a component:
 
-1. [`AccessIQ_UI_Template/CLAUDE.md`](../modules/17-ui-system/AccessIQ_UI_Template/CLAUDE.md) — folder-local entry point. Non-negotiables (single accent, two type families, generous whitespace, borders not shadows, pill primary buttons).
-2. [`AccessIQ_UI_Template/design-system/README.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/README.md) — design philosophy + Do/Don't.
-3. [`AccessIQ_UI_Template/design-system/tokens.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/tokens.md) — exact colors, type, spacing, radii, shadows.
-4. [`AccessIQ_UI_Template/design-system/components.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/components.md) — primitive recipes (buttons, inputs, cards, chips, icons).
-5. [`AccessIQ_UI_Template/design-system/patterns.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/patterns.md) — page layouts (sidebar, hero, results, empty states).
-6. [`AccessIQ_UI_Template/design-system/copy-and-voice.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/copy-and-voice.md) — tone, microcopy, number formatting.
-7. [`AccessIQ_UI_Template/screens/`](../modules/17-ui-system/AccessIQ_UI_Template/screens/) — reference JSX implementations. Today: `login`, `dashboard`, `library`, `assessment`, `results`, plus `atoms.jsx` for primitives. Open [`AccessIQ.html`](../modules/17-ui-system/AccessIQ_UI_Template/AccessIQ.html) in a browser to see them; open [`component-gallery.html`](../modules/17-ui-system/AccessIQ_UI_Template/component-gallery.html) for every primitive on one page.
+1. [`AssessIQ_UI_Template/CLAUDE.md`](../modules/17-ui-system/AssessIQ_UI_Template/CLAUDE.md) — folder-local entry point. Non-negotiables (single accent, two type families, generous whitespace, borders not shadows, pill primary buttons).
+2. [`AssessIQ_UI_Template/design-system/README.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/README.md) — design philosophy + Do/Don't.
+3. [`AssessIQ_UI_Template/design-system/tokens.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/tokens.md) — exact colors, type, spacing, radii, shadows.
+4. [`AssessIQ_UI_Template/design-system/components.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/components.md) — primitive recipes (buttons, inputs, cards, chips, icons).
+5. [`AssessIQ_UI_Template/design-system/patterns.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/patterns.md) — page layouts (sidebar, hero, results, empty states).
+6. [`AssessIQ_UI_Template/design-system/copy-and-voice.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/copy-and-voice.md) — tone, microcopy, number formatting.
+7. [`AssessIQ_UI_Template/screens/`](../modules/17-ui-system/AssessIQ_UI_Template/screens/) — reference JSX implementations. Today: `login`, `dashboard`, `activity` (v1.1 — heatmap + leaderboard + stat-card breakdowns), `library`, `assessment`, `results`, plus `atoms.jsx` for primitives. Open [`AccessIQ.html`](../modules/17-ui-system/AssessIQ_UI_Template/AccessIQ.html) in a browser to see them; open [`component-gallery.html`](../modules/17-ui-system/AssessIQ_UI_Template/component-gallery.html) for every primitive on one page.
+>
+> **Kit version: v1.1 (May 2026).** Differences from v1.0: type tokens darkened (`--text` is now near-black `#0a0a0b`, serif headings weight 500); new `activity.jsx` screen with GitHub-style heatmap, stacked-bar timeline, leaderboard rows, and stat cards with colored breakdowns; brand assets moved from `Logo/` to `brand/` (downstream consumer `apps/web/scripts/copy-brand-assets.mjs` updated accordingly).
 
 This guideline (`docs/10-branding-guideline.md`) is the **production-translation companion** to that kit — it explains how the kit's un-prefixed tokens (`--accent`, `--bg`, `.btn`) become the production `--aiq-*` namespace and `aiq-*` classes, and adds AssessIQ-specific deltas (the banded score model, accessibility deltas, multi-tenant accent override, light-mode-only lock). **The kit wins on visual conflicts; this doc updates next; [docs/08-ui-system.md](./08-ui-system.md) tracks the system implications last.**
 
@@ -22,7 +24,7 @@ The rules:
 
 1. **Consult the kit first, in the order above.** If a screen exists in `screens/` for what you're building, port its structure, spacing, type ramp, and composition into the live page. The recipes in `design-system/components.md` are the canonical specs; the JSX in `screens/` shows them in context.
 
-2. **Never lift-and-shift template code.** Files under `AccessIQ_UI_Template/` are reference, not production — [`modules/17-ui-system/SKILL.md:47`](../modules/17-ui-system/SKILL.md) is explicit: *"The designer-tool harness must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land."* Importing `screens/login.jsx` directly into `apps/web/...` is a Phase 3 bounce condition. ESLint `no-restricted-imports` blocks `**/AccessIQ_UI_Template/**` globally.
+2. **Never lift-and-shift template code.** Files under `AssessIQ_UI_Template/` are reference, not production — [`modules/17-ui-system/SKILL.md:47`](../modules/17-ui-system/SKILL.md) is explicit: *"The designer-tool harness must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land."* Importing `screens/login.jsx` directly into `apps/web/...` is a Phase 3 bounce condition. ESLint `no-restricted-imports` blocks `**/AssessIQ_UI_Template/**` globally.
 
 3. **If no screen or pattern exists for what you're building, STOP and surface the gap.** Either request the user add a `screens/<name>.jsx` + a `design-system/components.md` recipe entry first, or get explicit approval to compose from existing atoms. Do NOT silently invent a layout from primitives — that's how admin-side pages drift apart visually (the `apps/web/src/pages/admin/users.tsx` gap, surfaced 2026-05-01: no `users.jsx` template existed, so the page was assembled ad-hoc from atoms with no canonical reference to anchor future admin-list pages).
 
@@ -43,11 +45,11 @@ AssessIQ reads like an editorial publication that happens to grade you. **Newsre
 
 ### 1.1 Light mode is canonical; dark mode is opt-in
 
-`AccessIQ_UI_Template/screens/*.jsx` ship **light-mode tokens only**. The visual identity in the paragraph above is *the* identity — white-on-white, restrained colour, low contrast, editorial calm. The dark-mode block in `modules/17-ui-system/src/styles/tokens.css` exists as **infrastructure** for a future opt-in (per `modules/17-ui-system/SKILL.md` Help/tooltip surface: `admin.profile.theme` — light/dark/system explanation), but is NOT the brand and must NOT render by default.
+`AssessIQ_UI_Template/screens/*.jsx` ship **light-mode tokens only**. The visual identity in the paragraph above is *the* identity — white-on-white, restrained colour, low contrast, editorial calm. The dark-mode block in `modules/17-ui-system/src/styles/tokens.css` exists as **infrastructure** for a future opt-in (per `modules/17-ui-system/SKILL.md` Help/tooltip surface: `admin.profile.theme` — light/dark/system explanation), but is NOT the brand and must NOT render by default.
 
 **Hard rule**: `apps/web` mounts `<ThemeProvider theme="light">` — never `"system"`. `"system"` resolves to dark on any OS in dark mode (Windows 11 default, macOS evening, etc.) and applies `data-theme="dark"` to the wrapping div, which overrides `--aiq-color-bg-base` to `#0e0e10` and gives the SPA a black background that diverges from every template screen. Dark mode adoption is gated on:
 
-1. The template ships dark-mode variants of every screen in `AccessIQ_UI_Template/screens/`, demonstrating the brand survives the inversion.
+1. The template ships dark-mode variants of every screen in `AssessIQ_UI_Template/screens/`, demonstrating the brand survives the inversion.
 2. An explicit user-toggle UI lands at `admin.profile.theme` (Phase 1+).
 3. Both `light` and `dark` variants pass the same accessibility audit (axe, contrast ≥ 4.5:1).
 
@@ -435,7 +437,7 @@ Follow this checklist for every new screen request in coming sessions.
 ## 13. Where the source files live
 
 ```
-modules/17-ui-system/AccessIQ_UI_Template/      # reference only — DO NOT IMPORT FROM APP CODE
+modules/17-ui-system/AssessIQ_UI_Template/      # reference only — DO NOT IMPORT FROM APP CODE
 ├── styles.css                  # token + base classes (port to modules/17-ui-system/tokens/tokens.css)
 ├── screens/atoms.jsx           # Logo, Icon, Placeholder, useCountUp (port to components/primitives)
 ├── screens/login.jsx           # split-hero reference
@@ -453,10 +455,10 @@ The four "exclude from build" files are the omelette/Claude-design-canvas wrappe
 
 ### 13.b — Brand kit (logo, favicon, OG card, web manifest)
 
-The brand identity assets live **inside** the UI template at [`modules/17-ui-system/AccessIQ_UI_Template/Logo/`](../modules/17-ui-system/AccessIQ_UI_Template/Logo/) so the design system and brand identity share one source of truth. Open [`Logo/brand-guidelines.html`](../modules/17-ui-system/AccessIQ_UI_Template/Logo/brand-guidelines.html) in a browser for the visual reference.
+The brand identity assets live **inside** the UI template at [`modules/17-ui-system/AssessIQ_UI_Template/Logo/`](../modules/17-ui-system/AssessIQ_UI_Template/Logo/) so the design system and brand identity share one source of truth. Open [`Logo/brand-guidelines.html`](../modules/17-ui-system/AssessIQ_UI_Template/Logo/brand-guidelines.html) in a browser for the visual reference.
 
 ```
-modules/17-ui-system/AccessIQ_UI_Template/Logo/
+modules/17-ui-system/AssessIQ_UI_Template/Logo/
 ├── README.md                          # kit overview + embed snippet
 ├── brand-guidelines.html              # visual reference
 ├── logo/                              # mark, wordmark, lockups (assessiq-*.{svg,png})
