@@ -1,3 +1,29 @@
+# Session — 2026-05-14 (UI v1.1 Phase 12 — candidate Activity page wire)
+
+**Headline:** Phase 10 lint fixups + Phase 12 shipped — `/candidate/activity` live with 3 stat cards, heatmap, timeline, and personal pack rankings.
+
+**Commits:**
+- `601bef5` — fix(analytics): remove apostrophes from candidate activity comments (lint false positives)
+- `f74c0a0` — feat(ui): UI v1.1 Phase 12 — Candidate Activity page (/candidate/activity)
+
+**Tests:** `modules/15-analytics` 104/104 ✅. `@assessiq/candidate-ui` typecheck ✅. `apps/web` typecheck ✅. MV lint 0 violations ✅.
+
+**Deploy:** `assessiq-api` + `assessiq-frontend` rebuilt + force-recreated on VPS. `/api/health` → 200 ✅. `/candidate/activity` → 200 ✅.
+
+**Next:** Phase 8a — Cohort report + Attempt detail page kit refresh (13 of 14 Activity phases done; P8a is the remaining list-adjacent page work).
+
+**Open questions:** none.
+
+---
+
+## Agent utilization
+- Opus: Session driving — lint fixes, CandidateActivity.tsx authoring, barrel wires, App.tsx route, help content, deploy, docs.
+- Sonnet: n/a — edits were ≤30 lines each, all files in hot cache.
+- Haiku: n/a
+- codex:rescue: n/a — `modules/11-candidate-ui` not on load-bearing paths; no auth/classifier surface.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 10 — candidate Activity backend)
 
 **Headline:** Phase 10 shipped — 4 candidate-scoped `/api/me/activity/*` endpoints live; 104/104 tests pass.

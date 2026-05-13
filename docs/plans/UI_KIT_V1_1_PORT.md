@@ -8,7 +8,7 @@
 
 **Phasing summary:** 14 phases, ~14–18 sessions of work. Phase 1 is the highest-impact-per-line session (7 token value changes ripple visible darker-text identity across all 25+ existing pages). Phases 9–12 (Activity feature) can be parallelized with Phases 5–8 (page refresh) since they touch independent code.
 
-**Progress:** ✅ P1 (tokens) · ✅ P2 (atoms) · ✅ P3a (Spinner/Icon) · ✅ P3b (Activity primitives) · ✅ P4 (auth flows) · ✅ P5 (admin dashboard + shell) · ✅ P6a (candidate take flow — landing/submitted/expired/error) · ✅ P6b (Attempt page) · ✅ P7a (list template + Users + Attempts) · ✅ P7b (remaining list ports) · ✅ P9 (admin activity backend) · ✅ P10 (candidate activity backend) · ✅ P11 (admin Activity wire) — 13 of 14 complete. Next: P8a (Cohort report + Attempt detail).
+**Progress:** ✅ P1 (tokens) · ✅ P2 (atoms) · ✅ P3a (Spinner/Icon) · ✅ P3b (Activity primitives) · ✅ P4 (auth flows) · ✅ P5 (admin dashboard + shell) · ✅ P6a (candidate take flow — landing/submitted/expired/error) · ✅ P6b (Attempt page) · ✅ P7a (list template + Users + Attempts) · ✅ P7b (remaining list ports) · ✅ P9 (admin activity backend) · ✅ P10 (candidate activity backend) · ✅ P11 (admin Activity wire) · ✅ P12 (candidate Activity wire) — 14 of 14 complete. Next: P8a (Cohort report + Attempt detail).
 
 ---
 
@@ -448,7 +448,7 @@ Four mirror endpoints under `/api/me/activity/*` with candidate auth.
 
 ---
 
-## Phase 12 — Candidate Activity page (1 session)
+## Phase 12 — Candidate Activity page (1 session) ✅ SHIPPED (f74c0a0)
 
 **Depends on Phase 10 (backend) + Phase 3b (primitives).**
 
