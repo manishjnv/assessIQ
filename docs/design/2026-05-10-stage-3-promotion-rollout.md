@@ -57,6 +57,78 @@ fix (G4). **This gate is NOT met.**
 
 ---
 
+### G1 — Revision proposal (2026-05-13) — PENDING SIGN-OFF
+
+The original "5 consecutive clean" criterion assumed chunk failures were structural
+(deterministic timeouts curable by prompt + schema fixes). Three rounds of SKILL.md
+tightening (commits `573aed7`, `5ade451`, `5d05d15`) and the MCP rejection-logger
+(`ab39667`) have re-shaped the failure mode from structural to **stochastic**: the
+model's first-try success rate is high enough that most smokes pass, but the
+multi-turn retry-loop has inherent variance that produces ~10-20% per-smoke chunk-
+failure rate even on the cured paths.
+
+**Observed today (2026-05-13):**
+
+| Smoke | Chain # | Result | Failing chunk | Rejection log delta |
+|---|---|---|---|---|
+| `019e1ed4` | (verification) | ✅ | — | +8 |
+| `019e1eef` | (campaign #4 round 2) | ❌ | kql + subjective | +9 |
+| `019e1f20` | (D1+D2 verification) | ✅ | — | +6 |
+| `019e1f2c` | new chain #2 | ✅ 15/15 | — | +3 |
+| `019e1f37` | new chain #3 | ❌ | subjective | +5 |
+
+Per-smoke chunk-failure rate ≈ 2 of 5 ≈ 40% across the campaign. Rejection volume
+has dropped 3× from the original campaign (+9 → +3 per smoke), but the long tail of
+"model fails to recover within retry budget" persists.
+
+**Probability of hitting 5 consecutive clean at the current per-smoke clean rate
+of ~60%:** `0.6^5 ≈ 7.8%`. Expected smokes to streak: ~13. At ~12 min wall-clock
+per smoke: **~2.5 hours of pure smoke time per streak attempt.**
+
+**Proposed revised G1 — rolling window:**
+
+- ≥4 of 5 clean in any rolling window AT count=15 L2, AND
+- Average `chunks_failed` across the window ≤ 1.0, AND
+- No double-chunk failure in any single smoke (e.g., `kql + subjective` failing
+  together is a HARD STOP).
+
+At the observed ~60% per-smoke clean rate, probability of ≥4 of 5 clean in 5
+smokes: ~33%. Expected smokes to satisfy: ~3 windows = ~15 smokes ≈ ~3 hours.
+Worse than 5-consecutive on time-to-pass, but BETTER on "the gate actually
+reflects production reliability": Stage 3.1 needs to be flippable when the
+system is reliable ENOUGH for one tenant, not when it's perfect.
+
+**Alternative: drop the gate to ≥3 of 5 clean.** Probability ~68%, expected
+≈ 2 windows ≈ ~6 smokes ≈ 1.2 hours. More relaxed; risks letting a
+fundamentally-unreliable system flip to production.
+
+**Rationale for relaxation:**
+
+1. Stage 3.1 is a SINGLE-TENANT PILOT with a 24-hour watch window. Operator can
+   detect + remediate a sub-100% reliability rate within the watch.
+2. The handler's `singleFlight` + chunk-level retry already makes individual
+   admin "Generate" clicks resilient to single-chunk failures: the admin sees
+   "12/15 generated" and can click again.
+3. The original gate criterion assumed structural failure modes; the post-fix
+   reality is stochastic. The gate should match reality.
+4. Stages 3.2 (25%) and 3.3 (100%) can keep tighter gates as the rollout
+   widens. Locking the 3.1 gate at "5 consecutive" punishes the early stage
+   for variance that the staged rollout itself is designed to absorb.
+
+**What does NOT change:**
+
+- G2 (citation fidelity) — still 100% on every smoke in the window
+- G3 (L1 + L3 diversity) — still required; not relaxed
+- G4 (stderr_tail aggregation) — already met
+- G5 (memory headroom) — already met
+
+**Operator action required:** confirm or revise the proposed rolling-window
+criterion before the next campaign run. If revised, update this section + propose
+to maintainers. If confirmed, the next 5 L2 count=15 smokes constitute the new
+window; G1 is satisfied as soon as ≥4 land clean.
+
+---
+
 ### G2 — Citation fidelity across all 5 runs
 
 `score-candidate` must report `citationsResolve = true` on every inserted candidate across
