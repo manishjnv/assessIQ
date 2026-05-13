@@ -2,7 +2,7 @@
 //
 // Phase 10 — GET /api/me/activity/leaderboard
 //
-// Returns the candidate's personal pack leaderboard: one row per pack the
+// Returns the candidate personal pack leaderboard: one row per pack the
 // candidate has attempted, showing their best score and rank among all tenant
 // candidates who took that same pack.
 //

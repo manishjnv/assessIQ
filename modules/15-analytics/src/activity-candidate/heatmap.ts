@@ -2,7 +2,7 @@
 //
 // Phase 10 — GET /api/me/activity/heatmap
 //
-// Returns the calling candidate's own daily activity heatmap. Mirrors the
+// Returns the calling candidate own daily activity heatmap. Mirrors the
 // Phase 9 admin heatmap with an added user_id filter on the live attempts table.
 //
 // Data source: LIVE `attempts` table (NOT attempt_summary_mv).
