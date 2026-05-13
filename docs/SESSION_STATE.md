@@ -1,3 +1,66 @@
+# Session — 2026-05-13 (UI v1.1 Phase 4 — auth flow refresh)
+
+**Headline:** Phase 4 of the 14-phase UI Kit v1.1 port shipped. Commit `e1caec1` refreshes 4 auth-flow pages against `modules/17-ui-system/AssessIQ_UI_Template/screens/login.jsx` — `admin/login.tsx` and `candidate/CandidateLogin.tsx` get the two-pane split-hero layout; `invite-accept.tsx` and `candidate/CandidateLoginVerify.tsx` swap inline `@keyframes` spinners for the Phase 3a `<Spinner />` primitive (validates that primitive's API in two production consumers). The other two pages on the original Phase 4 list (`mfa.tsx`, `take/TokenLanding.tsx`) were already heavily ported with translation notes and needed no changes — confirmed by reading them in Phase 0 before dispatching. VPS at `e1caec1`, `assessiq-frontend` healthy in 17s, both `/admin/login` and `/candidate/login` return HTTP 200 from the live site. Updated v1.1 port: **5 of 14 phases complete** (P1, P2, P3a, P3b, P4).
+
+**Commits:**
+
+- `e1caec1` — feat(web): UI v1.1 Phase 4 — auth flow refresh (4 of 6 pages); 4 files, +681/-192
+
+**Tests:**
+
+- `pnpm -C apps/web typecheck` ✅ clean (before and after Phase 3 revisions)
+- `pnpm -C modules/17-ui-system typecheck` ✅ clean (Spinner consumer wiring verified)
+- No unit-test changes — page-composition refresh, no logic delta
+- Production reachability: `https://assessiq.automateedge.cloud/admin/login` and `/candidate/login` both 200
+
+**Deploy:** `ssh assessiq-vps 'cd /srv/assessiq && git pull'` → `e1caec1`; `assessiq-frontend` rebuilt (image SHA `27efac3dc166`) + force-recreated; container healthy in 17s. No other service touched (additive-only per CLAUDE.md rule #8). Frontend-only deploy because all four changes are in `apps/web/src/pages/**`.
+
+**What changed (per page):**
+
+- `apps/web/src/pages/admin/login.tsx` (69 → 444 lines) — single-pane → two-pane `gridTemplateColumns: '1fr 1fr'`. Left pane keeps the existing Google-SSO form + tenant Field unchanged (`useState(tenantSlug)`, `startGoogleSso`, `data-help-id="admin.auth.login.tenant_slug"`, `disabled={tenantSlug.length === 0}` all untouched). Right pane is a decorative `<aside aria-hidden="true">` carrying the kit's mock score-card preview: `132/160` cognitive score, 97th-percentile chip, 5-column mini bar chart with `accent` highlight on column 2, floating "AI report ready" callout card with `<Icon name="sparkle" />`, and a serif blockquote ("It's the first assessment platform that feels like reading. — Wired, on AssessIQ"). Grid background uses `linear-gradient` + radial mask per kit `screens/login.jsx` lines 78. Responsive collapse below 900 px hides the aside via a scoped `<style>` block. Mono footer at the left-pane bottom matches `TokenLanding.tsx` `META_LABEL` idiom (`Phase 0 · 2026 / Google SSO · TOTP-ready`).
+- `apps/web/src/pages/candidate/CandidateLogin.tsx` (171 → 332 lines) — same two-pane shape. Left pane keeps ALL anti-enumeration behavior exactly: `handleSubmit` swallows non-429 errors into the neutral "sent" state, the 4 status states (`idle`, `sending`, `sent`, `rate_limited`) render the same copy, the `linkError` banner still triggers on `?error=invalid_link`, the hardcoded `tenant_slug = 'wipro-soc'` + TODO Phase 6 comment preserved. Inline `var(--aiq-color-warn-soft, #fef9ec)` and `var(--aiq-color-warn, oklch(...))` were the wrong token names — corrected to `var(--aiq-color-warning-soft)` / `var(--aiq-color-warning)` and inline hex/oklch fallbacks dropped. Right pane uses the **candidate-side calming idiom** (Chip "Welcome" + serif tagline "Your assessments are saved and waiting." + blockquote "Read carefully. The questions are scenario-driven; there are no trick options.") mirroring `TokenLanding.tsx` `RightPane` — NOT the admin score-card mock. The redundant `borderRadius: 9999` override on the submit Button removed (Button defaults to pill).
+- `apps/web/src/pages/invite-accept.tsx` — 14-line inline `@keyframes aiq-spin` div replaced with `<div style={{display:'flex',justifyContent:'center'}}><Spinner size="lg" aria-label="Confirming invitation" /></div>`. Co-located `<style>{'@keyframes...'}</style>` block deleted. Spinner import added to the named-import line. Translation-note #4 in the file header updated to reflect the Phase 3a promotion.
+- `apps/web/src/pages/candidate/CandidateLoginVerify.tsx` — 12-line inline keyframe span + `<style>` block replaced with `<Spinner size="lg" aria-label={message} />`. Spinner import added.
+
+**Phase 3 critique revisions (Opus diff review before commit):**
+
+The initial Sonnet draft of `admin/login.tsx` had four `var(--aiq-shadow-lg, 0 8px 32px rgba(0,0,0,0.08))` / `var(--aiq-radius-lg, 16px)` inline fallbacks — both tokens already exist in `tokens.css` lines 89 and 95. The fallback hex/px values violated the no-token-hardcoding bounce condition (port-plan anti-pattern #3). Dropped all four fallbacks; the decorative `<aside>` also got `aria-hidden="true"` since its entire purpose is visual.
+
+**Posture notes (intentional deviations):**
+
+- **`mfa.tsx` and `TokenLanding.tsx` not touched.** The original Phase 4 plan listed 6 pages, but reading them in Phase 0 confirmed both are already heavily ported with detailed translation notes (mfa was ported when the SSO admin lockout fix landed; TokenLanding was ported in an earlier candidate-side session). Phase 1 token darkening already cascaded to both. Editing for the sake of "completing the list" would have been churn.
+- **Candidate-side right pane uses the calming idiom, not the score-card mock.** Admins see results-preview marketing (the value proposition); candidates see reassurance (their assessments are saved). The two audiences have different needs — `TokenLanding.tsx` had already established this convention for the candidate surface; `CandidateLogin.tsx` now matches.
+- **No `docs/04-auth-flows.md` update.** No flow logic, copy, or UX changed — only visual restyle. The same-PR docs rule's "if any flow copy/UX changed" qualifier was the deciding factor.
+- **Storybook stories for these pages NOT added.** Pages are compositions, not primitives; the port plan reserves Storybook coverage for primitives and a Phase 14 cross-cut audit.
+- **No cross-page axe sweep.** Phase 14 deliverable. The two-pane structure introduces no new interactive controls that weren't already covered by primitive-level axe assertions (Button, Field, Chip, Spinner).
+
+**What is NOT in this commit (intentional):**
+
+- `mfa.tsx`, `TokenLanding.tsx` (no-change, see above)
+- Storybook stories for auth pages (Phase 14)
+- Cross-page axe sweep (Phase 14)
+- Phase 9 backend WIP in `modules/15-analytics/` that was already in the working tree (untracked `activity/stats.ts` + modified `index.ts`/`routes.ts`) — left uncommitted; belongs to a separate Phase 9 session and is not Phase 4 scope.
+
+**Downstream impact:**
+
+- `/admin/login`, `/candidate/login`, `/invite-accept`, `/candidate/login/verify` visual identity now matches the v1.1 kit on the live site. Auth flows functionally unchanged (Google SSO, magic-link request/verify, invite redemption all use the same API contracts and the same `useState`/`fetchWhoami`/`api` paths).
+- Phase 3a `<Spinner />` primitive now has two production consumers (`invite-accept`, `CandidateLoginVerify`). The API surface (`size="lg"`, `aria-label={...}`) held — no missing variants surfaced.
+- Phase 5 (admin dashboard + shell) and Phase 9 (admin Activity backend) are both now unblocked. Both are parallelizable per the dependency graph in `docs/plans/UI_KIT_V1_1_PORT.md` § Dependency graph.
+
+**Next:** (1) **Phase 5 — admin dashboard + shell refresh** (`modules/10-admin-dashboard/src/pages/dashboard.tsx` vs `kit/screens/dashboard.jsx` + `AdminShell` Sidebar section/footer slots). The two Phase-3 primitives (Sparkline 1.2 px stroke, StatCard breakdown) and Phase 2e Sidebar section/footer slot are all already package-exported, so this is composition only. OR (2) **Phase 9 — Activity backend endpoints** (`/api/admin/activity/*` × 4). Work-in-progress exists in `modules/15-analytics/` working-tree; the next session should triage whether to continue that branch or restart. (3) Defer until both above are clean: P10 (candidate Activity backend), P11–P12 (Activity page wiring — depends on P3b primitives + P9/P10 endpoints).
+
+**Open questions:** none for this slice. The "4 of 6 pages, 2 skipped because already ported" decision is documented in this handoff + the commit body; no further sign-off needed.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 warm-start reads (PROJECT_BRAIN, SESSION_STATE, RCA_LOG, kit `screens/login.jsx`, all 6 target pages); scope re-assessment that reduced the original 6-page list to 4 actual edits; Phase 1 subagent dispatch (parallel x2 for the two heavy two-pane rewrites); Phase 2 deterministic gates; Phase 3 diff critique (caught 4 token-fallback hardcodes + 1 aria-hidden gap); Phase 5 verify; commit + deploy + this handoff.
+- Sonnet: 2 parallel subagents — (a) `admin/login.tsx` two-pane port with mock score-card right pane (agentId `a12acef75e03ba577`, 62,507 tokens, 16 tool uses, 197s); (b) `CandidateLogin.tsx` two-pane port with candidate-side calming right pane (agentId `a79acde3f7dfe27d1`, 48,345 tokens, 18 tool uses, 200s). Both diffs accepted by Phase 3 with minor revisions (one needed token-fallback cleanup; the other was clean).
+- Haiku: n/a — no bulk read/grep sweeps needed; Phase 0 + diff review fit cleanly in Opus's hot read cache. No live-prod verification grid (single page-200 smoke was sufficient).
+- codex:rescue: n/a — the four touched files are in `apps/web/src/pages/**`, not in any path flagged load-bearing by the project overlay (`modules/01-auth`, `02-tenancy`, `07-ai-grading`, `14-audit-log`, `infra`). Auth logic was deliberately untouched (only `apps/web` page compositions changed; `modules/01-auth` is the actual auth code and was not opened). Phase 3 Opus diff critique was the appropriate gate per "scale rigor to change magnitude."
+
+---
+
 # Session — 2026-05-13 (G3.D 07-ai-grading follow-up — PII policy + atomicity proofs)
 
 **Headline:** Closed the two `TODO(G3.D-followup)` items queued in `15c7728`'s handoff. Commit `b5aa332` ships: (1) **PII policy** — `override_reason` text removed from the `audit_log.after` payload in `admin-override.ts`; auditors now pivot `audit_log.entity_id` → `gradings.id` to read the reason from the immutable D8 row. Keeps the durable, REVOKE-protected, broadly-indexed audit table free of unbounded free-text PII while preserving forensic traceability via the FK chain. (2) **Atomicity proofs** — new `vi.mock` one-shot throw tests in `audit-writes.test.ts` for `handleAdminOverride` (highest regression risk — was the out-of-tx site pre-G3.D) and `handleAdminAccept` (highest compliance weight — D8 accept-before-commit). Plus a static-source PII regression guard that grep's the `auditInTx` call block in `admin-override.ts` and fails if `override_reason:` appears as a key. 31/31 tests pass (was 28). VPS at `b5aa332`, `assessiq-api` healthy.
