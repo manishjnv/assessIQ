@@ -1,3 +1,37 @@
+# Session — 2026-05-13 (G3.D sweep — 16-help-system audit-write slice shipped)
+
+**Headline:** Closed the 16-help-system G3.D loop end-to-end. Both admin-mutating service methods (`upsertHelpForTenant`, `importHelp`) now write one `audit_log` row inside the same `withTenant` transaction as the domain mutation via `auditInTx`. Adds `help.content.imported` to the `ACTION_CATALOG`; reuses existing `help.content.updated`. Field shape uses `help_id` (not `key`) to dodge `redactPayload`'s `/key$/i` silent strip. Route handlers thread `req.session.userId` through new `actorUserId` params. Failure-injection + coverage-grep tests in new `audit-writes.test.ts`. Existing `help-system.test.ts` mocks `@assessiq/audit-log` to a no-op (its testcontainer doesn't apply audit-log migrations). Docs §25 records 06/08/15 NO-OP classifications + the "audit ownership boundary" pattern; §26 documents the slice fully. Live deploy verified: `assessiq-api` rebuilt + force-recreated, `db5f4b3` in container, catalog + service wiring both present.
+
+**Commits:**
+- `db5f4b3` — feat(help-system): G3.D audit-write slice — auditInTx for upsert + import (11 files, +589/-18)
+
+**Tests:**
+- `pnpm -C modules/16-help-system test` — 22/22 in scope pass (5 audit-writes + 17 help-system). One pre-existing collection failure in `admin-help-keys.test.ts` is caused by uncommitted WIP that broke `content/en/admin.yml` YAML at line 1131 — **NOT** in this commit; CI checks out clean YAML and that test loads fine.
+- `pnpm -C modules/16-help-system typecheck` ✅; `pnpm -C modules/14-audit-log typecheck` ✅.
+
+**VPS-side changes (additive only):**
+- `git pull` on `/srv/assessiq` → `db5f4b3`.
+- Rebuilt `assessiq/api:latest` (sha256 `488b52d6ab68…`) and force-recreated `assessiq-api`. Container healthy in 38s. No other service touched.
+- Smoke: `grep -l help.content.imported /app/modules/14-audit-log/src/types.ts` ✅; `grep -c help.content.imported /app/modules/16-help-system/src/service.ts` = 1 ✅. No live admin curl this session (no admin cookie available, same gap as observation 2087).
+
+**Sweep coverage now:** 03-users, 04-question-bank, 05-lifecycle, 09-scoring, 13-notifications, 16-help-system, 18-certification all live. 06-attempt-engine, 08-rubric-engine, 15-analytics classified NO-OP. 07-ai-grading remains the only admin-mutating module without coverage — deferred per CLAUDE.md load-bearing-paths rule (requires `codex:rescue` adversarial gate before push). Doc-section backfill still pending for 13-notifications + 18-certification.
+
+**Uncommitted WIP surfaced (NOT in this commit, NOT mine to ship):** working tree has a new admin-pages workstream that pre-dates this session — new files (`modules/10-admin-dashboard/src/pages/{audit,webhooks,worker}.tsx` + 4 new components + 3 new test files) plus mods to `apps/web/src/App.tsx`, `apps/web/src/pages/admin/mfa.tsx`, `apps/web/src/pages/take/{Attempt,TokenLanding}.tsx`, `modules/01-auth/src/middleware/rate-limit.ts`, `modules/10-admin-dashboard/{AdminShell,QuestionContentView,index,billing}`, and **+330 lines** added to `modules/16-help-system/content/en/admin.yml`. The admin.yml edit is currently **syntactically invalid YAML** (parse error at line 1131 col 5) — whoever resumes this workstream needs to fix that before tests load. Carried one line of this WIP in the G3.D commit: `10-admin-dashboard/package.json` `@assessiq/audit-log` workspace dep, to keep `pnpm-lock.yaml` coherent with both modified package.jsons.
+
+**Next:** (1) 07-ai-grading G3.D slice (dedicated session — load-bearing, codex:rescue gate); (2) backfill doc §-sections for 13-notifications + 18-certification G3.D slices; (3) resume priority backlog — Phase 1 closure re-drill, Stage 3.1 default-flip prep, R2 sentinel rewrite, schema_migrations backfill, candidate-login Phase 6 follow-ups; (4) surface the new admin-pages WIP to its owner (the broken admin.yml blocks the help-keys test until fixed).
+
+**Open questions:** Who owns the new admin-pages WIP? Should the broken admin.yml be reverted to HEAD pending that owner's resumption, or left as-is?
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 fast ingest of SESSION_STATE + PROJECT_BRAIN + docs/11 G3.D coverage map; diagnosed the unexpected scope of the working tree (WIP from prior unfinished workstream mixed with today's G3.D slice); scoped commit to only G3.D-relevant files; ran Phase 2 gates (typecheck both modules + secrets/TODO grep); commit with noreply env-var pattern; VPS deploy (git pull + assessiq-api rebuild + force-recreate); prod smoke (catalog + service wiring grep inside container); this handoff.
+- Sonnet: n/a — no subagent dispatches. Slice was already implemented earlier today (memory 2099); this session was close-the-loop work (gates → commit → deploy → verify → doc) which is Opus orchestration, not Sonnet implementation.
+- Haiku: n/a — no bulk multi-file lookups required. Direct reads against a focused, known file set.
+- codex:rescue: n/a — 16-help-system is not on the CLAUDE.md load-bearing-paths list (not security/auth/AI-classifier/audit-table-invariant/certification/infra). Audit-write slice writes are gated through the existing `auditInTx` API which itself shipped under codex:rescue in G3.A. No new threat surface.
+
+---
+
 # Session — 2026-05-13 (Phase 5 Session 8 — candidate passwordless magic-link login, 30-day session)
 
 **Headline:** Option A (magic-link candidate auth) shipped end-to-end. Candidates can sign in at `/candidate/login` with an email; system emails a 15-min single-use token via a SPA-route link (prefetch-safe — Gmail/Outlook crawlers can't burn the token); SPA POSTs the token; server mints a 30-day fixed-window `aiq_sess` cookie with `role=candidate`. Adversarial gate found one REJECT (cross-tenant BYPASSRLS lookup) + 3 REVISE in round 1, all fixed before push; round 2 ACCEPT plus one more REVISE (Redis fail-closed) also fixed before push. Live prod smoke confirms anti-enumeration timing floor + all 4 endpoint shapes.
