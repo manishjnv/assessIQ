@@ -34,6 +34,19 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
+// G3.D: mock @assessiq/audit-log so this testcontainer (which does NOT apply
+// the audit-log migrations) can exercise admin handlers that now call
+// auditInTx() inside their withTenant transactions. Atomicity is proven in
+// audit-writes.test.ts which applies the full migration set.
+vi.mock("@assessiq/audit-log", async () => {
+  const actual =
+    await vi.importActual<typeof import("@assessiq/audit-log")>("@assessiq/audit-log");
+  return {
+    ...actual,
+    auditInTx: vi.fn(async () => undefined),
+  };
+});
+
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
 
@@ -451,7 +464,7 @@ describe("handleAdminGrade", () => {
         tenantId: TENANT_ID,
         userId: ADMIN_ID,
         attemptId: ATTEMPT_ID,
-        sessionLastActivity: new Date(Date.now() - 90_000),
+        sessionLastActivity: new Date(Date.now() - 400_000),
       }),
     ).rejects.toMatchObject({
       code: AI_GRADING_ERROR_CODES.HEARTBEAT_STALE,
@@ -802,7 +815,7 @@ describe("handleAdminRerun", () => {
         tenantId: TENANT_ID,
         userId: ADMIN_ID,
         attemptId: ATTEMPT_ID,
-        sessionLastActivity: new Date(Date.now() - 90_000),
+        sessionLastActivity: new Date(Date.now() - 400_000),
       }),
     ).rejects.toMatchObject({
       code: AI_GRADING_ERROR_CODES.HEARTBEAT_STALE,

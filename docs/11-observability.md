@@ -1153,3 +1153,54 @@ This module added **4** entries to the G3.A action catalog (lines 82–86 of [mo
 - `incrementCounter` (linkedin_shares, pdf_downloads, verification_views) — fire-and-forget engagement counters, intentionally NOT audited per Phase 5 plan §13. Counter writes use UPDATE-as-statement (not read-modify-write) and tolerate row-level lock contention by design. Counter values are analytics, not compliance signal.
 - `POST /api/certificates/:credentialId/share-linkedin` — calls `incrementCounter('linkedin_shares')` only. The cert state itself doesn't change; the sharer is the cert owner (already known via the cert row); no audit row.
 - The public verify page (`GET /verify/:credentialId`) — public read path that increments `verification_views`. Anonymous actor, no audit row. Tamper detection signal here lives in `app.log` only (see § 18.1 in the credential-verify surface area).
+
+## 29. Audit-log wiring — 07-ai-grading (G3.D slice, Phase 2 G2.A — backfilled doc 2026-05-13)
+
+Every admin-mutating handler in [modules/07-ai-grading](../modules/07-ai-grading/SKILL.md) writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)`. The wiring shipped incrementally with the original Phase 2 G2.A grading-pipeline build (2026-05-03 `971`-era) and the per-handler admin endpoints. This §-section is the doc backfill — the code has been live for weeks; this captures the contract.
+
+The module sits on [CLAUDE.md's load-bearing-paths list](../CLAUDE.md) — `modules/07-ai-grading/**` is a security-adjacent classifier surface. Audit-row atomicity here is **load-bearing** for the compliance frame defined in [docs/05-ai-pipeline.md § Compliance frame](./05-ai-pipeline.md): every Phase 1 grading-pipeline write must be admin-attributable (`actor_user_id` populated, never `system`), must roll back together with the domain mutation, and must reference the prompt-version SHA on the cert. The `gradings.graded_by`, `gradings.prompt_version_sha`, and `audit_log.actor_user_id` are the **three-way receipt** that the inference ran inside the human-in-the-loop boundary.
+
+### 29.1 Wired sites and action namespaces used
+
+| Handler file | Service function | `audit_log.action` | `entity_type` | `entity_id` | Notes |
+|---|---|---|---|---|---|
+| [`handlers/admin-accept.ts:201`](../modules/07-ai-grading/src/handlers/admin-accept.ts) | `handleAdminAccept` → `acceptProposals` | `grading.accepted` | `attempt` | `attemptId` | **One summary row per accept batch** (mirrors `help.content.imported` precedent — N `gradings` INSERTs, one audit row summarising the batch, not N rows). `after`: `attempt_id`, `grading_count`, `grading_ids[]` (capped at 50), `attempt_status_now: "graded"`. `before` omitted — attempt status change from `submitted`/`pending_admin_grading` to `graded` is part of the summary's implicit context. This is D8 ("Accept before commit"): the audit row is the receipt that the admin clicked Accept. |
+| [`handlers/admin-claim-release.ts:169`](../modules/07-ai-grading/src/handlers/admin-claim-release.ts) | `handleAdminClaimAttempt` | `grading.claimed` | `attempt` | `attemptId` | **Conditional emit**: only fires when `wasClaimed === true` (the UPDATE actually transitioned `submitted → pending_admin_grading`). Idempotent second-claim by the same admin is a no-op and writes no audit row — repeated audit rows for a no-op would inflate the trail and answer no compliance question. `before: { attempt_status: 'submitted' }`, `after: { attempt_status: 'pending_admin_grading' }`. |
+| [`handlers/admin-claim-release.ts:241`](../modules/07-ai-grading/src/handlers/admin-claim-release.ts) | `handleAdminReleaseAttempt` | `grading.released` | `attempt` | `attemptId` | `before: { attempt_status: 'graded' }`, `after: { attempt_status: 'released' }`. Release is the candidate-visible state flip; the audit row is the compliance receipt for "who made this attempt visible to the candidate, when." |
+| [`handlers/admin-override.ts:111`](../modules/07-ai-grading/src/handlers/admin-override.ts) | `handleAdminOverride` | `grading.override` | `grading` | `newRow.id` | `after.new_grading_id` carries the new gradings row's id; the original row's `id` lives in `override_of` on the new row (audit-traceable forward and backward). G3.D atomicity fix: the audit write was previously out-of-transaction; it now commits inside the same `withTenant` as the gradings INSERT. |
+| [`handlers/admin-rerun.ts:262`](../modules/07-ai-grading/src/handlers/admin-rerun.ts) | `handleAdminRerun` | `grading.retry` | `attempt` | `attemptId` | Fires when the admin re-runs the cascade after a failed or `review_needed` proposal. `after` carries `attempt_id`; the new proposal lands via the standard `admin-accept` path which writes its own `grading.accepted` audit row — re-runs that aren't accepted leave the previous gradings row untouched (the `grading.retry` row is the only trace). |
+| [`handlers/admin-generate.ts:578`](../modules/07-ai-grading/src/handlers/admin-generate.ts) (per-chunk) | `handleAdminGenerate` (sharded path, chunk-success branch) | `question.ai_generated` | `question` | omitted | One audit row per successful generated-question batch chunk (sharded mode). `after` carries `generation_attempt_id`, `pack_id`, `level_id`, `question_type`, `question_count`. **Not folded under `question.created`** because AI-generated questions and admin-authored questions answer different compliance questions ("did AI produce this?" vs "did an admin manually write this?"). |
+| [`handlers/admin-generate.ts:672`](../modules/07-ai-grading/src/handlers/admin-generate.ts) (per-chunk, retry path) | `handleAdminGenerate` (retry-success branch) | `question.ai_generated` | `question` | omitted | Same shape as line 578; fired when a retry of a previously-failed chunk succeeds. |
+| [`handlers/admin-generate.ts:839`](../modules/07-ai-grading/src/handlers/admin-generate.ts) (non-sharded) | `handleAdminGenerate` (single-shot, non-sharded mode) | `question.ai_generated` | `question` | omitted | Same shape; fired in the legacy single-shot generation path (pre-Stage-3-sharded default). |
+
+`actor_kind` is always `"user"` for every site — Phase 1 grading is **single-admin-in-the-loop** per the compliance frame; there is no `system`-attributed grading-pipeline write. `actor_user_id` is the admin's session userId threaded through every handler input (`HandleAdminAcceptInput.userId`, `HandleAdminClaimAttemptInput.userId`, etc.) — set at the Fastify route boundary, never reconstructed downstream.
+
+### 29.2 Action-catalog scope decision
+
+The catalog adds **6** entries for this module (line numbers reference [modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts)):
+
+- `grading.override` (line 54, G3.A — pre-existed; reused)
+- `grading.retry` (line 55, G3.A — pre-existed; reused)
+- `grading.accepted` (line 67, G3.D)
+- `grading.claimed` (line 68, G3.D)
+- `grading.released` (line 69, G3.D)
+- `question.ai_generated` (line 74, G3.D)
+
+`question.ai_generated` is deliberately first-class (not `question.created kind=ai_generated`) — auditors search for AI-generated content as a distinct compliance question separate from manual authoring, and the actor + payload shape both differ. The other five `grading.*` entries follow the same naming pattern as G3.A's `grading.override` / `grading.retry`; consolidation into `grading.lifecycle kind=*` was considered and rejected because the lifecycle events have distinct compliance weight ("who graded" ≠ "who claimed" ≠ "who released to candidate").
+
+### 29.3 Atomicity guarantees
+
+- Every audit write uses `auditInTx(client, ...)` inside the same `withTenant(...)` callback that owns the mutation. The gradings INSERT/UPDATE, attempts status UPDATE, generated-questions INSERTs, and audit INSERT commit or roll back together.
+- `admin-accept.ts` writes N `gradings` rows + 1 attempts UPDATE + 1 audit row in one transaction. If `auditInTx` throws (catalog mismatch, RLS denial, FK violation, idempotency-key collision on the audit table), the gradings INSERTs AND the attempt status flip roll back. This is the load-bearing case — a graded attempt without the corresponding audit row would be a compliance hole.
+- `admin-generate.ts` writes N `questions` rows + 1 `generation_attempts` row + 1 audit row per chunk. Atomicity is per-chunk: a 3-chunk sharded run that fails on chunk 2 leaves chunk-1's questions and audit row committed; this is intentional (partial-progress is recoverable via retry).
+- `admin-claim-release.ts` claim site is **conditional**: the audit row only fires when the UPDATE actually transitioned the row. The release site is unconditional — if the UPDATE matched zero rows (release on an already-released attempt), the handler throws before reaching `auditInTx`.
+- Coverage-grep guard in [src/__tests__/audit-writes.test.ts](../modules/07-ai-grading/src/__tests__/audit-writes.test.ts) asserts the exact per-file `auditInTx(` counts: `admin-accept.ts`=1, `admin-claim-release.ts`=2, `admin-override.ts`=1, `admin-rerun.ts`=1, `admin-generate.ts`=3 (total = 8). Adding a new admin-mutating handler without an audit write fails this guard.
+
+### 29.4 What's NOT audited here
+
+- **`gradeSubjective(input)`** — the runtime entry point that the cascade calls. Returns a `GradingProposal`; **never writes** to the DB. Phase 1 compliance is "admin clicks Accept before commit" — the proposal itself is the AI's *recommendation*, not a state change. The audit row that matters is on `admin-accept` (the human-in-the-loop confirmation), not on the proposal generation.
+- **`handleAdminGrade`** — returns proposals to the admin UI; **never writes**. Same reasoning as above. The grading-pipeline lint at `ci/lint-no-ambient-claude.ts` enforces that this handler can only be invoked from an authenticated admin Fastify route — there is no ambient invocation path that could bypass the Accept step.
+- **`handleAdminBudget` / `handleAdminQueue` / `handleAdminGradingJobs`** — read-only admin pages.
+- **Per-chunk stderr aggregation and the sharded generation diagnostic** — operational telemetry only; writes to `grading.log` and `mcp-rejections.log` (see § 21, § 22). The audit row already names which admin triggered the generation (one row per successful chunk); failed chunks are surfaced via the operator workflow, not the audit trail.
+- **Skill SHA drift detection** — a Phase 1 admin-UI badge. The skill SHA itself is recorded on every `gradings` row (`prompt_version_sha`) and the audit row's `entity_id` chain to `attempt` / `grading` lets an auditor pivot from "who clicked accept" to "what skill SHA was active" without a separate audit entry.
+- **The `ci/lint-no-ambient-claude.ts` build check** — static-source enforcement, fires at PR time. Per CLAUDE.md it is doubly-load-bearing (`codex:rescue` to modify); it is the *gate* on the ambient-AI invariant, not a runtime audit row.

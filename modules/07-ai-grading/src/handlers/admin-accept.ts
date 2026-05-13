@@ -27,6 +27,7 @@ import { AppError, streamLogger } from "@assessiq/core";
 import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
 import { computeAttemptScore } from "@assessiq/scoring";
+import { auditInTx } from "@assessiq/audit-log";
 
 const log = streamLogger("grading");
 
@@ -194,6 +195,23 @@ async function acceptProposals(
        AND status IN ('submitted', 'pending_admin_grading')`,
     [attemptId],
   );
+
+  // One summary audit row for the whole accept batch (mirrors help.content.imported
+  // precedent — N inserts, one audit row summarising the batch, not N rows).
+  await auditInTx(client, {
+    action: "grading.accepted",
+    actorKind: "user",
+    actorUserId: userId,
+    tenantId,
+    entityType: "attempt",
+    entityId: attemptId,
+    after: {
+      attempt_id: attemptId,
+      grading_count: gradings.length,
+      grading_ids: gradings.map((g) => g.id).slice(0, 50),
+      attempt_status_now: "graded",
+    },
+  });
 
   return gradings;
 }
