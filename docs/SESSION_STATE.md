@@ -1,3 +1,30 @@
+# Session — 2026-05-14 (UI v1.1 Phase 11 — Admin Activity page wire)
+
+**Headline:** `/admin/activity` shipped — composes 4 Phase 9 analytics endpoints into a full dashboard page with heatmap, stacked-bar timeline, leaderboard, and 3 stat cards; 79/79 tests; deployed live.
+
+**Commits:**
+- `b3bb633` — feat(admin): Phase 11 — Admin Activity page wire (/admin/activity)
+
+**Tests:** `modules/10-admin-dashboard` typecheck ✅, `apps/web` typecheck ✅, `modules/16-help-system` 79/79 ✅. Secrets scan clean. Zero `exactOptionalPropertyTypes` errors.
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated on VPS. VPS HEAD = `b3bb633`. `/admin/activity` → HTTP 200 ✅.
+
+**Next:** Phase 6a (candidate take flow — TokenLanding/Submitted/Expired/Error) OR Phase 12 (candidate Activity page, reuses `domainLabel()` from admin-dashboard barrel).
+
+**Open questions:**
+- `admin.settings.ai_generate_mode` `short_text` (131 chars) exceeds 120-char limit — logged in `KNOWN_SHORT_TEXT_OVERFLOWS`; needs a proper trim in a future help-content session.
+- Streak summary (`streakSummary` prop) — backend `/api/admin/activity/heatmap` currently returns `longestStreakWeeks` but the `ActivityHeatmap` component expects a pre-formatted string; page currently passes no `streakSummary` (prop omitted → graceful skip). Wire when backend returns formatted string or when format contract is locked.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 warm-start; Phase 3 diff critique (ACCEPT — no revisions); commit verification; deploy + smoke test; this handoff. Self-executed all ≤5-line edits within hot-cache threshold (AdminShell nav entry, App.tsx route, index.ts barrel exports).
+- Sonnet: Phase 1 implementation — `activity.tsx` (623 lines), `domains.ts` (27 lines), admin.yml 3 new help entries + orphaned-block removal, `admin-help-keys.test.ts` Block C addition (79/79), SKILL.md Phase 11 status entry, UI_KIT_V1_1_PORT.md progress update (8/14). Returned unified diff + change log; identified orphaned YAML block root cause; implemented all 7 `exactOptionalPropertyTypes` conditional-spread fixes across two revision passes.
+- Haiku: n/a — VPS deploy was single SSH commands, below bulk-sweep threshold.
+- codex:rescue: n/a — `modules/10-admin-dashboard` not on load-bearing-paths list; pure UI composition, no auth/crypto/classifier surface.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 5 — admin dashboard + shell)
 
 **Headline:** Refreshed admin dashboard page and AdminShell sidebar against kit `screens/dashboard.jsx` — greeting header, 3-card KPI row, section headers in sidebar, user card footer slot.
