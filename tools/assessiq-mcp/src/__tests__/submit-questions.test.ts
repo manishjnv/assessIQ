@@ -361,6 +361,19 @@ describe("rejection logger — JSONL file output", () => {
     }
   });
 
+  it("rejection logger — issues text is not truncated (≤15 issues shown, no example)", async () => {
+    const badPayload = { questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] };
+    await handleSubmitQuestions(badPayload);
+    await flush();
+
+    const lines = fs.readFileSync(tmpLog, "utf8").trim().split("\n").filter(Boolean);
+    const line = JSON.parse(lines.at(-1)!);
+    assert.ok(
+      !line.issues.includes("CORRECT SHAPE EXAMPLE"),
+      "JSONL log must NOT include inline example (that's for model-facing messages only)",
+    );
+  });
+
   it("write failure → rejection response still returned, only stderr gets the error", async () => {
     // Point log path to an unwritable location.
     process.env.MCP_REJECTION_LOG = "/no-such-dir/mcp-rejections.log";
@@ -389,5 +402,64 @@ describe("rejection logger — JSONL file output", () => {
       process.stderr.write = origWrite;
       process.env.MCP_REJECTION_LOG = tmpLog;
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inline canonical example in model-facing rejection messages (D2)
+// ---------------------------------------------------------------------------
+
+describe("rejection — inline canonical example in error message", () => {
+  it("mcq rejection includes CORRECT SHAPE EXAMPLE block for type 'mcq'", async () => {
+    const q = { ...VALID_MCQ, content: { stem: "bad field name" } };
+    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
+    const text = assertRejected(result, "mcq example block");
+    assert.ok(
+      text.includes("CORRECT SHAPE EXAMPLE for type 'mcq'"),
+      `expected canonical example in error, got: ${text.slice(0, 400)}`,
+    );
+  });
+
+  it("log_analysis rejection includes CORRECT SHAPE EXAMPLE block for type 'log_analysis'", async () => {
+    const { log_format: _removed, ...rest } = VALID_LOG_ANALYSIS.content;
+    const q = { ...VALID_LOG_ANALYSIS, content: rest };
+    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
+    const text = assertRejected(result, "log_analysis example block");
+    assert.ok(
+      text.includes("CORRECT SHAPE EXAMPLE for type 'log_analysis'"),
+      `expected canonical example in error, got: ${text.slice(0, 400)}`,
+    );
+  });
+
+  it("scenario rejection includes CORRECT SHAPE EXAMPLE block for type 'scenario'", async () => {
+    const { step_dependency: _removed, ...rest } = VALID_SCENARIO.content;
+    const q = { ...VALID_SCENARIO, content: { ...rest, steps_dependency: "linear" } };
+    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
+    const text = assertRejected(result, "scenario example block");
+    assert.ok(
+      text.includes("CORRECT SHAPE EXAMPLE for type 'scenario'"),
+      `expected canonical example in error, got: ${text.slice(0, 400)}`,
+    );
+  });
+
+  it("kql rejection includes CORRECT SHAPE EXAMPLE block for type 'kql'", async () => {
+    const { question: _removed, ...rest } = VALID_KQL.content;
+    const q = { ...VALID_KQL, content: { ...rest, task: "bad synonym" } };
+    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
+    const text = assertRejected(result, "kql example block");
+    assert.ok(
+      text.includes("CORRECT SHAPE EXAMPLE for type 'kql'"),
+      `expected canonical example in error, got: ${text.slice(0, 400)}`,
+    );
+  });
+
+  it("subjective rejection includes CORRECT SHAPE EXAMPLE block for type 'subjective'", async () => {
+    const q = { ...VALID_SUBJECTIVE, content: { prompt: "bad synonym" } };
+    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
+    const text = assertRejected(result, "subjective example block");
+    assert.ok(
+      text.includes("CORRECT SHAPE EXAMPLE for type 'subjective'"),
+      `expected canonical example in error, got: ${text.slice(0, 400)}`,
+    );
   });
 });

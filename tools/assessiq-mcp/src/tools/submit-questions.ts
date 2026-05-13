@@ -59,6 +59,158 @@ function inferType(args: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical inline examples — shown in rejection messages so the model can
+// self-correct in one retry instead of 3–4 escalating wrong attempts.
+// Each is a compact but complete valid payload for the given type.
+// Kept in sync with the Zod schemas below — update both together.
+// ---------------------------------------------------------------------------
+
+export const CANONICAL_EXAMPLE_BY_TYPE: Record<string, string> = {
+  mcq: JSON.stringify(
+    {
+      questions: [
+        {
+          type: "mcq",
+          topic: "Kerberoasting Detection via Event 4769",
+          points: 3,
+          knowledge_base_source_ids: ["src_l2_001"],
+          content: {
+            question:
+              "EventID 4769 with TicketEncryptionType 0x17 from a standard user indicates what attack?",
+            options: [
+              "A) Kerberoasting — RC4-HMAC tickets are crackable offline",
+              "B) Pass-the-Ticket using a stolen TGT",
+              "C) Normal Kerberos pre-authentication — no action required",
+              "D) Golden Ticket attack using the KRBTGT hash",
+            ],
+            correct: 0,
+            rationale:
+              "EventID 4769 + TicketEncryptionType 0x17 is the canonical Kerberoasting signal. correct is 0 (integer index of first option).",
+          },
+          rubric: null,
+        },
+      ],
+    },
+    null,
+    2,
+  ),
+
+  log_analysis: JSON.stringify(
+    {
+      questions: [
+        {
+          type: "log_analysis",
+          topic: "Pass-the-Hash Lateral Movement via NTLM",
+          points: 5,
+          knowledge_base_source_ids: ["src_l2_003"],
+          content: {
+            question:
+              "Analyse the correlated events. Identify the MITRE technique and the two field values that confirm it.",
+            log_format: "windows_event",
+            log_excerpt:
+              "[2026-05-13 11:47:02] EventID: 4624  LogonType: 3  AuthPkg: NTLM  Account: Administrator  Source: WORKSTATION-07\n[BENIGN] [2026-05-13 11:44:00] EventID: 4624  LogonType: 3  AuthPkg: Kerberos  Account: jsmith",
+            expected_findings: [
+              "T1550.002 Pass-the-Hash: NTLM forced on a domain-joined host where Kerberos is the default is anomalous",
+              "LogonType 3 + Authentication Package NTLM from a workstation indicates hash-based lateral movement",
+            ],
+            sample_solution:
+              "NTLM is forced when an attacker supplies a bare hash (no plaintext password). Domain-joined machines negotiate Kerberos by default...",
+            hint: "Compare Authentication Package between the suspicious and benign entries.",
+          },
+          rubric: null,
+        },
+      ],
+    },
+    null,
+    2,
+  ),
+
+  scenario: JSON.stringify(
+    {
+      questions: [
+        {
+          type: "scenario",
+          topic: "Ransomware Containment Decision",
+          points: 6,
+          knowledge_base_source_ids: ["src_l2_007"],
+          content: {
+            title: "Ransomware Outbreak — Finance VLAN",
+            intro:
+              "At 14:32 UTC, EDR alerts spike on 18 Finance VLAN endpoints. vssadmin delete shadows ran on three servers.",
+            step_dependency: "linear",
+            steps: [
+              {
+                prompt: "What is your first containment priority in the first 5 minutes?",
+                expected:
+                  "Isolate the Finance VLAN at the network boundary to stop encryption spread.",
+              },
+              {
+                prompt: "VSS shadow copies are deleted. How does this change your recovery strategy?",
+                expected:
+                  "Shift to external backup recovery; document T1490 (Inhibit System Recovery) in the incident record.",
+              },
+            ],
+          },
+          rubric: null,
+        },
+      ],
+    },
+    null,
+    2,
+  ),
+
+  kql: JSON.stringify(
+    {
+      questions: [
+        {
+          type: "kql",
+          topic: "Kerberoasting Detection via TGS Request Burst",
+          points: 5,
+          knowledge_base_source_ids: ["src_l2_003"],
+          content: {
+            question:
+              "Write a KQL query against SecurityEvent to detect Kerberoasting: filter EventID 4769 with RC4-HMAC (0x17), exclude machine accounts (ending in $), summarise by AccountName and IpAddress in 1-hour windows sorted by request count descending.",
+            tables: ["SecurityEvent"],
+            expected_keywords: [
+              "EventID == 4769",
+              "TicketEncryptionType",
+              "0x17",
+              "!endswith",
+              "summarize",
+              "bin(TimeGenerated, 1h)",
+            ],
+            sample_solution:
+              'SecurityEvent\n| where EventID == 4769\n| where TicketEncryptionType == "0x17"\n| where AccountName !endswith "$"\n| summarize TGSCount = count() by AccountName, IpAddress, bin(TimeGenerated, 1h)\n| sort by TGSCount desc',
+          },
+          rubric: null,
+        },
+      ],
+    },
+    null,
+    2,
+  ),
+
+  subjective: JSON.stringify(
+    {
+      questions: [
+        {
+          type: "subjective",
+          topic: "LSASS Credential Dumping Detection",
+          points: 8,
+          knowledge_base_source_ids: ["src_l2_005"],
+          content: {
+            question:
+              "Your SIEM surfaces Sysmon Event ID 10 (ProcessAccess) with GrantedAccess 0x1010 targeting lsass.exe from OUTLOOK.EXE. Explain: (a) why this is a high-confidence credential dumping indicator, (b) four specific telemetry sources or Event IDs to query immediately, (c) how you would assess lateral movement blast radius.",
+          },
+        },
+      ],
+    },
+    null,
+    2,
+  ),
+};
+
+// ---------------------------------------------------------------------------
 // Per-type content schemas — .strict() rejects any unrecognised key.
 // This is the primary enforcement of canonical field names: a model emitting
 // "stem" instead of "question", "log_snippet" instead of "log_excerpt", etc.
@@ -247,21 +399,11 @@ export const submitQuestionsTool = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Handler
+// Issue formatters
 // ---------------------------------------------------------------------------
 
-const SubmitQuestionsInputSchema = z.object({
-  questions: z.array(GeneratedQuestionSchema).min(1),
-}).strict();
-
-/**
- * Format Zod issues as a concise, model-readable string listing field paths
- * and problem descriptions. Max ~1500 chars to fit cleanly in one tool_result.
- * Unrecognised-key issues name the offending key(s) explicitly so the model
- * knows which synonym to replace.
- */
-function formatIssues(issues: z.ZodIssue[]): string {
-  const lines = issues.slice(0, 15).map((issue) => {
+function buildIssueLines(issues: z.ZodIssue[], maxCount: number): string[] {
+  return issues.slice(0, maxCount).map((issue) => {
     const path = issue.path.map(String).join(".") || "(root)";
     if (issue.code === z.ZodIssueCode.unrecognized_keys) {
       const keys = (issue as Extract<z.ZodIssue, { code: "unrecognized_keys" }>).keys;
@@ -270,10 +412,59 @@ function formatIssues(issues: z.ZodIssue[]): string {
     }
     return `${path}: ${issue.message}`;
   });
-  const suffix =
-    issues.length > 15 ? `\n… and ${issues.length - 15} more issue(s).` : "";
+}
+
+/**
+ * Format issues for the JSONL rejection log (operators).
+ * Cap at 15 issues; no inline example; no length cap.
+ */
+function formatIssuesForLog(issues: z.ZodIssue[]): string {
+  const lines = buildIssueLines(issues, 15);
+  const overflow = Math.max(0, issues.length - 15);
+  const suffix = overflow > 0 ? `\n… and ${overflow} more issue(s).` : "";
   return lines.join("\n") + suffix;
 }
+
+/**
+ * Format issues for the model-facing rejection message.
+ * Cap at 10 issues; append canonical example for the type; total ≤ 4 KB.
+ * If the example + issues exceed 4 KB, truncate the example (not the issues).
+ */
+function formatIssues(issues: z.ZodIssue[], type: string): string {
+  const MAX_TOTAL = 4000;
+
+  const lines = buildIssueLines(issues, 10);
+  const overflow = Math.max(0, issues.length - 10);
+  const overflowText = overflow > 0 ? `\n… and ${overflow} more issue(s).` : "";
+  const issueText = lines.join("\n") + overflowText;
+
+  const example = CANONICAL_EXAMPLE_BY_TYPE[type];
+  const footer =
+    "\n\nCorrect the field names/values listed above and resubmit with the FULL questions array (NOT empty {}).";
+
+  if (!example) {
+    return issueText + footer;
+  }
+
+  const header = `\n\nCORRECT SHAPE EXAMPLE for type '${type}':\n`;
+  const baseLen = issueText.length + header.length + footer.length;
+  const available = MAX_TOTAL - baseLen;
+
+  const exampleText =
+    example.length <= available
+      ? example
+      : example.slice(0, Math.max(0, available - 22)) + "\n... [example truncated]";
+
+  return issueText + header + exampleText + footer;
+}
+
+// ---------------------------------------------------------------------------
+// Handler
+// ---------------------------------------------------------------------------
+
+const SubmitQuestionsInputSchema = z.object({
+  questions: z.array(GeneratedQuestionSchema).min(1),
+}).strict();
 
 export async function handleSubmitQuestions(args: unknown) {
   const parsed = SubmitQuestionsInputSchema.safeParse(args);
@@ -292,9 +483,14 @@ export async function handleSubmitQuestions(args: unknown) {
       }) + "\n",
     );
 
-    // Structured rejection log — full payload excerpt for DB-free diagnosis.
-    const issuesText = formatIssues(issues);
-    logRejection(inferType(args), issuesText, args);
+    const inferredType = inferType(args);
+
+    // Structured rejection log — full issues text (operators, no length cap).
+    const issuesForLog = formatIssuesForLog(issues);
+    logRejection(inferredType, issuesForLog, args);
+
+    // Model-facing message — capped issues + inline canonical example (≤4KB).
+    const issuesText = formatIssues(issues, inferredType);
 
     return {
       isError: true,
@@ -303,8 +499,7 @@ export async function handleSubmitQuestions(args: unknown) {
           type: "text",
           text:
             `submit_questions rejected — ${issues.length} validation error(s):\n\n` +
-            issuesText +
-            "\n\nCorrect the field names/values listed above and resubmit.",
+            issuesText,
         },
       ],
     };
