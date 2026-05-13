@@ -13,6 +13,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { RubricEditor } from "../components/RubricEditor.js";
 import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
@@ -197,9 +198,8 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   return (
     <AdminShell breadcrumbs={["Question Bank", "New question"]} helpPage="admin.question.editor">
       <form onSubmit={(e) => void handleSubmit(e)} style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)", maxWidth: 640 }}>
-        <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-2xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.015em" }}>
-          New question
-        </h1>
+        <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+          New question.</h1>
 
         {submitError && (
           <div style={{ color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
@@ -416,7 +416,9 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
   if (loading) {
     return (
       <AdminShell breadcrumbs={["Question Bank", "Editor"]} helpPage="admin.question.editor">
-        <div style={{ padding: "var(--aiq-space-3xl)", textAlign: "center", color: "var(--aiq-color-fg-muted)", fontFamily: "var(--aiq-font-sans)" }}>Loading…</div>
+        <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
+          <Spinner aria-label="Loading question" />
+        </div>
       </AdminShell>
     );
   }
@@ -456,9 +458,8 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-xs)" }}>
-              <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-2xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.015em" }}>
-                Edit rubric
-              </h1>
+              <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+                Edit rubric.</h1>
               <span
                 style={{
                   padding: "1px 8px",

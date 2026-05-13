@@ -17,7 +17,7 @@
 //  - No dangerouslySetInnerHTML.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Modal } from "@assessiq/ui-system";
+import { Modal, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 
@@ -159,7 +159,9 @@ export function AdminHelpContent(): React.ReactElement {
 
         {/* Entry list */}
         {loading ? (
-          <div style={{ color: "var(--aiq-color-fg-muted)", fontFamily: "var(--aiq-font-sans)" }}>Loading…</div>
+          <div style={{ display: "flex" }}>
+            <Spinner size="sm" aria-label="Loading help content" />
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
             {filtered.map((entry) => (
