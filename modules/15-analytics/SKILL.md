@@ -1,7 +1,7 @@
 # 15-analytics — Reports, exports, dashboards
 
 ## Status
-**LIVE** — Phase 3 G3.C shipped (see docs/SESSION_STATE.md for SHA).
+**LIVE** — Phase 3 G3.C shipped. UI v1.1 Phase 9 Admin Activity endpoints added 2026-05-13 (4 read-only routes under `/api/admin/activity/*` in [`src/activity/`](src/activity/)). See docs/SESSION_STATE.md for SHAs.
 
 ## Purpose
 Turn raw attempt + grading data into actionable reports for managers, L&D, and host-app integrations. Read-only over the rest of the system.
@@ -90,7 +90,7 @@ Each endpoint owns its full vertical slice in `src/activity/<name>.ts` (types + 
 
 **D7 — streak math in TS, not SQL.** Postgres window-function approach for computing "current streak" + "longest streak" over 365 daily buckets is more complex than a single TS pass and would still require a separate query for the zero-fill (since `attempts` has no row on inactive days). O(N) TS iteration over the pre-fetched `Map<date, count>` is both simpler and faster.
 
-**D8 — Two-CTE leaderboard with LEFT JOIN.** Current-period CTE produces (assessment_id, pack_id, cnt); prior-period CTE produces (assessment_id, cnt). Outer SELECT does a LEFT JOIN so assessments active in current-period but absent from prior-period still appear with `priorCount: 0` → delta direction `'up'` and `deltaPct: null` (no baseline). Ordering by current count DESC, then pack name ASC for stable rank determinism.
+**D8 — Two-CTE leaderboard with LEFT JOIN, grouped by `pack_id`.** Both CTEs `JOIN assessments` and `GROUP BY ass.pack_id` (catalog-wide rollup — one row per question pack regardless of how many assessment cycles share that pack). Outer SELECT LEFT JOINs current → prior on `pack_id` so packs active in current-period but absent from prior-period still appear with `priorCount: 0` → delta direction `'up'`, `deltaPct: null` (no baseline). Ordering: current count DESC, then pack name ASC for stable rank determinism. Per-assessment grouping was considered and rejected during Phase 9 review (orchestrator decision 2026-05-13) — it produced duplicate pack-name rows in the Phase 11 UI when a pack had >1 active assessment cycle.
 
 **D9 — group-by column interpolation safety.** Both `stats.ts` and `timeline.ts` interpolate `groupCol` (`'qp.domain'` or `'lv.label'`) into the SQL template. This is safe: the value is derived from a Zod-validated enum that only admits two literal strings, never user input. The string is bound at TypeScript-literal level, not runtime.
 
@@ -111,7 +111,12 @@ Each endpoint owns its full vertical slice in `src/activity/<name>.ts` (types + 
 `modules/15-analytics/migrations/0060_attempt_summary_mv.sql` — creates `attempt_summary_mv` view + 3 indexes (UNIQUE on `(tenant_id, attempt_id)` required for CONCURRENT refresh).
 
 ## Tests
-`modules/15-analytics/src/__tests__/analytics.test.ts` — 23 integration tests using postgres:16-alpine testcontainer. All pass.
+3 vitest files, postgres:16-alpine testcontainer, **88/88 green** as of Phase 9 ship:
+- `src/__tests__/service.test.ts` — 3 unit tests (cost-mode gating).
+- `src/__tests__/analytics.test.ts` — 43 integration tests (Phase 3 + Phase 9 paths against a shared fixture).
+- `src/__tests__/activity.test.ts` — 42 integration tests covering the 4 Phase 9 endpoints, helpers (`computeStreaks`, `zeroFillRange`, `rankDomains`, `computePeriodBoundaries`, `computeDelta`), and cross-tenant RLS proofs.
+
+The activity test file spins up its own postgres container (`aiq_activity_test`) — defer consolidation to Phase 14 cross-cut verify.
 
 ## Open questions
 - Custom report builder — defer to Phase 4 unless requested
