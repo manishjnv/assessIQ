@@ -8,6 +8,8 @@
 
 **Phasing summary:** 14 phases, ~14–18 sessions of work. Phase 1 is the highest-impact-per-line session (7 token value changes ripple visible darker-text identity across all 25+ existing pages). Phases 9–12 (Activity feature) can be parallelized with Phases 5–8 (page refresh) since they touch independent code.
 
+**Progress:** ✅ P1 (tokens) · ✅ P2 (atoms) · ✅ P3a (Spinner/Icon) · ✅ P3b (Activity primitives) · ✅ P4 (auth flows) · ✅ P9 (admin activity backend) — 6 of 14 complete. Next: P5 (admin dashboard) or P11 (admin Activity wire, depends on P9 ✅).
+
 ---
 
 ## Anti-pattern guards (apply to EVERY phase)
@@ -357,7 +359,7 @@ All reuse the list template from 7a.
 
 ---
 
-## Phase 9 — Admin Activity backend endpoints (1 session)
+## Phase 9 — Admin Activity backend endpoints ✅ SHIPPED (c87cf53 + d083646)
 
 **Parallelizable with Phases 5–8.** Touches `modules/15-analytics`, not UI.
 
