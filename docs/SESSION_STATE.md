@@ -1,3 +1,34 @@
+# Session — 2026-05-13 (Auth: SSO admin lockout fix — MFA-aware IP-bypass predicate)
+
+**Headline:** Fixed the production "admin lockout" symptom. The per-IP rate-limit bypass in `modules/01-auth/src/middleware/rate-limit.ts` required `session.totpVerified === true`, but with `MFA_REQUIRED=false` in prod (Google SSO is the sole active factor; TOTP not enrolled) no session ever set that flag, so the bypass was dead and every admin login flow hit the 10/min/IP cap and 429'd itself. The predicate now mirrors `requireAuth` (require-auth.ts:30-39): TOTP is checked only when `config.MFA_REQUIRED=true`, dormant otherwise. Sonnet + GLM-4.6 adversarial review both ACCEPT.
+
+**Commits:**
+- `e0b8e53` — feat(auth): raise per-IP /api/auth/* rate limit to 100/min in NODE_ENV=development (earlier in this session — dev-only stop-gap)
+- `d68b9a8` — docs(auth-flows): document dev-mode rate-limit lift and SSO bypass gap
+- `007f1f7` — fix(auth): make IP-bypass predicate MFA_REQUIRED-aware so SSO admins aren't throttled (durable prod fix)
+
+**Tests:** 45/45 green (`pnpm --filter @assessiq/auth test -- --run middleware`). New B10-B12 cover the MFA_REQUIRED=false × {admin, reviewer, candidate} matrix via `vi.spyOn(config, "MFA_REQUIRED", "get").mockReturnValue(false)`. Existing B1-B9 still enforce the MFA_REQUIRED=true semantics unchanged. TypeScript typecheck clean.
+
+**Deploy:** `assessiq-api` rebuilt + force-recreated on `assessiq-vps`. Image SHA `63408cade0d9`. Container healthy, listening on :3000. Post-deploy probe to `https://assessiq.automateedge.cloud/api/auth/whoami` (unauth) returns `401` with `X-RateLimit-Limit: 10` — correct (no session → IP bucket applies). Admin sessions now get bypassed via the new branch (verified by reading the live container image hash, not by sending an admin cookie — no admin session available to this session).
+
+**Adversarial review (per `feedback-adversarial-reviewer-routing.md`):** Sonnet (parallel) + GLM-4.6 via `or.mjs` (parallel). Both ACCEPT across the eight standard auth-rate-limit attack vectors (V1 anon, V2 candidate-cookie pivot, V3 admin-cookie amplification, V4 TOCTOU, V5 type coercion, V6 always-strict relaxation, V7 MFA-flip grandfathering, V8 boot-vs-runtime config). Two non-blocking advisories from Sonnet folded into docs/04-auth-flows.md (V5 structurally guaranteed by Zod transform; V8 deploy note added that `MFA_REQUIRED` env flip requires API restart).
+
+**Posture trade-off (V3, intentional):** With the fix live and `MFA_REQUIRED=false`, a stolen admin cookie can now exhaust the 60/min/user bucket without the 10/min/IP cap. This is consistent with the auth posture (no MFA = SSO is the only factor) and matches `requireAuth`'s behavior. When `MFA_REQUIRED` flips to `true` for production hardening, the IP-bypass re-engages the TOTP gate automatically — no migration, no grandfathered Redis or cookie state.
+
+**Next:** (1) 07-ai-grading G3.D slice in a dedicated session (load-bearing, codex:rescue gate — outstanding from prior handoff); (2) Phase 1 closure re-drill once admin cookie is shareable (task #7, fixtures confirmed live, blocked on auth only); (3) resume priority backlog — Stage 3.1 default-flip prep, R2 sentinel rewrite, `schema_migrations` backfill, candidate-login Phase 6 follow-ups; (4) plan MFA enrollment UX before flipping `MFA_REQUIRED=true` (the IP-bypass and `requireAuth` will both re-engage simultaneously when that flip lands, so the enrollment funnel must be ready).
+
+**Open questions:** none for this slice. The "should admins ever be locked out" question raised by the user is answered: admins were locked out because of a dead-bypass bug, not by design. The 5-fails-then-15-min TOTP lockout in `totp.ts` remains in place for the future MFA-enforced state and is the right control then.
+
+---
+
+## Agent utilization
+- Opus: full session — read totp.ts/rate-limit.ts/google-sso.ts/require-auth.ts/sessions.ts to map the lockout-vs-rate-limit-vs-MFA gates; identified the dead-bypass bug from the mismatch between `requireAuth.ts:35` and `rate-limit.ts:143`; wrote the 1-line predicate change + 3 new tests inline (hot cache, sub-30-line edits — global-rule self-execute); wrote the docs/04-auth-flows.md backfill; ran the commit + push + VPS git pull + docker build + recreate loop directly; this handoff.
+- Sonnet: 1 call — adversarial review of the predicate (38s, returned ACCEPT with 2 non-blocking advisories — V5 type doc, V8 env-flip restart note). Fired in parallel with GLM-4.6 in a single message.
+- Haiku: n/a — post-deploy verification was a single `ssh + curl` for one URL; below the bulk-sweep threshold.
+- codex:rescue: n/a — replaced by parallel Sonnet + GLM-4.6 per `feedback-adversarial-reviewer-routing.md` (security-adjacent auth path, both reviewers ACCEPT).
+
+---
+
 # Session — 2026-05-13 (G3.D doc backfill — §27 + §28 for 13-notifications + 18-certification)
 
 **Headline:** Backfilled the two missing G3.D §-sections in `docs/11-observability.md`. §27 documents 13-notifications' webhook-config audit surface (`createWebhookEndpoint` → `webhook.created`, `deleteWebhookEndpoint` → `webhook.deleted`, `replayDelivery` → `webhook.replayed`) — wiring shipped 2026-05-11 alongside the original sweep. §28 documents 18-certification's 4 wired sites across Phase 5 Sessions 1/5/6 (`issueCertificate`, `upgrade`, `revokeCertificate`, `reissue`). Both sections mirror the canonical §15/§17/§26 shape (wired-sites table → catalog scope → atomicity guarantees → what's NOT audited).

@@ -604,7 +604,7 @@ Admins and reviewers re-click "Sign in with Google" during testing and normal lo
 
 If any of the active conditions is false, the standard 10/min/IP limit applies.
 
-#### Why the MFA-aware gate (2026-05-13, commit `<TBD>`)
+#### Why the MFA-aware gate (2026-05-13, commit `007f1f7`)
 
 Before this fix, condition 3 was a strict `totpVerified === true` check **regardless of `MFA_REQUIRED`**. In production today `MFA_REQUIRED=false` (Google SSO is the only active factor; TOTP isn't enrolled), so no admin session ever sets `totpVerified=true`, so the bypass **NEVER fired** and every admin login flow (`/start` → `/cb` → `/whoami` → `/session-init`, ×retries) hit the 10/min/IP cap and 429'd itself. This is the "admin lockout" symptom users reported.
 
