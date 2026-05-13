@@ -22,6 +22,7 @@ import {
   AdminReports,
   AdminGenerationAttempts,
   AdminCertificates,
+  AdminActivity,
 } from '@assessiq/admin-dashboard';
 import { MyCertificates, CandidateShell } from '@assessiq/candidate-ui';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
@@ -83,6 +84,8 @@ export function App(): JSX.Element {
           <Route path="/admin/generation-attempts" element={<RequireSession role="admin"><AdminGenerationAttempts /></RequireSession>} />
           {/* Certificates admin (Phase 5 Session 5) — AdminCertificates wraps AdminShell internally */}
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
+          {/* Activity page (Phase 11) */}
+          <Route path="/admin/activity" element={<RequireSession role="admin"><AdminActivity /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 
           {/* Candidate auth routes — no RequireSession (public pages). */}

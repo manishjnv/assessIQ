@@ -1054,37 +1054,6 @@ admin.settings.ai_generate_mode:
   related_keys:
     - admin.settings.billing
 
-    ### Score this attempt
-
-    Clicking **Score this attempt** runs two checks server-side and renders the
-    results directly in the expanded row — no terminal or VPS access needed.
-
-    **Structural quality table** — each question type (mcq, kql, subjective,
-    log_analysis, scenario) shows how many questions passed four deterministic
-    checks: schema validation, citation resolution, structural completeness, and
-    non-empty topic. Failed questions show the top 3 failure reasons.
-
-    **Runtime metrics table** — compares chunk success rate and total inserted
-    percentage against the regression thresholds in `runtime-baseline.json`.
-    Per-type duration and peak RSS are shown as `n/a` when not derivable from
-    the attempt row.
-
-    **Verdict pill colors:**
-
-    | Color | Verdict | Meaning |
-    |---|---|---|
-    | Green | Pass | Structural checks passed; no runtime regressions |
-    | Amber | Warning | Structural pass but at least one runtime metric failed its threshold |
-    | Red | Regression | At least one structural regression vs baseline |
-    | Grey | Insufficient data | No fixture file and no thresholds — scoring is degenerate |
-
-    Results are cached per attempt: re-expanding the row shows the last result
-    without a fresh request. Clicking **Score** on a different attempt fetches
-    independently.
-
-    This page is read-only — generation is triggered from pack-detail, not here.
-    The score endpoint is also read-only: it makes no changes to any table.
-
 admin.questions.bulk.archive:
   audience: admin
   short_text: "Archive up to 200 questions at once from pack-detail. Archived questions leave the active pool immediately."
@@ -1449,4 +1418,79 @@ admin.certificates.reissue:
   related_keys:
     - admin.certificates.list
     - admin.certificates.revoke
+
+# ─── Phase 11 Activity page ───────────────────────────────────────────────────
+
+admin.activity.heatmap.legend:
+  audience: admin
+  short_text: Heatmap color bands — from no activity (lightest) to highest activity (darkest indigo).
+  long_md: |
+    ## Heatmap intensity bands
+
+    Each cell represents one day. The five intensity levels are:
+
+    | Band | Count |
+    |---|---|
+    | 0 (empty) | No submissions that day |
+    | 1 (light) | 1–2 submissions |
+    | 2 | 3–5 submissions |
+    | 3 | 6–10 submissions |
+    | 4 (dark) | 11 or more submissions |
+
+    Counts reflect completed (submitted/graded/released) attempts in your tenant only.
+    The heatmap always shows the rolling 52-week window ending today — it does not
+    respond to the period toggle (which controls the stat cards and leaderboard).
+
+  related_keys:
+    - admin.activity.streak.explanation
+
+admin.activity.streak.explanation:
+  audience: admin
+  short_text: Current streak counts consecutive days with at least one submission; longest streak is the all-time best.
+  long_md: |
+    ## Streak calculation
+
+    **Current streak** — the number of consecutive calendar days (ending today or
+    yesterday) on which at least one assessment was submitted. A day with zero
+    submissions resets the streak to 0.
+
+    **Longest streak** — the longest unbroken run of active days in the 365-day
+    window queried by the heatmap endpoint. If today has no submissions yet, the
+    current streak may be shorter than yesterday's value until the first submission
+    of the day is recorded.
+
+    Streaks are computed in TypeScript from the daily bucket data — no SQL window
+    functions — so they reflect the live `attempts` table with same-day precision.
+
+  related_keys:
+    - admin.activity.heatmap.legend
+
+admin.activity.leaderboard.delta:
+  audience: admin
+  short_text: Delta % compares current-period submission count to the prior period of equal length; null when a pack is new.
+  long_md: |
+    ## Leaderboard delta
+
+    Each leaderboard row shows a **delta** between the current period and the
+    immediately preceding period of equal length:
+
+    - **Week:** current 7 days vs prior 7 days
+    - **Month:** current 30 days vs prior 30 days
+    - **Quarter:** current 90 days vs prior 90 days
+
+    The delta is `((current − prior) / prior) × 100`, rounded to one decimal place.
+
+    **Direction indicators:**
+    - ↑ Up — delta > +0.5%
+    - ↓ Down — delta < −0.5%
+    - Flat — delta within ±0.5% (small noise suppression)
+
+    **Null delta** — shown when the pack had zero submissions in the prior period
+    but has submissions in the current period (new entry, no baseline to compare).
+
+    The leaderboard groups by question pack (catalog-wide rollup), so a pack with
+    multiple active assessment cycles appears as one row.
+
+  related_keys:
+    - admin.activity.heatmap.legend
 
