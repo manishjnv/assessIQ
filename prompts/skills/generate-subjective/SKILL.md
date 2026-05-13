@@ -1,6 +1,6 @@
 ---
 name: generate-subjective
-version: "2026-05-09d"
+version: "2026-05-12a"
 model: claude-sonnet-4-6
 description: |
   Generate open-ended subjective questions for SOC analyst assessments grounded
@@ -118,7 +118,11 @@ Required content shape for subjective:
 ```
 
 Field synonyms that are FORBIDDEN — do not use any of these:
-  stem, prompt, task
+  stem, prompt, task, expected_length
+
+The `content` object has EXACTLY ONE field: `question`.
+The Zod schema is `.strict()` — any additional field (expected_length,
+word_count, min_words, guidance, rubric_hint, context) causes rejection.
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
@@ -187,3 +191,29 @@ Reason directly from the prompt and call submit_questions exactly
 once with the full array of generated questions.
 
 Call `submit_questions` exactly once. No other tool calls.
+
+---
+
+## Fully-resolved example (use this exact shape)
+
+Before calling submit_questions, verify your payload matches this
+structure field-for-field. A correctly shaped subjective question:
+
+```json
+{
+  "questions": [
+    {
+      "type": "subjective",
+      "topic": "Credential Dumping to Pass-the-Hash Attack Chain Detection",
+      "points": 8,
+      "knowledge_base_source_ids": ["src_l2_005"],
+      "content": {
+        "question": "Your SIEM surfaces the following sequence on a weekday at 09:14 UTC: (1) Sysmon Event ID 10 (ProcessAccess) — powershell.exe accessing lsass.exe with GrantedAccess 0x1010 on WORKSTATION-01; (2) Windows Security Event 4648 (Explicit Credentials Logon) — account CORP\\svc_admin connecting to SRV-FILE01, SRV-APP02, DC-CORP01, and SRV-SQL03 within 7 seconds; (3) Windows Security Event 4776 (NTLM Credential Validation) on DC-CORP01 — Kerberos is enforced by GPO for all internal authentication, NTLM is disabled except as legacy fallback. Answer all three parts: (a) Identify the MITRE ATT&CK techniques involved, including technique IDs, and explain the attack chain from initial credential access through lateral movement. (b) Explain which specific details within the three events confirm this is a Pass-the-Hash attack rather than a legitimate explicit-credential logon or a standard password-based authentication. (c) Describe the immediate containment actions you would take and the additional evidence you would collect to determine the full blast radius of the compromise."
+      }
+    }
+  ]
+}
+```
+
+Note: Do NOT include a `rubric` field for subjective questions — the
+generate-rubric skill runs downstream and owns that field.

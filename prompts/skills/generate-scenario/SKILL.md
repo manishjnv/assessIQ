@@ -1,6 +1,6 @@
 ---
 name: generate-scenario
-version: "2026-05-10b"
+version: "2026-05-12a"
 model: claude-sonnet-4-6
 description: |
   Generate multi-step scenario questions for SOC analyst assessments grounded
@@ -133,9 +133,24 @@ Required content shape for scenario:
 }
 ```
 
-Field synonyms that are FORBIDDEN — do not use any of these:
-  prompt (at top level — only inside steps[]), description,
-  steps_dependency, dag_steps
+`step_dependency` VALID VALUES — must be a STRING, never a boolean:
+  `"linear"` — steps must be completed in sequence (use for all L1/L2 and most L3 scenarios)
+  `"dag"`    — steps may branch (L3 only, requires next_if_correct/next_if_incorrect routing)
+
+NEVER write: `"step_dependency": true`  — Zod expects a string, boolean is rejected
+NEVER write: `"step_dependency": false` — same rejection
+
+Field synonyms that are FORBIDDEN — do not use any of these at the
+`content` level (Zod .strict() will reject every one):
+
+  scenario_text   ← WRONG — use "intro"
+  tasks           ← WRONG — use "steps"
+  scenario        ← WRONG — use "intro" (do NOT nest the scenario text under a "scenario" key)
+  questions       ← WRONG — use "steps" (do NOT nest steps under a "questions" key)
+  description     ← WRONG — use "intro"
+  steps_dependency ← WRONG — use "step_dependency"
+  dag_steps       ← WRONG — use "steps"
+  prompt          ← WRONG at content level — "prompt" is only valid INSIDE each step object
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
@@ -145,8 +160,60 @@ Each step has exactly TWO fields — `prompt` and `expected`.
 - `expected`: the single correct analyst action written as a
   complete sentence (NOT an index, NOT a multi-choice list).
 
-Forbidden keys (Zod .strict() will reject): `id`, `type`,
-`options`, `correct`, `correct_answer`, `answer`, `choices`.
+Forbidden keys inside step objects (Zod .strict() will reject):
+  `id`, `type`, `step`, `options`, `correct`, `correct_answer`, `answer`, `choices`
+
+NEVER write steps as plain strings:  WRONG: "steps": ["Do this", "Then do that"]
+NEVER add an `id` key to a step:     WRONG: {"id": "step_1", "prompt": "...", "expected": "..."}
+NEVER omit `expected`:               WRONG: {"prompt": "What should you do?"}
+
+DO NOT structure content like any of these (all fail Zod):
+
+```json
+// WRONG — 'scenario_text' + 'tasks' wrapper:
+"content": {
+  "scenario_text": "At 14:32 UTC an EDR alert fires...",
+  "tasks": ["Task 1 — Identify the technique.", "Task 2 — Contain the threat."]
+}
+
+// WRONG — 'scenario' + 'questions' wrapper:
+"content": {
+  "scenario": "At 14:32 UTC an EDR alert fires...",
+  "questions": ["What is the first containment step?", "How do you recover?"]
+}
+
+// WRONG — step_dependency as boolean; steps as plain strings:
+"content": {
+  "title": "Active Ransomware", "intro": "...",
+  "step_dependency": true,
+  "steps": ["Isolate the host.", "Notify incident commander."]
+}
+
+// WRONG — steps have 'id' key and missing 'expected' field:
+"content": {
+  "step_dependency": "linear",
+  "steps": [{"id": "step_1", "prompt": "What is the first action?"}, {"id": "step_2", "prompt": "..."}]
+}
+```
+
+Use this exact shape every time:
+```json
+"content": {
+  "title": "Active Ransomware — Finance VLAN Encryption Wave",
+  "intro": "At 14:32 UTC, EDR alerts spike on 18 Finance VLAN endpoints. vssadmin delete shadows ran on three servers. cmd.exe was spawned by QuickBooks.exe six hours earlier.",
+  "step_dependency": "linear",
+  "steps": [
+    {
+      "prompt": "What is your first containment priority in the first 5 minutes?",
+      "expected": "Isolate the Finance VLAN at the network boundary to stop encryption spread, prioritising BKPSVR01 isolation immediately after the endpoints."
+    },
+    {
+      "prompt": "VSS shadow copies are deleted on three hosts. How does this change your recovery strategy?",
+      "expected": "Shift to external backup recovery; confirm BKPSVR01 integrity before reconnecting it; document T1490 (Inhibit System Recovery) in the incident record and brief the Finance Director on the extended RTO."
+    }
+  ]
+}
+```
 
 If submit_questions is rejected with "unrecognized key(s)" or
 "Required", read the error path, correct ONLY the named field(s),
@@ -217,3 +284,43 @@ Call submit_questions with the full questions array. If the tool
 returns isError=true, read the error path, correct ONLY the named
 field(s), and resubmit with the FULL array. Do NOT submit empty {}.
 Maximum two resubmissions.
+
+---
+
+## Fully-resolved example (use this exact shape)
+
+Before calling submit_questions, verify your payload matches this
+structure field-for-field. A correctly shaped scenario question:
+
+```json
+{
+  "questions": [
+    {
+      "type": "scenario",
+      "topic": "Encoded PowerShell Lateral Movement from Outlook",
+      "points": 6,
+      "knowledge_base_source_ids": ["src_l2_007"],
+      "content": {
+        "title": "Encoded PowerShell Launched from Outlook",
+        "intro": "At 14:32 UTC on WIN10-HR-04, Sysmon Event 4688 fires: powershell.exe -NoP -Enc <base64> spawned by OUTLOOK.EXE (PID 3812). Windows Event 4104 (Script Block Logging) is enabled; no Event 4103 entries exist for this session.",
+        "step_dependency": "linear",
+        "steps": [
+          {
+            "prompt": "Decode the base64 payload and describe what the decoded script does.",
+            "expected": "Decode using UTF-16LE (PowerShell -Enc always uses UTF-16LE, not standard base64); the decoded script opens a TCP reverse shell to 192.168.10.24:443 using System.Net.Sockets.TCPClient."
+          },
+          {
+            "prompt": "Event 4103 (Module Logging) is absent but 4104 (Script Block Logging) is present. What does this gap indicate about the attacker's technique?",
+            "expected": "The attacker disabled Module Logging via registry or group policy (T1562.001); Script Block Logging fires at compile time and cannot be suppressed the same way — the gap confirms deliberate anti-logging evasion."
+          },
+          {
+            "prompt": "OUTLOOK.EXE spawned PowerShell. What MITRE ATT&CK technique does this parent-child relationship indicate, and what is your immediate triage action?",
+            "expected": "T1566.001 (Spearphishing Attachment) — immediately isolate WIN10-HR-04 from the network, image volatile memory before any remediation, and quarantine the Outlook mailbox to preserve the phishing artefact for forensic analysis."
+          }
+        ]
+      },
+      "rubric": null
+    }
+  ]
+}
+```

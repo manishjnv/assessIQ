@@ -1,6 +1,6 @@
 ---
 name: generate-log-analysis
-version: "2026-05-10b"
+version: "2026-05-12a"
 model: claude-sonnet-4-6
 description: |
   Generate log_analysis questions with realistic synthetic log excerpts grounded
@@ -134,15 +134,40 @@ Required content shape for log_analysis:
 
 Field synonyms that are FORBIDDEN — do not use any of these:
   log_snippet, log_data, snippet, answer_key, findings, walkthrough,
-  expected_anchors
+  expected_anchors, stem, prompt
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
 
-Forbidden field VALUE — do not use this `log_format` value:
-  `log_format: "csv"` — the schema does not accept csv. For Zeek
-  or other comma-delimited log formats, use `"freeform"` with the
-  raw text in `log_excerpt`.
+`log_format` VALID VALUES — must be EXACTLY one of these four strings:
+
+  `"json"`          — structured JSON or JSONL logs (Zeek JSON export, CloudTrail,
+                      RITA, custom JSON pipelines, any machine-readable JSON format)
+  `"syslog"`        — RFC 3164/5424 syslog format (priority, timestamp, hostname,
+                      process[pid], message body)
+  `"windows_event"` — Windows Event Log entries from ANY Windows channel: Security
+                      (EventID 4769, 4688, 4625, etc.), Sysmon, PowerShell
+                      Operational (4104/4103), System, Application
+  `"freeform"`      — everything else: Zeek TSV conn.log, CSV, mixed multi-source
+                      excerpts, custom text formats, proprietary log formats
+
+DO NOT write a descriptive string for `log_format`. The value must be EXACTLY
+one of the four strings above — no parenthetical notes, no source description,
+no suffix text after the enum value.
+
+WRONG — Zod rejects all of these:
+  `"log_format": "Windows Security Event Log (EventID 4769 — Kerberos)"`
+  `"log_format": "Windows Security Event Log (Domain Controller)"`
+  `"log_format": "Sysmon Event Log (EventID 10 ProcessAccess, EventID 11)"`
+  `"log_format": "Windows Event Log — EventID 4688 and PowerShell 4104"`
+  `"log_format": "Zeek conn.log (network flow records)"`
+  `"log_format": "csv"`
+
+CORRECT — map your log type to the right enum:
+  Windows Event Log (any channel/EventID) → `"windows_event"`
+  Zeek JSON export                        → `"json"`
+  Zeek TSV conn.log / custom text         → `"freeform"`
+  Standard syslog daemon output           → `"syslog"`
 
 If submit_questions is rejected with "unrecognized key(s)" or
 "Required", read the error path, correct ONLY the named field(s),
@@ -213,3 +238,35 @@ Call submit_questions with the full questions array. If the tool
 returns isError=true, read the error path, correct ONLY the named
 field(s), and resubmit with the FULL array. Do NOT submit empty {}.
 Maximum two resubmissions. No other tool calls.
+
+---
+
+## Fully-resolved example (use this exact shape)
+
+Before calling submit_questions, verify your payload matches this
+structure field-for-field. A correctly shaped log_analysis question:
+
+```json
+{
+  "questions": [
+    {
+      "type": "log_analysis",
+      "topic": "Kerberoasting TGS Burst Detection via Event 4769",
+      "points": 5,
+      "knowledge_base_source_ids": ["src_l2_003"],
+      "content": {
+        "question": "Five Windows Security Event 4769 (Kerberos Service Ticket Requested) entries were logged on DC01 within 2 seconds, all from 10.10.5.44 under the jsmith account with TicketEncryptionType 0x17. Analyse the log excerpt: (a) identify the MITRE ATT&CK technique, (b) name the two primary field values that confirm the attack, (c) explain why RC4-HMAC (0x17) is the critical indicator.",
+        "log_format": "windows_event",
+        "log_excerpt": "[2026-05-11 08:14:22 UTC] EventID: 4769  Kerberos Service Ticket Requested\n  Account Name: jsmith@CORP.LOCAL\n  Service Name: MSSQLSvc/sqlserver01.corp.local:1433\n  Ticket Encryption: 0x17 (RC4-HMAC)  Client Address: ::ffff:10.10.5.44  Result Code: 0x0\n\n[2026-05-11 08:14:23 UTC] EventID: 4769\n  Account Name: jsmith@CORP.LOCAL\n  Service Name: HTTP/sharepoint.corp.local\n  Ticket Encryption: 0x17 (RC4-HMAC)  Client Address: ::ffff:10.10.5.44  Result Code: 0x0\n\n[2026-05-11 08:14:23 UTC] EventID: 4769\n  Account Name: jsmith@CORP.LOCAL\n  Service Name: WSMAN/svcbackup.corp.local\n  Ticket Encryption: 0x17 (RC4-HMAC)  Client Address: ::ffff:10.10.5.44  Result Code: 0x0\n\n[BENIGN] [2026-05-11 08:13:50 UTC] EventID: 4769\n  Account Name: svc_backup@CORP.LOCAL\n  Service Name: MSSQLSvc/sqlserver01.corp.local:1433\n  Ticket Encryption: 0x12 (AES256-CTS)  Client Address: ::ffff:10.10.1.5  Result Code: 0x0",
+        "expected_findings": [
+          "T1558.003 (Kerberoasting): five TGS requests from a single account to distinct service SPNs within 2 seconds is the hallmark burst pattern; legitimate use requests TGS tickets individually and infrequently.",
+          "TicketEncryptionType 0x17 (RC4-HMAC) on every malicious request — AES256 (0x12) on the benign baseline confirms the attacker forced downgrade to RC4 to enable offline cracking; RC4 tickets are crackable with hashcat -m 13100."
+        ],
+        "sample_solution": "Step 1: EventID 4769 = Kerberos Service Ticket Requested. Five requests in 2 seconds from one account to distinct SPNs indicates enumeration of crackable service accounts (Kerberoasting, T1558.003). Step 2: Two critical indicators — (a) TicketEncryptionType 0x17 (RC4-HMAC) on all five malicious requests vs 0x12 (AES256) on the benign entry at 08:13:50; (b) volume/velocity: five TGS requests from 10.10.5.44 in 2s, all for different service SPNs. Step 3: RC4-HMAC tickets are crackable offline; AES256 tickets are computationally infeasible to crack. The attacker likely requested tickets using a tool like Invoke-Kerberoast or Rubeus that defaults to RC4.",
+        "hint": "Focus on the TicketEncryptionType field — compare the value on the rapid-burst requests vs the benign baseline entry logged 32 seconds earlier."
+      },
+      "rubric": null
+    }
+  ]
+}
+```

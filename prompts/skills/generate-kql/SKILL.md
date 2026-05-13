@@ -1,6 +1,6 @@
 ---
 name: generate-kql
-version: "2026-05-10a"
+version: "2026-05-12a"
 model: claude-sonnet-4-6
 description: |
   Generate KQL (Kusto Query Language) questions for SOC analyst assessments
@@ -140,9 +140,37 @@ Required content shape for kql:
 
 Field synonyms that are FORBIDDEN — do not use any of these:
   stem, task, answer_key, query, target_query, keywords,
+  scenario, data_context, model_answer, key_components,
   hint   — the content schema does not include an optional hint
            field; omit it entirely. If hint context is genuinely
            needed, fold it into the `question` string.
+
+DO NOT structure content like this (Zod rejects all extra keys):
+
+```json
+// WRONG — 'scenario', 'data_context', 'model_answer', 'key_components':
+"content": {
+  "scenario": "A threat hunter suspects Kerberoasting from WS-FINANCE-04...",
+  "question": "Write a KQL query to detect Kerberoasting.",
+  "data_context": {
+    "table": "SecurityEvent",
+    "relevant_fields": ["EventID", "AccountName", "TicketEncryptionType"]
+  },
+  "model_answer": "SecurityEvent | where EventID == 4769...",
+  "key_components": ["Filter EventID == 4769", "Filter TicketEncryptionType == '0x17'"]
+}
+```
+
+Use this exact shape — `question`, `tables`, `expected_keywords`, `sample_solution` only:
+
+```json
+"content": {
+  "question": "Write a KQL query against the SecurityEvent table to detect Kerberoasting (T1558.003). The query must filter for TGS requests with RC4-HMAC encryption, exclude machine accounts and krbtgt, and summarise request volume per account per hour.",
+  "tables": ["SecurityEvent"],
+  "expected_keywords": ["EventID == 4769", "TicketEncryptionType", "0x17", "summarize", "bin"],
+  "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4769\n| where TicketEncryptionType == \"0x17\"\n| where AccountName !endswith \"$\"\n| where ServiceName !startswith \"krbtgt\"\n| summarize TGSCount = count() by AccountName, IpAddress, bin(TimeGenerated, 1h)\n| sort by TGSCount desc"
+}
+```
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
@@ -214,3 +242,38 @@ context.
 Reason directly from the prompt and call submit_questions with
 the full array. If rejected, read the error, correct the named
 fields, and resubmit. Maximum two resubmissions.
+
+---
+
+## Fully-resolved example (use this exact shape)
+
+Before calling submit_questions, verify your payload matches this
+structure field-for-field. A correctly shaped KQL question:
+
+```json
+{
+  "questions": [
+    {
+      "type": "kql",
+      "topic": "Kerberoasting Detection via TGS Request Burst (T1558.003)",
+      "points": 5,
+      "knowledge_base_source_ids": ["src_l2_003"],
+      "content": {
+        "question": "Write a KQL query against the SecurityEvent table in Microsoft Sentinel to detect potential Kerberoasting activity (T1558.003). Your query must: (1) filter for Kerberos Service Ticket requests (EventID 4769), (2) isolate RC4-HMAC encryption type (0x17) which makes tickets crackable offline, (3) exclude machine accounts (ending in $) and the krbtgt service, (4) aggregate TGS request counts per requesting account and source IP within 1-hour windows, sorted by volume descending.",
+        "tables": ["SecurityEvent"],
+        "expected_keywords": [
+          "EventID == 4769",
+          "TicketEncryptionType",
+          "0x17",
+          "AccountName !endswith",
+          "ServiceName !startswith",
+          "summarize",
+          "bin(TimeGenerated, 1h)"
+        ],
+        "sample_solution": "SecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4769\n// RC4-HMAC (0x17) tickets are crackable offline — AES256 (0x12) are not\n| where TicketEncryptionType == \"0x17\"\n// Exclude computer accounts and the normal krbtgt TGS requests\n| where AccountName !endswith \"$\"\n| where ServiceName !startswith \"krbtgt\"\n| summarize TGSCount = count(), Services = make_set(ServiceName)\n    by AccountName, IpAddress, bin(TimeGenerated, 1h)\n| sort by TGSCount desc"
+      },
+      "rubric": null
+    }
+  ]
+}
+```

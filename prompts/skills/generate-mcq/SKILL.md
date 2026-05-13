@@ -1,6 +1,6 @@
 ---
 name: generate-mcq
-version: "2026-05-09d"
+version: "2026-05-12a"
 model: claude-sonnet-4-6
 description: |
   Generate multiple-choice questions (MCQ) for SOC analyst assessments grounded
@@ -122,6 +122,32 @@ Required content shape for mcq:
 Field synonyms that are FORBIDDEN — do not use any of these:
   stem, prompt, explanation, correct_answer, answer, answer_key
 
+`options` CRITICAL RULE — must be an array of exactly 4 PLAIN STRINGS:
+
+  CORRECT: `"options": ["<option A text>", "<option B text>", "<option C text>", "<option D text>"]`
+
+  WRONG — options as objects (Zod expects string, receives object):
+    `"options": [{"key": "A", "text": "...", "correct": false}, ...]`
+    `"options": [{"label": "A", "value": "..."}, ...]`
+
+  Each string is the full answer text. Include the letter prefix if
+  desired (e.g. "A) Windows Security Log Event 4688...") but the
+  value MUST be a plain string, never an object.
+
+`correct` CRITICAL RULE — must be a NUMBER: the 0-based array index
+of the correct answer. Never a letter, never a quoted string:
+
+  CORRECT:
+    `"correct": 0`  — first  option (index 0) is correct
+    `"correct": 1`  — second option (index 1) is correct
+    `"correct": 2`  — third  option (index 2) is correct
+    `"correct": 3`  — fourth option (index 3) is correct
+
+  WRONG — Zod expects integer, these are all rejected:
+    `"correct": "B"`   — string letter (most common mistake)
+    `"correct": "1"`   — quoted number
+    `"correct": true`  — boolean
+
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
 
@@ -189,3 +215,35 @@ Reason directly from the prompt and call submit_questions exactly
 once with the full array of generated questions.
 
 Call `submit_questions` exactly once. No other tool calls.
+
+---
+
+## Fully-resolved example (use this exact shape)
+
+Before calling submit_questions, verify your payload matches this
+structure field-for-field. A correctly shaped MCQ:
+
+```json
+{
+  "questions": [
+    {
+      "type": "mcq",
+      "topic": "PowerShell Script Block Logging — Event 4104 vs 4103",
+      "points": 3,
+      "knowledge_base_source_ids": ["src_l2_001"],
+      "content": {
+        "question": "A threat hunter reviews Windows event logs after a suspected PowerShell-based intrusion. The attacker invoked: powershell.exe -ExecutionPolicy Bypass -enc <base64>. Which log source and event ID provides the decoded script block content of this command, assuming the host is fully instrumented?",
+        "options": [
+          "Windows Security Log, Event ID 4688 — it captures the full decoded command line for any process started with -enc.",
+          "PowerShell Operational Log, Event ID 4104 (Script Block Logging) — PowerShell decodes the base64 payload before logging the resulting script block content.",
+          "PowerShell Operational Log, Event ID 4103 (Module Logging) — it reconstructs encoded payloads by capturing module import events.",
+          "Sysmon Event ID 1 (Process Create) — the CommandLine field always expands -enc arguments to plaintext."
+        ],
+        "correct": 1,
+        "rationale": "Event 4104 fires when PowerShell compiles a script block for execution — crucially, after the engine decodes the -EncodedCommand base64 argument, so the logged text is the decoded plaintext script. (A) Event 4688 and (D) Sysmon Event 1 both capture only the raw command line with the opaque base64 string intact. (C) Event 4103 records pipeline/module execution details but does not reconstruct encoded payloads. The correct answer is option B (index 1)."
+      },
+      "rubric": null
+    }
+  ]
+}
+```
