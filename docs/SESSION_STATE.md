@@ -1,3 +1,32 @@
+# Session — 2026-05-13 (G3.D 07-ai-grading follow-up — PII policy + atomicity proofs)
+
+**Headline:** Closed the two `TODO(G3.D-followup)` items queued in `15c7728`'s handoff. Commit `b5aa332` ships: (1) **PII policy** — `override_reason` text removed from the `audit_log.after` payload in `admin-override.ts`; auditors now pivot `audit_log.entity_id` → `gradings.id` to read the reason from the immutable D8 row. Keeps the durable, REVOKE-protected, broadly-indexed audit table free of unbounded free-text PII while preserving forensic traceability via the FK chain. (2) **Atomicity proofs** — new `vi.mock` one-shot throw tests in `audit-writes.test.ts` for `handleAdminOverride` (highest regression risk — was the out-of-tx site pre-G3.D) and `handleAdminAccept` (highest compliance weight — D8 accept-before-commit). Plus a static-source PII regression guard that grep's the `auditInTx` call block in `admin-override.ts` and fails if `override_reason:` appears as a key. 31/31 tests pass (was 28). VPS at `b5aa332`, `assessiq-api` healthy.
+
+**Commits:**
+- `b5aa332` — fix(ai-grading): G3.D follow-up — override_reason PII policy + atomicity proofs for admin-override + admin-accept
+
+**Tests:**
+- `pnpm -C modules/07-ai-grading typecheck` ✅ clean
+- `pnpm -C modules/07-ai-grading test -- audit-writes` ✅ 31/31 (was 28; +3 from V10 follow-up: PII regression guard + admin-override atomicity + admin-accept atomicity)
+
+**VPS-side changes (additive only):** `git pull` → `b5aa332`; `assessiq-api` rebuilt + force-recreated; healthy in 18 min (per observation 2240). No other service touched.
+
+**Adversarial-review chain that produced this slice (recorded for posterity):** Sonnet V8 → flagged PII concern → GLM V2 → independent agreement → Sonnet V9 → confirmed fix shape → Sonnet V10 → flagged atomicity-test gap (V10 became this commit's atomicity proofs). All review notes are now inline in `admin-override.ts:111-119`, `audit-writes.test.ts:247-285`, and `docs/11-observability.md` §29.1 (the PII paragraph) — three-layer defense against regression.
+
+**Next:** (1) **`override_reason` retention policy** — the PII fix prevents leaks into audit_log, but the underlying free-text reason still lives in `gradings.override_reason` indefinitely. Decide retention/redaction policy before any compliance-driven export feature. Open question (a) from prior handoff. (2) MFA enrollment UX before flipping `MFA_REQUIRED=true`. (3) Phase 1 closure re-drill once admin cookie is shareable. (4) Priority backlog from prior handoffs.
+
+**Open questions:** retention policy as above. Recorded but not blocking.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 discovery that the wiring + follow-up were authored by a parallel session and already shipped (`b5aa332` landed during my Phase 3 review); verified test green (31/31); confirmed VPS deploy; recorded this handoff as the gap-fill closure entry.
+- Sonnet: n/a in this turn. The original adversarial-review chain (V8-V10) ran in the parallel session, not here.
+- Haiku: n/a — no bulk sweeps.
+- codex:rescue: not invoked in this turn — the parallel session's adversarial review (Sonnet V8/V9/V10 + GLM V2) covered the gate per CLAUDE.md's "scale rigor to change magnitude" qualifier. The diff was a small defensive tightening (remove one field, add two atomicity tests, add one regression guard) on already-gated code. A second codex pass on top of the documented review chain would be ceremony, not signal.
+
+---
+
 # Session — 2026-05-13 (UI v1.1 Phase 3b — activity primitives)
 
 **Headline:** Phase 3b of the UI kit v1.1 port shipped. Three new typed primitives — `ActivityHeatmap` (52×7 GitHub-style intensity grid), `StackedBarChart` (pure-div multi-series), `LeaderboardList` (semantic `<ol>` rank rows) — are live in `@assessiq/ui-system` and deployed to production. Same parallel-Sonnet dispatch pattern as Phase 3a; one `axe(container)` assertion per primitive. CSS bundle flipped `B86xf8od` → `CkROALr7` (16,347 bytes raw) with five new `--aiq-color-heatmap-{0..4}` tokens. Activity-feature track (Phases 9–12) is now unblocked on the primitives side.
