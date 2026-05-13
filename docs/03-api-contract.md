@@ -950,7 +950,110 @@ Catalog-wide **question-pack** ranking by submission volume, with prior-period d
 
 ---
 
-## Certification (module 18) — Phase 5
+## Candidate Activity (module 15 — Phase 10)
+
+All routes require candidate session; user-scoped (`WHERE user_id = $session.userId`) and tenant-scoped via `withTenant` (RLS). Served at `/api/me/activity/*`. Each endpoint owns its full vertical slice under [`modules/15-analytics/src/activity-candidate/`](../modules/15-analytics/src/activity-candidate/).
+
+**Why (Phase 10):** mirrors admin activity endpoints with candidate-safe semantics — own data only, no cross-user comparison, DPDP-safe.
+
+### `GET /api/me/activity/stats`
+
+Query: `?from=YYYY-MM-DD&to=YYYY-MM-DD&groupBy=domain|level` (all optional; default window = last 30 days).
+
+Response:
+```json
+{
+  "data": {
+    "from": "2026-04-14",
+    "to": "2026-05-14",
+    "groupBy": "domain",
+    "completions":      { "total": 3, "breakdown": [{ "key": "soc", "value": 3, "pct": 100 }] },
+    "avgScore":         { "total": 72.5, "breakdown": [{ "key": "soc", "value": 72.5, "pct": 100 }] },
+    "assessmentsTaken": { "total": 2 }
+  }
+}
+```
+
+- `completions` — submitted attempts in the date window (user-scoped).
+- `avgScore` — mean `best_score` across completed packs; breakdown by domain or level.
+- `assessmentsTaken` — distinct `pack_id` count (not attempt count).
+- Stat card #2 is `assessmentsTaken` (distinct packs, not "active candidates").
+
+**Source:** [`modules/15-analytics/src/activity-candidate/stats.ts`](../modules/15-analytics/src/activity-candidate/stats.ts).
+
+### `GET /api/me/activity/heatmap`
+
+Query: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (defaults to last 365 days).
+
+Response: same shape as admin heatmap but filtered to `user_id = $session.userId`.
+
+```json
+{
+  "data": {
+    "from": "2025-05-14",
+    "to": "2026-05-14",
+    "days": [{ "date": "2026-05-01", "count": 2 }],
+    "currentStreakWeeks": 2,
+    "longestStreakWeeks": 5
+  }
+}
+```
+
+**Source:** [`modules/15-analytics/src/activity-candidate/heatmap.ts`](../modules/15-analytics/src/activity-candidate/heatmap.ts).
+
+### `GET /api/me/activity/timeline`
+
+Query: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (defaults to last 52 weeks).
+
+Response: same shape as admin timeline, user-scoped.
+
+```json
+{
+  "data": {
+    "from": "2025-05-12",
+    "to": "2026-05-11",
+    "weeks": [{ "weekStart": "2026-05-05", "series": [{ "domain": "soc", "count": 2 }] }]
+  }
+}
+```
+
+**Source:** [`modules/15-analytics/src/activity-candidate/timeline.ts`](../modules/15-analytics/src/activity-candidate/timeline.ts).
+
+### `GET /api/me/activity/leaderboard`
+
+Query: `?page=1&pageSize=10` (max pageSize 50).
+
+**Semantics:** candidate's own attempts ranked by best score per pack — not a peer comparison. DPDP-safe (no cross-user data).
+
+Response:
+```json
+{
+  "data": {
+    "items": [
+      {
+        "rank": 1,
+        "packId": "uuid",
+        "packName": "SOC Analyst L1",
+        "attemptCount": 3,
+        "bestScore": 88,
+        "rankInPack": 1,
+        "totalCandidatesInPack": 12
+      }
+    ],
+    "totalItems": 2,
+    "page": 1,
+    "pageSize": 10
+  }
+}
+```
+
+- `rankInPack` / `totalCandidatesInPack` — candidate's rank among all who completed this pack within the tenant (anonymized count, no names exposed).
+- Items sorted by `bestScore DESC`.
+
+**Source:** [`modules/15-analytics/src/activity-candidate/leaderboard.ts`](../modules/15-analytics/src/activity-candidate/leaderboard.ts).
+
+---
+
 
 > **Status: 501 Not Implemented — Phase 5 Session 2+**
 > All endpoints below are registered in `modules/18-certification/src/routes.ts` and return `501 Not Implemented` until the issuance engine and PDF generator ship. The contracts below are the authoritative design; implementations must match them exactly.

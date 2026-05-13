@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (UI v1.1 Phase 10 — candidate Activity backend)
+
+**Headline:** Phase 10 shipped — 4 candidate-scoped `/api/me/activity/*` endpoints live; 104/104 tests pass.
+
+**Commits:**
+- `4240c5d` — feat(analytics): UI v1.1 Phase 10 — candidate Activity backend endpoints
+
+**Tests:** `modules/15-analytics` 104/104 ✅ (16 new Phase 10 integration tests). `apps/api` typecheck ✅. Secrets scan clean.
+
+**Deploy:** `assessiq-api` rebuilt + force-recreated on VPS. `/api/health` → 200 ✅.
+
+**Next:** Phase 12 (candidate Activity page wire — depends on Phase 10 ✅ + Phase 3b ✅).
+
+**Open questions:** none — all Phase 10 product questions resolved:
+- Stat card #2 → assessments-taken (distinct packs)
+- Leaderboard → own attempts by best score per pack
+- DPDP gate → not triggered (no cross-user data)
+
+---
+
+## Agent utilization
+- Opus: Phase 0 warm-start; verified pre-existing scaffolding; deploy + docs; this handoff.
+- Sonnet: n/a — scaffolding was pre-written by a prior session.
+- Haiku: n/a
+- codex:rescue: n/a — `modules/15-analytics` not on load-bearing paths; no auth/classifier surface.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 7a — list-page template + Users + Attempts)
 
 **Headline:** Phase 7a shipped — AdminUsers migrated from apps/web into the module pattern; Attempts page gets kit header; list-page composition recipe established.
