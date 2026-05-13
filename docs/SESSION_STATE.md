@@ -1,3 +1,29 @@
+# Session — 2026-05-14 (UI v1.1 Phase 6b — Attempt page)
+
+**Headline:** Phase 6b shipped — Attempt page refreshed against kit/screens/assessment.jsx: sticky header, progress strip, MCQ radio-circle layout, side panel with legend, token fixes.
+
+**Commits:**
+- `f528fc6` — feat(take-flow): UI v1.1 Phase 6b — Attempt page kit refresh
+
+**Tests:** `apps/web` typecheck ✅, `modules/11-candidate-ui` typecheck ✅. Secrets scan clean.
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated on VPS. Frontend → HTTP 200 ✅.
+
+**Next:** Phase 10 (candidate Activity backend — partial work already in `modules/15-analytics/src/activity-candidate/`).
+
+**Open questions:**
+- `apps/api/src/server.ts` and `modules/15-analytics/src/routes.ts` have unstaged Phase 10 scaffolding — need to review before committing.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 warm-start; all edits self-executed (≤2 files, both in hot cache); typecheck + deploy + docs.
+- Sonnet: n/a — changes were surgical CSS/JSX across 2 cached files.
+- Haiku: n/a
+- codex:rescue: n/a — `apps/web/src/pages/take/` not on load-bearing paths; no auth/crypto surface.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 6a — candidate take flow)
 
 **Headline:** Phase 6a shipped — Spinner primitive wired into take-flow loading states; duplicated right-pane extracted into shared `TakeRightPane.tsx`.
