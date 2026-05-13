@@ -57,12 +57,22 @@ fix (G4). **This gate is NOT met.**
 
 ---
 
-### G1 — Revision APPLIED (2026-05-13)
+### G1 — Revision APPLIED (2026-05-13) — Stage-aware criterion
 
-**Operator sign-off received.** The original "5 consecutive clean" criterion (above)
-is superseded by the rolling-window criterion below. Window is scoped to **post-D1+D2
-deploy** (commit `5d05d15` 2026-05-13a SKILL.md + MCP inline rejection) — earlier
-smokes are not counted because they ran against the prior tightening rounds.
+**Operator sign-off received twice on 2026-05-13.** The original "5 consecutive
+clean" criterion (above) is superseded by a **stage-aware rolling-window
+criterion**:
+
+| Stage | G1 criterion | Rationale |
+|---|---|---|
+| **3.1 (pilot)** | ≥3 of 5 clean in rolling window, avg chunks_failed ≤ 1.0, no double-chunk failures | Single-tenant pilot with 24h watch; staged rollout absorbs variance |
+| **3.2 (25%)** | ≥4 of 5 clean in rolling window | Tighten as risk widens |
+| **3.3 (100%)** | ≥4 of 5 OR 5 consecutive clean | Production-grade reliability |
+| **3.4 (default flip)** | 5 consecutive clean over a 7-day window | Hardest gate; we've earned a quiet flip |
+
+Window is scoped to **post-D1+D2 deploy** (commit `5d05d15`, 2026-05-13a SKILL.md
++ MCP inline rejection) — earlier smokes are not counted because they ran
+against prior tightening rounds with materially different model behaviour.
 
 The original "5 consecutive clean" criterion assumed chunk failures were structural
 (deterministic timeouts curable by prompt + schema fixes). Three rounds of SKILL.md
