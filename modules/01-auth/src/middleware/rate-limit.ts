@@ -170,9 +170,13 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
         // already a deploy anomaly.
         throw new RateLimitError("missing client IP for /api/auth/* rate limit");
       }
+      // Dev-only lift: prod and test both use 10/min (prod for real
+      // protection; test so existing assertions on the 11th-hit threshold
+      // keep working). Only NODE_ENV=development gets 100/min so admin
+      // login flows don't self-throttle while iterating locally.
       limits.push({
         key: `aiq:rl:auth:ip:${ip}`,
-        max: 10,
+        max: config.NODE_ENV === "development" ? 100 : 10,
         windowSeconds: 60,
         scope: "ip",
       });
