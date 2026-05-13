@@ -4,6 +4,43 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-12 to 2026-05-13 — Sharded generation retry-loop: round 2 (FORBIDDEN list) + round 3 (CORRECT EXAMPLE + MCP inline rejection)
+
+**Cross-reference:** See the 2026-05-09 → 2026-05-11 entry for the original incident, the first SKILL.md fix (`6fb4f5d`), the MCP rejection-logger (`ab39667`), and the second SKILL.md fix (`573aed7`, 2026-05-10b versions).
+
+**Symptom:** Round 2 (after the original RCA closed): count=15 production smokes continued to fail intermittently while count=2 verification smokes passed. Attempt `019e1872` SIGTERMed at the scenario chunk at ~688 s with +9 MCP rejection-log entries across all five question types. Round 3: `5ade451`'s tightening (FORBIDDEN list + anti-examples) cured the patterns it explicitly targeted, but the model invented NEW wrong shapes for types not previously observed at failure. KQL `tables` was emitted as string → object → array-of-objects across three consecutive retries — converging on more elaborate wrong, not on the canonical `string[]`. Separately, the subjective chunk SIGTERMed via a wrong-tool call (`submit_rubric` instead of `submit_questions`) — no MCP rejection-log entry, budget consumed silently. Attempt `019e1eef` recorded `chunks_failed=2` (kql + subjective) at 783 s.
+
+**Cause:**
+
+1. **Round 2 cause (`5ade451` motivation).** `573aed7` introduced recovery rules but did not enumerate the wrong-field-name patterns the model emits on first try. Self-healing worked at count=2 (3 retries fit inside the 810 s budget for count=3 chunks); at count=15 the larger KB slice increases per-question latency, so a retry that is also rejected can exhaust the remaining budget. The +9 rejections from `019e1872` surfaced concrete patterns absent from any FORBIDDEN list: `step_dependency: true` (boolean, not enum string); content under a `scenario` or `questions` subkey; steps as `{id, step, points, text}` instead of `{prompt, expected}`; `scenario_text` / `tasks` / `artifacts_provided` as top-level keys; steps as plain strings; `log_format` as verbose prose instead of enum value.
+
+2. **Round 3 cause (`5d05d15` motivation).** A FORBIDDEN list only covers patterns the model has emitted *before*. For KQL, three consecutive retries each produced a more elaborate wrong structure: retry 1 — wrong top-level keys (`scenario`, `task`, `schema`, `solution`, `hints`); retry 2 — correct top-level keys but `tables` as a schema-description object `{"SecurityEvent": {"EventID": "int", ...}}`; retry 3 — `tables` as an array of schema objects `[{"name": "SecurityEvent", "columns": [...]}]`. The model interpreted `tables` semantically (as a schema descriptor) rather than literally (as a plain list of table-name strings) and elaborated that misinterpretation on each retry. Negative examples under-specify the target; the model needs a positive canonical anchor. The subjective SIGTERM was a distinct failure mode: the model called `submit_rubric` instead of `submit_questions` — no Zod rejection reached, no rejection-log entry, entire budget consumed on the wrong tool path.
+
+**Fix:**
+
+- `5ade451` (2026-05-12a) — `generate-scenario/SKILL.md`: VALID VALUES section for `step_dependency` (string, not boolean); expanded FORBIDDEN list + anti-example block for `scenario_text` / `tasks` / `artifacts_provided` wrapper; forbidden step-level keys expanded to include `step`, `id`, plain-string steps, and missing-`expected` patterns. `generate-log-analysis/SKILL.md`: `log_format` VALID VALUES table with semantics per enum member; verbose prose strings added to FORBIDDEN. `generate-kql`, `generate-mcq`, `generate-subjective`: parallel FORBIDDEN-list expansions from the `019e1872` rejection-pattern analysis. All five `generate-*/SKILL.md` bumped 2026-05-10b → 2026-05-12a. No MCP schema change.
+
+- `5d05d15` (2026-05-13a) — two parts:
+  - **D1 SKILL.md**: end-of-file CORRECT EXAMPLE blocks for all five types — full syntactically-valid payloads pulled from recent accepted questions. KQL: explicit `tables: ["SecurityEvent"]` rule ("ARRAY OF STRINGS, not schema descriptions") plus DO NOT blocks reproducing the wrong `tables` shapes from `019e1eef` verbatim. `generate-scenario/SKILL.md`: top-of-file REPEATED VIOLATIONS callout for `scenario_text` / `tasks` / `artifacts_provided` / `step` / `question` patterns that persisted through `5ade451`. All versions bumped 2026-05-12a → 2026-05-13a.
+  - **D2 MCP** (`tools/assessiq-mcp/src/tools/submit-questions.ts`): new `CANONICAL_EXAMPLE_BY_TYPE` constant (line ~59); `formatIssues()` extended to accept a `type` argument and append `"CORRECT SHAPE EXAMPLE for type '<type>': <json>"` after the issue list (new signature at line ~412); 4 KB total message cap (example truncated before issues if exceeded); issue cap lowered 15 → 10. `formatIssuesForLog()` helper preserves full pre-truncation issues for the JSONL file log. `logRejection()` unchanged. 6 new tests; suite 22 → 28 (28/28 pass).
+
+**Prevention** (addendum — the five foundational lessons remain in the 2026-05-09 → 2026-05-11 entry):
+
+1. **Positive examples beat negative examples.** A FORBIDDEN list pre-empts patterns the model has emitted *before*; a CORRECT EXAMPLE block anchors the model on the target shape for patterns it might otherwise invent. End-of-file placement matters — the model re-reads the bottom of the SKILL.md when constructing its output.
+
+2. **MCP feedback messages should include canonical examples inline.** Zod path/expectation text is useful for *known* field-name mistakes; it is ineffective when the model has misinterpreted the entire content shape. An inline `"CORRECT SHAPE EXAMPLE for type 'kql': {...}"` appended to the rejection turns each retry into a high-information correction (`submit-questions.ts:~412`, commit `5d05d15`).
+
+3. **count=2 verification is necessary but not sufficient.** `019e1ed4` (success, 0 chunks_failed, 895 s) was followed 30 minutes later by `019e1eef` (partial, 2 chunks_failed, 783 s) at the same count=15. Per-chunk retry budget tightens as chunk size increases; a single clean count=15 run is not a stable gate. The G1 criterion (5 consecutive clean runs) is the correct bar.
+
+4. **The model has a generative capacity to invent structurally elaborate wrong shapes.** Three tightening rounds + canonical example anchors appear to converge. If a round 4 surfaces a NEW pattern despite CORRECT EXAMPLE blocks, the structural path is: split count=3 scenario into count=1 runs, OR relax the Zod schema and normalise server-side, OR add additional per-type examples for the failure-prone type.
+
+5. **Wrong-tool failures are invisible to the MCP rejection logger.** A chunk that SIGTERMs with `chunks_failed > 0` but no rejection-log entry in its window was killed before `handleSubmitQuestions` was reached. Check `generation_attempts.stderr_tail` for wrong-tool patterns; add a "WRONG TOOL — DO NOT USE" callout to the SKILL.md for the affected type.
+
+**Cross-references:**
+- `runtime-baseline.json` `known_gaps` PARTIAL retry-loop entry — proposed update text: replace PARTIAL entry with `"RESOLVED (2026-05-13, rounds 2+3) — Three-round SKILL.md tightening + MCP inline canonical examples (573aed7 → 5ade451 → 5d05d15). Last clean count=15 smoke: 019e1f20 (success, 0 chunks_failed, 678 s). Mark CONFIRMED after 5 consecutive G1-qualifying runs."` DO NOT apply until G1 campaign completes.
+- `docs/11-observability.md` §22 — documents `mcp-rejections.log` which surfaced the progressive-wrong-shapes diagnosis (commit `cb04f99`).
+- Original entry (2026-05-09 to 2026-05-11) — five foundational prevention lessons not duplicated here.
+
 ## 2026-05-11 — Certificate issued_at millisecond drift (would break every verify)
 
 **Symptom:** Session 3's public verify endpoint would have failed for 100% of certificates.
