@@ -40,6 +40,7 @@ import {
 import { ExportFilterSchema } from './types.js';
 import { EXPORT_ROW_CAP } from './repository.js';
 import { processRefreshMvJob } from './refresh-mv-job.js';
+import { registerActivityRoutes } from './activity/index.js';
 
 // ---------------------------------------------------------------------------
 // Convenience session accessor (matches the cast pattern across all modules)
@@ -343,4 +344,14 @@ export async function registerAnalyticsRoutes(
       return reply.code(200).send({ ok: true, duration_ms: result.duration_ms });
     },
   );
+
+  // -------------------------------------------------------------------------
+  // Phase 9 — Admin Activity routes
+  //   GET /api/admin/activity/stats
+  //   GET /api/admin/activity/heatmap
+  //   GET /api/admin/activity/timeline
+  //   GET /api/admin/activity/leaderboard
+  // Each endpoint owns its full vertical slice in src/activity/<name>.ts.
+  // -------------------------------------------------------------------------
+  registerActivityRoutes(app, preHandler);
 }

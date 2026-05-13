@@ -801,6 +801,154 @@ Triggers `REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv`. All analyt
 
 ---
 
+## Admin — Activity (Phase 9, module 15-analytics)
+
+All routes require admin session; tenant-scoped via `withTenant` (RLS). Served at `/api/admin/activity/*`. Each endpoint owns its full vertical slice under [`modules/15-analytics/src/activity/`](../modules/15-analytics/src/activity/) (one file per endpoint).
+
+**Decision (locked `db020d1`):** backend returns raw `question_packs.domain` slugs (e.g. `"soc"`, `"devops"`, `"cloud-architect"`). Frontend maps slugs → display names. No schema migration in v1.1.
+
+### `GET /api/admin/activity/stats`
+
+3 stat-card metrics over a date window. Quartile breakdown for avgScore.
+
+**Query params:** `from` (optional `YYYY-MM-DD`), `to` (optional `YYYY-MM-DD`), `groupBy` (optional `domain` \| `level`, default `domain`). Defaults: `to = today`, `from = today − 30 days`.
+
+**Response 200:**
+```json
+{
+  "data": {
+    "from": "2026-04-13",
+    "to":   "2026-05-13",
+    "groupBy": "domain",
+    "completions":      { "total": 142, "breakdown": [{ "key": "soc", "value": 61, "pct": 0.43 }, ...] },
+    "activeCandidates": { "total": 2418, "breakdown": [{ "key": "soc", "value": 984, "pct": 0.41 }, ...] },
+    "avgScore":         { "total": 76.4, "breakdown": [
+      { "key": "top_quartile",     "value": 92.1, "pct": 0.32 },
+      { "key": "above_median",     "value": 78.4, "pct": 0.36 },
+      { "key": "below_median",     "value": 61.2, "pct": 0.22 },
+      { "key": "bottom_quartile",  "value": 48.7, "pct": 0.10 }
+    ] }
+  }
+}
+```
+
+- `avgScore.breakdown` is **always quartile-based** regardless of `groupBy` (quartiles of `auto_pct` over the period).
+- `completions.breakdown` and `activeCandidates.breakdown` honour `groupBy`.
+- Data source: `attempt_summary_mv` LEFT JOIN `question_packs` LEFT JOIN `levels`. Explicit MV tenant filter enforced by `tools/lint-mv-tenant-filter.ts`.
+
+**Source:** [`modules/15-analytics/src/activity/stats.ts`](../modules/15-analytics/src/activity/stats.ts).
+
+---
+
+### `GET /api/admin/activity/heatmap`
+
+365-day GitHub-style daily completion counts with TS-computed streak math.
+
+**Query params:** `from` (optional `YYYY-MM-DD`), `to` (optional `YYYY-MM-DD`). Defaults: `to = today`, `from = today − 365 days` (full calendar year).
+
+**Response 200:**
+```json
+{
+  "data": {
+    "from": "2025-05-14",
+    "to":   "2026-05-13",
+    "days": [
+      { "date": "2025-05-14", "count": 0 },
+      { "date": "2025-05-15", "count": 3 }
+    ],
+    "totals": { "total": 1284, "avgPerDay": 3.5, "activeDays": 218 },
+    "streaks": { "current": 42, "longest": 71 }
+  }
+}
+```
+
+- `days[]` is **zero-filled** to exactly `to − from + 1` entries (one per calendar day, UTC).
+- Counts include attempts with `status ∈ {submitted, auto_submitted, graded, released, pending_admin_grading}`.
+- **Data source: live `attempts` table** (NOT `attempt_summary_mv`) — same-day completions must appear immediately; MV is nightly-refreshed.
+- Streak computation is in TypeScript (O(N) iteration), not SQL.
+
+**Source:** [`modules/15-analytics/src/activity/heatmap.ts`](../modules/15-analytics/src/activity/heatmap.ts).
+
+---
+
+### `GET /api/admin/activity/timeline`
+
+52-week stacked-bar dataset: weekly completions × question-pack domain.
+
+**Query params:** `from` (optional `YYYY-MM-DD`), `to` (optional `YYYY-MM-DD`). Defaults: `to = today`, `from = today − 364 days` (exactly 52 weeks).
+
+**Response 200:**
+```json
+{
+  "data": {
+    "from": "2025-05-15",
+    "to":   "2026-05-13",
+    "domains": ["soc", "devops", "cloud-architect", "other"],
+    "bars": [
+      {
+        "weekStart": "2025-05-12",
+        "weekEnd":   "2025-05-18",
+        "segments":  [12, 4, 0, 1],
+        "total":     17
+      }
+    ]
+  }
+}
+```
+
+- `domains[]` is ordered by total count DESC. Up to 8 distinct domains; tail collapses to a single `"other"` slot when more than 8 distinct domains appear in the range.
+- `segments[i]` always corresponds to `domains[i]`.
+- `bars[]` is zero-filled across every ISO week in the range (Mon → Sun, UTC).
+- Data source: `attempt_summary_mv` JOIN `question_packs`. Explicit MV tenant filter enforced.
+
+**Source:** [`modules/15-analytics/src/activity/timeline.ts`](../modules/15-analytics/src/activity/timeline.ts).
+
+---
+
+### `GET /api/admin/activity/leaderboard`
+
+Catalog-wide assessment ranking by submission volume, with prior-period delta.
+
+**Query params:** `period` (optional `week` \| `month` \| `quarter`, default `week`), `page` (optional int ≥ 1, default 1), `pageSize` (optional int in `[1, 50]`, default 10).
+
+**Response 200:**
+```json
+{
+  "data": {
+    "period": "week",
+    "from": "2026-05-07",
+    "to":   "2026-05-13",
+    "priorFrom": "2026-04-30",
+    "priorTo":   "2026-05-06",
+    "page": 1,
+    "pageSize": 10,
+    "totalRanked": 24,
+    "items": [
+      {
+        "rank": 1,
+        "packId":   "uuid",
+        "packName": "SOC Skills 2026Q2",
+        "domain":   "soc",
+        "currentCount": 4200,
+        "priorCount":   3750,
+        "deltaPct": 12.0,
+        "direction": "up"
+      }
+    ]
+  }
+}
+```
+
+- `deltaPct` is `null` when `priorCount = 0` and `currentCount > 0` (new entry — no baseline). Otherwise rounded to 1 decimal.
+- `direction ∈ {"up", "down", "flat"}` with a ±0.5% dead-band around zero to suppress noise.
+- **Data source: live `attempts` table** (NOT MV) — week-over-week deltas require fresh data; MV is too stale.
+- Two-CTE query: current_period (with `pack_id` join) LEFT JOINed to prior_period; assessments with no prior appearance still appear with `priorCount: 0`.
+- Pagination DOS guards: `page ≤ 1000`, `pageSize ≤ 50`.
+
+**Source:** [`modules/15-analytics/src/activity/leaderboard.ts`](../modules/15-analytics/src/activity/leaderboard.ts).
+
+---
+
 ## Certification (module 18) — Phase 5
 
 > **Status: 501 Not Implemented — Phase 5 Session 2+**

@@ -71,6 +71,29 @@ GET /api/admin/reports/exports/topic-heatmap.csv
 ```
 All export routes audit to `audit_log` with `action: 'attempt.exported'`.
 
+## Routes registered (Phase 9 — Admin Activity)
+```
+GET /api/admin/activity/stats?from=&to=&groupBy=
+GET /api/admin/activity/heatmap?from=&to=
+GET /api/admin/activity/timeline?from=&to=
+GET /api/admin/activity/leaderboard?period=&page=&pageSize=
+```
+Each endpoint owns its full vertical slice in `src/activity/<name>.ts` (types + Zod + SQL + service + route registrar). All 4 are read-only (no audit-log writes — analytics surface).
+
+### Phase 9 architecture decisions
+
+**D5 — split data sources by staleness tolerance.**
+- `stats` + `timeline`: read `attempt_summary_mv` (joined to `question_packs` on `pack_id`, `levels` on `level_id`). Acceptable to be up-to-24h stale; the MV's nightly refresh is fast and these aggregates don't need same-day precision. Explicit MV tenant filter required (`current_setting('app.current_tenant', true)::uuid`), enforced by `tools/lint-mv-tenant-filter.ts`.
+- `heatmap` + `leaderboard`: read live `attempts` table. Heatmap needs same-day completions to surface immediately (MV staleness would hide today's activity from the visualisation). Leaderboard's week-over-week delta would silently smooth out the most recent ~24h of activity if the MV were used — unacceptable for "what's trending now" semantics. RLS on live tables; no explicit tenant filter needed inside `withTenant`.
+
+**D6 — domain slugs returned raw.** No `domain_display_name` mapping in the DB; backend returns `question_packs.domain` slug values verbatim. Frontend maps slug → display name via a hardcoded module shared across admin and candidate Activity pages. Decision locked in commit `db020d1`.
+
+**D7 — streak math in TS, not SQL.** Postgres window-function approach for computing "current streak" + "longest streak" over 365 daily buckets is more complex than a single TS pass and would still require a separate query for the zero-fill (since `attempts` has no row on inactive days). O(N) TS iteration over the pre-fetched `Map<date, count>` is both simpler and faster.
+
+**D8 — Two-CTE leaderboard with LEFT JOIN.** Current-period CTE produces (assessment_id, pack_id, cnt); prior-period CTE produces (assessment_id, cnt). Outer SELECT does a LEFT JOIN so assessments active in current-period but absent from prior-period still appear with `priorCount: 0` → delta direction `'up'` and `deltaPct: null` (no baseline). Ordering by current count DESC, then pack name ASC for stable rank determinism.
+
+**D9 — group-by column interpolation safety.** Both `stats.ts` and `timeline.ts` interpolate `groupCol` (`'qp.domain'` or `'lv.label'`) into the SQL template. This is safe: the value is derived from a Zod-validated enum that only admits two literal strings, never user input. The string is bound at TypeScript-literal level, not runtime.
+
 ## Lint guards
 - `tools/lint-mv-tenant-filter.ts` — asserts every `attempt_summary_mv` SQL reference has the explicit tenant filter. Run via `pnpm tsx tools/lint-mv-tenant-filter.ts`. Self-test: `--self-test`.
 
