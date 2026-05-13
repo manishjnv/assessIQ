@@ -1,3 +1,44 @@
+# Session — 2026-05-13 (Phase 5 Session 8 — candidate passwordless magic-link login, 30-day session)
+
+**Headline:** Option A (magic-link candidate auth) shipped end-to-end. Candidates can sign in at `/candidate/login` with an email; system emails a 15-min single-use token via a SPA-route link (prefetch-safe — Gmail/Outlook crawlers can't burn the token); SPA POSTs the token; server mints a 30-day fixed-window `aiq_sess` cookie with `role=candidate`. Adversarial gate found one REJECT (cross-tenant BYPASSRLS lookup) + 3 REVISE in round 1, all fixed before push; round 2 ACCEPT plus one more REVISE (Redis fail-closed) also fixed before push. Live prod smoke confirms anti-enumeration timing floor + all 4 endpoint shapes.
+
+**Commits:**
+- `e93675d` — feat(auth): candidate passwordless magic-link login (Option A) — 30-day session (41 files)
+
+**Tests:**
+- `pnpm -C modules/01-auth typecheck` ✅ / test ✅ 128/135 (7 pre-existing totp/embed-jwt baseline failures unrelated)
+- `pnpm -C apps/api typecheck` ✅ / `pnpm -C apps/web typecheck` ✅
+- `pnpm -C modules/11-candidate-ui test` ✅ 65/65 (48 prior + 17 new across CandidateShell + CandidateSessionBanner)
+- `pnpm -C modules/13-notifications test` ✅ 104/104 (97 prior + 7 new for the candidate_login_link template)
+- `pnpm exec tsx modules/07-ai-grading/ci/lint-no-ambient-claude.ts` ✅ 340 files
+- Live prod smoke: `/candidate/login` → 200 HTML; `POST /api/auth/candidate/request-link` → 204 for real + no-match + bogus-slug (anti-enumeration confirmed: match 238ms, no-match 202ms, within network noise floor); `POST /api/auth/candidate/verify-link {token:"bogus"}` → `{ok:false, error:"invalid_link"}`. One real `candidate_login_tokens` row inserted in DB for the matched email (`user_id=019e0e80-…`, 15-min expiry, consumed_at NULL).
+
+**VPS-side changes (additive only):**
+- Applied `modules/01-auth/migrations/0076_candidate_login_tokens.sql` with checksum `e884f87382db35d115a392ea1128942dfd281d37ebcd1ff314b270a36ce90cd9`; recorded in `schema_migrations`.
+- Rebuilt + force-recreated both `assessiq-api` and `assessiq-frontend` containers (frontend rebuild includes the new SPA routes).
+- No env-var additions this turn — `PUBLIC_BASE_URL` and `CERT_SIGNING_SECRET` from prior sessions still cover.
+
+**Adversarial review summary:** Sonnet + GLM-4.6 dual pass per `feedback-adversarial-reviewer-routing` (auth = security-adjacent, Sonnet+GLM-4.6 routing target).
+- **Round 1** (against Sonnet A's initial impl): both reviewers REJECT on concern 10 (cross-tenant BYPASSRLS email lookup); REVISE on 1 (timing oracle), 4 (session-fixation hygiene), 5 (per-(IP,email) rate-limit); ACCEPT on 2 (atomic UPDATE), 3 (no plaintext logging), 6 (role hardcoded), 7 (crawler-prefetch fix works), 8 (redirect hardcoded), 9 (cookie scope).
+- **Round 2** (after applying fixes 10/5/1/4): both reviewers ACCEPT on all original concerns. Sonnet identified Finding 6 (Redis-outage path throws 500) — REVISE.
+- **Fix 6** applied inline: `checkCandidateLinkRateLimit` wrapped in try/catch, fail-closed with warn log. Regression test added; passes.
+
+**Pre-existing gap surfaced (not blocking, logged for follow-up):** Massive `schema_migrations` tracking gap — only 6 migrations are recorded (0042, 0044, 0046, 0074, 0075, 0076) but ~50 SQL files exist in the repo and are clearly applied (tables exist). Most production migrations were applied historically via direct psql without recording. The new `pnpm tsx tools/migrate.ts --check` gate from earlier today flags this on every future deploy until backfilled. Two paths forward: (a) backfill all ~45 rows with current sha256s in one DB session, or (b) reset baseline by treating "current applied set" as version 0 going forward. Decide in a dedicated session.
+
+**Next:** Resume the priority backlog — (1) Phase 1 closure re-drill (Drills 1, 3 step 5, 4 against Finding C); (2) G3.D `auditInTx` sweep continuation; (3) Stage 3.1 default-flip prep; (4) R2 sentinel rewrite (Session 7 follow-up); (5) `schema_migrations` backfill (above); (6) candidate-login Phase 6 follow-ups (subdomain-routing tenant detection, route-level integration test for session-fixation wiring).
+
+**Open questions:** none for the login feature itself. The 6 follow-up items above are scope decisions for future sessions.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 reads (auth flows, 01-auth SKILL, existing `mintCandidateSession` primitive, RequireSession, help/email/branding docs), authored the 4 Sonnet-subagent dispatch prompts with file paths + contracts + threat models, Phase 3 diff review across all 4 subagent outputs, identified the email-preview crawler prefetch bug + scoped the surgical fix, drove the two-round adversarial gate, applied Fix 6 (Redis fail-closed) inline + added regression test, full DoD (commit / push / migration / VPS rebuild / live smoke / handoff).
+- Sonnet: 7 dispatches — 4 parallel implementation subagents (A backend, B frontend, C email, D docs+help), 1 fix-application subagent (4 adversarial concerns 10/5/1/4), 2 adversarial-review subagents (round 1 + round 2). All parallel where independent. Backend subagent's work was load-bearing (01-auth) and required full Opus Phase 3 diff review.
+- Haiku: n/a — no bulk grep / multi-file fact lookups. Subagents did their own focused reads.
+- codex:rescue: n/a — companion MCP not invoked. Sonnet+GLM-4.6 dual pass per `feedback-adversarial-reviewer-routing` memory; this is the supported takeover pattern for auth/tenancy/ai-grading/audit/certification/crypto changes. Both rounds' verdicts captured in the commit body + this handoff.
+
+---
+
 # Session — 2026-05-13 (UI v1.1 Phase 1 + Phase 2 — tokens + atoms live in prod)
 
 **Headline:** Authored the 14-phase v1.1 UI port plan at `docs/plans/UI_KIT_V1_1_PORT.md`, then executed Phases 1 + 2 in this session. Phase 1 (token migration): 7 light-mode token values + serif weight 500 + 2 dark-mode hierarchy fixes, shipped as commit `b95df19` — `#0a0a0b` near-black text, darker secondaries/muted, heavier serif headings now live on every page. Phase 2 (atom refresh): Chip warn variant, Sparkline polyline + non-scaling-stroke + 1.2px default, ScoreRing 1600ms ease-out timing, StatCard `breakdown` prop with mini stacked-bar + colored legend, Sidebar width 240px + footer slot + new `SidebarSection` sub-component. New tokens: `--aiq-color-warning-soft` + 8-slot `--aiq-color-chart-{1..8}` palette. All 4 typechecks clean (17-ui-system, web, 10-admin-dashboard, 11-candidate-ui). Deployed; curl against deployed CSS bundle confirms `aiq-chip-warn` + warning-soft + all 8 chart-* tokens are live.
