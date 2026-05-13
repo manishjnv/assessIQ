@@ -1,4 +1,33 @@
-# Session — 2026-05-14 (UI v1.1 Phase 12 — candidate Activity page wire)
+# Session — 2026-05-14 (UI v1.1 Phases 7b–13 — bulk list-page + report + settings refresh)
+
+**Headline:** 8 UI kit port phases shipped in one session — all remaining list pages, reports, candidate activity, and settings pages now use the canonical count-Chip + serif h1 + lede + Spinner pattern.
+
+**Commits:**
+- `01b351b` — feat(ui): UI v1.1 Phase 7b — list template to assessments, question-bank, detail pages, MyCertificates
+- `b2e4c76` — docs(session): UI v1.1 Phase 7b handoff
+- `86f7de3` — feat(ui): UI v1.1 Phase 8a — cohort report + attempt detail kit header refresh
+- `378c93d` — feat(ui): UI v1.1 Phase 8b — individual report + reports landing kit refresh
+- `b0a512d` — feat(ui): UI v1.1 Phase 12 — CandidateActivity Spinner loading states
+- `e624184` — feat(ui): UI v1.1 Phase 13 — settings + low-traffic pages kit refresh
+
+**Tests:** `@assessiq/admin-dashboard` typecheck ✅. `@assessiq/candidate-ui` typecheck ✅. Zero inline hex introduced. Zero `--aiq-color-bg-elevated`.
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated after each phase. All pages return 200.
+
+**Next:** Port plan complete (14/14 phases). Next session: UI audit pass — check all pages for any remaining `text-2xl` headers or "Loading…" text that may have been missed.
+
+**Open questions:** none.
+
+---
+
+## Agent utilization
+- Opus: Session driving — all edits, typecheck, deploy coordination, docs.
+- Sonnet: Explore subagent for Phase 13 page audit.
+- Haiku: n/a
+- codex:rescue: n/a — no auth/classifier/infra surface touched.
+
+---
+
 
 **Headline:** Phase 10 lint fixups + Phase 12 shipped — `/candidate/activity` live with 3 stat cards, heatmap, timeline, and personal pack rankings.
 
