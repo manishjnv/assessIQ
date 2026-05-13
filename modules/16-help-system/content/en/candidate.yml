@@ -219,3 +219,35 @@ candidate.result.bands:
 
     MCQ and KQL questions also map to bands so the final score has a
     consistent shape.
+
+# ─── Certificates ───
+
+candidate.cert.share-linkedin:
+  audience: candidate
+  short_text: "Click Share on LinkedIn to post your certificate. Each share is counted in My Certificates."
+  long_md: |
+    ## Share Your Certificate on LinkedIn
+
+    When you earn a certificate, click **Share on LinkedIn** to post it to your
+    LinkedIn profile. A counter records each share so you can track your
+    engagement in My Certificates.
+
+candidate.cert.completion-modal:
+  audience: candidate
+  short_text: "A congratulations pop-up appears once per certificate tier the first time you view each earned certificate."
+  long_md: |
+    ## Completion Celebration
+
+    After a graded result is released, My Certificates may show a congratulations
+    pop-up the first time you view each certificate. The pop-up appears once per
+    certificate tier; if you earn a higher tier later, it will appear again.
+
+candidate.profile.name-callout:
+  audience: candidate
+  short_text: "Certificates print the name from your profile at issuance. Keep your profile name current before completing an assessment."
+  long_md: |
+    ## Your Name on Certificates
+
+    The name printed on your certificates is taken from your profile at the time
+    of issuance. To make sure your certificates show the correct name, keep your
+    profile name up to date before completing an assessment.

@@ -53,6 +53,7 @@ export { TierUpgradeConflictError } from './repository.js';
 import {
   TIER_ORDER,
   type Certificate,
+  CertificateAccessDeniedError,
   CertificateAlreadyRevokedError,
   CertificateNotFoundError,
   CertificateRevokedException,
@@ -545,5 +546,33 @@ export async function reissue(
       after: { display_name: newDisplayName },
     });
     return updated;
+  });
+}
+
+/**
+ * Increment the linkedin_shares counter for a certificate.
+ *
+ * Only the certificate's owner (candidate_id === candidateId) may call this
+ * endpoint — throws CertificateAccessDeniedError for any other caller so an
+ * authenticated user cannot bump another candidate's share count.
+ *
+ * Throws CertificateRevokedException if the cert has been revoked (revoked_at
+ * is set) — sharing a revoked credential would be misleading.
+ *
+ * No audit_log entry — share counters are non-critical analytics and
+ * intentionally not audited (CLAUDE.md: "counters are non-critical,
+ * intentionally not audited").
+ */
+export async function incrementShareCount(
+  tenantId: string,
+  credentialId: string,
+  candidateId: string,
+): Promise<void> {
+  return withTenant(tenantId, async (client) => {
+    const cert = await repo.findByCredentialId(client, credentialId.toUpperCase(), tenantId);
+    if (cert === null) throw new CertificateNotFoundError(credentialId);
+    if (cert.candidate_id !== candidateId) throw new CertificateAccessDeniedError(credentialId);
+    if (cert.revoked_at !== null) throw new CertificateRevokedException(credentialId);
+    await repo.incrementCounter(client, cert.id, 'linkedin_shares');
   });
 }

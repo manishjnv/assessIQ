@@ -14,3 +14,6 @@ export { CandidateHelp } from "./CandidateHelp";
 export type { CandidateHelpProps } from "./CandidateHelp";
 
 export { MyCertificates } from './MyCertificates.js';
+
+export { CompletionModal } from './CompletionModal.js';
+export type { CompletionModalProps } from './CompletionModal.js';

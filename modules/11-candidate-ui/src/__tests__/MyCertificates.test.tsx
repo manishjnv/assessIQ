@@ -2,7 +2,7 @@
 // Pattern: vitest + jsdom + @testing-library/react, matching components.test.tsx.
 
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { MyCertificates } from '../components';
 import type { MyCertificatesResponse } from '../api';
 
@@ -10,12 +10,14 @@ import type { MyCertificatesResponse } from '../api';
 // Mock setup — vi.hoisted so the factory can reference the mock fn
 // ---------------------------------------------------------------------------
 
-const { mockListMyCertificates } = vi.hoisted(() => ({
+const { mockListMyCertificates, mockShareCertificateLinkedIn } = vi.hoisted(() => ({
   mockListMyCertificates: vi.fn<() => Promise<MyCertificatesResponse>>(),
+  mockShareCertificateLinkedIn: vi.fn<() => Promise<void>>(),
 }));
 
 vi.mock('../api.js', () => ({
   listMyCertificates: mockListMyCertificates,
+  shareCertificateLinkedIn: mockShareCertificateLinkedIn,
 }));
 
 afterEach(() => {
@@ -154,9 +156,40 @@ describe('MyCertificates', () => {
     });
     const disabledLinkedIn = screen
       .getAllByText('Share on LinkedIn')
-      .filter((el) => el.tagName === 'BUTTON') as HTMLButtonElement[];
+      .filter(
+        (el) => el.tagName === 'BUTTON' && (el as HTMLButtonElement).disabled,
+      ) as HTMLButtonElement[];
     expect(disabledLinkedIn).toHaveLength(1);
     expect(disabledLinkedIn[0]!.disabled).toBe(true);
+  });
+
+  it('share button fires the counter POST before opening the LinkedIn composer', async () => {
+    mockListMyCertificates.mockResolvedValue(THREE_CERTS);
+    mockShareCertificateLinkedIn.mockResolvedValue(undefined);
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    render(<MyCertificates />);
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading/)).toBeNull();
+    });
+
+    // 2 non-revoked certs (CERT-001, CERT-003) → 2 enabled share buttons;
+    // 1 revoked cert (CERT-002) → 1 disabled share button.
+    const allLinkedIn = screen.getAllByText('Share on LinkedIn');
+    const enabledShareBtns = allLinkedIn.filter(
+      (el) => el.tagName === 'BUTTON' && !(el as HTMLButtonElement).disabled,
+    );
+    expect(enabledShareBtns).toHaveLength(2);
+
+    // Click the first enabled button (CERT-001 — ACTIVE_CERT).
+    fireEvent.click(enabledShareBtns[0]!);
+
+    expect(mockShareCertificateLinkedIn).toHaveBeenCalledWith('CERT-001');
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fassessiq.example.com%2Fverify%2FCERT-001',
+      '_blank',
+      'noopener,noreferrer',
+    );
   });
 
   it('Copy verify link and View public page are always present and enabled', async () => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { listMyCertificates } from '../api.js';
+import { listMyCertificates, shareCertificateLinkedIn } from '../api.js';
 import type { MyCertificate } from '../api.js';
 
 // ---------------------------------------------------------------------------
@@ -277,14 +277,16 @@ export function MyCertificates(): React.ReactElement {
                       Share on LinkedIn
                     </button>
                   ) : (
-                    <a
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      href={linkedInUrl}
+                    <button
+                      type="button"
                       style={ACTION_STYLE}
+                      onClick={() => {
+                        void shareCertificateLinkedIn(cert.credential_id);
+                        window.open(linkedInUrl, '_blank', 'noopener,noreferrer');
+                      }}
                     >
                       Share on LinkedIn
-                    </a>
+                    </button>
                   )}
 
                   {/* Copy verify link — always enabled */}

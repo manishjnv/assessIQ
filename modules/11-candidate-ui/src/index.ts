@@ -47,6 +47,7 @@ export {
   IntegrityBanner,
   QuestionNavigator,
   CandidateHelp,
+  CompletionModal,
 } from "./components";
 export type {
   AttemptTimerProps,
@@ -57,6 +58,7 @@ export type {
   QuestionNavigatorProps,
   NavigatorItem,
   CandidateHelpProps,
+  CompletionModalProps,
 } from "./components";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
