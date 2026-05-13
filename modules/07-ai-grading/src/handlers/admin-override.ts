@@ -108,6 +108,16 @@ export async function handleAdminOverride(
 
     // G3.D: audit inside the same tx so grading INSERT and audit_log INSERT
     // commit or roll back atomically (atomicity fix — was out-of-tx before G3.D).
+    //
+    // PII policy (2026-05-13 follow-up, Sonnet review V8):
+    //   override_reason is free-text admin input and may contain candidate
+    //   PII, HR context, or sensitive business detail. The full text is
+    //   preserved in gradings.override_reason (the immutable D8-INSERT row);
+    //   the audit row carries IDs/scores/status but NOT the reason text.
+    //   An auditor investigating "why was this overridden" pivots from
+    //   audit_log.entity_id → gradings.id → reads the reason from the row.
+    //   This keeps audit_log free of unbounded free-text PII while
+    //   preserving forensic traceability through the FK chain.
     await auditInTx(client, {
       tenantId,
       actorKind: "user",
@@ -121,7 +131,7 @@ export async function handleAdminOverride(
         score_earned: newRow.score_earned,
         score_max: newRow.score_max,
         status: newRow.status,
-        override_reason: override.reason,
+        // override_reason intentionally OMITTED — see PII policy comment above.
       },
     });
 

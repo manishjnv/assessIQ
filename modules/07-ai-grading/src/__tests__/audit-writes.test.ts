@@ -75,6 +75,9 @@ vi.mock("@assessiq/audit-log", async () => {
 import { ACTION_CATALOG } from "@assessiq/audit-log";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { handleAdminClaimAttempt } from "../handlers/admin-claim-release.js";
+import { handleAdminAccept } from "../handlers/admin-accept.js";
+import { handleAdminOverride } from "../handlers/admin-override.js";
+import type { GradingProposal } from "../types.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HANDLERS_DIR = join(HERE, "..", "handlers");
@@ -243,6 +246,44 @@ describe("07-ai-grading G3.D audit-write coverage", () => {
     const matches = src.match(bareAuditCall) ?? [];
     // The regex above is a heuristic; a 0-match assertion is the load-bearing one.
     expect(matches.length).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. PII regression guard (Sonnet V9 + GLM V9 from the 2026-05-13
+  //    follow-up adversarial review). The full override_reason text lives in
+  //    gradings.override_reason (D8 immutable row); it MUST NOT also be
+  //    placed in the audit_log.after payload because the audit table is
+  //    durable, REVOKE-protected, and broadly indexed for compliance queries
+  //    that auditors run without need-to-know of candidate PII.
+  //
+  //    This is a static-source check: it grep the auditInTx call block in
+  //    admin-override.ts and asserts override_reason is not a key. A future
+  //    PR adding override_reason back would silently re-open the leak — both
+  //    reviewers flagged that the policy comment alone is insufficient
+  //    defense. This test is the third defense layer (alongside the inline
+  //    code comment and docs/11-observability.md §29.1).
+  // -------------------------------------------------------------------------
+
+  it("admin-override.ts auditInTx after-payload does NOT include override_reason (PII policy)", async () => {
+    const src = await readFile(
+      join(HANDLERS_DIR, "admin-override.ts"),
+      "utf-8",
+    );
+    // Find the auditInTx call block. We assume exactly one such call per the
+    // expectedCallCount=1 invariant above; if that changes, the slice below
+    // becomes ambiguous and this assertion must be revisited.
+    const auditCallStart = src.indexOf("auditInTx(");
+    expect(auditCallStart).toBeGreaterThan(-1);
+    // Slice from auditInTx( to the next bare `});` (closes the after object + call).
+    const afterAuditStart = src.slice(auditCallStart);
+    const callBlockEnd = afterAuditStart.indexOf("});");
+    expect(callBlockEnd).toBeGreaterThan(-1);
+    const callBlock = afterAuditStart.slice(0, callBlockEnd);
+    // Hard assertion: the literal `override_reason:` MUST NOT appear as a key
+    // inside the auditInTx call block. Comments mentioning override_reason in
+    // the policy explanation are fine because they appear BEFORE auditInTx(
+    // and so are not in the call-block slice.
+    expect(callBlock).not.toMatch(/\boverride_reason\s*:/);
   });
 });
 
@@ -571,5 +612,186 @@ describe("07-ai-grading G3.D audit writes — live integration (handleAdminClaim
     // rolled back when auditInTx threw, undoing the UPDATE
     const status = await readAttemptStatus(ATTEMPT_ID);
     expect(status).toBe("submitted");
+  });
+});
+
+// ===========================================================================
+// Section B (continued) — atomicity proofs for admin-override + admin-accept
+//
+// 2026-05-13 follow-up: the original Section B only proved atomicity on
+// handleAdminClaimAttempt. The Sonnet adversarial review (V10) flagged these
+// two handlers as the highest-priority gaps:
+//   - admin-override: highest regression risk — it was the out-of-tx fire-
+//     and-forget audit() site before G3.D, so a future refactor undoing the
+//     atomicity fix is a structurally plausible regression vector.
+//   - admin-accept:  highest compliance weight — implements D8's "accept
+//     before commit" invariant. A graded attempt without the corresponding
+//     audit row would be a load-bearing compliance hole.
+//
+// Both tests inject a one-shot auditInTx throw and assert the domain
+// mutation (gradings INSERT, attempts status flip) rolls back in lockstep.
+// ===========================================================================
+
+/** Read the questionId seeded by seedMinimalAttempt for the active ATTEMPT_ID. */
+async function readSeededQuestionId(attemptId: string): Promise<string> {
+  return withSuperClient(async (c) => {
+    const r = await c.query<{ question_id: string }>(
+      `SELECT question_id FROM attempt_questions WHERE attempt_id = $1 LIMIT 1`,
+      [attemptId],
+    );
+    if (r.rows[0] === undefined) {
+      throw new Error(`No attempt_questions row for attempt ${attemptId}`);
+    }
+    return r.rows[0].question_id;
+  });
+}
+
+/** Direct INSERT into gradings (test-only, bypasses RLS via superuser). */
+async function seedGradingRow(input: {
+  tenantId: string;
+  attemptId: string;
+  questionId: string;
+  adminId: string;
+}): Promise<string> {
+  const gradingId = randomUUID();
+  await withSuperClient(async (c) => {
+    await c.query(
+      `INSERT INTO gradings (
+         id, tenant_id, attempt_id, question_id, grader,
+         score_earned, score_max, status,
+         anchor_hits, reasoning_band, ai_justification, error_class,
+         prompt_version_sha, prompt_version_label, model,
+         escalation_chosen_stage, graded_by, override_of, override_reason
+       ) VALUES (
+         $1, $2, $3, $4, 'ai',
+         8, 10, 'correct',
+         '[]'::jsonb, 3, 'Original AI justification', null,
+         'anchors:aaaaaaaa;band:bbbbbbbb;escalate:-',
+         'v1', 'haiku-4.5+sonnet-4.6',
+         '2', $5, null, null
+       )`,
+      [gradingId, input.tenantId, input.attemptId, input.questionId, input.adminId],
+    );
+  });
+  return gradingId;
+}
+
+async function countOverrideGradings(originalId: string): Promise<number> {
+  return withSuperClient(async (c) => {
+    const r = await c.query<{ n: string }>(
+      `SELECT COUNT(*)::text AS n FROM gradings WHERE override_of = $1`,
+      [originalId],
+    );
+    return Number(r.rows[0]?.n ?? 0);
+  });
+}
+
+async function countGradingsForAttempt(attemptId: string): Promise<number> {
+  return withSuperClient(async (c) => {
+    const r = await c.query<{ n: string }>(
+      `SELECT COUNT(*)::text AS n FROM gradings WHERE attempt_id = $1`,
+      [attemptId],
+    );
+    return Number(r.rows[0]?.n ?? 0);
+  });
+}
+
+describe("07-ai-grading G3.D audit writes — live integration (handleAdminOverride)", () => {
+  it("atomicity: when auditInTx throws, the override gradings INSERT rolls back", async () => {
+    // Seed an existing 'ai' gradings row for the admin to override
+    const questionId = await readSeededQuestionId(ATTEMPT_ID);
+    const originalGradingId = await seedGradingRow({
+      tenantId: TENANT_ID,
+      attemptId: ATTEMPT_ID,
+      questionId,
+      adminId: ADMIN_ID,
+    });
+
+    // Sanity: zero override rows exist for this original to start
+    expect(await countOverrideGradings(originalGradingId)).toBe(0);
+
+    // Inject one-shot failure — auditInTx throws inside the withTenant tx
+    injectAuditFailure = new Error("audit write injection failure — override path");
+
+    await expect(
+      handleAdminOverride({
+        tenantId: TENANT_ID,
+        userId: ADMIN_ID,
+        gradingId: originalGradingId,
+        override: {
+          score_earned: 3,
+          reason: "Admin disagreed with AI band classification (test injection)",
+        },
+      }),
+    ).rejects.toThrow(/audit write injection failure — override path/);
+
+    // The override INSERT must NOT have committed. Zero rows with
+    // override_of=originalGradingId means the withTenant tx rolled back
+    // both the gradings INSERT and the (failed) audit INSERT in lockstep.
+    expect(await countOverrideGradings(originalGradingId)).toBe(0);
+
+    // Cleanup: remove the seeded original so it doesn't interfere with later tests
+    await withSuperClient((c) =>
+      c.query(`DELETE FROM gradings WHERE id = $1`, [originalGradingId]),
+    );
+  });
+});
+
+describe("07-ai-grading G3.D audit writes — live integration (handleAdminAccept)", () => {
+  it("atomicity: when auditInTx throws, ALL gradings INSERTs + attempts UPDATE roll back", async () => {
+    // Move the attempt into a gradeable state
+    await withSuperClient((c) =>
+      c.query(
+        `UPDATE attempts SET status = 'pending_admin_grading' WHERE id = $1`,
+        [ATTEMPT_ID],
+      ),
+    );
+    // Clear any previously-committed gradings so the count assertion is clean
+    await withSuperClient((c) =>
+      c.query(`DELETE FROM gradings WHERE attempt_id = $1`, [ATTEMPT_ID]),
+    );
+    expect(await countGradingsForAttempt(ATTEMPT_ID)).toBe(0);
+
+    const questionId = await readSeededQuestionId(ATTEMPT_ID);
+
+    const proposal: GradingProposal = {
+      attempt_id: ATTEMPT_ID,
+      question_id: questionId,
+      anchors: [{ anchor_id: "a1", hit: true }],
+      band: {
+        reasoning_band: 3,
+        ai_justification: "Solid reasoning, minor gap on edge case",
+      },
+      score_earned: 7,
+      score_max: 10,
+      prompt_version_sha: "anchors:11111111;band:22222222;escalate:-",
+      prompt_version_label: "v1",
+      model: "haiku-4.5+sonnet-4.6",
+      escalation_chosen_stage: "2",
+      generated_at: new Date().toISOString(),
+    };
+
+    // Inject one-shot failure — auditInTx throws AFTER the N gradings INSERTs
+    // and the attempts UPDATE have already run inside the same withTenant tx.
+    // The whole tx must roll back: zero gradings rows, attempt still
+    // 'pending_admin_grading'.
+    injectAuditFailure = new Error("audit write injection failure — accept path");
+
+    await expect(
+      handleAdminAccept({
+        tenantId: TENANT_ID,
+        userId: ADMIN_ID,
+        attemptId: ATTEMPT_ID,
+        proposals: [proposal],
+      }),
+    ).rejects.toThrow(/audit write injection failure — accept path/);
+
+    // Load-bearing invariant: NO gradings row may have landed. A committed
+    // gradings row without the corresponding audit row would be a
+    // compliance hole — the D8 accept-before-commit receipt would be missing.
+    expect(await countGradingsForAttempt(ATTEMPT_ID)).toBe(0);
+
+    // The attempts UPDATE (`status='graded'`) must also have rolled back
+    expect(await readAttemptStatus(ATTEMPT_ID)).toBe("pending_admin_grading");
   });
 });
