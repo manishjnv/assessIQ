@@ -102,10 +102,14 @@ interface RateLimitOptions {
   // object exists so a future per-route override can pass tighter limits.
   authPathPrefix?: string; // default "/api/auth/"
 
-  // When true, a verified admin or reviewer session (role IN {admin,reviewer}
-  // AND totpVerified === true) bypasses the per-IP bucket on this middleware
-  // instance. The per-user (60/min) and per-tenant (600/min) buckets still
-  // apply even when the IP bucket is skipped.
+  // When true, an admin or reviewer session bypasses the per-IP bucket on this
+  // middleware instance. The TOTP-verified requirement mirrors requireAuth's
+  // MFA gating (see middleware/require-auth.ts:30-39):
+  //   - MFA_REQUIRED=true  → role IN {admin,reviewer} AND totpVerified===true
+  //   - MFA_REQUIRED=false → role IN {admin,reviewer}  (TOTP gate is dormant)
+  // The per-user (60/min) and per-tenant (600/min) buckets still apply even
+  // when the IP bucket is skipped, so a compromised admin session is still
+  // capped at 60 req/min from the affected user_id.
   //
   // This flag is set CODE-SIDE in rateLimitMiddleware(opts) — it is NEVER read
   // from req.headers, req.query, req.body, or req.params. A request cannot
@@ -125,10 +129,16 @@ interface RateLimitOptions {
   allowVerifiedAdminBypass?: boolean;
 }
 
-// Three conditions that must ALL be true for the per-IP bypass to fire.
+// Conditions that must ALL be true for the per-IP bypass to fire.
 // (a) The route was explicitly opted in (code-set flag, never request input).
 // (b) The request carries a valid session with role in the allowlist.
-// (c) The session has completed TOTP (strict === true, not truthy coercion).
+// (c) MFA gate (mirrors requireAuth):
+//       MFA_REQUIRED=true  → session.totpVerified === true (strict)
+//       MFA_REQUIRED=false → no TOTP check (gate is dormant globally)
+//     The two-state predicate avoids the dead-bypass trap that locked out
+//     Google-SSO admins pre-2026-05-13: when MFA_REQUIRED=false, no session
+//     ever sets totpVerified=true, so a strict ===true check meant the
+//     bypass NEVER fired and every admin login was capped at 10/min/IP.
 //
 // The bypass is evaluated PER REQUEST — no module-level caching of bypass
 // decisions. Two subsequent requests from the same IP are evaluated
@@ -139,8 +149,10 @@ function shouldBypassIpBucket(req: AuthRequest, allowBypass: boolean): false | "
   if (req.session === undefined) return false;
   const role = req.session.role;
   if (!BYPASS_ROLES.has(role)) return false;
-  // Strict === true: rejects false, undefined, null, 1, "true", etc.
-  if (req.session.totpVerified !== true) return false;
+  // Mirror requireAuth's MFA gate: when MFA is opt-in (the early-stage
+  // default), the TOTP check is dormant. Strict === true rejects false,
+  // undefined, null, 1, "true", etc. when the gate IS active.
+  if (config.MFA_REQUIRED && req.session.totpVerified !== true) return false;
   // Return the validated role so the caller can emit the sanitized header.
   return role as "admin" | "reviewer";
 }
