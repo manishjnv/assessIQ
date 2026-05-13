@@ -4,7 +4,7 @@
 
 **Commits:**
 - `3b7e2d9` — feat(admin-dashboard): UI v1.1 Phase 5 — dashboard + shell refresh
-- `<sha2>` — docs(session): UI v1.1 Phase 5 — admin dashboard + shell handoff _(this commit)_
+- `d4abc86` — docs(session): UI v1.1 Phase 5 — admin dashboard + shell handoff
 
 **Tests:** typecheck clean across `modules/10-admin-dashboard`, `apps/web`, `modules/17-ui-system`. Zero hex colors, px/rem literals, or secrets in diff.
 
