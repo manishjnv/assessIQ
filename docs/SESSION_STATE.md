@@ -1,3 +1,42 @@
+# Session — 2026-05-13 (UI v1.1 Phase 3b — activity primitives)
+
+**Headline:** Phase 3b of the UI kit v1.1 port shipped. Three new typed primitives — `ActivityHeatmap` (52×7 GitHub-style intensity grid), `StackedBarChart` (pure-div multi-series), `LeaderboardList` (semantic `<ol>` rank rows) — are live in `@assessiq/ui-system` and deployed to production. Same parallel-Sonnet dispatch pattern as Phase 3a; one `axe(container)` assertion per primitive. CSS bundle flipped `B86xf8od` → `CkROALr7` (16,347 bytes raw) with five new `--aiq-color-heatmap-{0..4}` tokens. Activity-feature track (Phases 9–12) is now unblocked on the primitives side.
+
+**Commits:**
+
+- `21a5481` — feat(ui-system): Phase 3b — activity primitives (13 files, +1245/-8)
+
+**Tests:** 36/36 green (`pnpm -C modules/17-ui-system test`). Per-primitive coverage: ActivityHeatmap 7, StackedBarChart 6, LeaderboardList 6 — each suite includes one `vitest-axe` assertion. Typecheck clean across `modules/17-ui-system` AND downstream `apps/web` (no consumer wiring yet — Phase 3 is package-only).
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated on `assessiq-vps`. Image SHA `12d34aabb583`. Container healthy in ≤30s. Production CSS bundle hash flipped `B86xf8od` → `CkROALr7` (16,347 bytes raw, ~+200 bytes from the five new heatmap tokens). All 5 `--aiq-color-heatmap-{0..4}` tokens curl-verified in the live bundle with correct OKLCH values (`heatmap-0` → `var(--aiq-color-bg-sunken)` so dark mode auto-tracks; `heatmap-1..4` → explicit OKLCH stops on hue 258 matching `--aiq-color-accent`).
+
+**What's NOT in this commit (intentional):**
+
+- No consumer wiring in `apps/web/**`. The components are package-exported only; `/admin/activity` + `/candidate/activity` pages land in Phases 11–12 (depend on Phase 9–10 backend endpoints).
+- No Storybook story coverage backfill for the previously-shipped ScoreRing/Sparkline/StatCard/Sidebar; Chip.warn story still missing. Deferred to Phase 14 per the port plan.
+
+**Posture note (intentional kit deviations):**
+
+- **Chart palette mismatch.** `StackedBarChart` + `LeaderboardList` default to `--aiq-color-chart-{1..8}` (the production Google-brand-anchored palette shipped in Phase 2d), NOT the kit's hardcoded `ACT_COLORS` hex array (Tailwind-anchored: `#1a73e8 #10b981 #f59e0b #8b5cf6 ...`). The two palettes intentionally differ — slots 3/4/5/7/8 disagree. Tokens win because palette swaps belong in tokens.css, not in component code, and a future tenant-accent or rebrand will flip both StatCard and StackedBarChart together.
+- **LeaderboardList avatar opacity fix.** The kit nests the inner 12×12 solid dot inside the outer 32×32 ring with `opacity: 0.18`, which cascades opacity and makes the dot semi-transparent too. Production splits them: outer is `position: absolute; inset: 0` with the 0.18 opacity; inner dot is `position: relative` at full opacity. Visually equivalent to the kit's intent, not its literal implementation.
+
+**Next:** (1) **Phase 9 — Activity backend endpoints** (`/api/admin/activity/*`) — highest-payoff next move now that 3b primitives are package-ready. (2) **Phase 11 — Admin Activity page wire** composes 3 StatCards with breakdown + ActivityHeatmap + StackedBarChart + LeaderboardList against the Phase 9 endpoints. (3) **Phase 14 Storybook gap-fill** — stories for ScoreRing/Sparkline/StatCard/Sidebar + Chip.warn + axe assertions for older primitives. (4) Resume priority backlog from prior handoffs — MFA enrollment UX before flipping `MFA_REQUIRED=true`, Stage 3.1 default-flip, R2 sentinel rewrite, `schema_migrations` backfill, `override_reason` PII retention policy, G3.D rollback-injection followup tests.
+
+**Open questions:** none for this slice. The chart-palette mismatch decision is documented above and in commit body; no further sign-off needed.
+
+**Posture note (axe a11y wiring):** Phase 3a's precedent (one `axe(container)` per primitive) held. Cumulative coverage: 6 primitives, 36 tests, 6 axe assertions. The remaining older primitives (Button, Card, Chip, Field, Icon, Logo, Num, ScoreRing, Sidebar, Sparkline, StatCard) still have zero axe coverage — Phase 14 cross-cut.
+
+---
+
+## Agent utilization
+
+- Opus: orchestrated; Phase 0 reads (PROJECT_BRAIN, SESSION_STATE, branding-guideline §0/§10/§13, 08-ui-system Phase 3a section, activity.jsx, Spinner.{tsx,test,stories}, StatCard, tokens.css, index.ts); wrote the heatmap color tokens (`--aiq-color-heatmap-{0..4}`) myself in tokens.css before dispatch to avoid the three-agents-race-on-shared-files problem from Phase 3a; Phase 3 diff review caught one revision (`fontFamily: "monospace"` → `var(--aiq-font-mono)` in LeaderboardList — 3 lines, hot cache, self-executed); wrote barrel exports, SKILL.md + 08-ui-system.md updates (incl. an MD029 fix on a stale ordinal list); commit (noreply env-var pattern), push, VPS git pull, frontend rebuild + force-recreate, CSS curl-verify, this handoff.
+- Sonnet: 3 parallel calls — one per primitive (`ActivityHeatmap`, `StackedBarChart`, `LeaderboardList`). Each subagent received file paths, exact prop contract, kit source line range, Phase 3a precedent files to mirror, test boilerplate, axe requirement, anti-pattern guards (no chart libs, no kit imports, production tokens NOT kit hex array), and report format. All 3 reported back with diffs + typecheck/test verification passing.
+- Haiku: n/a — post-deploy verification was a single `curl + grep` for the five new heatmap token signatures and the bundle-hash flip; below the bulk-sweep threshold.
+- codex:rescue: n/a — `modules/17-ui-system` is NOT on the CLAUDE.md load-bearing-paths list; component code is non-security-adjacent, no adversarial gate required.
+
+---
+
 # Session — 2026-05-13 (G3.D: 07-ai-grading audit-write slice — last G3.D target closed)
 
 **Headline:** Closed the final G3.D target. All 5 admin-mutating handlers in [modules/07-ai-grading](../modules/07-ai-grading/SKILL.md) now write one `audit_log` row inside the same `withTenant` transaction as the domain mutation via `auditInTx(...)`. 8 audit sites total. Catalog adds 4 new actions; pre-existing `grading.override` (atomicity FIX — moved from fire-and-forget `audit()` to in-tx) and `grading.retry` are reused. Sonnet + GLM-4.6 dual adversarial review.
