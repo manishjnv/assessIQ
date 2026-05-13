@@ -1,6 +1,6 @@
 ---
 name: generate-log-analysis
-version: "2026-05-12a"
+version: "2026-05-13a"
 model: claude-sonnet-4-6
 description: |
   Generate log_analysis questions with realistic synthetic log excerpts grounded
@@ -138,6 +138,22 @@ Field synonyms that are FORBIDDEN — do not use any of these:
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
+
+## ⚠ DO NOT — omit required content fields (seen in production)
+
+Attempt 019e1eef contains a submission where `log_format`,
+`expected_findings`, `sample_solution`, and `hint` were ALL absent
+from `content`. Only `question` and `log_excerpt` were present —
+as if producing a subjective question, not a log_analysis question.
+
+All 6 content fields are REQUIRED for log_analysis. Missing any
+one causes rejection:
+  `question`, `log_format`, `log_excerpt`, `expected_findings`,
+  `sample_solution`, `hint`
+
+Do NOT put rubric data or extra keys inside `content`. The Zod
+schema is `.strict()` — any unknown key is rejected alongside the
+missing required fields.
 
 `log_format` VALID VALUES — must be EXACTLY one of these four strings:
 

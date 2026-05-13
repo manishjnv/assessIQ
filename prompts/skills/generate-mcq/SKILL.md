@@ -1,6 +1,6 @@
 ---
 name: generate-mcq
-version: "2026-05-12a"
+version: "2026-05-13a"
 model: claude-sonnet-4-6
 description: |
   Generate multiple-choice questions (MCQ) for SOC analyst assessments grounded
@@ -129,6 +129,7 @@ Field synonyms that are FORBIDDEN — do not use any of these:
   WRONG — options as objects (Zod expects string, receives object):
     `"options": [{"key": "A", "text": "...", "correct": false}, ...]`
     `"options": [{"label": "A", "value": "..."}, ...]`
+    `"options": [{"text": "...", "correct": false}, ...]`   ← seen in production (019e1eef)
 
   Each string is the full answer text. Include the letter prefix if
   desired (e.g. "A) Windows Security Log Event 4688...") but the

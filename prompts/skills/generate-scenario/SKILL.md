@@ -1,6 +1,6 @@
 ---
 name: generate-scenario
-version: "2026-05-12a"
+version: "2026-05-13a"
 model: claude-sonnet-4-6
 description: |
   Generate multi-step scenario questions for SOC analyst assessments grounded
@@ -161,11 +161,13 @@ Each step has exactly TWO fields — `prompt` and `expected`.
   complete sentence (NOT an index, NOT a multi-choice list).
 
 Forbidden keys inside step objects (Zod .strict() will reject):
-  `id`, `type`, `step`, `options`, `correct`, `correct_answer`, `answer`, `choices`
+  `id`, `type`, `step`, `options`, `correct`, `correct_answer`, `answer`, `choices`, `question`
 
 NEVER write steps as plain strings:  WRONG: "steps": ["Do this", "Then do that"]
 NEVER add an `id` key to a step:     WRONG: {"id": "step_1", "prompt": "...", "expected": "..."}
 NEVER omit `expected`:               WRONG: {"prompt": "What should you do?"}
+NEVER use `question` instead of `prompt` in a step:
+                                     WRONG: {"step": 1, "question": "What is your first action?", "expected": "..."}
 
 DO NOT structure content like any of these (all fail Zod):
 
@@ -214,6 +216,23 @@ Use this exact shape every time:
   ]
 }
 ```
+
+## ⚠ REPEATED VIOLATIONS from production (attempt 019e1eef)
+
+These field names appeared across two separate rejected submissions.
+They are NOT valid at any level of the scenario schema:
+
+  At `content` level:
+    `scenario_text` (use `intro`), `tasks` (use `steps`),
+    `artifacts_provided` (not a valid field — omit entirely)
+
+  Inside each `steps` element:
+    `step` (step number as integer — not a valid key),
+    `question` (use `prompt`)
+
+A step object has EXACTLY TWO keys: `prompt` and `expected`. Any
+other key — including `step`, `id`, `type`, or `question` — causes
+Zod .strict() rejection.
 
 If submit_questions is rejected with "unrecognized key(s)" or
 "Required", read the error path, correct ONLY the named field(s),

@@ -1,6 +1,6 @@
 ---
 name: generate-kql
-version: "2026-05-12a"
+version: "2026-05-13a"
 model: claude-sonnet-4-6
 description: |
   Generate KQL (Kusto Query Language) questions for SOC analyst assessments
@@ -174,6 +174,24 @@ Use this exact shape — `question`, `tables`, `expected_keywords`, `sample_solu
 
 If you find yourself wanting to rename a field for clarity, DON'T.
 The field names are the contract.
+
+## ⚠ DO NOT — wrong `tables` shapes from production (attempt 019e1eef)
+
+All three shapes below were submitted across retries and all were rejected.
+Use ONLY a plain string array.
+
+  Wrong 1 — `tables` as an object keyed by column schema:
+    `"tables": {"SecurityEvent": {"EventID": "int", "TimeGenerated": "datetime"}}`
+
+  Wrong 2 — `tables` as an array of objects with name + columns:
+    `"tables": [{"name": "SecurityEvent", "columns": [{"name": "EventID", "type": "int"}]}]`
+
+  Wrong 3 — all required content keys replaced by non-existent synonyms:
+    `"content": {"scenario": "...", "task": "...", "schema": {...}, "solution": "...", "hints": [...]}`
+
+CORRECT — `tables` is always a plain array of table-name strings:
+  `"tables": ["SecurityEvent"]`
+  `"tables": ["SecurityEvent", "DeviceProcessEvents"]`
 
 If submit_questions is rejected, read the error path, correct
 ONLY the named field(s), include the FULL questions array, and

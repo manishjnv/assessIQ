@@ -1,6 +1,6 @@
 ---
 name: generate-subjective
-version: "2026-05-12a"
+version: "2026-05-13a"
 model: claude-sonnet-4-6
 description: |
   Generate open-ended subjective questions for SOC analyst assessments grounded
@@ -191,6 +191,16 @@ Reason directly from the prompt and call submit_questions exactly
 once with the full array of generated questions.
 
 Call `submit_questions` exactly once. No other tool calls.
+
+## ⚠ DO NOT call `submit_rubric`
+
+`submit_rubric` is a separate skill that runs AFTER this one as a
+downstream step. It does not exist at this stage of the pipeline.
+Calling `submit_rubric` instead of `submit_questions` produces a
+`generation.submit_tool.missing` error — the generation is lost
+and must be retried from scratch.
+
+Your ONLY tool call is `submit_questions`.
 
 ---
 
