@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (UI v1.1 Phase 5 — admin dashboard + shell)
+
+**Headline:** Refreshed admin dashboard page and AdminShell sidebar against kit `screens/dashboard.jsx` — greeting header, 3-card KPI row, section headers in sidebar, user card footer slot.
+
+**Commits:**
+- `3b7e2d9` — feat(admin-dashboard): UI v1.1 Phase 5 — dashboard + shell refresh
+- `<sha2>` — docs(session): UI v1.1 Phase 5 — admin dashboard + shell handoff _(this commit)_
+
+**Tests:** typecheck clean across `modules/10-admin-dashboard`, `apps/web`, `modules/17-ui-system`. Zero hex colors, px/rem literals, or secrets in diff.
+
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated; healthy ≤10s. VPS HEAD = `3b7e2d9`.
+
+**Next:** Phase 6a (candidate take flow — TokenLanding/Submitted/Expired/Error) OR Phase 11 (Admin Activity page wire, depends on P9 ✅).
+
+**Open questions:**
+- Kit "Continue where you left off", "Performance" sparkline, and "Recommended" sections dropped — no admin-side data from the queue endpoint. Can be wired if a richer `/api/admin/dashboard/stats` endpoint ships later (Phase 7/8 territory).
+- 4th stat card ("Time saved via auto-grading") needs an AI grading stats endpoint — deferred.
+
+---
+
+## Agent utilization
+- Opus: n/a — Sonnet session.
+- Sonnet: Step 1 parallel reads (11 files); Step 2 plan; Step 3 self-executed edits (dashboard.tsx full rewrite + 3 targeted AdminShell edits, all in hot cache); Steps 4–8 verification, commit, deploy, docs, handoff.
+- Haiku: n/a.
+- codex:rescue: n/a — `modules/10-admin-dashboard` not on load-bearing-paths list; pure visual composition, no auth/crypto/classifier surface.
+
+---
+
 # Session — 2026-05-13 (Phase 9 DoD verification + port-plan ✅ mark)
 
 **Headline:** Verification session — confirmed Phase 9 Admin Activity backend fully satisfies Definition of Done (all 4 steps: commit ✅, deploy ✅, document ✅, handoff ✅). Only gap found: `docs/plans/UI_KIT_V1_1_PORT.md` Phase 9 header had no ✅ marker and the phasing summary had no progress tracker. Fixed in `ae672d4`. VPS confirmed at `d083646` (container healthy). All 88 tests green. Docs/03-api-contract.md + SKILL.md D5–D9 confirmed present from prior session.

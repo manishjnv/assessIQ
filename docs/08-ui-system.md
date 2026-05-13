@@ -278,6 +278,33 @@ ARIA: `ActivityHeatmap` and `StackedBarChart` are `role="img"` with `aria-label`
 
 The new components are exported from `@assessiq/ui-system` and ready for Phases 11 (admin `/activity`) + 12 (candidate `/activity`) page consumers.
 
+---
+
+What's live (UI v1.1 Phase 5 — 2026-05-14):
+
+Admin dashboard + AdminShell sidebar refresh. Commit `3b7e2d9`. Source: [`AssessIQ_UI_Template/screens/dashboard.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/dashboard.jsx).
+
+**What was composed:**
+
+| File | Change | Kit source |
+| --- | --- | --- |
+| `modules/10-admin-dashboard/src/pages/dashboard.tsx` | Page header: mono date meta line + serif h1 greeting (dynamic time-of-day phrase + display name from session email) + CTA buttons (Refresh, New assessment). Stat row: 3 `StatCard` tiles in `repeat(3, 1fr)` grid derived from queue status counts ("In queue", "Submitted", "Awaiting review"). Grading queue table preserved as primary work surface. | `screens/dashboard.jsx` header region + stat row |
+| `modules/10-admin-dashboard/src/components/AdminShell.tsx` | Imported `SidebarSection` (Phase 2e, already in package). Split flat nav into "Workspace" group (Dashboard → Users) and "Account" group (Help guide + Settings) with `<SidebarSection>` eyebrow headers. Added user card `footer` slot to `<Sidebar>` — avatar initial (accent-bg circle), display name, role label. | `screens/dashboard.jsx` sidebar sections + footer slot |
+
+**Kit elements dropped (no admin-side data from queue endpoint):**
+
+| Kit section | Why dropped |
+| --- | --- |
+| "Continue where you left off" | Candidate-context in-progress assessments — no equivalent admin data from `/admin/dashboard/queue` |
+| "Performance" sparkline card | Requires time-series data — queue endpoint returns status snapshot only, no historical points |
+| "Recommended for you" grid | AI-recommendation context for candidates; no admin equivalent planned |
+| `StatCard.breakdown` prop | Would need categorical breakdown data (e.g. by domain); queue items have only status |
+| 4th stat card | Kit's "Time saved via auto-grading" derives from AI grading stats; no endpoint for it yet |
+
+**Token decisions:** All tokens already present from Phases 1–3. No new tokens added. `fontSize: 10` (bare numeric, not `"10px"`) used for role label — smallest mono size, no `--aiq-text-xxs` token exists; matches the existing `SidebarSection` pattern.
+
+**Verification:** `pnpm -C modules/10-admin-dashboard typecheck` ✓, `pnpm -C apps/web typecheck` ✓, `pnpm -C modules/17-ui-system typecheck` ✓. Zero hex colors in diff. Zero `px`/`rem` string literals in diff. Zero secrets. `assessiq-frontend` healthy on VPS; `/admin/dashboard` → HTTP 200.
+
 What still needs to happen, on demand as later v1.1 phases land:
 
 1. **Phase 4–8 — Page refreshes** against kit screens (auth, dashboard, take flow, list pages, results/reports).

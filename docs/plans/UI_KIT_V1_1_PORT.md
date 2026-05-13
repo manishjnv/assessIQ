@@ -8,7 +8,7 @@
 
 **Phasing summary:** 14 phases, ~14–18 sessions of work. Phase 1 is the highest-impact-per-line session (7 token value changes ripple visible darker-text identity across all 25+ existing pages). Phases 9–12 (Activity feature) can be parallelized with Phases 5–8 (page refresh) since they touch independent code.
 
-**Progress:** ✅ P1 (tokens) · ✅ P2 (atoms) · ✅ P3a (Spinner/Icon) · ✅ P3b (Activity primitives) · ✅ P4 (auth flows) · ✅ P9 (admin activity backend) — 6 of 14 complete. Next: P5 (admin dashboard) or P11 (admin Activity wire, depends on P9 ✅).
+**Progress:** ✅ P1 (tokens) · ✅ P2 (atoms) · ✅ P3a (Spinner/Icon) · ✅ P3b (Activity primitives) · ✅ P4 (auth flows) · ✅ P5 (admin dashboard + shell) · ✅ P9 (admin activity backend) — 7 of 14 complete. Next: P6a (candidate take flow) or P11 (admin Activity wire, depends on P9 ✅).
 
 ---
 
@@ -254,7 +254,7 @@ For each: read the current implementation, read `kit/screens/login.jsx` and the 
 
 ---
 
-## Phase 5 — Admin dashboard + shell (1 session)
+## Phase 5 — Admin dashboard + shell ✅ SHIPPED (3b7e2d9)
 
 ### What to implement
 Refresh `modules/10-admin-dashboard/src/pages/dashboard.tsx` against `kit/screens/dashboard.jsx`. The kit dashboard shows:
