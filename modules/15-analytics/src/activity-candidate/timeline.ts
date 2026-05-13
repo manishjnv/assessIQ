@@ -2,7 +2,7 @@
 //
 // Phase 10 — GET /api/me/activity/timeline
 //
-// Returns the calling candidate's weekly activity timeline. Mirrors the Phase 9
+// Returns the calling candidate weekly activity timeline. Mirrors the Phase 9
 // admin timeline with an added user_id filter on the attempt_summary_mv query.
 //
 // Data source: attempt_summary_mv JOIN question_packs.
