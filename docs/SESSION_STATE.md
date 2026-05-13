@@ -1,3 +1,29 @@
+# Session — 2026-05-13 (Phase 9 DoD verification + port-plan ✅ mark)
+
+**Headline:** Verification session — confirmed Phase 9 Admin Activity backend fully satisfies Definition of Done (all 4 steps: commit ✅, deploy ✅, document ✅, handoff ✅). Only gap found: `docs/plans/UI_KIT_V1_1_PORT.md` Phase 9 header had no ✅ marker and the phasing summary had no progress tracker. Fixed in `ae672d4`. VPS confirmed at `d083646` (container healthy). All 88 tests green. Docs/03-api-contract.md + SKILL.md D5–D9 confirmed present from prior session.
+
+**Commits:**
+
+- `ae672d4` — docs(plans): mark Phase 9 ✅ in UI_KIT_V1_1_PORT.md
+
+**Tests:** 88/88 green (reconfirmed; no code change in this session).
+
+**Deploy:** n/a — docs-only commit (`ae672d4`). VPS remains at `d083646` (last code commit). Container `assessiq-api` healthy at session start (confirmed via SSH).
+
+**Next:** **Phase 11 — Admin Activity page wire** (`/admin/activity`) — P9 backend unblocked this; compose `StatCard.breakdown` + `ActivityHeatmap` + `StackedBarChart` + `LeaderboardList` against the 4 new endpoints. OR **Phase 5 — admin dashboard + shell refresh** (parallel track, no dependency on P9/P11).
+
+**Open questions:** none.
+
+---
+
+## Agent utilization
+- Opus: full session — Phase 0 warm-start reads (PROJECT_BRAIN, SESSION_STATE, RCA_LOG, SKILL.md, all 5 WIP activity files + routes.ts + index.ts + activity.test.ts header); Phase 2 deterministic gates (typecheck ✓, 88/88 tests ✓, MV lint ✓, secrets scan ✓, domain-name grep ✓); Phase 3 diff critique (all multi-tenancy guards passed — ACCEPT); discovered prior session had already committed/deployed/documented; identified port-plan ✅ as only gap; self-executed the Edit (≤5 lines across 1 file, in hot cache); commit (noreply) + push; this handoff.
+- Sonnet: n/a — no implementation work; all gates + edits within Opus hot-cache threshold (1 file, ≤5 lines).
+- Haiku: n/a — VPS verification was a single SSH command, below bulk-sweep threshold.
+- codex:rescue: n/a — docs-only change; no auth/crypto/classifier surface.
+
+---
+
 # Session — 2026-05-13 (Phase 9 leaderboard — per-pack grouping pivot)
 
 **Headline:** Follow-up to `c87cf53`. Phase 3 diff review of the original Phase 9 leaderboard caught a contract bug: SQL grouped by `(assessment_id, pack_id)` but the response shape carried only pack-level identifiers (`packId`, `packName`, `domain`) — a pack with N active assessment cycles would render N rows with identical pack names and different ranks in the Phase 11 page. User picked **option A — pivot to per-pack grouping** over the alternative of widening the response shape. Commit `d083646` flips both CTEs (`current_period` + `prior_period`) to `JOIN assessments` + `GROUP BY ass.pack_id`, LEFT JOIN on `pack_id`, and counts `DISTINCT pack_id` for `totalRanked`. Doc + SKILL.md D8 updated to match. VPS deployed; 88/88 tests still green (assertions all on pack-level fields, unchanged by the pivot).
