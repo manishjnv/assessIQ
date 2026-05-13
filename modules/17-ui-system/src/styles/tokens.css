@@ -32,8 +32,20 @@
   --aiq-color-success:       oklch(0.65 0.15 150);
   --aiq-color-success-soft:  oklch(0.97 0.03 150);
   --aiq-color-warning:       oklch(0.72 0.15 70);
+  --aiq-color-warning-soft:  oklch(0.97 0.04 70);
   --aiq-color-danger:        oklch(0.62 0.20 25);
   --aiq-color-info:          oklch(0.62 0.18 230);
+
+  /* Chart palette — used by StatCard.breakdown, StackedBarChart, Leaderboard
+   * avatars, ActivityHeatmap. Eight slots; consumers iterate by index. */
+  --aiq-color-chart-1: #1a73e8;
+  --aiq-color-chart-2: #10b981;
+  --aiq-color-chart-3: #fbbc04;
+  --aiq-color-chart-4: #ea4335;
+  --aiq-color-chart-5: #9333ea;
+  --aiq-color-chart-6: #06b6d4;
+  --aiq-color-chart-7: #f97316;
+  --aiq-color-chart-8: #64748b;
 
   /* Spacing — driven by --u so density modes rescale uniformly */
   --u: 4px;
@@ -240,6 +252,7 @@
 }
 .aiq-chip-accent  { color: var(--aiq-color-accent);  border-color: var(--aiq-color-accent-soft);  background: var(--aiq-color-accent-soft); }
 .aiq-chip-success { color: var(--aiq-color-success); border-color: oklch(0.92 0.05 150); background: var(--aiq-color-success-soft); }
+.aiq-chip-warn    { color: var(--aiq-color-warning); border-color: oklch(0.92 0.05 70);  background: var(--aiq-color-warning-soft); }
 
 /* ───────────────── Logo mark ───────────────── */
 

@@ -7,7 +7,8 @@
 //  - Uses Geist sans for labels.
 //  - Active item background is accent-soft with accent-colored text.
 //  - No box-shadow on the sidebar itself at rest.
-//  - Width 220px expanded, 56px collapsed.
+//  - Width 240px expanded, 56px collapsed (v1.1).
+//  - Supports optional <SidebarSection label="..."> headers and footer slot.
 
 import React from "react";
 import type { IconName } from "./Icon.js";
@@ -23,16 +24,19 @@ export interface SidebarProps {
   /** Callback when the collapse toggle is clicked. */
   onToggle?: () => void;
   children: React.ReactNode;
+  /** Optional footer slot rendered below the scrollable nav region — typically a user card or settings link. */
+  footer?: React.ReactNode;
   "data-test-id"?: string;
 }
 
-const SIDEBAR_EXPANDED_W = 220;
+const SIDEBAR_EXPANDED_W = 240;
 const SIDEBAR_COLLAPSED_W = 56;
 
 export function Sidebar({
   collapsed = false,
   onToggle,
   children,
+  footer,
   "data-test-id": testId,
 }: SidebarProps): React.ReactElement {
   const w = collapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_EXPANDED_W;
@@ -75,11 +79,63 @@ export function Sidebar({
       <nav style={{ flex: 1, overflowY: "auto", padding: "var(--aiq-space-xs) 0" }}>
         {children}
       </nav>
+      {footer && !collapsed && (
+        <div
+          style={{
+            borderTop: "1px solid var(--aiq-color-border)",
+            padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+            flexShrink: 0,
+          }}
+        >
+          {footer}
+        </div>
+      )}
     </aside>
   );
 }
 
 Sidebar.displayName = "Sidebar";
+
+// ---------------------------------------------------------------------------
+// SidebarSection — mono-uppercase eyebrow label between nav groups
+// ---------------------------------------------------------------------------
+
+export interface SidebarSectionProps {
+  label: string;
+  /** Whether the parent Sidebar is collapsed (hides the label, keeps spacing). */
+  collapsed?: boolean;
+}
+
+export function SidebarSection({ label, collapsed = false }: SidebarSectionProps): React.ReactElement {
+  if (collapsed) {
+    return (
+      <div
+        aria-hidden
+        style={{
+          height: 1,
+          margin: "var(--aiq-space-sm) var(--aiq-space-md)",
+          background: "var(--aiq-color-border)",
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        fontFamily: "var(--aiq-font-mono)",
+        fontSize: 10,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        color: "var(--aiq-color-fg-muted)",
+        padding: "var(--aiq-space-md) var(--aiq-space-md) var(--aiq-space-xs)",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+SidebarSection.displayName = "SidebarSection";
 
 // ---------------------------------------------------------------------------
 // NavItem
