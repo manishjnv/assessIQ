@@ -52,3 +52,17 @@ export type { DrawerProps } from "./components/Drawer.js";
 
 export { TENANT_FIXTURES } from "./fixtures/tenants.js";
 export type { TenantFixture } from "./fixtures/tenants.js";
+
+// Phase 3a primitives (UI v1.1 port)
+export { Spinner } from "./components/Spinner.js";
+export type { SpinnerProps, SpinnerSize } from "./components/Spinner.js";
+
+export { ProgressBar } from "./components/ProgressBar.js";
+export type {
+  ProgressBarProps,
+  ProgressBarVariant,
+  ProgressBarHeight,
+} from "./components/ProgressBar.js";
+
+export { Placeholder } from "./components/Placeholder.js";
+export type { PlaceholderProps } from "./components/Placeholder.js";

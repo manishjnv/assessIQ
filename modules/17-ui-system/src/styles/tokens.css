@@ -296,3 +296,69 @@
 /* ───────────────── Layout helpers ───────────────── */
 
 .aiq-divider { height: 1px; background: var(--aiq-color-border); border: 0; }
+
+/* ───────────────── Spinner (Phase 3a) ───────────────── */
+
+@keyframes aiq-spin { to { transform: rotate(360deg); } }
+
+.aiq-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--aiq-color-border);
+  border-top-color: var(--aiq-color-accent);
+  border-radius: 50%;
+  animation: aiq-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+.aiq-spinner-sm { width: 12px; height: 12px; border-width: 1.5px; }
+.aiq-spinner-lg { width: 24px; height: 24px; border-width: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .aiq-spinner { animation-duration: 1.5s; }
+}
+
+/* ───────────────── Progress bar (Phase 3a) ───────────────── */
+
+.aiq-progress-bar {
+  display: block;
+  width: 100%;
+  height: 4px;
+  background: var(--aiq-color-bg-sunken);
+  border-radius: var(--aiq-radius-pill);
+  overflow: hidden;
+}
+.aiq-progress-bar[data-height="2"] { height: 2px; }
+.aiq-progress-bar[data-height="6"] { height: 6px; }
+.aiq-progress-bar-fill {
+  height: 100%;
+  background: var(--aiq-color-accent);
+  border-radius: var(--aiq-radius-pill);
+  transition: width 0.3s ease-out;
+}
+.aiq-progress-bar-fill[data-variant="success"] { background: var(--aiq-color-success); }
+.aiq-progress-bar-fill[data-variant="fg"]      { background: var(--aiq-color-fg-primary); }
+@media (prefers-reduced-motion: reduce) {
+  .aiq-progress-bar-fill { transition: none; }
+}
+
+/* ───────────────── Placeholder (striped, Phase 3a) ───────────────── */
+
+.aiq-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--aiq-color-bg-raised) 0,
+    var(--aiq-color-bg-raised) 8px,
+    var(--aiq-color-bg-sunken) 8px,
+    var(--aiq-color-bg-sunken) 16px
+  );
+  border: 1px solid var(--aiq-color-border);
+  border-radius: var(--aiq-radius-lg);
+  font-family: var(--aiq-font-mono);
+  font-size: var(--aiq-text-xs);
+  color: var(--aiq-color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

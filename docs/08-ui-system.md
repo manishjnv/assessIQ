@@ -248,14 +248,31 @@ What's live (Phase 0 G0.B Session 3 — 2026-05-01):
 4. **Vite + React 18 + TypeScript SPA** at `apps/web/`. Token css imported via `@assessiq/ui-system/styles/tokens.css`. Tailwind installed for layout utilities only — editorial styling stays on the `aiq-*` classes; Tailwind theme reads `--aiq-font-*` and `--aiq-radius-*` from the same vars. `tsc -b && vite build` green.
 5. **Storybook 8** at `apps/storybook/` with `@storybook/react-vite`. One story per component covering the main variants. `withThemeByDataAttribute` decorators for `data-theme` and `data-density` toolbars. Stories live next to components (`<Component>.stories.tsx`).
 
-What still needs to happen, on demand as Phase 1–2 work lands:
+What's live (UI v1.1 port — 2026-05-13):
 
-1. **Phase 1 components** — `ScoreRing` (animated stroke-dashoffset fill), `Sparkline`, `QuestionNav` (8-col grid with current/answered/flagged/unseen states). Brand-signature animations (count-up + ring-fill) preserved.
-2. **Domain composites** — `QuestionCard`, `KqlEditor`, `RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard`. Map onto the existing branding idioms.
-3. **Layout primitives** — `Sidebar`, `NavItem`, `StatCard` for the sidebar+main shell.
-4. **Visual regression baseline** as components land (per `docs/08-ui-system.md` § Storybook).
-5. **Self-host fonts** if Phase 1 perf budget needs it — Phase 0 uses the Google Fonts `<link>` in `apps/web/index.html`.
-6. **Live tenant theme resolver** wired to `tenants.branding` JSONB once `02-tenancy` exposes the API.
+1. **Phase 1 — Token migration** (`b95df19`). 7 light-mode token values aligned to kit v1.1 (`--aiq-color-fg-primary` `#1a1a1a` → `#0a0a0b`, etc.) + `.aiq-serif` font-weight 400 → 500 + dark-mode hierarchy preservation.
+2. **Phase 2 — Atom refresh** (`57ddf12`). 5 component updates, all additive: `Chip` `warn` variant; `Sparkline` `<polyline vector-effect="non-scaling-stroke">` at 1.2px; `ScoreRing` 1600ms stroke-dashoffset transition; `StatCard.breakdown` prop renders stacked-bar + colored legend (uses `--aiq-color-chart-{1..8}` palette); `Sidebar` 240px width + `footer?` slot + `SidebarSection` sub-component.
+3. **Phase 3a — Easy primitives** (this commit). Three new primitives + first axe a11y wiring in the module:
+
+   | Component | Props | CSS classes | Tests |
+   | --- | --- | --- | --- |
+   | `Spinner` | `size?: "sm" \| "md" \| "lg"`, `aria-label?: string` (default `"Loading"`) | `.aiq-spinner{,-sm,-lg}` + `@keyframes aiq-spin` (`prefers-reduced-motion` slows to 1.5s) | 5 |
+   | `ProgressBar` | `value: number`, `max?: number` (default 100), `height?: 2 \| 4 \| 6` (default 4), `variant?: "accent" \| "success" \| "fg"`, `label?: string` | `.aiq-progress-bar` + `.aiq-progress-bar-fill` with `[data-height]` / `[data-variant]` selectors | 6 |
+   | `Placeholder` | `width?: number \| string`, `height?: number \| string`, `radius?: number \| string`, `caption?: string` (default `"image"`) | `.aiq-placeholder` (striped diagonal `repeating-linear-gradient`) | 6 |
+
+   ARIA: `Spinner` is `role="status" aria-live="polite"`; `ProgressBar` is `role="progressbar"` with `aria-valuenow/min/max`; `Placeholder` is `role="img"` with `aria-label` from caption. `ProgressBar` clamps `value` to `[0, max]`. `Placeholder` honors consumer `style` overrides via spread ordering.
+
+   **Test infra:** `vitest` + `vitest-axe` + `@testing-library/react` + `jsdom` added as devDeps. `vitest.config.ts` (jsdom env), `vitest.setup.ts` (axe matchers + cleanup), `src/test-setup.d.ts` (vitest-axe@0.1.0 `Vi` namespace → vitest v2 `declare module "vitest"` patch). One axe assertion per primitive — precedent for the rest of the v1.1 port (17/17 tests green).
+
+What still needs to happen, on demand as later v1.1 phases land:
+
+1. **Phase 3b — Activity primitives**: `ActivityHeatmap` (52×7 grid), `StackedBarChart` (pure SVG/divs, no chart library), `LeaderboardList` (2-col grid of rank+avatar+name+metric+delta). All sourced from `AssessIQ_UI_Template/screens/activity.jsx`.
+2. **Phase 4–8 — Page refreshes** against kit screens (auth, dashboard, take flow, list pages, results/reports).
+3. **Phase 9–12 — Activity feature** (backend endpoints + `/admin/activity` + `/candidate/activity` consumer wires).
+4. **Domain composites** — `QuestionCard`, `KqlEditor`, `RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard`. Map onto the existing branding idioms.
+5. **Visual regression baseline** as components land.
+6. **Self-host fonts** if Phase 1 perf budget needs it — current build uses the Google Fonts `<link>` in `apps/web/index.html`.
+7. **Live tenant theme resolver** wired to `tenants.branding` JSONB once `02-tenancy` exposes the API.
 
 The reference template files (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `.design-canvas.state.json`) are the omelette/Claude design-canvas wrapper that produced the template — useful for visual reference (open the HTML to see all screens) but **must not be imported by production code**. Enforcement: ESLint flat config has `no-restricted-imports` blocking `**/AccessIQ_UI_Template/**` globally; CI's no-template grep verifies.
 
