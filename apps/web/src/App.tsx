@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ThemeProvider, TENANT_FIXTURES } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
 import { AdminMfa } from './pages/admin/mfa';
@@ -142,5 +142,66 @@ export function App(): JSX.Element {
 }
 
 function NotFound(): JSX.Element {
-  return <div className="aiq-screen" style={{ padding: 32 }}>Not found.</div>;
+  return (
+    <div
+      className="aiq-screen"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        padding: 32,
+        textAlign: 'center',
+        background: 'var(--aiq-color-bg-base)',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--aiq-font-mono)',
+          fontSize: 11,
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          color: 'var(--aiq-color-fg-muted)',
+          marginBottom: 12,
+        }}
+      >
+        404
+      </div>
+      <h1
+        style={{
+          fontFamily: 'var(--aiq-font-serif)',
+          fontSize: 'var(--aiq-text-3xl)',
+          fontWeight: 400,
+          letterSpacing: '-0.02em',
+          margin: '0 0 12px',
+          color: 'var(--aiq-color-fg-primary)',
+        }}
+      >
+        Page not found.
+      </h1>
+      <p
+        style={{
+          fontFamily: 'var(--aiq-font-sans)',
+          fontSize: 'var(--aiq-text-sm)',
+          color: 'var(--aiq-color-fg-muted)',
+          margin: '0 0 24px',
+        }}
+      >
+        The page you're looking for doesn't exist or has been moved.
+      </p>
+      <Link
+        to="/admin"
+        style={{
+          fontFamily: 'var(--aiq-font-sans)',
+          fontSize: 'var(--aiq-text-sm)',
+          fontWeight: 500,
+          color: 'var(--aiq-color-accent)',
+          textDecoration: 'none',
+        }}
+      >
+        ← Go to dashboard
+      </Link>
+    </div>
+  );
 }

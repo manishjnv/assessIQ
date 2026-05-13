@@ -1,6 +1,6 @@
-# Session — 2026-05-14 (UI v1.1 Phases 7b–13 — bulk list-page + report + settings refresh)
+# Session — 2026-05-14 (UI v1.1 Phase 14 wrap — 404 page + progress docs + deploy)
 
-**Headline:** 8 UI kit port phases shipped in one session — all remaining list pages, reports, candidate activity, and settings pages now use the canonical count-Chip + serif h1 + lede + Spinner pattern.
+**Headline:** UI Kit v1.1 port complete (14/14 phases) — 404 page kit-styled, all docs committed, VPS deployed.
 
 **Commits:**
 - `01b351b` — feat(ui): UI v1.1 Phase 7b — list template to assessments, question-bank, detail pages, MyCertificates
@@ -9,20 +9,21 @@
 - `378c93d` — feat(ui): UI v1.1 Phase 8b — individual report + reports landing kit refresh
 - `b0a512d` — feat(ui): UI v1.1 Phase 12 — CandidateActivity Spinner loading states
 - `e624184` — feat(ui): UI v1.1 Phase 13 — settings + low-traffic pages kit refresh
+- (this session) — feat(ui): 404 page kit refresh + docs handoff
 
-**Tests:** `@assessiq/admin-dashboard` typecheck ✅. `@assessiq/candidate-ui` typecheck ✅. Zero inline hex introduced. Zero `--aiq-color-bg-elevated`.
+**Tests:** `@assessiq/web` typecheck ✅. Zero inline hex introduced. Zero `--aiq-color-bg-elevated`.
 
-**Deploy:** `assessiq-frontend` rebuilt + force-recreated after each phase. All pages return 200.
+**Deploy:** `assessiq-frontend` rebuilt + force-recreated. All pages return 200.
 
-**Next:** Port plan complete (14/14 phases). Next session: UI audit pass — check all pages for any remaining `text-2xl` headers or "Loading…" text that may have been missed.
+**Next:** Phase 14 cross-cut verification (a11y/Lighthouse sweep) — or ship as-is if the sprint is done.
 
 **Open questions:** none.
 
 ---
 
 ## Agent utilization
-- Opus: Session driving — all edits, typecheck, deploy coordination, docs.
-- Sonnet: Explore subagent for Phase 13 page audit.
+- Opus: Session driving — 404 enhancement, typecheck, docs, deploy.
+- Sonnet: codex-rescue dispatch (found Phase 12 already done — no writes needed).
 - Haiku: n/a
 - codex:rescue: n/a — no auth/classifier/infra surface touched.
 
