@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Chip, Spinner } from '@assessiq/ui-system';
 import { listMyCertificates, shareCertificateLinkedIn } from '../api.js';
 import type { MyCertificate } from '../api.js';
 
@@ -107,19 +108,20 @@ export function MyCertificates(): React.ReactElement {
   }, []);
 
   const headingStyle: React.CSSProperties = {
-    margin: '0 0 var(--aiq-space-lg)',
-    fontSize: 'var(--aiq-text-2xl)',
-    color: 'var(--aiq-color-fg-primary)',
-    fontWeight: 700,
+    fontFamily: 'var(--aiq-font-serif)',
+    fontSize: 'var(--aiq-text-3xl)',
+    fontWeight: 400,
+    margin: 0,
+    letterSpacing: '-0.02em',
   };
 
   if (loading) {
     return (
       <main style={{ padding: 'var(--aiq-space-xl)' }}>
-        <h1 style={headingStyle}>My Certificates</h1>
-        <p style={{ color: 'var(--aiq-color-fg-muted)', margin: 0 }}>
-          Loading your certificates&hellip;
-        </p>
+        <h1 style={headingStyle}>My Certificates.</h1>
+        <div style={{ marginTop: 'var(--aiq-space-lg)' }}>
+          <Spinner aria-label="Loading certificates" />
+        </div>
       </main>
     );
   }
@@ -127,8 +129,8 @@ export function MyCertificates(): React.ReactElement {
   if (error !== null) {
     return (
       <main style={{ padding: 'var(--aiq-space-xl)' }}>
-        <h1 style={headingStyle}>My Certificates</h1>
-        <p role="alert" style={{ color: 'var(--aiq-color-danger)', margin: 0 }}>
+        <h1 style={headingStyle}>My Certificates.</h1>
+        <p role="alert" style={{ color: 'var(--aiq-color-danger)', margin: 'var(--aiq-space-md) 0 0' }}>
           {error}
         </p>
       </main>
@@ -137,7 +139,13 @@ export function MyCertificates(): React.ReactElement {
 
   return (
     <main style={{ padding: 'var(--aiq-space-xl)', maxWidth: '720px' }}>
-      <h1 style={headingStyle}>My Certificates</h1>
+      <div style={{ marginBottom: 12 }}>
+        <Chip leftIcon="grid">{certs.length} certificate{certs.length !== 1 ? 's' : ''}</Chip>
+      </div>
+      <h1 style={headingStyle}>My Certificates.</h1>
+      <p style={{ fontSize: 14, color: 'var(--aiq-color-fg-secondary)', margin: '8px 0 var(--aiq-space-lg)', lineHeight: 1.5 }}>
+        Your earned certificates across all completed assessments.
+      </p>
 
       {certs.length === 0 ? (
         <p style={{ color: 'var(--aiq-color-fg-muted)', margin: 0 }}>

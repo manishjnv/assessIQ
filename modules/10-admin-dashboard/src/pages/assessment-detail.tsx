@@ -19,7 +19,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Table } from "@assessiq/ui-system";
+import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -302,7 +302,11 @@ export function AdminAssessmentDetail(): React.ReactElement {
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Header */}
-        <div
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <Chip leftIcon="grid">{invitations.length} invitation{invitations.length !== 1 ? "s" : ""}</Chip>
+          </div>
+          <div
           style={{
             display: "flex",
             alignItems: "flex-start",
@@ -385,6 +389,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
               </button>
             )}
           </div>
+        </div>
         </div>
 
         {publishError && (
