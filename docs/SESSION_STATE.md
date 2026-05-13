@@ -1,3 +1,35 @@
+# Session — 2026-05-13 (Session 7 follow-up — closed 3 open questions: Caddyfile-in-repo, migration-drift check, NULL-safe RLS)
+
+**Headline:** All three Session 7 open questions resolved in one commit. Caddyfile assessiq block now lives in `infra/caddyfile/assessiq.snippet` with explicit truncate-write deploy procedure. `tools/migrate.ts --check` provides repo-vs-DB drift gating; wired into `docs/06-deployment.md` § "Deploy procedure (steady-state)" as MANDATORY step 2. Migration `0075_tenant_isolation_null_safe_cast.sql` rewrites the certificates `tenant_isolation` SELECT/INSERT/UPDATE policies to be NULL- AND empty-string-safe, eliminating the cast-crash hazard from RCA 2026-05-13 by construction. Adversarial review via Sonnet + GLM-4.6 dual pass: ACCEPT with one ops note (DROP POLICY AccessExclusiveLock) — added inline. Migration applied to VPS; all four certificates RLS policies confirmed live; verify-path smoke still returns clean 404 / 3ms latency.
+
+**Commits:**
+- `d1bf721` — chore(infra,certification): close 3 Session 7 open questions
+
+**Tests:**
+- Adversarial review: Sonnet (general-purpose subagent) + GLM-4.6 (via `or.mjs`) — both ACCEPT on all 7 concerns. Sonnet REVISE on concern #3 incorporated (ops note in migration body).
+- Migration application: `BEGIN/DROP×3/CREATE×3/COMMIT` clean on VPS.
+- Post-apply RLS introspection (`SELECT polname, polcmd, pg_get_expr(...)` from pg_policy): all four policies (`tenant_isolation`, `tenant_isolation_insert`, `tenant_isolation_update`, `public_verify_lookup`) carry the expected predicates.
+- Live: `curl /verify/AIQ-2026-05-NOTFND{,/og.svg,/og.png}` → 404 / 404 / 404. No `unhandled error` lines in `assessiq-api` log. og.png latency 3ms.
+
+**VPS-side changes (additive only):**
+- Applied `modules/18-certification/migrations/0075_tenant_isolation_null_safe_cast.sql`; recorded in `schema_migrations` with checksum `fc55cd400f98a00c088070b78311dd4fbc2306007e86a32675353fa83f550aa9`.
+- No Caddyfile edit this turn — last session's edit (add `/verify/*`) is still live.
+- No docker rebuild — migration-only change, the running `assessiq-api` reads RLS policies live.
+
+**Next:** Resume the priority backlog — (1) issue a real test certificate against a tenant to smoke the verify happy path end-to-end (200 HTML green badge, 200 image/png PNG bytes); (2) candidate login flow (Q1 from the original handoff); (3) Phase 1 closure re-drill; (4) G3.D `auditInTx` sweep continuation; (5) Stage 3.1 default-flip prep.
+
+**Open questions:** none left from Session 7. New ones may surface as the verify-happy-path smoke runs.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 alignment with prior handoff, drafted the Caddyfile snippet (extracted live block + deploy-procedure prose), `tools/migrate.ts --check` implementation (~90 lines), `docs/06-deployment.md` CHECK B.2 + steady-state procedure update, migration `0075` authorship + ops-note revision, VPS apply + schema_migrations recording, post-apply RLS introspection + smoke, this handoff.
+- Sonnet: 1 parallel dispatch — adversarial RLS-policy review of migration 0075. 7 concerns, all ACCEPT except #3 REVISE (ops note re: AccessExclusiveLock). Returned in ~48s. Revision incorporated verbatim into the migration.
+- Haiku: n/a — no bulk grep / multi-file fact lookups. Investigation stayed in 5 files (migrate.ts, 06-deployment.md, the three certification migration SQLs).
+- codex:rescue: n/a — companion MCP not invoked. Adversarial review delegated to Sonnet+GLM-4.6 per `feedback-adversarial-reviewer-routing` memory (certification = security-adjacent; Sonnet+GLM-4.6 is the per-memory routing target). Both verdicts ACCEPT. GLM-4.6 also flagged a DRY-refactor suggestion (security definer function), declined per CLAUDE.md "don't refactor beyond the task."
+
+---
+
 # Session — 2026-05-13 (Phase 5 Session 7 — OG meta tags + LinkedIn PNG preview; surfaced + fixed 3 pre-existing prod gaps)
 
 **Headline:** Phase 5 Session 7 (verify-page OG/Twitter meta tags + `GET /verify/:credentialId/og.png`) shipped. Smoke-testing in prod surfaced THREE pre-existing gaps that have silently broken the verify feature in production since Session 3 (2026-05-11): (a) Caddy reverse-proxy never routed `/verify/*` to assessiq-api, (b) migrations 0046 + 0074 never applied to the VPS DB, (c) `withPublicVerifyContext` missed `app.current_tenant`, causing the OR'd `tenant_isolation` policy's UUID cast on `''` to crash before `public_verify_lookup` could grant access. All three fixed this session; verify path now reachable end-to-end in prod, all three routes return correct 4xx for non-existent creds with no `unhandled error` log lines.
