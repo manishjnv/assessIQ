@@ -69,6 +69,7 @@ export const ACTION_CATALOG = [
   'webhook_secret.rotated',
   // Help system
   'help.content.updated',
+  'help.content.imported',
   // Analytics exports (G3.C — admin bulk download is an auditable action)
   'attempt.exported',
   // Dev-only E2E test-minter — off in production per ENABLE_E2E_TEST_MINTER gate.

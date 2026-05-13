@@ -64,7 +64,8 @@ export async function registerHelpAdminRoutes(
     "/api/admin/help/:key",
     { preHandler: adminOnly },
     async (req) => {
-      const tenantId = (req as { session?: { tenantId: string } }).session!.tenantId;
+      const tenantId = (req as { session?: { tenantId: string; userId: string } }).session!.tenantId;
+      const userId = (req as { session?: { tenantId: string; userId: string } }).session!.userId;
       const { key } = req.params as { key: string };
 
       if (!HELP_KEY_RE.test(key)) {
@@ -80,7 +81,7 @@ export async function registerHelpAdminRoutes(
         });
       }
 
-      return upsertHelpForTenant(tenantId, key, parsed.data);
+      return upsertHelpForTenant(tenantId, key, parsed.data, userId);
     },
   );
 
@@ -89,7 +90,8 @@ export async function registerHelpAdminRoutes(
     "/api/admin/help/import",
     { preHandler: adminOnly },
     async (req, reply) => {
-      const tenantId = (req as { session?: { tenantId: string } }).session!.tenantId;
+      const tenantId = (req as { session?: { tenantId: string; userId: string } }).session!.tenantId;
+      const userId = (req as { session?: { tenantId: string; userId: string } }).session!.userId;
       const q = req.query as Record<string, string | undefined>;
       const locale = q["locale"] ?? "en";
 
@@ -128,7 +130,7 @@ export async function registerHelpAdminRoutes(
         rows.push({ key: item.key, input: inputParsed.data });
       }
 
-      const result = await importHelp(tenantId, locale, rows);
+      const result = await importHelp(tenantId, locale, rows, userId);
       return reply.code(200).send(result);
     },
   );

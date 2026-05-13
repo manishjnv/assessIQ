@@ -770,6 +770,7 @@ After a successful `audit()` INSERT, `fanoutAuditEvent` (`modules/14-audit-log/s
 | `09-scoring` | § 19 | `b82e82d` | Live |
 | `13-notifications` | — | `6ab8e90` | Live — full doc section pending |
 | `18-certification` | — | `190acee` | Live — full doc section pending |
+| `16-help-system` | § 26 | pending commit | Live |
 | `06-attempt-engine` (cron transitions) | — | — | Pending — needs `actor_kind="system"` design discussion |
 
 ### 18.4 Reading the audit table
@@ -1009,3 +1010,66 @@ Both endpoints share the same lookup + `determineStatus()` path as the HTML rout
 `og:image` in the verify page HTML head always points at the PNG endpoint (absolute URL built from `PUBLIC_BASE_URL`). When `PUBLIC_BASE_URL` is unset (test environments), OG meta tags are silently omitted — the page still renders but social previews degrade to title-only.
 
 **Operational note:** there is no separate counter for OG-image fetches. The `verification_views` counter is incremented on HTML-page views only (the PNG/SVG endpoints are usually fetched by crawlers without a paired human pageview). Treat `verification_views` as a proxy for *clicks-through to verify*, not raw social impressions.
+
+## 25. G3.D audit-write sweep — module classification (2026-05-13)
+
+> **Read this when:** triaging which modules need a G3.D audit-write slice and which are intentionally exempt. Sections 15–17 + 19 document the wired modules. This section records the modules classified as **no-op** during the cross-module sweep so future contributors don't re-open them.
+
+### 25.1 No-op classifications
+
+| Module | Classification | Reason |
+|---|---|---|
+| [`06-attempt-engine`](../modules/06-attempt-engine/SKILL.md) | **NO-OP** | Every exported service function (`startAttempt`, `saveAnswer`, `toggleFlag`, `recordEvent`, `submitAttempt`, `getAttemptForCandidate`, `listAnswersForAttempt`, `sweepStaleTimersForTenant`) is candidate-driven or system-cron-driven. There is no admin-mutating surface in this module: admins do not start attempts on behalf of candidates, do not save answers, do not toggle flags. Admin-side attempt operations (release, override, force-submit) live in 07-ai-grading and 09-scoring, both of which already have G3.D coverage (§19 for 09; 07 covered by a future slice). `sweepStaleTimersForTenant` runs from a cron and is system-attributed, not admin-attributed — operational `app.log` entries are sufficient and audit_log writes would inflate the trail without a real user actor. |
+| [`08-rubric-engine`](../modules/08-rubric-engine/SKILL.md) | **NO-OP** | Service-only module — zero migrations, zero DB access, zero Fastify routes. Exports are pure helpers (`validateRubric`, `sumAnchorScore`, `computeReasoningScore`, `finalScore`) operating on inputs already loaded by the caller. Domain state belongs to 04-question-bank (`questions.rubric` JSONB), so audit writes for rubric edits live in 04 under `question.updated`. Adding a no-op `auditInTx` to 08 would write a duplicate row for every rubric save. |
+| [`15-analytics`](../modules/15-analytics/SKILL.md) | **NO-OP** | All service exports are read-only — `homeKpis`, `queueSummary`, `cohortReport`, `individualReport`, `topicHeatmap`, `archetypeDistribution`, `gradingCostByMonth`, plus the four export functions. The `refresh-mv-job.ts` materialized-view refresh is a system cron, not admin-mutating. The one admin-bulk-download surface that *is* audit-relevant — CSV/JSONL attempt exports — is intentionally audited by the *caller* (the admin route handler emits `attempt.exported` per the G3.C catalog entry, line 73 of `modules/14-audit-log/src/types.ts`); 15-analytics' export functions just stream rows. Keeping the audit emit at the route layer matches the same pattern used by 03-users `acceptInvitation` (audit lives at the session-creation step in 01-auth, not in 03's service). |
+
+### 25.2 Modules with G3.D slices still pending
+
+- **`07-ai-grading`** — has 5 admin-mutating handlers (`admin-generate`, `admin-rerun`, `admin-grade`, `admin-override`, `admin-accept`) that write `gradings` rows. Audit-write coverage is deferred to a dedicated session because the module is on the CLAUDE.md load-bearing-paths list (security-adjacent classifier) and requires a `codex:rescue` adversarial review before push. Tracking via PROJECT_BRAIN backlog.
+- **`16-help-system`** — shipped 2026-05-13; see § 26.
+
+### 25.3 Audit "ownership" boundary — when the audit row lives in the *caller*, not the service
+
+A pattern that confused the sweep until codified here: a module that *performs* a domain mutation is not automatically the right place to *audit* that mutation. The audit row should live where the **actor** is naturally known and where the **business action** is named.
+
+Examples in this codebase:
+- **CSV/JSONL exports** — 15-analytics streams rows; the admin route handler emits `attempt.exported` because "an admin downloaded a cohort" is the auditable business action, not "the streamer wrote bytes."
+- **Invitation acceptance** — 03-users' `acceptInvitation` performs the user-row INSERT/UPDATE but emits no audit row of its own; 01-auth's session-creation trail is the auditable surface ("user X started a session", which implicitly proves acceptance succeeded).
+- **Rubric validation** — 08-rubric-engine's `validateRubric` runs inside a `question.updated` write path in 04; the rubric helper returns ok/err and 04's existing audit row carries the rubric `before/after` snapshot.
+
+When triaging a new module: ask "who is the **actor**?" If it's a candidate, a system cron, or a downstream pure helper, the audit row probably belongs upstream or doesn't exist at all. If it's an admin acting on tenant data, it's a G3.D candidate.
+
+---
+
+## 26. Audit-log wiring — 16-help-system (G3.D slice, 2026-05-13)
+
+Every admin-mutating service method in [modules/16-help-system](../modules/16-help-system/SKILL.md) writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)` from `@assessiq/audit-log`. Mirrors the G3.D template from `eff0ba2` (§ 15) and the 03-users slice in `057de7d` (§ 17). Atomicity guarantee is identical.
+
+### 26.1 Wired sites and action namespaces used
+
+| Service function | `audit_log.action` | `entity_type` | `entity_id` | Notes |
+|---|---|---|---|---|
+| `upsertHelpForTenant` | `help.content.updated` | `help_content` | Returned row `id` (UUID) | `before` is omitted on first insert (no prior active row); on subsequent upserts `before` snapshots the highest-version active row for that `(tenant_id, key, locale)` before the write. `after` captures the new row's id, help_id, audience, locale, short_text, long_md, version, status. Field is named `help_id` (not `key`) because `redactPayload` in `modules/14-audit-log/src/redact.ts` strips fields matching `/key$/i` — using `key` as the field name would silently redact the value. `short_text` / `long_md` are public-facing copy (not credentials); no redaction helper needed. `created_by` column does NOT exist on `help_content` — no PII leak risk from the schema. |
+| `importHelp` | `help.content.imported` | `help_content` | omitted (`null`) | One summary row per bulk import call — not one row per key (same pattern as `bulkImport` in § 15 / `question.imported`). `after`: `{ inserted, skipped, locale, total, keys[] }`. `keys` is capped at 50 entries to keep the JSONB payload bounded. `before` is always omitted (bulk import is append-only: new version rows). `entity_id` is omitted because there is no single target entity — the locale string is in `after.locale`. |
+
+`actor_kind` is always `"user"`; `actor_user_id` is the admin's session userId threaded through the service signature. Signatures updated in this slice: `upsertHelpForTenant` and `importHelp` both gain a final `actorUserId: string` parameter. Route handlers in `modules/16-help-system/src/routes-admin.ts` (PATCH `/:key` and POST `/import`) updated to pass `req.session!.userId`.
+
+### 26.2 Action-catalog scope decision
+
+This slice adds **one** new entry to the G3.A action catalog ([modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts)): `help.content.imported`. The existing `help.content.updated` (catalog line 71, already present before this slice) is reused for `upsertHelpForTenant` — no semantic gap because every `upsertHelp` call in the repository is an INSERT of a new version row (the table is append-only per-version). There is no separate `help.content.created` action because "first insert" and "subsequent update" are distinguished by `before === null` vs `before !== null`, keeping the catalog footprint minimal (same pattern as QB's `restoreVersion → question.updated kind=restore`).
+
+`help.content.imported` is first-class (not folded under `help.content.updated` with a `kind` marker) because the payload shape is fundamentally different — a summary row covering N keys in one event, vs a single-key diff row. Queries filtering `action = 'help.content.imported'` on the audit trail answer "when did an admin bulk-import a locale?" without needing to parse `after->>'kind'`.
+
+### 26.3 Atomicity guarantees
+
+- Every audit write uses `auditInTx(client, ...)` inside the same `withTenant(...)` callback that owns the mutation. `withTenant` opens BEGIN / COMMIT — the domain INSERT and the audit INSERT commit or roll back together.
+- If `auditInTx` throws (catalog-mismatch, RLS denial, FK violation), the surrounding `withTenant` rolls back the domain mutation. No fire-and-forget audit path in this module.
+- Failure-injection test in [src/__tests__/audit-writes.test.ts](../modules/16-help-system/src/__tests__/audit-writes.test.ts): "when auditInTx throws inside upsertHelpForTenant, the help_content row is NOT mutated" mocks `@assessiq/audit-log.auditInTx` to throw one-shot; a superuser read of `help_content` after the rejected call asserts the row was never committed.
+- A coverage-grep assertion at the bottom of the same test file counts `auditInTx(` occurrences in `service.ts` and expects exactly 2. Adding a new admin-mutating method without an audit write fails this guard.
+
+### 26.4 What's NOT audited here
+
+- `recordHelpEvent` — fire-and-forget telemetry (tooltip shown / drawer opened / feedback thumbs). Not an admin mutation; actor is a candidate or anonymous user. Telemetry writes to `app.log` (pino) only, per the Phase 1 deferral decision #16 in [SKILL.md](../modules/16-help-system/SKILL.md). Upgrade to `audit_log` writes is a future Phase 3 sub-slice, not this one.
+- `getHelpForPage` / `getHelpKey` / `exportHelp` — read-only. These write only to operational `request.log`.
+- `exportHelp` — GET route; read-only bulk fetch for the translation workflow. No state mutation.
+- Global (tenant_id IS NULL) seed rows — these are inserted by the Postgres superuser during migration (`0011_seed_help_content.sql`) and are intentionally outside the `assessiq_app` role's INSERT policy. No audit row is emitted for seed inserts; they are a deploy-time event, not an admin-actor event.

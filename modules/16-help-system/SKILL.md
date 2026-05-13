@@ -103,6 +103,19 @@ useHelp(key) · useHelpContext()
 - Admin authoring rotation panel for `GET /api/admin/help/export` + `POST /api/admin/help/import` — Phase 2 admin-dashboard.
 - Storybook snapshot infrastructure for the React components — `apps/storybook` does not yet have visual-regression baselines; structural Vitest assertions via testcontainers are the Phase 1 substitute.
 
+## Audit-write coverage (G3.D, 2026-05-13)
+
+Both admin-mutating service functions are now wired to `auditInTx` inside the same `withTenant` transaction as the domain mutation. Full documentation in [`docs/11-observability.md` § 26](../../docs/11-observability.md).
+
+| Function | Action | Notes |
+|---|---|---|
+| `upsertHelpForTenant` | `help.content.updated` | `before=null` on first insert; before-snapshot on update |
+| `importHelp` | `help.content.imported` | One summary row per bulk call; `keys[]` capped at 50 |
+
+Atomicity + coverage tests: `src/__tests__/audit-writes.test.ts` (4 tests). Coverage-grep asserts exactly 2 `auditInTx(` call-sites in `service.ts`.
+
+Not audited: `recordHelpEvent` (fire-and-forget telemetry), all read paths (`getHelpForPage`, `getHelpKey`, `exportHelp`).
+
 **Operational notes:**
 - Migration `0010_help_content.sql` was rewritten in-place during integration testing (4-policy structure replaced FOR ALL; NULLIF wrap added to handle pg.Pool empty-string GUC). Migration `0012_fix_rls_empty_string.sql` carries the same fix as a hot-patch for any database deployed before this rewrite — idempotent (`DROP POLICY IF EXISTS` + `CREATE`). On a fresh VPS, applying 0010 is sufficient and 0012 is a no-op.
 - Admin help authoring in Phase 1 is via direct `PATCH /api/admin/help/:key` (curl/Postman) or by editing the YAML and redeploying. Admin UI authoring is Phase 2.
