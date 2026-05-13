@@ -21,9 +21,10 @@
  *   - topicHeatmap: correct hit rate + mean band per topic
  *   - archetypeDistribution: correct counts per archetype
  *   - gradingCostByMonth: returns [] in claude-code-vps mode
- *   - Cross-tenant isolation: tenant A's data is invisible to tenant B queries
+ *   - Cross-tenant isolation: tenant A data is invisible to tenant B queries
  *   - Export CSV: correct columns + row cap enforcement
  *   - Export JSONL: correct shape per line
+ *   - Phase 9: getActivityStats / getActivityHeatmap / getActivityTimeline / getActivityLeaderboard
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -46,6 +47,14 @@ import {
   exportAttemptsCsv,
   exportAttemptsJsonl,
   EXPORT_ROW_CAP,
+  getActivityStats,
+  getActivityHeatmap,
+  getActivityTimeline,
+  getActivityLeaderboard,
+  ActivityStatsQuerySchema,
+  ActivityHeatmapQuerySchema,
+  ActivityTimelineQuerySchema,
+  ActivityLeaderboardQuerySchema,
 } from '../index.js';
 
 // ---------------------------------------------------------------------------
@@ -169,6 +178,13 @@ interface TestFixture {
   tenantB_assessment: string;
   tenantB_attempt: string;
   tenantB_candidate: string;
+  // Phase 9 activity extras
+  packB: string;           // second pack, domain='cloud', tenant A
+  assessmentB: string;     // assessment for packB
+  attemptGraded: string;   // graded status, today, tenant A, assessmentA (soc)
+  attemptReleased: string; // released status, today, tenant A, assessmentB (cloud)
+  candidateB: string;
+  candidateC: string;
 }
 
 async function seedFixtures(): Promise<TestFixture> {
@@ -273,7 +289,98 @@ async function seedFixtures(): Promise<TestFixture> {
       [attemptA1, tenantA],
     );
 
-    // Refresh the materialized view so reports can query it
+    // -----------------------------------------------------------------------
+    // Phase 9 activity extras — additional seed rows for activity endpoints.
+    // All graded/released attempts inserted BEFORE the MV refresh so the MV
+    // stats endpoint sees them. The heatmap uses the live attempts table so
+    // it sees graded/released attempts regardless of MV refresh.
+    // -----------------------------------------------------------------------
+
+    const packB = randomUUID();
+    const assessmentB = randomUUID();
+    const attemptGraded = randomUUID();
+    const attemptReleased = randomUUID();
+    const candidateB = randomUUID();
+    const candidateC = randomUUID();
+
+    // candidateB and candidateC under tenantA
+    await client.query(
+      `INSERT INTO users (id, tenant_id, email, name, role, status)
+       VALUES
+         ($1,$2,'candidate-b2@a.test','Cand B2','candidate','active'),
+         ($3,$2,'candidate-c2@a.test','Cand C2','candidate','active')`,
+      [candidateB, tenantA, candidateC],
+    );
+
+    // packB — domain 'cloud', tenant A (reuse levelA for simplicity)
+    await client.query(
+      `INSERT INTO question_packs (id, tenant_id, slug, name, domain, status, created_by)
+       VALUES ($1,$2,'cloud-pack','Cloud Pack','cloud','published',$3)`,
+      [packB, tenantA, adminA],
+    );
+
+    // assessmentB uses packB (cloud domain)
+    await client.query(
+      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, name, status, pack_version, question_count, created_by)
+       VALUES ($1,$2,$3,$4,'Cloud Assessment','active',1,1,$5)`,
+      [assessmentB, tenantA, packB, levelA, adminA],
+    );
+
+    // attemptGraded: graded status, submitted today, assessmentA (soc), candidateB
+    const gradedSubmittedAt = new Date();
+    await client.query(
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
+       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600)`,
+      [attemptGraded, tenantA, assessmentA, candidateB,
+        new Date(gradedSubmittedAt.getTime() - 600_000),
+        gradedSubmittedAt,
+        new Date(gradedSubmittedAt.getTime() + 3600_000)],
+    );
+    await client.query(
+      `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, archetype, computed_at)
+       VALUES ($1,$2,75,100,75,false,'confident_correct',now())`,
+      [attemptGraded, tenantA],
+    );
+
+    // attemptReleased: released status, submitted today, assessmentB (cloud), candidateC
+    const releasedSubmittedAt = new Date();
+    await client.query(
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
+       VALUES ($1,$2,$3,$4,'released',$5,$6,$7,3600)`,
+      [attemptReleased, tenantA, assessmentB, candidateC,
+        new Date(releasedSubmittedAt.getTime() - 600_000),
+        releasedSubmittedAt,
+        new Date(releasedSubmittedAt.getTime() + 3600_000)],
+    );
+    await client.query(
+      `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, archetype, computed_at)
+       VALUES ($1,$2,50,100,50,false,'partial',now())`,
+      [attemptReleased, tenantA],
+    );
+
+    // candidateD: new user for prior-period leaderboard attempt.
+    // (assessment_id, user_id) must be unique on attempts table.
+    const candidateD = randomUUID();
+    await client.query(
+      `INSERT INTO users (id, tenant_id, email, name, role, status)
+       VALUES ($1,$2,'candidate-d2@a.test','Cand D2','candidate','active')`,
+      [candidateD, tenantA],
+    );
+
+    // Prior-period attempt: assessmentA, candidateD, 10 days ago.
+    // Appears in the leaderboard prior_period CTE (live attempts, not MV).
+    const priorSubmittedAt = new Date(Date.now() - 10 * 24 * 3600_000);
+    const attemptPrior = randomUUID();
+    await client.query(
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
+       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600)`,
+      [attemptPrior, tenantA, assessmentA, candidateD,
+        new Date(priorSubmittedAt.getTime() - 600_000),
+        priorSubmittedAt,
+        new Date(priorSubmittedAt.getTime() + 3600_000)],
+    );
+
+    // Refresh the materialized view so MV-based queries (stats, timeline) see all scored attempts
     await client.query('REFRESH MATERIALIZED VIEW attempt_summary_mv');
 
     // Tenant B fixtures
@@ -293,6 +400,8 @@ async function seedFixtures(): Promise<TestFixture> {
       packA, levelA, questionA, assessmentA,
       attemptA1, attemptA2,
       tenantB_assessment, tenantB_attempt, tenantB_candidate,
+      packB, assessmentB, attemptGraded, attemptReleased,
+      candidateB, candidateC,
     };
   });
 }
@@ -355,7 +464,7 @@ describe('cohortReport', () => {
   });
 
   it('cross-tenant isolation: cohortReport for tenant B assessment returns 0', async () => {
-    // Tenant A querying tenant B's assessment should get 0 (MV filter)
+    // Tenant A querying tenant B assessment should get 0 (MV filter)
     const report = await cohortReport(F.tenantA, F.tenantB_assessment);
     expect(report.attemptCount).toBe(0);
   });
@@ -471,7 +580,192 @@ describe('export CSV', () => {
       stream.on('end', () => resolve(chunks.join('')));
       stream.on('error', reject);
     });
-    // Tenant B's attempt IDs should not appear in tenant A's export
+    // Tenant B attempt IDs should not appear in tenant A export
     expect(content).not.toContain(F.tenantB_attempt);
+  });
+});
+
+// ===========================================================================
+// Phase 9 — Admin Activity endpoints
+// ===========================================================================
+
+// Helper: ISO date string relative to today (UTC).
+// daysAgo=0 = today, daysAgo=-1 = tomorrow, daysAgo=7 = 7 days ago.
+function utcDateStr(daysAgo: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+}
+
+describe('getActivityStats', () => {
+  it('happy path: returns completions from both soc and cloud domains', async () => {
+    // Stats queries attempt_summary_mv with submitted_at >= $1 AND < $2 + 1 day
+    // Using date-only strings works correctly with the +1 day offset.
+    const from = utcDateStr(30);
+    const to = utcDateStr(0);
+    const stats = await getActivityStats(F.tenantA, { from, to, groupBy: 'domain' });
+    // attemptGraded (assessmentA/soc) + attemptReleased (assessmentB/cloud) both scored
+    expect(stats.completions.total).toBeGreaterThanOrEqual(2);
+    const domains = stats.completions.breakdown.map((b) => b.key);
+    expect(domains).toContain('soc');
+    expect(domains).toContain('cloud');
+  });
+
+  it('empty window: returns zero completions', async () => {
+    const stats = await getActivityStats(F.tenantA, { from: '2020-01-01', to: '2020-01-02' });
+    expect(stats.completions.total).toBe(0);
+    expect(stats.completions.breakdown).toHaveLength(0);
+  });
+
+  it('groupBy validation: schema accepts domain and level', () => {
+    const r1 = ActivityStatsQuerySchema.safeParse({ from: '2026-01-01', to: '2026-01-31', groupBy: 'domain' });
+    expect(r1.success).toBe(true);
+    const r2 = ActivityStatsQuerySchema.safeParse({ from: '2026-01-01', to: '2026-01-31', groupBy: 'level' });
+    expect(r2.success).toBe(true);
+    const r3 = ActivityStatsQuerySchema.safeParse({ from: '2026-01-01', to: '2026-01-31', groupBy: 'user' });
+    expect(r3.success).toBe(false);
+  });
+
+  it('cross-tenant: tenant B sees 0 completions', async () => {
+    const stats = await getActivityStats(F.tenantB, { from: utcDateStr(30), to: utcDateStr(0) });
+    expect(stats.completions.total).toBe(0);
+  });
+});
+
+describe('getActivityHeatmap', () => {
+  it('happy path: days array covers [from, to] inclusive', async () => {
+    const from = utcDateStr(7);
+    const to = utcDateStr(0);
+    const heatmap = await getActivityHeatmap(F.tenantA, { from, to });
+    // 0 through 7 days ago = 8 days
+    expect(heatmap.days.length).toBe(8);
+    expect(heatmap.days[0]?.date).toBe(from);
+    expect(heatmap.days[heatmap.days.length - 1]?.date).toBe(to);
+  });
+
+  it('happy path: at least one active day (graded/released attempts today)', async () => {
+    // Heatmap uses live attempts table with status IN (...graded, released...)
+    const heatmap = await getActivityHeatmap(F.tenantA, { from: utcDateStr(1), to: utcDateStr(0) });
+    expect(heatmap.totals.activeDays).toBeGreaterThanOrEqual(1);
+    expect(heatmap.totals.total).toBeGreaterThanOrEqual(2);
+  });
+
+  it('streak edge — single-day completion: longestStreak >= 1', async () => {
+    const today = utcDateStr(0);
+    const heatmap = await getActivityHeatmap(F.tenantA, { from: today, to: today });
+    if (heatmap.totals.total > 0) {
+      expect(heatmap.streaks.longest).toBeGreaterThanOrEqual(1);
+      expect(heatmap.streaks.current).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('streak edge — empty window: all streak fields are 0', async () => {
+    const heatmap = await getActivityHeatmap(F.tenantA, { from: '2020-01-01', to: '2020-01-05' });
+    expect(heatmap.streaks.longest).toBe(0);
+    expect(heatmap.streaks.current).toBe(0);
+    expect(heatmap.totals.activeDays).toBe(0);
+    expect(heatmap.totals.total).toBe(0);
+    expect(heatmap.days.length).toBe(5); // zero-filled
+  });
+
+  it('cross-tenant: tenant B sees 0 completions', async () => {
+    const heatmap = await getActivityHeatmap(F.tenantB, { from: utcDateStr(7), to: utcDateStr(0) });
+    expect(heatmap.totals.total).toBe(0);
+    expect(heatmap.totals.activeDays).toBe(0);
+  });
+
+  it('schema validation: accepts optional from/to params', () => {
+    const r1 = ActivityHeatmapQuerySchema.safeParse({});
+    expect(r1.success).toBe(true);
+    const r2 = ActivityHeatmapQuerySchema.safeParse({ from: '2026-01-01', to: '2026-03-01' });
+    expect(r2.success).toBe(true);
+    const r3 = ActivityHeatmapQuerySchema.safeParse({ from: 'not-a-date' });
+    expect(r3.success).toBe(false);
+  });
+});
+
+describe('getActivityTimeline', () => {
+  it('happy path: returns weeks with both soc and cloud domains', async () => {
+    const timeline = await getActivityTimeline(F.tenantA, { from: utcDateStr(30), to: utcDateStr(0) });
+    expect(Array.isArray(timeline.bars)).toBe(true);
+    expect(timeline.domains).toContain('soc');
+    expect(timeline.domains).toContain('cloud');
+    // At least one bar has data
+    const barWithData = timeline.bars.find((w) => w.total > 0);
+    expect(barWithData).toBeDefined();
+  });
+
+  it('empty window: returns empty domains and zero-filled bars', async () => {
+    const timeline = await getActivityTimeline(F.tenantA, { from: '2020-01-06', to: '2020-01-12' });
+    // No completions in this window
+    expect(timeline.domains).toHaveLength(0);
+    // Jan 6 is a Monday, Jan 12 is Sunday — 1 week in window
+    expect(timeline.bars.length).toBeGreaterThanOrEqual(1);
+    for (const bar of timeline.bars) {
+      expect(bar.total).toBe(0);
+    }
+  });
+
+  it('cross-tenant: tenant B sees empty domains', async () => {
+    const timeline = await getActivityTimeline(F.tenantB, { from: utcDateStr(30), to: utcDateStr(0) });
+    expect(timeline.domains).toHaveLength(0);
+  });
+
+  it('schema validation: accepts optional from/to', () => {
+    const r1 = ActivityTimelineQuerySchema.safeParse({});
+    expect(r1.success).toBe(true);
+    const r2 = ActivityTimelineQuerySchema.safeParse({ from: 'not-a-date' });
+    expect(r2.success).toBe(false);
+  });
+});
+
+describe('getActivityLeaderboard', () => {
+  it('happy path: returns assessments with attempts for week period', async () => {
+    const lb = await getActivityLeaderboard(F.tenantA, { period: 'week', page: 1, pageSize: 10 });
+    // attemptGraded and attemptA2 are in the current week
+    expect(lb.totalRanked).toBeGreaterThanOrEqual(1);
+    expect(lb.items.length).toBeGreaterThanOrEqual(1);
+    expect(lb.items[0]?.rank).toBe(1);
+  });
+
+  it('deltaPct is null when prior period has 0 takers (assessmentB cloud, week period)', async () => {
+    // assessmentB (cloud) has only one released attempt today — no prior week data
+    const lb = await getActivityLeaderboard(F.tenantA, { period: 'week', page: 1, pageSize: 50 });
+    const cloudItem = lb.items.find((item) => item.domain === 'cloud');
+    if (cloudItem) {
+      // deltaPct is null when priorCount == 0
+      expect(cloudItem.deltaPct).toBeNull();
+    }
+  });
+
+  it('leaderboard items include domain, currentCount, and direction fields', async () => {
+    const lb = await getActivityLeaderboard(F.tenantA, { period: 'month', page: 1, pageSize: 10 });
+    for (const item of lb.items) {
+      expect(typeof item.domain === 'string' || item.domain === null).toBe(true);
+      expect(typeof item.currentCount).toBe('number');
+      expect(item.currentCount).toBeGreaterThanOrEqual(1);
+      expect(['up', 'down', 'flat']).toContain(item.direction);
+    }
+  });
+
+  it('pagination: page=2 pageSize=1 returns rank=2 when totalRanked >= 2', async () => {
+    const lb = await getActivityLeaderboard(F.tenantA, { period: 'month', page: 2, pageSize: 1 });
+    if (lb.totalRanked >= 2) {
+      expect(lb.items).toHaveLength(1);
+      expect(lb.items[0]?.rank).toBe(2);
+    }
+    expect(lb.page).toBe(2);
+    expect(lb.pageSize).toBe(1);
+  });
+
+  it('schema rejects unknown period', () => {
+    const result = ActivityLeaderboardQuerySchema.safeParse({ period: '14d' });
+    expect(result.success).toBe(false);
+  });
+
+  it('cross-tenant: tenant B sees 0 items', async () => {
+    const lb = await getActivityLeaderboard(F.tenantB, { period: 'month', page: 1, pageSize: 10 });
+    expect(lb.totalRanked).toBe(0);
+    expect(lb.items).toHaveLength(0);
   });
 });

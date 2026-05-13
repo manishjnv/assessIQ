@@ -66,3 +66,48 @@ export type {
 } from './types.js';
 export { ReportFilterSchema, ExportFilterSchema } from './types.js';
 export { EXPORT_ROW_CAP, COHORT_ATTEMPTS_HARD_LIMIT } from './repository.js';
+
+// ---------------------------------------------------------------------------
+// Phase 9 — Admin Activity surface
+// ---------------------------------------------------------------------------
+export {
+  getActivityStats,
+  getActivityHeatmap,
+  getActivityTimeline,
+  getActivityLeaderboard,
+  registerActivityRoutes,
+  // Repository helpers (exported for test reuse)
+  queryActivityStats,
+  queryActivityHeatmapCounts,
+  queryActivityTimelineRows,
+  queryActivityLeaderboardRows,
+  queryActivityLeaderboardTotal,
+  // Exported pure helpers + Zod schemas (for test reuse)
+  computeStreaks,
+  zeroFillRange,
+  rankDomains,
+  zeroFillWeeks,
+  computePeriodBoundaries,
+  computeDelta,
+  ActivityStatsQuerySchema,
+  ActivityHeatmapQuerySchema,
+  ActivityTimelineQuerySchema,
+  ActivityLeaderboardQuerySchema,
+} from './activity/index.js';
+
+export type {
+  ActivityBreakdownItem,
+  ActivityStatsQuery,
+  ActivityStatsResponse,
+  ActivityHeatmapDay,
+  ActivityHeatmapQuery,
+  ActivityHeatmapResponse,
+  ActivityTimelineBar,
+  ActivityTimelineQuery,
+  ActivityTimelineResponse,
+  ActivityLeaderboardQuery,
+  ActivityLeaderboardResponse,
+  LeaderboardDirection,
+  LeaderboardItem,
+  LeaderboardPeriod,
+} from './activity/index.js';
