@@ -1,3 +1,57 @@
+# Session — 2026-05-14 (stash triage)
+
+**Headline:** Salvaged 9 admin help keys from the 2026-05-13 WIP stash (G3.A audit log + G3.B worker observability + 13-notifications webhooks); stash dropped.
+
+**Commits:**
+- `98b90fd` — chore(stash-triage): salvage 9 admin help keys from 2026-05-13 WIP stash
+
+**Tests:** No new tests — YAML content only. `python3 yaml.safe_load` confirms admin.yml parses cleanly (1849 lines, all keys valid).
+
+**Deploy:** Not required — help YAML is served from filesystem; no backend rebuild needed.
+
+**Next:**
+- Tier 2 UX fixes still deferred from stash: `mfa.tsx` (`mapErrorToFriendly` + friendly error strings), `Attempt.tsx` (submit-error sticky banner replacing `window.alert`), `TokenLanding.tsx` (error `<details>` disclosure), `billing.tsx` (styled `role="alert"` block). All conflict with later commits — worth a fresh Sonnet brief in a dedicated session rather than a conflict-laden stash pop.
+- `admin.generation-attempts.score` help key is still missing: its `long_md` body was malformed in the stash (YAML block scalar with no indented content). Needs to be written fresh and added to admin.yml.
+
+**Open questions:**
+- Are the `/admin/audit`, `/admin/worker`, `/admin/webhooks` routes wired in App.tsx? The stash had route additions for these but they were dropped (component files don't exist yet). These pages need to be built before the help keys above can be wired to DOM elements.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads; Phase A full triage (9-file stash diff analysis, base commit comparison, admin.yml line-count delta, all 9 key verdicts); Phase B direct edits (≤1 file, already in cache); commit authoring; Phase C handoff.
+- Sonnet: n/a — triage + single-file YAML edit was Opus-direct per global rule (file in hot cache, <30 lines changed per insertion).
+- Haiku: n/a.
+- codex:rescue: n/a — help content YAML only; no security/auth/classifier paths touched.
+
+---
+
+# Session — 2026-05-14 (branding token drift reconciliation)
+
+**Headline:** Audited docs/10-branding-guideline.md §3.1/§3.2 against live tokens.css — zero value-drift rows found (8 previously-stale values already fixed by commit `2e1af79`); added 5 undocumented `added` tokens.
+
+**Commits:**
+- `5a37118` — docs(branding): align §3.1/§3.2 token values with tokens.css
+
+**Tests:** n/a — docs-only. No code paths touched.
+
+**Deploy:** n/a — docs-only; deploy step skippable per CLAUDE.md DoD.
+
+**Next:** Push `5a37118` when ready (2 commits already ahead of origin). The `08-ui-system.md` token catalog (lines 54–59, 132–133) still carries pre-v1.1 stale hex values — separate follow-on pass.
+
+**Open questions:**
+- `docs/08-ui-system.md` lines 54–59 (light) and 132–133 (dark) have stale pre-v1.1 hex values (`#f5f5f5`, `#1a1a1a`, `#5f6368`, `#9aa0a6`, `#e8e8e8`, `#d4d4d4`; dark `#a0a0a8`, `#6a6a72`). Not addressed here (out of task scope); flag for a dedicated pass.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, Phase A full audit (compare all §3.1/§3.2 documented tokens against tokens.css line-by-line), Phase B direct edits (5 insertions across 2 hunks, already in read cache), commit + Phase C handoff.
+- Sonnet: n/a — edit volume below subagent break-even.
+- Haiku: n/a.
+- codex:rescue: n/a — docs-only; no load-bearing or security-adjacent paths touched.
+
+---
+
 # Session — 2026-05-14 (P14 help-wiring tail — 12 keys wired)
 
 **Headline:** Wired the 12 remaining actionable `data-help-id` attributes (admin rubric/scoring + candidate cert/auth/activity); 57 of 86 total YAML keys now wired, 29 deferred pending UI features.
