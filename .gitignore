@@ -84,5 +84,6 @@ modules/07-ai-grading/eval/baselines/*.json
 # Lighthouse CI run artifacts (local; CI outputs to temporary-public-storage)
 apps/web/.lighthouseci/
 
-# Playwright HTML report (local viewer; not source)
+# Playwright HTML report and test-results artifacts (local viewer; not source)
 apps/web/playwright-report/
+apps/web/test-results/

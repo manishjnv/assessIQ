@@ -11,8 +11,25 @@
       "startServerCommand": "pnpm --filter @assessiq/web preview --port 4173 --host 0.0.0.0",
       "startServerReadyPattern": "localhost:4173",
       "startServerReadyTimeout": 30000,
-      "numberOfRuns": 1,
+      "numberOfRuns": 3,
       "settings": {
+        "formFactor": "desktop",
+        "screenEmulation": {
+          "width": 1280,
+          "height": 800,
+          "deviceScaleFactor": 1,
+          "mobile": false,
+          "disabled": false
+        },
+        "throttling": {
+          "cpuSlowdownMultiplier": 1,
+          "rttMs": 40,
+          "throughputKbps": 10240,
+          "requestLatencyMs": 0,
+          "downloadThroughputKbps": 0,
+          "uploadThroughputKbps": 0
+        },
+        "throttlingMethod": "simulate",
         "chromeFlags": "--no-sandbox --headless=new",
         "onlyCategories": ["performance", "accessibility", "best-practices", "seo"]
       }
