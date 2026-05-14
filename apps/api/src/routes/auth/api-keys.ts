@@ -105,7 +105,7 @@ export async function registerApiKeysRoutes(app: FastifyInstance): Promise<void>
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
         throw new ValidationError('id must be a uuid', { details: { code: 'INVALID_ID' } });
       }
-      await apiKeys.revoke(sess.tenantId, id);
+      await apiKeys.revoke(sess.tenantId, id, sess.userId);
       return reply.code(204).send();
     },
   );

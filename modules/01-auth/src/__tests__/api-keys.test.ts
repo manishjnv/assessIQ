@@ -254,7 +254,7 @@ it("authenticate(revoked key) throws AuthnError after revoke()", async () => {
     createdBy: userA,
   });
 
-  await apiKeys.revoke(tenantA, record.id);
+  await apiKeys.revoke(tenantA, record.id, userA);
 
   await expect(apiKeys.authenticate(plaintextKey)).rejects.toBeInstanceOf(AuthnError);
 });

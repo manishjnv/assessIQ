@@ -5,13 +5,13 @@
 // Spec: modules/12-embed-sdk/SKILL.md § Decisions captured D2.
 // Admin endpoints: POST/GET/DELETE /api/admin/embed-origins.
 //
-// All mutations write an audit_log row via @assessiq/audit-log.audit().
+// All mutations write an audit_log row via @assessiq/audit-log.auditInTx().
 // All queries run inside withTenant so RLS is respected.
 //
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
 import { withTenant } from "@assessiq/tenancy";
-import { audit } from "@assessiq/audit-log";
+import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 
 export interface EmbedOriginRow {
@@ -51,16 +51,15 @@ export async function addEmbedOrigin(
          AND NOT ($2 = ANY(embed_origins))`,
       [tenantId, origin],
     );
-  });
-
-  await audit({
-    tenantId,
-    actorKind: "user",
-    actorUserId,
-    action: "embed_origin.added",
-    entityType: "tenant",
-    entityId: tenantId,
-    after: { origin },
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "embed_origin.added",
+      entityType: "tenant",
+      entityId: tenantId,
+      after: { origin },
+    });
   });
 }
 
@@ -77,15 +76,14 @@ export async function removeEmbedOrigin(
        WHERE id = $1`,
       [tenantId, origin],
     );
-  });
-
-  await audit({
-    tenantId,
-    actorKind: "user",
-    actorUserId,
-    action: "embed_origin.removed",
-    entityType: "tenant",
-    entityId: tenantId,
-    before: { origin },
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "embed_origin.removed",
+      entityType: "tenant",
+      entityId: tenantId,
+      before: { origin },
+    });
   });
 }

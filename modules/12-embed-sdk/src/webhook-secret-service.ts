@@ -21,7 +21,7 @@
 import { createCipheriv, randomBytes } from "node:crypto";
 import { config } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
-import { audit } from "@assessiq/audit-log";
+import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 
 export interface RotateWebhookSecretResult {
@@ -74,15 +74,14 @@ export async function rotateWebhookSecret(
          SET webhook_secret = EXCLUDED.webhook_secret`,
       [tenantId, encryptedB64],
     );
-  });
-
-  await audit({
-    tenantId,
-    actorKind: "user",
-    actorUserId,
-    action: "webhook_secret.rotated",
-    entityType: "tenant",
-    entityId: tenantId,
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "webhook_secret.rotated",
+      entityType: "tenant",
+      entityId: tenantId,
+    });
   });
 
   return { plaintextSecret };

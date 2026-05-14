@@ -86,11 +86,11 @@ export async function findTenantBySlug(client: PoolClient, slug: string): Promis
 // RLS on the tenants table also pins to id = current_setting(...), so the
 // WHERE is consistent with RLS rather than redundant.
 
-export async function findTenantSettings(client: PoolClient): Promise<TenantSettings | null> {
+export async function findTenantSettings(client: PoolClient, forUpdate = false): Promise<TenantSettings | null> {
   // RLS restricts visibility to the current tenant's single row. LIMIT 1 is
   // belt-and-braces; tenant_settings.tenant_id is the primary key.
   const result = await client.query<SettingsRow>(
-    `SELECT ${SETTINGS_COLUMNS} FROM tenant_settings LIMIT 1`,
+    `SELECT ${SETTINGS_COLUMNS} FROM tenant_settings LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
   );
   const row = result.rows[0];
   return row !== undefined ? mapSettingsRow(row) : null;
