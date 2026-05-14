@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (Phase 5 Session 10 — LinkedIn share button)
+
+**Headline:** Phase 5 MVP-COMPLETE — LinkedIn "Share on LinkedIn" CTA shipped on public verify page; 134/134 cert tests pass; VPS deployed and smoke-tested live.
+
+**Commits:**
+- `0a11562` — feat(cert): Phase 5 Session 10 — LinkedIn share button on public verify page
+
+**Tests:** @assessiq/certification — 134/134 pass (19 in verify.test.ts, 6 new).
+
+**Deploy:** assessiq-api + assessiq-frontend rebuilt and force-recreated on VPS. Smoke: `/verify/AIQ-2026-05-DTJC72` returns `cert-status--valid` + `Share on LinkedIn` button + `linkedin.com/sharing` href. `/api/auth/whoami` → 401.
+
+**Next:** Phase 5 is done. Next priority is Stage 3.1 default-flip (G1 threshold confirm + operator approval for `UPDATE tenant_settings SET ai_generate_mode = 'sharded'` on wipro-soc).
+
+**Open questions:**
+- G1 threshold: ≥3/5 or ≥4/5 for Stage 3.1 flip? (outstanding since 2026-05-13)
+- Explicit user approval required before flipping ai_generate_mode on pilot tenant.
+- GLM-4.6 adversarial re-run for MFA changes (timed out last session) — needed before `MFA_REQUIRED=true` prod flip.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads (8 files parallel), plan, all edits inline (≤30 lines/≤2 files per edit), test fix, commit, deploy, smoke test, handoff
+- Sonnet: n/a — presentation-only slice, within Opus direct-edit threshold throughout
+- Haiku: n/a
+- codex:rescue: n/a — no security/auth/classifier paths touched; routes-public.ts change is presentation-only (renderVerifyPage HTML only, no service/repository/crypto)
+
+---
+
 # Session — 2026-05-14 (Stage 3.1 G2 measurement)
 
 **Headline:** G2 gate confirmed PASS — score-candidate 153/153 on L2 sharded runs; L3 KB source gap found (non-blocking at Stage 3.1).
