@@ -242,6 +242,19 @@ candidate.cert.completion-modal:
     pop-up the first time you view each certificate. The pop-up appears once per
     certificate tier; if you earn a higher tier later, it will appear again.
 
+public.verify.share_linkedin:
+  audience: candidate
+  short_text: "Share this verified credential to your LinkedIn network in one click."
+  long_md: |
+    ## Share on LinkedIn
+
+    Opens LinkedIn's share dialog with this certificate's public verification
+    link pre-filled. LinkedIn fetches the page and displays a rich preview card
+    showing your name and course title.
+
+    Only **active** (non-revoked) certificates can be shared. If this
+    certificate has been revoked, the button is disabled.
+
 candidate.profile.name-callout:
   audience: candidate
   short_text: "Certificates print the name from your profile at issuance. Keep your profile name current before completing an assessment."

@@ -183,6 +183,9 @@ function renderVerifyPage(data: VerifyPageData): string {
     .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; }
     .value { font-size: 1rem; color: #111827; font-weight: 500; }
     .credential-id { font-family: monospace; font-size: .9rem; background: #f3f4f6; padding: .25rem .5rem; border-radius: 4px; }
+    .share-linkedin { display: inline-flex; align-items: center; gap: .5rem; margin-top: 1.5rem; padding: .625rem 1.25rem; border-radius: 6px; border: 1.5px solid #0a66c2; background: #fff; color: #0a66c2; font-size: .9rem; font-weight: 600; text-decoration: none; font-family: system-ui, sans-serif; cursor: pointer; }
+    .share-linkedin:hover { background: #f0f6ff; }
+    .share-linkedin--disabled { opacity: .4; cursor: not-allowed; border-color: #9ca3af; color: #9ca3af; }
   </style>
 </head>
 <body>
@@ -220,6 +223,7 @@ function renderVerifyPage(data: VerifyPageData): string {
     </div>`
         : ''
     }
+    ${renderShareSection(cert, status)}
   </div>
 </body>
 </html>`;
@@ -394,6 +398,49 @@ function determineStatus(cert: Certificate): CertStatus {
     secret,
   );
   return valid ? 'valid' : 'tampered';
+}
+
+// ---------------------------------------------------------------------------
+// LinkedIn share section (HTML fragment rendered inside the verify card)
+// ---------------------------------------------------------------------------
+//
+// Visible for ACTIVE certs only; disabled for REVOKED; omitted for TAMPERED
+// (tampered certs should not be promoted) and when PUBLIC_BASE_URL is unset.
+// No JS required — pure <a> / <button disabled> HTML. The share URL uses the
+// LinkedIn share-offsite pattern (no Company Page or API auth needed).
+
+function renderShareSection(cert: Certificate, status: CertStatus): string {
+  if (status === 'tampered') return '';
+  const baseUrl = process.env['PUBLIC_BASE_URL'];
+  if (!baseUrl || baseUrl.length === 0) return '';
+
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  const verifyUrl = `${trimmed}/verify/${cert.credential_id}`;
+  const shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(verifyUrl)}`;
+
+  // Inline SVG so the page has no external asset dependency.
+  const icon =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" ` +
+    `fill="currentColor" aria-hidden="true" style="flex-shrink:0">` +
+    `<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>` +
+    `<rect x="2" y="9" width="4" height="12" rx="1"/>` +
+    `<circle cx="4" cy="4" r="2"/></svg>`;
+
+  if (status === 'valid') {
+    return (
+      `<a href="${escAttr(shareUrl)}" target="_blank" rel="noopener noreferrer" ` +
+      `class="share-linkedin" data-help-id="public.verify.share_linkedin">` +
+      `${icon} Share on LinkedIn</a>`
+    );
+  }
+
+  // revoked — disabled button with tooltip
+  return (
+    `<button disabled class="share-linkedin share-linkedin--disabled" ` +
+    `title="Revoked certificates can&#39;t be shared" ` +
+    `data-help-id="public.verify.share_linkedin">` +
+    `${icon} Share on LinkedIn</button>`
+  );
 }
 
 // ---------------------------------------------------------------------------
