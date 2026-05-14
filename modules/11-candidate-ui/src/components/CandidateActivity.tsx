@@ -351,6 +351,7 @@ export function CandidateActivity(): React.ReactElement {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--aiq-space-md)" }}>
           <div>
             <h1
+              data-help-id="candidate.activity"
               style={{
                 fontFamily: "var(--aiq-font-serif)",
                 fontSize: "var(--aiq-text-3xl)",
