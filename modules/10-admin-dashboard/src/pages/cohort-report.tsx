@@ -87,7 +87,7 @@ export function AdminCohortReport(): React.ReactElement {
         </div>
 
         {/* KPI row */}
-        <div style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
+        <div data-help-id="admin.scoring.cohort.percentiles" style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
           <StatCard label="Attempts" value={stats.attempt_count} />
           <div className="aiq-card" style={{ padding: "var(--aiq-space-md) var(--aiq-space-lg)", minWidth: 140 }}>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: 4 }}>Avg score</div>

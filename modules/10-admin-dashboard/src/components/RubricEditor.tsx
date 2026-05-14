@@ -144,8 +144,9 @@ export function RubricEditor({
                 value={anchor.synonyms.join(", ")}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAnchor(anchor.anchor_id, { synonyms: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) })}
                 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)" }}
+                data-help-id="admin.rubric.anchor.synonyms"
               />
-              <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
+              <label data-help-id="admin.rubric.anchor.weight" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
                 <input
                   type="number"
                   min={0}
@@ -157,7 +158,7 @@ export function RubricEditor({
                 />
                 wt.
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", cursor: "pointer", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", whiteSpace: "nowrap" }}>
+              <label data-help-id="admin.rubric.anchor.required" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", cursor: "pointer", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", whiteSpace: "nowrap" }}>
                 <input
                   type="checkbox"
                   checked={anchor.required}
@@ -211,6 +212,7 @@ export function RubricEditor({
                   value={b.description}
                   onChange={(e) => updateBand(band, { description: e.target.value })}
                   style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", resize: "vertical" }}
+                  data-help-id="admin.rubric.reasoning.bands"
                 />
               </div>
             );
