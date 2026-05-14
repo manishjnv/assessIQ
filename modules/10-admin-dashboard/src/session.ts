@@ -19,6 +19,7 @@ export interface AdminSessionInfo {
     slug: string | null;
   };
   mfaStatus: "verified" | "pending" | "n/a";
+  totpEnrolled?: boolean;
 }
 
 let cached: AdminSessionInfo | null | undefined = undefined;
