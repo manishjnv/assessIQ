@@ -149,6 +149,7 @@ export function CompletionModal({
         aria-labelledby="completion-modal-title"
         tabIndex={-1}
         onKeyDown={handleKeyDown}
+        data-help-id="candidate.cert.completion-modal"
         style={{
           background: 'var(--aiq-color-bg-base, #fff)',
           border: '1px solid var(--aiq-color-border)',

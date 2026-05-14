@@ -236,6 +236,7 @@ export function CandidateLogin(): JSX.Element {
               <div
                 role="status"
                 aria-live="polite"
+                data-help-id="candidate.auth.link-sent"
                 style={{
                   padding: '16px 20px',
                   borderRadius: 'var(--aiq-radius-sm)',
@@ -266,7 +267,7 @@ export function CandidateLogin(): JSX.Element {
                 Too many requests, try again in an hour.
               </div>
             ) : (
-              <form onSubmit={handleSubmit} noValidate>
+              <form onSubmit={handleSubmit} noValidate data-help-id="candidate.auth.request-link">
                 <Field
                   label="Email address"
                   type="email"

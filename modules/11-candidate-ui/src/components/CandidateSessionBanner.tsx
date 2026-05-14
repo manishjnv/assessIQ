@@ -105,6 +105,7 @@ export function CandidateSessionBanner({
     <div
       role="status"
       aria-live="polite"
+      data-help-id="candidate.auth.expiring-soon"
       style={{
         background: 'oklch(0.97 0.05 70)',
         borderBottom: '1px solid oklch(0.72 0.15 70)',
