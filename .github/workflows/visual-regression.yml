@@ -1,0 +1,84 @@
+name: Visual regression
+
+# Advisory only — do not add to required status checks until baselines have
+# been committed and confirmed stable across ~3-5 PRs.
+# Promote via: GitHub repo → Settings → Branches → Branch protection rules
+# for `main` → "Require status checks to pass" → add `visual / visual`.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+
+    # Pin to the exact Playwright version in pnpm-lock.yaml (1.59.1).
+    # Changing @playwright/test version in package.json must be accompanied
+    # by updating this tag — mismatched versions cause spurious diff failures.
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-jammy
+
+    steps:
+      # 1. Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. pnpm setup
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15"
+
+      # 3. Node setup
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      # 4. Install dependencies
+      #    Using --no-frozen-lockfile to match lighthouse.yml style; switch to
+      #    --frozen-lockfile once the lockfile is consistently committed.
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      # 5. Build apps/web (tsc + vite build → dist/)
+      #    The visual spec runs against the Vite dev server (auto-started by
+      #    playwright.config.ts webServer block).  Build is required here
+      #    because the webServer command is `pnpm dev` which needs compiled
+      #    workspace packages.  Alternatively, point PLAYWRIGHT_BASE_URL at
+      #    a preview server — adjust if dev-server cold start proves too slow.
+      - name: Build workspace packages
+        run: pnpm --filter @assessiq/web build
+
+      # 6. Run visual regression tests
+      #    The `visual` project only runs visual.spec.ts (see playwright.config.ts).
+      #    On first run with no committed PNGs this will fail with
+      #    "snapshot doesn't exist" — that is expected.  Run with
+      #    --update-snapshots via workflow_dispatch to generate the baseline,
+      #    then commit the PNGs and re-run in comparison mode.
+      - name: Run visual regression
+        run: pnpm --filter @assessiq/web visual:run
+
+      # 7. Upload full Playwright report (always, so failures are inspectable)
+      - name: Upload Playwright visual report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-report
+          path: apps/web/playwright-report
+          retention-days: 14
+
+      # 8. Upload any snapshot diffs produced by the comparison run
+      - name: Upload snapshot diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-diffs
+          path: apps/web/test-results
+          retention-days: 14

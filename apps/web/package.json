@@ -11,7 +11,9 @@
     "preview": "vite preview --port 4173",
     "typecheck": "tsc -b --noEmit",
     "e2e": "playwright test",
-    "lhci:run": "lhci autorun"
+    "lhci:run": "lhci autorun",
+    "visual:run": "playwright test --project=visual",
+    "visual:update": "playwright test --project=visual --update-snapshots"
   },
   "dependencies": {
     "@assessiq/admin-dashboard": "workspace:*",
