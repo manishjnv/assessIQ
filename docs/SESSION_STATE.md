@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (pending-doc reconciliation)
+
+**Headline:** Retired all 3 orphaned `SESSION_STATE.pending-*.md` handoff docs — 0 remain open. Two were fully superseded by merged commits (13-notifications i18n → `7a20ee2`; G3.D 05-lifecycle → `08d4b19`). One was partial-merge (G3.D 03-users → `057de7d` shipped, but flagged an unresolved test-token regex issue) — distilled into Open questions below before deletion.
+
+**Commits:**
+- `9741114` — docs(session): retire pending 13-notifications i18n handoff
+- `2633a96` — docs(session): retire pending G3.D 05-lifecycle audit-write handoff
+- `eb62cd6` — docs(session): retire pending G3.D 03-users audit-write handoff
+
+**Tests:** n/a — docs-only reconciliation. No code paths touched.
+
+**Deploy:** n/a — docs-only; nothing for `assessiq-vps` to pull. (Per project CLAUDE.md DoD: deploy step skippable for genuinely deploy-irrelevant edits.)
+
+**Next:** Resolve the 03-users acceptInvitation test-token literal issue (one-line fix in `modules/03-users/src/__tests__/users.test.ts:649`) — see Open questions.
+
+**Open questions:**
+- `modules/03-users/src/__tests__/users.test.ts:649` passes a **42-char** invitation-token literal to `acceptInvitation`, but `INVITATION_TOKEN_RE = /^[A-Za-z0-9_-]{43,64}$/` (added 2026-05-09 in the invite-accept 500 fix) rejects 42-char tokens with `INVALID_INVITATION_TOKEN ValidationError` before reaching the SQL hash lookup. Test expects `INVITATION_NOT_FOUND`. One-line fix: either (a) extend the literal to ≥43 chars, or (b) change expectation to `ValidationError + INVALID_INVITATION_TOKEN`. Pre-existing failure — does NOT regress from G3.D 03-users sweep (`057de7d`). Distilled from now-retired `SESSION_STATE.pending-G3D-users.md`.
+
+---
+
+## Agent utilization
+- Opus: this session — Phase 0 reads, Phase A verdict table cross-referenced against `git log` for the 5 cited SHAs (all present), Phase B 3-commit cleanup with per-row approval, Phase C handoff. No file mutations during Phase A.
+- Sonnet: n/a — pure documentation reconciliation; no subagent dispatch needed.
+- Haiku: n/a — no bulk sweeps needed.
+- codex:rescue: n/a — docs-only reconciliation; no load-bearing or security-adjacent surface touched.
+
+---
+
 # Session — 2026-05-14 (P14 Lighthouse CI setup)
 
 **Headline:** Lighthouse CI wired for `apps/web` against 5 unauthenticated routes (`/admin/login`, `/candidate/login`, `/take/expired`, `/take/error`, 404 fallback). PR-triggered, advisory (not a required status check yet — promote after first green run). Thresholds ≥0.90 for performance/accessibility/best-practices/SEO. Auth-seeded coverage remains deferred to its own multi-session item.
