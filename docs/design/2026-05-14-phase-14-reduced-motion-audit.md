@@ -110,7 +110,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.certificates.reissue` | `modules/10-admin-dashboard/src/pages/certificates.tsx:667` | Inline table Reissue `<button>` | wired |
 | `admin.certificates.revoke_reason` | `modules/10-admin-dashboard/src/pages/certificates.tsx:760` | Revoke-reason `<label>` in revoke modal | wired |
 
-#### Wired in commit `<commit-sha-pending>` (candidate.attempt.* + candidate.result.*)
+#### Wired in commit `ac0e4ec` (candidate.attempt.* + candidate.result.*)
 
 6 of 8 `candidate.attempt.*` / `candidate.result.*` keys wired (2 skipped — no corresponding UI element renders today). Updated count: **23 of 57** wired.
 
