@@ -4,6 +4,22 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-15 — Systemic gap: `tenantContextMiddleware` and `magic-link.ts` have no test coverage on load-bearing paths
+
+**Symptom:** File-shape test-coverage audit (2026-05-15) found 2 HIGH-severity gaps and 1 MEDIUM-severity gap across the 5 load-bearing modules (00-core, 01-auth, 02-tenancy, 07-ai-grading, 14-audit-log). `tenantContextMiddleware` in 02-tenancy — the Fastify hook that issues BEGIN / SET LOCAL ROLE / `set_config('app.current_tenant', …)` / COMMIT or ROLLBACK for every request — has no dedicated test. `magic-link.ts` and `crypto-util.ts` in 01-auth — candidate token generation, expiry, and single-use enforcement — also have no dedicated tests. `14-audit-log`'s `archive-job.ts`, `webhook-fanout.ts`, and `routes.ts` are fully untested (append-only invariant IS covered by `audit.test.ts`).
+
+**Cause:** Incremental delivery — each module shipped with tests against its primary business logic but skipped infrastructure-glue layers: the middleware that initialises DB transaction scope, the crypto primitives called indirectly through higher-level tests, and the secondary operational paths (archiving, event fanout) added later without test investment.
+
+**Fix:** No code changed — this is a documentation and prioritisation record. Full coverage map: `docs/12-test-coverage.md`.
+
+**Prevention:** Proposed test-investment order (highest risk first):
+1. **02-tenancy** — `tenantContextMiddleware` integration test: verify BEGIN / SET LOCAL ROLE / COMMIT / ROLLBACK lifecycle; cross-tenant request isolation at the middleware layer (not only DB-level RLS).
+2. **01-auth** — `magic-link.ts` unit tests: token generation, expiry enforcement, single-use guard; `crypto-util.ts` HMAC round-trip correctness.
+3. **14-audit-log** — `archive-job.ts` and `webhook-fanout.ts` unit tests with mocked S3 client and HTTP client.
+4. **03-users** — invitations, normalize, redis-sweep paths.
+5. **06-attempt-engine** — `routes.candidate.ts` and `routes.take.ts` (autosave + submit flows including rate-cap).
+Treat each item as its own focused session; do not batch across modules.
+
 ## 2026-05-13 — Verify path silently 404/500 in prod: Caddy matcher gap + missing migrations + RLS cast crash
 
 **Symptom:** While smoke-testing Phase 5 Session 7's new `/og.png` endpoint, *every* request to the public `/verify/*` surface in production returned 404 (from Caddy) or HTML 404 (from the SPA shell) — never reaching the API. Once Caddy was patched, requests hit Fastify but returned HTTP 500 with `relation "certificates" does not exist`. After migrations were applied, requests returned 500 with `invalid input syntax for type uuid: ""`. The verify feature has been cosmetically broken in prod since Phase 5 Session 3 (2026-05-11); nobody noticed because nothing else actually links to `/verify/*` yet, and the prior session's smoke test (`curl /admin/certificates → 200`) only exercised the SPA route, not the API.
