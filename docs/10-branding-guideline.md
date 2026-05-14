@@ -113,16 +113,16 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
   /* Surfaces */
   --aiq-color-bg-base:       #ffffff;
   --aiq-color-bg-raised:     #fafafa;
-  --aiq-color-bg-sunken:     #f5f5f5;
+  --aiq-color-bg-sunken:     #f3f3f4;
 
   /* Text */
-  --aiq-color-fg-primary:    #1a1a1a;
-  --aiq-color-fg-secondary:  #5f6368;
-  --aiq-color-fg-muted:      #9aa0a6;
+  --aiq-color-fg-primary:    #0a0a0b;
+  --aiq-color-fg-secondary:  #3f3f46;
+  --aiq-color-fg-muted:      #71717a;
 
   /* Borders */
-  --aiq-color-border:        #e8e8e8;
-  --aiq-color-border-strong: #d4d4d4;
+  --aiq-color-border:        #e4e4e7;
+  --aiq-color-border-strong: #cdcdd1;
 
   /* Accent (indigo-violet, hue 258) — driven by tenants.branding.primary */
   --aiq-color-accent:        oklch(0.58 0.17 258);
@@ -145,8 +145,8 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
   --aiq-color-bg-raised:     #161618;
   --aiq-color-bg-sunken:     #1d1d20;
   --aiq-color-fg-primary:    #f5f5f7;
-  --aiq-color-fg-secondary:  #a0a0a8;
-  --aiq-color-fg-muted:      #6a6a72;
+  --aiq-color-fg-secondary:  #8a8a94;
+  --aiq-color-fg-muted:      #88889a;
   --aiq-color-border:        #2a2a2e;
   --aiq-color-border-strong: #3a3a3f;
   --aiq-color-accent:        oklch(0.70 0.16 258);
@@ -162,6 +162,8 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
 2. **Accent reserved for action and selection.** Filled-accent appears on: primary buttons, current question marker, selected option ring, current sparkline point, focused input ring, growth-area bullets. Don't tint backgrounds or borders accent unless they're interactive.
 3. **Per-tenant override = accent only.** Tenants override `--aiq-color-accent` (and its soft/hover companions auto-derive). Surfaces, text, and status colors stay AssessIQ's. This keeps brand recognizability while allowing client white-label.
 4. **Soft accent for selected backgrounds.** MCQ selected option fills `--aiq-color-accent-soft`; user avatar mark uses `--aiq-color-accent` solid. Don't invent intermediate shades.
+
+> **Updated 2026-05-14 to v1.1 token values (commit `<commit-sha-pending>`).** Six light-mode hex values (`--aiq-color-bg-sunken`, `--aiq-color-fg-primary`, `--aiq-color-fg-secondary`, `--aiq-color-fg-muted`, `--aiq-color-border`, `--aiq-color-border-strong`) and two dark-mode hex values (`--aiq-color-fg-secondary`, `--aiq-color-fg-muted`) were reconciled to match `modules/17-ui-system/src/styles/tokens.css`. See `docs/design/2026-05-14-phase-14-reduced-motion-audit.md` for the original drift report.
 
 ## 4. Spacing & density
 
