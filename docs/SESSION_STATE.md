@@ -1,3 +1,34 @@
+# Session — 2026-05-14 (Stage 3.1 G2 measurement)
+
+**Headline:** G2 gate confirmed PASS — score-candidate 153/153 on L2 sharded runs; L3 KB source gap found (non-blocking at Stage 3.1).
+
+**Commits:**
+- `28e2106` — docs(stage3): G2 measurement results 2026-05-14 — PASS on L2, L3 KB gap identified
+
+**Tests:** No code changed — measurement-only session. Existing test baselines unchanged.
+
+**Deploy:** Not required — docs + eval harness JSON only. VPS repo pulled implicitly on next deploy.
+
+**Next:** Two items remain before Stage 3.1 flip (both non-load-bearing, ~1 session):
+1. **G1 threshold operator confirm** (outstanding since 2026-05-13): does ≥3/5 or ≥4/5 govern Stage 3.1? Under ≥3/5: already satisfied. Under ≥4/5: 2 more L2 count=15 smokes first.
+2. **G4 SKILL.md patch** (~30 min, Sonnet): `generate-scenario` add `'independent'` to FORBIDDEN `step_dependency` values; `generate-subjective` add `context`/`response_format`/`parts`/`answer_key` to wrapper-key FORBIDDEN block. Redeploy + 1 verification smoke.
+3. Then: explicit approval gate → `UPDATE tenant_settings SET ai_generate_mode = 'sharded' WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'wipro-soc')`.
+
+**Open questions:**
+- G1 threshold: ≥3/5 or ≥4/5 for Stage 3.1? (operator confirmation required before flip)
+- L3 KB source gap: wipro-soc pack has no `level_fit: "L3"` sources → L3 generation cites L2-tagged KB, fails G2 at L3. Fix before Stage 3.2/3.3 (not a Stage 3.1 blocker). KB data operation, no code change.
+- Pre-existing `AdminShell.tsx:334` typecheck error (`totpEnrolled` missing from `AdminSessionInfo`) — from MFA enrollment UX work `94d5f34`, not this session.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads (5 files parallel), VPS DB query (schema probe + omnibus/sharded data), score-candidate execution (5 L2 runs + 1 omnibus via docker exec parallel), G2 analysis + root-cause for 019e1f7d L3 divergence, design-doc section authoring, runtime-baseline.json updates, commit + push
+- Sonnet: n/a — measurement-only session, no implementation subagents
+- Haiku: n/a
+- codex:rescue: n/a — measurement-only, no security/auth/classifier code changes
+
+---
+
 # Session — 2026-05-14 (Phase 5 Session 9 — admin cert UI)
 
 **Headline:** Phase 5 Session 9 shipped — admin `/admin/certificates` UI gaps closed: service.ts PII bug fixed (revoke_reason removed from audit_log), details drawer + min-10-char revoke flow in certificates.tsx, help key `admin.certificates.revoke_reason`, PII-rule integration test, and full admin surface docs in 14-credentialing.md.
