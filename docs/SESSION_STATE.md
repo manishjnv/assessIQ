@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (G3.D 02-tenancy audit-writes test fix)
+
+**Headline:** Fixed 2 failing atomicity tests in `modules/02-tenancy/src/__tests__/audit-writes.test.ts` using DB-native `CHECK (false) NOT VALID` constraint; added §30 to `docs/11-observability.md`. VPS already deployed by prior Haiku session.
+
+**Commits:**
+- `412d8ba` — test(tenancy): fix audit-writes atomicity tests via DB-native constraint
+- `<pending>` — docs(observability): §30 audit-log wiring for 02-tenancy (G3.D)
+
+**Tests:** 24 passed | 1 todo — both `tenancy.test.ts` and `audit-writes.test.ts` green.
+
+**Deploy:** VPS already live from prior Haiku session (`dad0d9a`, `assessiq-api` rebuilt 2026-05-14T01:41:43Z). Test-only change — no redeploy needed.
+
+**Next:** Stage 3.1 G2 unblock — `eval/fixtures/L2-sources.json` realignment to prod KB source IDs + `cli-typed.ts` loader fix + 3-run score-candidate re-audit.
+
+**Open questions:**
+- G1 threshold for Stage 3.1 flip: ≥3/5 or ≥4/5?
+- Stage 3.1 flip requires explicit user approval before pilot-tenant `ai_generate_mode` update.
+
+---
+
+## Agent utilization
+- Opus: Main session — root-cause investigation of Vitest ESM mock isolation failure, DB-native atomicity approach design, §30 doc authoring, commit, handoff.
+- Sonnet: n/a — test fix was ≤2 files; Opus wrote directly.
+- Haiku: Prior session shipped production code (`dad0d9a`/`7b4127d`); this session fixed what that session left broken.
+- codex:rescue: n/a — test-only change; `feedback-adversarial-reviewer-routing.md` gates 02-tenancy as Sonnet+GLM-4.6, but test-only diffs do not trigger adversarial gate.
+
+---
+
 # Session — 2026-05-14 (Stage 3.1 readiness audit — evidence-gathering)
 
 **Headline:** Stage 3.1 evidence audit complete — verdict NEEDS-MORE-RUNS (G2 FAIL blocks flip; G1 PASS-with-caveats; G4 PASS-with-caveats). No code touched.

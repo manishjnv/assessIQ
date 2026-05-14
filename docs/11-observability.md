@@ -1204,3 +1204,45 @@ The catalog adds **6** entries for this module (line numbers reference [modules/
 - **Per-chunk stderr aggregation and the sharded generation diagnostic** — operational telemetry only; writes to `grading.log` and `mcp-rejections.log` (see § 21, § 22). The audit row already names which admin triggered the generation (one row per successful chunk); failed chunks are surfaced via the operator workflow, not the audit trail.
 - **Skill SHA drift detection** — a Phase 1 admin-UI badge. The skill SHA itself is recorded on every `gradings` row (`prompt_version_sha`) and the audit row's `entity_id` chain to `attempt` / `grading` lets an auditor pivot from "who clicked accept" to "what skill SHA was active" without a separate audit entry.
 - **The `ci/lint-no-ambient-claude.ts` build check** — static-source enforcement, fires at PR time. Per CLAUDE.md it is doubly-load-bearing (`codex:rescue` to modify); it is the *gate* on the ambient-AI invariant, not a runtime audit row.
+
+## 30. Audit-log wiring — 02-tenancy (G3.D slice, 2026-05-14)
+
+Every admin-mutating function in [modules/02-tenancy/src/service.ts](../modules/02-tenancy/src/service.ts) writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)`. The module sits on [CLAUDE.md's load-bearing-paths list](../CLAUDE.md) — `modules/02-tenancy/**` owns RLS policies and tenant context; audit-row atomicity here is load-bearing for the multi-tenancy compliance boundary.
+
+### 30.1 Wired sites and action namespaces used
+
+| Function | `audit_log.action` | `entity_type` | `entity_id` | `actor_kind` | Notes |
+|---|---|---|---|---|---|
+| `updateTenantSettings` | `tenant.settings.updated` | `tenant_settings` | `tenantId` | `user` if `actorUserId` supplied, else `system` | `before` = snapshot of current `tenant_settings` row (FOR UPDATE lock prevents TOCTOU race); `after` = the patch object. Sensitive fields (branding URLs, webhook URLs) pass through; callers must not log the patch contents at INFO per CLAUDE.md rule #4. |
+| `suspendTenant` | `tenant.suspended` | `tenant` | `tenantId` | `user` if `actorUserId` supplied, else `system` | `after: { status: "suspended", reason }`. `before` omitted — `suspended` state is terminal from the caller's perspective. The `reason` field is admin-supplied free text; it is included in the audit `after` payload because it is the compliance signal ("why was this tenant suspended?") and has no candidate-PII exposure. |
+| `updateAiGenerateMode` | `tenant_settings.ai_generate_mode.updated` | `tenant_settings` | `targetTenantId` | always `user` | Super-admin-only path. `before: { ai_generate_mode: previous }`, `after: { ai_generate_mode: newMode }`. Returns `auditRow.id` to caller for receipt. `actorUserId` is the super_admin's UUID, enforced at the API route boundary before calling this function. |
+
+### 30.2 Atomicity guarantees
+
+- All three functions call `auditInTx(client, ...)` inside the same `withTenant(tenantId, async (client) => { ... })` callback that owns the domain mutation. `withTenant` wraps the callback in `BEGIN` / `COMMIT`; on callback exception it calls `ROLLBACK` and rethrows.
+- If `auditInTx` throws (catalog mismatch, RLS denial, FK violation), the domain mutation (UPDATE to `tenant_settings`, UPDATE to `tenants.status`) rolls back atomically. This prevents the ghost-write failure mode — a suspended tenant whose suspension has no audit trail.
+- `updateTenantSettings` issues a `SELECT ... FOR UPDATE` before the `UPDATE` to lock the settings row inside the transaction — prevents a TOCTOU race between the pre-read (captured as `before`) and the UPDATE when concurrent admin calls race on the same tenant.
+
+### 30.3 Action-catalog scope decision
+
+Two actions were added for this module (lines reference [modules/14-audit-log/src/types.ts](../modules/14-audit-log/src/types.ts)):
+
+- `tenant.settings.updated` (line 28, pre-existed in G3.A catalog; reused)
+- `tenant.suspended` (line 30, added G3.D 2026-05-14)
+- `tenant_settings.ai_generate_mode.updated` (line 99, pre-existed for super-admin path; reused)
+
+`tenant.suspended` is intentionally separate from `tenant.settings.updated` — a suspension is a lifecycle event with distinct compliance weight (billing, legal hold, admin-attributable freeze) and different `entity_type` (`tenant` vs `tenant_settings`). Folding it into `settings.updated` was considered and rejected because auditors searching for suspension events need a single discriminating action, not a filter on `after.status`.
+
+### 30.4 Test coverage
+
+[modules/02-tenancy/src/__tests__/audit-writes.test.ts](../modules/02-tenancy/src/__tests__/audit-writes.test.ts) provides:
+
+- **Static structural tests (Section A)**: coverage-grep asserts exactly one `auditInTx(` call site per function body; asserts the action string exists in `ACTION_CATALOG`; asserts each wired function body references both `withTenant` and `auditInTx` (structure-level atomicity guard); regression guard that the old fire-and-forget `audit()` pattern was not re-introduced.
+- **Live integration tests (Section B)**: testcontainer with real Postgres, full 02-tenancy + 03-users (020_users.sql only) + 14-audit-log migration chain applied in order.
+  - Happy-path tests verify `before`/`after` payload shape and `actor_kind` on the written row.
+  - Atomicity tests use `ALTER TABLE audit_log ADD CONSTRAINT CHECK (false) NOT VALID` to cause a real DB error on `auditInTx` INSERT, then assert the domain mutation rolled back. `NOT VALID` is required because happy-path tests already wrote rows; plain `CHECK (false)` would fail with "is violated by some row."
+
+### 30.5 What's NOT audited here
+
+- `getTenantById` / `getTenantBySlug` / `listActiveTenantIds` — read paths or system-role queries that do not mutate state.
+- RLS policy enforcement itself — enforced by Postgres; operator visibility via `pg_audit` extension if enabled on the VPS, not via `audit_log`.
