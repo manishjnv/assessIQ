@@ -509,13 +509,15 @@ export function AdminActivity(): React.ReactElement {
             </div>
           )}
           {!heatmapLoading && !heatmapError && (
-            <ActivityHeatmap
-              data={heatmapData}
-              weeks={52}
-              monthLabels={monthLabels}
-              {...(streakSummary !== undefined ? { streakSummary } : {})}
-              aria-label="52-week activity heatmap"
-            />
+            <div data-help-id="admin.activity.heatmap.legend">
+              <ActivityHeatmap
+                data={heatmapData}
+                weeks={52}
+                monthLabels={monthLabels}
+                {...(streakSummary !== undefined ? { streakSummary } : {})}
+                aria-label="52-week activity heatmap"
+              />
+            </div>
           )}
         </div>
 
@@ -611,10 +613,12 @@ export function AdminActivity(): React.ReactElement {
             </div>
           )}
           {!leaderboardLoading && !leaderboardError && leaderboardItems.length > 0 && (
-            <LeaderboardList
-              items={leaderboardItems}
-              columns={2}
-            />
+            <div data-help-id="admin.activity.leaderboard.delta">
+              <LeaderboardList
+                items={leaderboardItems}
+                columns={2}
+              />
+            </div>
           )}
         </div>
 

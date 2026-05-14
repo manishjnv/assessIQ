@@ -197,7 +197,7 @@ export function Submitted(): JSX.Element {
           </p>
 
           {/* Grading-pending status box */}
-          <Card padding="lg" style={{ textAlign: 'left', marginBottom: 32 }}>
+          <Card data-help-id="candidate.submit.confirm" padding="lg" style={{ textAlign: 'left', marginBottom: 32 }}>
             <div
               style={{
                 display: 'flex',
