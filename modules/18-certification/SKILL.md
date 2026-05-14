@@ -1,11 +1,10 @@
 # 18-certification — Tamper-evident course-completion credentials
 
 ## Status
-**IN PROGRESS** — Phase 5 Session 2 (2026-05-11). Cryptographic + identity
-core landed: HMAC-SHA256 signing helper, CSPRNG credential_id generator with
-DB-collision retry, idempotent + tier-upgrade-aware `issueCertificate`
-service with atomic `auditInTx`. PDF rendering, public verify endpoint,
-LinkedIn share, admin revoke still pending (Phase 5 Sessions 3+).
+**COMPLETE** — Phase 5 Sessions 1–8 (2026-05-11 → 2026-05-14). All planned
+surfaces shipped: HMAC-SHA256 signing, credential_id generation, issuance
+engine, PDF download, public verify page, OG/LinkedIn PNG preview, LinkedIn
+share + admin list/revoke/reissue surfaces, automatic release trigger wiring.
 
 ## Purpose
 Issue, verify, and manage tamper-evident certificates when a candidate passes
@@ -33,16 +32,42 @@ Full implementation plan: `docs/CERTIFICATION_PLAN_GENERIC.md`.
 | `13-notifications` | Email-on-issue (Phase 5 Session 2+; not wired in Session 1) |
 | `16-help-system` | Help IDs for cert UI surfaces (Phase 5 Session 5) |
 
-## Non-goals (Phase 5 Session 2)
+## Session delivery summary
 
-- PDF generation (Session 4)
-- Public verify page + OG image (Session 3)
-- LinkedIn share endpoint (Session 8)
-- Threshold/tier determination logic — issueCertificate consumes a tier
-  decided upstream; the pure determine_tier() helper lands in a later
-  session when 09-scoring exposes the inputs
-- Trigger wiring into 06-attempt-engine (Session 4)
-- Admin revoke + reissue surfaces (Session 6/7)
+| Session | Date | Shipped |
+|---|---|---|
+| 1 | 2026-05-11 | Scaffold, DB migration, `certificates` table |
+| 2 | 2026-05-11 | Crypto core (HMAC), `issueCertificate`, `auditInTx` |
+| 3 | 2026-05-11 | Public verify page, UUID_NIL RLS bypass |
+| 4 | 2026-05-11 | PDF download endpoint, A4 template |
+| 5 | 2026-05-12 | Admin list, revoke, reissue |
+| 6 | 2026-05-13 | LinkedIn share counter, `incrementShareCount` |
+| 7 | 2026-05-13 | OG meta tags + LinkedIn-compatible PNG preview |
+| 8 | 2026-05-14 | `issueCertificateOnRelease` trigger wiring into 07-ai-grading |
+
+## §4.1 — Never-raise wrapper (trigger wiring invariant)
+
+`issueCertificateOnRelease` is the only public entry point for the automatic
+trigger. The rule: **cert failure must never block the calling operation.**
+
+- Module 07 wraps the call in `.catch((err) => log.warn(...))` — all errors
+  are swallowed at the call site.
+- `issueCertificateOnRelease` itself returns `null` for below-threshold scores
+  rather than throwing — the `null` path is the normal "no cert" flow.
+- Only genuine database/signing errors bubble to the outer `.catch()`.
+
+This design means: if `CERT_SIGNING_SECRET` is unset, or the `certificates`
+table migration hasn't run, or any other cert-side failure occurs, the release
+still succeeds and the candidate sees their results. A re-issue can be triggered
+manually from the admin certificates page.
+
+## Non-goals (original Session 2 scope, now all shipped)
+
+- PDF generation → Session 4
+- Public verify page + OG image → Session 3
+- LinkedIn share endpoint → Session 6
+- Admin revoke + reissue → Session 5
+- Trigger wiring into grading release handler → Session 8
 - Migration application against any database (deploy step; CLAUDE.md #8)
 
 ## Cryptography and identity (Session 2 + adversarial revision)
