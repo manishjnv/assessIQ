@@ -127,10 +127,12 @@ export function AdminIndividualReport(): React.ReactElement {
               </div>
 
               {attempt.archetype_signals && (
-                <ArchetypeRadar
-                  signals={attempt.archetype_signals as unknown as Parameters<typeof ArchetypeRadar>[0]["signals"]}
-                  size={140}
-                />
+                <div data-help-id="admin.scoring.attempt.archetype">
+                  <ArchetypeRadar
+                    signals={attempt.archetype_signals as unknown as Parameters<typeof ArchetypeRadar>[0]["signals"]}
+                    size={140}
+                  />
+                </div>
               )}
             </div>
           ))}
