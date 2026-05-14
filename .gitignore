@@ -80,3 +80,9 @@ var/
 # Eval harness run output and blessed baselines (large; admin-local)
 modules/07-ai-grading/eval/runs/*/
 modules/07-ai-grading/eval/baselines/*.json
+
+# Lighthouse CI run artifacts (local; CI outputs to temporary-public-storage)
+apps/web/.lighthouseci/
+
+# Playwright HTML report (local viewer; not source)
+apps/web/playwright-report/
