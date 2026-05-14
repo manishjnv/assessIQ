@@ -1,0 +1,61 @@
+name: Lighthouse CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Advisory only — do not add to required status checks until baseline scores
+# are confirmed ≥ 90. Promote via repo Settings → Branches after first green run.
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. pnpm setup
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15"
+
+      # 3. Node setup with pnpm cache
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      # 4. Install dependencies
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      # 5. Build apps/web (tsc + vite build → dist/)
+      - name: Build apps/web
+        run: pnpm --filter @assessiq/web build
+
+      # 6. Run Lighthouse CI against the 5 unauthenticated routes.
+      #    lhci autorun reads lighthouserc.json at the repo root.
+      #    The preview server is started/stopped by lhci collect internally.
+      #    Auth-seeded routes (admin/candidate dashboards) are deferred —
+      #    they need Playwright session fixtures (separate P14 sub-item).
+      - name: Run Lighthouse CI
+        run: pnpm --filter @assessiq/web lhci:run
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      # 7. Upload Lighthouse reports on failure for inspection
+      - name: Upload Lighthouse report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ github.run_id }}
+          path: .lighthouseci/
+          retention-days: 14
