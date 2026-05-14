@@ -1,4 +1,55 @@
-# Session — 2026-05-14 (Phase 1 closure re-drill)
+# Session — 2026-05-14 (G3.D audit-write sweep — 01-auth, 02-tenancy, 12-embed-sdk)
+
+**Headline:** G3.D sweep complete for 01-auth, 02-tenancy, 12-embed-sdk — all admin-mutating service functions now write audit_log rows atomically via auditInTx inside the withTenant transaction.
+
+**Commits:**
+- `dad0d9a` — feat(audit): G3.D sweep — auditInTx wiring for 01-auth, 02-tenancy, 12-embed-sdk
+- `7b4127d` — test(tenancy): G3.D audit-writes test suite for 02-tenancy
+
+**Tests:** All four typechecks clean (`@assessiq/auth`, `@assessiq/tenancy`, `@assessiq/embed-sdk`, `@assessiq/api`). 437-line audit-writes test suite added for 02-tenancy.
+
+**Deploy:** `assessiq-api` rebuilt and recreated on VPS — container running since 2026-05-14T01:41:43Z.
+
+**Next:** G3.D sweep remaining modules — `06-attempt-engine`, `13-notifications`, `10-admin-dashboard`. Or: Phase 5 Session 9 (cert admin issue/revoke UI).
+
+**Open questions:**
+- `06-attempt-engine` has zero audit writes — needs inventory of which state-machine transitions should emit audit rows before wiring.
+- `13-notifications` and `10-admin-dashboard` may be read-heavy; confirm which functions actually mutate before wiring.
+
+---
+
+## Changes detail
+
+### 01-auth/api-keys.ts
+- `create()`: `auditInTx` added inside `withTenant` callback after INSERT RETURNING; captures `name`, `keyPrefix`, `scopes`, `expiresAt` in `after`.
+- `revoke()`: `revokedBy: string` param added; `auditInTx` inside `withTenant` guarded by `rowCount > 0` — no spurious audit entry for revoke calls on non-existent keys.
+- `api-keys.test.ts` line 257: `revoke(tenantA, record.id)` → `revoke(tenantA, record.id, userA)`.
+- `apps/api/src/routes/auth/api-keys.ts` line 108: `revoke(sess.tenantId, id)` → `revoke(sess.tenantId, id, sess.userId)`.
+
+**Why rowCount guard:** adversarial finding — without it, revoking a non-existent UUID writes a `api_key.revoked` audit row that has no corresponding key row, misleading the audit trail.
+
+### 02-tenancy/service.ts + repository.ts
+- `updateTenantSettings()`: `actorUserId?: string` param added; audit moved inside `withTenant`; pre-read `findTenantSettings(client, true)` (FOR UPDATE) captures before state.
+- `suspendTenant()`: `actorUserId?: string` param added; `auditInTx` added inside `withTenant` after `setTenantStatus`.
+- `repository.findTenantSettings()`: `forUpdate = false` flag added — `FOR UPDATE` appended to SELECT when true.
+
+**Why FOR UPDATE:** adversarial finding — without the lock, a concurrent `updateTenantSettings` call between the pre-read and the UPDATE (under READ COMMITTED) could cause the audit `before` field to capture stale state.
+
+### 12-embed-sdk
+- `embed-origins-service.ts`: `addEmbedOrigin` and `removeEmbedOrigin` swapped fire-and-forget `audit()` called after `withTenant` for `auditInTx(client)` called inside `withTenant`.
+- `webhook-secret-service.ts`: `rotateWebhookSecret` audit moved from after `withTenant` to inside the `withTenant` callback, after the UPSERT.
+
+---
+
+## Agent utilization
+- Opus: Session driving — adversarial review of load-bearing diffs (rowCount guard + FOR UPDATE findings), all edits, typecheck verification, commit/deploy/doc.
+- Sonnet: Adversarial review pass on 01-auth + 02-tenancy diffs (load-bearing path; two findings raised).
+- Haiku: n/a
+- codex:rescue: n/a — Sonnet adversarial pass used per project memory `feedback-adversarial-reviewer-routing.md`; two findings actioned.
+
+---
+
+
 
 **Headline:** Phase 1 closure re-drill confirms D1/D3-step5/D4 all PASS — audit report appended to `docs/plans/PHASE_1_KICKOFF.md`.
 
