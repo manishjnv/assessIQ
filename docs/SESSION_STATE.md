@@ -1,3 +1,53 @@
+# Session — 2026-05-14 (stash bleed cleanup)
+
+**Headline:** Fixed misplaced static imports in App.tsx (imports after const lazy() declarations were a stash bleed from 2026-05-13 WIP committed without ordering fix).
+
+**Commits:**
+- `01fc60f` — fix(web): move static imports above lazy() declarations in App.tsx
+
+**Tests:** tsc --noEmit clean.
+
+**Deploy:** Pending push + VPS pull. Frontend container rebuild required (App.tsx change).
+
+**Next:** Push all commits; VPS pull + rebuild `assessiq-frontend`.
+
+**Open questions:** None.
+
+---
+
+## Agent utilization
+- Opus: Triage (confirmed .gitignore/index.html/vite.config.ts already in HEAD — CRLF noise only); import reorder fix direct (≤30 lines, file in cache); commit.
+- Sonnet: n/a.
+- Haiku: n/a.
+- codex:rescue: n/a — UI file only, no load-bearing/security paths.
+
+---
+
+# Session — 2026-05-14 (branding §3.1 chart + heatmap token doc)
+
+**Headline:** Audited docs/10-branding-guideline.md §3.1/§3.2 — zero value-drift (commit `2e1af79` had already fixed the 8 stale values); documented 13 previously-undocumented color tokens (chart palette + heatmap ramp) in §3.1.
+
+**Commits:**
+- `16fdc53` — docs(branding): align §3.1/§3.2 token values with tokens.css
+
+**Tests:** n/a — docs-only.
+
+**Deploy:** n/a — docs-only; skippable per CLAUDE.md DoD.
+
+**Next:** `docs/08-ui-system.md` token catalog lines 54–59 and 132–133 still carry pre-v1.1 stale hex values (`#f5f5f5`, `#1a1a1a`, `#5f6368`, `#9aa0a6`, `#e8e8e8`, `#d4d4d4` light; `#a0a0a8`, `#6a6a72` dark) — separate follow-on pass. Also: push 11 commits currently ahead of origin when ready.
+
+**Open questions:** None.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads; Phase A full token-by-token audit (17 light + 15 dark = zero drift; 13 added); Phase B direct edit (single file, in hot cache); commit; Phase C handoff.
+- Sonnet: n/a — single-file docs edit was Opus-direct per global rule.
+- Haiku: n/a.
+- codex:rescue: n/a — docs only, no security/auth/classifier paths.
+
+---
+
 # Session — 2026-05-14 (stash triage)
 
 **Headline:** Salvaged 9 admin help keys from the 2026-05-13 WIP stash (G3.A audit log + G3.B worker observability + 13-notifications webhooks); stash dropped.
