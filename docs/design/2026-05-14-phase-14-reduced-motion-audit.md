@@ -71,12 +71,20 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 ### Visual regression baseline (Playwright snapshot)
 
-**Status:** Not started. **Infrastructure missing:**
-- No `playwright.config.ts` `expect.toHaveScreenshot()` baseline directory.
-- No `apps/web/e2e/visual/` directory with snapshot tests.
-- Playwright screenshot infrastructure depends on a consistent render environment (font loading, OS rendering differences between CI and local). Needs `--update-snapshots` run on a known-good commit to establish the baseline.
-- CI must pin the same browser version (via Playwright install in workflow) and same viewport/DPR to avoid snapshot drift.
-- Consider running visual tests in Docker to eliminate platform rendering differences.
+**STATUS: SHIPPED (scaffolding only)** in commit `10f1540`.
+
+**What landed:**
+- `apps/web/e2e/visual.spec.ts` — 5 snapshot tests against the same unauthenticated routes Lighthouse CI covers. Linux-only guard via `testInfo.skip` + `visual` project filter so Windows-rendered local runs don't fail PRs.
+- `apps/web/playwright.config.ts` — new `visual` project (`testMatch: /visual\.spec\.ts/`, viewport 1280×800); `testIgnore: /visual\.spec\.ts/` added to the default chromium project so visual.spec doesn't get double-run.
+- `apps/web/e2e/visual.spec.ts-snapshots/.gitkeep` — directory placeholder; actual baseline PNGs intentionally NOT committed (must be generated inside the Playwright Docker image for byte-identical CI renders).
+- `apps/web/package.json` — `visual:run` and `visual:update` scripts.
+- `.github/workflows/visual-regression.yml` — PR-triggered, advisory, runs inside `mcr.microsoft.com/playwright:v1.59.1-jammy` (pinned to the installed Playwright version).
+- `docs/11-observability.md` § 32 — what/why/config table/Docker contract/baseline update procedure/promote-to-required path.
+
+**Deferred follow-ups:**
+- **Baseline PNG generation** — first CI run inside the Docker image will create the baselines; commit them via a PR with `--update-snapshots` output.
+- **Promote to required status check** — defer until baselines prove stable across ~3–5 PRs.
+- **`maxDiffPixels: 200` threshold** — tune up if CI proves flaky on font kerning, or down once baselines stabilize.
 
 ### Help-content audit — `help_id` usage vs YAML entries
 
@@ -192,16 +200,31 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | questions | `type.scenario.step_dependency` | — | skipped — `step_dependency` only in `DEFAULT_CONTENT`; no dedicated DOM element for it in the editor or pack detail |
 | packs | `create.domain` | `modules/10-admin-dashboard/src/pages/question-bank.tsx` — "Domain *" `<input>` in new-pack inline form | wired |
 
+#### Wired in commit `6007e1e` (admin.attempts.* + admin.generation-attempts.*)
+
+2 of 8 keys wired (6 skipped — UI element doesn't exist). Updated count: **39 of 57** wired. This closes the help-wiring chapter for the namespaces enumerated in this audit.
+
+| Key | File:line | Status |
+|---|---|---|
+| `admin.attempts.grading-dispatch` | `modules/10-admin-dashboard/src/pages/attempt-detail.tsx:270` — "Grade all" `<button>` | wired |
+| `admin.generation-attempts.history` | `modules/10-admin-dashboard/src/pages/generation-attempts.tsx:718` — page `<h1>` | wired |
+| `admin.attempts.session-idle` | — | skipped — no idle indicator on attempt rows today |
+| `admin.audit.archives.restore_procedure` | — | skipped — `audit.tsx` does not exist yet (audit UI not built) |
+| `admin.audit.export.format` | — | skipped — same as above |
+| `admin.notifications.in_app.short_poll_interval` | — | skipped — no notifications-settings UI in any admin page |
+| `admin.ops.cli.cleanup` | — | skipped — CLI-only key; no DOM target |
+| `admin.ops.cli.inspect-attempt` | — | skipped — CLI-only key; no DOM target |
+
 **Remaining unwired gap pages:**
 
-- ~~All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 6 entries)~~ (miscount in prior audit was 7; confirmed 6; 2 wired in commit above, 4 skipped — no UI element)
-- ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `b777ba4` below)
-- ~~All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)~~ (6 wired, 2 skipped — no UI element; see commit above)
-- ~~All settings keys (`admin.settings.*` — 4 entries)~~ (3 wired, 1 skipped — no UI element; see commit above)
-- ~~Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)~~ (11 wired, 9 skipped — no UI element; see commit `28c97be` above)
-- Remaining unwired admin keys: audit, scoring, rubric, notifications — ~20 entries (deferred per task scope)
+- ~~All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 6 entries)~~ (2 wired in `61e97f2`, 4 skipped — no UI element)
+- ~~All certificate management keys (`admin.certificates.*` — 4 entries)~~ (4 wired in `b777ba4`)
+- ~~All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries)~~ (6 wired in `ac0e4ec`, 2 skipped — no UI element)
+- ~~All settings keys (`admin.settings.*` — 4 entries)~~ (3 wired in `283e466`, 1 skipped — no UI element)
+- ~~Activity / assessments / questions / packs (~20 entries)~~ (11 wired in `28c97be`, 9 skipped — no UI element)
+- ~~Attempts / audit / notifications / ops / generation-attempts (8 entries)~~ (2 wired in `6007e1e`, 6 skipped — no UI element)
 
-**Action for next session:** Wire the next slice — remaining admin keys (audit, scoring, rubric, notifications — ~20 entries).
+**Help-wiring chapter status: COMPLETE.** All 57 enumerated keys have been processed. 39 are wired; the remaining 18 are deferred until the corresponding UI elements ship (Phase 3+ features: audit UI, notifications-settings UI, in-session disconnect banner, Phase 2 result-band display, assessment-wizard advanced fields, KQL/scenario type explainers, import-format UI). The skipped keys remain in the YAML as design intent — they're ready to wire as soon as their target DOM elements land.
 
 ### Branding-guideline doc reconcile — token drift
 
