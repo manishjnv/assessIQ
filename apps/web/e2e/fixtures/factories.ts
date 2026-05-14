@@ -514,6 +514,44 @@ export async function acceptGradings(
 }
 
 // ---------------------------------------------------------------------------
+// Release + certificate (graded → released → cert auto-issued)
+// ---------------------------------------------------------------------------
+
+export async function releaseAttempt(
+  adminCookie: string,
+  attemptId: string,
+): Promise<{ attempt: { id: string; status: string } }> {
+  return apiFetchJson<{ attempt: { id: string; status: string } }>(
+    `/api/admin/attempts/${attemptId}/release`,
+    {
+      method: 'POST',
+      cookie: adminCookie,
+      body: {},
+      expectedStatus: 200,
+      label: 'releaseAttempt',
+    },
+  );
+}
+
+export interface TestCertificate {
+  id: string;
+  attempt_id: string;
+  credential_id: string;
+  signed_hash: string;
+}
+
+export async function getAdminCertificateForAttempt(
+  adminCookie: string,
+  attemptId: string,
+): Promise<TestCertificate | null> {
+  const res = await apiFetchJson<{ items: TestCertificate[]; total: number }>(
+    '/api/admin/certificates',
+    { cookie: adminCookie, label: 'getAdminCertificateForAttempt' },
+  );
+  return res.items.find((c) => c.attempt_id === attemptId) ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Cleanup
 // ---------------------------------------------------------------------------
 
