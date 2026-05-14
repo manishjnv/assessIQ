@@ -99,15 +99,26 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.grading.rerun` | — | No separate Sonnet-only Re-run button; the single Re-run button always calls `?escalate=opus`; wired as `rerun.opus` above | **skipped — no UI element** |
 | `admin.grading.skill_drift` | — | No prompt-drift banner rendered in `GradingProposalCard.tsx` or `attempt-detail.tsx` today | **skipped — no UI element** |
 
+#### Wired in commit `<commit-sha-pending>` (admin.certificates.*)
+
+4 of 4 `admin.certificates.*` keys wired (prior audit listed 5 — confirmed miscount; YAML has exactly 4 keys). Updated count: **15 of 57** wired.
+
+| Key | File | Element | Status |
+|---|---|---|---|
+| `admin.certificates.list` | `modules/10-admin-dashboard/src/pages/certificates.tsx:374` | Page-header wrapper `<div>` (contains h1 + subtitle) | wired |
+| `admin.certificates.revoke` | `modules/10-admin-dashboard/src/pages/certificates.tsx:644` | Inline table Revoke `<button>` | wired |
+| `admin.certificates.reissue` | `modules/10-admin-dashboard/src/pages/certificates.tsx:667` | Inline table Reissue `<button>` | wired |
+| `admin.certificates.revoke_reason` | `modules/10-admin-dashboard/src/pages/certificates.tsx:760` | Revoke-reason `<label>` in revoke modal | wired |
+
 **Remaining unwired gap pages:**
 
 - All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 7 entries)
-- All certificate management keys (`admin.certificates.*` — 5 entries)
+- ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `<commit-sha-pending>` below)
 - All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)
 - All settings keys (`admin.settings.*` — 4 entries)
 - Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)
 
-**Action for next session:** Wire the next highest-risk slice — `admin.certificates.*` (5 entries, all in the certificate management page) or `admin.reports.*` (analytics pages).
+**Action for next session:** Wire the next highest-risk slice — `admin.reports.*` / `admin.analytics.*` (7 entries, analytics pages) or `admin.settings.*` (4 entries).
 
 ### Branding-guideline doc reconcile — token drift
 
