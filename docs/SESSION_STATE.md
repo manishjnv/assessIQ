@@ -1,8 +1,45 @@
-# Session — 2026-05-14 (G3.D audit-write sweep — 01-auth, 02-tenancy, 12-embed-sdk)
+# Session — 2026-05-14 (G3.D audit-write sweep — COMPLETE)
 
-**Headline:** G3.D sweep complete for 01-auth, 02-tenancy, 12-embed-sdk — all admin-mutating service functions now write audit_log rows atomically via auditInTx inside the withTenant transaction.
+**Headline:** G3.D sweep fully closed — all admin-mutating service functions across all 19 modules now write audit_log rows atomically via auditInTx; remaining modules confirmed correctly excluded (candidate/system paths).
 
 **Commits:**
+- `dad0d9a` — feat(audit): G3.D sweep — auditInTx wiring for 01-auth, 02-tenancy, 12-embed-sdk
+- `7b4127d` — test(tenancy): G3.D audit-writes test suite for 02-tenancy
+- `dbc5c3c` — docs(session): G3.D audit-write sweep handoff
+- pending — docs(project): G3.D marked COMPLETE in PROJECT_BRAIN.md
+
+**Tests:** All four typechecks clean (`@assessiq/auth`, `@assessiq/tenancy`, `@assessiq/embed-sdk`, `@assessiq/api`).
+
+**Deploy:** `assessiq-api` rebuilt and recreated on VPS — container healthy.
+
+**Next:** Phase 5 Session 9 (cert admin issue/revoke UI) or MFA enrollment UX. G3.D is no longer a blocker.
+
+**Open questions:**
+- Stage 3.1 sharded-default flip still gated on G1/G2/G4 criteria — see `docs/design/2026-05-10-stage-3-promotion-rollout.md`.
+- MFA enrollment UX not yet shipped (admin cannot self-enroll TOTP from UI).
+
+---
+
+## G3.D closure detail
+
+Modules with `auditInTx` wired in service files: 01-auth, 02-tenancy, 03-users, 04-question-bank, 05-assessment-lifecycle, 07-ai-grading, 09-scoring, 12-embed-sdk, 13-notifications/webhooks, 16-help-system, 18-certification.
+
+Modules correctly excluded:
+- **06-attempt-engine**: All 7 service functions are candidate-facing or system cron — zero admin mutations by design.
+- **13-notifications/in-app**: `notifyInApp` is internal system fanout; `markRead` is user action. Both correctly excluded per 2026-05-11 mutation classification.
+- **10-admin-dashboard**: No backend service layer (UI/client-side only).
+
+---
+
+## Agent utilization
+- Opus: Session driving — inventory analysis, G3.D closure determination, PROJECT_BRAIN update.
+- Sonnet: n/a (Haiku inventory sweep sufficient; no code changes needed)
+- Haiku: Inventory sweep across 06-attempt-engine, 13-notifications, 10-admin-dashboard.
+- codex:rescue: n/a — no new code written; exclusion decisions confirmed by reading existing code.
+
+---
+
+
 - `dad0d9a` — feat(audit): G3.D sweep — auditInTx wiring for 01-auth, 02-tenancy, 12-embed-sdk
 - `7b4127d` — test(tenancy): G3.D audit-writes test suite for 02-tenancy
 
