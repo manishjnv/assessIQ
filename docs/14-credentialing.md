@@ -173,5 +173,123 @@ be retried.
   Phase 5 Session 4.
 - The public `/verify/:credentialId` page and its non-RLS DB lookup
   strategy — Phase 5 Session 3.
-- LinkedIn share counter and admin revoke surfaces — Phase 5 Sessions 5–6.
+- LinkedIn share counter — Phase 5 Session 6.
 - OG / LinkedIn PNG preview — Phase 5 Session 7.
+
+## Admin surface
+
+The admin certificate management surface is the fallback for edge cases where
+the automatic `issueCertificateOnRelease` trigger fails (e.g., `CERT_SIGNING_SECRET`
+unset at release time) and for legitimate name corrections.
+
+### Endpoints
+
+```
+GET  /api/admin/certificates
+POST /api/admin/certificates/:credentialId/revoke
+POST /api/admin/certificates/:credentialId/reissue
+```
+
+**`GET /api/admin/certificates`** — paginated list of all cert rows in the
+current tenant. Filterable by `tier` (`completion | distinction | honors`) and
+`status` (`active | revoked`). Response is cursor-paginated; standard
+`?page=` + `?limit=` params. Requires tenant-admin role.
+
+**`POST /api/admin/certificates/:credentialId/revoke`** — revokes a cert.
+
+Request body:
+
+```json
+{ "revoke_reason": "string, min 10 chars" }
+```
+
+Sets `revoked_at` (current timestamp) and `revoke_reason` on the `certificates`
+row. Emits a `certificates.revoked` audit row via `auditInTx`. Returns 409 if
+already revoked. Requires tenant-admin role.
+
+**`POST /api/admin/certificates/:credentialId/reissue`** — corrects the
+display name on a cert without changing its identity.
+
+Request body:
+
+```json
+{ "display_name": "string (optional)" }
+```
+
+Updates `display_name` and re-signs `signed_hash` in the same transaction.
+Emits a `certificates.reissued` audit row via `auditInTx`. Returns 410 if the
+cert is revoked — a revoked cert cannot be reissued; issue a new cert instead.
+Requires tenant-admin role.
+
+### Revoke rules
+
+1. **`revoke_reason` is persisted permanently.** It is stored on the
+   `certificates` row and survives the admin action indefinitely. It is not
+   cleared if the row is otherwise updated.
+
+2. **`revoke_reason` is NOT included in `audit_log.after`.** The audit row's
+   `entity_id` is the cert UUID. Auditors who need the reason look up the
+   certificate row directly. This follows the same PII scoping policy as
+   `override_reason` on grading decisions — reasons may reference personal
+   details that belong on the entity row, not in the immutable audit log.
+
+3. **A revoked cert returns 410 on PDF download and 200 with a red badge on
+   the verify page.** The OG/preview images also render the red "REVOKED"
+   badge (see § Share previews).
+
+4. **A revoked cert cannot be reissued — throw 410.** Issue a new cert via
+   `issueCertificateOnRelease` (or manually) instead. Reissue is exclusively
+   for name corrections on active certs; revocation is terminal.
+
+5. **`revoke_reason` min length: 10 chars.** Validated in the route handler
+   and enforced in the UI text field. Short strings like "mistake" are
+   rejected.
+
+### Reissue rules
+
+1. **Preserves `credential_id` and `issued_at`.** These fields are never
+   rotated on reissue — shared LinkedIn URLs continue to resolve and verify
+   correctly against the updated row.
+
+2. **Updates `display_name` and re-signs `signed_hash` in the same
+   transaction.** The HMAC payload is recomputed from the new `display_name`
+   plus the unchanged identity fields; the `signed_hash` column is overwritten
+   atomically. The prior signature is no longer valid after this point.
+
+3. **Used only for name corrections.** Normal first-issuance is handled
+   automatically by `issueCertificateOnRelease` on attempt release. Reissue
+   addresses the narrow case where a cert was issued with a misspelled or
+   legally changed display name.
+
+### Admin page — `/admin/certificates`
+
+```
+/admin/certificates
+┌──────────────────────────────────────────────────────────────────────┐
+│  Certificates.                         [N certificates]              │
+│  Credentials issued to candidates in this tenant.                    │
+│  Tier: [All] [Completion] [Distinction] [Honors]                     │
+│  Status: [All] [Active] [Revoked]                                    │
+├───────────┬──────────────┬────────────┬──────────┬────────┬─────────┤
+│ Cred. ID  │ Email        │ Tier       │ Course   │ Issued │ Status  │
+├───────────┼──────────────┼────────────┼──────────┼────────┼─────────┤
+│ AIQ-…     │ alice@…      │ Completion │ SOC L1   │ 11 May │ Active  │ ← row click → details drawer
+└───────────┴──────────────┴────────────┴──────────┴────────┴─────────┘
+
+Details drawer (row click):
+  Credential ID: AIQ-2026-05-ABCDEF  [copy]
+  Verify URL: https://assessiq.automateedge.cloud/verify/AIQ-2026-05-ABCDEF [↗]
+  Display name: Alice Smith
+  Course: SOC L1
+  Issued: 11 May 2026
+  Status: Active
+  [Revoke]  ← opens revoke confirmation modal
+
+Revoke modal:
+  Reason (min 10 chars): [________________________]  [Cancel] [Revoke certificate]
+```
+
+A revoked cert's drawer replaces `[Revoke]` with the reason text and
+`revoked_at` timestamp; no further actions are available. The `[Reissue]`
+action (for name corrections on active certs) is accessible from the same
+drawer.

@@ -473,8 +473,8 @@ export async function revoke(
       action: 'certificates.revoked',
       entityType: 'certificate',
       entityId: cert.id,
-      before: { revoked_at: null, revoke_reason: null },
-      after: { revoked_at: updated.revoked_at, revoke_reason: revokeReason },
+      before: { revoked_at: null },
+      after: { revoked_at: updated.revoked_at },
     });
     return updated;
   });

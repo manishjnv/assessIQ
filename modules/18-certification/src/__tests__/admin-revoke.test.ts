@@ -112,8 +112,9 @@ describe('revoke', () => {
 
     // Before/after captured correctly.
     const auditCall = vi.mocked(auditInTx).mock.calls[0]?.[1];
-    expect(auditCall?.before).toEqual({ revoked_at: null, revoke_reason: null });
-    expect(auditCall?.after).toMatchObject({ revoke_reason: 'Compromised' });
+    expect(auditCall?.before).toEqual({ revoked_at: null });
+    expect(auditCall?.after).not.toHaveProperty('revoke_reason');
+    expect(auditCall?.after).toMatchObject({ revoked_at: '2026-05-12T00:00:00Z' });
 
     // Return value is the updated row.
     expect(result.revoked_at).toBe('2026-05-12T00:00:00Z');

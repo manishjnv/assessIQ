@@ -1,3 +1,54 @@
+# Session — 2026-05-14 (G2 root-cause investigation)
+
+**Headline:** G2 gate is UNTESTED not UNTESTABLE — fixture/code bugs cited in readiness audit already fixed in `cd352c7`/`ce00575`; `score-candidate` has never been run on post-D1+D2 smokes. Expected PASS with no code changes.
+
+**Commits:**
+- `6d60a01` — docs(stage3): G2 root-cause investigation 2026-05-14 — gate is UNTESTED not UNTESTABLE
+
+**Tests:** No code changed. Existing baselines unchanged.
+
+**Deploy:** Not required — docs-only change.
+
+**Next:** Run `score-candidate` on VPS against 3 clean attempts (`019e1f73`, `019e1f7d`, `019e1f45`) to confirm G2 PASS. Steps: `ssh assessiq-vps "docker exec -it assessiq-api bash"` → `pnpm exec tsx modules/07-ai-grading/eval/cli-typed.ts score-candidate --attempt-id <id>` × 3. If all PASS: update `runtime-baseline.json` known_gap to RESOLVED, commit. Then: operator confirm G1 threshold (≥3/5 or ≥4/5) + G4 SKILL.md patch. Stage 3.1 flip is 1–2 sessions away.
+
+**Open questions:**
+- G1 threshold: does ≥3/5 or ≥4/5 govern Stage 3.1? (outstanding since 2026-05-13)
+- Explicit user approval required before `UPDATE tenant_settings SET ai_generate_mode = 'sharded'` on pilot tenant `wipro-soc`.
+- Pre-existing uncommitted MFA work in working tree (whoami.ts, session.ts, mfa.tsx, totp.ts, AdminShell.tsx) — separate slice, not yet committed.
+
+---
+
+## Agent utilization
+- Opus: Session driving — Phase 0 reads (5 files parallel), dry-run fixture check, runner.ts scoreQuestion trace, G2 root-cause synthesis, report authoring, commit, handoff.
+- Sonnet: n/a — investigation-only session, no implementation subagents.
+- Haiku: n/a
+- codex:rescue: n/a — no auth/classifier/infra code changed; docs-only session.
+
+---
+
+# Session — 2026-05-14 (login page visual cleanup)
+
+**Headline:** Removed decorative right pane and mono footer from `/admin/login`; simplified to single-pane centered layout per user request. VPS deployed, `/admin/login` returns 200.
+
+**Commits:**
+- `3fada84` — style(web): simplify /admin/login to single-pane centered layout
+
+**Tests:** typecheck clean for login.tsx; pre-existing AdminShell.tsx `totpEnrolled` error unrelated to this change.
+
+**Next:** Address pre-existing `AdminShell.tsx:334` typecheck error (`totpEnrolled` missing from `AdminSessionInfo`) or proceed to next slice.
+
+**Open questions:** None.
+
+---
+
+## Agent utilization
+- Opus: authored all edits directly (single-file ≤30-line-equivalent rewrite, files hot in cache)
+- Sonnet: n/a — change was within Opus direct-edit threshold
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — no security/auth/classifier paths touched
+
+---
+
 # Session — 2026-05-14 (G3.D 02-tenancy audit-writes test fix)
 
 **Headline:** Fixed 2 failing atomicity tests in `modules/02-tenancy/src/__tests__/audit-writes.test.ts` using DB-native `CHECK (false) NOT VALID` constraint; added §30 to `docs/11-observability.md`. VPS already deployed by prior Haiku session.
