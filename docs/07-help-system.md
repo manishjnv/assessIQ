@@ -259,10 +259,19 @@ modules/16-help-system/
 
 | Scope | Total YAML keys | Wired to DOM | Deferred (UI not yet built) |
 |---|---|---|---|
-| `admin.*` (admin.yml) | 67 | 46 | 21 |
+| `admin.*` (admin.yml) | 75 | 46 | 29 |
 | `candidate.*` + `public.*` (candidate.yml) | 19 | 11 | 8 |
-| **Total** | **86** | **57** | **29** |
+| **Total** | **94** | **57** | **37** |
 
-**Deferred keys** are blocked on features not yet shipped: assessment creation wizard (duration, question_count, randomize, close_early), grading-jobs queue UI, skill-drift and session-idle session banners, cohort heatmap color legend, archetype disclaimer block, report export-format selector, audit log page, CLI ops UI, candidate result/band display page, candidate profile page, public verify SPA page. Each becomes wireable as soon as the corresponding DOM element lands.
+**Deferred keys** are blocked on features not yet shipped: assessment creation wizard (duration, question_count, randomize, close_early), grading-jobs queue UI, skill-drift and session-idle session banners, cohort heatmap color legend, archetype disclaimer block, report export-format selector, audit log page, CLI ops UI, candidate result/band display page, candidate profile page, public verify SPA page, plus the 9 admin keys salvaged from stash 2026-05-13 (audit, worker, webhooks groups). Each becomes wireable as soon as the corresponding DOM element lands.
 
 Detailed per-key verdict table: `docs/design/2026-05-14-phase-14-reduced-motion-audit.md` § Help-key wiring audit.
+
+## Schema normalization (2026-05-15)
+
+Integrity audit performed 2026-05-14 against all 94 keys. Fixed in one pass:
+
+- **Key-format violations (14 keys renamed):** `HelpEntrySchema` requires `[a-z0-9_]` segments — no hyphens. All 14 hyphenated keys renamed (e.g. `admin.analytics.cohort-report` → `admin.analytics.cohort_report`). Six coordinated `data-help-id` DOM renames required (cohort-report.tsx, generation-attempts.tsx, pack-detail.tsx, attempt-detail.tsx, CandidateLogin.tsx ×2).
+- **`short_text` overflows (5 trimmed):** `admin.webhooks`, `admin.webhooks.events`, `admin.webhooks.deliveries`, `candidate.activity`, `candidate.profile.name_callout` all exceeded 120 chars; trimmed to ≤120.
+- **Broken `related_keys` (1 fixed):** `admin.settings.ai_generate_mode` referenced non-existent `admin.settings.billing`; corrected to `admin.settings.billing.budget`.
+- **Systemic gap closed:** `admin-help-keys.test.ts` — Block A now enforces the key-format regex. New `candidate-help-keys.test.ts` provides parity coverage for candidate.yml. `STAGE_1_5_KEYS` in the admin test updated to use underscore spellings. Total test count: 90 (was 73).
