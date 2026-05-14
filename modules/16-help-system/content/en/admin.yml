@@ -519,6 +519,78 @@ admin.analytics.cohort-report:
 # G3.C analytics session. The admin-UI-toggle session also touches admin.yml —
 # merge carefully if both sessions produce conflicting adjacent lines.
 
+admin.audit:
+  audience: admin
+  short_text: "Browse, filter, and export every administrative action. Append-only — entries cannot be edited or deleted."
+  long_md: |
+    ## Audit log
+
+    The audit log at `/admin/audit` records every significant administrative
+    action taken in this tenant: user changes, grading overrides, certificate
+    operations, setting updates, and more.
+
+    **Browsing and filtering:**
+
+    - **Action** — narrow to a specific action type (e.g. `user.role.changed`,
+      `grading.override`). All known actions are listed in the dropdown.
+    - **Actor kind** — filter by who triggered the action: a user session,
+      an API key, or the system itself.
+    - **Actor user ID** — paste a user UUID to see all actions taken by that
+      user. A user-picker UI is planned for a future release.
+    - **Entity type** — filter to actions that touched a specific resource
+      type (e.g. `assessment`, `certificate`).
+    - **From / To** — restrict to a date range. "From" starts at midnight;
+      "To" ends at 23:59:59 UTC.
+
+    Click **Apply** to run the filtered query. Click **Reset** to clear all
+    filters and reload the full log.
+
+    **Exporting:**
+
+    Use **Export CSV** or **Export JSONL** to download the current filtered
+    view. The download respects all active filters; the filename includes
+    today's date. See `admin.audit.export.format` for column details.
+
+    **Append-only guarantee:** entries are written synchronously with the
+    operation and cannot be modified. Even platform super-admins cannot delete
+    audit rows — this is enforced at the database layer.
+
+  related_keys:
+    - admin.audit.archives
+    - admin.audit.export.format
+
+admin.audit.archives:
+  audience: admin
+  short_text: "Older audit rows are archived to cold storage. Lists archives and lets you restore rows into the live table."
+  long_md: |
+    ## Archived audit log
+
+    To keep the live `audit_log` table fast, rows older than the retention
+    window are archived to cold storage (S3 in production). The **Archived
+    audit log** card at the bottom of `/admin/audit` lists available archives.
+
+    **Archive list columns:**
+
+    - **Date** — the date range covered by the archive file.
+    - **Rows** — how many audit log rows the archive contains.
+
+    **Restoring an archive:**
+
+    Click **Restore** on any archive row. A confirmation dialog shows the
+    row count and asks you to confirm before copying rows back into the live
+    `audit_log` table.
+
+    Restored rows are immediately visible in the main audit table. The archive
+    file itself is not deleted — the restore is additive only.
+
+    **Phase note:** archiving requires `S3_BUCKET` to be configured. In a
+    deployment without S3, the archives list will be empty and restores will
+    return a 503. This is expected behaviour during local development or
+    Phase 3 deployments without object storage.
+
+  related_keys:
+    - admin.audit
+
 admin.audit.export.format:
   audience: admin
   short_text: "The audit log records admin actions (exports, grading, user changes) with actor, timestamp, and tenant scope."
@@ -1510,4 +1582,262 @@ admin.activity.leaderboard.delta:
 
   related_keys:
     - admin.activity.heatmap.legend
+
+# ─── G3.B Worker observability (2026-05-13) ───────────────────────────────────
+
+admin.worker:
+  audience: admin
+  short_text: "Live BullMQ queue health — depth, completed count, and failed jobs. Covers email, webhooks, and cron. Never AI grading."
+  long_md: |
+    ## Worker observability
+
+    The **Worker** page (`/admin/worker`) shows the runtime state of the
+    `assessiq-cron` BullMQ queue — the background job queue that handles:
+
+    - **Email delivery** — invitation emails, notification emails
+    - **Webhook delivery** — outbound payloads to tenant-configured endpoints
+    - **Cron jobs** — assessment boundary transitions and attempt timer sweeps
+
+    **This queue never runs AI grading.** AI grading is sync-on-click only —
+    it runs when you click "Grade all" on an attempt, not in the background.
+
+    **Stats grid:**
+
+    | Card | What it shows |
+    |---|---|
+    | Queue depth | Waiting + delayed jobs. Zero is healthy. |
+    | Completed (lifetime) | Total jobs completed since the queue was created. Failed count shown below. |
+    | Queue status | Live chip breakdown: waiting / active / delayed / completed / failed |
+
+    **Auto-refresh:** the stats update every 10 seconds. The page pauses
+    polling when the browser tab is hidden and resumes when you return.
+    The "Updated Xs ago" indicator shows time since the last successful fetch.
+
+    **Stats cache:** the server caches queue counts for 5 seconds to prevent
+    Redis from being hammered if multiple admins have the page open.
+
+  related_keys:
+    - admin.worker.failed
+    - admin.worker.retry
+
+admin.worker.failed:
+  audience: admin
+  short_text: "Failed jobs are BullMQ jobs that exhausted all retry attempts. Click a job ID to expand its payload and error stack."
+  long_md: |
+    ## Failed jobs
+
+    A job appears in this list when it has exhausted all retry attempts
+    (maximum 5) without succeeding. The retry schedule is exponential backoff:
+    approximately 1s, 2s, 4s, 8s between attempts (with jitter).
+
+    **Table columns:**
+
+    | Column | Content |
+    |---|---|
+    | Job ID | First 8 characters of the BullMQ job ID. Click to expand. |
+    | Type / Queue | The job name (e.g. `email.send`, `webhook.deliver`, `assessment-boundary-cron`) |
+    | Last error | First line of the final failure reason |
+    | Attempts | How many times the job was tried before landing here |
+    | Failed at | Timestamp of the final failure |
+    | Actions | Retry button |
+
+    **Expanded row:** clicking the job ID or "Expand" shows:
+
+    - **Job payload** — the data the job was created with, rendered as formatted
+      JSON in a brand-token monospaced block. Sensitive fields are redacted
+      server-side (keys matching `token`, `password`, `secret`, `answer`,
+      `candidate`, `auth`, `session` show as `[Redacted]`).
+    - **Error stack (tail)** — the last 1 KB of the stack trace from the final
+      failure attempt.
+
+    **Empty state:** "No failed jobs — all healthy." means all jobs eventually
+    succeeded or are still in progress.
+
+  related_keys:
+    - admin.worker
+    - admin.worker.retry
+
+admin.worker.retry:
+  audience: admin
+  short_text: "Retry re-enqueues the failed job with attempt count N+1. Use after fixing the underlying cause (e.g. SMTP outage, webhook endpoint down)."
+  long_md: |
+    ## Retrying a failed job
+
+    Clicking **Retry** on a failed job re-enqueues it with:
+
+    - The original job payload (unchanged)
+    - `attemptsMade` incremented by 1 (so a job that failed 5 times shows
+      attempt 6 on retry)
+    - No delay — the job runs on the next available worker tick
+
+    **A confirmation modal appears** before the retry fires, showing the job
+    ID and the new attempt count. Click Cancel if you changed your mind.
+
+    **On success:** the job disappears from the failed list immediately
+    (optimistic removal). If the retry fails again, it will reappear in the
+    list on the next page refresh.
+
+    **When to retry:**
+
+    | Job type | Retry when |
+    |---|---|
+    | `email.send` | SMTP outage has resolved; the target mailbox is valid |
+    | `webhook.deliver` | The receiving endpoint is back up; 5xx errors resolved |
+    | `assessment-boundary-cron` | The database connection issue that caused the failure is resolved |
+    | `attempt-timer-sweep` | Same as above — idempotent, safe to re-run |
+
+    **Idempotency note:** the two cron job types (`assessment-boundary-cron`,
+    `attempt-timer-sweep`) are idempotent — re-running them on already-processed
+    rows is a SQL no-op and causes no side effects. It is safe to retry them
+    even if you are unsure whether the previous run partially succeeded.
+
+  related_keys:
+    - admin.worker
+    - admin.worker.failed
+
+# ─── 13-notifications — Webhooks management (2026-05-13) ─────────────────────
+
+admin.webhooks:
+  audience: admin
+  short_text: "Register outbound webhooks to receive real-time events when AssessIQ actions occur (attempt submitted, graded, certificate issued, etc.)."
+  long_md: |
+    ## Webhooks
+
+    The **Webhooks** page (`/admin/webhooks`) lets you register HTTPS endpoints
+    that receive a POST request whenever an AssessIQ event fires.
+
+    **What you can do here:**
+
+    | Action | Description |
+    |---|---|
+    | **New webhook** | Register a new endpoint — provide an https:// URL, select the events you want, and optionally supply your own signing secret |
+    | **Test** | Fire a synthetic `test.ping` event to verify the endpoint is reachable |
+    | **Revoke** | Permanently remove the endpoint — no further events will be delivered |
+    | **View payload** | Expand a delivery row to see the full JSON payload (truncated to 2KB in-UI; Download for full) |
+    | **Replay** | Re-fire a past delivery to an endpoint (creates a new delivery row; the original is unchanged) |
+    | **Retry** | Re-attempt a delivery that exhausted all retries |
+
+    **Signing secrets:** each endpoint has a shared HMAC secret used to sign
+    every webhook payload. The plaintext secret is shown exactly once at
+    creation — save it immediately. Verify signatures with
+    `HMAC-SHA256(secret, rawBody)` against the `X-AssessIQ-Signature` header.
+
+    **`audit.*` subscriptions** require a fresh MFA verification (within 5
+    minutes) when creating the endpoint. This is a server-side gate — the UI
+    shows a warning but the server enforces it unconditionally.
+
+  related_keys:
+    - admin.webhooks.events
+    - admin.webhooks.deliveries
+    - admin.webhooks.replay
+
+admin.webhooks.events:
+  audience: admin
+  short_text: "Event types you can subscribe to: attempt lifecycle, assessment state changes, user events, certificate issuance/revocation, and audit.*."
+  long_md: |
+    ## Webhook event types
+
+    Select one or more events when registering a webhook endpoint. Your server
+    will receive a POST for each event that fires in your tenant.
+
+    | Event | Fires when |
+    |---|---|
+    | `attempt.submitted` | A candidate submits their assessment attempt |
+    | `attempt.graded` | AI grading completes for an attempt |
+    | `attempt.released` | An admin releases graded results to the candidate |
+    | `assessment.published` | An assessment moves to `published` status |
+    | `assessment.closed` | An assessment closes (scheduled or early) |
+    | `user.invited` | A new admin or candidate is invited |
+    | `user.role_changed` | An existing user's role is changed |
+    | `certificate.issued` | A new certificate is issued to a candidate |
+    | `certificate.revoked` | A certificate is revoked |
+    | `audit.*` | **All audit-log events** — requires fresh MFA at subscription time |
+
+    **Payload shape (all events):**
+
+    ```json
+    {
+      "event": "attempt.submitted",
+      "tenant_id": "<uuid>",
+      "occurred_at": "<ISO8601>",
+      "data": { ... }
+    }
+    ```
+
+    The `data` object shape is event-specific. Use the **Test** action to verify
+    your endpoint accepts the envelope format before subscribing to live events.
+
+  related_keys:
+    - admin.webhooks
+
+admin.webhooks.deliveries:
+  audience: admin
+  short_text: "Recent deliveries shows the last 25 webhook attempts per page: event type, URL, HTTP status, latency, and the full payload (expandable)."
+  long_md: |
+    ## Webhook delivery history
+
+    The **Recent deliveries** table shows every webhook POST attempt, newest
+    first. Each row shows:
+
+    | Column | Meaning |
+    |---|---|
+    | **Event** | The event type that triggered this delivery |
+    | **URL** | The endpoint URL (truncated for display; full URL on hover) |
+    | **Status** | HTTP response code — green (2xx), amber (4xx), red (5xx) |
+    | **Latency** | Round-trip time from dispatch to response |
+    | **Timestamp** | When the delivery was attempted |
+
+    **Viewing the payload:** click **View payload** to expand the row and see
+    the JSON request body. Payloads larger than 2KB are truncated in the UI;
+    a **Download** link fetches the full payload as a `.json` file.
+
+    **Replay:** re-fire any delivery using the **Replay** button. A confirmation
+    modal appears first. Replay creates a *new* delivery row — the original
+    record is never modified (append-only audit invariant).
+
+    **Pagination:** 25 rows per page. Use the Prev/Next controls to browse
+    older deliveries.
+
+    **Delivery status meanings:**
+
+    | Status | Meaning |
+    |---|---|
+    | `pending` | Queued; not yet attempted |
+    | `delivered` | HTTP 2xx received |
+    | `failed` | All retries exhausted with non-2xx or connection error |
+
+  related_keys:
+    - admin.webhooks
+    - admin.webhooks.replay
+
+admin.webhooks.replay:
+  audience: admin
+  short_text: "Replay re-fires a past delivery to its endpoint. A new delivery record is created — the original is never modified."
+  long_md: |
+    ## Replay and retry
+
+    **Replay** (recent deliveries table) and **Retry** (failed deliveries table)
+    both re-send a delivery to its original endpoint. The difference is context:
+
+    | Action | Table | When to use |
+    |---|---|---|
+    | **Replay** | Recent deliveries | Re-fire any delivery — successful or not — to re-test your endpoint or re-process data |
+    | **Retry** | Failed deliveries | Re-attempt a delivery that exhausted all automatic retries |
+
+    **Invariant:** both actions create a *new* `webhook_deliveries` row linked
+    to the same endpoint and event payload. The original row is never updated —
+    the delivery log is append-only for audit compliance.
+
+    **Idempotency:** your endpoint should handle duplicate deliveries. Include
+    the `X-AssessIQ-Delivery-ID` header in your deduplication logic — it is
+    unique per delivery row, so a replayed delivery has a different ID from the
+    original.
+
+    **Signature:** replayed deliveries are re-signed with the current endpoint
+    secret. If you rotated the secret between the original delivery and the
+    replay, verify against the new secret.
+
+  related_keys:
+    - admin.webhooks
+    - admin.webhooks.deliveries
 
