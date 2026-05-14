@@ -668,3 +668,214 @@ per-tenant containment boundary.
 *Pre-promotion prerequisite work (G2 score-candidate schema fix, G4 stderr_tail aggregation
 fix) is not included in the above estimates — those are separate sessions that must land
 before Stage 3.0 is commissioned.*
+
+---
+
+## Stage 3.1 readiness audit — 2026-05-14
+
+**Auditor:** Claude Code (Opus main-session, evidence-only pass — no code edits)
+**Scope:** G1, G2, G4 criteria per PROJECT_BRAIN.md Stage 3.1 gate. G3 (L1/L3 diversity)
+and G5 (memory headroom) are informational only at this stage.
+
+### Evidence window
+
+All smokes scored are post-D1+D2 deploy (`5d05d15`, 2026-05-13a SKILL.md + MCP inline
+canonical examples). Per §G1 Revision APPLIED, earlier smokes ran against prior tightening
+rounds and are excluded. Sharded mode confirmed on all 7 smokes via comma-joined `skill_sha`
+(5-SHA set: `0d9b6546,d8b88227,4a10bd76,cb35d780,4faeb29f`).
+
+---
+
+### G1 — Smoke run quality
+
+**Applied criterion:** Stage-aware rolling-window (§G1 Revision APPLIED, 2026-05-13):
+≥3 of 5 clean in any rolling window, avg `chunks_failed` ≤ 1.0, no double-chunk failure.
+
+> **Threshold ambiguity:** The same revision also proposes ≥4 of 5 as the preferred
+> criterion, with ≥3 as the "alternative." The section ends with "Operator action required:
+> confirm or revise the proposed rolling-window criterion." This confirmation is outstanding.
+> The audit scores both thresholds below.
+
+**7-smoke evidence table (count=15 L2, all post-D1+D2):**
+
+| # | Attempt ID | Status | chunks_planned | chunks_failed | Failing chunk | duration_ms |
+|---|---|---|---|---|---|---|
+| 1 | `019e1f20` | success | 5 | 0 | — | 678,024 |
+| 2 | `019e1f2c` | success | 5 | 0 | — | 669,670 |
+| 3 | `019e1f37` | partial | 5 | 1 | subjective | 590,641 |
+| 4 | `019e1f45` | success | 5 | 0 | — | 694,227 |
+| 5 | `019e1f51` | partial | 5 | 1 | scenario | 688,474 |
+| 6 | `019e1f73` | success | 5 | 0 | — | 581,408 |
+| 7 | `019e1f7d` | success | 5 | 0 | — | 820,454 |
+
+Both failed chunks have `has_stderr = true` (per-chunk stderr_tail populated — diagnosable
+without SSH). Run 3 missing `4faeb29f` (subjective SHA); run 5 missing `4a10bd76` (scenario SHA).
+
+**Rolling-window analysis (windows of 5):**
+
+| Window | Smokes | Clean | avg chunks_failed | Double-failure? |
+|---|---|---|---|---|
+| 1–5 | runs 1–5 | 3/5 | 0.40 | No |
+| 2–6 | runs 2–6 | 3/5 | 0.40 | No |
+| 3–7 | runs 3–7 | 3/5 | 0.40 | No |
+
+- **Under ≥3/5 (stage-3.1 table criterion):** All windows pass. ✅
+- **Under ≥4/5 (proposed revised, unconfirmed):** No window passes. ❌
+- **avg chunks_failed ≤ 1.0:** All windows at 0.40. ✅
+- **No double-chunk failure:** Zero occurrences across all 7 smokes. ✅
+
+**G1 verdict: PASS-with-caveats** — The §G1 Revision APPLIED table criterion (≥3/5) is
+met. The stricter ≥4/5 proposed criterion is not met. Operator must confirm which threshold
+governs Stage 3.1 before the flip is authorized.
+
+---
+
+### G2 — Citation fidelity
+
+**Criterion:** `score-candidate` reports `citationsResolve = true` on every inserted
+candidate across all G1 window runs.
+
+**Evidence:** Gate is **untestable**. `runtime-baseline.json` known_gaps (last updated
+2026-05-10) records:
+
+> "OPEN — score-candidate citation divergence vs handler citation filter. Gap: handler
+> validates against input.sources[].id (runtime KB slice); score-candidate validates against
+> eval/fixtures/L2-sources.json. These two source-ID sets DIFFER. Fix path: re-extract
+> eval/fixtures/L*-sources.json directly from soc-l*.json filtered to that level."
+
+No commit after 2026-05-10 has updated `eval/fixtures/` or the `cli-typed.ts`
+`loadAttemptCandidates()` source-ID resolver. The 7-smoke evidence window shows
+`citation_dropped = 0` on all attempts, but this is the handler-level check — it validates
+against runtime KB IDs, not the eval fixture. G2 requires the eval fixture check.
+
+**G2 verdict: FAIL** — Gate is untestable. Prerequisite work: (1) realign
+`eval/fixtures/L2-sources.json` to production `soc-l2.json` runtime source IDs; (2) fix
+`cli-typed.ts` loader projection mismatch (`knowledge_base_sources` vs
+`knowledge_base_source_ids`); (3) run `score-candidate` against ≥3 clean G1-window attempts
+and confirm `citationsResolve = true` across all candidates. Estimated ~2 h (Sonnet/Haiku
+subagent — non-load-bearing eval harness).
+
+---
+
+### G4 — MCP rejection patterns
+
+**Criterion:** No fresh MCP rejection patterns beyond the documented FORBIDDEN list.
+
+**Evidence:** `/var/log/assessiq/mcp-rejections.log` — 74 entries total. 15 from 2026-05-11
+(pre-D1+D2), 59 from 2026-05-13 (post-D1+D2). All 2026-05-13 rejections are within-budget
+first-attempt failures that were recovered from on subsequent retries (5 of 7 smokes fully
+succeeded). Diagnostic surface working: both partial smokes have populated `stderr_tail`.
+
+**Patterns in documented FORBIDDEN list (still appearing, expected — system recovers):**
+
+- `scenario`: `step_dependency` as boolean; missing `title`/`intro`/`steps` fields; forbidden
+  step-level keys `step`/`id`
+- `log_analysis`: `log_format` as invalid enum value; missing required fields
+- `mcq`: `options` as objects not strings; `correct` as string not number
+- `kql`: `tables` as object / array-of-objects (D2 canonical example partially working — 5/7
+  smokes recover; still appearing on first try)
+- `subjective`: `stem`/`prompt`/`expected_length` wrapper keys
+
+**NEW patterns NOT in documented FORBIDDEN list:**
+
+| Type | New pattern | Observed on |
+|---|---|---|
+| `scenario` | `step_dependency: 'independent'` — plausible string value, not in `'linear'\|'dag'` enum | 2026-05-13 (1 occurrence) |
+| `subjective` | Wrapper keys `context`, `response_format`, `parts`, `scenario`, `answer_key` | 2026-05-13 (multiple smokes) |
+| `kql` | `tables.0: Expected string, received object` — post-canonical-example first-try failure | 2026-05-13 (multiple, all recover) |
+| `unknown` | `type: 'unknown'` with `questions: Required` — completely wrong payload structure | 2026-05-13 (1 occurrence) |
+
+**Round 4 risk assessment:** None of the new patterns caused a double-chunk failure (the
+hard-stop condition). The system self-heals within retry budget in 5/7 smokes. The Round 4
+path (per 2026-05-12 to 2026-05-13 RCA prevention note #4) is: a *new* pattern surfaces in
+*both* subjective and scenario on the same smoke — the double-failure that triggers a
+rollback event. `step_dependency: 'independent'` for scenario + novel subjective wrapper keys
+on the same smoke is the concrete trigger scenario. Risk is LOW but elevated versus the
+pre-audit baseline.
+
+**Recommended pre-flip SKILL.md patch (non-blocking, ~30 min, Sonnet):**
+- `generate-scenario/SKILL.md`: add `'independent'` to FORBIDDEN `step_dependency` values
+  (already has `true`/`false` boolean — add the string form)
+- `generate-subjective/SKILL.md`: add `context`, `response_format`, `parts`, `answer_key`
+  to wrapper-key FORBIDDEN block
+- Bump both SKILL.md versions and redeploy to VPS; run 1 verification smoke to confirm
+
+**G4 verdict: PASS-with-caveats** — Diagnostic surface working. New patterns present but
+within recovery capacity. Pre-flip SKILL.md patch recommended to lower Round 4 risk before
+enabling Stage 3.1 on `wipro-soc`.
+
+---
+
+### G3 / G5 (informational)
+
+- **G3 (level diversity):** All 7 smokes are L2 count=15. No L1/L3 smokes run in post-D1+D2
+  window. G3 gates Stage 3.3→3.4 (100% tenant), not Stage 3.1 pilot. Not evaluated here.
+- **G5 (memory headroom):** Last measurement 2026-05-09 — 785 MiB peak (cap=2), 22% of
+  3.5 GiB cap-4 promotion threshold. Should be re-confirmed before Stage 3.2 if any
+  co-tenant app RSS has grown significantly.
+
+---
+
+### Verdict per criterion
+
+| Criterion | Verdict | Blocking? |
+|---|---|---|
+| G1 — smoke quality | **PASS-with-caveats** | ⚠️ threshold confirmation required |
+| G2 — citation fidelity | **FAIL** | ✅ BLOCKS flip |
+| G4 — MCP rejection patterns | **PASS-with-caveats** | ⚠️ pre-flip SKILL.md patch recommended |
+
+### Overall: **NEEDS-MORE-RUNS**
+
+G2 blocks the flip. Steps required in order:
+
+1. **G2 unblock (prerequisite, ~2 h — Sonnet subagent, non-load-bearing):**
+   a. Realign `eval/fixtures/L2-sources.json` to production KB source IDs (`soc-l2.json`)
+   b. Fix `cli-typed.ts` `loadAttemptCandidates()` `knowledge_base_sources` →
+      `knowledge_base_source_ids` column name mismatch
+   c. Run `score-candidate` against 3 recent successful attempts (`019e1f73`, `019e1f7d`,
+      `019e1f45`) and confirm `citationsResolve = true` on every candidate
+   d. No deployment required — eval harness runs locally via CLI
+
+2. **G1 threshold operator confirmation (required before flip regardless):**
+   Confirm: does ≥3/5 or ≥4/5 govern Stage 3.1? If ≥4/5: schedule 2 more count=15 L2
+   smokes after G2 unblock to hit the threshold in the last 5-smoke window.
+
+3. **G4 pre-flip hardening (recommended, ~30 min — Sonnet, non-load-bearing):**
+   SKILL.md patch for `generate-scenario` (`'independent'` step_dependency) and
+   `generate-subjective` (new wrapper keys). Redeploy + 1 verification smoke.
+
+4. **Stage 3.1 flip (only after G1 + G2 cleared, with user explicit approval):**
+
+```sql
+-- Execute on VPS DB as assessiq_system
+UPDATE tenant_settings
+SET ai_generate_mode = 'sharded'
+WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'wipro-soc');
+```
+
+No container restart. Effective on next admin "Generate" click. Verify via:
+`SELECT skill_sha FROM generation_attempts WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'wipro-soc') ORDER BY started_at DESC LIMIT 1;`
+Expected: comma-joined multi-SHA (sharded), not single omnibus SHA.
+
+Confirm `assessiq-stage3-watch` timer is active before flip:
+`ssh assessiq-vps "systemctl status assessiq-stage3-watch.timer"`
+
+**24-hour watch criteria (Stage 3.1 → Stage 3.2 advance gate):**
+- `chunks_failed = 0` on every pilot attempt in the window
+- `citation_dropped = 0` on every attempt
+- `status != 'failed'` on every attempt
+- At least one generation attempt recorded (else extend by 24 h)
+
+**Rollback:**
+```sql
+UPDATE tenant_settings
+SET ai_generate_mode = 'omnibus'
+WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'wipro-soc');
+```
+
+Root-cause via `SELECT stderr_tail FROM generation_attempts WHERE ... ORDER BY started_at DESC LIMIT 1`.
+
+**Additional runs needed if operator confirms ≥4/5 threshold:**
+After G2 unblock, the last rolling window (runs 3–7) is ❌✅❌✅✅ = 3/5. Two more
+consecutive clean smokes would make the tail ❌✅✅✅✅ = 4/5 — satisfying the gate.
+Schedule using `tools/stage1-sharded-smoke.ts` with `SMOKE_SOC_LEVEL=L2`.
