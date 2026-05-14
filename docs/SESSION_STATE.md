@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (UI v1.1 P14 — admin.certificates.* help-key wiring)
+
+**Headline:** Wired all 4 `admin.certificates.*` help-system keys into `certificates.tsx` (list page-header, Revoke button, Reissue button, revoke-reason label). Audit doc miscount corrected from 5 → 4. Wired count: 11/57 → 15/57.
+
+**Commits:**
+- `b777ba4` — feat(admin-dashboard): wire all 4 admin.certificates.* help-system keys
+- `c9fc2a5` — docs(audit): backfill commit SHA for admin.certificates.* wiring
+
+**Tests:** @assessiq/admin-dashboard 35/35 pass (no new tests added — pure attribute wiring). Pre-existing `AdminShell.tsx:334 totpEnrolled` typecheck failure still present, unchanged by this commit.
+
+**Deploy:** VPS clone synced to `c9fc2a5`. `assessiq-frontend` rebuilt + force-recreated. Smoke: HTTP 200 in 181ms.
+
+**Next:** Next help-wiring slice candidate: `admin.reports.*` (7 keys, analytics pages) — biggest remaining single namespace. Alternates: `candidate.attempt.*`/`candidate.result.*` (8 keys, `apps/web/src/pages/take/`) or `admin.settings.*` (4 keys). After help-wiring tail: auth-seeded axe pass (multi-session), Lighthouse CI, visual regression baseline.
+
+**Open questions:**
+- Drawer's secondary Revoke button (`certificates.tsx:1203`) left unwired intentionally — primary table button is the canonical entry point. Revisit if user testing shows drawer-first discovery.
+- Pre-existing `AdminShell.tsx:334` typecheck failure (`totpEnrolled` missing from `AdminSessionInfo`) still outstanding — 1-line fix in a future session.
+
+---
+
+## Agent utilization
+- Opus: scope decision (admin.certificates.* per audit recommendation), Sonnet brief authoring, Phase 3 diff critique, commit chain + SHA backfill + deploy + handoff.
+- Sonnet: 1 subagent (admin.certificates.* wiring) — agentId `ac7f5e105da056ed7`. Output: 1 modified TSX file (4 attribute additions), 1 audit doc update with wired/skipped table + miscount correction. Verdict: accepted on first pass.
+- Haiku: n/a — direct Bash grep was tractable.
+- codex:rescue: n/a — modules/10-admin-dashboard is non-load-bearing, pure attribute wiring, no security/auth/classifier paths.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 P14 — admin.grading.* help-key wiring)
 
 **Headline:** Wired 8 of 12 `admin.grading.*` help-system keys into `GradingProposalCard.tsx` + `attempt-detail.tsx`. Help-system runtime can now attach tooltips to anchors, band, justification, error-class, escalation badge, accept button, rerun-opus button, and override-reason field. 4 keys skipped because their target UI doesn't exist yet (queue.row / queue.empty live behind a "Coming soon" placeholder; separate Sonnet-only rerun button doesn't exist; skill_drift banner doesn't exist). Updated wired count: 3/57 → 11/57.
