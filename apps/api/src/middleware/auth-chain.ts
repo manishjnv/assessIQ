@@ -7,32 +7,34 @@
 // audit hooks that want to ignore /api/auth/*). The per-route chain is
 // authoritative for /api/auth/* and /embed.
 //
-// Stack order — UPDATED 2026-05-04 (admin rate-limit bypass):
+// Stack order:
 //   1. sessionLoader     (sets req.session if cookie present — MUST run first
-//                         so rateLimit can read it for the bypass decision;
-//                         short-circuits in <1ms when no aiq_sess cookie is
-//                         present — no Redis hit on anonymous requests)
-//   2. rateLimit         (per-IP for /api/auth/*; per-user/tenant for authed;
-//                         per-IP bucket skipped for verified admin/reviewer on
-//                         opt-in endpoints when allowVerifiedAdminBypass=true)
-//   3. apiKeyAuth        (sets req.apiKey if Bearer present and no session)
+//                         so rateLimit can read it for role-based IP bucket
+//                         resolution; short-circuits in <1ms when no aiq_sess
+//                         cookie is present — no Redis hit on anonymous requests)
+//   2. apiKeyAuth        (sets req.apiKey if Bearer present and no session — MUST
+//                         run before rateLimit so resolveIpBucketMax can read
+//                         req.apiKey for the 600/min API key tier)
+//   3. rateLimit         (role-aware per-IP for ALL routes; reads both
+//                         req.session.role and req.apiKey for IP tier selection;
+//                         per-user/tenant for authenticated routes; single
+//                         instance — no bypass)
 //   4. syncCtx           (mirrors session/apiKey into req.assessiqCtx for ALS)
 //   5. requireAuth       (role / TOTP / freshMfa gates — only when requested)
 //   6. extendOnPass      (sliding-refresh; runs on session-backed pass)
 //
-// Previous order was [rateLimit, sessionLoader, ...]. The reorder is safe
-// because @fastify/cookie runs as an onRequest hook BEFORE all preHandlers,
-// so req.cookies is already populated when sessionLoader runs first. See
-// CLAUDE.md prompt 2026-05-04 for full rationale and safety analysis.
+// Chain order: sessionLoader and apiKeyAuth BEFORE rateLimit so resolveIpBucketMax
+// can read both req.session.role and req.apiKey for IP tier selection
+// (admin=100, candidate=30, anon=30, apikey=600).
+// @fastify/cookie runs as an onRequest hook BEFORE all preHandlers, so
+// req.cookies is always populated when sessionLoader runs.
 //
 // The 02-tenancy.tenantContextMiddleware already runs as a global preHandler
 // gated on req.session?.tenantId. When this auth chain populates req.session,
 // the global hook fires AFTER per-route preHandlers complete — except Fastify
 // runs global preHandlers first. So tenant context is NOT set by the global
 // hook for these auth routes; the route handlers and library functions use
-// withTenant(...) to scope DB queries explicitly. That matches the W4 design
-// where every library function (totp.verify, apiKeys.list, sessions.create,
-// verifyEmbedToken, etc.) wraps its DB access in withTenant.
+// withTenant(...) to scope DB queries explicitly.
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { config } from '@assessiq/core';
@@ -60,18 +62,14 @@ const cast = <H>(hook: H): FastifyHook => hook as unknown as FastifyHook;
 // constructor itself throws if asked to skip in production.
 const skipUserStatusCheck = config.NODE_ENV !== 'production';
 
-// Two rate-limit middleware instances: one strict (default) and one with the
-// admin/reviewer per-IP bypass enabled. The bypass is a code-set option —
-// it is NEVER set from request input. Only routes that explicitly call
-// authChain({ allowVerifiedAdminBypass: true }) get the bypass instance.
+// Single rate-limit middleware instance — role-aware IP bucket, no bypass.
+// IP bucket max is resolved per-request from req.session.role / req.apiKey.
 // Both instances share the same Redis connection (via getRedis() singleton).
-const _rateLimitDefault = rateLimitMiddleware();
-const _rateLimitBypass = rateLimitMiddleware({ allowVerifiedAdminBypass: true });
+const _rateLimit = rateLimitMiddleware();
 const _sessionLoader = sessionLoaderMiddleware({ skipUserStatusCheck });
 const _extendOnPass = extendOnPassMiddleware(config.SESSION_COOKIE_NAME);
 
-const rateLimitDefault: FastifyHook = cast(_rateLimitDefault);
-const rateLimitBypass: FastifyHook = cast(_rateLimitBypass);
+const rateLimit: FastifyHook = cast(_rateLimit);
 const sessionLoader: FastifyHook = cast(_sessionLoader);
 const apiKeyAuth: FastifyHook = cast(apiKeyAuthMiddleware);
 const extendOnPass: FastifyHook = cast(_extendOnPass);
@@ -96,34 +94,12 @@ export interface AuthChainOpts {
   roles?: readonly Role[];
   freshMfaWithinMinutes?: number;
   requireTotpVerified?: boolean;
-
-  // When true, a verified admin or reviewer session (role IN {admin,reviewer}
-  // AND totpVerified === true) bypasses the per-IP rate-limit bucket. The
-  // per-user (60/min) and per-tenant (600/min) buckets still apply.
-  //
-  // This flag is CODE-ONLY — it is set here in route definitions, never from
-  // request headers, query strings, or body. A reviewer cannot smuggle this
-  // flag into a request to bypass the IP limiter.
-  //
-  // Opt-in whitelist (the only routes where this should be true):
-  //   - /api/auth/google/start  (admin re-clicking SSO during testing)
-  //   - /api/auth/logout        (admin aborting a session)
-  //   - /api/auth/whoami        (frequent polling by admin SPA)
-  //
-  // NEVER set on:
-  //   - /api/auth/totp/verify   (TOTP brute-force class — always strict)
-  //   - /api/auth/totp/recovery (recovery-code brute-force class)
-  //   - /api/auth/totp/enroll/* (enrollment confirm is also brute-forceable)
-  //   - /api/auth/google/cb     (OAuth callback — no session yet)
-  //   - /api/take/start         (magic-link redemption — no session yet)
-  allowVerifiedAdminBypass?: boolean;
 }
 
 export function authChain(opts: AuthChainOpts = {}): FastifyHook[] {
-  // Chain order: sessionLoader FIRST so rateLimit can read req.session for the
-  // admin bypass decision. See header comment for full safety rationale.
-  const rateLimit = opts.allowVerifiedAdminBypass === true ? rateLimitBypass : rateLimitDefault;
-  const chain: FastifyHook[] = [sessionLoader, rateLimit, apiKeyAuth, syncCtx];
+  // Chain order: sessionLoader and apiKeyAuth BEFORE rateLimit so resolveIpBucketMax
+  // can read both req.session.role and req.apiKey for IP tier selection. See header comment for full safety rationale.
+  const chain: FastifyHook[] = [sessionLoader, apiKeyAuth, rateLimit, syncCtx];
   if (opts.requireSession === false) return chain;
 
   // Conditional spread to satisfy exactOptionalPropertyTypes — never pass
@@ -142,6 +118,5 @@ export function authChain(opts: AuthChainOpts = {}): FastifyHook[] {
 //   - GET  /api/auth/google/start  (pre-OIDC; cookie may or may not be present)
 //   - GET  /api/auth/google/cb     (the OIDC callback completes auth)
 //   - GET  /embed?token=<JWT>      (token IS the credential)
-// Still runs rateLimit (the IP-bucket hits /api/auth/* by prefix; /embed has
-// no IP bucket since no /api prefix, but the chain shape stays uniform).
+// Still runs rateLimit (role-aware IP bucket applies to ALL routes).
 export const publicAuthChain: FastifyHook[] = authChain({ requireSession: false });

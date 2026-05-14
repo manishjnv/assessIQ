@@ -109,6 +109,20 @@ const ConfigSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((s) => s === "true"),
+
+    // ── Role-aware IP rate-limit tiers (window fixed at 60s) ────────────────
+    // All four are optional with safe defaults — zero-config deploy works.
+    // Override in .env to tune without a rebuild.
+    // See modules/01-auth/src/middleware/rate-limit.ts § resolveIpBucketMax.
+    //
+    // Admin + reviewer share one bucket (privileged staff; unlikely to brute-force).
+    RATE_LIMIT_IP_ADMIN: z.coerce.number().int().positive().default(100),
+    // Candidates (session role='candidate') and unknown session roles.
+    RATE_LIMIT_IP_USER: z.coerce.number().int().positive().default(30),
+    // Anonymous requests: no session cookie, no API key.
+    RATE_LIMIT_IP_ANON: z.coerce.number().int().positive().default(30),
+    // API-key-backed traffic: batch integrations, webhooks, server-to-server.
+    RATE_LIMIT_IP_APIKEY: z.coerce.number().int().positive().default(600),
   })
   .superRefine((data, ctx) => {
     if (

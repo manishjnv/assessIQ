@@ -15,6 +15,14 @@
  * process.env. Tests that need to observe production-mode behaviour (test 10) mock
  * `extractClientIp` directly rather than mutating process.env after import, which
  * avoids the singleton-capture problem documented in the task spec.
+ *
+ * Rate-limit tiers (role-aware, all routes):
+ *   admin/reviewer  100/min  (config.RATE_LIMIT_IP_ADMIN)
+ *   candidate        30/min  (config.RATE_LIMIT_IP_USER)
+ *   anon             30/min  (config.RATE_LIMIT_IP_ANON)
+ *   api-key         600/min  (config.RATE_LIMIT_IP_APIKEY)
+ *   user bucket      60/min  (unchanged)
+ *   tenant bucket   600/min  (unchanged)
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
@@ -22,7 +30,7 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 
 import { requestIdMiddleware } from "../middleware/request-id.js";
 import { parseCookieHeader, cookieParserMiddleware } from "../middleware/cookie-parser.js";
-import { rateLimitMiddleware, extractClientIp } from "../middleware/rate-limit.js";
+import { rateLimitMiddleware, extractClientIp, resolveIpBucketMax } from "../middleware/rate-limit.js";
 import { requireAuth, requireRole, requireScope, requireFreshMfa } from "../middleware/require-auth.js";
 import { AuthnError, AuthzError, RateLimitError, nowIso, config } from "@assessiq/core";
 import { setRedisForTesting, closeRedis, getRedis } from "../redis.js";
@@ -133,7 +141,7 @@ describe("cookieParserMiddleware", () => {
 });
 
 // ---------------------------------------------------------------------------
-// § rate-limit (Redis testcontainer required for tests 9–14, 16)
+// § rate-limit (Redis testcontainer required)
 // ---------------------------------------------------------------------------
 
 describe("rate-limit (Redis testcontainer)", () => {
@@ -192,33 +200,34 @@ describe("rate-limit (Redis testcontainer)", () => {
   // rateLimitMiddleware — exercises the Lua script via the testcontainer
   // -------------------------------------------------------------------------
 
-  it("test 12: sets X-RateLimit-Limit and X-RateLimit-Remaining on success", async () => {
-    const handler = rateLimitMiddleware({ authPathPrefix: "/api/auth/" });
+  it("test 12: sets X-RateLimit-Limit and X-RateLimit-Remaining on success (anon=30/min)", async () => {
+    // Anon request (no session, no apiKey) → RATE_LIMIT_IP_ANON = 30
+    const handler = rateLimitMiddleware();
     const req = makeReq({
       url: "/api/auth/test",
       headers: { "cf-connecting-ip": "10.0.0.1" },
     });
     const reply = makeReply();
     await handler(req, reply);
-    expect(reply.headers["X-RateLimit-Limit"]).toBe(10);
-    expect(reply.headers["X-RateLimit-Remaining"]).toBe(9);
+    expect(reply.headers["X-RateLimit-Limit"]).toBe(config.RATE_LIMIT_IP_ANON);
+    expect(reply.headers["X-RateLimit-Remaining"]).toBe(config.RATE_LIMIT_IP_ANON - 1);
     // No Retry-After on a successful (non-exhausted) request.
     expect(reply.headers["Retry-After"]).toBeUndefined();
   });
 
-  it("test 13: throws RateLimitError with Retry-After header after 11 hits on auth route", async () => {
-    const handler = rateLimitMiddleware({ authPathPrefix: "/api/auth/" });
+  it("test 13: throws RateLimitError with Retry-After after anon bucket exhaustion (30/min)", async () => {
+    const handler = rateLimitMiddleware();
     // Use a unique IP to avoid cross-test bucket pollution.
     const ip = "10.1.1.1";
     const req = () =>
       makeReq({ url: "/api/auth/login", headers: { "cf-connecting-ip": ip } });
 
-    // Exhaust the 10-request limit.
-    for (let i = 0; i < 10; i++) {
+    // Exhaust the 30-request anon limit.
+    for (let i = 0; i < config.RATE_LIMIT_IP_ANON; i++) {
       await handler(req(), makeReply());
     }
 
-    // 11th request must throw.
+    // Next request must throw.
     const reply = makeReply();
     await expect(handler(req(), reply)).rejects.toBeInstanceOf(RateLimitError);
     // Retry-After must be a positive integer (TTL of the bucket in seconds).
@@ -228,7 +237,7 @@ describe("rate-limit (Redis testcontainer)", () => {
   });
 
   it("test 14: per-user 60/min bucket — 61st request rejects with scope user", async () => {
-    const handler = rateLimitMiddleware({ authPathPrefix: "/api/auth/" });
+    const handler = rateLimitMiddleware();
     const userId = "user-rl-test-001";
     const tenantId = "tenant-rl-test-001";
     const session: AuthRequest["session"] = {
@@ -241,9 +250,10 @@ describe("rate-limit (Redis testcontainer)", () => {
       lastTotpAt: nowIso(),
     };
 
-    // Non-auth URL so the IP/auth bucket doesn't apply; only user+tenant buckets do.
+    // Non-auth URL so only user+tenant buckets add meaningful assertions; the IP
+    // bucket fires too but admin=100/min so it won't exhaust first.
     const req = () =>
-      makeReq({ url: "/api/assessments", headers: {}, session });
+      makeReq({ url: "/api/assessments", headers: { "cf-connecting-ip": "10.3.3.1" }, session });
 
     // Exhaust the 60-request user limit.
     for (let i = 0; i < 60; i++) {
@@ -269,25 +279,30 @@ describe("rate-limit (Redis testcontainer)", () => {
     expect(true).toBe(true);
   });
 
-  it("test 16: auth-route IP bucket does NOT apply to non-auth routes", async () => {
-    const handler = rateLimitMiddleware({ authPathPrefix: "/api/auth/" });
-    // No session, no apiKey — non-auth public route → rateLimitMiddleware returns
-    // immediately (limits.length === 0) without throwing regardless of hit count.
-    const req = () =>
-      makeReq({
-        url: "/api/admin/users",
-        headers: { "cf-connecting-ip": "10.2.2.2" },
-        // Deliberately no session / apiKey — unauthenticated public hit.
-      });
+  it("test 16: IP bucket applies to ALL routes including non-/api/auth/* routes", async () => {
+    // Previous design: IP bucket only on /api/auth/*. New design: ALL routes.
+    // This test proves non-auth routes are now rate-limited by IP.
+    const handler = rateLimitMiddleware();
+    const ip = "10.2.2.2";
+    // Anon request to an admin route — should still be counted in the IP bucket.
+    const req = makeReq({
+      url: "/api/admin/users",
+      headers: { "cf-connecting-ip": ip },
+    });
+    const reply = makeReply();
+    await handler(req, reply);
 
-    // 20 hits — must NOT throw (the IP/auth bucket only applies to /api/auth/*).
-    for (let i = 0; i < 20; i++) {
-      await expect(handler(req(), makeReply())).resolves.toBeUndefined();
-    }
+    // IP bucket must have been incremented (key now exists in Redis).
+    const redis = getRedis();
+    const ipVal = await redis.get(`aiq:rl:ip:${ip}`);
+    expect(Number(ipVal)).toBe(1);
+    // Standard rate-limit headers must be set.
+    expect(reply.headers["X-RateLimit-Limit"]).toBe(config.RATE_LIMIT_IP_ANON);
+    expect(reply.headers["X-RateLimit-Remaining"]).toBe(config.RATE_LIMIT_IP_ANON - 1);
   });
 
-  it("test 9 (Redis key shape): CF-Connecting-IP bucket key contains the client IP", async () => {
-    const handler = rateLimitMiddleware({ authPathPrefix: "/api/auth/" });
+  it("test 9 (Redis key shape): IP bucket key uses aiq:rl:ip:<ip> (not aiq:rl:auth:ip:)", async () => {
+    const handler = rateLimitMiddleware();
     const ip = "20.30.40.50";
     const req = makeReq({
       url: "/api/auth/whoami",
@@ -295,354 +310,218 @@ describe("rate-limit (Redis testcontainer)", () => {
     });
     await handler(req, makeReply());
 
-    // Verify Redis key shape: aiq:rl:auth:ip:<ip>
+    // Verify Redis key shape: aiq:rl:ip:<ip> (no ":auth:" segment)
     const redis = getRedis();
-    const keys = await redis.keys(`aiq:rl:auth:ip:*`);
-    expect(keys.some((k) => k === `aiq:rl:auth:ip:${ip}`)).toBe(true);
+    const keys = await redis.keys(`aiq:rl:ip:*`);
+    expect(keys.some((k) => k === `aiq:rl:ip:${ip}`)).toBe(true);
+    // Old key must NOT exist.
+    const oldKeys = await redis.keys(`aiq:rl:auth:ip:*`);
+    expect(oldKeys.some((k) => k === `aiq:rl:auth:ip:${ip}`)).toBe(false);
   });
 
-  // ---------------------------------------------------------------------------
-  // § admin/reviewer bypass (tests B1–B9)
-  // All use unique IP/userId/tenantId to avoid cross-test bucket contamination.
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // § Role-aware IP tier tests (T1–T4)
+  // Each uses a unique IP and session shape to avoid bucket contamination.
+  // -------------------------------------------------------------------------
 
-  describe("admin/reviewer IP-bucket bypass", () => {
-    // Helpers
-    function bypassHandler() {
-      return rateLimitMiddleware({ authPathPrefix: "/api/auth/", allowVerifiedAdminBypass: true });
-    }
-    function strictHandler() {
-      return rateLimitMiddleware({ authPathPrefix: "/api/auth/" }); // default: no bypass
-    }
-
-    function verifiedSession(
-      role: "admin" | "reviewer" | "candidate",
-      totpVerified: boolean,
-      userId: string,
-      tenantId: string,
-    ): NonNullable<AuthRequest["session"]> {
-      return {
-        id: `sess-${userId}`,
-        userId,
-        tenantId,
-        role,
-        totpVerified,
+  describe("role-aware IP bucket tiers", () => {
+    it("T1: admin session → IP limit = RATE_LIMIT_IP_ADMIN (100/min)", () => {
+      // We assert resolveIpBucketMax directly rather than via the X-RateLimit-Limit
+      // header. The header correctly reports the "most-constrained" bucket: for an
+      // admin session that carries both an IP bucket (100/min) and a user bucket
+      // (60/min), the user bucket is more constrained on the first request (remaining
+      // 59 < 99), so the header shows 60 — which is correct production behaviour but
+      // is not what this test is verifying. resolveIpBucketMax is the source-of-truth
+      // for "what IP tier does admin get?" and is exported specifically for this.
+      const session: NonNullable<AuthRequest["session"]> = {
+        id: "sess-t1",
+        userId: "tier-t1-user",
+        tenantId: "tier-t1-tenant",
+        role: "admin",
+        totpVerified: true,
         expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
         lastTotpAt: nowIso(),
       };
-    }
-
-    // B1: Verified admin on opt-in endpoint — bypass fires, IP bucket NOT
-    // incremented, X-RateLimit-Bypass: admin emitted.
-    it("B1: verified admin on opt-in endpoint bypasses IP bucket", async () => {
-      const handler = bypassHandler();
-      const ip = "30.1.1.1";
-      const userId = "bypass-b1-user";
-      const tenantId = "bypass-b1-tenant";
-      const session = verifiedSession("admin", true, userId, tenantId);
-
-      const reply = makeReply();
-      await handler(makeReq({
+      const req = makeReq({
         url: "/api/auth/google/start",
-        headers: { "cf-connecting-ip": ip },
-        session,
-      }), reply);
-
-      // Bypass header must be present and set to "admin".
-      expect(reply.headers["X-RateLimit-Bypass"]).toBe("admin");
-      // User and tenant headers must be present (buckets still tracked).
-      expect(reply.headers["X-RateLimit-Limit-User"]).toBe(60);
-      expect(typeof reply.headers["X-RateLimit-Remaining-User"]).toBe("number");
-      expect(reply.headers["X-RateLimit-Limit-Tenant"]).toBe(600);
-      expect(typeof reply.headers["X-RateLimit-Remaining-Tenant"]).toBe("number");
-
-      // IP bucket must NOT have been incremented: the Redis key should not exist.
-      const redis = getRedis();
-      const ipKey = `aiq:rl:auth:ip:${ip}`;
-      const ipVal = await redis.get(ipKey);
-      expect(ipVal).toBeNull();
-
-      // User bucket MUST have been incremented.
-      const userKey = `aiq:rl:user:${userId}`;
-      const userVal = await redis.get(userKey);
-      expect(Number(userVal)).toBe(1);
-    });
-
-    // B2: Verified reviewer on opt-in endpoint — bypass fires (same as admin).
-    it("B2: verified reviewer on opt-in endpoint bypasses IP bucket", async () => {
-      const handler = bypassHandler();
-      const ip = "30.1.1.2";
-      const session = verifiedSession("reviewer", true, "bypass-b2-user", "bypass-b2-tenant");
-
-      const reply = makeReply();
-      await handler(makeReq({
-        url: "/api/auth/whoami",
-        headers: { "cf-connecting-ip": ip },
-        session,
-      }), reply);
-
-      expect(reply.headers["X-RateLimit-Bypass"]).toBe("reviewer");
-      // IP bucket must NOT exist.
-      const redis = getRedis();
-      expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
-    });
-
-    // B3: Pre-MFA session (totpVerified=false) — NO bypass, IP bucket fires.
-    it("B3: pre-MFA admin (totpVerified=false) on opt-in endpoint hits IP bucket", async () => {
-      const handler = bypassHandler();
-      const ip = "30.1.1.3";
-      const session = verifiedSession("admin", false, "bypass-b3-user", "bypass-b3-tenant");
-
-      const reply = makeReply();
-      await handler(makeReq({
-        url: "/api/auth/google/start",
-        headers: { "cf-connecting-ip": ip },
-        session,
-      }), reply);
-
-      // No bypass header.
-      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
-      // IP bucket MUST exist (was incremented).
-      const redis = getRedis();
-      const ipVal = await redis.get(`aiq:rl:auth:ip:${ip}`);
-      expect(Number(ipVal)).toBe(1);
-    });
-
-    // B4: Candidate session — NO bypass even on opt-in endpoint.
-    it("B4: candidate session on opt-in endpoint hits IP bucket (candidates not in bypass allowlist)", async () => {
-      const handler = bypassHandler();
-      const ip = "30.1.1.4";
-      // Candidates have totpVerified=true (magic link sets it) but role='candidate'.
-      const session = verifiedSession("candidate", true, "bypass-b4-user", "bypass-b4-tenant");
-
-      const reply = makeReply();
-      await handler(makeReq({
-        url: "/api/auth/google/start",
-        headers: { "cf-connecting-ip": ip },
-        session,
-      }), reply);
-
-      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
-      const redis = getRedis();
-      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
-    });
-
-    // B5: Anonymous (no session) on opt-in endpoint — NO bypass, IP bucket fires.
-    it("B5: anonymous request on opt-in endpoint hits IP bucket", async () => {
-      const handler = bypassHandler();
-      const ip = "30.1.1.5";
-
-      const reply = makeReply();
-      await handler(makeReq({
-        url: "/api/auth/google/start",
-        headers: { "cf-connecting-ip": ip },
-        // No session.
-      }), reply);
-
-      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
-      const redis = getRedis();
-      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
-    });
-
-    // B6: Verified admin on a NON-opt-in endpoint (strict handler, no bypass flag).
-    // This proves the flag is code-only: even a verified admin hits the IP bucket
-    // on a middleware instance that was NOT configured with allowVerifiedAdminBypass.
-    it("B6: verified admin on non-opt-in middleware instance hits IP bucket (code-only flag)", async () => {
-      const handler = strictHandler(); // <-- no allowVerifiedAdminBypass
-      const ip = "30.1.1.6";
-      const session = verifiedSession("admin", true, "bypass-b6-user", "bypass-b6-tenant");
-
-      const reply = makeReply();
-      await handler(makeReq({
-        url: "/api/auth/totp/verify", // TOTP verify: always strict
-        headers: { "cf-connecting-ip": ip },
-        session,
-      }), reply);
-
-      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
-      const redis = getRedis();
-      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
-    });
-
-    // B7: User bucket exhaustion at 60/min — fires RATE_LIMITED scope=user
-    // even when the IP bucket is bypassed. Tenant bucket is trusted to work
-    // by structural parity (same Lua path, same INCR+EXPIRE — see test 15 note).
-    it("B7: user bucket exhaustion fires RATE_LIMITED scope=user even when IP bucket bypassed", async () => {
-      const handler = bypassHandler();
-      const ip = "30.1.1.7";
-      // Use /api/assessments (non-auth prefix) so only user+tenant buckets apply,
-      // and bypass doesn't interact with any IP logic.
-      // But to test bypass WITH user exhaustion, use /api/auth/* with session.
-      const userId = "bypass-b7-user";
-      const tenantId = "bypass-b7-tenant";
-      const session = verifiedSession("admin", true, userId, tenantId);
-
-      // Use /api/auth/whoami so the opt-in path is hit 60 times.
-      const req = () => makeReq({
-        url: "/api/auth/whoami",
-        headers: { "cf-connecting-ip": ip },
+        headers: { "cf-connecting-ip": "40.1.1.1" },
         session,
       });
+      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_ADMIN);
+    });
 
-      // 60 requests — all bypass the IP bucket, all increment user bucket.
-      for (let i = 0; i < 60; i++) {
-        const reply = makeReply();
-        await handler(req(), reply);
-        // Every reply must have the bypass header.
-        expect(reply.headers["X-RateLimit-Bypass"]).toBe("admin");
+    it("T2: reviewer session → IP limit = RATE_LIMIT_IP_ADMIN (admin+reviewer share)", () => {
+      // Same reasoning as T1 — resolveIpBucketMax is the correct assertion surface.
+      const session: NonNullable<AuthRequest["session"]> = {
+        id: "sess-t2",
+        userId: "tier-t2-user",
+        tenantId: "tier-t2-tenant",
+        role: "reviewer",
+        totpVerified: true,
+        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        lastTotpAt: nowIso(),
+      };
+      const req = makeReq({
+        url: "/api/auth/whoami",
+        headers: { "cf-connecting-ip": "40.1.1.2" },
+        session,
+      });
+      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_ADMIN);
+    });
+
+    it("T3: candidate session → IP limit = RATE_LIMIT_IP_USER (30/min)", async () => {
+      const handler = rateLimitMiddleware();
+      const ip = "40.1.1.3";
+      const session: NonNullable<AuthRequest["session"]> = {
+        id: "sess-t3",
+        userId: "tier-t3-user",
+        tenantId: "tier-t3-tenant",
+        role: "candidate",
+        totpVerified: true,
+        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        lastTotpAt: nowIso(),
+      };
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/take/some-token",
+        headers: { "cf-connecting-ip": ip },
+        session,
+      }), reply);
+      expect(reply.headers["X-RateLimit-Limit"]).toBe(config.RATE_LIMIT_IP_USER);
+    });
+
+    it("T4: anon (no session, no apiKey) → IP limit = RATE_LIMIT_IP_ANON (30/min)", async () => {
+      const handler = rateLimitMiddleware();
+      const ip = "40.1.1.4";
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/auth/google/start",
+        headers: { "cf-connecting-ip": ip },
+      }), reply);
+      expect(reply.headers["X-RateLimit-Limit"]).toBe(config.RATE_LIMIT_IP_ANON);
+    });
+
+    it("T5: API key → IP limit = RATE_LIMIT_IP_APIKEY (600/min)", async () => {
+      const handler = rateLimitMiddleware();
+      const ip = "40.1.1.5";
+      const apiKey: NonNullable<AuthRequest["apiKey"]> = {
+        id: "key-t5",
+        tenantId: "tier-t5-tenant",
+        scopes: ["results:read"],
+      };
+      const reply = makeReply();
+      await handler(makeReq({
+        url: "/api/assessments",
+        headers: { "cf-connecting-ip": ip },
+        apiKey,
+      }), reply);
+      expect(reply.headers["X-RateLimit-Limit"]).toBe(config.RATE_LIMIT_IP_APIKEY);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // § Bypass-removal proof tests (N1, PathN)
+  // These prove there is no per-IP bypass for any role on any route.
+  // -------------------------------------------------------------------------
+
+  describe("bypass removed — all roles hit IP bucket on all routes", () => {
+    // N1: Verified admin hits /api/auth/google/start 101 times.
+    // Previous design: first 3 opts-in got a bypass and never hit the IP bucket.
+    // New design: admin gets 100/min/IP — request 101 must return 429.
+    //
+    // Each iteration uses a unique userId so the per-user 60/min bucket never
+    // saturates, isolating this test to IP-tier enforcement only.
+    it("N1: verified admin hits /api/auth/google/start 101x → request 101 returns 429 (bypass removed)", async () => {
+      const handler = rateLimitMiddleware();
+      const ip = "50.1.1.1";
+      let counter = 0;
+      const req = () => {
+        counter++;
+        return makeReq({
+          url: "/api/auth/google/start",
+          headers: { "cf-connecting-ip": ip },
+          session: {
+            id: `sess-n1-${counter}`,
+            userId: `no-bypass-n1-user-${counter}`,  // unique → user bucket never saturates
+            tenantId: `no-bypass-n1-tenant-${counter}`,
+            role: "admin" as const,
+            totpVerified: true,
+            expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            lastTotpAt: nowIso(),
+          },
+        });
+      };
+
+      // Exhaust the 100-request admin IP limit.
+      for (let i = 0; i < config.RATE_LIMIT_IP_ADMIN; i++) {
+        await handler(req(), makeReply());
       }
 
-      // 61st — must throw RATE_LIMITED with scope=user.
+      // Request 101 must throw (IP bucket exhausted).
+      await expect(handler(req(), makeReply())).rejects.toBeInstanceOf(RateLimitError);
+    });
+
+    // PathN: Verified admin hits /api/auth/totp/verify 101 times.
+    // Path N decision (2026-05-15, user-approved): TOTP verify is NOT special-cased.
+    // Admin gets 100/min/IP even on TOTP verify. Brute-force window drops ~35d →
+    // ~3.5d @ 50% probability — deliberate regression, documented in
+    // docs/04-auth-flows.md § Rate limit tiers.
+    //
+    // Each iteration uses a unique userId so the per-user 60/min bucket never
+    // saturates, isolating this test to IP-tier enforcement only.
+    it("PathN: admin gets 100/min/IP on TOTP verify (Path N — blacklist dropped per user decision 2026-05-15, brute-force window ~3.5 days)", async () => {
+      const handler = rateLimitMiddleware();
+      const ip = "50.1.1.2";
+      let counter = 0;
+      // Pre-MFA session (totpVerified=false — that's the state when calling totp/verify)
+      const req = () => {
+        counter++;
+        return makeReq({
+          url: "/api/auth/totp/verify",
+          headers: { "cf-connecting-ip": ip },
+          session: {
+            id: `sess-pathn-${counter}`,
+            userId: `no-bypass-pathn-user-${counter}`,  // unique → user bucket never saturates
+            tenantId: `no-bypass-pathn-tenant-${counter}`,
+            role: "admin" as const,
+            totpVerified: false,
+            expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            lastTotpAt: null,
+          },
+        });
+      };
+
+      // Exhaust the 100-request admin IP limit.
+      for (let i = 0; i < config.RATE_LIMIT_IP_ADMIN; i++) {
+        await handler(req(), makeReply());
+      }
+
+      // Request 101 must throw — no special-casing for totp/verify.
+      await expect(handler(req(), makeReply())).rejects.toBeInstanceOf(RateLimitError);
+    });
+
+    // N2: Unauth request to a non-/api/auth/* route → IP bucket fires at anon rate.
+    // Previous design: IP bucket only on /api/auth/*. New design: ALL routes.
+    it("N2: unauth request to /api/assessments hits IP bucket at anon limit (30/min)", async () => {
+      const handler = rateLimitMiddleware();
+      const ip = "50.1.1.3";
+      const req = () => makeReq({
+        url: "/api/assessments",
+        headers: { "cf-connecting-ip": ip },
+      });
+
+      // Exhaust the 30-request anon limit.
+      for (let i = 0; i < config.RATE_LIMIT_IP_ANON; i++) {
+        await handler(req(), makeReply());
+      }
+
+      // Next request must throw with scope=ip.
       await expect(handler(req(), makeReply())).rejects.toSatisfy((err: unknown) => {
         return (
           err instanceof RateLimitError &&
-          (err.details as { scope?: string } | undefined)?.scope === "user"
+          (err.details as { scope?: string } | undefined)?.scope === "ip"
         );
       });
-
-      // IP bucket must still be absent (bypass was active the whole time).
-      const redis = getRedis();
-      expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
-    });
-
-    // B8: totpVerified strict === true check — "true" string and 1 do NOT bypass.
-    // This validates that the guard uses === true (not truthy coercion).
-    it("B8: totpVerified strict check — truthy non-boolean values do not bypass", async () => {
-      const handler = bypassHandler();
-      const ip = "30.1.1.8";
-
-      // Craft a session where totpVerified would pass truthy coercion but not ===.
-      // TypeScript prevents this at compile time; we cast to simulate an
-      // attacker-controlled or corrupted session value arriving at runtime.
-      const sessionLike = {
-        id: "sess-b8",
-        userId: "bypass-b8-user",
-        tenantId: "bypass-b8-tenant",
-        role: "admin" as const,
-        totpVerified: "true" as unknown as boolean, // truthy string, NOT === true
-        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-        lastTotpAt: nowIso(),
-      };
-
-      const reply = makeReply();
-      await handler(makeReq({
-        url: "/api/auth/google/start",
-        headers: { "cf-connecting-ip": ip },
-        session: sessionLike,
-      }), reply);
-
-      // Must NOT bypass — totpVerified was "true" string, not boolean true.
-      expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
-      // IP bucket must have been incremented.
-      const redis = getRedis();
-      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
-    });
-
-    // B9: Bypass is per-request — hitting the same endpoint 5 times with bypass
-    // does NOT persist a bypass decision between requests. Each request is
-    // independently evaluated. (Structural: verified by B1–B7 already, since
-    // every test call re-evaluates the three conditions. This test adds an
-    // explicit multi-request assertion for clarity.)
-    it("B9: bypass is evaluated per-request; no cross-request memoization", async () => {
-      const bypassH = bypassHandler();
-      const ip = "30.1.1.9a";
-      const sessionAdmin = verifiedSession("admin", true, "bypass-b9a-user", "bypass-b9a-tenant");
-
-      // First request: bypass fires.
-      const r1 = makeReply();
-      await bypassH(makeReq({ url: "/api/auth/google/start", headers: { "cf-connecting-ip": ip }, session: sessionAdmin }), r1);
-      expect(r1.headers["X-RateLimit-Bypass"]).toBe("admin");
-
-      // Second request from same IP but NO session — must NOT bypass.
-      // Omit `session` entirely (absent property) instead of explicit undefined
-      // to satisfy exactOptionalPropertyTypes.
-      const r2 = makeReply();
-      await bypassH(makeReq({ url: "/api/auth/google/start", headers: { "cf-connecting-ip": ip } }), r2);
-      expect(r2.headers["X-RateLimit-Bypass"]).toBeUndefined();
-      // IP bucket must now have count 1 (from the second request only).
-      const redis = getRedis();
-      expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
-    });
-
-    // B10: MFA_REQUIRED=false + admin (totpVerified=false) → bypass fires.
-    // Pre-2026-05-13 this branch was dead: a strict ===true check meant no
-    // Google-SSO admin ever bypassed and admins routinely 429'd themselves.
-    // The predicate now mirrors requireAuth's MFA gating.
-    it("B10: MFA_REQUIRED=false + admin (totpVerified=false) bypasses IP bucket", async () => {
-      const spy = vi.spyOn(config, "MFA_REQUIRED", "get").mockReturnValue(false);
-      try {
-        const handler = bypassHandler();
-        const ip = "30.1.1.10";
-        const session = verifiedSession("admin", false, "bypass-b10-user", "bypass-b10-tenant");
-
-        const reply = makeReply();
-        await handler(makeReq({
-          url: "/api/auth/google/start",
-          headers: { "cf-connecting-ip": ip },
-          session,
-        }), reply);
-
-        // Bypass header MUST be present despite totpVerified=false.
-        expect(reply.headers["X-RateLimit-Bypass"]).toBe("admin");
-        // IP bucket MUST NOT have been incremented.
-        const redis = getRedis();
-        expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
-        // User bucket MUST have been incremented (still tracked).
-        expect(Number(await redis.get(`aiq:rl:user:bypass-b10-user`))).toBe(1);
-      } finally {
-        spy.mockRestore();
-      }
-    });
-
-    // B11: MFA_REQUIRED=false + reviewer (totpVerified=false) → bypass fires.
-    // Same as B10 but for the reviewer role — confirms the bypass allowlist
-    // covers both privileged roles equally under the MFA-off branch.
-    it("B11: MFA_REQUIRED=false + reviewer (totpVerified=false) bypasses IP bucket", async () => {
-      const spy = vi.spyOn(config, "MFA_REQUIRED", "get").mockReturnValue(false);
-      try {
-        const handler = bypassHandler();
-        const ip = "30.1.1.11";
-        const session = verifiedSession("reviewer", false, "bypass-b11-user", "bypass-b11-tenant");
-
-        const reply = makeReply();
-        await handler(makeReq({
-          url: "/api/auth/whoami",
-          headers: { "cf-connecting-ip": ip },
-          session,
-        }), reply);
-
-        expect(reply.headers["X-RateLimit-Bypass"]).toBe("reviewer");
-        const redis = getRedis();
-        expect(await redis.get(`aiq:rl:auth:ip:${ip}`)).toBeNull();
-      } finally {
-        spy.mockRestore();
-      }
-    });
-
-    // B12: MFA_REQUIRED=false + candidate → still NO bypass. The MFA branch
-    // relaxes the TOTP gate, NOT the role gate. Candidates are never bypassed
-    // regardless of MFA state.
-    it("B12: MFA_REQUIRED=false + candidate role still hits IP bucket (role gate is authoritative)", async () => {
-      const spy = vi.spyOn(config, "MFA_REQUIRED", "get").mockReturnValue(false);
-      try {
-        const handler = bypassHandler();
-        const ip = "30.1.1.12";
-        // Try both totpVerified states to lock down "role gate beats TOTP gate".
-        const session = verifiedSession("candidate", true, "bypass-b12-user", "bypass-b12-tenant");
-
-        const reply = makeReply();
-        await handler(makeReq({
-          url: "/api/auth/google/start",
-          headers: { "cf-connecting-ip": ip },
-          session,
-        }), reply);
-
-        expect(reply.headers["X-RateLimit-Bypass"]).toBeUndefined();
-        const redis = getRedis();
-        expect(Number(await redis.get(`aiq:rl:auth:ip:${ip}`))).toBe(1);
-      } finally {
-        spy.mockRestore();
-      }
     });
   });
 });

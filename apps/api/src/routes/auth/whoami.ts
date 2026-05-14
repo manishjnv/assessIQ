@@ -24,7 +24,7 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
     '/api/auth/whoami',
     {
       config: { skipAuth: true },
-      preHandler: authChain({ requireTotpVerified: false, allowVerifiedAdminBypass: true }),
+      preHandler: authChain({ requireTotpVerified: false }),
     },
     async (req) => {
       if (req.session !== undefined) {
