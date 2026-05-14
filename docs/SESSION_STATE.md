@@ -1,9 +1,39 @@
+# Session — 2026-05-14 (UI v1.1 Phase 14 slice — reduced-motion sweep + audit)
+
+**Headline:** P14 reduced-motion sweep shipped (Spinner fix + useReducedMotion hook + 8 new tests, 44/44 green); full audit doc enumerates remaining P14 work (Lighthouse CI, auth-seeded axe, visual regression, help-content orphans, branding-doc drift). Earlier in the session: dev-mode rate-limit lift to 100/min on /api/auth/* (commit e0b8e53 + d68b9a8) so admin SSO login flows stop self-throttling locally.
+
+**Commits:**
+- `e0b8e53` — feat(auth): raise per-IP /api/auth/* rate limit to 100/min in NODE_ENV=development
+- `d68b9a8` — docs(auth-flows): document dev-mode rate-limit lift and SSO bypass gap
+- `c82777a` — feat(ui-system): Phase 14 slice — reduced-motion sweep + audit report
+
+**Tests:** @assessiq/auth 42/42 middleware tests green; @assessiq/ui-system 44/44 component tests green (8 new reduced-motion assertions).
+
+**Deploy:** VPS clone synced to `c82777a`. `assessiq-frontend` rebuilt and force-recreated (tokens.css change reaches users). `assessiq-api` NOT rebuilt — rate-limit change is `NODE_ENV=development` only, prod behavior unchanged. Smoke: frontend HTTP 200, /api/auth/whoami HTTP 401 (expected unauth).
+
+**Next:** Next-best P14 follow-up is help-content orphan wiring (54 of 57 YAML keys unwired per audit — biggest user-confusion risk is `admin.grading.*`, 12 keys). After that: auth-seeded axe pass (needs Playwright session-fixture infrastructure, ~2-3 sessions). Lighthouse CI and visual regression are larger setup tasks; defer until help-wire and auth-seeded axe land.
+
+**Open questions:**
+- 8 token values in `docs/10-branding-guideline.md` §§ 3.1–3.2 are stale (v1.0 quoted values vs v1.1 live tokens). Doc-only fix; not done in this session per out-of-scope rule.
+- Drawer/Modal currently have no enter/exit motion — should they gain an opt-in slide/fade per branding-guideline motion table, gated on reduced-motion from the start?
+- Production admin SSO IP-bypass predicate fix (broaden `totpVerified===true` to admit verified Google SSO sessions) appears to have already landed in the file via a separate edit — verify before re-implementing.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, P14 scope decision, Sonnet brief authoring, Phase 3 diff critique against branding-guideline rules, commit + deploy + smoke + handoff.
+- Sonnet: 1 subagent (Phase 14 implementation) — agentId `a8064494ea1eff4f5`. Output: 1 modified CSS file, 2 new TS files, 8 new tests, 1 audit doc. Verdict: accepted on first pass; no revision loop needed.
+- Haiku: n/a — no bulk live-prod sweeps or multi-file greps (used direct Bash grep for the 4 discovery items).
+- codex:rescue: n/a — modules/17-ui-system is non-load-bearing, no security/auth/classifier paths touched. Per global "scale rigor to magnitude," the rate-limit dev-mode bump (env-gated constant) also did not warrant the full rescue ceremony.
+
+---
+
 # Session — 2026-05-14 (Stage 3.1 L3 Re-Measure — G2 PASS confirmed)
 
 **Headline:** L3 re-measure PASS — attempt `019e24e1`, 13/13 `citationsResolve = true`, `citationDropped = 0`; smoke-tool parameter mismatch confirmed as root cause of original failure; no SKILL.md changes needed.
 
 **Commits:**
-- (pending)
+- `18dcda5` — docs(stage3): L3 re-measure PASS — attempt 019e24e1, 13/13 citationsResolve=true
 
 **Tests:** No code changed — re-measure + doc update only.
 
