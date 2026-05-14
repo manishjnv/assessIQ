@@ -32,6 +32,64 @@ function sidebarCollapsedKey(tenantId: string): string {
   return `aiq.admin.sidebar.collapsed.${tenantId}`;
 }
 
+const MFA_NUDGE_DISMISSED_KEY = "aiq.admin.mfa-nudge-dismissed";
+
+function MfaNudgeBanner({ onDismiss }: { onDismiss: () => void }): React.ReactElement {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--aiq-space-md)",
+        padding: "10px var(--aiq-space-xl)",
+        background: "var(--aiq-color-warning-bg, #fefce8)",
+        borderBottom: "1px solid var(--aiq-color-warning-border, #fde68a)",
+        flexShrink: 0,
+      }}
+      role="alert"
+      aria-label="MFA enrollment recommended"
+    >
+      <span
+        style={{
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: "var(--aiq-text-sm)",
+          color: "var(--aiq-color-fg-primary)",
+          flex: 1,
+        }}
+      >
+        <strong>Secure your account.</strong> Enable two-factor authentication to protect against unauthorised access.{" "}
+        <a
+          href="/admin/mfa"
+          style={{
+            color: "var(--aiq-color-accent)",
+            fontWeight: 500,
+            textDecoration: "none",
+          }}
+        >
+          Set up authenticator &rarr;
+        </a>
+      </span>
+      <button
+        type="button"
+        aria-label="Dismiss MFA enrollment reminder"
+        onClick={onDismiss}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "2px 4px",
+          fontFamily: "var(--aiq-font-mono)",
+          fontSize: "var(--aiq-text-xs)",
+          color: "var(--aiq-color-fg-muted)",
+          flexShrink: 0,
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps): React.ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,6 +103,23 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       return false;
     }
   });
+
+  const [nudgeDismissed, setNudgeDismissed] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(MFA_NUDGE_DISMISSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  function dismissNudge() {
+    setNudgeDismissed(true);
+    try {
+      sessionStorage.setItem(MFA_NUDGE_DISMISSED_KEY, "true");
+    } catch {
+      // sessionStorage unavailable — ignore
+    }
+  }
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -254,6 +329,11 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             </button>
           </div>
         </div>
+
+        {/* MFA enrollment nudge — shown once per session for unenrolled admins/reviewers */}
+        {session?.totpEnrolled === false && !nudgeDismissed && (
+          <MfaNudgeBanner onDismiss={dismissNudge} />
+        )}
 
         {/* Breadcrumbs */}
         {breadcrumbs && breadcrumbs.length > 0 && (

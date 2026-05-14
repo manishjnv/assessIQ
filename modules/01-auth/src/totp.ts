@@ -490,6 +490,29 @@ async function adminResetTotp(
 }
 
 // ---------------------------------------------------------------------------
+// Enrollment status check
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether a user has completed TOTP enrollment.
+ * Callers MUST supply session-derived userId and tenantId — never pass
+ * user-controlled values directly or this becomes a within-tenant oracle.
+ */
+async function getEnrollmentStatus(
+  userId: string,
+  tenantId: string,
+): Promise<{ enrolled: boolean }> {
+  const row = await withTenant(tenantId, async (client) => {
+    const result = await client.query<{ totp_enrolled_at: Date | null }>(
+      `SELECT totp_enrolled_at FROM user_credentials WHERE user_id = $1`,
+      [userId],
+    );
+    return result.rows[0] ?? null;
+  });
+  return { enrolled: row !== null && row.totp_enrolled_at !== null };
+}
+
+// ---------------------------------------------------------------------------
 // Public surface
 // ---------------------------------------------------------------------------
 
@@ -500,4 +523,5 @@ export const totp = {
   consumeRecovery,
   regenerateRecoveryCodes,
   adminResetTotp,
+  getEnrollmentStatus,
 };

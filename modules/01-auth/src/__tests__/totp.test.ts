@@ -583,3 +583,47 @@ it("every char of every generated recovery code is in 0123456789ABCDEFGHJKMNPQRS
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Test 13 — getEnrollmentStatus: false for user with no credentials row
+// ---------------------------------------------------------------------------
+
+it("getEnrollmentStatus returns enrolled:false for user with no user_credentials row", async () => {
+  const noCredUserId = randomUUID();
+  await withSuperClient(async (client) => {
+    await client.query(
+      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      [noCredUserId, tenantId, "nocred@example.com", "No Cred User"],
+    );
+  });
+
+  const status = await totp.getEnrollmentStatus(noCredUserId, tenantId);
+  expect(status.enrolled).toBe(false);
+});
+
+// ---------------------------------------------------------------------------
+// Test 14 — getEnrollmentStatus: true after successful enrollConfirm
+// ---------------------------------------------------------------------------
+
+it("getEnrollmentStatus returns enrolled:true after enrollConfirm", async () => {
+  const esUserId = randomUUID();
+  await withSuperClient(async (client) => {
+    await client.query(
+      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      [esUserId, tenantId, "esstatus@example.com", "ES Status User"],
+    );
+  });
+
+  // Unenrolled → false.
+  const before = await totp.getEnrollmentStatus(esUserId, tenantId);
+  expect(before.enrolled).toBe(false);
+
+  // Enrol.
+  const { secretBase32 } = await totp.enrollStart(esUserId, tenantId, "esstatus@example.com");
+  const code = authenticator.generate(secretBase32);
+  await totp.enrollConfirm(esUserId, tenantId, code);
+
+  // Now enrolled → true.
+  const after = await totp.getEnrollmentStatus(esUserId, tenantId);
+  expect(after.enrolled).toBe(true);
+});

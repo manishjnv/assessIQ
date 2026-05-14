@@ -42,6 +42,10 @@ interface EnrollStartResponse {
   secretBase32: string;
 }
 
+interface EnrollConfirmResponse {
+  recoveryCodes: string[];
+}
+
 const META_LABEL: CSSProperties = {
   fontFamily: 'var(--aiq-font-mono)',
   fontSize: 11,
@@ -60,6 +64,9 @@ export function AdminMfa(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [recoveryCodesCopied, setRecoveryCodesCopied] = useState(false);
+  const [recoveryCodesSaved, setRecoveryCodesSaved] = useState(false);
 
   // Phase 0 doesn't expose a "have you enrolled?" endpoint — the heuristic
   // is: try /api/auth/totp/enroll/start; if it succeeds, we're enrolling
@@ -113,15 +120,24 @@ export function AdminMfa(): JSX.Element {
     setSubmitting(true);
     setError(null);
     try {
-      const path = enrolled === false
-        ? '/auth/totp/enroll/confirm'
-        : '/auth/totp/verify';
-      await api(path, {
-        method: 'POST',
-        body: JSON.stringify({ code }),
-      });
-      await fetchWhoami(true);
-      nav('/admin', { replace: true }); // post-MFA landing is /admin (changed 2026-05-04)
+      if (enrolled === false) {
+        // Enrollment path — capture recovery codes before navigating away.
+        const resp = await api<EnrollConfirmResponse>('/auth/totp/enroll/confirm', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        });
+        setRecoveryCodes(resp.recoveryCodes);
+        await fetchWhoami(true);
+        // Do NOT navigate yet — user must acknowledge recovery codes first.
+        setSubmitting(false);
+      } else {
+        await api('/auth/totp/verify', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        });
+        await fetchWhoami(true);
+        nav('/admin', { replace: true });
+      }
     } catch (err) {
       if (err instanceof ApiCallError) {
         if (err.status === 423) {
@@ -138,6 +154,145 @@ export function AdminMfa(): JSX.Element {
       setSubmitting(false);
     }
   };
+
+  // Recovery codes panel — shown after successful enrollment until acknowledged.
+  if (recoveryCodes.length > 0) {
+    const codesText = recoveryCodes.join('\n');
+    const handleCopyAll = async (): Promise<void> => {
+      try {
+        await navigator.clipboard.writeText(codesText);
+        setRecoveryCodesCopied(true);
+      } catch {
+        // Clipboard API unavailable — user must copy manually.
+      }
+    };
+    const handleDownload = (): void => {
+      const blob = new Blob([codesText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'assessiq-recovery-codes.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    return (
+      <div
+        className="aiq-screen"
+        style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <main
+          style={{
+            flex: 1,
+            display: 'grid',
+            placeItems: 'center',
+            padding: '48px 32px',
+          }}
+        >
+          <Card padding="lg" style={{ width: '100%', maxWidth: 480 }}>
+            <div style={{ marginBottom: 16 }}>
+              <Chip variant="accent" leftIcon="sparkle">Recovery codes</Chip>
+            </div>
+            <h1
+              className="aiq-serif"
+              style={{ fontSize: 28, lineHeight: 1.15, margin: '0 0 10px', fontWeight: 400, letterSpacing: '-0.015em' }}
+            >
+              Save your recovery codes.
+            </h1>
+            <p style={{ fontSize: 14, color: 'var(--aiq-color-fg-secondary)', margin: '0 0 20px', lineHeight: 1.5 }}>
+              These 10 codes are shown <strong>once only</strong>. If you lose access to your authenticator app,
+              each code can be used once to sign in. Store them somewhere safe (password manager, printed paper).
+            </p>
+
+            {/* Code grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 8,
+                padding: 16,
+                background: 'var(--aiq-color-bg-elevated)',
+                border: '1px solid var(--aiq-color-border)',
+                borderRadius: 'var(--aiq-radius-md)',
+                marginBottom: 16,
+              }}
+            >
+              {recoveryCodes.map((c) => (
+                <code
+                  key={c}
+                  style={{
+                    fontFamily: 'var(--aiq-font-mono)',
+                    fontSize: 13,
+                    letterSpacing: '0.06em',
+                    color: 'var(--aiq-color-fg-primary)',
+                    padding: '4px 0',
+                  }}
+                >
+                  {c}
+                </code>
+              ))}
+            </div>
+
+            {/* Copy / download actions */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                onClick={() => void handleCopyAll()}
+                style={{ flex: 1 }}
+              >
+                {recoveryCodesCopied ? 'Copied!' : 'Copy all'}
+              </button>
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                onClick={handleDownload}
+                style={{ flex: 1 }}
+              >
+                Download .txt
+              </button>
+            </div>
+
+            {/* Acknowledgement checkbox */}
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                cursor: 'pointer',
+                marginBottom: 20,
+                fontFamily: 'var(--aiq-font-sans)',
+                fontSize: 14,
+                color: 'var(--aiq-color-fg-primary)',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={recoveryCodesSaved}
+                onChange={(e) => setRecoveryCodesSaved(e.target.checked)}
+                style={{ marginTop: 2, flexShrink: 0 }}
+              />
+              I've saved my recovery codes in a secure location.
+            </label>
+
+            <Button
+              size="lg"
+              onClick={() => nav('/admin', { replace: true })}
+              disabled={!recoveryCodesSaved}
+              style={{ width: '100%', justifyContent: 'center' }}
+              rightIcon="arrow"
+            >
+              Continue to dashboard
+            </Button>
+          </Card>
+        </main>
+        <footer style={{ ...META_LABEL, padding: '16px 32px', display: 'flex', gap: 16, borderTop: '1px solid var(--aiq-color-border)' }}>
+          <span>Phase 0 · 2026</span>
+          <span style={{ flex: 1 }} />
+          <span>Google SSO · TOTP-ready</span>
+        </footer>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
