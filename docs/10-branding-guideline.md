@@ -133,7 +133,9 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
   --aiq-color-success:       oklch(0.65 0.15 150);
   --aiq-color-success-soft:  oklch(0.97 0.03 150);
   --aiq-color-warning:       oklch(0.72 0.15 70);
+  --aiq-color-warning-soft:  oklch(0.97 0.04 70);
   --aiq-color-danger:        oklch(0.62 0.20 25);
+  --aiq-color-info:          oklch(0.62 0.18 230);
 }
 ```
 
@@ -153,6 +155,9 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
   --aiq-color-accent-soft:   oklch(0.25 0.08 258);
   --aiq-color-accent-hover:  oklch(0.78 0.16 258);
   --aiq-color-success-soft:  oklch(0.30 0.05 150);
+  --aiq-shadow-sm:  0 1px 2px rgba(0,0,0,0.4);
+  --aiq-shadow-md:  0 1px 3px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.3);
+  --aiq-shadow-lg:  0 8px 32px rgba(0,0,0,0.6);
 }
 ```
 
