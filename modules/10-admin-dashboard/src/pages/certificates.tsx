@@ -371,7 +371,7 @@ export function AdminCertificates(): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Certificates"]} helpPage="admin.certificates.list">
       {/* ── Page header ── */}
-      <div style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
+      <div data-help-id="admin.certificates.list" style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
         <div style={{ marginBottom: 12 }}>
           <Chip leftIcon="grid">{total} certificate{total !== 1 ? "s" : ""}</Chip>
         </div>
@@ -643,6 +643,7 @@ export function AdminCertificates(): React.ReactElement {
                       {!isRevoked && (
                         <button
                           type="button"
+                          data-help-id="admin.certificates.revoke"
                           onClick={(e) => {
                             e.stopPropagation();
                             setRevokeModalId(cert.credential_id);
@@ -665,6 +666,7 @@ export function AdminCertificates(): React.ReactElement {
                       )}
                       <button
                         type="button"
+                        data-help-id="admin.certificates.reissue"
                         onClick={(e) => {
                           e.stopPropagation();
                           setReissueModalId(cert.credential_id);
@@ -757,7 +759,7 @@ export function AdminCertificates(): React.ReactElement {
               </code>
             </p>
             <div style={{ marginBottom: "var(--aiq-space-md)" }}>
-              <label htmlFor="revoke-reason" style={labelStyle}>
+              <label htmlFor="revoke-reason" data-help-id="admin.certificates.revoke_reason" style={labelStyle}>
                 Reason (required)
               </label>
               <textarea
