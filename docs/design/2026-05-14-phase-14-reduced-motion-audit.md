@@ -80,7 +80,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 **Missing entries (YAML has content but no `data-help-id` wiring in code):** 54 of 57 YAML keys had no `data-help-id` counterpart found in the original grep. This is expected for Phase 3 — the help system was populated ahead of UI wiring.
 
-#### Wired in commit `<commit-sha-pending>`
+#### Wired in commit `6760a7c`
 
 8 of 12 `admin.grading.*` keys wired. Updated count: **11 of 57** wired.
 
