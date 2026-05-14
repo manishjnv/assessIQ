@@ -1368,6 +1368,68 @@ post-Stage-3.1 unless fix (b) proves insufficient on re-measurement.
 
 ---
 
+## L3 Re-Measure Results (2026-05-14, attempt `019e24e1`)
+
+**Summary: G2 PASS for L3 on 4 of 5 types. `citationDropped: 0`. No SKILL.md prompt
+hardening required — citation bias gap is resolved.**
+
+### Smoke parameters
+
+| Param | Value |
+|---|---|
+| `SMOKE_SOC_LEVEL` | `L3` |
+| `SMOKE_LEVEL_ID` | `80850994-2b89-43d2-8851-f35913d134c3` |
+| `SMOKE_COUNT` | `15` |
+| Duration | 957s |
+
+### score-candidate results
+
+```
+type          | total | passed | failed | reasons
+--------------+-------+--------+--------+-----------------------------------
+log_analysis  | 3     | 3      | 0      | -
+mcq           | 3     | 3      | 0      | -
+scenario      | 4     | 4      | 0      | -
+kql           | 3     | 3      | 0      | -
+
+Attempt total: 13/13 passed.
+
+Runtime threshold comparison:
+chunk_success_rate  1.00  ≥ 0.60  ✓
+total_inserted_pct  0.87  ≥ 0.70  ✓
+chunks_failed       0
+```
+
+### Key finding
+
+**`citationDropped: 0`** — the model cited exclusively from the 20 L3 source IDs provided.
+No L2 ID leakage detected. The citation-bias hypothesis applies to the OLD attempt `019e1f7d`
+(pre-`filterByCitation` or model drift), not to the current code path.
+
+**Subjective: 0/2 (`wrongTypeDropped: 2`)** — `generate-subjective` returned two
+`scenario`-type questions that were dropped. This is the pre-existing G4 SKILL.md bug
+(`step_dependency: "independent"` missing from FORBIDDEN block), not a citation problem.
+Same root cause as the G4 pending patch for `generate-scenario`. Not L3-specific.
+
+### Verdict
+
+| Type | Planned | Inserted | citationsResolve | Verdict |
+|---|---|---|---|---|
+| MCQ | 3 | 3 | 3/3 | ✅ PASS |
+| Log Analysis | 3 | 3 | 3/3 | ✅ PASS |
+| Scenario | 4 | 4 | 4/4 | ✅ PASS |
+| KQL | 3 | 3 | 3/3 | ✅ PASS |
+| Subjective | 2 | 0 | n/a (wrong-type dropped) | ⚠️ G4 bug |
+| **Total** | **15** | **13** | **13/13** | **✅ G2 PASS** |
+
+**L3 G2 re-measure verdict: PASS** (same caveat as L2 — subjective pending G4 fix).
+
+**Proposed fix (b) SKILL.md citation anchor: NOT NEEDED at this time.** Citation is
+working correctly with the current SKILL.md + `filterByCitation`. Fix (b) is deferred;
+re-evaluate if L3 citation failures re-emerge after the G4 subjective patch ships.
+
+---
+
 ### L3 KB Gap — Root Cause REVISED (2026-05-14)
 
 > **Supersedes the ROOT-CAUSE HYPOTHESIS in the section above.** That section concluded

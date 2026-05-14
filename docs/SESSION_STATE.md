@@ -1,3 +1,30 @@
+# Session — 2026-05-14 (Stage 3.1 L3 Re-Measure — G2 PASS confirmed)
+
+**Headline:** L3 re-measure PASS — attempt `019e24e1`, 13/13 `citationsResolve = true`, `citationDropped = 0`; smoke-tool parameter mismatch confirmed as root cause of original failure; no SKILL.md changes needed.
+
+**Commits:**
+- (pending)
+
+**Tests:** No code changed — re-measure + doc update only.
+
+**Deploy:** Not required — docs only.
+
+**Next:** G1 threshold confirm + G4 SKILL.md patch (`generate-subjective` wrong-type bug, confirmed again at L3: 0/2 wrong-type dropped) → Stage 3.1 flip.
+
+**Open questions:**
+- G1 threshold: ≥3/5 or ≥4/5 for Stage 3.1? (operator confirmation still outstanding)
+- G4 SKILL.md patch still pending: `generate-subjective` returning scenario-type questions (wrongTypeDropped=2 in this L3 run confirms it's not L3-specific)
+
+---
+
+## Agent utilization
+- Opus: L3 smoke execution (VPS via SSH), score-candidate, re-measure result analysis, design doc update, SESSION_STATE update
+- Sonnet: n/a — re-measure + doc-only session
+- Haiku: n/a
+- codex:rescue: n/a — no security/auth/classifier paths touched
+
+---
+
 # Session — 2026-05-14 (Playwright E2E golden-path + prod-safety)
 
 **Headline:** E2E golden path extended to cover release → cert auto-issuance → public verify; prod-safety spec guards the dev-mint-session endpoint.
