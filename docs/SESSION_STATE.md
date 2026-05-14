@@ -4,7 +4,7 @@
 
 **Commits:**
 - `a91e9a9` — docs(stage3): L3 KB gap investigation — corrected root cause, appended GAP REPORT (model citation bias — later revised)
-- `TBD` — docs(stage3): L3 KB gap — REVISE root cause from model-bias to smoke-tool mismatch
+- `094879d` — docs(stage3): L3 KB gap — REVISE root cause from model-bias to smoke-tool mismatch
 
 **Tests:** No code changed — investigation + doc update only.
 
