@@ -1245,4 +1245,81 @@ Two actions were added for this module (lines reference [modules/14-audit-log/sr
 ### 30.5 What's NOT audited here
 
 - `getTenantById` / `getTenantBySlug` / `listActiveTenantIds` — read paths or system-role queries that do not mutate state.
+
+---
+
+## 31. Lighthouse CI (Phase 14 — frontend quality gate)
+
+Lighthouse CI runs on every pull request against the `main` branch via `.github/workflows/lighthouse.yml`. It audits **5 unauthenticated routes** of `apps/web` — the only pages that render meaningfully without a session.
+
+### 31.1 What is checked
+
+| Category | Minimum score |
+|---|---|
+| Performance | ≥ 0.90 (90) |
+| Accessibility | ≥ 0.90 (90) |
+| Best practices | ≥ 0.90 (90) |
+| SEO | ≥ 0.90 (90) |
+
+PWA category is intentionally omitted — AssessIQ is not a PWA.
+
+### 31.2 Routes covered
+
+| URL | Route in App.tsx | Notes |
+|---|---|---|
+| `http://localhost:4173/admin/login` | `/admin/login` — `<AdminLogin>` | Main entry point for admins |
+| `http://localhost:4173/candidate/login` | `/candidate/login` — `<CandidateLogin>` | Magic-link entry for candidates |
+| `http://localhost:4173/take/expired` | `/take/expired` — `<Expired>` | Expired take-link page (also in `a11y.spec.ts`) |
+| `http://localhost:4173/take/error` | `/take/error` — `<ErrorPage>` | Take-flow error page (also in `a11y.spec.ts`) |
+| `http://localhost:4173/this-is-not-a-page` | `*` — `<NotFound>` | 404 page (also in `a11y.spec.ts`) |
+
+Auth-seeded routes (admin dashboard, candidate certificates, attempt pages) are **not covered here** — they require Playwright session fixtures and are a separate P14 sub-item.
+
+Routes NOT included and why:
+- `/` — redirects to `/admin/login` via `<Navigate replace />`; Lighthouse would score the redirect target, giving a duplicate of the admin-login run.
+- `/admin/*` protected routes — all wrapped in `<RequireSession role="admin">`, redirect to `/admin/login` without a valid session.
+- `/take/:token` — a real token is required; without one the page shows an error state identical to `/take/error`.
+- `/verify/:id` — no `/verify/` route exists in the current SPA router (`App.tsx`); the 404 `<NotFound>` page covers the "invalid path" case.
+
+### 31.3 Config location and server command
+
+Config: `apps/web/lighthouserc.json` (lives alongside the package it audits).
+
+```json
+"startServerCommand": "pnpm --filter @assessiq/web preview --port 4173 --host 0.0.0.0"
+```
+
+The preview server serves the `dist/` output of `pnpm --filter @assessiq/web build`. The CI job runs `build` before `lhci autorun`. `lhci collect` starts the preview server, waits for `localhost:4173` to appear in its output (30 s timeout), runs the audits, then tears down the server.
+
+`numberOfRuns: 1` — single audit pass per URL. Acceptable for an initial baseline. Bump to 3 in `lighthouserc.json` if performance scores are noisy across runs (e.g., variability > 5 points).
+
+Reports are uploaded to `temporary-public-storage` — public but ephemeral (expires after 13 days). The link is printed in the workflow step output.
+
+### 31.4 How to run locally
+
+```bash
+# Build first (required — preview serves dist/)
+pnpm --filter @assessiq/web build
+
+# Run Lighthouse CI
+pnpm --filter @assessiq/web lhci:run
+```
+
+The `lhci:run` script is defined in `apps/web/package.json` as `lhci autorun`. It reads `lighthouserc.json` from the working directory (repo root when run via `pnpm --filter` from the repo root).
+
+### 31.5 How to update thresholds
+
+Edit `lighthouserc.json` at the repo root. The `assertions` block is the only place scores are enforced. Raising a threshold requires all 5 routes to meet the new minimum before the change lands — run locally first.
+
+Lowering a threshold below 0.90 requires a comment in `lighthouserc.json` explaining why and a corresponding entry in `docs/RCA_LOG.md`.
+
+### 31.6 Promoting to a required status check
+
+The workflow is **advisory only** at first merge. Once the baseline run confirms all 5 routes score ≥ 90 in all four categories, promote via:
+
+> GitHub repo → Settings → Branches → Branch protection rules for `main` → "Require status checks to pass" → add `lighthouse / lighthouse`.
+
+### 31.7 Advisory vs. required
+
+The CI job is intentionally not in `needs:` of any other job and not in the branch protection required checks list. This matches the P14 plan intent: "make the workflow advisory at first — the user will promote it after baselining." The `quality` job in `ci.yml` continues to be the hard gate.
 - RLS policy enforcement itself — enforced by Postgres; operator visibility via `pg_audit` extension if enabled on the VPS, not via `audit_log`.

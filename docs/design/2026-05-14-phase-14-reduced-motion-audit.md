@@ -46,12 +46,28 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 ### Lighthouse CI ≥ 90 on 5 highest-traffic pages
 
-**Status:** Not started. **Infrastructure missing:**
-- No `lighthouserc.json` or `.lighthouserc.js` at repo root.
-- No CI step (GitHub Actions workflow) that runs `lhci autorun`.
-- The 5 highest-traffic pages are not formally enumerated; candidates: `/admin/dashboard`, `/admin/assessments`, `/take/:id`, `/results/:id`, `/verify/:id`.
-- Lighthouse CI requires a running server or a static build artifact — neither is wired into CI today.
-- Minimum work: add `@lhci/cli` dev dep, `lighthouserc.json` with URL list + thresholds, a GitHub Actions job that builds `apps/web`, serves it, and runs `lhci`.
+**STATUS: SHIPPED** in commit `<sha-pending>`.
+
+**What landed:**
+- `@lhci/cli@0.15.1` added to `apps/web/package.json` devDependencies.
+- `apps/web/lighthouserc.json`: 5 unauthenticated routes, ≥ 0.90 threshold across performance / accessibility / best-practices / SEO, `numberOfRuns: 1`, `temporary-public-storage` upload. Config lives alongside `apps/web/package.json` so `lhci autorun` finds it when pnpm runs the script with `apps/web` as the working directory.
+- `.github/workflows/lighthouse.yml`: PR trigger, advisory (not required status check), matches ci.yml style (Node 22, pnpm 9.15, same checkout/cache pattern).
+- `lhci:run` script in `apps/web/package.json` for local runs.
+- `docs/11-observability.md` § 31 added: full config notes, route rationale, how-to-run, threshold-update guidance, advisory→required promotion path.
+
+**5 routes covered (all unauthenticated):**
+1. `/admin/login` — `<AdminLogin>`
+2. `/candidate/login` — `<CandidateLogin>`
+3. `/take/expired` — `<Expired>`
+4. `/take/error` — `<ErrorPage>`
+5. `/this-is-not-a-page` — `<NotFound>` (404)
+
+**Route selection notes:**
+- `/` excluded: it's a `<Navigate replace />` to `/admin/login` — would duplicate that run.
+- `/verify/:id` excluded: no `/verify/` route exists in the current SPA router (`App.tsx`).
+- Auth-seeded coverage (admin/candidate dashboards, attempt pages) still deferred — needs Playwright session fixtures (see "Auth-seeded axe pass" section above).
+
+**Baseline scores:** not yet confirmed — first CI run on a PR will establish the baseline. If any route scores below ≥ 90, that is tracked as follow-up work, not a blocker for the setup commit. Promote to required status check after the first green run (see `docs/11-observability.md` § 31.6).
 
 ### Visual regression baseline (Playwright snapshot)
 
