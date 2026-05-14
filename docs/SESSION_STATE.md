@@ -1,25 +1,27 @@
-# Session — 2026-05-14 (Stage 3.1 L3 KB Gap Investigation)
+# Session — 2026-05-14 (Stage 3.1 L3 KB Gap Investigation — root cause corrected)
 
-**Headline:** L3 KB gap root cause corrected — not missing data (soc-l3.json has 20 sources); actual cause is model citation bias now caught by `filterByCitation`; GAP REPORT appended to design doc.
+**Headline:** L3 KB gap root cause REVISED to smoke-tool parameter mismatch (`SMOKE_SOC_LEVEL` defaulted to "L2" while `SMOKE_LEVEL_ID` pointed to L3 level); design doc + runtime-baseline corrected; no KB authoring needed.
 
 **Commits:**
-- (pending — see Next)
+- `a91e9a9` — docs(stage3): L3 KB gap investigation — corrected root cause, appended GAP REPORT (model citation bias — later revised)
+- `TBD` — docs(stage3): L3 KB gap — REVISE root cause from model-bias to smoke-tool mismatch
 
 **Tests:** No code changed — investigation + doc update only.
 
 **Deploy:** Not required — docs only.
 
-**Next:** Run L3 re-measure smoke (`SMOKE_SOC_LEVEL=L3 SMOKE_LEVEL_ID=<l3-uuid> SMOKE_COUNT=15`) + score-candidate to establish per-type post-`filterByCitation` yield. Then: G1 threshold confirm + G4 SKILL.md patch → Stage 3.1 flip.
+**Next:** Re-run L3 smoke with `SMOKE_SOC_LEVEL=L3 SMOKE_LEVEL_ID=80850994-2b89-43d2-8851-f35913d134c3 SMOKE_COUNT=15` + score-candidate to confirm citation pass. Then: G1 threshold confirm + G4 SKILL.md patch → Stage 3.1 flip.
 
 **Open questions:**
-- L3 post-`filterByCitation` yield unknown — re-measure required before sizing SKILL.md fix.
+- L3 re-measure not yet run — needed to confirm smoke-tool fix resolves 0/15 FAIL.
+- If re-measure still fails, THEN implement SKILL.md citation anchors (fix (b) in design doc).
 - G1 threshold: ≥3/5 or ≥4/5 for Stage 3.1? (operator confirmation still outstanding)
 - G4 SKILL.md patch still pending (~30 min, Sonnet-tier, non-load-bearing)
 
 ---
 
 ## Agent utilization
-- Opus: Phase 0 reads (full investigation), root-cause analysis, inline edits to design doc, SESSION_STATE update
+- Opus: Phase 0 reads, full root-cause investigation, citation_dropped discriminating analysis, inline edits to design doc + runtime-baseline + SESSION_STATE
 - Sonnet: n/a — investigation + doc-only session, within Opus direct-edit threshold
 - Haiku: n/a
 - codex:rescue: n/a — no security/auth/classifier paths touched
