@@ -1,3 +1,30 @@
+# Session — 2026-05-14 (Playwright E2E golden-path + prod-safety)
+
+**Headline:** E2E golden path extended to cover release → cert auto-issuance → public verify; prod-safety spec guards the dev-mint-session endpoint.
+
+**Commits:**
+- `d36472b` — test(e2e): Playwright golden-path + prod-safety E2E coverage
+
+**Tests:** No unit tests. Steps 12b/12c/12d auto-skip in CI without Claude installed (wasGraded=false).
+
+**Deploy:** Not required — test code only.
+
+**Next:** Stage 3.1 — run L3 smoke re-measure with `SMOKE_SOC_LEVEL=L3 SMOKE_LEVEL_ID=80850994-2b89-43d2-8851-f35913d134c3 SMOKE_COUNT=15`; then G4 SKILL.md patch + Stage 3.1 flip.
+
+**Open questions:**
+- L3 re-measure not yet run.
+- G1 threshold (≥3/5 or ≥4/5) still needs operator confirmation.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, route/type verification, all inline edits
+- Sonnet: n/a — within Opus direct-edit threshold
+- Haiku: n/a
+- codex:rescue: n/a — presentation-layer test code; no security-adjacent paths
+
+---
+
 # Session — 2026-05-14 (Stage 3.1 L3 KB Gap Investigation — root cause corrected)
 
 **Headline:** L3 KB gap root cause REVISED to smoke-tool parameter mismatch (`SMOKE_SOC_LEVEL` defaulted to "L2" while `SMOKE_LEVEL_ID` pointed to L3 level); design doc + runtime-baseline corrected; no KB authoring needed.
