@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { config } from '@assessiq/core';
 import { getUser } from '@assessiq/users';
 import { getTenantById } from '@assessiq/tenancy';
+import { totp } from '@assessiq/auth';
 import { authChain } from '../../middleware/auth-chain.js';
 
 // GET /api/auth/whoami — returns the current user + tenant + MFA status.
@@ -28,9 +29,10 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
     async (req) => {
       if (req.session !== undefined) {
         const sess = req.session;
-        const [user, tenant] = await Promise.all([
+        const [user, tenant, enrollStatus] = await Promise.all([
           getUser(sess.tenantId, sess.userId),
           getTenantById(sess.tenantId),
+          totp.getEnrollmentStatus(sess.userId, sess.tenantId),
         ]);
         // mfaStatus reflects "the MFA gate is satisfied" not "the user has done TOTP".
         // When MFA_REQUIRED=false the gate is bypassed for everyone, so report
@@ -53,6 +55,7 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
             ? { id: sess.tenantId, slug: null }
             : { id: tenant.id, slug: tenant.slug },
           mfaStatus,
+          totpEnrolled: enrollStatus.enrolled,
           // Expose session expiry so candidate-facing UI can show the
           // day-25 banner (CandidateSessionBanner reads this via useSession).
           expiresAt: sess.expiresAt,

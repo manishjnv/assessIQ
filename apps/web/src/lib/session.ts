@@ -18,6 +18,8 @@ export interface SessionInfo {
     slug: string | null;
   };
   mfaStatus: 'verified' | 'pending' | 'n/a';
+  /** True if the user has completed TOTP enrollment. Absent for API-key sessions. */
+  totpEnrolled?: boolean;
   /** ISO 8601 UTC expiry of the current session cookie. Absent for API-key paths. */
   expiresAt?: string;
 }
