@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-15 — Pre-flight decision pins in SKILL.md escape the decision log
+
+**Symptom:** Retroactive audit (2026-05-15) found that Phase 4 (12-embed-sdk) had zero representation in PROJECT_BRAIN.md's decision log, despite 13 locked design decisions in `modules/12-embed-sdk/SKILL.md` committed in `b7dfaa9`. A future session starting from Phase 0 reads would not inherit any Phase 4 decisions. The same audit surfaced 6 other missing entries for decisions made during 2026-05-13–14 sessions.
+
+**Cause:** The convention "pin decisions to the module's SKILL.md before implementation" was followed correctly, but SKILL.md files are module-scoped. PROJECT_BRAIN.md is the cross-phase orientation surface that survives session context loss and is read at Phase 0. When a "pre-flight pin" commit has no corresponding kickoff plan doc in `docs/plans/`, there is no workflow step that bridges from SKILL.md → decision log.
+
+**Fix:** `0e3bb52` — backfilled 7 missing entries and enriched 6 existing entries with commit refs in PROJECT_BRAIN.md decision log.
+
+**Prevention:** When authoring a `docs(embed/module): pin N decisions before phase N` commit, include a note in SESSION_STATE.md's Next line: "Add key decisions from SKILL.md to PROJECT_BRAIN.md decision log." Alternatively: the same-PR docs rule (CLAUDE.md § Working agreements) should be read as including the decision log — if the decision is significant enough to pin in SKILL.md, it is significant enough to log in PROJECT_BRAIN.md. Phase 3 bounce condition (proposed): if a diff creates or modifies a `SKILL.md` section titled "Decisions" and no corresponding PROJECT_BRAIN.md row is added in the same commit, flag it in critique.
+
 ## 2026-05-15 — Systemic gap: `tenantContextMiddleware` and `magic-link.ts` have no test coverage on load-bearing paths
 
 **Symptom:** File-shape test-coverage audit (2026-05-15) found 2 HIGH-severity gaps and 1 MEDIUM-severity gap across the 5 load-bearing modules (00-core, 01-auth, 02-tenancy, 07-ai-grading, 14-audit-log). `tenantContextMiddleware` in 02-tenancy — the Fastify hook that issues BEGIN / SET LOCAL ROLE / `set_config('app.current_tenant', …)` / COMMIT or ROLLBACK for every request — has no dedicated test. `magic-link.ts` and `crypto-util.ts` in 01-auth — candidate token generation, expiry, and single-use enforcement — also have no dedicated tests. `14-audit-log`'s `archive-job.ts`, `webhook-fanout.ts`, and `routes.ts` are fully untested (append-only invariant IS covered by `audit.test.ts`).

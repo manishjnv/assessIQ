@@ -1,3 +1,55 @@
+# Session — 2026-05-15 (decision-log audit)
+
+**Headline:** Decision-log retroactive audit — 7 entries backfilled, 6 existing entries enriched with commit refs.
+
+**Commits:**
+- `0e3bb52` — docs(brain): backfill 7 missing decision-log entries + enrich 6 with commit refs
+
+**Tests:** n/a — docs-only session.
+
+**Deploy:** n/a — docs-only; skippable per CLAUDE.md DoD.
+
+**Next:** Push `0e3bb52`; then first test-investment session from the 2026-05-15 coverage-audit handoff (02-tenancy middleware integration test is highest-risk gap).
+
+**Open questions:**
+- Several pre-existing uncommitted changes remain in the working tree (`.gitignore`, `apps/web/lighthouserc.json`, `App.tsx`, `CandidateLogin.tsx`, admin-dashboard pages, help-system YAML + tests, `lh-admin-login.json`) — need triaging before push.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads; all Phase A commit scanning, classification, and table construction; Phase B direct edits (PROJECT_BRAIN.md — 25 rows × 3 columns, all in hot cache); commit; Phase C handoff.
+- Sonnet: n/a — docs-only session, all edits to one file in hot cache.
+- Haiku: n/a.
+- codex:rescue: n/a — docs only, no security/auth/classifier paths touched.
+
+---
+
+# Session — 2026-05-15 (test coverage audit)
+
+**Headline:** Test coverage audit — 3 high-risk gaps surfaced across 2 load-bearing modules (01-auth, 02-tenancy HIGH; 14-audit-log MEDIUM); coverage map and RCA committed.
+
+**Commits:**
+- `93735ab` — docs(coverage): add test-coverage map and high-risk gap report
+
+**Tests:** n/a — docs-only session; no test files written or run.
+
+**Deploy:** n/a — docs-only; skippable per CLAUDE.md DoD.
+
+**Next:** First test-investment session — 02-tenancy `tenantContextMiddleware` integration test (BEGIN/SET LOCAL/COMMIT/ROLLBACK lifecycle + cross-tenant request isolation). This is the highest-risk gap: every request passes through this middleware and it has zero test coverage. Then 01-auth `magic-link.ts` + `crypto-util.ts` unit tests. Full priority order in `docs/12-test-coverage.md` § Notes and `docs/RCA_LOG.md` (2026-05-15 entry).
+
+**Open questions:**
+- Several pre-existing uncommitted changes remain in the working tree (`.gitignore`, `apps/web/lighthouserc.json`, `App.tsx`, `CandidateLogin.tsx`, admin-dashboard pages, help-system YAML + tests, `lh-admin-login.json`). These appear to be from the Phase 15 quality-gates session — they need triaging before push. Push not yet done for this session's commit either.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads; all Phase A glob/bash analysis + classification judgment; Phase B direct edits (docs/12-test-coverage.md + docs/RCA_LOG.md, both in hot cache); commit; Phase C handoff.
+- Sonnet: n/a — docs-only session, all edits ≤2 files in hot cache per global rule.
+- Haiku: n/a.
+- codex:rescue: n/a — docs only, no security/auth/classifier paths touched.
+
+---
+
 # Session — 2026-05-14 (stash bleed cleanup)
 
 **Headline:** Fixed misplaced static imports in App.tsx (imports after const lazy() declarations were a stash bleed from 2026-05-13 WIP committed without ordering fix).
