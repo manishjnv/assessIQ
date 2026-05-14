@@ -2,19 +2,9 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ThemeProvider, TENANT_FIXTURES } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
-import { AdminMfa } from './pages/admin/mfa';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
-import { CandidateLoginVerify } from './pages/candidate/CandidateLoginVerify';
-import { InviteAccept } from './pages/invite-accept';
 import { RequireSession } from './lib/RequireSession';
-import {
-  TokenLanding,
-  Expired,
-  ErrorPage as TakeError,
-  AttemptPage,
-  Submitted,
-  TakeRoot,
-} from './pages/take';
+import { Expired, ErrorPage as TakeError, TakeRoot } from './pages/take';
 
 // Lazy-loaded so the admin-dashboard chunk is not downloaded on unauthenticated
 // pages (/admin/login, /candidate/login, error pages). Cuts initial bundle by
@@ -44,6 +34,13 @@ const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ d
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
 const CandidateShell = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateShell })));
 const CandidateActivity = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateActivity })));
+
+const AdminMfa = lazy(() => import('./pages/admin/mfa').then(m => ({ default: m.AdminMfa })));
+const CandidateLoginVerify = lazy(() => import('./pages/candidate/CandidateLoginVerify').then(m => ({ default: m.CandidateLoginVerify })));
+const InviteAccept = lazy(() => import('./pages/invite-accept').then(m => ({ default: m.InviteAccept })));
+const AttemptPage = lazy(() => import('./pages/take').then(m => ({ default: m.AttemptPage })));
+const Submitted = lazy(() => import('./pages/take').then(m => ({ default: m.Submitted })));
+const TokenLanding = lazy(() => import('./pages/take').then(m => ({ default: m.TokenLanding })));
 
 const tenant = TENANT_FIXTURES['wipro-soc'];
 
@@ -205,7 +202,7 @@ function NotFound(): JSX.Element {
           fontFamily: 'var(--aiq-font-sans)',
           fontSize: 'var(--aiq-text-sm)',
           fontWeight: 500,
-          color: 'var(--aiq-color-accent)',
+          color: '#3177dc',
           textDecoration: 'none',
         }}
       >

@@ -818,17 +818,33 @@ docker exec ti-platform-caddy-1 caddy reload   --config /etc/caddy/Caddyfile
 dig +short assessiq.automateedge.cloud  # should return CF anycast IPs
 
 # 7. Boot the AssessIQ stack
-docker compose up -d
+docker compose -f infra/docker-compose.yml up -d
 
 # 8. Run migrations
-docker compose exec assessiq-api npm run db:migrate
+#    tools/migrate.ts requires direct DB access; postgres is on the internal
+#    assessiq-net bridge (no host port). Pipe each migration into psql instead:
+find /srv/assessiq/modules -path '*/migrations/*.sql' | sort | while read f; do
+  echo "→ $(basename $f)"
+  docker exec -i assessiq-postgres psql -U assessiq -d assessiq \
+    -v ON_ERROR_STOP=1 < "$f"
+done
+echo "Migrations done."
+#    Verify:
+docker exec assessiq-postgres psql -U assessiq -d assessiq \
+  -tAc "SELECT version FROM schema_migrations ORDER BY version;"
 
-# 9. Seed first tenant + admin user
-docker compose exec assessiq-api npm run seed:bootstrap -- \
-  --tenant-slug wipro-soc \
-  --tenant-name "Wipro SOC" \
-  --admin-email <admin@your-google-workspace> \
-  --admin-name "Admin"
+# 9. Bootstrap first tenant + admin user
+#    No automated seed script exists yet — insert directly via psql.
+#    Replace the email with your real Google Workspace admin address.
+docker exec assessiq-postgres psql -U assessiq -d assessiq -v ON_ERROR_STOP=1 -c "
+  INSERT INTO tenants (id, slug, name, status)
+  VALUES ('00000000-0000-0000-0000-000000000001', 'wipro-soc', 'Wipro SOC', 'active');
+  INSERT INTO tenant_settings (tenant_id)
+  VALUES ('00000000-0000-0000-0000-000000000001');
+  INSERT INTO users (tenant_id, email, name, role, status)
+  VALUES ('00000000-0000-0000-0000-000000000001',
+          '<admin@your-google-workspace>', '<Admin Name>', 'admin', 'active');
+"
 ```
 
 After bootstrap: log in at `https://assessiq.automateedge.cloud/admin/login`, complete TOTP enrollment, the platform is live.
@@ -842,7 +858,7 @@ TS=$(date -u +%Y%m%d-%H%M%S)
 DEST=/var/backups/assessiq
 
 mkdir -p $DEST
-docker compose -f /srv/assessiq/docker-compose.yml exec -T assessiq-postgres \
+docker compose -f /srv/assessiq/infra/docker-compose.yml exec -T assessiq-postgres \
   pg_dump -U assessiq -d assessiq -Fc | gzip > $DEST/assessiq-$TS.dump.gz
 
 # Retention: 14 daily, 8 weekly (kept by hand)

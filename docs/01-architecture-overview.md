@@ -15,7 +15,7 @@ AssessIQ has three classes of users and three modes of access:
 └─────────┼────────────────────┼──────────────────────┼──────────────┘
           ▼                    ▼                      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                       EDGE (nginx + TLS)                             │
+│                       EDGE (Caddy + Cloudflare TLS)                         │
 │      assessiq.automateedge.cloud   ·   /api   ·   /embed   ·   /ws  │
 └──────────────────────────┬──────────────────────────────────────────┘
                            ▼
@@ -53,12 +53,12 @@ AssessIQ has three classes of users and three modes of access:
 
 ## Component responsibilities
 
-### Edge — nginx
-- TLS termination (Let's Encrypt via certbot, auto-renew)
-- HTTP/2, gzip/brotli, basic rate limiting (per IP for `/api/auth/*`)
-- Static asset caching for the SPA
+### Edge — Caddy + Cloudflare
+- **Cloudflare** terminates public TLS (managed cert, WAF, rate limiting, orange-cloud proxy)
+- **Caddy** (`ti-platform-caddy-1`, shared with other apps on the VPS) handles origin TLS (CF Origin Cert), HTTP/2, gzip/zstd, and split-route proxying
+- Routes `/api/*`, `/embed*`, `/help/*`, `/take/start` → `assessiq-api:3000` (internal network); everything else → `assessiq-frontend:80` (host port 9091)
 - WebSocket upgrade for `/ws` (live grading-status updates)
-- Reverse-proxies `/api`, `/embed`, `/ws` to the API container; everything else served as static SPA
+- See `docs/06-deployment.md` for the actual Caddyfile block and VPS topology
 
 ### Frontend SPA — React 18 + Vite
 - Single SPA, two route trees: `/admin/*` and `/take/*`
@@ -70,14 +70,13 @@ AssessIQ has three classes of users and three modes of access:
 - Stateless, horizontally scalable
 - One container per role: `api` (request-serving) and `worker` (background jobs)
 - Modules wire in as Fastify plugins with explicit dependency declaration
-- Request flow: `nginx → fastify → auth middleware → tenant context → module handler → repository → postgres`
+- Request flow: `Cloudflare → Caddy → fastify → auth middleware → tenant context → module handler → repository → postgres`
 
-### Grading Worker — Claude Agent SDK
-- Separate Node process; no public ports
-- Subscribes to `grading:queue` in BullMQ
-- For each job: pulls attempt, runs grading pipeline, writes back to DB
+### Grading Worker — Phase 1: Claude Code CLI / Phase 2: Claude Agent SDK
+- **Phase 1 (current):** grading runs synchronously via Claude Code CLI on the VPS, triggered by an admin click — NOT via BullMQ. No `grading:queue` is used in Phase 1. See `docs/05-ai-pipeline.md` and `CLAUDE.md` rule #1.
+- **Phase 2 (designed, switchable via `AI_PIPELINE_MODE=anthropic-api`):** Separate Node process subscribes to `grading:queue` in BullMQ, runs the Claude Agent SDK pipeline, writes back to DB asynchronously.
 - Idempotent — same job can re-run safely (uses `attempt_id + prompt_version` as dedup key)
-- See `docs/05-ai-pipeline.md` for the full grading flow
+- See `docs/05-ai-pipeline.md` for the full grading flow and the Phase 1 → Phase 2 distinction
 
 ### State layer
 
@@ -85,7 +84,7 @@ AssessIQ has three classes of users and three modes of access:
 
 **Redis 7** — three logical purposes:
 1. Session store (admin TOTP sessions, candidate attempt sessions)
-2. BullMQ queue (grading, webhooks, email)
+2. BullMQ queue (webhooks, email; grading queue active in Phase 2 only)
 3. Rate limit counters (per IP, per tenant, per API key)
 
 **Object storage** — local filesystem at `/var/assessiq/uploads` initially. Schema is S3-compatible; switch driver in env when migrating.

@@ -2,6 +2,69 @@
 
 > Scenario-driven, tier-based, hybrid-graded role-readiness assessment platform. SOC team is the launch customer; designed multi-tenant and embeddable from day one.
 
+## Local Development
+
+### Prerequisites
+
+- **Node.js 22 LTS** — `nvm install 22 && nvm use 22`
+- **pnpm 9** — `corepack enable && corepack prepare pnpm@9.15.0 --activate`
+- **Docker** — for local Postgres + Redis
+
+### Setup
+
+```bash
+# 1. Install dependencies
+pnpm install
+
+# 2. Start local Postgres + Redis
+docker run -d --name aiq-pg \
+  -e POSTGRES_USER=assessiq -e POSTGRES_PASSWORD=CHANGE_ME -e POSTGRES_DB=assessiq \
+  -p 5432:5432 postgres:16-alpine
+docker run -d --name aiq-redis -p 6379:6379 redis:7-alpine
+
+# 3. Create your local env file
+cp .env.example .env.local
+# Generate required secrets:
+echo "ASSESSIQ_MASTER_KEY=$(openssl rand -base64 32)" >> .env.local
+echo "SESSION_SECRET=$(openssl rand -base64 32)" >> .env.local
+# Then edit .env.local: set DATABASE_URL password, Google OAuth credentials, etc.
+
+# 4. Apply migrations
+DATABASE_URL=postgres://assessiq:CHANGE_ME@localhost:5432/assessiq \
+  pnpm tsx tools/migrate.ts
+
+# 5. Bootstrap first tenant + admin user (direct SQL — no script exists yet)
+#    Run this once; replace placeholders with your real values.
+docker exec aiq-pg psql -U assessiq -d assessiq -c "
+  INSERT INTO tenants (id, slug, name) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'wipro-soc', 'Wipro SOC');
+  INSERT INTO tenant_settings (tenant_id) VALUES
+    ('00000000-0000-0000-0000-000000000001');
+  INSERT INTO users (tenant_id, email, name, role) VALUES
+    ('00000000-0000-0000-0000-000000000001',
+     'admin@your-google-workspace.com', 'Admin', 'admin');
+"
+```
+
+### Start the app (two terminals)
+
+```bash
+# Terminal 1 — API
+pnpm --filter @assessiq/api dev
+
+# Terminal 2 — Web (http://localhost:5173)
+pnpm --filter @assessiq/web dev
+```
+
+### Run tests
+
+```bash
+pnpm test          # unit + integration (testcontainers — no local DB needed)
+# E2E: see apps/web/e2e/README.md
+```
+
+---
+
 ## How to use this repo with Claude Code
 
 1. **Always start with** `PROJECT_BRAIN.md` — it gives Claude (and you) the orientation needed to navigate everything else.
