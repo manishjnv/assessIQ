@@ -187,12 +187,12 @@ This is the first session where we INTRODUCE axe a11y tests. The current ui-syst
 
 **Why now:** Activity screen (Phases 11–12) and several Tier B/C ports (Phase 7) need primitives that don't exist yet. Build them all in one phase so subsequent page-port sessions can just import.
 
-### Phase 3a — Easy primitives (1 session)
+### Phase 3a — Easy primitives ✅ SHIPPED
 1. **`Spinner`** — promote 4 ad-hoc inline implementations. Rotating ring loader, sizes sm/md/lg. ~30 lines + story.
 2. **`ProgressBar`** — thin horizontal bar (2/4/6px), track + fill, variants `accent | success | fg`. ~30 lines + story. Source: `kit components.md:170-183`.
 3. **`Placeholder`** — striped diagonal `repeating-linear-gradient`, mono uppercase caption, configurable w/h/radius. ~25 lines + story. Source: `kit atoms.jsx:43-54`, `components.md:227-233`.
 
-### Phase 3b — Activity primitives (1 session)
+### Phase 3b — Activity primitives ✅ SHIPPED
 1. **`ActivityHeatmap`** — 52×7 grid, 5 intensity levels, month/day labels, legend + streak summary. Props per the agent-4 report. ~120 lines + 4 stories. Source: `kit activity.jsx:53-107`.
 2. **`StackedBarChart`** — multi-series stacked bars, no chart library, pure SVG/divs. ~150 lines + 4 stories. Source: `kit activity.jsx:109-143`.
 3. **`LeaderboardList`** — 2-col grid of `LeaderboardRow` (rank + avatar + name + metric + delta), optional `onShowMore`. ~100 lines + 4 stories. Source: `kit activity.jsx:146-185`.

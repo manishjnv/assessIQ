@@ -22,6 +22,8 @@ export type { NumProps } from "./components/Num.js";
 export { useCountUp } from "./hooks/useCountUp.js";
 export type { UseCountUpOptions } from "./hooks/useCountUp.js";
 
+export { useReducedMotion } from "./hooks/useReducedMotion.js";
+
 export { ThemeProvider } from "./theme/ThemeProvider.js";
 export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from "./theme/ThemeProvider.js";
 
