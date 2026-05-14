@@ -708,7 +708,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
           <Chip leftIcon="grid">{total} attempt{total !== 1 ? "s" : ""}</Chip>
         </div>
         <h1
-          data-help-id="admin.generation-attempts.history"
+          data-help-id="admin.generation_attempts.history"
           style={{
             fontFamily: "var(--aiq-font-serif)",
             fontSize: "var(--aiq-text-3xl)",

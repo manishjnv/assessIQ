@@ -268,7 +268,7 @@ export function AdminAttemptDetail(): React.ReactElement {
               <button
                 type="button"
                 className="aiq-btn aiq-btn-primary"
-                data-help-id="admin.attempts.grading-dispatch"
+                data-help-id="admin.attempts.grading_dispatch"
                 disabled={grading}
                 onClick={() => void handleGrade()}
               >
