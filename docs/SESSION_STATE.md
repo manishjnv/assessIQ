@@ -1,4 +1,31 @@
-# Session — 2026-05-15 (decision-log audit)
+# Session — 2026-05-15 (onboarding rehearsal)
+
+**Headline:** Onboarding rehearsal — first-30-min: probably-not, 5 blockers / 5 friction / 0 polish fixed.
+
+**Commits:**
+- `b210e24` — doc changes landed alongside chore(web) App.tsx commit from parallel session (all 4 doc files confirmed in the diff: README.md, .env.example, docs/01, docs/06)
+
+**Tests:** n/a — docs-only session.
+
+**Deploy:** n/a — docs-only; skippable per CLAUDE.md DoD.
+
+**Next:** Push pending commits (several sessions worth). Then first test-investment session — 02-tenancy `tenantContextMiddleware` integration test (highest-risk gap per 2026-05-15 coverage audit).
+
+**Open questions:**
+- `seed:bootstrap` script still doesn't exist; docs/06 first-boot step 9 now documents direct SQL INSERT as the workaround. A `tools/seed-bootstrap.ts` CLI would be a clean follow-up (low priority).
+- `apps/web/lighthouserc.json` and `.gitignore` still uncommitted in working tree — need triage.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads; full Phase A walkthrough and table construction; Phase B edits to README.md, .env.example, docs/01, docs/06; Phase C handoff.
+- Sonnet: n/a — all edits in hot read cache, ≤30 lines per file.
+- Haiku: n/a.
+- codex:rescue: n/a — docs only, no security/auth/classifier paths touched.
+
+---
+
+
 
 **Headline:** Decision-log retroactive audit — 7 entries backfilled, 6 existing entries enriched with commit refs.
 
