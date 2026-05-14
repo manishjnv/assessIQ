@@ -1,3 +1,30 @@
+# Session — 2026-05-14 (Stage 3.1 readiness audit — evidence-gathering)
+
+**Headline:** Stage 3.1 evidence audit complete — verdict NEEDS-MORE-RUNS (G2 FAIL blocks flip; G1 PASS-with-caveats; G4 PASS-with-caveats). No code touched.
+
+**Commits:**
+- `5b83ebe` — docs(stage3): Stage 3.1 readiness audit 2026-05-14 — NEEDS-MORE-RUNS
+
+**Tests:** No code changed. Existing test baselines unchanged.
+
+**Deploy:** Not required — docs-only change.
+
+**Next:** G2 unblock (~2 h, Sonnet subagent): realign `eval/fixtures/L2-sources.json` to production KB source IDs + fix `cli-typed.ts` loader + run `score-candidate` against 3 recent successes. Confirm G1 threshold (≥3/5 or ≥4/5) with operator. G4 pre-flip SKILL.md patch recommended alongside.
+
+**Open questions:**
+- G1 threshold: does ≥3/5 or ≥4/5 govern Stage 3.1? (outstanding since 2026-05-13)
+- Explicit user approval required before `UPDATE tenant_settings SET ai_generate_mode = 'sharded'` on pilot tenant `wipro-soc`.
+
+---
+
+## Agent utilization
+- Opus: Session driving — Phase 0 reads, VPS DB query, mcp-rejections.log analysis, evidence synthesis, audit section authoring, commit, handoff.
+- Sonnet: n/a — evidence-only session.
+- Haiku: n/a
+- codex:rescue: n/a — no auth/classifier/infra code changed; docs-only session.
+
+---
+
 # Session — 2026-05-14 (G3.D audit-write sweep — COMPLETE)
 
 **Headline:** G3.D sweep fully closed — all admin-mutating service functions across all 19 modules now write audit_log rows atomically via auditInTx; remaining modules confirmed correctly excluded (candidate/system paths).
