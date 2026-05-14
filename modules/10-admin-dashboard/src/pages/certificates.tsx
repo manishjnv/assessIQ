@@ -18,7 +18,7 @@
 //  - No new npm dependencies — mirrors generation-attempts.tsx in all patterns.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Chip, Spinner } from "@assessiq/ui-system";
+import { Chip, Drawer, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
@@ -41,6 +41,12 @@ interface CertAdminRow {
   revoked_at: string | null;
   revoke_reason: string | null;
   tenant_id?: string;
+  // Extended fields from full Certificate shape
+  display_name: string;
+  level: string;
+  pdf_downloads: number;
+  linkedin_shares: number;
+  verification_views: number;
 }
 
 interface CertListResponse {
@@ -152,6 +158,9 @@ export function AdminCertificates(): React.ReactElement {
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Details drawer
+  const [selectedCert, setSelectedCert] = useState<CertAdminRow | null>(null);
 
   const LIMIT = 50;
 
@@ -515,9 +524,11 @@ export function AdminCertificates(): React.ReactElement {
                 return (
                   <tr
                     key={cert.id}
+                    onClick={() => setSelectedCert(cert)}
                     style={{
                       borderBottom: "1px solid var(--aiq-color-border)",
                       transition: "background 0.1s",
+                      cursor: "pointer",
                     }}
                   >
                     {/* Credential ID */}
@@ -632,7 +643,8 @@ export function AdminCertificates(): React.ReactElement {
                       {!isRevoked && (
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setRevokeModalId(cert.credential_id);
                             setRevokeReason("");
                             setRevokeError(null);
@@ -653,7 +665,8 @@ export function AdminCertificates(): React.ReactElement {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setReissueModalId(cert.credential_id);
                           setReissueDisplayName("");
                           setReissueError(null);
@@ -751,7 +764,7 @@ export function AdminCertificates(): React.ReactElement {
                 id="revoke-reason"
                 value={revokeReason}
                 onChange={(e) => setRevokeReason(e.target.value)}
-                minLength={1}
+                minLength={10}
                 maxLength={500}
                 rows={4}
                 placeholder="Describe why this certificate is being revoked…"
@@ -765,12 +778,16 @@ export function AdminCertificates(): React.ReactElement {
                 style={{
                   fontFamily: "var(--aiq-font-mono)",
                   fontSize: "10px",
-                  color: "var(--aiq-color-fg-muted)",
+                  color: revokeReason.trim().length < 10
+                    ? "var(--aiq-color-danger)"
+                    : "var(--aiq-color-fg-muted)",
                   textAlign: "right",
                   marginTop: "2px",
                 }}
               >
-                {revokeReason.length}/500
+                {revokeReason.trim().length < 10
+                  ? `${revokeReason.trim().length}/10 min`
+                  : `${revokeReason.length}/500`}
               </div>
             </div>
             {revokeError && <div style={errorBannerStyle}>{revokeError}</div>}
@@ -788,8 +805,8 @@ export function AdminCertificates(): React.ReactElement {
               </button>
               <button
                 type="button"
-                style={primaryBtnStyle(revokeLoading || !revokeReason.trim())}
-                disabled={revokeLoading || !revokeReason.trim()}
+                style={primaryBtnStyle(revokeLoading || revokeReason.trim().length < 10)}
+                disabled={revokeLoading || revokeReason.trim().length < 10}
                 onClick={() => { void handleRevoke(); }}
               >
                 {revokeLoading ? "Revoking…" : "Revoke certificate"}
@@ -863,6 +880,352 @@ export function AdminCertificates(): React.ReactElement {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Certificate details drawer ── */}
+      {selectedCert && (
+        <Drawer
+          open={true}
+          onClose={() => setSelectedCert(null)}
+          title="Certificate Details"
+        >
+          <div>
+            {/* Credential ID */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                Credential ID
+              </span>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--aiq-space-sm)" }}>
+                <code
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    color: "var(--aiq-color-fg-secondary)",
+                    wordBreak: "break-all",
+                    flex: 1,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {selectedCert.credential_id}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => { void navigator.clipboard.writeText(selectedCert.credential_id); }}
+                  title="Copy credential ID"
+                  style={{
+                    background: "none",
+                    border: "1px solid var(--aiq-color-border)",
+                    borderRadius: "var(--aiq-radius-sm)",
+                    color: "var(--aiq-color-fg-muted)",
+                    cursor: "pointer",
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-xs)",
+                    padding: "2px 8px",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            {/* Display name */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                Display Name
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                  color: "var(--aiq-color-fg-primary)",
+                }}
+              >
+                {selectedCert.display_name || "—"}
+              </span>
+            </div>
+
+            {/* User email */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                User Email
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "var(--aiq-text-xs)",
+                  color: "var(--aiq-color-fg-secondary)",
+                }}
+              >
+                {selectedCert.user_email ?? "—"}
+              </span>
+            </div>
+
+            {/* Course title */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                Course
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                  color: "var(--aiq-color-fg-primary)",
+                }}
+              >
+                {selectedCert.course_title}
+              </span>
+            </div>
+
+            {/* Level */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                Level
+              </span>
+              <TierPill tier={selectedCert.tier} />
+            </div>
+
+            {/* Issued at */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                Issued At
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "var(--aiq-text-xs)",
+                  color: "var(--aiq-color-fg-secondary)",
+                }}
+              >
+                {formatDate(selectedCert.issued_at)}
+              </span>
+            </div>
+
+            {/* Status */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                Status
+              </span>
+              <StatusPill status={selectedCert.revoked_at === null ? "active" : "revoked"} />
+            </div>
+
+            {/* Verify URL */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-xs)",
+                  fontWeight: 600,
+                  color: "var(--aiq-color-fg-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "var(--aiq-space-xs)",
+                }}
+              >
+                Verify URL
+              </span>
+              <a
+                href={`https://assessiq.automateedge.cloud/verify/${selectedCert.credential_id}`}
+                target="_blank"
+                rel="noopener"
+                style={{
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "var(--aiq-text-xs)",
+                  color: "var(--aiq-color-accent)",
+                  wordBreak: "break-all",
+                }}
+              >
+                {`https://assessiq.automateedge.cloud/verify/${selectedCert.credential_id}`}
+              </a>
+            </div>
+
+            {/* Revoke reason (revoked certs only) */}
+            {selectedCert.revoke_reason && (
+              <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+                <span
+                  style={{
+                    display: "block",
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-xs)",
+                    fontWeight: 600,
+                    color: "var(--aiq-color-fg-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: "var(--aiq-space-xs)",
+                  }}
+                >
+                  Revoke Reason
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    color: "var(--aiq-color-danger)",
+                  }}
+                >
+                  {selectedCert.revoke_reason}
+                </span>
+              </div>
+            )}
+
+            {/* Usage metrics */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "var(--aiq-space-md)",
+                margin: "var(--aiq-space-lg) 0",
+                padding: "var(--aiq-space-md)",
+                background: "var(--aiq-color-bg-raised)",
+                borderRadius: "var(--aiq-radius-md)",
+                border: "1px solid var(--aiq-color-border)",
+              }}
+            >
+              {[
+                { label: "PDF Downloads",   value: selectedCert.pdf_downloads      },
+                { label: "LinkedIn Shares", value: selectedCert.linkedin_shares    },
+                { label: "Verify Views",    value: selectedCert.verification_views },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ textAlign: "center" }}>
+                  <div
+                    style={{
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: "var(--aiq-text-2xl)",
+                      fontWeight: 700,
+                      color: "var(--aiq-color-fg-primary)",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {value}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--aiq-font-sans)",
+                      fontSize: "var(--aiq-text-xs)",
+                      color: "var(--aiq-color-fg-muted)",
+                      marginTop: "var(--aiq-space-xs)",
+                    }}
+                  >
+                    {label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Revoke button (active certs only) */}
+            {selectedCert.revoked_at === null && (
+              <div
+                style={{
+                  paddingTop: "var(--aiq-space-md)",
+                  borderTop: "1px solid var(--aiq-color-border)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    const credId = selectedCert.credential_id;
+                    setSelectedCert(null);
+                    setRevokeModalId(credId);
+                    setRevokeReason("");
+                    setRevokeError(null);
+                  }}
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    fontWeight: 600,
+                    padding: "6px 18px",
+                    borderRadius: "var(--aiq-radius-sm)",
+                    background: "transparent",
+                    color: "var(--aiq-color-danger)",
+                    border: "1px solid var(--aiq-color-danger)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Revoke Certificate
+                </button>
+              </div>
+            )}
+          </div>
+        </Drawer>
       )}
 
       {/* ── Toast ── */}
