@@ -138,15 +138,26 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.reports.export.format` | — | skipped — `reports.tsx` has no export format selector; export panel not yet built |
 | `admin.reports.cost.empty_in_claude_code_vps_mode` | — | skipped — `reports.tsx` has no cost/billing panel; cost breakdown UI not yet built |
 
+#### Wired in commit `<commit-sha-pending>` (admin.settings.*)
+
+3 of 4 `admin.settings.*` keys wired (1 skipped — no live UI element). Updated count: **26 of 57** wired.
+
+| Key | File:line | Status |
+|---|---|---|
+| `admin.settings.billing.budget` | `modules/10-admin-dashboard/src/pages/billing.tsx` — Card 2 inner `<div>` ("Your monthly grading limit") | wired |
+| `admin.settings.billing.alert_threshold` | — | skipped — billing.tsx has no alert-threshold input or display; the page is read-only informational; threshold control noted as "Phase 3" in the technical-details section (billing.tsx:329) |
+| `admin.settings.help_content.markdown` | `modules/10-admin-dashboard/src/pages/help-content.tsx` — `<label>` wrapping the Markdown body `<textarea>` in the edit modal | wired |
+| `admin.settings.ai_generate_mode` | `modules/10-admin-dashboard/src/pages/billing.tsx` — `<label htmlFor="ai-generate-mode-select">` in super-admin AI Generation Mode card | wired |
+
 **Remaining unwired gap pages:**
 
 - ~~All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 6 entries)~~ (miscount in prior audit was 7; confirmed 6; 2 wired in commit above, 4 skipped — no UI element)
 - ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `b777ba4` below)
 - ~~All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)~~ (6 wired, 2 skipped — no UI element; see commit above)
-- All settings keys (`admin.settings.*` — 4 entries)
+- ~~All settings keys (`admin.settings.*` — 4 entries)~~ (3 wired, 1 skipped — no UI element; see commit above)
 - Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)
 
-**Action for next session:** Wire the next highest-risk slice — `admin.settings.*` (4 entries, settings pages) or `candidate.attempt.*` / `candidate.result.*` (8 entries, take flow).
+**Action for next session:** Wire the next highest-risk slice — remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries).
 
 ### Branding-guideline doc reconcile — token drift
 
