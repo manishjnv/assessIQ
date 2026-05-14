@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (Stage 3.1 L3 KB Gap Investigation)
+
+**Headline:** L3 KB gap root cause corrected — not missing data (soc-l3.json has 20 sources); actual cause is model citation bias now caught by `filterByCitation`; GAP REPORT appended to design doc.
+
+**Commits:**
+- (pending — see Next)
+
+**Tests:** No code changed — investigation + doc update only.
+
+**Deploy:** Not required — docs only.
+
+**Next:** Run L3 re-measure smoke (`SMOKE_SOC_LEVEL=L3 SMOKE_LEVEL_ID=<l3-uuid> SMOKE_COUNT=15`) + score-candidate to establish per-type post-`filterByCitation` yield. Then: G1 threshold confirm + G4 SKILL.md patch → Stage 3.1 flip.
+
+**Open questions:**
+- L3 post-`filterByCitation` yield unknown — re-measure required before sizing SKILL.md fix.
+- G1 threshold: ≥3/5 or ≥4/5 for Stage 3.1? (operator confirmation still outstanding)
+- G4 SKILL.md patch still pending (~30 min, Sonnet-tier, non-load-bearing)
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads (full investigation), root-cause analysis, inline edits to design doc, SESSION_STATE update
+- Sonnet: n/a — investigation + doc-only session, within Opus direct-edit threshold
+- Haiku: n/a
+- codex:rescue: n/a — no security/auth/classifier paths touched
+
+---
+
 # Session — 2026-05-14 (Phase 5 Session 10 — LinkedIn share button)
 
 **Headline:** Phase 5 MVP-COMPLETE — LinkedIn "Share on LinkedIn" CTA shipped on public verify page; 134/134 cert tests pass; VPS deployed and smoke-tested live.
@@ -44,7 +72,7 @@
 
 **Open questions:**
 - G1 threshold: ≥3/5 or ≥4/5 for Stage 3.1? (operator confirmation required before flip)
-- L3 KB source gap: wipro-soc pack has no `level_fit: "L3"` sources → L3 generation cites L2-tagged KB, fails G2 at L3. Fix before Stage 3.2/3.3 (not a Stage 3.1 blocker). KB data operation, no code change.
+- L3 KB gap: **root cause corrected in follow-up session** — NOT missing KB data. `soc-l3.json` has 20 L3 sources. Actual cause is model citation bias (`filterByCitation` drops leaking L2 IDs, yielding 0 insertable questions). Fix is SKILL.md prompt hardening, not KB data op. See design doc § "L3 KB Gap — Deep Investigation (2026-05-14)".
 - Pre-existing `AdminShell.tsx:334` typecheck error (`totpEnrolled` missing from `AdminSessionInfo`) — from MFA enrollment UX work `94d5f34`, not this session.
 
 ---

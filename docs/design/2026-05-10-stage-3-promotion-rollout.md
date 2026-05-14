@@ -1175,18 +1175,18 @@ pass score-candidate. All fail with `citationsResolve = false`: "unknown source 
 `L2-sources.json` (24 IDs confirmed) but NOT in `L3-sources.json` (20 entirely different
 IDs: `threat.hunting.sqf`, `mitre.attack.groups`, etc.).
 
-**Root cause:** The wipro-soc pack's KB has no `level_fit: "L3"` sources (or fewer than 3),
-so the handler's `filterKbSources` falls back to the full pack KB which contains
-`level_fit: "L2"` sources only. The L3 generation run produces questions citing L2 KB IDs,
-which fail the L3 fixture check.
+**Root cause (preliminary):** ~~The wipro-soc pack's KB has no `level_fit: "L3"` sources,
+so `filterKbSources` falls back to L2 sources; questions cite L2 KB IDs and fail the fixture.~~
+**This hypothesis is WRONG — see L3 GAP REPORT section below for the corrected root cause.**
+`soc-l3.json` has 20 fully-populated L3 sources. The real cause is model citation bias.
 
 **Impact assessment:**
 - Stage 3.1 (L2 pilot on wipro-soc): **NOT BLOCKED** — Stage 3.1 is an L2 generation
   run. The pilot tenant `wipro-soc` will only flip L2 generation to sharded.
-- G3 (L1/L3 diversity gate, gates Stage 3.3→3.4): **BLOCKED** — L3 runs cannot
-  pass G2 until the wipro-soc pack KB is populated with `level_fit: "L3"` sources.
-- Remediation: add ≥3 L3-fit KB sources to the wipro-soc pack before Stage 3.2/3.3 L3
-  generation is enabled. No code change; this is a KB data operation.
+- G3 (L1/L3 diversity gate, gates Stage 3.3→3.4): **BLOCKED** — L3 runs produce 0
+  insertable questions due to model citation bias (not missing KB data). Fix is SKILL.md
+  prompt hardening + re-measurement. See L3 GAP REPORT below.
+- Remediation: **SKILL.md deploy event** (not a KB data operation). See L3 GAP REPORT § Proposed Fix.
 - `019e1f73` (level label "l1" lowercase) was reported as clean in the readiness audit.
   score-candidate falls through to the `fixtureSkipped` synthetic-fixture path — it
   reports PASS trivially. This run does not constitute real G2 evidence.
@@ -1227,3 +1227,141 @@ which fail the L3 fixture check.
 
 **If operator confirms ≥3/5:** Stage 3.1 flip is gated only on G4 SKILL.md patch + approval.
 **If operator confirms ≥4/5:** 2 additional L2 count=15 smokes + G4 patch + approval.
+
+---
+
+## L3 KB Gap — Deep Investigation (2026-05-14)
+
+> **Supersedes** the "Side finding — L3 citation divergence" root-cause paragraph above.
+> That paragraph concluded "KB data missing; add ≥3 L3 sources; no code change." This
+> investigation proves that hypothesis is **wrong**. Root cause is model citation bias,
+> not absent data. Remediation is a SKILL.md deploy event, not a KB file addition.
+
+### SCOPE
+
+All five generation types for wipro-soc L3. Attempt `019e1f7d` produced 0 insertable
+questions (score-candidate: 0/15, all `citationsResolve = false`).
+
+**KB state at time of run**: `soc-l3.json` contained 20 L3 sources with
+`kb_version: "2026-05-08"` — 5 days before the failing run. Source IDs are entirely
+disjoint from L2. No data was missing.
+
+Per-type risk assessment based on how "distinctive" L3 source IDs are relative to
+the model's training-data MITRE/NIST prior:
+
+| Type | L3 Source Strength | Citation-Bias Risk |
+|---|---|---|
+| MCQ | `mitre.attack.groups`, `sigma.rules`, `cve.prioritization` — partially overlapping with L2 MITRE namespace | HIGH |
+| Log Analysis | `sans.for610.static`, `sans.for610.dynamic`, `volatility3.advanced`, `timeline.analysis` — highly distinctive, no L2 equivalent | MEDIUM |
+| Scenario | `threat.hunting.sqf`, `diamond.model`, `red.team.ttp.counter` — distinct APT/hunting framing | MEDIUM |
+| KQL | `threat.hunting.kql`, `sigma.rules` — concrete, identifiable | LOW–MEDIUM |
+| Subjective | `nist.sp800-61.postmortem`, `soar.playbook`, `mitre.engage` — `nist.sp800-61.*` namespace overlaps with L2 `nist.sp800-61.containment`; bias risk for subjective questions | MEDIUM |
+
+### EVIDENCE
+
+1. **Failing run**: `019e1f7d` — wipro-soc L3, 2026-05-13, sharded, count=15, 0 inserted
+2. **`score-candidate` result**: 0/15 FAIL. All candidates `citationsResolve = false`.
+3. **Cited IDs in failing candidates**:
+   - `mitre.t1059.001` — in L2-sources.json; absent from L3-sources.json
+   - `mitre.t1003` — in L2-sources.json; absent from L3-sources.json
+   - `nist.sp800-61.containment` — in L2-sources.json; absent from L3-sources.json
+4. **`filterByCitation` state**: Active in `admin-generate.ts` lines 131–147 at time of
+   run. Its comment names `mitre.t1003 / T1558.003` as recurring citation offenders — the
+   same ID that appears in the L3 failure. The filter correctly dropped all 15 questions.
+5. **service.ts**: `generateQuestions` uses `SOC_KB_BY_LEVEL["L3"]` directly — no L3→L2
+   fallback. 20 L3 sources were passed to `handleAdminGenerate` for this run.
+6. **L3-sources.json fixture**: 20 IDs, identical to soc-l3.json — fixture is not stale.
+
+### ROOT-CAUSE HYPOTHESIS
+
+**Model citation bias.** The generation model (claude-sonnet-4-6 via SKILL.md) has a strong
+prior for well-known MITRE ATT&CK technique IDs and NIST SP 800-61 section names. When
+generating for L3 topics (malware reversing, APT attribution, Diamond Model, SOAR), it
+routes to structurally similar L2 constructs (`T1003`, `T1059.001`) rather than the
+L3-specific source IDs provided in-context.
+
+`filterByCitation` is working correctly — it enforces that only provided source IDs are
+cited, and drops questions that leak L2 IDs. The net effect for a current L3 run is 0
+insertable questions, because the model cannot reliably cite from the L3 source set without
+explicit prompt-level anchoring.
+
+The fix is not KB data (the data exists). It is a **prompt-level citation anchor** in the
+five `generate-*` SKILL.md files on the VPS.
+
+### PROPOSED FIX (priority order)
+
+**(a) MINIMAL — Re-measure L3 post-`filterByCitation` to establish actual yield per type.**
+
+No code or SKILL.md change. Run a fresh L3 smoke + score-candidate. Determine which types
+produce ≥1 insertable question and which produce 0. This sizes the SKILL.md intervention
+needed and may reveal that some types (Log Analysis, KQL) already pass without changes.
+
+**(b) MEDIUM — Add citation-anchor instruction to generate-* SKILL.md files (deploy event).**
+
+For each of the 5 `generate-{mcq,log_analysis,scenario,kql,subjective}/SKILL.md` files on
+the VPS (`~/.claude/skills/`), add a `## Citation Anchor` block:
+
+```
+## Citation Anchor
+
+You MUST cite ONLY source IDs present in the `<knowledge_sources>` block provided to you.
+Do NOT substitute MITRE ATT&CK technique IDs or NIST SP 800-61 section names from general
+knowledge — those are L2 IDs and will fail validation for L3 assessments.
+
+Concrete examples of valid L3 source IDs (from the knowledge_sources you will receive):
+  threat.hunting.sqf  |  volatility3.advanced  |  diamond.model
+  sans.for610.static  |  sigma.rules            |  mitre.engage
+```
+
+This is a **deploy event**: skills live on the VPS at `~/.claude/skills/`, their sha256 is
+recorded on every grading row, and changing them requires eval-harness re-baselining
+(`modules/07-ai-grading/eval/`) before committing to Stage 3.2/3.3. The baseline
+commit for grade-* skills must be updated to reflect the new sha256.
+
+**(c) LARGER — Embed one L3 few-shot citation example per type in the SKILL.md.**
+
+One correctly-cited L3 question per type demonstrates the expected output format and source
+ID anchoring. Highest reliability uplift; higher token cost per generation call. Defer to
+post-Stage-3.1 unless fix (b) proves insufficient on re-measurement.
+
+### RE-MEASURE PLAN
+
+1. **Identify L3 level UUID**:
+   ```bash
+   docker exec assessiq-postgres psql -U postgres assessiq_system \
+     -c "SELECT id, label FROM levels \
+         WHERE pack_id = '019df000-44f3-7c97-9403-f7bde6a36843' \
+         AND label ILIKE '%3%' LIMIT 5"
+   ```
+
+2. **Run L3 smoke** (replaces the `019e1f7d` run; `filterByCitation` active):
+   ```bash
+   docker exec -e SMOKE_SOC_LEVEL=L3 \
+                -e SMOKE_LEVEL_ID=<l3-uuid-from-step-1> \
+                -e SMOKE_COUNT=15 \
+                assessiq-api \
+     pnpm exec tsx /app/tools/stage1-sharded-smoke.ts
+   ```
+
+3. **Score the attempt**:
+   ```bash
+   pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-candidate \
+     --attempt-id <attempt-id-from-smoke-output>
+   ```
+
+4. **Triage result**:
+   - If ≥1 question per type passes: citation bias partially resolved; monitor and proceed
+     to fix (b) before Stage 3.3 gates open.
+   - If any type yields 0/N: that type's SKILL.md needs fix (b) before Stage 3.2/3.3.
+   - If all types 0/N again: implement fix (b) immediately; re-measure before Stage 3.2.
+
+5. **Record results** in this doc under a new "L3 Re-Measure Results" subsection.
+
+### IMPACT CORRECTION
+
+| Gate | Prior (incorrect) assessment | Corrected assessment |
+|---|---|---|
+| Stage 3.1 L2 pilot | NOT BLOCKED ✅ | NOT BLOCKED ✅ (unchanged) |
+| G3 L3 diversity gate | BLOCKED — "KB data missing" | BLOCKED — **model citation bias**; fix is SKILL.md prompt hardening + re-measurement |
+| Remediation path | "KB data operation, no code change" | **SKILL.md deploy event** on VPS + eval re-baselining. No KB files need adding. |
+| Timeline | Before Stage 3.2/3.3 L3 gen | Before Stage 3.2/3.3 L3 gen (unchanged) |
