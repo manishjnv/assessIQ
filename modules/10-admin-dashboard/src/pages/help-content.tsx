@@ -222,7 +222,10 @@ export function AdminHelpContent(): React.ReactElement {
                 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", padding: "var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}
               />
             </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+            <label
+              data-help-id="admin.settings.help_content.markdown"
+              style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}
+            >
               <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
                 Body (Markdown — preview shown as plain text)
               </span>

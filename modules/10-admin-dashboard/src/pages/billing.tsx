@@ -118,6 +118,7 @@ export function AdminBilling(): React.ReactElement {
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
                 <label
                   htmlFor="ai-generate-mode-select"
+                  data-help-id="admin.settings.ai_generate_mode"
                   style={{ ...BODY_SM, fontWeight: 500 }}
                 >
                   Mode
@@ -253,7 +254,10 @@ export function AdminBilling(): React.ReactElement {
 
         {/* Card 2 — Your monthly grading limit */}
         <Card>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
+          <div
+            data-help-id="admin.settings.billing.budget"
+            style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
               <Icon name="chart" size={18} color="var(--aiq-color-accent)" />
               <h2 style={SERIF_H2}>Your monthly grading limit</h2>
