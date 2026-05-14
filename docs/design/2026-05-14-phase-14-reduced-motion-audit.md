@@ -110,15 +110,28 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.certificates.reissue` | `modules/10-admin-dashboard/src/pages/certificates.tsx:667` | Inline table Reissue `<button>` | wired |
 | `admin.certificates.revoke_reason` | `modules/10-admin-dashboard/src/pages/certificates.tsx:760` | Revoke-reason `<label>` in revoke modal | wired |
 
+#### Wired in commit `<commit-sha-pending>` (admin.reports.* + admin.analytics.*)
+
+2 of 6 `admin.reports.*` / `admin.analytics.*` keys wired (4 skipped — no corresponding UI element renders today). Updated count: **17 of 57** wired.
+
+| Key | File:line | Status |
+|---|---|---|
+| `admin.reports.cohort.distribution` | `modules/10-admin-dashboard/src/pages/cohort-report.tsx:120` | wired — archetype distribution card `<div>` |
+| `admin.analytics.cohort-report` | `modules/10-admin-dashboard/src/pages/cohort-report.tsx:81` | wired — page `<h1>` heading |
+| `admin.reports.heatmap.colors` | — | skipped — no topic heatmap renders in `cohort-report.tsx` today (heatmap is a Phase 3 feature not yet built) |
+| `admin.reports.archetype.disclaimer` | — | skipped — `individual-report.tsx` renders no archetype disclaimer text block; only the radar chart and score history |
+| `admin.reports.export.format` | — | skipped — `reports.tsx` has no export format selector; export panel not yet built |
+| `admin.reports.cost.empty_in_claude_code_vps_mode` | — | skipped — `reports.tsx` has no cost/billing panel; cost breakdown UI not yet built |
+
 **Remaining unwired gap pages:**
 
-- All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 7 entries)
+- ~~All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 6 entries)~~ (miscount in prior audit was 7; confirmed 6; 2 wired in commit above, 4 skipped — no UI element)
 - ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `b777ba4` below)
 - All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)
 - All settings keys (`admin.settings.*` — 4 entries)
 - Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)
 
-**Action for next session:** Wire the next highest-risk slice — `admin.reports.*` / `admin.analytics.*` (7 entries, analytics pages) or `admin.settings.*` (4 entries).
+**Action for next session:** Wire the next highest-risk slice — `admin.settings.*` (4 entries, settings pages) or `candidate.attempt.*` / `candidate.result.*` (8 entries, take flow).
 
 ### Branding-guideline doc reconcile — token drift
 

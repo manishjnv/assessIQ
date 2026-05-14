@@ -78,7 +78,7 @@ export function AdminCohortReport(): React.ReactElement {
           <div style={{ marginBottom: 12 }}>
             <Chip leftIcon="grid">{stats.attempt_count} attempt{stats.attempt_count !== 1 ? "s" : ""}</Chip>
           </div>
-          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 data-help-id="admin.analytics.cohort-report" style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
             Cohort Report.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
@@ -117,7 +117,7 @@ export function AdminCohortReport(): React.ReactElement {
 
         {/* Archetype distribution */}
         {archetypeEntries.length > 0 && (
-          <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
+          <div className="aiq-card" data-help-id="admin.reports.cohort.distribution" style={{ padding: "var(--aiq-space-lg)" }}>
             <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: "0 0 var(--aiq-space-md)" }}>Archetype distribution</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
               {archetypeEntries.map(([archetype, count]) => (
