@@ -373,7 +373,7 @@ describe("02-tenancy G3.D audit writes — live integration (updateTenantSetting
     expect((row.after as Record<string, unknown>).ai_grading_enabled).toBe(false);
   });
 
-  it("atomicity: when auditInTx throws, the settings UPDATE rolls back", async () => {
+  it("atomicity: when audit INSERT fails (DB constraint), the settings UPDATE rolls back", async () => {
     // Set a known starting value
     await withSuperClient((c) =>
       c.query(
@@ -382,15 +382,26 @@ describe("02-tenancy G3.D audit writes — live integration (updateTenantSetting
       ),
     );
 
-    mockState.injectAuditFailure = new Error("audit write injection failure — updateTenantSettings");
+    // Block ALL audit_log INSERTs by adding a CHECK (false) constraint.
+    // This causes the real auditInTx to fail with a DB error, proving that
+    // withTenant rolls back the domain mutation when the audit write fails.
+    await withSuperClient((c) =>
+      c.query(`ALTER TABLE audit_log ADD CONSTRAINT _test_atomicity_settings CHECK (false) NOT VALID`),
+    );
 
-    await expect(
-      updateTenantSettings(TENANT_ID, { ai_grading_enabled: false }),
-    ).rejects.toThrow(/audit write injection failure/);
+    try {
+      await expect(
+        updateTenantSettings(TENANT_ID, { ai_grading_enabled: false }),
+      ).rejects.toThrow(); // any DB error — constraint violation
 
-    // The UPDATE must have rolled back — value still true
-    const val = await readTenantSettingsField(TENANT_ID, "ai_grading_enabled");
-    expect(val).toBe(true);
+      // The settings UPDATE must have rolled back — value still true
+      const val = await readTenantSettingsField(TENANT_ID, "ai_grading_enabled");
+      expect(val).toBe(true);
+    } finally {
+      await withSuperClient((c) =>
+        c.query(`ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS _test_atomicity_settings`),
+      );
+    }
   });
 });
 
@@ -424,14 +435,23 @@ describe("02-tenancy G3.D audit writes — live integration (suspendTenant)", ()
     expect((row.after as Record<string, unknown>).reason).toBe("billing arrears");
   });
 
-  it("atomicity: when auditInTx throws, tenant.status is NOT updated (withTenant rolls back)", async () => {
-    mockState.injectAuditFailure = new Error("audit write injection failure — suspendTenant");
+  it("atomicity: when audit INSERT fails (DB constraint), tenant.status is NOT updated (withTenant rolls back)", async () => {
+    // Block ALL audit_log INSERTs — causes auditInTx to fail with a DB error.
+    await withSuperClient((c) =>
+      c.query(`ALTER TABLE audit_log ADD CONSTRAINT _test_atomicity_suspend CHECK (false) NOT VALID`),
+    );
 
-    await expect(
-      suspendTenant(TENANT_ID, "billing arrears"),
-    ).rejects.toThrow(/audit write injection failure/);
+    try {
+      await expect(
+        suspendTenant(TENANT_ID, "billing arrears"),
+      ).rejects.toThrow(); // any DB error — constraint violation
 
-    const status = await readTenantStatus(TENANT_ID);
-    expect(status).toBe("active");
+      const status = await readTenantStatus(TENANT_ID);
+      expect(status).toBe("active");
+    } finally {
+      await withSuperClient((c) =>
+        c.query(`ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS _test_atomicity_suspend`),
+      );
+    }
   });
 });
