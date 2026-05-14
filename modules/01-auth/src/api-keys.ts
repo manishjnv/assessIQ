@@ -8,6 +8,7 @@
 
 import { uuidv7, nowIso, AuthnError, AuthzError } from "@assessiq/core";
 import { withTenant, getPool } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import { sha256Hex, randomTokenBase62 } from "./crypto-util.js";
 
 // ---------------------------------------------------------------------------
@@ -118,32 +119,41 @@ async function create(
         expiresAt,
       ],
     );
-    // INSERT ... RETURNING always returns exactly one row.
-    return result.rows[0]!;
+    const apiKeyRow = result.rows[0]!;
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: input.createdBy,
+      action: "api_key.created",
+      entityType: "api_key",
+      entityId: apiKeyRow.id,
+      after: { name: input.name, keyPrefix, scopes: input.scopes, expiresAt: expiresAt ?? null },
+    });
+    return apiKeyRow;
   });
 
   return { record: rowToRecord(row), plaintextKey };
 }
 
-async function revoke(tenantId: string, id: string): Promise<void> {
+async function revoke(tenantId: string, id: string, revokedBy: string): Promise<void> {
   // Soft-delete: sets status = 'revoked'. Idempotent — 0 rows affected on an
   // already-revoked key is fine. withTenant scopes to the correct tenant via RLS.
-  const result = await withTenant(tenantId, async (client) => {
-    return client.query(
+  await withTenant(tenantId, async (client) => {
+    const result = await client.query(
       `UPDATE api_keys SET status = 'revoked' WHERE id = $1`,
       [id],
     );
+    if ((result.rowCount ?? 0) > 0) {
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: revokedBy,
+        action: "api_key.revoked",
+        entityType: "api_key",
+        entityId: id,
+      });
+    }
   });
-
-  // If 0 rows were updated the key either doesn't exist or belongs to another
-  // tenant (RLS filtered it out). Either way, surface a NotFoundError so callers
-  // can distinguish "key not mine" from success. An already-revoked key will
-  // also return 0 rows on the status != 'revoked' path — but we deliberately
-  // do NOT add that filter: idempotency means revoking an already-revoked key
-  // should succeed silently, not throw. To be truly idempotent we drop the
-  // existence check here. If the key never existed, 0 rows is fine too — the
-  // admin UI will show no key with that ID after the call.
-  void result; // rowCount is 0 or 1; both are valid
 }
 
 async function list(tenantId: string): Promise<ApiKeyRecord[]> {

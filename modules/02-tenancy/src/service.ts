@@ -3,7 +3,7 @@ import { withTenant } from "./with-tenant.js";
 import { getPool } from "./pool.js";
 import * as repo from "./repository.js";
 import type { Tenant, TenantSettings } from "./types.js";
-import { audit, auditInTx } from "@assessiq/audit-log";
+import { auditInTx } from "@assessiq/audit-log";
 
 const log = streamLogger('app');
 
@@ -53,27 +53,30 @@ export async function getTenantBySlug(slug: string): Promise<Tenant | null> {
 export async function updateTenantSettings(
   tenantId: string,
   patch: Parameters<typeof repo.updateTenantSettingsRow>[1],
+  actorUserId?: string,
 ): Promise<TenantSettings> {
   // Do NOT log the patch contents at INFO — TenantSettings JSONB may include
   // tenant-private branding URLs, webhook URLs, etc. CLAUDE.md hard rule #4.
   log.info({ tenantId }, "updateTenantSettings");
-  const updated = await withTenant(tenantId, async (client) => {
-    return repo.updateTenantSettingsRow(client, patch);
+  return withTenant(tenantId, async (client) => {
+    // Pre-read for before state (G3.D atomicity: read + write + audit in one tx).
+    // FOR UPDATE locks the row to prevent TOCTOU race between the pre-read and the UPDATE.
+    const before = await repo.findTenantSettings(client, true);
+    const updated = await repo.updateTenantSettingsRow(client, patch);
+    // Audit INSERT in the SAME transaction (atomicity via auditInTx).
+    // If this throws, withTenant rolls back the UPDATE.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: actorUserId ? "user" : "system",
+      ...(actorUserId !== undefined ? { actorUserId } : {}),
+      action: "tenant.settings.updated",
+      entityType: "tenant_settings",
+      entityId: tenantId,
+      ...(before !== null ? { before: before as unknown as Record<string, unknown> } : {}),
+      after: patch as unknown as Record<string, unknown>,
+    });
+    return updated;
   });
-
-  // G3.A audit hook: admin updated tenant settings.
-  // before state not captured here (would require a pre-read); after captured as the patch.
-  // Full before/after is available via audit_log for compliance; the patch shape is sufficient.
-  await audit({
-    tenantId,
-    actorKind: "system", // caller is the request session; system actor for service-layer hooks
-    action: "tenant.settings.updated",
-    entityType: "tenant_settings",
-    entityId: tenantId,
-    after: patch as unknown as Record<string, unknown>,
-  });
-
-  return updated;
 }
 
 /**
@@ -110,14 +113,20 @@ export async function listActiveTenantIds(): Promise<string[]> {
   }
 }
 
-export async function suspendTenant(tenantId: string, reason: string): Promise<void> {
-  // TODO(audit): when 14-audit-log lands in Phase 3, write a
-  // tenant.suspended event with actor + reason here. For Phase 0 we only
-  // record the reason via warn-level log so a future migration can
-  // backfill from log archives if needed.
-  log.warn({ tenantId, reason }, "tenant suspended (audit log pending)");
+export async function suspendTenant(tenantId: string, reason: string, actorUserId?: string): Promise<void> {
+  log.warn({ tenantId, reason }, "tenant suspended");
   await withTenant(tenantId, async (client) => {
     await repo.setTenantStatus(client, tenantId, "suspended");
+    // Audit INSERT in the SAME transaction (atomicity via auditInTx).
+    await auditInTx(client, {
+      tenantId,
+      actorKind: actorUserId ? "user" : "system",
+      ...(actorUserId !== undefined ? { actorUserId } : {}),
+      action: "tenant.suspended",
+      entityType: "tenant",
+      entityId: tenantId,
+      after: { status: "suspended", reason },
+    });
   });
 }
 

@@ -27,6 +27,7 @@ export const ACTION_CATALOG = [
   // Tenant
   'tenant.settings.updated',
   'tenant.branding.updated',
+  'tenant.suspended',
   // User
   'user.created',
   'user.role.changed',
