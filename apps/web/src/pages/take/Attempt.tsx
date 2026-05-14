@@ -992,7 +992,7 @@ export function AttemptPage(): JSX.Element {
           padding: 'var(--aiq-space-2xl)',
         }}
       >
-        <div style={{ maxWidth: 560, width: '100%' }}>
+        <div data-help-id="candidate.attempt.disconnect" style={{ maxWidth: 560, width: '100%' }}>
           <IntegrityBanner
             kind="stale_connection"
             action={{

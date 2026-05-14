@@ -110,6 +110,7 @@ function SuccessContent({
 
       {/* ── Before you begin ─────────────────────────────────────────── */}
       <div
+        data-help-id="candidate.intro.integrity"
         style={{
           marginBottom: 28,
           padding: '16px 20px',
