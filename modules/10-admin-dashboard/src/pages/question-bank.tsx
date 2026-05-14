@@ -426,6 +426,7 @@ export function AdminQuestionBank(): React.ReactElement {
                     Domain *
                   </label>
                   <input
+                    data-help-id="admin.packs.create.domain"
                     className="aiq-input"
                     type="text"
                     placeholder="e.g. soc"

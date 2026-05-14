@@ -441,6 +441,7 @@ export function AdminActivity(): React.ReactElement {
           >
             <div>
               <h2
+                data-help-id="admin.activity.streak.explanation"
                 style={{
                   fontFamily: "var(--aiq-font-serif)",
                   fontSize: "var(--aiq-text-2xl)",

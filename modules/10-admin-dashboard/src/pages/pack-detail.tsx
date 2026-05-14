@@ -1065,7 +1065,7 @@ export function AdminPackDetail(): React.ReactElement {
                           </span>
                         )}
                         {lastAttempts[level.id] && (
-                          <div style={{ marginTop: "2px" }}>
+                          <div data-help-id="admin.questions.attempt-status" style={{ marginTop: "2px" }}>
                             <GenerationAttemptLine
                               attempt={lastAttempts[level.id]}
                               detailsOpen={openAttemptDetails === level.id}
@@ -1106,6 +1106,7 @@ export function AdminPackDetail(): React.ReactElement {
                         )}
                         <button
                           type="button"
+                          data-help-id="admin.questions.generate.draft"
                           className="aiq-btn aiq-btn-outline aiq-btn-sm"
                           onClick={() => openGenerateDrawer(level.id)}
                           title="Generate AI draft questions for this level"
@@ -1626,6 +1627,7 @@ export function AdminPackDetail(): React.ReactElement {
               </button>
               <button
                 type="button"
+                data-help-id={bulkConfirm.action === "archived" ? "admin.questions.bulk.archive" : "admin.questions.bulk.approve"}
                 className={
                   bulkConfirm.action === "archived"
                     ? "aiq-btn aiq-btn-ghost"
@@ -1661,6 +1663,7 @@ export function AdminPackDetail(): React.ReactElement {
             role="dialog"
             aria-modal="true"
             aria-label="Generate AI draft questions"
+            data-help-id="admin.questions.generate.modal"
             style={{
               position: "fixed",
               top: 0,
@@ -1838,6 +1841,7 @@ export function AdminPackDetail(): React.ReactElement {
                       {TYPE_DISPLAY_ORDER.map(({ key, label }, idx) => (
                         <div
                           key={key}
+                          {...(key === "subjective" ? { "data-help-id": "admin.questions.subjective" } : {})}
                           style={{
                             display: "flex",
                             alignItems: "center",

@@ -381,6 +381,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             {assessment.status === "draft" && (
               <button
                 type="button"
+                data-help-id="admin.assessments.publish"
                 className="aiq-btn aiq-btn-primary"
                 onClick={() => void handlePublish()}
                 disabled={publishing}
@@ -441,6 +442,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             }}
           >
             <h2
+              data-help-id="admin.assessments.invite.bulk"
               style={{
                 fontFamily: "var(--aiq-font-serif)",
                 fontSize: "var(--aiq-text-xl)",

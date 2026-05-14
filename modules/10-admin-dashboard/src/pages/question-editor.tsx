@@ -557,7 +557,10 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
 
         {/* Rubric section */}
         <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
-          <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: "0 0 var(--aiq-space-lg)" }}>
+          <h2
+            {...(question.type === "subjective" ? { "data-help-id": "admin.questions.type.subjective.rubric" } : {})}
+            style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: "0 0 var(--aiq-space-lg)" }}
+          >
             Rubric
           </h2>
 
