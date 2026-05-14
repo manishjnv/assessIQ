@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (UI v1.1 P14 — admin.grading.* help-key wiring)
+
+**Headline:** Wired 8 of 12 `admin.grading.*` help-system keys into `GradingProposalCard.tsx` + `attempt-detail.tsx`. Help-system runtime can now attach tooltips to anchors, band, justification, error-class, escalation badge, accept button, rerun-opus button, and override-reason field. 4 keys skipped because their target UI doesn't exist yet (queue.row / queue.empty live behind a "Coming soon" placeholder; separate Sonnet-only rerun button doesn't exist; skill_drift banner doesn't exist). Updated wired count: 3/57 → 11/57.
+
+**Commits:**
+- `6760a7c` — feat(admin-dashboard): wire 8 of 12 admin.grading.* help-system keys
+- `64c205d` — docs(audit): backfill commit SHA in P14 help-wiring audit
+
+**Tests:** @assessiq/admin-dashboard 35/35 pass (no new tests added — pure attribute wiring has zero test surface). Pre-existing typecheck failure at `AdminShell.tsx:334` (`totpEnrolled` not on `AdminSessionInfo`) confirmed by Sonnet via git-stash round-trip to be unrelated to this change — needs a separate session.
+
+**Deploy:** VPS clone synced to `64c205d`. `assessiq-frontend` rebuilt + force-recreated so the new `data-help-id` attributes reach the SPA bundle. Smoke: HTTP 200 in 177ms.
+
+**Next:** Next help-wiring slice per audit recommendation — either `admin.certificates.*` (5 entries, all in cert management page) or `admin.reports.*` (7 entries, analytics pages). After help-wiring tail, the remaining big P14 items are auth-seeded axe (needs Playwright session-fixture infra, ~2-3 sessions), Lighthouse CI, and visual-regression baseline.
+
+**Open questions:**
+- 4 skipped help keys (queue.row, queue.empty, rerun [Sonnet-only], skill_drift) describe UI elements that don't exist. Decide per element: (a) build the missing UI element and then wire the key, (b) delete the YAML entry, or (c) leave the YAML entry as design intent for a future iteration.
+- Pre-existing typecheck failure at `AdminShell.tsx:334` is unrelated but blocks `tsc --noEmit` clean on this package. Should be a 1-line fix (add `totpEnrolled?: boolean` to `AdminSessionInfo`) in a future session.
+
+---
+
+## Agent utilization
+- Opus: scope decision (next help-wiring slice from audit), Sonnet brief authoring, Phase 3 diff critique (pure attribute additions, no functional change), commit chain + deploy + smoke + handoff.
+- Sonnet: 1 subagent (admin.grading.* wiring) — agentId `a78de578c6dcca29e`. Output: 2 modified TSX files (8 attribute additions), 1 audit doc update with wired/skipped table. Verdict: accepted on first pass; honest skip reporting for the 4 keys whose target UI doesn't exist.
+- Haiku: n/a — discovery was tractable via direct Bash grep.
+- codex:rescue: n/a — modules/10-admin-dashboard is non-load-bearing; pure attribute wiring with no logic, no security/auth/classifier paths.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 14 slice — reduced-motion sweep + audit)
 
 **Headline:** P14 reduced-motion sweep shipped (Spinner fix + useReducedMotion hook + 8 new tests, 44/44 green); full audit doc enumerates remaining P14 work (Lighthouse CI, auth-seeded axe, visual regression, help-content orphans, branding-doc drift). Earlier in the session: dev-mode rate-limit lift to 100/min on /api/auth/* (commit e0b8e53 + d68b9a8) so admin SSO login flows stop self-throttling locally.
