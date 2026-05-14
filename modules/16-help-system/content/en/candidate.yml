@@ -222,7 +222,7 @@ candidate.result.bands:
 
 # ─── Certificates ───
 
-candidate.cert.share-linkedin:
+candidate.cert.share_linkedin:
   audience: candidate
   short_text: "Click Share on LinkedIn to post your certificate. Each share is counted in My Certificates."
   long_md: |
@@ -232,7 +232,7 @@ candidate.cert.share-linkedin:
     LinkedIn profile. A counter records each share so you can track your
     engagement in My Certificates.
 
-candidate.cert.completion-modal:
+candidate.cert.completion_modal:
   audience: candidate
   short_text: "A congratulations pop-up appears once per certificate tier the first time you view each earned certificate."
   long_md: |
@@ -243,7 +243,7 @@ candidate.cert.completion-modal:
     certificate tier; if you earn a higher tier later, it will appear again.
 
 public.verify.share_linkedin:
-  audience: candidate
+  audience: all
   short_text: "Share this verified credential to your LinkedIn network in one click."
   long_md: |
     ## Share on LinkedIn
@@ -255,9 +255,9 @@ public.verify.share_linkedin:
     Only **active** (non-revoked) certificates can be shared. If this
     certificate has been revoked, the button is disabled.
 
-candidate.profile.name-callout:
+candidate.profile.name_callout:
   audience: candidate
-  short_text: "Certificates print the name from your profile at issuance. Keep your profile name current before completing an assessment."
+  short_text: "Certificate names are taken from your profile at issuance. Update your profile name before completing an assessment."
   long_md: |
     ## Your Name on Certificates
 
@@ -267,7 +267,7 @@ candidate.profile.name-callout:
 
 # ─── Sign-in (magic-link) ───
 
-candidate.auth.request-link:
+candidate.auth.request_link:
   audience: candidate
   short_text: "Enter the email address your administrator used to register you. We will email you a sign-in link — no password needed."
   long_md: |
@@ -283,7 +283,7 @@ candidate.auth.request-link:
     **Already signed in?** If you already have an active session you will be
     taken straight to your certificates without needing to request a new link.
 
-candidate.auth.link-sent:
+candidate.auth.link_sent:
   audience: candidate
   short_text: "Check your inbox — a sign-in link is on its way. It expires in 15 minutes. Didn't get it? Wait a minute and try again."
   long_md: |
@@ -306,7 +306,7 @@ candidate.auth.link-sent:
     Each link is single-use — clicking it a second time will not work.
     Request a fresh link if you need to sign in again.
 
-candidate.auth.session-status:
+candidate.auth.session_status:
   audience: candidate
   short_text: "You are currently signed in. Your session lasts 30 days from when you first clicked your sign-in link."
   long_md: |
@@ -322,7 +322,7 @@ candidate.auth.session-status:
     **To sign out early**, close your browser or clear cookies. Your
     certificates remain available; you just need a fresh link next time.
 
-candidate.auth.expiring-soon:
+candidate.auth.expiring_soon:
   audience: candidate
   short_text: "Your session expires in the next 5 days. Request a new sign-in link now to avoid being logged out unexpectedly."
   long_md: |
@@ -338,7 +338,7 @@ candidate.auth.expiring-soon:
 
 candidate.activity:
   audience: candidate
-  short_text: "Your personal activity dashboard: completions, average score, 52-week heatmap, weekly chart, and your rank on every pack you have attempted."
+  short_text: "Personal activity dashboard: completions, avg score, 52-week heatmap, weekly chart, and pack rankings."
   long_md: |
     ## My activity
 
