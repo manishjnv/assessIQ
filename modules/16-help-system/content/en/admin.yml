@@ -84,7 +84,7 @@ admin.packs.create.domain:
 
 admin.questions.generate.draft:
   audience: admin
-  short_text: "Generate 1–30 AI draft questions per call from the pack-detail page. Each draft must be reviewed and activated individually."
+  short_text: "Generate 1–30 AI draft questions from the pack-detail page. Each draft must be reviewed and activated individually."
   long_md: |
     ## AI-assisted question generation
 
@@ -479,7 +479,7 @@ admin.reports.cost.empty_in_claude_code_vps_mode:
     If you switch to `anthropic-api` mode in a future deployment, the cost
     report will begin populating from that date forward.
 
-admin.analytics.cohort-report:
+admin.analytics.cohort_report:
   audience: admin
   short_text: "Aggregate metrics across all attempts in an assessment cycle: score distribution, archetype mix, and per-attempt scores."
   long_md: |
@@ -515,7 +515,7 @@ admin.analytics.cohort-report:
     - admin.reports.cohort.distribution
     - admin.reports.heatmap.colors
 
-# NOTE: This entry (admin.analytics.cohort-report) was added by the Phase 3
+# NOTE: This entry (admin.analytics.cohort_report) was added by the Phase 3
 # G3.C analytics session. The admin-UI-toggle session also touches admin.yml —
 # merge carefully if both sessions produce conflicting adjacent lines.
 
@@ -799,25 +799,6 @@ admin.grading.override.reason:
     Minimum useful length: one sentence describing *what was wrong* with the
     AI's verdict. "Wrong band" alone fails validation.
 
-admin.grading.rerun:
-  audience: admin
-  short_text: "Re-run asks the AI to grade the same answer again with Sonnet. Use when the initial proposal looks wrong."
-  long_md: |
-    ## Re-run (Sonnet)
-
-    Re-run submits the same answer and rubric to Stage 2 (Sonnet) again.
-    Because AI grading is non-deterministic, a second pass sometimes produces
-    a better proposal, especially for ambiguous answers.
-
-    Use re-run when:
-    - The justification is clearly misaligned with the rubric.
-    - The anchor hits don't match what you read in the answer.
-    - The band seems too high or too low but you want a second opinion before
-      overriding manually.
-
-    Re-run does **not** replace the original proposal — both are in the
-    `gradings` table (with `override_of` linking them).
-
 admin.grading.rerun.opus:
   audience: admin
   short_text: "Re-run with Opus (Stage 3) uses a more powerful model. Use for complex cases or appeals."
@@ -1059,7 +1040,7 @@ admin.settings.help_content.markdown:
 
 # ─── Stage 1.5+ admin features (shipped week of 2026-05-10) ─────────────────
 
-admin.generation-attempts.history:
+admin.generation_attempts.history:
   audience: admin
   short_text: "Cross-pack history of every AI question-generation run. Filter by status, score in-app, and inspect stderr without SSH."
   long_md: |
@@ -1092,7 +1073,7 @@ admin.generation-attempts.history:
 
 admin.settings.ai_generate_mode:
   audience: admin
-  short_text: "Per-tenant AI question generation mode. omnibus = single prompt; sharded = one prompt per question type. Effective on next request."
+  short_text: "AI question generation mode: omnibus = single prompt; sharded = one prompt per question type. Effective on next request."
   long_md: |
     ## AI Generation Mode
 
@@ -1124,7 +1105,7 @@ admin.settings.ai_generate_mode:
     next generation request. The global fallback remains the `AI_GENERATE_MODE`
     env var when the column is NULL.
   related_keys:
-    - admin.settings.billing
+    - admin.settings.billing.budget
 
 admin.questions.bulk.archive:
   audience: admin
@@ -1236,7 +1217,7 @@ admin.questions.subjective:
     **Grading:** AI scores the written response against the rubric anchors
     using Stage 2 (Sonnet) by default. Admin can re-run or override.
 
-admin.questions.attempt-status:
+admin.questions.attempt_status:
   audience: admin
   short_text: "Color-coded status on each level row shows the latest generation-attempt result. Expands to show details on failure."
   long_md: |
@@ -1299,7 +1280,7 @@ admin.ops.cli.cleanup:
     - If the generation-history page shows many `running` rows that never
       transitioned.
 
-admin.ops.cli.inspect-attempt:
+admin.ops.cli.inspect_attempt:
   audience: admin
   short_text: "Diagnostic dump for any generation_attempts row — status, timing, inserted question IDs, and stderr. CLI only."
   long_md: |
@@ -1331,7 +1312,7 @@ admin.ops.cli.inspect-attempt:
 
     The attempt ID is visible on the generation-history page row.
 
-admin.attempts.grading-dispatch:
+admin.attempts.grading_dispatch:
   audience: admin
   short_text: "Each question type routes to a different grading method: mcq direct-compare, kql keyword-match, others via AI."
   long_md: |
@@ -1356,7 +1337,7 @@ admin.attempts.grading-dispatch:
     MCQ and KQL grading is deterministic and fast (< 50 ms per question).
     AI-routed types add 15–90 s per question depending on model and cache.
 
-admin.attempts.session-idle:
+admin.attempts.session_idle:
   audience: admin
   short_text: "If the grading tab is idle for 5 minutes, a dismissible banner warns you. Click Refresh to resume without data loss."
   long_md: |
@@ -1391,7 +1372,7 @@ admin.attempts.session-idle:
 
 admin.certificates.list:
   audience: admin
-  short_text: "View and manage credentials issued to candidates in this tenant. Revoke compromised or invalid certificates; reissue when a snapshot field needs correction."
+  short_text: "View and manage tenant credentials. Revoke compromised certificates or reissue when a snapshot field needs correction."
   long_md: |
     ## Certificate management
 
@@ -1424,7 +1405,7 @@ admin.certificates.list:
 
 admin.certificates.revoke:
   audience: admin
-  short_text: "Revoking a credential makes its public verify page show a red badge and prevents PDF download. Reason is recorded in the audit log and visible on the verify page."
+  short_text: "Revoke sets verify page to revoked, blocks PDF. Reason is audit-logged and visible on the verify page."
   long_md: |
     ## Revoking a certificate
 
@@ -1454,7 +1435,7 @@ admin.certificates.revoke:
 
 admin.certificates.reissue:
   audience: admin
-  short_text: "Reissuing re-snapshots display fields (e.g., name corrections) without rotating the credential_id or issued_at — already-shared LinkedIn URLs remain valid."
+  short_text: "Re-snapshots display fields (name etc.) without rotating credential_id or issued_at — LinkedIn share URLs stay valid."
   long_md: |
     ## Reissuing a certificate
 
@@ -1587,7 +1568,7 @@ admin.activity.leaderboard.delta:
 
 admin.worker:
   audience: admin
-  short_text: "Live BullMQ queue health — depth, completed count, and failed jobs. Covers email, webhooks, and cron. Never AI grading."
+  short_text: "BullMQ queue health — depth, completed count, failed jobs. Covers email, webhooks, and cron. Never AI grading."
   long_md: |
     ## Worker observability
 
@@ -1659,7 +1640,7 @@ admin.worker.failed:
 
 admin.worker.retry:
   audience: admin
-  short_text: "Retry re-enqueues the failed job with attempt count N+1. Use after fixing the underlying cause (e.g. SMTP outage, webhook endpoint down)."
+  short_text: "Re-enqueues the failed job at attempt N+1. Use after fixing the root cause (e.g. SMTP outage, webhook endpoint down)."
   long_md: |
     ## Retrying a failed job
 
@@ -1699,7 +1680,7 @@ admin.worker.retry:
 
 admin.webhooks:
   audience: admin
-  short_text: "Register outbound webhooks to receive real-time events when AssessIQ actions occur (attempt submitted, graded, certificate issued, etc.)."
+  short_text: "Register outbound webhooks for real-time events when AssessIQ actions occur (submitted, graded, cert issued, etc.)."
   long_md: |
     ## Webhooks
 
@@ -1733,7 +1714,7 @@ admin.webhooks:
 
 admin.webhooks.events:
   audience: admin
-  short_text: "Event types you can subscribe to: attempt lifecycle, assessment state changes, user events, certificate issuance/revocation, and audit.*."
+  short_text: "Subscribable event types: attempt lifecycle, assessment state changes, user events, cert issuance/revocation, audit.*."
   long_md: |
     ## Webhook event types
 
@@ -1772,7 +1753,7 @@ admin.webhooks.events:
 
 admin.webhooks.deliveries:
   audience: admin
-  short_text: "Recent deliveries shows the last 25 webhook attempts per page: event type, URL, HTTP status, latency, and the full payload (expandable)."
+  short_text: "Last 25 webhook deliveries per page: event type, URL, HTTP status, latency, and full payload (expandable)."
   long_md: |
     ## Webhook delivery history
 
