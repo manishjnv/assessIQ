@@ -122,7 +122,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 ### Branding-guideline doc reconcile — token drift
 
-**Status: RESOLVED in commit `<commit-sha-pending>`** — all 8 stale hex values updated in `docs/10-branding-guideline.md` §§ 3.1 and 3.2 to match live v1.1 tokens.
+**Status: RESOLVED in commit `2e1af79`** — all 8 stale hex values updated in `docs/10-branding-guideline.md` §§ 3.1 and 3.2 to match live v1.1 tokens.
 
 Diff between live `modules/17-ui-system/src/styles/tokens.css` and values quoted in `docs/10-branding-guideline.md` § 3.1 (Light mode) and § 3.2 (Dark mode).
 

@@ -163,7 +163,7 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
 3. **Per-tenant override = accent only.** Tenants override `--aiq-color-accent` (and its soft/hover companions auto-derive). Surfaces, text, and status colors stay AssessIQ's. This keeps brand recognizability while allowing client white-label.
 4. **Soft accent for selected backgrounds.** MCQ selected option fills `--aiq-color-accent-soft`; user avatar mark uses `--aiq-color-accent` solid. Don't invent intermediate shades.
 
-> **Updated 2026-05-14 to v1.1 token values (commit `<commit-sha-pending>`).** Six light-mode hex values (`--aiq-color-bg-sunken`, `--aiq-color-fg-primary`, `--aiq-color-fg-secondary`, `--aiq-color-fg-muted`, `--aiq-color-border`, `--aiq-color-border-strong`) and two dark-mode hex values (`--aiq-color-fg-secondary`, `--aiq-color-fg-muted`) were reconciled to match `modules/17-ui-system/src/styles/tokens.css`. See `docs/design/2026-05-14-phase-14-reduced-motion-audit.md` for the original drift report.
+> **Updated 2026-05-14 to v1.1 token values (commit `2e1af79`).** Six light-mode hex values (`--aiq-color-bg-sunken`, `--aiq-color-fg-primary`, `--aiq-color-fg-secondary`, `--aiq-color-fg-muted`, `--aiq-color-border`, `--aiq-color-border-strong`) and two dark-mode hex values (`--aiq-color-fg-secondary`, `--aiq-color-fg-muted`) were reconciled to match `modules/17-ui-system/src/styles/tokens.css`. See `docs/design/2026-05-14-phase-14-reduced-motion-audit.md` for the original drift report.
 
 ## 4. Spacing & density
 
