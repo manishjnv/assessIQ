@@ -323,6 +323,7 @@ function SubjectiveAnswerArea({
         }}
       />
       <div
+        data-help-id="candidate.attempt.subjective.length"
         style={{
           fontFamily: 'var(--aiq-font-mono)',
           fontSize: 11,
@@ -382,6 +383,7 @@ function KqlAnswerArea({
         onChange={(e) => onAnswerChange({ query: e.target.value })}
         onBlur={onBlur}
         aria-label="KQL query"
+        data-help-id="candidate.attempt.kql.editor"
         style={{
           width: '100%',
           minHeight: 200,
@@ -719,7 +721,7 @@ function ScenarioAnswerArea({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-xl)' }}>
+    <div data-help-id="candidate.attempt.scenario.steps" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-xl)' }}>
       {intro && (
         <p
           style={{
@@ -1132,6 +1134,7 @@ export function AttemptPage(): JSX.Element {
           <AttemptTimer
             endsAt={attempt.ends_at}
             onExpire={handleExpire}
+            data-help-id="candidate.attempt.timer"
           />
         )}
 
@@ -1292,6 +1295,7 @@ export function AttemptPage(): JSX.Element {
           size="sm"
           onClick={handleFlagToggle}
           disabled={locked || currentQuestion === null}
+          data-help-id="candidate.attempt.flag"
           style={{
             color:
               currentQuestion !== null && (flags.get(currentQuestion.question_id) ?? false)
@@ -1348,6 +1352,7 @@ export function AttemptPage(): JSX.Element {
           variant="primary"
           size="sm"
           disabled={locked || submitting}
+          data-help-id="candidate.attempt.submit.confirm"
           onClick={() => void handleSubmit()}
         >
           {submitting ? 'Submitting…' : 'Submit'}

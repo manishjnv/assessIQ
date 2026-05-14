@@ -110,7 +110,22 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.certificates.reissue` | `modules/10-admin-dashboard/src/pages/certificates.tsx:667` | Inline table Reissue `<button>` | wired |
 | `admin.certificates.revoke_reason` | `modules/10-admin-dashboard/src/pages/certificates.tsx:760` | Revoke-reason `<label>` in revoke modal | wired |
 
-#### Wired in commit `<commit-sha-pending>` (admin.reports.* + admin.analytics.*)
+#### Wired in commit `<commit-sha-pending>` (candidate.attempt.* + candidate.result.*)
+
+6 of 8 `candidate.attempt.*` / `candidate.result.*` keys wired (2 skipped — no corresponding UI element renders today). Updated count: **23 of 57** wired.
+
+| Key | File:line | Status |
+|---|---|---|
+| `candidate.attempt.timer` | `apps/web/src/pages/take/Attempt.tsx` — `<AttemptTimer data-help-id=...>` in top-bar `<header>` | wired |
+| `candidate.attempt.flag` | `apps/web/src/pages/take/Attempt.tsx` — flag-toggle `<Button>` in bottom bar | wired |
+| `candidate.attempt.kql.editor` | `apps/web/src/pages/take/Attempt.tsx` — `<textarea aria-label="KQL query">` in `KqlAnswerArea` | wired |
+| `candidate.attempt.scenario.steps` | `apps/web/src/pages/take/Attempt.tsx` — outer `<div>` of `ScenarioAnswerArea` return | wired |
+| `candidate.attempt.subjective.length` | `apps/web/src/pages/take/Attempt.tsx` — word-count `<div>` in `SubjectiveAnswerArea` | wired |
+| `candidate.attempt.disconnect` | — | skipped — no `stale_connection` `IntegrityBanner` renders in the `ready` state of `Attempt.tsx`; the disconnect banner appears only in the `network_error` page branch (pre-attempt load failure). The `useIntegrityHooks` hook fires behavioral signals but has no visible DOM element to wire in the ready path. |
+| `candidate.attempt.submit.confirm` | `apps/web/src/pages/take/Attempt.tsx` — Submit `<Button>` in bottom bar (triggers `window.confirm` guard) | wired |
+| `candidate.result.bands` | — | skipped — `Submitted.tsx` explicitly prohibits "No Score / Band / Anchor display — Phase 1 has no grading" (file comment, line 23). No band labels or score elements render on the result page today; `candidate.result.bands` has no live DOM target. |
+
+#### Wired in commit `61e97f2` (admin.reports.* + admin.analytics.*)
 
 2 of 6 `admin.reports.*` / `admin.analytics.*` keys wired (4 skipped — no corresponding UI element renders today). Updated count: **17 of 57** wired.
 
@@ -127,7 +142,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 - ~~All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 6 entries)~~ (miscount in prior audit was 7; confirmed 6; 2 wired in commit above, 4 skipped — no UI element)
 - ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `b777ba4` below)
-- All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)
+- ~~All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)~~ (6 wired, 2 skipped — no UI element; see commit above)
 - All settings keys (`admin.settings.*` — 4 entries)
 - Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)
 
