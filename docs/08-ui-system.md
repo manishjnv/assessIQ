@@ -390,6 +390,53 @@ Applied the list-page recipe (count Chip + serif h1 + lede) from Phase 7a to all
 
 ---
 
+What's live (UI v1.1 Phase 8a — 2026-05-14):
+
+Applied Spinner loading state + count Chip + serif h1 + lede to the two results/reports detail pages. Commit `86f7de3`.
+
+| File | Change |
+| --- | --- |
+| `modules/10-admin-dashboard/src/pages/cohort-report.tsx` | Added `Chip, Spinner` imports. Replaced "Loading…" div with centered `<Spinner>`. Replaced mono meta line (cohort name) with count Chip `{N} candidate(s)` + h1 "Cohort Report." + lede "Score distribution and archetype breakdown across all scored attempts." |
+| `modules/10-admin-dashboard/src/pages/attempt-detail.tsx` | Added `Chip, Spinner` imports. Spinner loading state. Status Chip (attempt.status) above h1 displaying `{attempt.assessment_name}.` Mono meta row below: `candidate_email · level_label · submitted_at`. |
+
+---
+
+What's live (UI v1.1 Phase 8b — 2026-05-14):
+
+Applied Spinner + count Chip + serif h1 + lede to individual report and reports landing. Commit `378c93d`.
+
+| File | Change |
+| --- | --- |
+| `modules/10-admin-dashboard/src/pages/individual-report.tsx` | Added `Chip, Spinner` to existing Sparkline/StatCard import. Spinner loading state. Count Chip `{N} attempt(s)` + h1 `{report.email}.` + lede "Attempt history and progression for this candidate." |
+| `modules/10-admin-dashboard/src/pages/reports.tsx` | Added `Spinner` import. Replaced "Loading…" in `ReportSection` with `<Spinner size="sm">`. Added lede below existing h1: "Cohort summaries and per-candidate progression across all assessments." |
+
+---
+
+What's live (UI v1.1 Phase 12 — 2026-05-14):
+
+Spinner loading states for all 4 async sections in CandidateActivity. Commit `b0a512d`.
+
+| File | Change |
+| --- | --- |
+| `modules/11-candidate-ui/src/components/CandidateActivity.tsx` | Added `Spinner` to existing ui-system import (StatCard, ActivityHeatmap, StackedBarChart, LeaderboardList). Replaced 4 "Loading…" inline divs — statsLoading, heatmapLoading, timelineLoading, leaderboardLoading — with `<Spinner size="sm" aria-label="Loading [section]" />`. |
+
+---
+
+What's live (UI v1.1 Phase 13 — 2026-05-14):
+
+Kit treatment for settings + low-traffic admin pages. Commit `e624184`.
+
+| File | Change |
+| --- | --- |
+| `modules/10-admin-dashboard/src/pages/generation-attempts.tsx` | Added `Chip, Spinner` imports. Count Chip + h1 text-3xl "AI generation history." (period added). Spinner in table td loading cell. |
+| `modules/10-admin-dashboard/src/pages/certificates.tsx` | Added `Chip, Spinner` imports. Count Chip + h1 text-3xl "Certificates." Spinner in table td loading cell. |
+| `modules/10-admin-dashboard/src/pages/help-content.tsx` | Added `Spinner` to existing Modal import. Spinner replaces "Loading…" div. h1 already correct (text-3xl, "Help content.", period present). |
+| `modules/10-admin-dashboard/src/pages/question-editor.tsx` | Added `Spinner` import. Full-page loading state → centered `<Spinner>`. Two h1s upgraded: text-2xl → text-3xl, period appended — "New question." and "Edit rubric." |
+
+**Not changed (Phase 13):** `guide.tsx` doesn't exist as a separate page file — `<AdminGuide>` is wrapped by App.tsx externally with `<AdminShell>`; no file to modify.
+
+---
+
 ## Storybook
 
 Run `pnpm storybook` locally. Every primitive and composite has stories covering:

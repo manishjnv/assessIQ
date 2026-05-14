@@ -1,3 +1,29 @@
+# Session — 2026-05-14 (UI v1.1 Phase 14 — a11y gate + cross-cut verification docs)
+
+**Headline:** Phase 14 complete — `@axe-core/playwright` a11y gate shipped, docs reconciled, v1.1 port officially closed.
+
+**Commits:**
+- `24fc244` — docs(session): UI v1.1 Phases 7b–13 bulk port handoff
+- (this session) — feat(ui): Phase 14 — axe a11y gate + cross-cut verification docs
+
+**Tests:** `@assessiq/web` typecheck ✅. `@assessiq/admin-dashboard` typecheck ✅. Pre-existing `modules/13-notifications` typecheck error unrelated to Phase 14 (in `02-tenancy/src/service.ts`, untouched).
+
+**Deploy:** No frontend code changes — a11y spec + docs only. Deploy not required.
+
+**Next:** Phase 15 — visual regression baseline (Playwright snapshots) + Lighthouse ≥ 90 sweep for top 5 pages + auth-seeded axe pass for admin/candidate pages. OR pivot to next feature work.
+
+**Open questions:** Pre-existing uncommitted changes in `02-tenancy`, `07-ai-grading`, `12-embed-sdk`, `14-audit-log`, `18-certification` — from previous sessions; not related to Phase 14. Should be committed or stashed before next session.
+
+---
+
+## Agent utilization
+- Opus: Session driving — a11y spec, reduced-motion audit, help-content audit, all doc updates.
+- Sonnet: n/a
+- Haiku: n/a
+- codex:rescue: n/a — no auth/classifier/infra surface touched.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 Phase 14 wrap — 404 page + progress docs + deploy)
 
 **Headline:** UI Kit v1.1 port complete (14/14 phases) — 404 page kit-styled, all docs committed, VPS deployed.
