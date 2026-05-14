@@ -149,15 +149,43 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.settings.help_content.markdown` | `modules/10-admin-dashboard/src/pages/help-content.tsx` — `<label>` wrapping the Markdown body `<textarea>` in the edit modal | wired |
 | `admin.settings.ai_generate_mode` | `modules/10-admin-dashboard/src/pages/billing.tsx` — `<label htmlFor="ai-generate-mode-select">` in super-admin AI Generation Mode card | wired |
 
+#### Wired in commit `28c97be` (admin.activity/assessments/questions/packs.*)
+
+11 of 20 keys wired (9 skipped — no UI element). Updated count: **37 of 57** wired.
+
+| Namespace | Key | File:line | Status |
+|---|---|---|---|
+| activity | `streak.explanation` | `modules/10-admin-dashboard/src/pages/activity.tsx` — "Activity streak." `<h2>` in heatmap card | wired |
+| activity | `heatmap.legend` | — | skipped — `ActivityHeatmap` is a black-box component; no legend wrapper div exists in `activity.tsx` itself |
+| activity | `leaderboard.delta` | — | skipped — delta value rendered inside `LeaderboardList` component internals; no delta element exposed in `activity.tsx` |
+| assessments | `publish` | `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` — "Publish" `<button>` (draft-only, conditional) | wired |
+| assessments | `invite.bulk` | `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` — "Invitations." section `<h2>` | wired |
+| assessments | `close.early` | — | skipped — no close-early button or control in `assessments.tsx` or `assessment-detail.tsx`; only a `closes_at` date field |
+| assessments | `create.duration` | — | skipped — new-assessment form has no duration field; only `opens_at` / `closes_at` date inputs |
+| assessments | `create.question_count` | — | skipped — no `question_count` field in new-assessment form |
+| assessments | `create.randomize` | — | skipped — no randomize checkbox in new-assessment form |
+| questions | `generate.draft` | `modules/10-admin-dashboard/src/pages/pack-detail.tsx` — "✦ Generate" `<button>` per level | wired |
+| questions | `attempt-status` | `modules/10-admin-dashboard/src/pages/pack-detail.tsx` — `GenerationAttemptLine` wrapper `<div>` (conditional) | wired |
+| questions | `bulk.approve` | `modules/10-admin-dashboard/src/pages/pack-detail.tsx` — bulk-confirm modal approve `<button>` (dynamic `data-help-id`) | wired |
+| questions | `bulk.archive` | `modules/10-admin-dashboard/src/pages/pack-detail.tsx` — bulk-confirm modal archive `<button>` (dynamic `data-help-id`) | wired |
+| questions | `generate.modal` | `modules/10-admin-dashboard/src/pages/pack-detail.tsx` — generate drawer `role="dialog"` `<div>` | wired |
+| questions | `subjective` | `modules/10-admin-dashboard/src/pages/pack-detail.tsx` — subjective row `<div>` in per-type breakdown table | wired |
+| questions | `type.subjective.rubric` | `modules/10-admin-dashboard/src/pages/question-editor.tsx` — "Rubric" `<h2>` (conditional `data-help-id` when `question.type === "subjective"`) | wired |
+| questions | `import.format` | — | skipped — no file-import UI in `pack-detail.tsx` or `question-editor.tsx`; `CreateQuestionForm` has a JSON textarea but no import format explainer element |
+| questions | `type.kql.expected_keywords` | — | skipped — `expected_keywords` only appears in `DEFAULT_CONTENT` template string; no dedicated DOM field renders for it in the editor or pack detail |
+| questions | `type.scenario.step_dependency` | — | skipped — `step_dependency` only in `DEFAULT_CONTENT`; no dedicated DOM element for it in the editor or pack detail |
+| packs | `create.domain` | `modules/10-admin-dashboard/src/pages/question-bank.tsx` — "Domain *" `<input>` in new-pack inline form | wired |
+
 **Remaining unwired gap pages:**
 
 - ~~All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 6 entries)~~ (miscount in prior audit was 7; confirmed 6; 2 wired in commit above, 4 skipped — no UI element)
 - ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `b777ba4` below)
 - ~~All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)~~ (6 wired, 2 skipped — no UI element; see commit above)
 - ~~All settings keys (`admin.settings.*` — 4 entries)~~ (3 wired, 1 skipped — no UI element; see commit above)
-- Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)
+- ~~Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)~~ (11 wired, 9 skipped — no UI element; see commit `28c97be` above)
+- Remaining unwired admin keys: audit, scoring, rubric, notifications — ~20 entries (deferred per task scope)
 
-**Action for next session:** Wire the next highest-risk slice — remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries).
+**Action for next session:** Wire the next slice — remaining admin keys (audit, scoring, rubric, notifications — ~20 entries).
 
 ### Branding-guideline doc reconcile — token drift
 
