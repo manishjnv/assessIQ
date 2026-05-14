@@ -136,6 +136,25 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
   --aiq-color-warning-soft:  oklch(0.97 0.04 70);
   --aiq-color-danger:        oklch(0.62 0.20 25);
   --aiq-color-info:          oklch(0.62 0.18 230);
+
+  /* Chart palette — data visualizations (StatCard breakdown, StackedBarChart, LeaderboardList avatars).
+     Eight slots; consumers iterate by index. Google-brand-anchored, NOT Tailwind. */
+  --aiq-color-chart-1: #1a73e8;
+  --aiq-color-chart-2: #10b981;
+  --aiq-color-chart-3: #fbbc04;
+  --aiq-color-chart-4: #ea4335;
+  --aiq-color-chart-5: #9333ea;
+  --aiq-color-chart-6: #06b6d4;
+  --aiq-color-chart-7: #f97316;
+  --aiq-color-chart-8: #64748b;
+
+  /* Heatmap intensity ramp — five stops of hue 258 (matches --aiq-color-accent). Used by ActivityHeatmap.
+     Level 0 is the empty-cell color (tracks dark mode via --aiq-color-bg-sunken); 1–4 climb in chroma. */
+  --aiq-color-heatmap-0: var(--aiq-color-bg-sunken);
+  --aiq-color-heatmap-1: oklch(0.92 0.06 258);
+  --aiq-color-heatmap-2: oklch(0.82 0.12 258);
+  --aiq-color-heatmap-3: oklch(0.68 0.16 258);
+  --aiq-color-heatmap-4: oklch(0.55 0.18 258);
 }
 ```
 
