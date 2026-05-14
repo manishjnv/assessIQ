@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (P14 help-wiring tail — 12 keys wired)
+
+**Headline:** Wired the 12 remaining actionable `data-help-id` attributes (admin rubric/scoring + candidate cert/auth/activity); 57 of 86 total YAML keys now wired, 29 deferred pending UI features.
+
+**Commits:**
+- `fed4227` — feat(help-wiring): wire admin rubric + scoring help-ids (P14)
+- `6363179` — feat(help-wiring): wire candidate cert + auth + activity help-ids (P14)
+
+**Tests:** Typecheck clean for both `@assessiq/admin-dashboard` and `@assessiq/candidate-ui`. Pre-existing 28 integration test failures are unrelated (testcontainer Postgres).
+
+**Deploy:** Pending push + VPS pull. Purely additive `data-help-id` attributes — requires frontend container rebuild after push.
+
+**Next:** Push both commits (`git push`), then `ssh assessiq-vps 'cd /srv/assessiq && git pull'` + rebuild `assessiq-frontend` and `assessiq-candidate-ui` containers.
+
+**Open questions:**
+- Stash `stash@{0}` (2026-05-13, broken `admin.yml` at line 1131) — owner unknown; confirm drop or investigate before dropping.
+- 29 deferred keys: wire as corresponding UI lands (assessment wizard, grading-jobs queue, skill-drift banner, archetype disclaimer, audit/ops pages, etc.).
+
+---
+
+## Agent utilization
+- Opus: Phase A full-codebase audit (86 YAML keys × DOM grep sweep across 17 files, verdict table); Phase B direct edits across 8 files (all ≤30 lines, already in read cache — faster than subagent cold start).
+- Sonnet: n/a — edit volume below subagent break-even.
+- Haiku: n/a.
+- codex:rescue: n/a — pure UI annotation, no load-bearing/security paths.
+
+---
+
 # Session — 2026-05-14 (pending-doc reconciliation)
 
 **Headline:** Retired all 3 orphaned `SESSION_STATE.pending-*.md` handoff docs — 0 remain open. Two were fully superseded by merged commits (13-notifications i18n → `7a20ee2`; G3.D 05-lifecycle → `08d4b19`). One was partial-merge (G3.D 03-users → `057de7d` shipped, but flagged an unresolved test-token regex issue) — distilled into Open questions below before deletion.

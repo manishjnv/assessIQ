@@ -252,3 +252,17 @@ modules/16-help-system/
 └── docs/
     └── authoring-guide.md       # how to write good help (style, length, examples)
 ```
+
+## DOM wiring coverage (2026-05-14)
+
+`data-help-id` attributes are the link between the backend `help_content` table and visible UI elements. Full audit performed 2026-05-14.
+
+| Scope | Total YAML keys | Wired to DOM | Deferred (UI not yet built) |
+|---|---|---|---|
+| `admin.*` (admin.yml) | 67 | 46 | 21 |
+| `candidate.*` + `public.*` (candidate.yml) | 19 | 11 | 8 |
+| **Total** | **86** | **57** | **29** |
+
+**Deferred keys** are blocked on features not yet shipped: assessment creation wizard (duration, question_count, randomize, close_early), grading-jobs queue UI, skill-drift and session-idle session banners, cohort heatmap color legend, archetype disclaimer block, report export-format selector, audit log page, CLI ops UI, candidate result/band display page, candidate profile page, public verify SPA page. Each becomes wireable as soon as the corresponding DOM element lands.
+
+Detailed per-key verdict table: `docs/design/2026-05-14-phase-14-reduced-motion-audit.md` § Help-key wiring audit.
