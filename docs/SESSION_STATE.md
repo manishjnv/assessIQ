@@ -1,3 +1,30 @@
+# Session — 2026-05-14 (Phase 1 closure re-drill)
+
+**Headline:** Phase 1 closure re-drill confirms D1/D3-step5/D4 all PASS — audit report appended to `docs/plans/PHASE_1_KICKOFF.md`.
+
+**Commits:** (docs-only — no new code shipped; commit below)
+- pending — docs(phase1): Phase 1 re-drill 2026-05-14 closure report
+
+**Tests:** No code changed. Existing test baselines unchanged.
+
+**Deploy:** Not required — docs-only change.
+
+**Next:** G3.D audit-write sweep — 4 modules remaining (`05-lifecycle`, `06-attempt-engine`, `13-notifications`, `10-admin-dashboard`). Or: Phase 5 Session 9 (cert admin issue/revoke UI).
+
+**Open questions:**
+- Pre-existing uncommitted changes in `02-tenancy`, `07-ai-grading`, `12-embed-sdk`, `14-audit-log`, `18-certification` — should be committed before next feature session.
+- Drill 1 live authenticated path (Google SSO + TOTP) never exercised headlessly — code evidence is conclusive, but a human smoke-test of the invite flow end-to-end remains desirable before marking Phase 1 "demo-ready."
+
+---
+
+## Agent utilization
+- Opus: Session driving — drill evidence review, closure-audit report, SESSION_STATE handoff.
+- Sonnet: n/a
+- Haiku: n/a
+- codex:rescue: n/a — no auth/classifier/infra code changed; docs-only session.
+
+---
+
 # Session — 2026-05-14 (Phase 5 Session 8 — cert trigger wiring)
 
 **Headline:** `issueCertificateOnRelease` wired into grading release handler — certificates auto-issue on `graded→released` transition.
