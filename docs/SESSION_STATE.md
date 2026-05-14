@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (Phase 5 Session 8 catch-up + MFA enrollment UX)
+
+**Headline:** Phase 5 Session 8 cert trigger committed + MFA enrollment UX slice shipped — `totpEnrolled` on whoami, AdminShell nudge banner, recovery-code display fix, `getEnrollmentStatus` with 2 new integration tests.
+
+**Commits:**
+- `5f9502c` — feat(cert): Phase 5 Session 8 — issueCertificateOnRelease trigger
+- `94d5f34` — feat(auth): MFA enrollment UX — totpEnrolled status + nudge + recovery-code fix
+
+**Tests:** `@assessiq/auth` totp.test.ts — 10/16 pass (2 new tests 13–14 pass; 6 pre-existing `audit_log` table failures unchanged).
+
+**Deploy:** `assessiq-api` + `assessiq-frontend` rebuilt and recreated on VPS. Smoke: `GET /api/auth/whoami` → 401 (unauthenticated) confirmed live.
+
+**Next:** Flip `MFA_REQUIRED=true` in production env (separate ops task — requires at least one admin to complete enrollment first via nudge). Then optionally: server-side `recovery_codes_acknowledged_at` column (deferred per adversarial review).
+
+**Open questions:**
+- GLM-4.6 adversarial timed out (Venice rate limit) — Sonnet verdict ACCEPT logged; re-run GLM next session before flipping `MFA_REQUIRED=true`.
+- Frontend-only recovery-code acknowledgement gate: no server-side `recovery_codes_acknowledged_at` flag. Deferred — codes now shown (was zero before), gated by checkbox. Server-side ack is a follow-up, not a blocker.
+
+---
+
+## Agent utilization
+- Opus: plan review, adversarial verdict evaluation, all edits (≤30 lines/≤2 files inline), commit + deploy
+- Sonnet: adversarial review of `modules/01-auth/**` changes — verdict ACCEPT with 2 notes (frontend gate + JSDoc)
+- Haiku: n/a
+- codex:rescue: n/a — GLM-4.6 used for auth/auth-adjacent second opinion (timed out: Venice rate limit); Sonnet takeover as primary adversarial pass
+
+---
+
 # Session — 2026-05-14 (G2 root-cause investigation)
 
 **Headline:** G2 gate is UNTESTED not UNTESTABLE — fixture/code bugs cited in readiness audit already fixed in `cd352c7`/`ce00575`; `score-candidate` has never been run on post-D1+D2 smokes. Expected PASS with no code changes.
