@@ -79,16 +79,16 @@ const KNOWN_SHORT_TEXT_OVERFLOWS = new Set([
  * Each key listed here has a corresponding entry in admin.yml.
  */
 const STAGE_1_5_KEYS: string[] = [
-  "admin.generation-attempts.history",
+  "admin.generation_attempts.history",
   "admin.questions.bulk.archive",
   "admin.questions.bulk.approve",
   "admin.questions.generate.modal",
   "admin.questions.subjective",
-  "admin.questions.attempt-status",
+  "admin.questions.attempt_status",
   "admin.ops.cli.cleanup",
-  "admin.ops.cli.inspect-attempt",
-  "admin.attempts.grading-dispatch",
-  "admin.attempts.session-idle",
+  "admin.ops.cli.inspect_attempt",
+  "admin.attempts.grading_dispatch",
+  "admin.attempts.session_idle",
 ];
 
 /**
@@ -130,6 +130,16 @@ describe("Block A — admin.yml structural integrity", () => {
     // If the raw file has more unique lines than parsed keys, a key was
     // duplicated and silently lost. Both counts must be equal.
     expect(rawKeySet.size).toBe(allKeys.length);
+  });
+
+  it("all keys match help_id format — segments [a-z0-9_], dot-separated, no hyphens", () => {
+    const keyFormatRegex = /^[a-z0-9_]+(\.[a-z0-9_]+)*$/;
+    for (const key of allKeys) {
+      expect(
+        keyFormatRegex.test(key),
+        `'${key}' violates help_id format — segments must be [a-z0-9_], dot-separated`,
+      ).toBe(true);
+    }
   });
 
   it("all entries have a valid audience enum value", () => {

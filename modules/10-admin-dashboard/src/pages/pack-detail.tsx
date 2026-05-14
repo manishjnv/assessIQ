@@ -1065,7 +1065,7 @@ export function AdminPackDetail(): React.ReactElement {
                           </span>
                         )}
                         {lastAttempts[level.id] && (
-                          <div data-help-id="admin.questions.attempt-status" style={{ marginTop: "2px" }}>
+                          <div data-help-id="admin.questions.attempt_status" style={{ marginTop: "2px" }}>
                             <GenerationAttemptLine
                               attempt={lastAttempts[level.id]}
                               detailsOpen={openAttemptDetails === level.id}
