@@ -1419,6 +1419,23 @@ admin.certificates.reissue:
     - admin.certificates.list
     - admin.certificates.revoke
 
+admin.certificates.revoke_reason:
+  audience: admin
+  short_text: "Explain why this certificate is being revoked."
+  long_md: |
+    ## Revoke reason
+
+    Explain why this certificate is being revoked. This reason is stored with
+    the certificate record. Minimum 10 characters required.
+
+    The reason is visible to admins on the certificate detail page and on the
+    public verify page (so verifiers know the credential is no longer valid).
+    It is **not** recorded in the audit log to avoid storing potentially
+    sensitive text in an append-only log.
+
+  related_keys:
+    - admin.certificates.revoke
+
 # ─── Phase 11 Activity page ───────────────────────────────────────────────────
 
 admin.activity.heatmap.legend:
