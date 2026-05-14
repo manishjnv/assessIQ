@@ -522,3 +522,170 @@ describe('GET /verify/:credentialId/og.png — Session 7', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 10. LinkedIn share button — Session 10
+// ---------------------------------------------------------------------------
+
+describe('GET /verify/:credentialId — LinkedIn share button (active cert)', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.stubEnv('PUBLIC_BASE_URL', 'https://assessiq.automateedge.cloud');
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) =>
+      fn({} as PoolClient),
+    );
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(buildCert());
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  it('renders the LinkedIn share link for an active cert', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.1.1' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('share-linkedin');
+    expect(res.body).toContain('linkedin.com/sharing/share-offsite');
+    expect(res.body).not.toContain('<button disabled');
+  });
+
+  it('share href contains the encoded verify URL as the url= param', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.1.2' },
+    });
+
+    const expectedEncoded = encodeURIComponent(
+      `https://assessiq.automateedge.cloud/verify/${CREDENTIAL_ID}`,
+    );
+    expect(res.body).toContain(expectedEncoded);
+  });
+
+  it('sets target=_blank and rel=noopener noreferrer on the share link', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.1.3' },
+    });
+
+    expect(res.body).toContain('target="_blank"');
+    expect(res.body).toContain('rel="noopener noreferrer"');
+  });
+});
+
+describe('GET /verify/:credentialId — LinkedIn share button (revoked cert)', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.stubEnv('PUBLIC_BASE_URL', 'https://assessiq.automateedge.cloud');
+    const revokedCert = buildCert({
+      revoked_at: '2026-05-12T09:00:00Z',
+      revoke_reason: 'policy violation',
+    });
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) =>
+      fn({} as PoolClient),
+    );
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(revokedCert);
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  it('renders a disabled LinkedIn button with tooltip for a revoked cert', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.1.4' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('share-linkedin--disabled');
+    expect(res.body).toContain('disabled');
+    expect(res.body).toContain('Revoked certificates');
+    // No href on a disabled button
+    expect(res.body).not.toContain('href=');
+  });
+});
+
+describe('GET /verify/:credentialId — LinkedIn share button (tampered cert)', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.stubEnv('PUBLIC_BASE_URL', 'https://assessiq.automateedge.cloud');
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) =>
+      fn({} as PoolClient),
+    );
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(
+      buildCert({ signed_hash: 'a'.repeat(64) }),
+    );
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  it('omits the LinkedIn button for a tampered cert', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.1.5' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain('linkedin.com/sharing');
+    expect(res.body).not.toContain('<a') ; // no anchor element for tampered
+  });
+});
+
+describe('GET /verify/:credentialId — LinkedIn share button (no PUBLIC_BASE_URL)', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.stubEnv('PUBLIC_BASE_URL', '');
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) =>
+      fn({} as PoolClient),
+    );
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(buildCert());
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  it('omits the LinkedIn button when PUBLIC_BASE_URL is unset', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}`,
+      headers: { 'x-forwarded-for': '10.0.1.6' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain('linkedin.com/sharing');
+    // Page still renders the cert fields
+    expect(res.body).toContain(CREDENTIAL_ID);
+  });
+});

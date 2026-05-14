@@ -293,3 +293,41 @@ A revoked cert's drawer replaces `[Revoke]` with the reason text and
 `revoked_at` timestamp; no further actions are available. The `[Reissue]`
 action (for name corrections on active certs) is accessible from the same
 drawer.
+
+## LinkedIn share button (Phase 5 Session 10)
+
+The public verify page renders a **"Share on LinkedIn"** CTA for active
+(non-revoked) certificates. This completes the Phase 5 MVP scope.
+
+### Behavior
+
+| Certificate status | Button |
+|---|---|
+| `valid` (active) | Active `<a>` — opens LinkedIn share dialog in new tab |
+| `revoked` | Disabled `<button>` — tooltip "Revoked certificates can't be shared" |
+| `tampered` | No button |
+| `PUBLIC_BASE_URL` unset | No button (degrades gracefully, same as OG meta) |
+
+### URL pattern
+
+```
+https://www.linkedin.com/sharing/share-offsite/?url=<encoded verify URL>
+```
+
+No Company Page, no LinkedIn API auth, no SDK. LinkedIn's feed composer
+fetches the verify URL and renders a rich preview card using the existing
+Session 7 OG meta + `/og.png` endpoint.
+
+The link uses `target="_blank"` with `rel="noopener noreferrer"`.
+
+### Help ID
+
+`public.verify.share_linkedin` — content in
+`modules/16-help-system/content/en/candidate.yml`.
+
+### Counter note
+
+The `POST /api/certificates/:credentialId/share-linkedin` counter endpoint
+(Session 6) requires authentication. Shares from the public verify page are
+**not** counted — the `linkedin_shares` field tracks shares from the
+authenticated My Certificates dashboard only. Acceptable for MVP.
