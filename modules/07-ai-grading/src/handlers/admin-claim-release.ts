@@ -248,6 +248,39 @@ export async function handleAdminReleaseAttempt(input: {
       before: { attempt_status: "graded" },
       after: { attempt_status: "released" },
     });
+
+    // Best-effort certificate issuance — must run inside this withTenant
+    // transaction so issueCertificate's R2 open-tx precondition is satisfied.
+    // Dynamic import mirrors the 13-notifications pattern: the Function
+    // constructor avoids a static import that would fail when the package is
+    // absent (test envs, stripped builds). Cert failure must NOT block release.
+    try {
+      const importFn = new Function(
+        "specifier",
+        "return import(specifier)",
+      ) as (s: string) => Promise<unknown>;
+      const certModule = await importFn("@assessiq/certification").catch(() => null);
+      if (certModule !== null) {
+        const fn = (certModule as Record<string, unknown>).issueCertificateOnRelease;
+        if (typeof fn === "function") {
+          await (fn as (
+            c: PoolClient,
+            a: { tenantId: string; attemptId: string; actorUserId: string },
+          ) => Promise<unknown>)(client, {
+            tenantId,
+            attemptId,
+            actorUserId: userId,
+          }).catch((certErr: unknown) => {
+            log.warn(
+              { attemptId, error: String(certErr) },
+              "grading.release.cert_issuance_failed",
+            );
+          });
+        }
+      }
+    } catch {
+      log.warn({ attemptId }, "grading.release.cert_module_unavailable");
+    }
   });
 
   // Best-effort notification — module 13 may not exist yet.
