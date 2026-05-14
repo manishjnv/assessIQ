@@ -100,6 +100,13 @@ const ACTIVITY_KEYS: string[] = [
   "admin.activity.leaderboard.delta",
 ];
 
+/**
+ * Phase 5 certificate field keys.
+ */
+const CERTIFICATES_KEYS: string[] = [
+  "admin.certificates.revoke_reason",
+];
+
 // ---------------------------------------------------------------------------
 // Block A — Structural integrity
 // ---------------------------------------------------------------------------
@@ -208,6 +215,48 @@ describe("Block C — Phase 11 Activity page keys present and populated", () => 
         expect(
           parsed[key],
           `'${key}' is missing from admin.yml — add it to the Phase 11 Activity section`,
+        ).toBeDefined();
+      });
+
+      it("has audience = admin", () => {
+        const entry = parsed[key];
+        if (!entry) return; // guarded by prior test
+        expect(entry.audience).toBe("admin");
+      });
+
+      it("has non-empty short_text within 120 chars", () => {
+        const entry = parsed[key];
+        if (!entry) return;
+        expect(entry.short_text.length).toBeGreaterThan(0);
+        expect(
+          entry.short_text.length,
+          `${key}: short_text is ${entry.short_text.length} chars — exceeds 120`,
+        ).toBeLessThanOrEqual(SHORT_TEXT_MAX);
+      });
+
+      it("has non-empty long_md", () => {
+        const entry = parsed[key];
+        if (!entry) return;
+        expect(
+          (entry.long_md ?? "").trim().length,
+          `${key}: long_md is empty`,
+        ).toBeGreaterThan(0);
+      });
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Block D — Phase 5 certificate field keys present and populated
+// ---------------------------------------------------------------------------
+
+describe("Block D — Phase 5 certificate field keys present and populated", () => {
+  for (const key of CERTIFICATES_KEYS) {
+    describe(`key: ${key}`, () => {
+      it("is present in admin.yml", () => {
+        expect(
+          parsed[key],
+          `'${key}' is missing from admin.yml — add it to the Phase 5 certificates section`,
         ).toBeDefined();
       });
 
