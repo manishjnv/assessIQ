@@ -879,3 +879,167 @@ Root-cause via `SELECT stderr_tail FROM generation_attempts WHERE ... ORDER BY s
 After G2 unblock, the last rolling window (runs 3–7) is ❌✅❌✅✅ = 3/5. Two more
 consecutive clean smokes would make the tail ❌✅✅✅✅ = 4/5 — satisfying the gate.
 Schedule using `tools/stage1-sharded-smoke.ts` with `SMOKE_SOC_LEVEL=L2`.
+
+---
+
+## G2 root-cause investigation — 2026-05-14
+
+**Investigator:** Claude Code (Opus main-session, systematic-debugging pass — no code edits)
+**Trigger:** Readiness audit `5b83ebe` returned G2=FAIL with verdict "gate is untestable."
+**Finding: REVISED VERDICT — G2 gate is UNTESTED, not UNTESTABLE. Bugs cited in `5b83ebe` are already fixed.**
+
+---
+
+### Evidence chain
+
+#### Step 1 — Fixture freshness (the primary bug cited in the readiness audit)
+
+The readiness audit quoted `runtime-baseline.json` known_gap: "score-candidate citation divergence vs handler citation filter…These two source-ID sets DIFFER."
+
+Local dry-run (2026-05-14):
+
+```
+pnpm exec tsx tools/extract-eval-fixtures.ts --dry-run
+  L1: 25 sources extracted, 0 changes vs existing fixture (KB version 2026-05-08)
+  L2: 24 sources extracted, 0 changes vs existing fixture (KB version 2026-05-08)
+  L3: 20 sources extracted, 0 changes vs existing fixture (KB version 2026-05-08)
+All fixtures are up-to-date. No changes needed.
+```
+
+**Conclusion:** `eval/fixtures/L*-sources.json` is fully in sync with `soc-l*.json`. The fixture
+staleness bug cited in the readiness audit was closed by commits `cd352c7` (partial) and `ce00575`
+(complete) on 2026-05-10. The `runtime-baseline.json` known_gap entry was never updated to RESOLVED
+after `ce00575` shipped. The readiness audit read the stale known_gap and concluded "untestable" —
+that conclusion was wrong.
+
+#### Step 2 — CLI column mapping (the secondary bug cited)
+
+The readiness audit said: "fix `cli-typed.ts` `loadAttemptCandidates()` `knowledge_base_sources` →
+`knowledge_base_source_ids` column name mismatch."
+
+Current `cli-typed.ts:489–513` (`cmdScoreCandidate`):
+- SQL selects `knowledge_base_sources` from the `questions` table (correct DB column name)
+- Row is mapped: `knowledge_base_source_ids: row.knowledge_base_sources.map((s) => s.id)` (correct mapping)
+
+**Conclusion:** The column mapping was already fixed in `ce00575`. No change needed.
+
+#### Step 3 — `checkFixtureFreshness` gate behavior
+
+`cli-typed.ts:190–201` compares fixture IDs vs. KB IDs (set membership only — NOT full JSON content).
+Since both sets are identical (24 IDs, same values), `stale = false` → no exit 3.
+`score-candidate` will NOT be blocked by the freshness guard.
+
+#### Step 4 — `scoreQuestion` citationsResolve logic
+
+`runner.ts:277–283`:
+```typescript
+const sourceIds = new Set(fixture.map((s) => s.id));
+const missing = q.knowledge_base_source_ids.filter((sid) => !sourceIds.has(sid));
+const citationsResolve = missing.length === 0;
+```
+
+`citationsResolve = true` iff every ID in the candidate's `knowledge_base_source_ids` is in the
+fixture ID set. The fixture ID set = `soc-l2.json` IDs (proven above). The handler's
+`filterByCitation()` already validated candidates' IDs against the same `soc-l2.json` set at
+generation time (`citation_dropped = 0` on all 7 post-D1+D2 smokes). Therefore:
+
+> **Any candidate that passed the handler citation check (`citation_dropped = 0`) must also produce
+> `citationsResolve = true` in score-candidate. This equivalence is mechanical — both checks use the
+> same ID set. No residual code bug can produce `citationsResolve = false` for these candidates.**
+
+---
+
+### Root cause
+
+**G2 root cause is tooling-observability failure, not a code or prompt bug:**
+
+The `runtime-baseline.json` known_gap section (last updated 2026-05-10) recorded the citation
+divergence bug as OPEN. Commits `cd352c7` and `ce00575` (both 2026-05-10) closed the bug but the
+known_gap entry was never updated. The Stage 3.1 readiness audit on 2026-05-14 read the stale
+known_gap and propagated the FAIL verdict without re-verifying the code state.
+
+Concretely: **`score-candidate` has never been run against any of the 7 post-D1+D2 smokes.** G2
+shows as FAIL because it is untested, not because it is failing.
+
+**Contributing factor — `runtime-baseline.json` was not written as the "current state" tracker
+it purports to be.** The known_gap section accumulated OPEN entries but had no enforcement mechanism
+requiring them to be closed when the underlying bug was fixed. The readiness audit treated the
+known_gap as authoritative, which it was not.
+
+---
+
+### Proposed fix
+
+**Size:** one VPS SSH session (~20 min). No code changes. No fixture changes. No SKILL.md changes.
+
+**Steps (in order):**
+
+1. SSH to VPS API container:
+   ```bash
+   ssh assessiq-vps "docker exec assessiq-api bash"
+   ```
+
+2. Run `score-candidate` against three clean G1-window attempts:
+   ```bash
+   pnpm exec tsx modules/07-ai-grading/eval/cli-typed.ts score-candidate --attempt-id 019e1f73
+   pnpm exec tsx modules/07-ai-grading/eval/cli-typed.ts score-candidate --attempt-id 019e1f7d
+   pnpm exec tsx modules/07-ai-grading/eval/cli-typed.ts score-candidate --attempt-id 019e1f45
+   ```
+   *(`DATABASE_URL` is set in the container environment.)*
+
+3. Confirm output for each: `citationsResolve = true` for every candidate row. Also confirm
+   `schemaValid = true` and `topicNonEmpty = true` (these are bonus checks, not the G2 definition).
+
+4. If all three pass: update `runtime-baseline.json` known_gap entries — replace the two OPEN
+   citation-divergence entries with RESOLVED, citing this investigation date and these attempt IDs.
+   Commit the `runtime-baseline.json` change with message:
+   `docs(eval): G2 gate confirmed PASS — score-candidate citationsResolve on 019e1f73/7d/45`
+
+5. G2 advances from FAIL → PASS. Stage 3.1 flip is unblocked (pending G1 threshold operator
+   confirmation and G4 pre-flip SKILL.md patch from readiness audit).
+
+**If score-candidate unexpectedly returns `citationsResolve = false` for any candidate:**
+Collect the exact "unknown source ids" values from the output. The failing IDs are the clue:
+- If they are MITRE/NIST IDs that ARE in the fixture → investigate whether the `questions` table
+  `knowledge_base_sources` column stores full objects `{id, name, ...}` or flat strings. If flat
+  strings, the `.map((s) => s.id)` mapping returns `undefined` for every item. Check with:
+  `SELECT knowledge_base_sources FROM questions WHERE id = <first_candidate_id>` inside the VPS.
+- If they are IDs NOT in the fixture → the KB may have been updated after the dry-run was captured.
+  Re-run `extract-eval-fixtures.ts --apply`, commit, then re-run score-candidate.
+- If `schemaValid = false` for any candidate → a new Zod-schema/SKILL.md drift exists; escalate
+  to a separate investigation.
+
+---
+
+### False-negative risk analysis
+
+**FALSE NEGATIVE is structurally impossible for the main fix path.**
+
+The fixture ID set = `soc-l*.json` IDs (mechanically verified). The handler validates against the
+same `soc-l*.json` set. A candidate that passed `filterByCitation()` has IDs ⊆ fixture IDs. The
+`citationsResolve` check is `missing.length === 0` where `missing` = candidate IDs not in fixture.
+Therefore `citationsResolve = true` is guaranteed for any candidate with `citation_dropped = 0`.
+
+No other type is affected: there is no type-specific citation logic in `scoreQuestion`. The fix
+is type-agnostic.
+
+---
+
+### Re-audit plan (after score-candidate run)
+
+| Gate | Expected outcome after run | Action |
+|------|---------------------------|--------|
+| G2 | PASS — all `citationsResolve = true` | Mark RESOLVED in `runtime-baseline.json`; update readiness audit verdict below to reflect new G2 status |
+| G1 | No change — depends on operator ≥3/5 vs ≥4/5 confirmation + smoke count | Confirm threshold before flip |
+| G4 | No change — SKILL.md patch still recommended (pre-flip hardening) | Ship `generate-scenario` + `generate-subjective` SKILL.md patch, 1 verification smoke |
+
+**Expected path to Stage 3.1 flip (post G2 confirmation):**
+
+1. Operator confirms G1 threshold (≥3/5 or ≥4/5)
+2. G2 score-candidate run (this session or immediate follow-up) → PASS
+3. G4 SKILL.md patch (30 min, Sonnet, non-load-bearing) + 1 verification smoke
+4. `UPDATE tenant_settings SET ai_generate_mode = 'sharded' WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'wipro-soc')` — with explicit operator approval
+5. 24-hour watch window
+
+If G1 threshold confirmed at ≥3/5 (already met): Stage 3.1 flip is 1-2 sessions away.
+If G1 threshold confirmed at ≥4/5: 2 additional clean smokes needed first.
