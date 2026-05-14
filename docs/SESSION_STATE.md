@@ -4,7 +4,7 @@
 
 **Commits:**
 - `412d8ba` — test(tenancy): fix audit-writes atomicity tests via DB-native constraint
-- `<pending>` — docs(observability): §30 audit-log wiring for 02-tenancy (G3.D)
+- `430d7bd` — docs(observability): §30 audit-log wiring for 02-tenancy (G3.D)
 
 **Tests:** 24 passed | 1 todo — both `tenancy.test.ts` and `audit-writes.test.ts` green.
 
