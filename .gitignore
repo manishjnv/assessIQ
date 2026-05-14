@@ -87,3 +87,10 @@ apps/web/.lighthouseci/
 # Playwright HTML report and test-results artifacts (local viewer; not source)
 apps/web/playwright-report/
 apps/web/test-results/
+
+# Lighthouse local run reports (root-level; CI uploads to temporary-public-storage)
+lh-*.json
+
+# Claude Code session artifacts (plans + worktree sandboxes — not source)
+.claude/plans/
+.claude/worktrees/
