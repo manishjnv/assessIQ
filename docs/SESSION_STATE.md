@@ -1,3 +1,54 @@
+# Session — 2026-05-14 (P14 multi-slice sweep — 6 tasks completed sequentially)
+
+**Headline:** Cleared the autonomous-actionable P14 backlog in a single session — AdminShell typecheck fix + branding-guideline doc reconcile + 4 help-wiring slices (admin.reports/analytics, candidate.attempt/result, admin.settings, admin.activity/assessments/questions/packs). Help-system wired count: 15/57 → 37/57. 4 Sonnet subagents dispatched; all accepted on first pass.
+
+**Commits (pushed through `b1fed31`):**
+- `39d0b05` — fix(admin-dashboard): add totpEnrolled?: boolean to AdminSessionInfo (Opus, 1-line)
+- `2e1af79` + `450afbc` — docs(branding): reconcile 8 stale token hexes + SHA backfill (Sonnet)
+- `61e97f2` — feat(admin-dashboard): wire admin.reports/analytics — 2 wired, 4 skipped (Sonnet)
+- `ac0e4ec` + `db5e278` — feat(help-system): wire candidate.attempt/result — 6 wired, 2 skipped + SHA backfill (Sonnet)
+- `283e466` + `bac3d7c` — feat(help): wire admin.settings — 3 wired, 1 skipped + SHA backfill (Sonnet)
+- `28c97be` + `b1fed31` — feat(help-wiring): wire admin.activity/assessments/questions/packs — 11 wired, 9 skipped + SHA backfill (Sonnet)
+
+**Tests:** @assessiq/admin-dashboard 35/35 green across all 4 Sonnet sessions; @assessiq/web typecheck clean. No new test scaffolding (attribute-only wiring has no assertion surface). Pre-existing `AdminShell.tsx:334 totpEnrolled` typecheck error is now resolved.
+
+**Deploy:** VPS clone synced to `b1fed31`. `assessiq-frontend` rebuilt + force-recreated. Smoke: HTTP 200 in 261ms.
+
+**Skipped keys (no UI element exists):** 16 total across the 4 slices — primarily features queued for Phase 3–5 (cohort heatmap colors, archetype disclaimer block, report export-format selector, AI cost panel, in-session disconnect banner, Phase 2 result-band display, billing alert threshold, assessment-wizard duration/question_count/randomize/close-early, KQL/scenario type explainers, import-format UI, ActivityHeatmap legend/leaderboard delta internals). Each is wireable as soon as the corresponding DOM element ships.
+
+**Remaining unwired (~20 keys, mostly minimal-UI):** admin.attempts.* (2 — grading-dispatch, session-idle), admin.audit.* (2 — archives.restore_procedure, export.format), admin.notifications.in_app.short_poll_interval (1), admin.ops.cli.* (2 — likely no UI, CLI-only), admin.generation-attempts.history (1), plus the 16 skipped above when their UI lands.
+
+**Next:**
+- **G4 SKILL.md patch** (Stage 3.1 unblock) — generate-subjective wrong-type bug. VPS-side prompt-skill change with eval-harness re-baselining; deploy event, not a simple Sonnet task. ~30 min once started.
+- **Auth-seeded axe pass** (2–3 sessions, P14 multi-session item). Playwright session-fixture infrastructure required.
+- **Lighthouse CI** (1 session). `@lhci/cli` config + GH Actions job.
+- **Visual regression baseline** (1 session). Playwright `toHaveScreenshot()` + Docker pinning.
+
+**Operator decisions still outstanding:**
+- G1 threshold (≥3/5 or ≥4/5) for Stage 3.1 sharded-generation flip.
+- `UPDATE tenant_settings SET ai_generate_mode = 'sharded'` on `wipro-soc` (requires explicit approval).
+- `MFA_REQUIRED=true` prod flip (needs GLM-4.6 adversarial re-run first; last attempt timed out).
+
+**Open questions / minor:**
+- 4 admin.grading.* skipped keys (queue.row, queue.empty, rerun-Sonnet-only, skill_drift) — decide: build missing UI, delete YAML, or leave as design intent.
+- Drawer secondary Revoke button on certificates page (line ~1203) left unwired — defer until user testing.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, scope decisions per task, brief authoring (4 Sonnet briefs), Phase 3 diff critique for each subagent return, AdminShell 1-line typecheck fix (Opus-direct per global rule — cold-start cost dominated), commit chain coordination, deploy + smoke + handoff.
+- Sonnet: 4 subagents executed sequentially —
+  - `a896c02da05dd6f41` (branding reconcile, 8 hexes)
+  - `a0b90cc7480b81e39` (admin.reports/analytics, 2/6 wired)
+  - `afdf053f9a751d656` (candidate.attempt/result, 6/8 wired)
+  - `ae3d89d2541106b11` (admin.settings, 3/4 wired)
+  - `a2e0056ea432aef89` (admin.activity/assessments/questions/packs, 11/20 wired)
+  All accepted first-pass; honest skip reporting throughout. Sonnet sessions self-committed using the noreply env-var pattern after the second slice — saved orchestrator round-trips.
+- Haiku: n/a — direct Bash grep was tractable for discovery across all 6 tasks.
+- codex:rescue: n/a — modules/10-admin-dashboard + apps/web (presentation surface) are non-load-bearing; pure attribute additions and doc edits; no security/auth/classifier paths touched. The AdminShell typecheck fix added an optional property to an interface — defense-in-depth check: type widening is monotonically safe and the API already returns this field.
+
+---
+
 # Session — 2026-05-14 (UI v1.1 P14 — admin.certificates.* help-key wiring)
 
 **Headline:** Wired all 4 `admin.certificates.*` help-system keys into `certificates.tsx` (list page-header, Revoke button, Reissue button, revoke-reason label). Audit doc miscount corrected from 5 → 4. Wired count: 11/57 → 15/57.
