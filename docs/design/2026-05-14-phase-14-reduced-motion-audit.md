@@ -138,7 +138,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.reports.export.format` | — | skipped — `reports.tsx` has no export format selector; export panel not yet built |
 | `admin.reports.cost.empty_in_claude_code_vps_mode` | — | skipped — `reports.tsx` has no cost/billing panel; cost breakdown UI not yet built |
 
-#### Wired in commit `<commit-sha-pending>` (admin.settings.*)
+#### Wired in commit `283e466` (admin.settings.*)
 
 3 of 4 `admin.settings.*` keys wired (1 skipped — no live UI element). Updated count: **26 of 57** wired.
 
