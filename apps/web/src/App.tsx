@@ -3,6 +3,18 @@ import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ThemeProvider, TENANT_FIXTURES } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
 import { AdminMfa } from './pages/admin/mfa';
+import { CandidateLogin } from './pages/candidate/CandidateLogin';
+import { CandidateLoginVerify } from './pages/candidate/CandidateLoginVerify';
+import { InviteAccept } from './pages/invite-accept';
+import { RequireSession } from './lib/RequireSession';
+import {
+  TokenLanding,
+  Expired,
+  ErrorPage as TakeError,
+  AttemptPage,
+  Submitted,
+  TakeRoot,
+} from './pages/take';
 
 // Lazy-loaded so the admin-dashboard chunk is not downloaded on unauthenticated
 // pages (/admin/login, /candidate/login, error pages). Cuts initial bundle by
@@ -32,18 +44,6 @@ const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ d
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
 const CandidateShell = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateShell })));
 const CandidateActivity = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateActivity })));
-import { CandidateLogin } from './pages/candidate/CandidateLogin';
-import { CandidateLoginVerify } from './pages/candidate/CandidateLoginVerify';
-import { InviteAccept } from './pages/invite-accept';
-import { RequireSession } from './lib/RequireSession';
-import {
-  TokenLanding,
-  Expired,
-  ErrorPage as TakeError,
-  AttemptPage,
-  Submitted,
-  TakeRoot,
-} from './pages/take';
 
 const tenant = TENANT_FIXTURES['wipro-soc'];
 
@@ -64,7 +64,7 @@ export function App(): JSX.Element {
         {...(tenant?.branding ? { branding: tenant.branding } : {})}
       >
         <Suspense fallback={null}>
-        <Routes>
+          <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
@@ -143,7 +143,7 @@ export function App(): JSX.Element {
           </Route>
 
           <Route path="*" element={<NotFound />} />
-        </Routes>
+          </Routes>
         </Suspense>
       </ThemeProvider>
     </BrowserRouter>
