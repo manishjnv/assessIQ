@@ -13,26 +13,15 @@
 
 ## Rate-limit response headers
 
-All `/api/auth/*` endpoints return rate-limit headers. The exact set depends on whether the admin/reviewer IP bypass fired:
+All routes return rate-limit headers:
 
-**Standard (IP bucket applied — anonymous or non-opt-in endpoint):**
 ```
-X-RateLimit-Limit: 10
-X-RateLimit-Remaining: <n>
-Retry-After: <seconds>   (only on 429)
-```
-
-**Bypass active (verified admin/reviewer on opt-in endpoint — IP bucket skipped):**
-```
-X-RateLimit-Bypass: admin           (or "reviewer")
-X-RateLimit-Limit-User: 60
-X-RateLimit-Remaining-User: <n>
-X-RateLimit-Limit-Tenant: 600
-X-RateLimit-Remaining-Tenant: <n>
-Retry-After: <seconds>              (only on 429 for user/tenant exhaustion)
+X-RateLimit-Limit: <bucket-max>      (IP, user, or tenant — most-constrained)
+X-RateLimit-Remaining: <n>           (remaining in the most-constrained bucket)
+Retry-After: <seconds>               (only on 429)
 ```
 
-The `X-RateLimit-Bypass` header is observable by admin tooling and curl to confirm bypass is active. Its value is always a sanitized enum (`admin` or `reviewer`), never a raw user-controlled string. See `docs/04-auth-flows.md` § Admin/reviewer IP rate-limit bypass for the full opt-in whitelist and always-strict blacklist.
+> As of 2026-05-15, the `X-RateLimit-Bypass`, `X-RateLimit-Limit-User`, `X-RateLimit-Remaining-User`, `X-RateLimit-Limit-Tenant`, and `X-RateLimit-Remaining-Tenant` headers are removed. The four-tier role-aware IP bucket design means there is no bypass state to observe — see `docs/04-auth-flows.md` § Role-aware IP rate limiting.
 
 ## Endpoint catalog
 

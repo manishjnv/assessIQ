@@ -23,11 +23,10 @@ const SAFE_RETURN_RE = /^\/(admin|take)\/[\w\-/.]{0,256}$/;
 
 export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/auth/google/start?tenant=<slug>&returnTo=/admin/...
-  // allowVerifiedAdminBypass=true: verified admins/reviewers re-clicking SSO
-  // during testing are not throttled by the per-IP bucket. The OAuth callback
-  // (/api/auth/google/cb) does NOT get the bypass — no session exists yet at
-  // callback time (it's the endpoint that CREATES the session).
-  const googleStartChain = authChain({ requireSession: false, allowVerifiedAdminBypass: true });
+  // Role-aware IP bucket applies — admin sessions resolve to 100/min/IP.
+  // The OAuth callback (/api/auth/google/cb) uses publicAuthChain — no session
+  // exists yet at callback time (the callback is what CREATES the session).
+  const googleStartChain = authChain({ requireSession: false });
   app.get(
     '/api/auth/google/start',
     {

@@ -4,6 +4,21 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-15 — Admin lockout from /api/auth/* IP bucket: allowVerifiedAdminBypass dead code
+
+**Symptom:** Admin login flows (`/api/auth/google/start` → `/api/auth/google/cb` → `/api/auth/whoami`) repeatedly returned HTTP 429 in production. The `allowVerifiedAdminBypass` mechanism — intended to give verified admins a higher IP rate limit on selected auth endpoints — was silently inoperative: the bypass predicate required `session.totpVerified === true`, which is never true while `MFA_REQUIRED=false` (the production setting).
+
+**Cause:** `rate-limit.ts:shouldBypassIpBucket()` evaluated `session.totpVerified === true` unconditionally. With `MFA_REQUIRED=false`, no admin session ever sets `totpVerified=true`, so the bypass never fired. The 2026-05-13 MFA-aware fix (`007f1f7`) corrected the predicate for `MFA_REQUIRED=false`, but the opt-in whitelist design remained fragile: routes had to pass `allowVerifiedAdminBypass: true` explicitly, and the IP bucket was scoped to `/api/auth/*` only, meaning the fix required both a correct predicate AND correct per-route opt-in across the route layer.
+
+**Fix:** Role-aware IP bucket redesign (2026-05-15). `shouldBypassIpBucket()` replaced by `resolveIpBucketMax(req)`, which returns a role-appropriate max for every request with no bypass concept required:
+- `modules/01-auth/src/middleware/rate-limit.ts` — rewrite; `allowVerifiedAdminBypass` option removed; bucket applies to all routes at role-derived max.
+- `apps/api/src/middleware/auth-chain.ts` — single `rateLimitMiddleware()` instance; `allowVerifiedAdminBypass` removed from `AuthChainOpts`.
+- `modules/00-core/src/config.ts` — four new env vars `RATE_LIMIT_IP_{ADMIN,USER,ANON,APIKEY}` with Zod `.default()` (zero-config).
+- `apps/api/src/routes/auth/{whoami,google,logout}.ts` — `allowVerifiedAdminBypass: true` calls removed.
+- Redis key: `aiq:rl:auth:ip:<ip>` → `aiq:rl:ip:<ip>` (old keys expire naturally within 60s).
+
+**Prevention:** No opt-in bypass mechanism exists in the new design. IP limit scales with session role automatically — any new route that runs `authChain()` inherits the correct bucket without any flag. B1–B12 bypass test cases removed; T1–T5 role-tier tests + N1 (admin 101× on `/api/auth/google/start` → 429, proving bypass removal) added to `modules/01-auth/src/__tests__/middleware.test.ts`.
+
 ## 2026-05-15 — Pre-flight decision pins in SKILL.md escape the decision log
 
 **Symptom:** Retroactive audit (2026-05-15) found that Phase 4 (12-embed-sdk) had zero representation in PROJECT_BRAIN.md's decision log, despite 13 locked design decisions in `modules/12-embed-sdk/SKILL.md` committed in `b7dfaa9`. A future session starting from Phase 0 reads would not inherit any Phase 4 decisions. The same audit surfaced 6 other missing entries for decisions made during 2026-05-13–14 sessions.

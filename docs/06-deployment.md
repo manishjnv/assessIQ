@@ -577,6 +577,13 @@ SENTRY_DSN=
 # Do NOT set ANTHROPIC_API_KEY here — see CLAUDE.md rule #1 and docs/05-ai-pipeline.md.
 # Phase 2 will introduce AI_PIPELINE_MODE=anthropic-api with a budgeted key, gated.
 AI_PIPELINE_MODE=claude-code-vps
+
+# Rate limiting — optional; Zod defaults are 100/30/30/600 req/min/IP per tier.
+# Set only to tune for your traffic; zero-config deploy works without any of these.
+# RATE_LIMIT_IP_ADMIN=100     # admin/reviewer session: 100 req/min/IP
+# RATE_LIMIT_IP_USER=30       # candidate session:       30 req/min/IP
+# RATE_LIMIT_IP_ANON=30       # anonymous (no session):  30 req/min/IP
+# RATE_LIMIT_IP_APIKEY=600    # API-key callers:        600 req/min/IP
 ```
 
 **Local development:** the same keys live in `.env.local` at the repo root (gitignored — `.gitignore` covers `.env.*` with `!.env.example` allowlist). Never commit values; only `.env.example` is in the repo.
