@@ -46,7 +46,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 ### Lighthouse CI ≥ 90 on 5 highest-traffic pages
 
-**STATUS: SHIPPED** in commit `<sha-pending>`.
+**STATUS: SHIPPED** in commit `f34f9bd`.
 
 **What landed:**
 - `@lhci/cli@0.15.1` added to `apps/web/package.json` devDependencies.
