@@ -52,7 +52,7 @@ export function GradingProposalCard({
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
           {proposal.escalation_chosen_stage === "3" && (
-            <span style={{ background: "var(--aiq-color-warning)", color: "#fff", borderRadius: "var(--aiq-radius-pill)", fontSize: 10, padding: "1px 6px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
+            <span data-help-id="admin.grading.proposal.escalation" style={{ background: "var(--aiq-color-warning)", color: "#fff", borderRadius: "var(--aiq-radius-pill)", fontSize: 10, padding: "1px 6px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
               Stage 3
             </span>
           )}
@@ -64,7 +64,7 @@ export function GradingProposalCard({
 
       {/* Band + score */}
       <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
-        <div>
+        <div data-help-id="admin.grading.proposal.band">
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "block", marginBottom: 2 }}>
             Reasoning band
           </span>
@@ -87,7 +87,7 @@ export function GradingProposalCard({
 
       {/* Anchors */}
       {proposal.anchors.length > 0 && (
-        <div>
+        <div data-help-id="admin.grading.proposal.anchors">
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "block", marginBottom: "var(--aiq-space-xs)" }}>
             Anchors
           </span>
@@ -100,7 +100,7 @@ export function GradingProposalCard({
       )}
 
       {/* AI justification — plain text, no HTML */}
-      <div>
+      <div data-help-id="admin.grading.proposal.justification">
         <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "block", marginBottom: "var(--aiq-space-xs)" }}>
           Justification
         </span>
@@ -112,7 +112,7 @@ export function GradingProposalCard({
 
       {/* Error class (if any) */}
       {proposal.band.error_class && (
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+        <div data-help-id="admin.grading.proposal.error_class" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
             Error class:
           </span>
@@ -132,6 +132,7 @@ export function GradingProposalCard({
               disabled={submitting}
               onClick={onAccept}
               data-test-id="proposal-accept"
+              data-help-id="admin.grading.accept"
             >
               Accept
             </button>
@@ -152,6 +153,7 @@ export function GradingProposalCard({
               className="aiq-btn aiq-btn-ghost aiq-btn-sm"
               disabled={submitting}
               onClick={onRerun}
+              data-help-id="admin.grading.rerun.opus"
             >
               Re-run
             </button>

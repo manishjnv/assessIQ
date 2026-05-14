@@ -354,7 +354,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                       Override grade (requires fresh MFA)
                     </span>
                     <BandPicker value={overrideForm.band} onChange={(b) => setOverrideForm((f) => ({ ...f, band: b }))} />
-                    <label style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                    <label data-help-id="admin.grading.override.reason" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
                       <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
                         Override reason (required)
                       </span>

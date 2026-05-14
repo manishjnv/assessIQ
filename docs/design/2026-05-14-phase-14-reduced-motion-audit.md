@@ -64,7 +64,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 ### Help-content audit — `help_id` usage vs YAML entries
 
-**Grep results:** `data-help-id` / `helpId=` / `<HelpTip` usages found in production code:
+**Grep results (original baseline):** `data-help-id` / `helpId=` / `<HelpTip` usages found in production code:
 
 | File | help_id used |
 |---|---|
@@ -78,15 +78,36 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 **Orphan analysis (used in code but missing from YAML):** None — all 3 `data-help-id` values used in code exist in `admin.yml`.
 
-**Missing entries (YAML has content but no `data-help-id` wiring in code):** 54 of 57 YAML keys have no `data-help-id` counterpart found in the grep. This is expected for Phase 3 — the help system was populated ahead of UI wiring. The primary gap pages are:
+**Missing entries (YAML has content but no `data-help-id` wiring in code):** 54 of 57 YAML keys had no `data-help-id` counterpart found in the original grep. This is expected for Phase 3 — the help system was populated ahead of UI wiring.
 
-- All admin grading UI keys (`admin.grading.*` — 12 entries) — no corresponding `data-help-id` in `modules/10-admin-dashboard/src/pages/`
+#### Wired in commit `<commit-sha-pending>`
+
+8 of 12 `admin.grading.*` keys wired. Updated count: **11 of 57** wired.
+
+| Key | File | Element | Status |
+|---|---|---|---|
+| `admin.grading.proposal.anchors` | `modules/10-admin-dashboard/src/components/GradingProposalCard.tsx:89` | Anchors section wrapper `<div>` | wired |
+| `admin.grading.proposal.band` | `modules/10-admin-dashboard/src/components/GradingProposalCard.tsx:67` | Band+score row inner `<div>` | wired |
+| `admin.grading.proposal.justification` | `modules/10-admin-dashboard/src/components/GradingProposalCard.tsx:103` | Justification block `<div>` | wired |
+| `admin.grading.proposal.error_class` | `modules/10-admin-dashboard/src/components/GradingProposalCard.tsx:115` | Error-class row `<div>` (conditional) | wired |
+| `admin.grading.proposal.escalation` | `modules/10-admin-dashboard/src/components/GradingProposalCard.tsx:54` | Stage-3 badge `<span>` (conditional) | wired |
+| `admin.grading.accept` | `modules/10-admin-dashboard/src/components/GradingProposalCard.tsx:129` | Accept `<button>` | wired |
+| `admin.grading.override.reason` | `modules/10-admin-dashboard/src/pages/attempt-detail.tsx:357` | Override-reason `<label>` wrapper | wired |
+| `admin.grading.rerun.opus` | `modules/10-admin-dashboard/src/components/GradingProposalCard.tsx:149` | Re-run `<button>` (posts `?escalate=opus`) | wired |
+| `admin.grading.queue.row` | — | No live queue table today (`grading-jobs.tsx` is informational, Card 4 "Coming soon") | **skipped — no UI element** |
+| `admin.grading.queue.empty` | — | No live queue empty-state today (same reason as above) | **skipped — no UI element** |
+| `admin.grading.rerun` | — | No separate Sonnet-only Re-run button; the single Re-run button always calls `?escalate=opus`; wired as `rerun.opus` above | **skipped — no UI element** |
+| `admin.grading.skill_drift` | — | No prompt-drift banner rendered in `GradingProposalCard.tsx` or `attempt-detail.tsx` today | **skipped — no UI element** |
+
+**Remaining unwired gap pages:**
+
 - All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 7 entries)
 - All certificate management keys (`admin.certificates.*` — 5 entries)
 - All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)
 - All settings keys (`admin.settings.*` — 4 entries)
+- Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)
 
-**Action for next session:** Wire `<HelpTip>` or `data-help-id` into the admin grading panel first — it has the densest set of YAML entries and the most user-confusion risk.
+**Action for next session:** Wire the next highest-risk slice — `admin.certificates.*` (5 entries, all in the certificate management page) or `admin.reports.*` (analytics pages).
 
 ### Branding-guideline doc reconcile — token drift
 
