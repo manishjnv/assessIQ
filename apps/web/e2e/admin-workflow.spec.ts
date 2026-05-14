@@ -95,6 +95,8 @@ test.describe('Admin → Candidate full workflow', () => {
   let q2: factories.TestQuestion;
   let assessment: factories.TestAssessment;
   let attemptId: string;
+  let wasGraded = false;
+  let credentialId: string | undefined;
 
   // ---------------------------------------------------------------------------
   // Cleanup — best-effort, runs even on test failure
@@ -383,6 +385,7 @@ test.describe('Admin → Candidate full workflow', () => {
       // Claude IS available — accept the proposals so the attempt gets graded
       expect(Array.isArray(gradingResult.proposals)).toBe(true);
       await factories.acceptGradings(admin.cookie, attemptId, gradingResult.proposals);
+      wasGraded = true;
 
       // Reload attempt detail — expect status=graded
       const graded = await factories.getAdminAttempt(admin.cookie, attemptId);
@@ -392,6 +395,51 @@ test.describe('Admin → Candidate full workflow', () => {
       const current = await factories.getAdminAttempt(admin.cookie, attemptId);
       expect(['pending_admin_grading', 'submitted']).toContain(current.attempt.status);
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Step 12b — Admin: release graded attempt (graded → released)
+  // ---------------------------------------------------------------------------
+  test('step 12b — admin releases graded attempt', async () => {
+    test.skip(!admin?.cookie || !attemptId || !wasGraded, 'requires graded attempt from step 12');
+
+    const released = await factories.releaseAttempt(admin.cookie, attemptId);
+    expect(released.attempt.status).toBe('released');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Step 12c — Certificate auto-issued after release
+  // ---------------------------------------------------------------------------
+  test('step 12c — certificate auto-issued after release', async () => {
+    test.skip(!admin?.cookie || !attemptId || !wasGraded, 'requires step 12b');
+
+    // issueCertificateOnRelease is fire-and-forget inside the release handler;
+    // retry up to 3× with a short wait to give it time to commit.
+    let cert: factories.TestCertificate | null = null;
+    for (let i = 0; i < 3; i++) {
+      cert = await factories.getAdminCertificateForAttempt(admin.cookie, attemptId);
+      if (cert !== null) break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
+    expect(cert, `No certificate found for attempt ${attemptId} after 3 polls`).not.toBeNull();
+    expect(cert!.credential_id).toBeTruthy();
+    credentialId = cert!.credential_id;
+  });
+
+  // ---------------------------------------------------------------------------
+  // Step 12d — Public verify page shows valid badge
+  // ---------------------------------------------------------------------------
+  test('step 12d — public verify page shows cert-status--valid badge', async ({ page }) => {
+    test.skip(!credentialId, 'requires step 12c');
+
+    // /verify/:credentialId is served by the API (Fastify), not the SPA.
+    await page.goto(`${factories.apiBase()}/verify/${credentialId}`);
+
+    await expect(page.locator('.cert-status--valid')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.credential-id')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.cert-status--revoked')).toHaveCount(0);
+    await expect(page.locator('.cert-status--tampered')).toHaveCount(0);
   });
 
   // ---------------------------------------------------------------------------

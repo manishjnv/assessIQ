@@ -4,7 +4,8 @@
 
 | File | What it tests | Status |
 |---|---|---|
-| `admin-workflow.spec.ts` | Full admin→candidate 12-step workflow | **Live** (requires test-minter, see below) |
+| `admin-workflow.spec.ts` | Full admin→candidate 16-step workflow (pack→questions→assessment→attempt→grade→release→cert→verify) | **Live** (requires test-minter, see below) |
+| `cert-prod-safety.spec.ts` | `POST /api/dev/mint-session` must return 404 in production | **Live** (auto-skips when `ENABLE_E2E_TEST_MINTER=true`) |
 | `take-error-pages.spec.ts` | `/take/expired`, `/take/error` error pages | Live (no auth required) |
 | `take-happy-path.spec.ts` | Candidate magic-link take flow | Skipped `TODO(session-4b)` |
 | `take-timer-expiry.spec.ts` | Timer expiry during take | Skipped `TODO(session-4b)` |
@@ -87,6 +88,8 @@ Common failure causes:
 - `[factories] mint-session for ... failed — 404` → API is running but `ENABLE_E2E_TEST_MINTER` is not set to `true` on the server.
 - `[factories] ... expected 201, got 422 POOL_TOO_SMALL` → The activate-questions step didn't complete before publishing the assessment. Check step 7.
 - `[factories] ... expected 200, got 409 AIG_GRADING_IN_PROGRESS` → A prior run's grading is still in-flight. Wait 60s and retry.
+- Steps 12b/12c/12d skipped → Claude is not installed in this environment; grading returned `null` so `wasGraded` stayed `false`. Expected in docker-compose CI without VPS Claude CLI.
+- `cert-prod-safety.spec.ts` fails with `expected 404, got 200` → `ENABLE_E2E_TEST_MINTER=true` is set on the target API server. Remove it from the prod `.env`.
 - Any `console errors on ...` assertion failure → A JS runtime error occurred in the SPA. Check the Playwright trace.
 
 ## Why most session-4b tests are skipped
