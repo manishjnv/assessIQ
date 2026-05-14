@@ -99,7 +99,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 | `admin.grading.rerun` | — | No separate Sonnet-only Re-run button; the single Re-run button always calls `?escalate=opus`; wired as `rerun.opus` above | **skipped — no UI element** |
 | `admin.grading.skill_drift` | — | No prompt-drift banner rendered in `GradingProposalCard.tsx` or `attempt-detail.tsx` today | **skipped — no UI element** |
 
-#### Wired in commit `<commit-sha-pending>` (admin.certificates.*)
+#### Wired in commit `b777ba4` (admin.certificates.*)
 
 4 of 4 `admin.certificates.*` keys wired (prior audit listed 5 — confirmed miscount; YAML has exactly 4 keys). Updated count: **15 of 57** wired.
 
@@ -113,7 +113,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 **Remaining unwired gap pages:**
 
 - All analytics/reports keys (`admin.reports.*`, `admin.analytics.*` — 7 entries)
-- ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `<commit-sha-pending>` below)
+- ~~All certificate management keys (`admin.certificates.*` — 5 entries)~~ (miscount; was 4; now wired — see commit `b777ba4` below)
 - All candidate attempt keys (`candidate.attempt.*`, `candidate.result.*` — 8 entries in `apps/web/src/pages/take/`)
 - All settings keys (`admin.settings.*` — 4 entries)
 - Remaining admin keys (packs, questions, assessments, audit, scoring, rubric, notifications — ~22 entries)
