@@ -1323,3 +1323,85 @@ The workflow is **advisory only** at first merge. Once the baseline run confirms
 
 The CI job is intentionally not in `needs:` of any other job and not in the branch protection required checks list. This matches the P14 plan intent: "make the workflow advisory at first — the user will promote it after baselining." The `quality` job in `ci.yml` continues to be the hard gate.
 - RLS policy enforcement itself — enforced by Postgres; operator visibility via `pg_audit` extension if enabled on the VPS, not via `audit_log`.
+
+---
+
+## 32. Visual regression (Playwright snapshots)
+
+Added 2026-05-14 as part of P14 sub-item "Visual regression baseline."
+
+### 32.1 What it does
+
+Playwright's `toHaveScreenshot()` captures full-page PNGs of the 5 unauthenticated routes and diffs them pixel-for-pixel against committed baseline images. A diff exceeding `maxDiffPixels: 200` fails the test. This catches unintended visual regressions introduced by CSS changes, token updates, or component refactors.
+
+Covered routes (matching the Lighthouse CI and axe sweep set):
+
+| Route | Snapshot file |
+|---|---|
+| `/admin/login` | `admin-login.png` |
+| `/candidate/login` | `candidate-login.png` |
+| `/take/expired` | `take-expired.png` |
+| `/take/error` | `take-error.png` |
+| `/this-route-does-not-exist-aiq-visual` (404) | `404.png` |
+
+### 32.2 Where the config lives
+
+| Artifact | Path |
+|---|---|
+| Spec | `apps/web/e2e/visual.spec.ts` |
+| Playwright project config | `apps/web/playwright.config.ts` → `projects[name="visual"]` |
+| Snapshot directory | `apps/web/e2e/visual.spec.ts-snapshots/` |
+| CI workflow | `.github/workflows/visual-regression.yml` |
+| npm scripts | `apps/web/package.json` → `visual:run`, `visual:update` |
+
+### 32.3 Platform contract — why Docker is mandatory
+
+Playwright snapshot comparison is byte-sensitive. Font hinting, sub-pixel antialiasing, and GPU compositing produce different pixels on Windows, macOS, and Linux — even with identical viewport sizes. **Snapshots committed from a Windows or macOS machine will always fail on Linux CI.**
+
+The accepted solution: generate and compare snapshots exclusively inside the official Playwright Docker image, which is pinned to a specific OS + font stack:
+
+```
+mcr.microsoft.com/playwright:v1.59.1-jammy
+```
+
+This tag must be kept in sync with the `@playwright/test` version in `pnpm-lock.yaml`. If you bump `@playwright/test`, update the image tag in `.github/workflows/visual-regression.yml` and regenerate all baselines.
+
+### 32.4 How to update baselines
+
+Run the following command **inside the Docker image** — not on a developer workstation:
+
+```bash
+# From the repo root on a Linux/macOS host with Docker installed:
+docker run --rm \
+  -v "$PWD:/work" \
+  -w /work \
+  mcr.microsoft.com/playwright:v1.59.1-jammy \
+  bash -c "corepack enable && pnpm install --no-frozen-lockfile && pnpm --filter @assessiq/web visual:update"
+
+# On Windows (PowerShell), replace $PWD with ${PWD}:
+docker run --rm `
+  -v "${PWD}:/work" `
+  -w /work `
+  mcr.microsoft.com/playwright:v1.59.1-jammy `
+  bash -c "corepack enable && pnpm install --no-frozen-lockfile && pnpm --filter @assessiq/web visual:update"
+```
+
+After the run, the PNGs appear in `apps/web/e2e/visual.spec.ts-snapshots/`. Commit them and push — CI will now compare against these Linux-rendered baselines.
+
+Alternatively, trigger the workflow via GitHub Actions `workflow_dispatch` with the `--update-snapshots` flag (requires a small workflow edit to pass the flag, or just run `visual:update` locally in Docker and push the PNGs directly).
+
+### 32.5 How to run in comparison mode (CI)
+
+CI runs `pnpm --filter @assessiq/web visual:run` (`playwright test --project=visual`) inside the same Docker image. If no baseline PNGs exist yet, tests fail with `snapshot doesn't exist` — this is expected on the first run before baselines are committed.
+
+### 32.6 Local development (non-Linux)
+
+The `visual` project is gated by `process.platform !== 'linux'` inside the spec — tests are skipped automatically on Windows and macOS. Running `pnpm --filter @assessiq/web visual:run` on a developer machine prints skip messages, not failures. This prevents accidental baseline pollution.
+
+The default `pnpm e2e` run (the `chromium` project) has `testIgnore: /visual\.spec\.ts/`, so visual tests are completely absent from the normal dev workflow.
+
+### 32.7 Promoting to a required status check
+
+The CI workflow (`.github/workflows/visual-regression.yml`) is **advisory only** at first. Promote after baselines have been committed and confirmed stable across ~3–5 PRs:
+
+> GitHub repo → Settings → Branches → Branch protection rules for `main` → "Require status checks to pass" → add `Visual regression / visual`.

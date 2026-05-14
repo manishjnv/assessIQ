@@ -44,9 +44,25 @@ export default defineConfig({
       },
 
   projects: [
+    // Default project — runs all specs EXCEPT visual.spec.ts.
     {
       name: "chromium",
+      testIgnore: /visual\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
+    },
+
+    // Visual-regression project — ONLY runs visual.spec.ts.
+    // Snapshots must be generated / compared inside the Linux Docker image
+    // (mcr.microsoft.com/playwright:v1.59.1-jammy) for byte-identical renders.
+    // CI workflow: .github/workflows/visual-regression.yml
+    // Local regeneration: pnpm --filter @assessiq/web visual:update  (inside Docker)
+    {
+      name: "visual",
+      testMatch: /visual\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 800 },
+      },
     },
   ],
 });
