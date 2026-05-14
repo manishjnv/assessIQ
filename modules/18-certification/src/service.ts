@@ -60,6 +60,7 @@ import {
   type IssueCertificateInput,
   type ListCertificatesQuery,
   type MyCertificateView,
+  type Tier,
 } from './types.js';
 
 /**
@@ -574,5 +575,80 @@ export async function incrementShareCount(
     if (cert.candidate_id !== candidateId) throw new CertificateAccessDeniedError(credentialId);
     if (cert.revoked_at !== null) throw new CertificateRevokedException(credentialId);
     await repo.incrementCounter(client, cert.id, 'linkedin_shares');
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Release-trigger helper (called by 07-ai-grading on graded → released)
+// ---------------------------------------------------------------------------
+
+/**
+ * Issue a certificate for a newly-released attempt. Called by the grading
+ * module's release handler on the same open PoolClient/transaction.
+ *
+ * Precondition: `client` MUST be inside an open withTenant() transaction
+ * (enforced by issueCertificate's R2 sentinel).
+ *
+ * Returns the Certificate if one was issued/upgraded, or null when:
+ *   - attempt not found (RLS filtered)
+ *   - attempt_scores row absent (scores not yet computed)
+ *   - score below the 90% completion threshold
+ *
+ * NEVER throws — the caller (07-ai-grading release handler) wraps this in
+ * a catch so cert failure cannot block grade release (SKILL.md §4.1).
+ */
+export async function issueCertificateOnRelease(
+  client: PoolClient,
+  args: { tenantId: string; attemptId: string; actorUserId: string },
+): Promise<Certificate | null> {
+  const { tenantId, attemptId, actorUserId } = args;
+
+  // One-pass JOIN: fetch everything needed for issuance.
+  // attempt_scores is LEFT JOIN — a graded attempt may not have scores yet
+  // if the admin releases before the scoring run completes.
+  const result = await client.query<{
+    candidate_id: string;
+    display_name: string;
+    course_title: string;
+    level: string;
+    auto_pct: string | null; // NUMERIC returns as string from node-postgres
+  }>(
+    `SELECT
+       a.candidate_id,
+       u.name              AS display_name,
+       ass.name            AS course_title,
+       l.label             AS level,
+       ats.auto_pct
+     FROM attempts      a
+     JOIN users         u   ON u.id   = a.candidate_id
+     JOIN assessments   ass ON ass.id = a.assessment_id
+     JOIN levels        l   ON l.id   = ass.level_id
+     LEFT JOIN attempt_scores ats ON ats.attempt_id = a.id
+     WHERE a.id = $1`,
+    [attemptId],
+  );
+
+  const row = result.rows[0];
+  if (row === undefined) return null;
+  if (row.auto_pct === null) return null; // scores not yet computed
+
+  const pct = parseFloat(row.auto_pct);
+  if (!isFinite(pct)) return null; // guard against PostgreSQL NaN literal
+  if (pct < 90) return null; // below completion threshold — no cert
+
+  // AssessIQ has no repo-linking requirement, so: 100% = distinction, ≥90% = completion.
+  // Honors is deferred pending an AI-evaluation pipeline for certs.
+  const tier: Tier = pct === 100 ? 'distinction' : 'completion';
+
+  return issueCertificate(client, {
+    tenant_id: tenantId,
+    attempt_id: attemptId,
+    candidate_id: row.candidate_id,
+    template_key: 'standard',
+    display_name: row.display_name,
+    course_title: row.course_title,
+    level: row.level,
+    tier,
+    actor_user_id: actorUserId,
   });
 }
