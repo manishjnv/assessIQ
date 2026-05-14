@@ -113,6 +113,60 @@ LinkedIn is the dominant share target for credentialing. Absolute URLs are
 built from the `PUBLIC_BASE_URL` env var; if unset (test environments) the
 meta tags are silently omitted rather than crashing the page render.
 
+## Automatic issuance trigger (Phase 5 Session 8)
+
+Certificates are issued automatically when an admin releases a graded attempt
+(`POST /admin/attempts/:id/release`). The trigger runs inside the same
+`withTenant()` transaction as the `graded→released` status update and the
+`grading.released` audit row — so the cert row and the release are atomic.
+
+### Entry point
+
+`issueCertificateOnRelease(client, { tenantId, attemptId, actorUserId })`
+in `modules/18-certification/src/service.ts`. Called by
+`handleAdminReleaseAttempt` in `modules/07-ai-grading/src/handlers/admin-claim-release.ts`.
+
+### Tier thresholds (AssessIQ-specific)
+
+| `auto_pct` from `attempt_scores` | Tier issued |
+|---|---|
+| `< 90` | No cert — `null` returned |
+| `≥ 90` and `< 100` | `completion` |
+| `= 100` | `distinction` |
+| `NaN` / `Infinity` | No cert — guarded by `isFinite()` check |
+| `NULL` (scores not yet computed) | No cert — `null` returned |
+
+`auto_pct` is stored as `NUMERIC(5,2)` — node-postgres returns it as a string;
+`parseFloat()` is used, followed by an `isFinite()` guard.
+
+`honors` tier is deferred; there is no threshold wired for it yet.
+
+### Never-raise invariant
+
+Cert failure **must not block the release**. The call site wraps the dynamic
+import and the function call in `.catch((err) => log.warn(…))`. A cert failure
+logs `grading.release.cert_issuance_failed` and continues; the release HTTP
+response still returns `{ attempt: { status: "released" } }`.
+
+Manual re-issue is available via the admin certificates page.
+
+### Why dynamic import
+
+Module `07-ai-grading` does not have a static dependency on
+`@assessiq/certification`. The import uses the `new Function('specifier', 'return
+import(specifier)')` pattern — the same indirection used for module 13
+notifications — so the grading module compiles and works in test environments
+where the certification package is absent or stripped.
+
+### Transaction placement
+
+The cert call is placed **inside** `withTenant()`, after `auditInTx`. This
+satisfies `issueCertificate`'s R2 open-transaction precondition
+(`pg_current_xact_id_if_assigned()` sentinel). If the cert INSERT fails and
+throws despite the outer `.catch()`, the `withTenant()` transaction rolls back,
+taking the `graded→released` UPDATE and the audit row with it. The release must
+be retried.
+
 ## What's not in this doc
 
 - PDF generation and the `/api/certificates/:credentialId/pdf` endpoint —
@@ -120,3 +174,4 @@ meta tags are silently omitted rather than crashing the page render.
 - The public `/verify/:credentialId` page and its non-RLS DB lookup
   strategy — Phase 5 Session 3.
 - LinkedIn share counter and admin revoke surfaces — Phase 5 Sessions 5–6.
+- OG / LinkedIn PNG preview — Phase 5 Session 7.

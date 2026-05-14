@@ -1,4 +1,29 @@
-# Session — 2026-05-14 (UI v1.1 Phase 14 — a11y gate + cross-cut verification docs)
+# Session — 2026-05-14 (Phase 5 Session 8 — cert trigger wiring)
+
+**Headline:** `issueCertificateOnRelease` wired into grading release handler — certificates auto-issue on `graded→released` transition.
+
+**Commits:**
+- `aeac12a` — feat(certification): Session 8 — trigger wiring on graded→released
+
+**Tests:** `@assessiq/certification` 127/127 ✅. `@assessiq/ai-grading` 232/232 ✅ (3 pre-existing DB-migration-missing failures in `admin-generate-*` suites, unchanged from baseline).
+
+**Deploy:** `assessiq-api` rebuilt and recreated on VPS — container healthy.
+
+**Next:** G3.D audit-write sweep — uncommitted changes in `01-auth`, `02-tenancy`, `12-embed-sdk`, `14-audit-log` are from a prior audit sweep session and should be committed next.
+
+**Open questions:** None for Session 8. `honors` tier has no threshold wired; deferred.
+
+---
+
+## Agent utilization
+- Opus: Session driving — adversarial review triage, NaN guard fix, Tier import fix, all doc updates.
+- Sonnet: Adversarial review of trigger wiring diff (verdict: REVISE → NaN guard required).
+- Haiku: GLM-4.6 adversarial pass dispatch (cross-tenant + float precision vectors; both cleared by RLS/NUMERIC(5,2)).
+- codex:rescue: n/a — Sonnet+GLM-4.6 routing per `feedback-adversarial-reviewer-routing.md` for ai-grading/certification changes.
+
+---
+
+
 
 **Headline:** Phase 14 complete — `@axe-core/playwright` a11y gate shipped, docs reconciled, v1.1 port officially closed.
 
