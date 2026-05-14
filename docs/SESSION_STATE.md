@@ -1,3 +1,34 @@
+# Session — 2026-05-14 (P14 Lighthouse CI setup)
+
+**Headline:** Lighthouse CI wired for `apps/web` against 5 unauthenticated routes (`/admin/login`, `/candidate/login`, `/take/expired`, `/take/error`, 404 fallback). PR-triggered, advisory (not a required status check yet — promote after first green run). Thresholds ≥0.90 for performance/accessibility/best-practices/SEO. Auth-seeded coverage remains deferred to its own multi-session item.
+
+**Commits:**
+- `f34f9bd` — feat(ci): Lighthouse CI setup — P14 sub-item, 5 unauthenticated routes ≥ 90
+- `b9f3819` — docs(ci): backfill Lighthouse CI commit SHA in reduced-motion audit doc
+
+**Tests:** 1241 pass / 28 fail / 48 skip. The 28 failures are pre-existing testcontainer integration tests that need a live Postgres — none are in files this session touched. Typecheck clean.
+
+**Deploy:** Not required — GH Actions infra; activates on the next PR automatically. No VPS deploy.
+
+**Next:**
+- **Baseline run** — when the next PR opens, the workflow will produce baseline Lighthouse scores. If any route is < 0.90, decide per route: (a) fix the perf/a11y issue, (b) lower the threshold for that specific route with documented justification.
+- **Promote to required status check** — after the first green run, via GitHub repo Settings → Branches → add `lighthouse / lighthouse` to required checks.
+- **Auth-seeded Lighthouse + axe** — separate multi-session item; needs Playwright session fixtures (admin TOTP helper + candidate magic-link bypass).
+- Lower-yield help-wiring tail (~8 keys: `admin.attempts/audit/notifications/ops/generation-attempts`) — likely mostly skips, but closes the help-wiring chapter cleanly.
+
+**Open questions:**
+- `temporary-public-storage` upload target leaks scores to a public Lighthouse server — fine for first pass, but consider switching to a private LHCI server or `filesystem` target if scores become sensitive.
+
+---
+
+## Agent utilization
+- Opus: scope decision (Lighthouse over alternatives), Sonnet brief authoring (with explicit unauth-only scope + advisory-not-required-yet workflow guidance), Phase 3 verification that Sonnet's commits hit origin cleanly.
+- Sonnet: 1 subagent (Lighthouse CI setup) — agentId `a78e3e992a4315b8c`. Output: `@lhci/cli@0.15.1` devDep, `lighthouserc.json` with 5 routes + thresholds, `.github/workflows/lighthouse.yml` matching existing CI style, `lhci:run` script, observability.md § 31 + audit-doc status update. Self-committed + pushed with noreply pattern. Verdict: accepted on first pass.
+- Haiku: n/a.
+- codex:rescue: n/a — CI infra change, no runtime/security/auth/classifier paths touched.
+
+---
+
 # Session — 2026-05-14 (P14 multi-slice sweep — 6 tasks completed sequentially)
 
 **Headline:** Cleared the autonomous-actionable P14 backlog in a single session — AdminShell typecheck fix + branding-guideline doc reconcile + 4 help-wiring slices (admin.reports/analytics, candidate.attempt/result, admin.settings, admin.activity/assessments/questions/packs). Help-system wired count: 15/57 → 37/57. 4 Sonnet subagents dispatched; all accepted on first pass.
