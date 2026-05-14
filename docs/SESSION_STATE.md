@@ -1,3 +1,31 @@
+# Session — 2026-05-14 (Phase 5 Session 9 — admin cert UI)
+
+**Headline:** Phase 5 Session 9 shipped — admin `/admin/certificates` UI gaps closed: service.ts PII bug fixed (revoke_reason removed from audit_log), details drawer + min-10-char revoke flow in certificates.tsx, help key `admin.certificates.revoke_reason`, PII-rule integration test, and full admin surface docs in 14-credentialing.md.
+
+**Commits:**
+- `5f9502c` — feat(cert): Phase 5 Session 8 — issueCertificateOnRelease trigger *(earlier session, landed this context)*
+- `31c13f0` — feat(cert): Phase 5 Session 9 — admin cert UI tests + help key + docs
+
+**Tests:** 128/128 cert tests pass; 83/83 help-system tests pass. codex:rescue verdict: ACCEPT.
+
+**Deploy:** `assessiq-api` + `assessiq-frontend` rebuilt and recreated on VPS (`31c13f0`). Smoke: `GET /api/health` → 200; `GET /api/admin/certificates` → 401 (unauthenticated, auth guard live).
+
+**Next:** Phase 5 Session 10 — PDF generation (`/api/certificates/:credentialId/pdf`). Alternatively: flip `MFA_REQUIRED=true` in prod env (ops task, requires admin enrollment first).
+
+**Open questions:**
+- Pre-existing `AdminShell.tsx:334` typecheck error (`totpEnrolled` missing from `AdminSessionInfo`) — from MFA enrollment UX work in `94d5f34`, not from Session 9. Needs a targeted fix before `tsc --noEmit` fully passes apps/web.
+- G2 smoke runs on VPS still pending from previous session.
+
+---
+
+## Agent utilization
+- Opus: plan, Phase 0 reads, PII bug identification, diff review, commit + deploy + smoke
+- Sonnet: Agent A (service.ts PII fix + test assertion update, worktree isolation); Agent B (certificates.tsx drawer + revoke UX); Agent C (14-credentialing.md admin surface docs); adversarial second opinion on service.ts
+- Haiku: n/a
+- codex:rescue: ACCEPT — service.ts revoke() audit payload PII removal verified clean
+
+---
+
 # Session — 2026-05-14 (Phase 5 Session 8 catch-up + MFA enrollment UX)
 
 **Headline:** Phase 5 Session 8 cert trigger committed + MFA enrollment UX slice shipped — `totpEnrolled` on whoami, AdminShell nudge banner, recovery-code display fix, `getEnrollmentStatus` with 2 new integration tests.
