@@ -133,6 +133,7 @@ CREATE TABLE users (
   UNIQUE (tenant_id, email)
 );
 CREATE INDEX users_tenant_role_idx ON users (tenant_id, role) WHERE deleted_at IS NULL;
+CREATE INDEX users_email_lower_idx ON users (tenant_id, lower(email) text_pattern_ops) WHERE deleted_at IS NULL;  -- prefix-search hot path for listUsers (020_users.sql addendum §9)
 
 CREATE TABLE oauth_identities (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -315,6 +316,10 @@ CREATE TABLE levels (
   rubric_defaults         JSONB DEFAULT NULL,   -- Stage 1.5 (0017): AI rubric calibration hints {profile, anchorComplexity, bandStrictness}; NULL = ordinal-only fallback
   UNIQUE (pack_id, position)
 );
+-- Partial index for analytics on rubric calibration profiles (0017)
+CREATE INDEX IF NOT EXISTS idx_levels_rubric_defaults_profile
+  ON levels ((rubric_defaults->>'profile'))
+  WHERE rubric_defaults IS NOT NULL;
 
 CREATE TABLE questions (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -1032,25 +1037,45 @@ CREATE TABLE certificates (
 
 ### RLS
 
-Three policies on `certificates` (tenant-scoped SELECT, INSERT, UPDATE). No DELETE policy — RLS denies DELETE by default. Application code never hard-deletes certificates; GDPR erasure requires `assessiq_system` role with written authorisation (same procedure as `audit_log`).
+**Public verify-page note (Phase 5 Sessions 3–4):** Migration `0074_public_verify_policy.sql` added `public_verify_lookup` (FOR SELECT via `app.public_verify = 'true'` GUC, set transaction-local) to support the no-auth recruiter endpoint without a permissive all-tenants policy. Migration `0075_tenant_isolation_null_safe_cast.sql` then hardened all three `tenant_isolation` policies with an explicit `IS NOT NULL AND <> ''` guard — when the `public_verify_lookup` policy is OR'd in by Postgres, a bare `::uuid` cast on an empty-string GUC would raise a `22P02` exception before the OR can short-circuit; the hardened form converts that crash to `FALSE` (RLS denies, safe). The hardened predicate is strictly stricter than the original — no regression risk.
 
 ```sql
 ALTER TABLE certificates ENABLE ROW LEVEL SECURITY;
 
+-- Hardened NULL-safe form (migration 0075) — guards against empty-string GUC
+-- cast crash when OR'd with the public_verify_lookup permissive policy below.
 CREATE POLICY tenant_isolation ON certificates
   FOR SELECT
-  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+  USING (
+    current_setting('app.current_tenant', true) IS NOT NULL
+    AND current_setting('app.current_tenant', true) <> ''
+    AND tenant_id = current_setting('app.current_tenant', true)::uuid
+  );
 
 CREATE POLICY tenant_isolation_insert ON certificates
   FOR INSERT
-  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
+  WITH CHECK (
+    current_setting('app.current_tenant', true) IS NOT NULL
+    AND current_setting('app.current_tenant', true) <> ''
+    AND tenant_id = current_setting('app.current_tenant', true)::uuid
+  );
 
 CREATE POLICY tenant_isolation_update ON certificates
   FOR UPDATE
-  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
-```
+  USING (
+    current_setting('app.current_tenant', true) IS NOT NULL
+    AND current_setting('app.current_tenant', true) <> ''
+    AND tenant_id = current_setting('app.current_tenant', true)::uuid
+  );
 
-**Public verify-page note:** `GET /verify/:credentialId` is a no-auth recruiter endpoint. Its repository query must bypass tenant RLS (no `app.current_tenant` GUC set). Implementation strategy (SECURITY DEFINER function vs `assessiq_system` role) is deferred to Phase 5 Session 3. Do NOT add a permissive all-tenants SELECT policy.
+-- Phase 5 Session 3 (migration 0074): GUC-based public verify policy.
+-- Satisfies the verify-page query (app.public_verify='true', set transaction-local by
+-- withPublicVerifyContext). OR'd with tenant_isolation — normal tenant requests satisfy
+-- tenant_isolation; verify-page requests satisfy this policy (no app.current_tenant set).
+CREATE POLICY public_verify_lookup ON certificates
+  FOR SELECT
+  USING (current_setting('app.public_verify', true) = 'true');
+```
 
 ### Design decisions
 
