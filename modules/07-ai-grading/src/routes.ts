@@ -38,6 +38,7 @@ import { handleAdminQueue } from "./handlers/admin-queue.js";
 import { handleAdminClaimAttempt, handleAdminReleaseAttempt } from "./handlers/admin-claim-release.js";
 import { handleAdminListGradingJobs, handleAdminRetryGradingJob } from "./handlers/admin-grading-jobs.js";
 import { handleAdminBudget } from "./handlers/admin-budget.js";
+import { handleAdminListAttempts } from "./handlers/admin-attempts-list.js";
 
 // ---------------------------------------------------------------------------
 // Options
@@ -141,6 +142,33 @@ const RERUN_BODY_SCHEMA = z.object({
 const QUEUE_QUERY_SCHEMA = z.object({
   status: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+/**
+ * GET /api/admin/attempts — paged, optionally status-filtered attempt list.
+ *
+ * `status` uses z.enum (not z.string) to close the SQL-injection vector at
+ * the parser layer — only the 5 FE-visible statuses are accepted; draft,
+ * in_progress, and cancelled are intentionally excluded (admin list shows
+ * actionable and completed attempts only).
+ *
+ * `limit` is clamped to [1, 100]; `offset` to [0, ∞). Defaults match the FE
+ * default call of limit=100 / no offset.
+ */
+const LIST_ATTEMPTS_QUERY_SCHEMA = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  // max(10_000) caps offset to prevent DoS via a giant OFFSET forcing a full
+  // index scan per request. FE never paginates past ~100 anyway.
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+  status: z
+    .enum([
+      "submitted",
+      "pending_admin_grading",
+      "graded",
+      "released",
+      "auto_submitted",
+    ])
+    .optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -295,6 +323,50 @@ export async function registerGradingRoutes(
       });
 
       return handleAdminAccept({ tenantId, userId, attemptId, proposals });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/admin/attempts
+  //
+  // Returns the tenant-scoped paged list of attempts for the admin dashboard.
+  // Registered BEFORE /api/admin/attempts/:id so the literal route wins on
+  // Fastify's radix-tree match (no ambiguity even though Fastify prefers
+  // literals, explicit ordering removes any router-version risk).
+  //
+  // Status filter uses z.enum — only the 5 FE-visible statuses are accepted;
+  // draft/in_progress/cancelled are intentionally excluded.
+  // -------------------------------------------------------------------------
+
+  app.get(
+    "/api/admin/attempts",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+
+      const parsed = LIST_ATTEMPTS_QUERY_SCHEMA.safeParse(req.query);
+      if (!parsed.success) {
+        throw new ValidationError("Invalid query parameters", {
+          details: {
+            code: AI_GRADING_ERROR_CODES.INVALID_BODY,
+            issues: parsed.error.issues,
+          },
+        });
+      }
+
+      // exactOptionalPropertyTypes: only spread status when it is defined so
+      // we don't pass `{ status: undefined }` where the handler expects
+      // `status?: string`.
+      return handleAdminListAttempts({
+        tenantId,
+        userId,
+        limit: parsed.data.limit,
+        offset: parsed.data.offset,
+        ...(parsed.data.status !== undefined
+          ? { status: parsed.data.status }
+          : {}),
+      });
     },
   );
 
