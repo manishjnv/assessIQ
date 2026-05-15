@@ -15,6 +15,7 @@ export interface AuthRequest {
     role: "admin" | "super_admin" | "reviewer" | "candidate";
     totpVerified: boolean;
     expiresAt: string;
+    lastSeenAt: string;
     lastTotpAt: string | null;
   };
   apiKey?: {

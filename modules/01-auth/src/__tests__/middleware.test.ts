@@ -247,6 +247,7 @@ describe("rate-limit (Redis testcontainer)", () => {
       role: "admin",
       totpVerified: true,
       expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      lastSeenAt: nowIso(),
       lastTotpAt: nowIso(),
     };
 
@@ -340,6 +341,7 @@ describe("rate-limit (Redis testcontainer)", () => {
         role: "admin",
         totpVerified: true,
         expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        lastSeenAt: nowIso(),
         lastTotpAt: nowIso(),
       };
       const req = makeReq({
@@ -359,6 +361,7 @@ describe("rate-limit (Redis testcontainer)", () => {
         role: "reviewer",
         totpVerified: true,
         expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        lastSeenAt: nowIso(),
         lastTotpAt: nowIso(),
       };
       const req = makeReq({
@@ -379,6 +382,7 @@ describe("rate-limit (Redis testcontainer)", () => {
         role: "candidate",
         totpVerified: true,
         expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        lastSeenAt: nowIso(),
         lastTotpAt: nowIso(),
       };
       const reply = makeReply();
@@ -447,6 +451,7 @@ describe("rate-limit (Redis testcontainer)", () => {
             role: "admin" as const,
             totpVerified: true,
             expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            lastSeenAt: nowIso(),
             lastTotpAt: nowIso(),
           },
         });
@@ -486,6 +491,7 @@ describe("rate-limit (Redis testcontainer)", () => {
             role: "admin" as const,
             totpVerified: false,
             expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            lastSeenAt: nowIso(),
             lastTotpAt: null,
           },
         });
@@ -540,6 +546,7 @@ describe("requireAuth", () => {
       role: "admin",
       totpVerified: true,
       expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      lastSeenAt: nowIso(),
       lastTotpAt: nowIso(),
       ...overrides,
     };
