@@ -22,10 +22,10 @@
 | 04-question-bank | `question_packs`, `levels`, `questions`, `question_versions`, `tags`, `question_tags` |
 | 05-assessment-lifecycle | `assessments`, `assessment_invitations` |
 | 06-attempt-engine | `attempts`, `attempt_questions`, `attempt_answers`, `attempt_events` |
-| 07-ai-grading | `grading_jobs`, `prompt_versions` |
+| 07-ai-grading | **Phase 1 live:** `gradings`, `tenant_grading_budgets`, `generation_attempts` — **Phase 2 deferred (not yet applied):** `grading_jobs`, `prompt_versions` |
 | 08-rubric-engine | _service-only — no tables._ Rubric DSL lives denormalized in `questions.rubric` JSONB owned by 04. Phase 2 G2.B Session 2 (2026-05-03) confirmed this boundary per PHASE_2_KICKOFF.md § P2.D12; the prior `rubrics`/`anchors` table reference at this row was dead text from an earlier draft and never shipped. |
-| 09-scoring | `gradings`, `attempt_scores`, `archetypes` |
-| 13-notifications | `webhook_endpoints`, `webhook_deliveries`, `email_log` |
+| 09-scoring | `attempt_scores` |
+| 13-notifications | `webhook_endpoints`, `webhook_deliveries`, `email_log`, `in_app_notifications` |
 | 14-audit-log | `audit_log` |
 | 15-analytics | `attempt_summary_mv` (materialized view — no RLS, explicit tenant filter required) |
 | 16-help-system | `help_content` |
@@ -637,6 +637,56 @@ CREATE TABLE tenant_grading_budgets (
 );
 -- RLS uses `tenant_id = current_setting('app.current_tenant', true)::uuid`
 -- (PK is the discriminator). lint-rls-policies.ts:178-185 carve-out matches.
+
+### `generation_attempts` — AI question-generation observability (Phase 1 / Stage 1, 2026-05-09)
+
+> **Status:** LIVE — migrations `0042_generation_attempts.sql` + `0043_generation_attempts_citation_dropped.sql` (`modules/07-ai-grading/migrations/`). Applied to production as part of the Stage 1 type-sharded generation release (`f449203`). Records every `handleAdminGenerate` invocation so admins can diagnose why a "Generate" click produced zero or fewer-than-requested questions without SSH'ing the VPS.
+
+**Ownership note.** The INSERT/UPDATE write path lives in `modules/07-ai-grading/src/handlers/admin-generate.ts`. The GET read endpoint is in `modules/04-question-bank/src/routes.ts` (read-only projection for the pack-detail UI). Table is owned by 07-ai-grading because the write path and all observability concepts (`skill_sha`, `model`, `stderr_tail`, `chunks_*`) belong to that module.
+
+**`stderr_tail` privacy gate.** Persisted only for non-grading skills (`generate-questions`, `generate-rubric`). For grading skills, stderr is captured in memory but never logged or persisted — candidate text must not appear in any durable store. Gate lives in `modules/07-ai-grading/src/runtimes/claude-code-vps.ts`.
+
+```sql
+-- modules/07-ai-grading/migrations/0042_generation_attempts.sql +
+--   0043_generation_attempts_citation_dropped.sql
+CREATE TABLE generation_attempts (
+  id               UUID        NOT NULL PRIMARY KEY,  -- UUIDv7, generated app-side
+  tenant_id        UUID        NOT NULL REFERENCES tenants(id),
+  pack_id          UUID        NOT NULL,
+  level_id         UUID        NOT NULL,
+  user_id          UUID        NOT NULL REFERENCES users(id),
+  count_requested  INT         NOT NULL,
+  count_inserted   INT         NOT NULL DEFAULT 0,
+  status           TEXT        NOT NULL CHECK (status IN (
+                     'success', 'partial', 'failed', 'running'
+                   )),
+  error_code       TEXT,
+  error_message    TEXT,
+  stderr_tail      TEXT,         -- last 1024 bytes of claude stderr; generation skills only
+  skill_sha        TEXT,
+  model            TEXT,
+  chunks_planned   INT,          -- NULL until Option B parallel fanout ships
+  chunks_failed    INT,          -- NULL until Option B parallel fanout ships
+  dedupe_dropped   INT,          -- NULL until Option B parallel fanout ships
+  citation_dropped INT,          -- 0043: questions dropped for hallucinated KB citation IDs; NULL if filter not applied
+  duration_ms      INT,
+  started_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at      TIMESTAMPTZ
+);
+
+-- Most-recent attempts for a pack+level — drives the pack-detail UI query.
+CREATE INDEX generation_attempts_pack_level_idx
+  ON generation_attempts (pack_id, level_id, started_at DESC);
+
+ALTER TABLE generation_attempts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON generation_attempts
+  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+
+CREATE POLICY tenant_isolation_insert ON generation_attempts
+  FOR INSERT
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
+```
 
 -- attempt_scores — module 09-scoring. LIVE (shipped G2.B Session 3, 2026-05-01).
 -- Migration: modules/09-scoring/migrations/0050_attempt_scores.sql
