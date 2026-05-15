@@ -57,7 +57,7 @@ export { withConcurrencyLimit } from "./concurrency.js";
 export type { GenerateByTypeInput, QuestionType } from "./types.js";
 
 // Repository (Session 1.b)
-export type { InsertGradingInput, QueueRow } from "./repository.js";
+export type { InsertGradingInput, QueueRow, AttemptListRow } from "./repository.js";
 export {
   findGradingById,
   findGradingsForAttempt,
@@ -65,6 +65,7 @@ export {
   insertGrading,
   findTenantBudget,
   listGradingQueue,
+  listAttemptsForAdmin,
 } from "./repository.js";
 
 // Single-flight mutex (D7, Session 1.b)
@@ -125,6 +126,12 @@ export {
 
 export type { HandleAdminBudgetOutput } from "./handlers/admin-budget.js";
 export { handleAdminBudget } from "./handlers/admin-budget.js";
+
+export type {
+  HandleAdminListAttemptsInput,
+  HandleAdminListAttemptsOutput,
+} from "./handlers/admin-attempts-list.js";
+export { handleAdminListAttempts } from "./handlers/admin-attempts-list.js";
 
 // AI question generator handler (Session 2 — question generation feature)
 export type {

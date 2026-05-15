@@ -299,6 +299,90 @@ export async function findTenantBudget(
 }
 
 // ---------------------------------------------------------------------------
+// Admin attempts list query
+// ---------------------------------------------------------------------------
+
+/**
+ * Row returned by listAttemptsForAdmin.
+ *
+ * Timestamps are pre-formatted to ISO-8601 strings in the SQL SELECT so no
+ * JS-side mapping is needed (same pattern as listGradingQueue's use of raw
+ * Date columns is avoided here because we need the ISO string for the FE).
+ */
+export interface AttemptListRow {
+  id: string;
+  status: string;
+  started_at: string;
+  submitted_at: string | null;
+  candidate_email: string;
+  assessment_name: string;
+  level_label: string;
+}
+
+/**
+ * List attempts for the admin dashboard with pagination and optional status filter.
+ *
+ * RLS-scoped — returns only attempts for the current tenant (set by withTenant).
+ * NEVER add WHERE tenant_id = $N here — RLS enforces isolation via
+ * app.current_tenant; an explicit filter masks RLS bugs (CLAUDE.md rule #4).
+ *
+ * Join path: attempts → users (email), assessments (name), levels (label via
+ * assessments.level_id → levels.id). All joins are LEFT JOIN so orphaned rows
+ * (e.g. a deleted user) still appear with COALESCE fallback values.
+ *
+ * Ordering: submitted_at DESC NULLS LAST, then started_at DESC for stability
+ * so in-progress attempts (null submitted_at) sort after completed ones.
+ */
+export async function listAttemptsForAdmin(
+  client: PoolClient,
+  opts: { limit: number; offset: number; status?: string },
+): Promise<{ items: AttemptListRow[]; total: number }> {
+  const params: unknown[] = [];
+  const conditions: string[] = [];
+
+  if (opts.status !== undefined) {
+    params.push(opts.status);
+    conditions.push(`a.status = $${params.length}`);
+  }
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  // Count query (RLS scopes via app.current_tenant — no explicit tenant filter)
+  const countResult = await client.query<{ total: string }>(
+    `SELECT count(*)::text AS total FROM attempts a ${whereClause}`,
+    params,
+  );
+  const total = Number(countResult.rows[0]?.total ?? "0");
+
+  params.push(opts.limit);
+  const limitParam = `$${params.length}`;
+  params.push(opts.offset);
+  const offsetParam = `$${params.length}`;
+
+  const result = await client.query<AttemptListRow>(
+    `SELECT
+       a.id::text                                                                   AS id,
+       a.status,
+       to_char(a.started_at  AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')     AS started_at,
+       CASE WHEN a.submitted_at IS NULL THEN NULL
+            ELSE to_char(a.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+       END                                                                           AS submitted_at,
+       COALESCE(u.email,   '(unknown)')                                              AS candidate_email,
+       COALESCE(asm.name,  '(unknown)')                                              AS assessment_name,
+       COALESCE(lvl.label, '(unknown)')                                              AS level_label
+     FROM attempts a
+     LEFT JOIN users       u   ON u.id   = a.user_id
+     LEFT JOIN assessments asm ON asm.id = a.assessment_id
+     LEFT JOIN levels      lvl ON lvl.id = asm.level_id
+     ${whereClause}
+     ORDER BY a.submitted_at DESC NULLS LAST, a.started_at DESC
+     LIMIT ${limitParam} OFFSET ${offsetParam}`,
+    params,
+  );
+  return { items: result.rows, total };
+}
+
+// ---------------------------------------------------------------------------
 // Grading queue query
 // ---------------------------------------------------------------------------
 
