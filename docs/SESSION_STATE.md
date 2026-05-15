@@ -1,3 +1,30 @@
+# Session — 2026-05-15 (load-test harness)
+
+**Headline:** k6 load-test harness scaffolded (5 scenarios, rate-limit safety, dev-mint auth); smoke baseline blocked — dev API was not running at session time.
+
+**Commits:**
+- `4a07e3f` — feat(load-test): k6 harness skeleton + smoke scenarios
+- `41f5009` — chore(gitignore): exclude tests/load/results from version control
+
+**Tests:** n/a — test infrastructure only; no app code changed.
+
+**Deploy:** n/a — dev-only harness; no prod artifact.
+
+**Next:** Run the smoke baseline. Start dev API with `ENABLE_E2E_TEST_MINTER=true pnpm --filter @assessiq/api dev`, then `k6 run tests/load/scenarios/smoke.js 2>&1 | tee tests/load/results/smoke-$(date +%Y%m%dT%H%M%S).txt`. Fill in the baseline table in `tests/load/README.md` and commit as `docs(load-test): smoke baseline 2026-05-15`. Follow-up: schedule prod load test off-hours after monitoring panels exist for rate-limit buckets (ops gap H-10).
+
+**Open questions:**
+- Does the dev DB have `loadtest-admin@wipro-soc.test` seeded as admin in the wipro-soc tenant? If not, S3/S4 will skip and you'll need `LOAD_TEST_ADMIN_COOKIE` as a manual override.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads; scenario design and rate-limit interaction analysis; all file authoring (auth.js, smoke.js, auth-flow.js, README.md).
+- Sonnet: n/a — files were within the ≤30-line direct-edit threshold for Opus hot cache.
+- Haiku: n/a.
+- codex:rescue: n/a — non-load-bearing infrastructure addition; no security/auth/classifier code changed.
+
+---
+
 # Session — 2026-05-15 (operational maturity audit)
 
 **Headline:** Operational maturity audit — 2 critical / 10 high / 9 medium / 4 low gaps (25 total); MVP scoped at 8 items; audit doc at `docs/design/2026-05-15-operational-maturity-audit.md`.
