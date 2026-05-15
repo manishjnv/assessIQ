@@ -97,6 +97,7 @@ export function sessionLoaderMiddleware(opts: SessionLoaderOptions = {}): AuthHo
       role: session.role,
       totpVerified: session.totpVerified,
       expiresAt: session.expiresAt,
+      lastSeenAt: session.lastSeenAt,
       lastTotpAt: session.lastTotpAt,
     };
   };
