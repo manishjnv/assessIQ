@@ -1256,3 +1256,58 @@ A second prevention: every revert commit must explicitly enumerate "what was rev
 **Fix:** `docs/02-data-model.md` patched in 3 commits (2026-05-15); all findings from file-shape audit against `modules/*/migrations/*.sql`.
 **Prevention:** Propose a CI lint (`tools/lint-data-model-anchors.ts`) that greps `CREATE TABLE` names from all migration SQL files and verifies a matching `## <table-name>` or `### \`<table-name>\`` anchor exists in `docs/02-data-model.md`. Would have caught `generation_attempts` on the day it shipped.
 
+## 2026-05-15 — Forward-looking risk note: single-VPS single-point-of-failure as the dominant incident class
+
+**This is not a post-mortem — no incident has occurred. This entry records a structural risk
+class surfaced by the 2026-05-15 operational maturity audit before it produces an incident.**
+
+**Risk class:** The entire AssessIQ production system — Postgres, Redis, API, frontend, Caddy
+(shared), and the AI grading runtime — runs on a single VPS (`srv1150121.hstgr.cloud`). Any
+VPS-level event (hardware failure, Hostinger datacenter issue, OOM kill cascade, disk exhaustion,
+botched `apt upgrade`, runaway `docker system prune` by a co-tenant) takes the system to zero
+with no automated failover.
+
+**Why this matters beyond "it's a single VPS":** Three compounding factors make the blast radius
+larger than typical single-server deployments:
+
+1. **Offsite backup target unverified (Critical gap 1.1).** The rclone remote `remote:assessiq-backups-prod`
+   is a placeholder string in `docs/06-deployment.md`. Its actual configuration on the VPS has
+   not been verified from the repo. If the VPS dies and the backup remote is not wired, complete
+   data loss follows — tenant assessments, attempt history, audit logs, and encrypted secrets all
+   gone. RPO = ∞, not the documented 24 h.
+
+2. **Caddyfile not in repo (High gap 2.1).** Rebuilding on a new VPS requires recreating the
+   Caddy config from `docs/06-deployment.md` prose and 3 RCA entries (bind-mount inode trap,
+   `@api` matcher history, CF origin cert procedure). Each reconstruction step is a potential
+   for a different config than what was live. This adds 30–60 min to any VPS-rebuild RTO.
+
+3. **MASTER_KEY rotation impossible (Critical gap 6.1).** If the VPS is lost and rebuilt, the
+   `ASSESSIQ_MASTER_KEY` must be carried forward — either from the `.env` backup or from memory.
+   If the key is lost or incorrect, all TOTP secrets, embed signing keys, recovery codes, and
+   webhook secrets become unreadable ciphertext. The 3-implementation duplication (crypto-util.ts,
+   webhook-secret-service.ts, webhooks/crypto.ts) means a partial key loss could produce
+   unpredictable partial outages that are hard to diagnose.
+
+**Current documented RTO:** 1 h (from `docs/06-deployment.md`). This estimate has never been
+timed against an actual restore drill (High gap 1.2). With the three compounding factors above,
+the real RTO on total VPS loss is likely 3–6 h minimum and potentially data-loss-class if the
+backup remote is not wired.
+
+**Not an argument for premature infrastructure expansion.** The single-VPS architecture is
+appropriate for Phase 1. The risk is not the architecture itself but the combination of:
+(a) unverified backup remote, (b) Caddyfile not in repo, and (c) no restore drill ever run.
+These are cheap to fix (1–2 sessions) and close the gap from "catastrophic on VPS loss" to
+"recoverable in < 2 h from VPS loss."
+
+**Prevention (already scoped):**
+- MVP-1 (backup verification) + MVP-5 (Caddyfile in repo) + MVP-8 (restore drill) close 90 %
+  of the blast radius at low implementation cost. See
+  `docs/design/2026-05-15-operational-maturity-audit.md` § Minimum Viable Production.
+- MVP-2 (MASTER_KEY dual-key fallback) ensures key rotation and key recovery are operational
+  procedures, not outage events.
+
+**Recurrence class:** This entry should be re-read any time a deploy procedure touches the VPS
+backup cron, the rclone config, the Caddyfile, or the `ASSESSIQ_MASTER_KEY` env var. If all
+four MVP items above are completed and a restore drill has been run, this entry can be closed
+with a dated note in `docs/06-deployment.md` § DR.
+

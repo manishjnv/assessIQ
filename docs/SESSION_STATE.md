@@ -1,3 +1,30 @@
+# Session — 2026-05-15 (operational maturity audit)
+
+**Headline:** Operational maturity audit — 2 critical / 10 high / 9 medium / 4 low gaps (25 total); MVP scoped at 8 items; audit doc at `docs/design/2026-05-15-operational-maturity-audit.md`.
+
+**Commits:**
+- *(pending)* `docs(ops): operational maturity audit + minimum-viable-production punch list`
+
+**Tests:** n/a — docs-only session.
+
+**Deploy:** n/a — docs-only; skippable per CLAUDE.md DoD.
+
+**Next:** Close the two critical gaps. Highest-priority: MVP-1 (offsite backup verification — SSH to VPS, confirm `remote:assessiq-backups-prod` is real) + MVP-2 (MASTER_KEY dual-key fallback — `modules/01-auth/src/crypto-util.ts:36–46`, then consolidate 3 crypto impls). Next-session prompt outlines for both are in the audit doc § "Next-Session Prompt Outlines".
+
+**Open questions:**
+- Is the offsite backup remote already configured on the VPS? Cannot determine from repo alone — requires SSH verification (MVP-1).
+- Preferred object-storage provider for offsite backups (Backblaze B2 / S3 / Cloudflare R2) if the remote needs to be established.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads (observability doc, deployment doc, crypto-util, middleware); full 10-domain gap table construction; deepened critical/high analysis; all five doc sections authored directly.
+- Sonnet: n/a — all content authored by Opus in hot read cache.
+- Haiku: n/a.
+- codex:rescue: n/a — docs-only session; no security/auth/classifier code changed.
+
+---
+
 # Session — 2026-05-15 (data-model drift audit)
 
 **Headline:** Data-model drift audit: 1 undoc / 1 phantom / 5 column / 2 index / 1 RLS text — all fixed in 3 commits.
