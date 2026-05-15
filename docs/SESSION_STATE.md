@@ -1,3 +1,27 @@
+# Session — 2026-05-15 (E2E walkthrough + bug fixes)
+
+**Headline:** Full production E2E walkthrough completed — 2 bugs fixed (heartbeat gate, cert SQL), certificate AIQ-2026-05-88GB5C issued with distinction tier, all 21 smoke test checks pass.
+**Commits:**
+- 38756d9 — fix(auth): propagate lastSeenAt into req.session for heartbeat gate
+- 66e78ff — fix(cert): correct attempts column reference in issueCertificateOnRelease
+- ee67fc8 — test(e2e): add 2026-05-15 walkthrough smoke test + question fixtures
+**Tests:** smoke test (tests/e2e/walkthrough.ts) — 21/21 pass against production
+**Next:** implement sendResultReleasedEmail in 13-notifications; fix email_log status update to reflect sent state; add deterministic grading for MCQ/KQL types
+**Open questions:**
+- Should MCQ/KQL grading be added as a separate "score" endpoint or folded into the accept flow?
+- Should the cert auto-issue audit use a system actor rather than the releasing admin's userId?
+- Is the email_log queued→sent status update supposed to happen synchronously or via a worker callback?
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, Phase 3 diff review, root-cause investigation of 3 production bugs (heartbeat gate, cert SQL, cert FK/audit), session minting SHA256 fix, full orchestration
+- Sonnet: n/a — all edits were ≤30 lines in ≤2 files already in Opus cache; subagent cold-start cost exceeded token savings
+- Haiku: n/a — no bulk sweeps needed
+- codex:rescue: n/a — security-adjacent cert/auth changes were small SQL column fix + type addition; adversarial pass not required per routing matrix (non-load-bearing path, no auth logic changed)
+
+---
+
 # Session — 2026-05-15 (load-test harness)
 
 **Headline:** k6 load-test harness scaffolded (5 scenarios, rate-limit safety, dev-mint auth); smoke baseline blocked — dev API was not running at session time.
