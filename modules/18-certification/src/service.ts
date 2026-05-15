@@ -614,13 +614,13 @@ export async function issueCertificateOnRelease(
     auto_pct: string | null; // NUMERIC returns as string from node-postgres
   }>(
     `SELECT
-       a.candidate_id,
+       a.user_id               AS candidate_id,
        u.name              AS display_name,
        ass.name            AS course_title,
        l.label             AS level,
        ats.auto_pct
      FROM attempts      a
-     JOIN users         u   ON u.id   = a.candidate_id
+     JOIN users         u   ON u.id   = a.user_id
      JOIN assessments   ass ON ass.id = a.assessment_id
      JOIN levels        l   ON l.id   = ass.level_id
      LEFT JOIN attempt_scores ats ON ats.attempt_id = a.id
