@@ -3,7 +3,7 @@
 **Headline:** Operational maturity audit — 2 critical / 10 high / 9 medium / 4 low gaps (25 total); MVP scoped at 8 items; audit doc at `docs/design/2026-05-15-operational-maturity-audit.md`.
 
 **Commits:**
-- *(pending)* `docs(ops): operational maturity audit + minimum-viable-production punch list`
+- `bcecbc7` — docs(ops): operational maturity audit + minimum-viable-production punch list
 
 **Tests:** n/a — docs-only session.
 
