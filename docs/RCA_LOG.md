@@ -1249,3 +1249,10 @@ A second prevention: every revert commit must explicitly enumerate "what was rev
 
 **Prevention:** Any healthcheck command that depends on a binary not in the base image should be flagged at compose-validate time. The 127.0.0.1 (vs localhost) IPv6/IPv4 invariant from a prior RCA still applies — Fastify binds 0.0.0.0 (IPv4 only); localhost would hit ::1 first.
 
+## 2026-05-15 — data-model doc-vs-schema drift (18 migrations without audit sweep)
+
+**Symptom:** `docs/02-data-model.md` diverged from actual SQL migrations over 18 additive migrations (2026-05-01 → 2026-05-15): 1 undocumented table (`generation_attempts`), 1 phantom module-map entry (`archetypes`), 5 column/constraint gaps, 2 index gaps, 1 stale RLS policy listing.
+**Cause:** Same-PR working agreement kept doc in sync at feature-ship time, but no cross-check sweep ever ran. Additive migrations (`ALTER TABLE … ADD COLUMN`) and late-phase policy rewrites (0075) were low-friction enough to slip past same-PR review.
+**Fix:** `docs/02-data-model.md` patched in 3 commits (2026-05-15); all findings from file-shape audit against `modules/*/migrations/*.sql`.
+**Prevention:** Propose a CI lint (`tools/lint-data-model-anchors.ts`) that greps `CREATE TABLE` names from all migration SQL files and verifies a matching `## <table-name>` or `### \`<table-name>\`` anchor exists in `docs/02-data-model.md`. Would have caught `generation_attempts` on the day it shipped.
+

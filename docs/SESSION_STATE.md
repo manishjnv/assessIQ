@@ -1,3 +1,32 @@
+# Session — 2026-05-15 (data-model drift audit)
+
+**Headline:** Data-model drift audit: 1 undoc / 1 phantom / 5 column / 2 index / 1 RLS text — all fixed in 3 commits.
+
+**Commits:**
+- `219bf30` — docs(data-model): document generation_attempts + fix module-map ownership
+- `4ce1fbc` — docs(data-model): align 5 column/constraint drifts with schema
+- `638a23c` — docs(data-model): document 2 indexes + sync certificates RLS policy text
+
+**Tests:** n/a — docs-only session.
+
+**Deploy:** n/a — docs-only; skippable per CLAUDE.md DoD.
+
+**Next:** Push the 3 commits. Then first test-investment session — 02-tenancy `tenantContextMiddleware` integration test (highest-risk gap per 2026-05-15 coverage audit).
+
+**Open questions:**
+- Stage 3.1 promotion-criteria doc still pending (Opus session, judgment call on G1/G4 evidence thresholds).
+- `seed:bootstrap` CLI tool still not implemented (low priority).
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads; all five audit tables; row-by-row approval; Sonnet briefing.
+- Sonnet: Phase B execution — 3 commits to docs/02-data-model.md, SESSION_STATE.md, RCA_LOG.md.
+- Haiku: n/a.
+- codex:rescue: n/a — docs-only, no security/auth/classifier paths touched.
+
+---
+
 # Session — 2026-05-15 (onboarding rehearsal)
 
 **Headline:** Onboarding rehearsal — first-30-min: probably-not, 5 blockers / 5 friction / 0 polish fixed.
