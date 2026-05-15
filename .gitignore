@@ -94,3 +94,7 @@ lh-*.json
 # Claude Code session artifacts (plans + worktree sandboxes — not source)
 .claude/plans/
 .claude/worktrees/
+
+# Load-test run output (gitkeep tracks the dir, not the results)
+tests/load/results/*
+!tests/load/results/.gitkeep
