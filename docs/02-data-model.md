@@ -47,6 +47,7 @@ CREATE TABLE tenants (
   status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','archived')),
   embed_origins   TEXT[] NOT NULL DEFAULT '{}',  -- Phase 4 (2026-05-03): allowlisted iframe origins for postMessage D2/D8; GIN index below
   privacy_disclosed BOOLEAN NOT NULL DEFAULT FALSE, -- Phase 4 (2026-05-03): gate on POST /api/admin/embed-secrets (D13); must be TRUE before embed JWTs can be issued
+  smtp_config     JSONB,                           -- Phase 1 G1.B Session 3 (0004): per-tenant SMTP credentials; NULL = dev stub / fail-closed when SMTP driver active. Shape: {host, port, secure, user, password_enc, from_address, from_name}. password_enc is AES-256-GCM under ASSESSIQ_MASTER_KEY
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -311,6 +312,7 @@ CREATE TABLE levels (
   duration_minutes        INT NOT NULL,
   default_question_count  INT NOT NULL,
   passing_score_pct       INT NOT NULL DEFAULT 60,
+  rubric_defaults         JSONB DEFAULT NULL,   -- Stage 1.5 (0017): AI rubric calibration hints {profile, anchorComplexity, bandStrictness}; NULL = ordinal-only fallback
   UNIQUE (pack_id, position)
 );
 
@@ -321,10 +323,11 @@ CREATE TABLE questions (
   type            TEXT NOT NULL CHECK (type IN ('mcq','subjective','kql','scenario','log_analysis')),
   topic           TEXT NOT NULL,
   points          INT NOT NULL,
-  status          TEXT NOT NULL DEFAULT 'draft',
+  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','archived','ai_draft')),  -- 0016: ai_draft = AI-generated, pending admin review
   version         INT NOT NULL DEFAULT 1,
   content         JSONB NOT NULL,               -- type-specific shape, see below
   rubric          JSONB,                        -- for subjective/scenario; null for deterministic types
+  knowledge_base_sources JSONB NOT NULL DEFAULT '[]'::jsonb,  -- Stage 1.5 (0016): KB provenance for AI-generated questions; [] for human-authored
   created_by      UUID NOT NULL REFERENCES users(id),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -337,6 +340,7 @@ CREATE TABLE question_versions (
   version         INT NOT NULL,
   content         JSONB NOT NULL,
   rubric          JSONB,
+  knowledge_base_sources JSONB NOT NULL DEFAULT '[]'::jsonb,  -- Stage 1.5 (0016): inherited from questions.knowledge_base_sources at snapshot time
   saved_by        UUID NOT NULL REFERENCES users(id),
   saved_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (question_id, version)
