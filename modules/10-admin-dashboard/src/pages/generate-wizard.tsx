@@ -17,7 +17,7 @@ import { AdminShell } from "../components/AdminShell.js";
 import {
   adminApi,
   AdminApiError,
-  generateQuestionsWithTagApi,
+  generateForDomainApi,
   listDomainsApi,
   listCategoriesApi,
   createDomainApi,
@@ -30,25 +30,7 @@ import type { DomainItem, CategoryItem } from "../api.js";
 // Types
 // ---------------------------------------------------------------------------
 
-interface PackItem {
-  id: string;
-  name: string;
-  domain: string;
-  status: string;
-  version: number;
-}
-
-interface LevelItem {
-  id: string;
-  label: string;
-  description: string | null;
-  order: number;
-}
-
-interface PackDetailResponse {
-  pack: PackItem;
-  levels: LevelItem[];
-}
+type SelectedLevel = "L1" | "L2" | "L3";
 
 interface QuestionItem {
   id: string;
@@ -97,17 +79,12 @@ export function AdminGenerateWizard(): React.ReactElement {
   const [step, setStep] = useState<WizardStep>("config");
 
   // Config state
-  const [packs, setPacks] = useState<PackItem[]>([]);
-  const [selectedPackId, setSelectedPackId] = useState<string>("");
-  const [levels, setLevels] = useState<LevelItem[]>([]);
-  const [selectedLevelId, setSelectedLevelId] = useState<string>("");
+  const [selectedLevel, setSelectedLevel] = useState<SelectedLevel>("L1");
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [selectedDomainId, setSelectedDomainId] = useState<string>("");
   const [categoryConfigs, setCategoryConfigs] = useState<CategoryConfig[]>([]);
 
   // Loading / error state
-  const [packsLoading, setPacksLoading] = useState(true);
-  const [levelsLoading, setLevelsLoading] = useState(false);
   const [domainsLoading, setDomainsLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -138,14 +115,6 @@ export function AdminGenerateWizard(): React.ReactElement {
   const [approveLoading, setApproveLoading] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
 
-  // Fetch packs on mount
-  useEffect(() => {
-    setPacksLoading(true);
-    adminApi<{ items: PackItem[]; total: number }>("/admin/packs?pageSize=100")
-      .then((res) => { setPacks(res.items); setPacksLoading(false); })
-      .catch(() => { setPacksLoading(false); setConfigError("Failed to load packs"); });
-  }, []);
-
   // Fetch domains on mount
   useEffect(() => {
     setDomainsLoading(true);
@@ -153,20 +122,6 @@ export function AdminGenerateWizard(): React.ReactElement {
       .then((res) => { setDomains(res.items); setDomainsLoading(false); })
       .catch(() => { setDomainsLoading(false); setConfigError("Failed to load domains"); });
   }, []);
-
-  // Fetch levels when pack changes
-  useEffect(() => {
-    if (!selectedPackId) { setLevels([]); setSelectedLevelId(""); return; }
-    setLevelsLoading(true);
-    adminApi<PackDetailResponse>(`/admin/packs/${selectedPackId}`)
-      .then((res) => {
-        const sorted = [...res.levels].sort((a, b) => a.order - b.order);
-        setLevels(sorted);
-        setSelectedLevelId(sorted[0]?.id ?? "");
-        setLevelsLoading(false);
-      })
-      .catch(() => { setLevelsLoading(false); setConfigError("Failed to load levels"); });
-  }, [selectedPackId]);
 
   // Fetch categories when domain changes
   useEffect(() => {
@@ -248,7 +203,7 @@ export function AdminGenerateWizard(): React.ReactElement {
   // Generate handler — sequential to respect single-flight mutex
   const handleGenerate = useCallback(async () => {
     const checkedConfigs = categoryConfigs.filter((c) => c.checked);
-    if (!selectedPackId || !selectedLevelId || checkedConfigs.length === 0) return;
+    if (!selectedDomainId || !selectedLevel || checkedConfigs.length === 0) return;
 
     const initial: CategoryGenResult[] = checkedConfigs.map((c) => ({
       categoryId: c.category.id,
@@ -276,10 +231,9 @@ export function AdminGenerateWizard(): React.ReactElement {
             if (remainder > 0) remainder--;
           }
         }
-        const res = await generateQuestionsWithTagApi(selectedPackId, selectedLevelId, {
+        const res = await generateForDomainApi(selectedDomainId, selectedLevel, {
           count: cfg.count,
           type_counts: typeCounts as Partial<Record<"mcq" | "log_analysis" | "scenario" | "kql" | "subjective", number>>,
-          domain_id: selectedDomainId,
           category_id: cfg.category.id,
         });
         results[i] = { ...results[i]!, status: "done", questionIds: res.questionIds };
@@ -290,18 +244,18 @@ export function AdminGenerateWizard(): React.ReactElement {
       setGenResults([...results]);
     }
 
-    // Load drafts for review
+    // Load drafts for review — query by domain_id since we no longer have pack_id
     setDraftsLoading(true);
     try {
       const q = await adminApi<{ items: QuestionItem[]; total: number }>(
-        `/admin/questions?pack_id=${selectedPackId}&level_id=${selectedLevelId}&status=ai_draft&pageSize=500`,
+        `/admin/questions?status=ai_draft&pageSize=500`,
       );
       setDrafts(q.items);
       setSelectedDraftIds(new Set(q.items.map((d) => d.id)));
     } catch { /* non-critical */ }
     setDraftsLoading(false);
     setStep("review");
-  }, [categoryConfigs, selectedPackId, selectedLevelId, selectedDomainId]);
+  }, [categoryConfigs, selectedDomainId, selectedLevel]);
 
   // Inline edit
   const startEdit = (draft: QuestionItem) => {
@@ -339,7 +293,7 @@ export function AdminGenerateWizard(): React.ReactElement {
 
   function renderConfig(): React.ReactElement {
     const checkedCount = categoryConfigs.filter((c) => c.checked).length;
-    const canGenerate = !!selectedPackId && !!selectedLevelId && !!selectedDomainId && checkedCount > 0;
+    const canGenerate = !!selectedDomainId && !!selectedLevel && checkedCount > 0;
 
     return (
       <div style={{ maxWidth: 760 }}>
@@ -351,23 +305,15 @@ export function AdminGenerateWizard(): React.ReactElement {
 
         <section style={{ marginBottom: "var(--aiq-space-xl)" }}>
           <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", marginBottom: "var(--aiq-space-sm)" }}>
-            Pack &amp; Level
+            Difficulty Level
           </h3>
-          <div style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <label style={{ display: "block", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", marginBottom: 4 }}>Pack</label>
-              <select className="aiq-input" value={selectedPackId} onChange={(e) => setSelectedPackId(e.target.value)} disabled={packsLoading} style={{ width: "100%" }}>
-                <option value="">-- Select a pack --</option>
-                {packs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <label style={{ display: "block", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", marginBottom: 4 }}>Level</label>
-              <select className="aiq-input" value={selectedLevelId} onChange={(e) => setSelectedLevelId(e.target.value)} disabled={levelsLoading || levels.length === 0} style={{ width: "100%" }}>
-                {levels.length === 0 && <option value="">-- Select a pack first --</option>}
-                {levels.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-              </select>
-            </div>
+          <div style={{ display: "flex", gap: "var(--aiq-space-md)" }}>
+            {(["L1", "L2", "L3"] as SelectedLevel[]).map((lv) => (
+              <label key={lv} style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)", cursor: "pointer", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", border: "1px solid", borderColor: selectedLevel === lv ? "var(--aiq-color-accent)" : "var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", background: selectedLevel === lv ? "var(--aiq-color-accent-soft)" : "var(--aiq-color-bg-raised)" }}>
+                <input type="radio" name="level" value={lv} checked={selectedLevel === lv} onChange={() => setSelectedLevel(lv)} style={{ accentColor: "var(--aiq-color-accent)" }} />
+                {lv}
+              </label>
+            ))}
           </div>
         </section>
 
@@ -475,7 +421,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         </button>
         {!canGenerate && (
           <span style={{ marginLeft: "var(--aiq-space-sm)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-            Select a pack, level, domain, and at least one category first.
+            Select a domain and at least one category first.
           </span>
         )}
       </div>

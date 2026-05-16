@@ -1250,6 +1250,164 @@ export async function bulkImport(
 }
 
 // ===========================================================================
+// DOMAIN-BASED PACK RESOLVER (Slice 2.1c — C1)
+// ===========================================================================
+
+/**
+ * Find or create an auto-managed pack for a given (tenant, domain) pair.
+ *
+ * Design: 1 pack per (tenant, domain), identified by the reserved slug
+ * `dom-<domainSlug>`. Three levels L1/L2/L3 are healed into it (positions
+ * 1/2/3; 60min / 10q / 60%). The pack is INTERNAL — the admin never sees it.
+ *
+ * Security:
+ *  - Cross-tenant guard FIRST (same hardened pattern as 2.1b). Fail-closed.
+ *  - tenant_id explicit on INSERT (satisfies WITH CHECK RLS on question_packs).
+ *  - Levels derive tenancy via FK chain — no tenant_id on level INSERT (matches
+ *    the repository comment: "levels has no tenant_id column").
+ *
+ * Idempotency:
+ *  - pack UNIQUE(tenant_id, slug, version) → catch 23505 → re-query → continue.
+ *  - levels: query existing labels, insert only the missing ones (never delete).
+ *  - Returns exactly 3 level IDs — never <3 (heal loop prevents it).
+ */
+export async function findOrCreatePackForDomain(
+  tenantId: string,
+  domainId: string,
+  createdByUserId: string,
+): Promise<{ packId: string; levelIds: { L1: string; L2: string; L3: string } }> {
+  log.info({ tenantId, domainId }, "findOrCreatePackForDomain");
+
+  return withTenant(tenantId, async (client) => {
+    // ── 1. Cross-tenant guard FIRST (fail-closed) ──────────────────────────
+    // Postgres FK validation bypasses RLS. This explicit query is the primary
+    // security control preventing a pack from being created for a domain that
+    // belongs to another tenant.
+    const guardResult = await client.query<{ slug: string; name: string }>(
+      `SELECT slug, name FROM domains WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [domainId, tenantId],
+    );
+    if (guardResult.rows.length === 0) {
+      throw new ValidationError(
+        "domain_id does not exist or does not belong to this tenant",
+        { details: { code: "CROSS_TENANT_FK_REJECTED", param: "domain_id" } },
+      );
+    }
+    const { slug: domainSlug, name: domainName } = guardResult.rows[0]!;
+
+    // ── 2. Reserved slug: dom-<domainSlug> ────────────────────────────────
+    const autoSlug = `dom-${domainSlug}`;
+
+    // ── 3. Find existing auto-pack (or insert if absent) ──────────────────
+    let packId: string;
+    const findResult = await client.query<{ id: string }>(
+      `SELECT id FROM question_packs WHERE tenant_id = $1 AND slug = $2 LIMIT 1`,
+      [tenantId, autoSlug],
+    );
+
+    if (findResult.rows.length > 0) {
+      packId = findResult.rows[0]!.id;
+    } else {
+      // Insert the auto-managed pack. Catch 23505 (race: another request
+      // inserted first) → re-query and continue. tenant_id explicit to satisfy
+      // WITH CHECK RLS policy on question_packs.
+      const newPackId = uuidv7();
+      const descSentinel =
+        `Auto-managed by the Generate-Questions wizard for domain: ${domainName}. Do not rename its slug.`;
+      try {
+        const insertResult = await client.query<{ id: string }>(
+          `INSERT INTO question_packs (id, tenant_id, slug, name, domain, description, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [newPackId, tenantId, autoSlug, domainName, domainSlug, descSentinel, createdByUserId],
+        );
+        packId = insertResult.rows[0]!.id;
+        log.info({ tenantId, packId, autoSlug }, "findOrCreatePackForDomain: pack inserted");
+      } catch (err: unknown) {
+        if (isUniqueViolation(err)) {
+          // Race: another concurrent request created the pack. Re-query.
+          const retryResult = await client.query<{ id: string }>(
+            `SELECT id FROM question_packs WHERE tenant_id = $1 AND slug = $2 LIMIT 1`,
+            [tenantId, autoSlug],
+          );
+          if (retryResult.rows.length === 0) {
+            throw new Error("findOrCreatePackForDomain: pack missing after 23505 retry — unexpected");
+          }
+          packId = retryResult.rows[0]!.id;
+          log.info({ tenantId, packId, autoSlug }, "findOrCreatePackForDomain: pack found after 23505");
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    // ── 4. Heal levels: ensure L1, L2, L3 all exist ───────────────────────
+    // Query which labels already exist for this pack.
+    const existingLevelsResult = await client.query<{ id: string; label: string }>(
+      `SELECT id, label FROM levels WHERE pack_id = $1 AND label = ANY($2::text[])`,
+      [packId, ["L1", "L2", "L3"]],
+    );
+
+    const existingLevelMap = new Map<string, string>();
+    for (const row of existingLevelsResult.rows) {
+      existingLevelMap.set(row.label, row.id);
+    }
+
+    // Level definitions: label → position, duration_minutes, default_question_count, passing_score_pct
+    const LEVEL_DEFS = [
+      { label: "L1", position: 1, durationMinutes: 60, defaultQuestionCount: 10, passingScorePct: 60 },
+      { label: "L2", position: 2, durationMinutes: 60, defaultQuestionCount: 10, passingScorePct: 60 },
+      { label: "L3", position: 3, durationMinutes: 60, defaultQuestionCount: 10, passingScorePct: 60 },
+    ] as const;
+
+    for (const def of LEVEL_DEFS) {
+      if (!existingLevelMap.has(def.label)) {
+        // Level is missing — insert it. Levels have no tenant_id column; their
+        // RLS derives tenancy via FK chain through question_packs. No tenant_id
+        // on INSERT (matches repository.ts comment — do not add one).
+        const newLevelId = uuidv7();
+        try {
+          await client.query(
+            `INSERT INTO levels (id, pack_id, position, label, duration_minutes, default_question_count, passing_score_pct)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [newLevelId, packId, def.position, def.label, def.durationMinutes, def.defaultQuestionCount, def.passingScorePct],
+          );
+          existingLevelMap.set(def.label, newLevelId);
+          log.info({ tenantId, packId, label: def.label, levelId: newLevelId }, "findOrCreatePackForDomain: level healed");
+        } catch (err: unknown) {
+          if (isUniqueViolation(err)) {
+            // Race on level insert — re-query this specific label.
+            const retryLevelResult = await client.query<{ id: string }>(
+              `SELECT id FROM levels WHERE pack_id = $1 AND label = $2 LIMIT 1`,
+              [packId, def.label],
+            );
+            if (retryLevelResult.rows.length === 0) {
+              throw new Error(`findOrCreatePackForDomain: level ${def.label} missing after 23505 retry`);
+            }
+            existingLevelMap.set(def.label, retryLevelResult.rows[0]!.id);
+          } else {
+            throw err;
+          }
+        }
+      }
+    }
+
+    // ── 5. Verify heal completeness — must never return <3 levels ─────────
+    const L1 = existingLevelMap.get("L1");
+    const L2 = existingLevelMap.get("L2");
+    const L3 = existingLevelMap.get("L3");
+    if (!L1 || !L2 || !L3) {
+      throw new Error(
+        `findOrCreatePackForDomain: heal incomplete — missing levels after insert: ` +
+        `L1=${L1 ?? "MISSING"}, L2=${L2 ?? "MISSING"}, L3=${L3 ?? "MISSING"}`,
+      );
+    }
+
+    return { packId, levelIds: { L1, L2, L3 } };
+  });
+}
+
+// ===========================================================================
 // AI QUESTION GENERATION
 // ===========================================================================
 
