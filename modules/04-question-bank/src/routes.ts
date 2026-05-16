@@ -78,6 +78,8 @@ import type {
 import {
   handleAdminListDomains,
   handleAdminListCategories,
+  handleAdminCreateDomain,
+  handleAdminCreateCategory,
   UUID_RE,
 } from "./handlers/admin-domains.js";
 
@@ -247,6 +249,90 @@ export async function registerQuestionBankRoutes(
         });
       }
       return handleAdminListCategories({ tenantId, domainId });
+    },
+  );
+
+  // POST /api/admin/domains  (Slice 2.1b — B1)
+  // Body: { name: string, description?: string }
+  // Returns: the created domain row (201).
+  // Security: admin-gated, tenant_id explicit on INSERT, unique-violation → 409.
+  app.post(
+    "/api/admin/domains",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const tenantId = req.session!.tenantId;
+      const body = req.body as { name?: unknown; description?: unknown };
+      if (typeof body?.name !== "string" || body.name.trim().length === 0) {
+        throw new ValidationError("name is required and must be a non-empty string", {
+          details: { code: "MISSING_REQUIRED", param: "name" },
+        });
+      }
+      const domain = await handleAdminCreateDomain({
+        tenantId,
+        name: body.name,
+        ...(typeof body.description === "string" ? { description: body.description } : {}),
+      });
+      return reply.code(201).send(domain);
+    },
+  );
+
+  // POST /api/admin/categories  (Slice 2.1b — B1)
+  // Body: { domain_id: string (UUID), name: string, description?: string,
+  //         supported_types?: string[], default_question_count?: number }
+  // Returns: the created category row (201).
+  // Security: admin-gated, cross-tenant FK guard (domain_id → tenant check)
+  //   before INSERT, tenant_id explicit on INSERT, unique-violation → 409.
+  app.post(
+    "/api/admin/categories",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const tenantId = req.session!.tenantId;
+      const body = req.body as {
+        domain_id?: unknown;
+        name?: unknown;
+        description?: unknown;
+        supported_types?: unknown;
+        default_question_count?: unknown;
+      };
+      if (typeof body?.domain_id !== "string" || !UUID_RE.test(body.domain_id)) {
+        throw new ValidationError("domain_id must be a valid UUID", {
+          details: { code: "INVALID_PARAM", param: "domain_id" },
+        });
+      }
+      if (typeof body?.name !== "string" || body.name.trim().length === 0) {
+        throw new ValidationError("name is required and must be a non-empty string", {
+          details: { code: "MISSING_REQUIRED", param: "name" },
+        });
+      }
+      // Optional: supported_types array of strings
+      let supportedTypes: string[] | undefined;
+      if (body.supported_types !== undefined && body.supported_types !== null) {
+        if (!Array.isArray(body.supported_types) || !(body.supported_types as unknown[]).every((t) => typeof t === "string")) {
+          throw new ValidationError("supported_types must be an array of strings", {
+            details: { code: "INVALID_PARAM", param: "supported_types" },
+          });
+        }
+        supportedTypes = body.supported_types as string[];
+      }
+      // Optional: default_question_count positive integer
+      let defaultCount: number | undefined;
+      if (body.default_question_count !== undefined && body.default_question_count !== null) {
+        if (typeof body.default_question_count !== "number" || !Number.isInteger(body.default_question_count) || body.default_question_count < 1) {
+          throw new ValidationError("default_question_count must be a positive integer", {
+            details: { code: "INVALID_PARAM", param: "default_question_count" },
+          });
+        }
+        defaultCount = body.default_question_count;
+      }
+      const category = await handleAdminCreateCategory({
+        tenantId,
+        domain_id: body.domain_id,
+        name: body.name,
+        ...(typeof body.description === "string" ? { description: body.description } : {}),
+        ...(supportedTypes !== undefined ? { supported_types: supportedTypes } : {}),
+        ...(defaultCount !== undefined ? { default_question_count: defaultCount } : {}),
+      });
+      return reply.code(201).send(category);
     },
   );
 

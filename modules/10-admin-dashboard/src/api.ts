@@ -249,6 +249,37 @@ export async function listCategoriesApi(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Typed helpers — create domain + category (Slice 2.1b)
+// ---------------------------------------------------------------------------
+
+export interface CreateDomainRequest {
+  name: string;
+  description?: string;
+}
+
+export async function createDomainApi(body: CreateDomainRequest): Promise<DomainItem> {
+  return adminApi<DomainItem>("/admin/domains", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface CreateCategoryRequest {
+  domain_id: string;
+  name: string;
+  description?: string;
+  supported_types?: string[];
+  default_question_count?: number;
+}
+
+export async function createCategoryApi(body: CreateCategoryRequest): Promise<CategoryItem> {
+  return adminApi<CategoryItem>("/admin/categories", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export interface GenerateWithTagRequest {
   count: number;
   type_counts?: Partial<Record<GenerateQuestionType, number>>;

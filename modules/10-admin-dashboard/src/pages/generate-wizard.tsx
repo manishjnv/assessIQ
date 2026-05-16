@@ -20,6 +20,8 @@ import {
   generateQuestionsWithTagApi,
   listDomainsApi,
   listCategoriesApi,
+  createDomainApi,
+  createCategoryApi,
   bulkUpdateQuestionStatus,
 } from "../api.js";
 import type { DomainItem, CategoryItem } from "../api.js";
@@ -110,6 +112,20 @@ export function AdminGenerateWizard(): React.ReactElement {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
 
+  // Inline create domain state (B2)
+  const [showNewDomain, setShowNewDomain] = useState(false);
+  const [newDomainName, setNewDomainName] = useState("");
+  const [newDomainDesc, setNewDomainDesc] = useState("");
+  const [newDomainLoading, setNewDomainLoading] = useState(false);
+  const [newDomainError, setNewDomainError] = useState<string | null>(null);
+
+  // Inline create category state (B2)
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryDesc, setNewCategoryDesc] = useState("");
+  const [newCategoryLoading, setNewCategoryLoading] = useState(false);
+  const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
+
   // Generating state
   const [genResults, setGenResults] = useState<CategoryGenResult[]>([]);
 
@@ -171,6 +187,63 @@ export function AdminGenerateWizard(): React.ReactElement {
       })
       .catch(() => { setCategoriesLoading(false); setConfigError("Failed to load categories"); });
   }, [selectedDomainId]);
+
+  // Create domain handler (B2)
+  const handleCreateDomain = useCallback(async () => {
+    const name = newDomainName.trim();
+    if (!name) { setNewDomainError("Name is required"); return; }
+    setNewDomainLoading(true);
+    setNewDomainError(null);
+    try {
+      const created = await createDomainApi({
+        name,
+        ...(newDomainDesc.trim() ? { description: newDomainDesc.trim() } : {}),
+      });
+      // Refetch domains list and auto-select the new one
+      const res = await listDomainsApi();
+      setDomains(res.items);
+      setSelectedDomainId(created.id);
+      setNewDomainName("");
+      setNewDomainDesc("");
+      setShowNewDomain(false);
+    } catch (err) {
+      setNewDomainError(err instanceof AdminApiError ? err.apiError.message : "Failed to create domain");
+    }
+    setNewDomainLoading(false);
+  }, [newDomainName, newDomainDesc]);
+
+  // Create category handler (B2)
+  const handleCreateCategory = useCallback(async () => {
+    const name = newCategoryName.trim();
+    if (!name) { setNewCategoryError("Name is required"); return; }
+    if (!selectedDomainId) { setNewCategoryError("Select a domain first"); return; }
+    setNewCategoryLoading(true);
+    setNewCategoryError(null);
+    try {
+      const created = await createCategoryApi({
+        domain_id: selectedDomainId,
+        name,
+        ...(newCategoryDesc.trim() ? { description: newCategoryDesc.trim() } : {}),
+      });
+      // Refetch categories for selected domain and auto-select the new one
+      const res = await listCategoriesApi(selectedDomainId);
+      const configs: CategoryConfig[] = res.items.map((cat) => ({
+        category: cat,
+        count: cat.default_question_count ?? 3,
+        selectedTypes: Array.isArray(cat.supported_types)
+          ? [...(cat.supported_types as string[])]
+          : ["subjective", "scenario"],
+        checked: cat.id === created.id ? true : cat.default_selected,
+      }));
+      setCategoryConfigs(configs);
+      setNewCategoryName("");
+      setNewCategoryDesc("");
+      setShowNewCategory(false);
+    } catch (err) {
+      setNewCategoryError(err instanceof AdminApiError ? err.apiError.message : "Failed to create category");
+    }
+    setNewCategoryLoading(false);
+  }, [newCategoryName, newCategoryDesc, selectedDomainId]);
 
   // Generate handler — sequential to respect single-flight mutex
   const handleGenerate = useCallback(async () => {
@@ -299,7 +372,36 @@ export function AdminGenerateWizard(): React.ReactElement {
         </section>
 
         <section style={{ marginBottom: "var(--aiq-space-xl)" }}>
-          <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", marginBottom: "var(--aiq-space-sm)" }}>Domain</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-sm)" }}>
+            <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", margin: 0 }}>Domain</h3>
+            <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => { setShowNewDomain((v) => !v); setNewDomainError(null); }} style={{ fontSize: "var(--aiq-text-xs)" }}>
+              {showNewDomain ? "Cancel" : "+ New domain"}
+            </button>
+          </div>
+          {showNewDomain && (
+            <div style={{ marginBottom: "var(--aiq-space-sm)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", maxWidth: 360 }}>
+              {newDomainError && (
+                <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{newDomainError}</span>
+              )}
+              <input
+                type="text"
+                placeholder="Domain name (required)"
+                value={newDomainName}
+                onChange={(e) => setNewDomainName(e.target.value)}
+                style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
+              />
+              <input
+                type="text"
+                placeholder="Description (optional)"
+                value={newDomainDesc}
+                onChange={(e) => setNewDomainDesc(e.target.value)}
+                style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
+              />
+              <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={newDomainLoading || !newDomainName.trim()} onClick={() => void handleCreateDomain()}>
+                {newDomainLoading ? "Creating..." : "Create Domain"}
+              </button>
+            </div>
+          )}
           <select className="aiq-input" value={selectedDomainId} onChange={(e) => setSelectedDomainId(e.target.value)} disabled={domainsLoading} style={{ maxWidth: 360 }}>
             <option value="">-- Select a domain --</option>
             {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -308,7 +410,37 @@ export function AdminGenerateWizard(): React.ReactElement {
 
         {selectedDomainId && (
           <section style={{ marginBottom: "var(--aiq-space-xl)" }}>
-            <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", marginBottom: "var(--aiq-space-sm)" }}>Categories</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-sm)" }}>
+              <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", margin: 0 }}>Categories</h3>
+              <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => { setShowNewCategory((v) => !v); setNewCategoryError(null); }} style={{ fontSize: "var(--aiq-text-xs)" }}>
+                {showNewCategory ? "Cancel" : "+ New category"}
+              </button>
+            </div>
+            {showNewCategory && (
+              <div style={{ marginBottom: "var(--aiq-space-sm)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", maxWidth: 440 }}>
+                {newCategoryError && (
+                  <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{newCategoryError}</span>
+                )}
+                <input
+                  type="text"
+                  placeholder="Category name (required)"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Description (optional)"
+                  value={newCategoryDesc}
+                  onChange={(e) => setNewCategoryDesc(e.target.value)}
+                  style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
+                />
+                <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={newCategoryLoading || !newCategoryName.trim()} onClick={() => void handleCreateCategory()}>
+                  {newCategoryLoading ? "Creating..." : "Create Category"}
+                </button>
+              </div>
+            )}
+
             {categoriesLoading ? (
               <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>Loading categories...</p>
             ) : categoryConfigs.length === 0 ? (
