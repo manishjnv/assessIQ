@@ -687,6 +687,40 @@ export async function listActiveQuestionPoolForPick(
   return result.rows;
 }
 
+/**
+ * Pull active questions for a SINGLE BLUEPRINT CRITERION (C3 — Phase 2 Slice A).
+ *
+ * Same MAX(qv.version) logic as listActiveQuestionPoolForPick — pins to the
+ * most recently committed snapshot per question (see WHY MAX comment above).
+ *
+ * The domain_id / category_id came from assessment.settings.blueprint which
+ * was written-time-guarded by assertBlueprintFKOwnership (C1); this query
+ * runs inside the existing withTenant RLS scope as a defence-in-depth layer.
+ *
+ * Runs inside the caller's withTenant client — RLS enforces tenant isolation.
+ */
+export async function listActiveQuestionPoolForCriterion(
+  client: PoolClient,
+  packId: string,
+  levelId: string,
+  domainId: string,
+  categoryId: string,
+  type: string,
+): Promise<Array<{ id: string; version: number }>> {
+  const result = await client.query<{ id: string; version: number }>(
+    `SELECT q.id, MAX(qv.version)::int AS version
+     FROM questions q
+     JOIN question_versions qv ON qv.question_id = q.id
+     WHERE q.pack_id = $1 AND q.level_id = $2
+       AND q.domain_id = $3 AND q.category_id = $4
+       AND q.type = $5 AND q.status = 'active'
+     GROUP BY q.id
+     ORDER BY q.id ASC`,
+    [packId, levelId, domainId, categoryId, type],
+  );
+  return result.rows;
+}
+
 export async function findInvitationForCandidate(
   client: PoolClient,
   assessmentId: string,
