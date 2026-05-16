@@ -303,3 +303,36 @@ export async function generateQuestionsWithTagApi(
     { method: "POST", body: JSON.stringify(body) },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — domain-based generate endpoint (Slice 2.1c)
+// ---------------------------------------------------------------------------
+
+export type DomainGenerateLevel = "L1" | "L2" | "L3";
+
+export interface GenerateForDomainRequest {
+  count: number;
+  type_counts?: Partial<Record<GenerateQuestionType, number>>;
+  category_id?: string;
+}
+
+/**
+ * POST /api/admin/generate
+ *
+ * Domain-based generation (Slice 2.1c). The server resolves or creates the
+ * auto-managed pack for (tenant, domain) and heals L1/L2/L3 levels.
+ * Admin never sees pack_id or level_id — only domain + L1/L2/L3 level label.
+ */
+export async function generateForDomainApi(
+  domainId: string,
+  level: DomainGenerateLevel,
+  body: GenerateForDomainRequest,
+): Promise<GenerateQuestionsResponse> {
+  return adminApi<GenerateQuestionsResponse>(
+    "/admin/generate",
+    {
+      method: "POST",
+      body: JSON.stringify({ domain_id: domainId, level, ...body }),
+    },
+  );
+}
