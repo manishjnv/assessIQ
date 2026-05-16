@@ -47,6 +47,7 @@ import * as repo from "./repository.js";
 // and documented — a future clean-up could add a `/repository` export entry
 // in 04's package.json `exports` map gated to internal workspace consumers.
 import * as qbRepo from "../../04-question-bank/src/repository.js";
+import { findOrCreatePackForDomain } from "../../04-question-bank/src/service.js";
 import {
   assertCanTransition,
   assertValidWindow,
@@ -54,10 +55,12 @@ import {
 } from "./state-machine.js";
 import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "./tokens.js";
 import { sendInvitationEmail } from "./email.js";
-import { AL_ERROR_CODES } from "./types.js";
+import { AL_ERROR_CODES, AssessmentBlueprintSchema } from "./types.js";
 import type {
   Assessment,
+  AssessmentBlueprint,
   AssessmentInvitation,
+  AssessmentSettings,
   AssessmentStatus,
   CreateAssessmentInput,
   InvitationStatus,
@@ -65,6 +68,7 @@ import type {
   ListInvitationsInput,
   PaginatedAssessments,
   PaginatedInvitations,
+  PreviewCriterionResult,
   PreviewQuestionSet,
   UpdateAssessmentPatch,
   InviteUsersResult,
@@ -165,6 +169,146 @@ async function listActiveQuestionsForPreview(
   return result.rows;
 }
 
+// ---------------------------------------------------------------------------
+// Blueprint helpers (Phase 2 Slice A)
+// ---------------------------------------------------------------------------
+
+/**
+ * Count active questions for a single blueprint criterion
+ * (pack_id + level_id + domain_id + category_id + type + status='active').
+ *
+ * Runs inside the caller's tenant-scoped withTenant client; RLS applies.
+ * Used by publishAssessment pool pre-flight (C2) and previewAssessment (C4).
+ */
+async function countActiveQuestionsForCriterion(
+  client: PoolClient,
+  packId: string,
+  levelId: string,
+  domainId: string,
+  categoryId: string,
+  type: string,
+): Promise<number> {
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*) FROM questions
+     WHERE pack_id = $1 AND level_id = $2 AND domain_id = $3
+       AND category_id = $4 AND type = $5 AND status = 'active'`,
+    [packId, levelId, domainId, categoryId, type],
+  );
+  return parseInt(result.rows[0]?.count ?? "0", 10);
+}
+
+/**
+ * Pull up to `limit` active questions for a single blueprint criterion.
+ * Used by previewAssessment (C4) to show sample topics.
+ */
+async function listActiveQuestionsForCriterion(
+  client: PoolClient,
+  packId: string,
+  levelId: string,
+  domainId: string,
+  categoryId: string,
+  type: string,
+  limit: number,
+): Promise<unknown[]> {
+  const result = await client.query(
+    `SELECT id, topic, type, points FROM questions
+     WHERE pack_id = $1 AND level_id = $2 AND domain_id = $3
+       AND category_id = $4 AND type = $5 AND status = 'active'
+     ORDER BY created_at ASC, id ASC
+     LIMIT $6`,
+    [packId, levelId, domainId, categoryId, type, limit],
+  );
+  return result.rows;
+}
+
+/**
+ * Validate blueprint cross-tenant FK integrity (C1 — primary security control).
+ *
+ * SECURITY: blueprint.domain_id and criterion.category_id are stored in JSONB.
+ * Postgres FK validation bypasses RLS so a malicious request could reference
+ * a domain or category from another tenant's JSONB blob. This explicit guard
+ * is the only control preventing that — same class as the 2.1b/2.1c guard in
+ * modules/04-question-bank/src/handlers/admin-domains.ts:261-273 and
+ * modules/04-question-bank/src/service.ts:1286-1295.
+ *
+ * Steps:
+ *   1. Verify domain_id belongs to session tenant.
+ *   2. For each DISTINCT category_id, verify it belongs to session tenant
+ *      AND is a child of blueprint.domain_id.
+ *
+ * Any miss → throws ValidationError 422 CROSS_TENANT_FK_REJECTED.
+ *
+ * Runs inside the caller's tenant-scoped withTenant client.
+ */
+async function assertBlueprintFKOwnership(
+  client: PoolClient,
+  tenantId: string,
+  blueprint: AssessmentBlueprint,
+): Promise<void> {
+  // 1. Domain guard
+  const domainGuard = await client.query<{ slug: string }>(
+    `SELECT slug FROM domains WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    [blueprint.domain_id, tenantId],
+  );
+  if (domainGuard.rows.length === 0) {
+    throw new ValidationError(
+      "blueprint.domain_id does not exist or does not belong to this tenant",
+      {
+        details: {
+          code: AL_ERROR_CODES.CROSS_TENANT_FK_REJECTED,
+          field: "blueprint.domain_id",
+          domain_id: blueprint.domain_id,
+        },
+      },
+    );
+  }
+
+  // 2. Per-distinct-category guard
+  const distinctCategoryIds = [...new Set(blueprint.criteria.map((c) => c.category_id))];
+  for (const categoryId of distinctCategoryIds) {
+    const catGuard = await client.query<{ id: string }>(
+      `SELECT id FROM categories
+       WHERE id = $1 AND domain_id = $2 AND tenant_id = $3
+       LIMIT 1`,
+      [categoryId, blueprint.domain_id, tenantId],
+    );
+    if (catGuard.rows.length === 0) {
+      throw new ValidationError(
+        `blueprint category_id does not exist, does not belong to this tenant, or does not belong to the specified domain`,
+        {
+          details: {
+            code: AL_ERROR_CODES.CROSS_TENANT_FK_REJECTED,
+            field: "blueprint.criteria[].category_id",
+            category_id: categoryId,
+            domain_id: blueprint.domain_id,
+          },
+        },
+      );
+    }
+  }
+}
+
+/**
+ * Resolve pack/level from blueprint + update assessment fields.
+ * Calls findOrCreatePackForDomain (already Opus-reviewed, cross-tenant-guarded)
+ * to get packId/levelIds, then returns the fields to persist.
+ *
+ * IMPORTANT: findOrCreatePackForDomain uses its own withTenant internally.
+ * This is intentional — the resolver is designed as a standalone service call.
+ * The resolved pack_id/level_id are then passed back into the caller's
+ * withTenant scope for the INSERT/UPDATE.
+ */
+async function resolveBlueprintPackLevel(
+  tenantId: string,
+  blueprint: AssessmentBlueprint,
+  createdByUserId: string,
+): Promise<{ packId: string; levelId: string; questionCount: number }> {
+  const resolver = await findOrCreatePackForDomain(tenantId, blueprint.domain_id, createdByUserId);
+  const levelId = resolver.levelIds[blueprint.level];
+  const questionCount = blueprint.criteria.reduce((sum, c) => sum + c.count, 0);
+  return { packId: resolver.packId, levelId, questionCount };
+}
+
 // ===========================================================================
 // ASSESSMENT OPERATIONS
 // ===========================================================================
@@ -247,14 +391,57 @@ export async function createAssessment(
   // Validate window before touching the DB (avoids a round-trip on bad input)
   assertValidWindow(input.opens_at ?? null, input.closes_at ?? null);
 
+  // ── Blueprint path (C1) ───────────────────────────────────────────────────
+  // When settings.blueprint is present, validate + resolve pack/level BEFORE
+  // entering withTenant. findOrCreatePackForDomain uses its own withTenant
+  // internally and is already cross-tenant-guarded (Opus-reviewed, Slice 2.1c).
+  // The input pack_id / level_id / question_count are overridden with the
+  // blueprint-resolved values so the no-blueprint INSERT path below is unchanged.
+  let resolvedInput = input;
+  let mergedSettings: AssessmentSettings = input.settings ?? {};
+
+  const rawBlueprint = (input.settings as Record<string, unknown> | undefined)?.["blueprint"];
+  if (rawBlueprint !== undefined) {
+    // Zod-validate blueprint shape
+    const parseResult = AssessmentBlueprintSchema.safeParse(rawBlueprint);
+    if (!parseResult.success) {
+      throw new ValidationError(
+        `settings.blueprint is invalid: ${parseResult.error.issues.map((i) => i.message).join("; ")}`,
+        { details: { code: AL_ERROR_CODES.BLUEPRINT_INVALID, issues: parseResult.error.issues } },
+      );
+    }
+    const blueprint = parseResult.data;
+
+    // Resolve pack/level (calls findOrCreatePackForDomain which has its own
+    // domain cross-tenant guard). Then do the category-level guard inside withTenant.
+    const resolved = await resolveBlueprintPackLevel(tenantId, blueprint, createdByUserId);
+
+    resolvedInput = {
+      ...input,
+      pack_id: resolved.packId,
+      level_id: resolved.levelId,
+      question_count: resolved.questionCount,
+    };
+    mergedSettings = { ...mergedSettings, blueprint };
+  }
+
   const id = uuidv7();
-  log.info({ tenantId, id, packId: input.pack_id, levelId: input.level_id }, "createAssessment");
+  log.info(
+    { tenantId, id, packId: resolvedInput.pack_id, levelId: resolvedInput.level_id, hasBlueprint: rawBlueprint !== undefined },
+    "createAssessment",
+  );
 
   return withTenant(tenantId, async (client) => {
+    // C1 — cross-tenant FK guard for blueprint (category-level, inside RLS scope)
+    if (rawBlueprint !== undefined) {
+      const blueprint = mergedSettings.blueprint!;
+      await assertBlueprintFKOwnership(client, tenantId, blueprint);
+    }
+
     // a. Pack must exist (RLS scopes the SELECT to this tenant)
-    const pack = await qbRepo.findPackById(client, input.pack_id);
+    const pack = await qbRepo.findPackById(client, resolvedInput.pack_id);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${input.pack_id}`, {
+      throw new NotFoundError(`Pack not found: ${resolvedInput.pack_id}`, {
         details: { code: AL_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
@@ -262,23 +449,23 @@ export async function createAssessment(
     // b. Pack must be published
     if (pack.status !== "published") {
       throw new ConflictError(
-        `Pack '${input.pack_id}' must be in 'published' status to create an assessment (current: '${pack.status}')`,
+        `Pack '${resolvedInput.pack_id}' must be in 'published' status to create an assessment (current: '${pack.status}')`,
         { details: { code: AL_ERROR_CODES.PACK_NOT_PUBLISHED } },
       );
     }
 
     // c. Level must exist (RLS scopes through pack FK)
-    const level = await qbRepo.findLevelById(client, input.level_id);
+    const level = await qbRepo.findLevelById(client, resolvedInput.level_id);
     if (level === null) {
-      throw new NotFoundError(`Level not found: ${input.level_id}`, {
+      throw new NotFoundError(`Level not found: ${resolvedInput.level_id}`, {
         details: { code: AL_ERROR_CODES.LEVEL_NOT_FOUND },
       });
     }
 
     // d. Level must belong to the specified pack
-    if (level.pack_id !== input.pack_id) {
+    if (level.pack_id !== resolvedInput.pack_id) {
       throw new ValidationError(
-        `Level '${input.level_id}' does not belong to pack '${input.pack_id}'`,
+        `Level '${resolvedInput.level_id}' does not belong to pack '${resolvedInput.pack_id}'`,
         { details: { code: AL_ERROR_CODES.LEVEL_NOT_IN_PACK } },
       );
     }
@@ -287,16 +474,16 @@ export async function createAssessment(
     const assessment = await repo.insertAssessment(client, {
       id,
       tenantId,
-      packId: input.pack_id,
-      levelId: input.level_id,
+      packId: resolvedInput.pack_id,
+      levelId: resolvedInput.level_id,
       packVersion: pack.version,
-      name: input.name,
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      questionCount: input.question_count,
-      randomize: input.randomize ?? true,
-      opensAt: input.opens_at ?? null,
-      closesAt: input.closes_at ?? null,
-      settings: input.settings ?? {},
+      name: resolvedInput.name,
+      ...(resolvedInput.description !== undefined ? { description: resolvedInput.description } : {}),
+      questionCount: resolvedInput.question_count,
+      randomize: resolvedInput.randomize ?? true,
+      opensAt: resolvedInput.opens_at ?? null,
+      closesAt: resolvedInput.closes_at ?? null,
+      settings: mergedSettings,
       createdBy: createdByUserId,
     });
 
@@ -315,6 +502,7 @@ export async function createAssessment(
         question_count: assessment.question_count,
         randomize: assessment.randomize,
         status: assessment.status,
+        has_blueprint: rawBlueprint !== undefined,
       },
     });
 
@@ -333,6 +521,28 @@ export async function updateAssessment(
   updatedByUserId: string,
 ): Promise<Assessment> {
   log.info({ tenantId, id }, "updateAssessment");
+
+  // ── Blueprint path pre-flight (C1) — mirrors createAssessment pattern ─────
+  // Validate + resolve BEFORE the main withTenant to avoid nested withTenant calls
+  // (findOrCreatePackForDomain uses its own withTenant internally).
+  // The category-level FK guard is performed inside the main withTenant below
+  // (needs the tenant-scoped client).
+  let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
+  let validatedBlueprint: AssessmentBlueprint | null = null;
+  const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];
+
+  if (rawPatchBlueprint !== undefined) {
+    const parseResult = AssessmentBlueprintSchema.safeParse(rawPatchBlueprint);
+    if (!parseResult.success) {
+      throw new ValidationError(
+        `settings.blueprint is invalid: ${parseResult.error.issues.map((i) => i.message).join("; ")}`,
+        { details: { code: AL_ERROR_CODES.BLUEPRINT_INVALID, issues: parseResult.error.issues } },
+      );
+    }
+    validatedBlueprint = parseResult.data;
+    // Resolve pack/level before entering withTenant (findOrCreatePackForDomain has its own withTenant)
+    resolvedBlueprintOverride = await resolveBlueprintPackLevel(tenantId, validatedBlueprint, updatedByUserId);
+  }
 
   return withTenant(tenantId, async (client) => {
     const current = await repo.findAssessmentById(client, id);
@@ -359,15 +569,33 @@ export async function updateAssessment(
       assertValidWindow(mergedOpensAt, mergedClosesAt);
     }
 
+    // ── Blueprint path in patch (C1) — category FK guard + apply pre-resolved values ──
+    // Validation and pack/level resolution already happened above (outside withTenant).
+    // Here we only run the category-level FK guard (requires tenant-scoped client)
+    // and merge the resolved overrides into the repo patch.
+    if (validatedBlueprint !== null && resolvedBlueprintOverride !== null) {
+      await assertBlueprintFKOwnership(client, tenantId, validatedBlueprint);
+    }
+
     // Build conditional patch — exactOptionalPropertyTypes: never pass undefined
     const repoPatch: Parameters<typeof repo.updateAssessmentRow>[2] = {};
     if (patch.name !== undefined) repoPatch.name = patch.name;
     if (patch.description !== undefined) repoPatch.description = patch.description;
-    if (patch.question_count !== undefined) repoPatch.questionCount = patch.question_count;
     if (patch.randomize !== undefined) repoPatch.randomize = patch.randomize;
     if (patch.opens_at !== undefined) repoPatch.opensAt = patch.opens_at;
     if (patch.closes_at !== undefined) repoPatch.closesAt = patch.closes_at;
-    if (patch.settings !== undefined) repoPatch.settings = patch.settings;
+
+    if (validatedBlueprint !== null && resolvedBlueprintOverride !== null) {
+      // Blueprint path — override question_count, pack_id, level_id, settings
+      repoPatch.questionCount = resolvedBlueprintOverride.questionCount;
+      repoPatch.packId = resolvedBlueprintOverride.packId;
+      repoPatch.levelId = resolvedBlueprintOverride.levelId;
+      repoPatch.settings = { ...(patch.settings ?? {}), blueprint: validatedBlueprint };
+    } else {
+      // No-blueprint path — apply patch fields as before (unchanged)
+      if (patch.question_count !== undefined) repoPatch.questionCount = patch.question_count;
+      if (patch.settings !== undefined) repoPatch.settings = patch.settings;
+    }
 
     const updated = await repo.updateAssessmentRow(client, id, repoPatch);
 
@@ -394,6 +622,7 @@ export async function updateAssessment(
         opens_at: updated.opens_at,
         closes_at: updated.closes_at,
         changed_fields: Object.keys(repoPatch),
+        has_blueprint: rawPatchBlueprint !== undefined,
       },
     });
 
@@ -425,24 +654,60 @@ export async function publishAssessment(
     //    must go through reopenAssessment)
     assertCanTransition(assessment.status, "published");
 
-    // c. Pool-size pre-flight: count active questions for (pack_id, level_id)
-    //    Uses inline SQL (see countActiveQuestionsForLevel rationale above).
-    const available = await countActiveQuestionsForLevel(
-      client,
-      assessment.pack_id,
-      assessment.level_id,
-    );
-    if (available < assessment.question_count) {
-      throw new ValidationError(
-        `Question pool too small: ${available} < ${assessment.question_count}`,
-        {
-          details: {
-            code: AL_ERROR_CODES.POOL_TOO_SMALL,
-            available,
-            required: assessment.question_count,
-          },
-        },
+    // c. Pool-size pre-flight
+    //    Blueprint path (C2): per-criterion check.
+    //    No-blueprint path: existing whole-pool count unchanged.
+    const blueprint = (assessment.settings as Record<string, unknown>)?.["blueprint"] as
+      | AssessmentBlueprint
+      | undefined;
+
+    if (blueprint !== undefined) {
+      // C2: per-criterion pool pre-flight. All criteria must pass.
+      for (let idx = 0; idx < blueprint.criteria.length; idx++) {
+        const criterion = blueprint.criteria[idx]!;
+        const criterionAvailable = await countActiveQuestionsForCriterion(
+          client,
+          assessment.pack_id,
+          assessment.level_id,
+          blueprint.domain_id,
+          criterion.category_id,
+          criterion.type,
+        );
+        if (criterionAvailable < criterion.count) {
+          throw new ValidationError(
+            `Blueprint criterion ${idx} pool too small: ${criterionAvailable} available < ${criterion.count} required (category_id=${criterion.category_id}, type=${criterion.type})`,
+            {
+              details: {
+                code: AL_ERROR_CODES.POOL_TOO_SMALL_CRITERION,
+                criterion_index: idx,
+                category_id: criterion.category_id,
+                type: criterion.type,
+                available: criterionAvailable,
+                required: criterion.count,
+              },
+            },
+          );
+        }
+      }
+    } else {
+      // No-blueprint: existing whole-pool check unchanged
+      const available = await countActiveQuestionsForLevel(
+        client,
+        assessment.pack_id,
+        assessment.level_id,
       );
+      if (available < assessment.question_count) {
+        throw new ValidationError(
+          `Question pool too small: ${available} < ${assessment.question_count}`,
+          {
+            details: {
+              code: AL_ERROR_CODES.POOL_TOO_SMALL,
+              available,
+              required: assessment.question_count,
+            },
+          },
+        );
+      }
     }
 
     // d. Transition to published
@@ -458,8 +723,8 @@ export async function publishAssessment(
       before: { status: assessment.status },
       after: {
         status: updated.status,
-        pool_size: available,
         question_count: assessment.question_count,
+        has_blueprint: blueprint !== undefined,
       },
     });
 
@@ -1020,6 +1285,63 @@ export async function previewAssessment(
       });
     }
 
+    const blueprint = (assessment.settings as Record<string, unknown>)?.["blueprint"] as
+      | AssessmentBlueprint
+      | undefined;
+
+    if (blueprint !== undefined) {
+      // C4 — blueprint-aware preview: per-criterion adequacy + sample
+      let totalPoolSize = 0;
+      const blueprintCriteria: PreviewCriterionResult[] = [];
+
+      for (let idx = 0; idx < blueprint.criteria.length; idx++) {
+        const criterion = blueprint.criteria[idx]!;
+        const criterionAvailable = await countActiveQuestionsForCriterion(
+          client,
+          assessment.pack_id,
+          assessment.level_id,
+          blueprint.domain_id,
+          criterion.category_id,
+          criterion.type,
+        );
+        totalPoolSize += criterionAvailable;
+
+        const sampleLimit = Math.min(criterionAvailable, criterion.count);
+        const sample = sampleLimit > 0
+          ? await listActiveQuestionsForCriterion(
+              client,
+              assessment.pack_id,
+              assessment.level_id,
+              blueprint.domain_id,
+              criterion.category_id,
+              criterion.type,
+              sampleLimit,
+            )
+          : [];
+
+        blueprintCriteria.push({
+          criterion_index: idx,
+          category_id: criterion.category_id,
+          type: criterion.type,
+          required: criterion.count,
+          available: criterionAvailable,
+          sample,
+        });
+      }
+
+      return {
+        assessment_id: assessment.id,
+        pack_id: assessment.pack_id,
+        pack_version: assessment.pack_version,
+        level_id: assessment.level_id,
+        pool_size: totalPoolSize,
+        question_count: assessment.question_count,
+        questions: [],   // no flat sample in blueprint mode — use blueprint_criteria
+        blueprint_criteria: blueprintCriteria,
+      };
+    }
+
+    // No-blueprint path — existing behaviour unchanged
     // b. Count active questions in the pool
     const poolSize = await countActiveQuestionsForLevel(
       client,

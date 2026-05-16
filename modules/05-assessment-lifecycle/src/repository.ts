@@ -245,6 +245,10 @@ export async function updateAssessmentRow(
     closesAt?: Date | null;
     settings?: Record<string, unknown>;
     status?: AssessmentStatus;
+    /** Blueprint-driven pack override (Phase 2 Slice A — no migration required) */
+    packId?: string;
+    /** Blueprint-driven level override (Phase 2 Slice A — no migration required) */
+    levelId?: string;
   },
 ): Promise<Assessment> {
   const sets: string[] = [];
@@ -301,6 +305,17 @@ export async function updateAssessmentRow(
   if (patch.status !== undefined) {
     sets.push(`status = $${i}`);
     values.push(patch.status);
+    i++;
+  }
+  // Phase 2 Slice A — blueprint-driven pack/level override (no new column needed)
+  if (patch.packId !== undefined) {
+    sets.push(`pack_id = $${i}`);
+    values.push(patch.packId);
+    i++;
+  }
+  if (patch.levelId !== undefined) {
+    sets.push(`level_id = $${i}`);
+    values.push(patch.levelId);
     i++;
   }
 

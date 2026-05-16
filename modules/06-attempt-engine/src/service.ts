@@ -185,32 +185,99 @@ export async function startAttempt(
       });
     }
 
-    // e. Pull the active question pool and verify size.
-    const pool = await repo.listActiveQuestionPoolForPick(
-      client,
-      assessment.pack_id,
-      assessment.level_id,
-    );
-    if (pool.length < assessment.question_count) {
-      throw new ValidationError(
-        `Question pool too small at start: ${pool.length} < ${assessment.question_count}`,
-        {
-          details: {
-            code: AE_ERROR_CODES.POOL_TOO_SMALL,
-            available: pool.length,
-            required: assessment.question_count,
-          },
-        },
-      );
-    }
+    // e. Draw question pool — blueprint path (C3) or legacy path.
+    //
+    // BLUEPRINT PATH (C3):
+    //   assessment.settings.blueprint present → per-criterion draw.
+    //   For each criterion: filtered pool query (pack_id, level_id, domain_id,
+    //   category_id, type, status='active') → Fisher-Yates (decision #20) →
+    //   take criterion.count → concat all criteria → optional final shuffle.
+    //   Defensive: if a criterion yields fewer than count at draw time (pool
+    //   shrank post-publish), draw what is available and continue — log it;
+    //   never crash an in-flight candidate. Domain/category came from write-time-
+    //   guarded settings (C1 assertBlueprintFKOwnership) + runs inside withTenant
+    //   RLS; defence-in-depth for cross-tenant integrity.
+    //
+    // NO-BLUEPRINT PATH (legacy, regression-critical):
+    //   Existing full-pool listActiveQuestionPoolForPick → size check → shuffle
+    //   → take N. Behaviour UNCHANGED — any modification here is a regression.
 
-    // f. Shuffle (decision #20) — only if assessment.randomize. Either way,
-    //    take the first N from the (possibly shuffled) array.
-    const picks = [...pool];
-    if (assessment.randomize) {
-      shuffleInPlace(picks);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const blueprint = (assessment.settings as any)?.blueprint as
+      | {
+          domain_id: string;
+          level: string;
+          criteria: Array<{ category_id: string; type: string; count: number }>;
+        }
+      | undefined;
+
+    let chosen: Array<{ id: string; version: number }>;
+
+    if (blueprint !== undefined) {
+      // ── Blueprint draw (C3) ─────────────────────────────────────────────────
+      const allPicks: Array<{ id: string; version: number }> = [];
+
+      for (const criterion of blueprint.criteria) {
+        const criterionPool = await repo.listActiveQuestionPoolForCriterion(
+          client,
+          assessment.pack_id,
+          assessment.level_id,
+          blueprint.domain_id,
+          criterion.category_id,
+          criterion.type,
+        );
+
+        const picks = [...criterionPool];
+        shuffleInPlace(picks);
+
+        const drawCount = picks.length >= criterion.count ? criterion.count : picks.length;
+        if (drawCount < criterion.count) {
+          // Pool shrank post-publish — draw what is available, continue (defensive).
+          log.warn(
+            {
+              assessmentId: input.assessmentId,
+              category_id: criterion.category_id,
+              type: criterion.type,
+              required: criterion.count,
+              available: picks.length,
+            },
+            "startAttempt(blueprint): criterion pool shrank post-publish; drawing available subset",
+          );
+        }
+        allPicks.push(...picks.slice(0, drawCount));
+      }
+
+      // Optional final shuffle across all criteria (assessment.randomize still governs)
+      if (assessment.randomize) {
+        shuffleInPlace(allPicks);
+      }
+      chosen = allPicks;
+    } else {
+      // ── Legacy full-pool draw (no blueprint) — UNCHANGED ────────────────────
+      const pool = await repo.listActiveQuestionPoolForPick(
+        client,
+        assessment.pack_id,
+        assessment.level_id,
+      );
+      if (pool.length < assessment.question_count) {
+        throw new ValidationError(
+          `Question pool too small at start: ${pool.length} < ${assessment.question_count}`,
+          {
+            details: {
+              code: AE_ERROR_CODES.POOL_TOO_SMALL,
+              available: pool.length,
+              required: assessment.question_count,
+            },
+          },
+        );
+      }
+
+      const picks = [...pool];
+      if (assessment.randomize) {
+        shuffleInPlace(picks);
+      }
+      chosen = picks.slice(0, assessment.question_count);
     }
-    const chosen = picks.slice(0, assessment.question_count);
 
     // g. Compute timer.
     const startedAt = new Date();

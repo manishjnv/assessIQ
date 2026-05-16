@@ -13,17 +13,25 @@
 //
 // "+ New Assessment" opens an inline form (consistent with question-bank.tsx).
 //
+// Phase 2 Slice A — Blueprint Builder (C5):
+//   The "Use Blueprint" toggle switches the form to blueprint mode.
+//   Domain → Level → Criteria rows (Category + Type + Count) → Save sends
+//   settings.blueprint. Live preview adequacy from GET /:id/preview (C4).
+//   Assign = existing invite flow on assessment-detail (unchanged).
+//
 // INVARIANTS:
 //  - No claude/anthropic imports or copy.
 //  - Filter state in URL query params only.
 //  - Empty-state renders; no hardcoded fake rows.
+//  - No new invite backend. No manual authoring. No swap endpoint.
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError } from "../api.js";
+import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi } from "../api.js";
+import type { DomainItem, CategoryItem } from "../api.js";
 
 type AssessmentStatus = "draft" | "published" | "active" | "closed";
 
@@ -52,6 +60,47 @@ interface AssessmentsResponse {
   total: number;
 }
 
+// ---------------------------------------------------------------------------
+// Blueprint types (mirrors Phase 2 types.ts shape — no import from backend)
+// ---------------------------------------------------------------------------
+
+type BlueprintLevel = "L1" | "L2" | "L3";
+const BLUEPRINT_LEVELS: BlueprintLevel[] = ["L1", "L2", "L3"];
+
+type BlueprintQuestionType = "mcq" | "scenario" | "subjective" | "kql" | "log_analysis";
+const BLUEPRINT_QUESTION_TYPES: BlueprintQuestionType[] = [
+  "mcq",
+  "scenario",
+  "subjective",
+  "kql",
+  "log_analysis",
+];
+
+interface BlueprintCriterion {
+  category_id: string;
+  type: BlueprintQuestionType;
+  count: number;
+}
+
+interface BlueprintPreviewCriterion {
+  criterion_index: number;
+  category_id: string;
+  type: string;
+  required: number;
+  available: number;
+  sample: unknown[];
+}
+
+interface BlueprintPreviewResponse {
+  blueprint_criteria?: BlueprintPreviewCriterion[];
+  pool_size: number;
+  question_count: number;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 const STATUS_TABS: { label: string; value: string }[] = [
   { label: "All", value: "" },
   { label: "Draft", value: "draft" },
@@ -73,9 +122,368 @@ function assessmentStatusColor(s: string): { bg: string; color: string } {
   }
 }
 
+function criterionTotal(criteria: BlueprintCriterion[]): number {
+  return criteria.reduce((sum, c) => sum + c.count, 0);
+}
+
+// ---------------------------------------------------------------------------
+// BlueprintBuilder sub-component
+// ---------------------------------------------------------------------------
+//
+// Isolated to keep AdminAssessments readable. Receives domain list + a callback
+// to push the assembled blueprint up to the parent form.
+
+interface BlueprintBuilderProps {
+  onBlueprintChange: (bp: { domain_id: string; level: BlueprintLevel; criteria: BlueprintCriterion[] } | null) => void;
+}
+
+function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.ReactElement {
+  const [domains, setDomains] = useState<DomainItem[]>([]);
+  const [domainsLoading, setDomainsLoading] = useState(true);
+  const [domainsError, setDomainsError] = useState<string | null>(null);
+
+  const [selectedDomainId, setSelectedDomainId] = useState<string>("");
+  const [selectedLevel, setSelectedLevel] = useState<BlueprintLevel>("L1");
+
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+
+  const [criteria, setCriteria] = useState<BlueprintCriterion[]>([]);
+
+  // Load domains on mount
+  useEffect(() => {
+    void (async () => {
+      setDomainsLoading(true);
+      try {
+        const data = await listDomainsApi();
+        setDomains(data.items.filter((d) => d.status === "active"));
+      } catch (err) {
+        setDomainsError(
+          err instanceof AdminApiError ? err.apiError.message : "Failed to load domains.",
+        );
+      } finally {
+        setDomainsLoading(false);
+      }
+    })();
+  }, []);
+
+  // Load categories when domain changes
+  useEffect(() => {
+    if (!selectedDomainId) {
+      setCategories([]);
+      setCriteria([]);
+      return;
+    }
+    void (async () => {
+      setCategoriesLoading(true);
+      try {
+        const data = await listCategoriesApi(selectedDomainId);
+        setCategories(data.items.filter((c) => c.status === "active"));
+      } finally {
+        setCategoriesLoading(false);
+      }
+    })();
+  }, [selectedDomainId]);
+
+  // Notify parent whenever blueprint changes
+  useEffect(() => {
+    if (!selectedDomainId || criteria.length === 0) {
+      onBlueprintChange(null);
+      return;
+    }
+    // Only push if every criterion has a category + type + count >= 1
+    const valid = criteria.every(
+      (c) => c.category_id && c.type && c.count >= 1,
+    );
+    if (!valid) {
+      onBlueprintChange(null);
+      return;
+    }
+    onBlueprintChange({ domain_id: selectedDomainId, level: selectedLevel, criteria });
+  }, [selectedDomainId, selectedLevel, criteria, onBlueprintChange]);
+
+  function addCriterion() {
+    setCriteria((prev) => [
+      ...prev,
+      { category_id: "", type: "mcq", count: 5 },
+    ]);
+  }
+
+  function removeCriterion(idx: number) {
+    setCriteria((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateCriterion(idx: number, patch: Partial<BlueprintCriterion>) {
+    setCriteria((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)),
+    );
+  }
+
+  const total = criterionTotal(criteria);
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "var(--aiq-font-sans)",
+    fontSize: "var(--aiq-text-xs)",
+    fontWeight: 600,
+    color: "var(--aiq-color-fg-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    marginBottom: 4,
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--aiq-color-border)",
+        borderRadius: "var(--aiq-radius-sm)",
+        padding: "var(--aiq-space-md)",
+        background: "var(--aiq-color-bg-sunken)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--aiq-space-md)",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: "var(--aiq-text-xs)",
+          color: "var(--aiq-color-fg-muted)",
+          margin: 0,
+        }}
+      >
+        Blueprint mode: each candidate draws a fresh random set per criterion. Domain + Level resolve
+        the question pack automatically.
+      </p>
+
+      {domainsError && (
+        <div style={{ color: "var(--aiq-color-error, #dc2626)", fontSize: "var(--aiq-text-xs)" }}>
+          {domainsError}
+        </div>
+      )}
+
+      {/* Domain + Level row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--aiq-space-md)" }}>
+        <div>
+          <div style={labelStyle}>Domain</div>
+          {domainsLoading ? (
+            <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+              Loading…
+            </span>
+          ) : (
+            <select
+              className="aiq-input"
+              value={selectedDomainId}
+              onChange={(e) => setSelectedDomainId(e.target.value)}
+            >
+              <option value="">— Select domain —</option>
+              {domains.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div>
+          <div style={labelStyle}>Level</div>
+          <select
+            className="aiq-input"
+            value={selectedLevel}
+            onChange={(e) => setSelectedLevel(e.target.value as BlueprintLevel)}
+          >
+            {BLUEPRINT_LEVELS.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Criteria table */}
+      {selectedDomainId && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+          <div style={labelStyle}>Criteria</div>
+
+          {categoriesLoading && (
+            <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+              Loading categories…
+            </span>
+          )}
+
+          {!categoriesLoading && categories.length === 0 && (
+            <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+              No active categories in this domain.
+            </span>
+          )}
+
+          {criteria.map((criterion, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 80px auto",
+                gap: "var(--aiq-space-sm)",
+                alignItems: "center",
+              }}
+            >
+              <select
+                className="aiq-input"
+                value={criterion.category_id}
+                onChange={(e) => updateCriterion(idx, { category_id: e.target.value })}
+              >
+                <option value="">— Category —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+
+              <select
+                className="aiq-input"
+                value={criterion.type}
+                onChange={(e) => updateCriterion(idx, { type: e.target.value as BlueprintQuestionType })}
+              >
+                {BLUEPRINT_QUESTION_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+
+              <input
+                className="aiq-input"
+                type="number"
+                min={1}
+                value={criterion.count}
+                onChange={(e) =>
+                  updateCriterion(idx, { count: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                }
+                style={{ textAlign: "center" }}
+              />
+
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                onClick={() => removeCriterion(idx)}
+                style={{ color: "var(--aiq-color-error, #dc2626)" }}
+                aria-label="Remove criterion"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            className="aiq-btn aiq-btn-outline aiq-btn-sm"
+            onClick={addCriterion}
+            disabled={categories.length === 0}
+          >
+            + Add criterion
+          </button>
+
+          {/* Live total */}
+          {criteria.length > 0 && (
+            <div
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-sm)",
+                color: total > 0 ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-muted)",
+                fontWeight: 600,
+              }}
+            >
+              Total: {total} question{total !== 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PreviewAdequacy sub-component — shows C4 blueprint preview after creation
+// ---------------------------------------------------------------------------
+
+interface PreviewAdequacyProps {
+  assessmentId: string;
+}
+
+function PreviewAdequacy({ assessmentId }: PreviewAdequacyProps): React.ReactElement {
+  const [preview, setPreview] = useState<BlueprintPreviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      try {
+        const data = await adminApi<BlueprintPreviewResponse>(
+          `/admin/assessments/${assessmentId}/preview`,
+        );
+        setPreview(data);
+      } catch (err) {
+        setError(
+          err instanceof AdminApiError ? err.apiError.message : "Failed to load preview.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [assessmentId]);
+
+  if (loading) {
+    return (
+      <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+        Checking pool adequacy…
+      </span>
+    );
+  }
+
+  if (error) {
+    return (
+      <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>
+        {error}
+      </span>
+    );
+  }
+
+  if (!preview?.blueprint_criteria) {
+    return (
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+        Pool size: {preview?.pool_size ?? "—"} / {preview?.question_count ?? "—"} required
+      </span>
+    );
+  }
+
+  const allAdequate = preview.blueprint_criteria.every((c) => c.available >= c.required);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {preview.blueprint_criteria.map((c) => {
+        const ok = c.available >= c.required;
+        return (
+          <div
+            key={c.criterion_index}
+            style={{
+              fontFamily: "var(--aiq-font-mono)",
+              fontSize: "var(--aiq-text-xs)",
+              color: ok ? "var(--aiq-color-success)" : "var(--aiq-color-error, #dc2626)",
+            }}
+          >
+            {ok ? "✓" : "✗"} {c.type} — {c.available}/{c.required} available
+          </div>
+        );
+      })}
+      {allAdequate && (
+        <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-success)", fontWeight: 600 }}>
+          Pool adequate — ready to publish.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AdminAssessments — main page
+// ---------------------------------------------------------------------------
+
 interface NewAssessmentForm {
   name: string;
-  pack_id: string;
   opens_at: string;
   closes_at: string;
 }
@@ -92,12 +500,22 @@ export function AdminAssessments(): React.ReactElement {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newForm, setNewForm] = useState<NewAssessmentForm>({
     name: "",
-    pack_id: "",
     opens_at: "",
     closes_at: "",
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Blueprint mode state
+  const [useBlueprintMode, setUseBlueprintMode] = useState(false);
+  const [pendingBlueprint, setPendingBlueprint] = useState<{
+    domain_id: string;
+    level: BlueprintLevel;
+    criteria: BlueprintCriterion[];
+  } | null>(null);
+
+  // Created assessment ID for preview adequacy display
+  const [createdAssessmentId, setCreatedAssessmentId] = useState<string | null>(null);
 
   const fetchAssessments = useCallback(async (status: string) => {
     setLoading(true);
@@ -140,18 +558,42 @@ export function AdminAssessments(): React.ReactElement {
       setCreateError("Assessment name is required.");
       return;
     }
+    if (useBlueprintMode && pendingBlueprint === null) {
+      setCreateError("Blueprint is incomplete. Select a domain, level, and at least one valid criterion.");
+      return;
+    }
     setCreating(true);
     setCreateError(null);
+    setCreatedAssessmentId(null);
     try {
       const body: Record<string, unknown> = { name: newForm.name.trim() };
-      if (newForm.pack_id.trim()) body.pack_id = newForm.pack_id.trim();
       if (newForm.opens_at) body.opens_at = new Date(newForm.opens_at).toISOString();
       if (newForm.closes_at) body.closes_at = new Date(newForm.closes_at).toISOString();
+
+      if (useBlueprintMode && pendingBlueprint !== null) {
+        // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
+        body.settings = { blueprint: pendingBlueprint };
+        // question_count placeholder — backend overrides via Σcriteria.count
+        body.question_count = pendingBlueprint.criteria.reduce((s, c) => s + c.count, 0);
+        // pack_id / level_id resolved by findOrCreatePackForDomain on backend
+        body.pack_id = "";
+        body.level_id = "";
+      }
+
       const created = await adminApi<{ id: string }>("/admin/assessments", {
         method: "POST",
         body: JSON.stringify(body),
       });
-      navigate(`/admin/assessments/${created.id}`);
+
+      if (useBlueprintMode) {
+        // Show adequacy preview before navigating
+        setCreatedAssessmentId(created.id);
+        // Also refresh the list
+        void fetchAssessments(statusFilter);
+        setCreating(false);
+      } else {
+        navigate(`/admin/assessments/${created.id}`);
+      }
     } catch (err) {
       setCreateError(
         err instanceof AdminApiError
@@ -341,6 +783,7 @@ export function AdminAssessments(): React.ReactElement {
               onClick={() => {
                 setShowNewForm((v) => !v);
                 setCreateError(null);
+                setCreatedAssessmentId(null);
               }}
             >
               {showNewForm ? "Cancel" : "+ New Assessment"}
@@ -369,6 +812,37 @@ export function AdminAssessments(): React.ReactElement {
             >
               New assessment.
             </h2>
+
+            {/* Blueprint mode toggle */}
+            <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--aiq-space-sm)",
+                  cursor: "pointer",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={useBlueprintMode}
+                  onChange={(e) => {
+                    setUseBlueprintMode(e.target.checked);
+                    setPendingBlueprint(null);
+                    setCreatedAssessmentId(null);
+                  }}
+                />
+                <span>
+                  Use Blueprint{" "}
+                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                    (per-criterion random draw — auto-resolves pack/level)
+                  </span>
+                </span>
+              </label>
+            </div>
+
             <form onSubmit={(e) => void handleCreateAssessment(e)}>
               <div
                 style={{
@@ -378,11 +852,13 @@ export function AdminAssessments(): React.ReactElement {
                   marginBottom: "var(--aiq-space-md)",
                 }}
               >
+                {/* Name */}
                 <div
                   style={{
                     display: "flex",
                     flexDirection: "column",
                     gap: "var(--aiq-space-xs)",
+                    gridColumn: "1 / -1",
                   }}
                 >
                   <label
@@ -403,39 +879,8 @@ export function AdminAssessments(): React.ReactElement {
                     required
                   />
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "var(--aiq-space-xs)",
-                  }}
-                >
-                  <label
-                    style={{
-                      fontFamily: "var(--aiq-font-sans)",
-                      fontSize: "var(--aiq-text-sm)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Pack ID{" "}
-                    <span
-                      style={{
-                        fontFamily: "var(--aiq-font-mono)",
-                        color: "var(--aiq-color-fg-muted)",
-                        fontSize: "var(--aiq-text-xs)",
-                      }}
-                    >
-                      (optional — paste from Question Bank)
-                    </span>
-                  </label>
-                  <input
-                    className="aiq-input"
-                    type="text"
-                    placeholder="Paste pack UUID"
-                    value={newForm.pack_id}
-                    onChange={(e) => setNewForm((f) => ({ ...f, pack_id: e.target.value }))}
-                  />
-                </div>
+
+                {/* Opens */}
                 <div
                   style={{
                     display: "flex",
@@ -459,6 +904,8 @@ export function AdminAssessments(): React.ReactElement {
                     onChange={(e) => setNewForm((f) => ({ ...f, opens_at: e.target.value }))}
                   />
                 </div>
+
+                {/* Closes */}
                 <div
                   style={{
                     display: "flex",
@@ -483,6 +930,14 @@ export function AdminAssessments(): React.ReactElement {
                   />
                 </div>
               </div>
+
+              {/* Blueprint builder — only shown when blueprint mode is on */}
+              {useBlueprintMode && (
+                <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+                  <BlueprintBuilder onBlueprintChange={setPendingBlueprint} />
+                </div>
+              )}
+
               {createError && (
                 <div
                   style={{
@@ -495,9 +950,45 @@ export function AdminAssessments(): React.ReactElement {
                   {createError}
                 </div>
               )}
-              <button type="submit" className="aiq-btn aiq-btn-primary" disabled={creating}>
-                {creating ? "Creating…" : "Create assessment"}
-              </button>
+
+              {/* Blueprint adequacy preview — shown after successful blueprint creation */}
+              {createdAssessmentId !== null && (
+                <div
+                  style={{
+                    border: "1px solid var(--aiq-color-border)",
+                    borderRadius: "var(--aiq-radius-sm)",
+                    padding: "var(--aiq-space-md)",
+                    marginBottom: "var(--aiq-space-md)",
+                    background: "var(--aiq-color-bg-sunken)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: "var(--aiq-font-sans)",
+                      fontSize: "var(--aiq-text-sm)",
+                      fontWeight: 600,
+                      marginBottom: "var(--aiq-space-sm)",
+                    }}
+                  >
+                    Assessment created — pool adequacy:
+                  </div>
+                  <PreviewAdequacy assessmentId={createdAssessmentId} />
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                    style={{ marginTop: "var(--aiq-space-md)" }}
+                    onClick={() => navigate(`/admin/assessments/${createdAssessmentId}`)}
+                  >
+                    Open assessment
+                  </button>
+                </div>
+              )}
+
+              {createdAssessmentId === null && (
+                <button type="submit" className="aiq-btn aiq-btn-primary" disabled={creating}>
+                  {creating ? "Creating…" : "Create assessment"}
+                </button>
+              )}
             </form>
           </div>
         )}
