@@ -147,41 +147,38 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
   }
 
   if (type === "kql") {
-    const scenario = typeof content["scenario"] === "string" ? content["scenario"] : null;
-    const task = typeof content["task"] === "string" ? content["task"] : null;
-    const sampleRaw = content["sample_log_snippet"] ?? content["log_snippet"];
-    const sample = sampleRaw !== undefined && sampleRaw !== null
-      ? (typeof sampleRaw === "string" ? sampleRaw : JSON.stringify(sampleRaw, null, 2))
-      : null;
-    const answer = typeof content["answer_query"] === "string" ? content["answer_query"]
-      : typeof content["answer"] === "string" ? content["answer"] : null;
+    // Real kql content schema: { question, tables[], expected_keywords[], sample_solution }
+    const question = typeof content["question"] === "string" ? content["question"] : null;
+    const tables = Array.isArray(content["tables"]) ? content["tables"] as unknown[] : null;
+    const keywords = Array.isArray(content["expected_keywords"]) ? content["expected_keywords"] as unknown[] : null;
+    const sample = typeof content["sample_solution"] === "string" ? content["sample_solution"] : null;
     return (
       <div>
-        {scenario && (
+        {question && (
           <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-            <div style={labelStyle}>Scenario</div>
-            <div style={textStyle}>{scenario}</div>
+            <div style={labelStyle}>Question</div>
+            <div style={textStyle}>{question}</div>
           </div>
         )}
-        {task && (
+        {tables && tables.length > 0 && (
           <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-            <div style={labelStyle}>Task</div>
-            <div style={textStyle}>{task}</div>
+            <div style={labelStyle}>Tables</div>
+            <div style={textStyle}>{tables.map((t) => typeof t === "string" ? t : JSON.stringify(t)).join(", ")}</div>
+          </div>
+        )}
+        {keywords && keywords.length > 0 && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Expected Keywords (answer key — admin only)</div>
+            <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>
+              {keywords.map((k) => typeof k === "string" ? k : JSON.stringify(k)).join(", ")}
+            </div>
           </div>
         )}
         {sample && (
-          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-            <div style={labelStyle}>Sample Log</div>
-            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-              {sample}
-            </pre>
-          </div>
-        )}
-        {answer && (
           <div>
-            <div style={labelStyle}>Answer Query</div>
-            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", color: "var(--aiq-color-success)" }}>
-              {answer}
+            <div style={labelStyle}>Sample Solution (answer key — admin only)</div>
+            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--aiq-color-success)" }}>
+              {sample}
             </pre>
           </div>
         )}
@@ -190,89 +187,129 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
   }
 
   if (type === "log_analysis") {
-    const scenario = typeof content["scenario"] === "string" ? content["scenario"] : null;
-    const logDataRaw = content["log_data"] ?? content["logs"] ?? content["log_snippet"];
-    const logData = logDataRaw !== undefined && logDataRaw !== null
-      ? (typeof logDataRaw === "string" ? logDataRaw : JSON.stringify(logDataRaw, null, 2))
-      : null;
+    // Real log_analysis schema: { question, log_format, log_excerpt, hint,
+    //                             expected_findings, sample_solution }
     const question = typeof content["question"] === "string" ? content["question"] : null;
-    const answerRaw = content["expected_findings"] ?? content["answer"] ?? content["findings"];
-    const answer = answerRaw !== undefined && answerRaw !== null
-      ? (typeof answerRaw === "string" ? answerRaw : JSON.stringify(answerRaw, null, 2))
+    const logFormat = typeof content["log_format"] === "string" ? content["log_format"] : null;
+    const logExcerpt = typeof content["log_excerpt"] === "string" ? content["log_excerpt"] : null;
+    const hint = typeof content["hint"] === "string" ? content["hint"] : null;
+    const findingsRaw = content["expected_findings"];
+    const findings = findingsRaw !== undefined && findingsRaw !== null
+      ? (typeof findingsRaw === "string" ? findingsRaw : JSON.stringify(findingsRaw, null, 2))
       : null;
+    const sample = typeof content["sample_solution"] === "string" ? content["sample_solution"] : null;
     return (
       <div>
-        {scenario && (
-          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-            <div style={labelStyle}>Scenario</div>
-            <div style={textStyle}>{scenario}</div>
-          </div>
-        )}
-        {logData && (
-          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-            <div style={labelStyle}>Log Data</div>
-            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-              {logData}
-            </pre>
-          </div>
-        )}
         {question && (
           <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
             <div style={labelStyle}>Question</div>
             <div style={textStyle}>{question}</div>
           </div>
         )}
-        {answer && (
-          <div>
-            <div style={labelStyle}>Expected Findings</div>
+        {logFormat && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Log Format</div>
+            <div style={textStyle}>{logFormat}</div>
+          </div>
+        )}
+        {logExcerpt && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Log Excerpt</div>
+            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {logExcerpt}
+            </pre>
+          </div>
+        )}
+        {hint && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Hint</div>
+            <div style={textStyle}>{hint}</div>
+          </div>
+        )}
+        {findings && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Expected Findings (answer key — admin only)</div>
             <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>
-              {answer}
+              {findings}
             </div>
+          </div>
+        )}
+        {sample && (
+          <div>
+            <div style={labelStyle}>Sample Solution (answer key — admin only)</div>
+            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--aiq-color-success)" }}>
+              {sample}
+            </pre>
           </div>
         )}
       </div>
     );
   }
 
-  // scenario + subjective: both have question + answer/rubric hints
+  if (type === "scenario") {
+    // Real scenario schema: { title, intro, steps[{prompt, expected?}], step_dependency }
+    const title = typeof content["title"] === "string" ? content["title"] : null;
+    const intro = typeof content["intro"] === "string" ? content["intro"] : null;
+    const stepDep = typeof content["step_dependency"] === "string" ? content["step_dependency"] : null;
+    const steps = Array.isArray(content["steps"]) ? content["steps"] as Array<Record<string, unknown>> : null;
+    return (
+      <div>
+        {title && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Title</div>
+            <div style={{ ...textStyle, fontWeight: 600 }}>{title}</div>
+          </div>
+        )}
+        {intro && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Scenario</div>
+            <div style={textStyle}>{intro}</div>
+          </div>
+        )}
+        {stepDep && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Step Dependency</div>
+            <div style={textStyle}>{stepDep}</div>
+          </div>
+        )}
+        {steps && steps.length > 0 && (
+          <div>
+            <div style={labelStyle}>Steps</div>
+            <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-lg)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>
+              {steps.map((s, idx) => {
+                const prompt = typeof s["prompt"] === "string" ? s["prompt"] : JSON.stringify(s);
+                const expected = typeof s["expected"] === "string" ? s["expected"] : null;
+                return (
+                  <li key={idx} style={{ marginBottom: "var(--aiq-space-xs)" }}>
+                    <div style={{ whiteSpace: "pre-wrap" }}>{prompt}</div>
+                    {expected && (
+                      <div style={{ ...textStyle, color: "var(--aiq-color-success)", marginTop: 2, marginBottom: 0 }}>
+                        Expected (answer key — admin only): {expected}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // subjective (and any unknown type): real subjective schema is { question }.
+  // Rubric lives in the separate `rubric` column, not in content — not shown here.
   const question = typeof content["question"] === "string" ? content["question"] : null;
-  const scenario = typeof content["scenario"] === "string" ? content["scenario"] : null;
-  const answerRaw2 = content["expected_answer"] ?? content["answer"] ?? content["model_answer"];
-  const answer = answerRaw2 !== undefined && answerRaw2 !== null
-    ? (typeof answerRaw2 === "string" ? answerRaw2 : JSON.stringify(answerRaw2, null, 2))
-    : null;
-  const rubricRaw = content["rubric_hints"] ?? content["scoring_guide"];
-  const rubricHints = rubricRaw !== undefined && rubricRaw !== null
-    ? (typeof rubricRaw === "string" ? rubricRaw : JSON.stringify(rubricRaw, null, 2))
-    : null;
   return (
     <div>
-      {scenario && (
-        <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-          <div style={labelStyle}>Scenario</div>
-          <div style={textStyle}>{scenario}</div>
-        </div>
-      )}
-      {question && (
-        <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+      {question ? (
+        <div>
           <div style={labelStyle}>Question</div>
           <div style={textStyle}>{question}</div>
         </div>
-      )}
-      {answer && (
-        <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-          <div style={labelStyle}>Expected Answer</div>
-          <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>
-            {answer}
-          </div>
-        </div>
-      )}
-      {rubricHints && (
-        <div>
-          <div style={labelStyle}>Rubric Hints</div>
-          <div style={textStyle}>
-            {rubricHints}
-          </div>
+      ) : (
+        <div style={{ ...textStyle, color: "var(--aiq-color-fg-muted)", fontStyle: "italic" }}>
+          (No renderable content for type "{type}".)
         </div>
       )}
     </div>
