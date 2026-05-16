@@ -1321,3 +1321,13 @@ with a dated note in `docs/06-deployment.md` § DR.
 **Fix:** Added `sanitizeContentForCandidate(type, content)` (modules/06-attempt-engine/src/repository.ts:314) — pure, allowlist-per-type, fail-closed; applied at the single candidate content chokepoint (the `.map()` in `listFrozenQuestionsForAttempt`). Allowlist keeps only candidate-safe fields; unknown type → `question` only. Prototype-pollution safe. Admin path (modules/07-ai-grading) deliberately untouched. Commit `0a1a7d4`, deployed 2026-05-16.
 
 **Prevention:** 10 pure unit tests (`sanitize-content-for-candidate.test.ts`, no DB) assert presence AND absence of answer-key fields per type — regression guard. Recurrence class: any new question type, any change to `listFrozenQuestionsForAttempt`, or any new candidate endpoint returning question content MUST route through `sanitizeContentForCandidate` (or an equivalent allowlist). Fail-closed default means a new answer-key field is hidden by default, but a new *type* still needs its allowlist entry + a test case.
+
+## 2026-05-16 — Cross-tenant FK partial-tag bypass (caught at review, never deployed)
+
+**Symptom:** None in prod — caught by Opus security review of Slice 2 before deploy.
+
+**Cause:** `modules/04-question-bank/src/service.ts` cross-tenant FK guard ran only `if (domainId !== undefined && categoryId !== undefined)`, but `domainId`/`categoryId` were threaded INDEPENDENTLY to `insertDrafts` (`input.domainId ?? null`, `input.categoryId ?? null`). Supplying exactly one → guard skipped → lone unvalidated FK persisted. Postgres FK validation bypasses RLS, so a tenant-A question could reference a tenant-B domain/category. Anti-pattern: guard predicate requires all params present, but params are consumed independently downstream.
+
+**Fix:** `service.ts` — enforce both-or-neither BEFORE the existence check: `if ((domainId !== undefined) !== (categoryId !== undefined)) throw CROSS_TENANT_FK_REJECTED`. Then the existing composite tenant check. Commit `41012df`. 2 regression tests added (`generate-cross-tenant-guard.test.ts`: only-domain, only-category → rejected).
+
+**Prevention:** Recurrence class — any guard whose predicate requires N params present while those params are used independently downstream. Whenever a security guard is conditional on a set of inputs, assert the inputs are an all-or-nothing set at the boundary, not just inside the all-present branch. The load-bearing-path Opus-review gate (per feedback-orchestration-sonnet-lead-opus-qa) is what caught this; keep it non-negotiable for FK/tenancy paths.
