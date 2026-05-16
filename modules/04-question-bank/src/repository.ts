@@ -57,7 +57,7 @@ const PACK_COLUMNS = `id, tenant_id, slug, name, domain, description, status, ve
 
 const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct, rubric_defaults`;
 
-const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, knowledge_base_sources, created_by, created_at, updated_at`;
+const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id`;
 
 const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`;
 
@@ -108,6 +108,8 @@ interface QuestionRow {
   created_by: string;
   created_at: Date;
   updated_at: Date;
+  domain_id: string | null;
+  category_id: string | null;
 }
 
 interface QuestionVersionRow {
@@ -179,6 +181,8 @@ function mapQuestionRow(row: QuestionRow): Question {
     created_by: row.created_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    domain_id: row.domain_id ?? null,
+    category_id: row.category_id ?? null,
   };
 }
 
@@ -567,6 +571,17 @@ export async function listQuestionRows(
     values.push(filters.search);
     i++;
   }
+  // Slice 2.2/D5: read-only domain/category filters — RLS-scoped via withTenant.
+  if (filters.domain_id !== undefined) {
+    conditions.push(`q.domain_id = $${i}`);
+    values.push(filters.domain_id);
+    i++;
+  }
+  if (filters.category_id !== undefined) {
+    conditions.push(`q.category_id = $${i}`);
+    values.push(filters.category_id);
+    i++;
+  }
 
   const joinClause = useTagJoin
     ? `JOIN question_tags qt ON qt.question_id = q.id
@@ -590,7 +605,8 @@ export async function listQuestionRows(
   const dataResult = await client.query<QuestionRow>(
     `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic, q.points, q.status,
             q.version, q.content, q.rubric, q.knowledge_base_sources,
-            q.created_by, q.created_at, q.updated_at
+            q.created_by, q.created_at, q.updated_at,
+            q.domain_id, q.category_id
      FROM questions q
      ${joinClause}
      ${where}

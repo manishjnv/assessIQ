@@ -2,9 +2,19 @@
 //
 // /admin/generate-wizard
 //
-// Few-click AI generation: pick Pack + Level + Domain + Categories -> Generate -> Review.
+// Few-click AI generation: pick Level + Domain + Categories -> Generate -> Review.
 // Reuses the existing generation engine (POST .../generate).
 // No manual question authoring -- only AI drafts, inline edit, and approve.
+//
+// Slice 2.2 changes (D1-D5):
+//  D1: Category Count input + type checkboxes disabled until category checkbox is ticked.
+//  D2: Live per-category subtotal (K×C) + grand total on "Generate N questions" button.
+//  D3-FE: Sends type_counts={type:C each} and count=K×C (per-type semantics).
+//  D4: Sequential per-category progress with "Generating X of Y: <name>", ✓/✗ per cat,
+//      persistent "you can leave" note, continue-on-failure isolation.
+//  D5: Durable DB-backed Review reachable any time; groups by domain→category;
+//      formatted question display (never raw JSON); inline Edit (PATCH); per-question
+//      + bulk Approve; "Back to config" never discards; resume-on-return entry point.
 //
 // INVARIANTS:
 //  - No "+ Add question" / manual authoring anywhere.
@@ -23,24 +33,15 @@ import {
   createDomainApi,
   createCategoryApi,
   bulkUpdateQuestionStatus,
+  listQuestionsApi,
 } from "../api.js";
-import type { DomainItem, CategoryItem } from "../api.js";
+import type { DomainItem, CategoryItem, QuestionListItem } from "../api.js";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 type SelectedLevel = "L1" | "L2" | "L3";
-
-interface QuestionItem {
-  id: string;
-  type: string;
-  topic: string | null;
-  status: string;
-  content: Record<string, unknown>;
-  domain_id: string | null;
-  category_id: string | null;
-}
 
 type WizardStep = "config" | "generating" | "review";
 
@@ -54,7 +55,7 @@ interface CategoryConfig {
 interface CategoryGenResult {
   categoryId: string;
   status: "pending" | "generating" | "done" | "failed";
-  questionIds: string[];
+  questionCount: number;
   error: string | null;
 }
 
@@ -69,6 +70,213 @@ function statusColor(s: string): { bg: string; color: string } {
     case "generating": return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
     default: return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-muted)" };
   }
+}
+
+/** Compute grand total = Σ (selectedTypes.length × count) for checked categories. */
+function computeGrandTotal(configs: CategoryConfig[]): number {
+  return configs
+    .filter((c) => c.checked && c.selectedTypes.length > 0)
+    .reduce((sum, c) => sum + c.selectedTypes.length * c.count, 0);
+}
+
+/** Compute subtotal for one category: K × C. */
+function categorySubtotal(cfg: CategoryConfig): number {
+  return cfg.checked ? cfg.selectedTypes.length * cfg.count : 0;
+}
+
+/**
+ * Render question content in a typed, formatted way.
+ * Admin audience — answer/option fields ARE shown.
+ * NEVER dumps raw JSON blobs.
+ */
+function renderQuestionContent(type: string, content: Record<string, unknown>): React.ReactElement {
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "var(--aiq-font-sans)",
+    fontSize: "var(--aiq-text-xs)",
+    fontWeight: 600,
+    color: "var(--aiq-color-fg-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    marginBottom: 2,
+  };
+  const textStyle: React.CSSProperties = {
+    fontFamily: "var(--aiq-font-sans)",
+    fontSize: "var(--aiq-text-sm)",
+    color: "var(--aiq-color-fg-primary)",
+    marginBottom: "var(--aiq-space-xs)",
+    whiteSpace: "pre-wrap",
+  };
+
+  if (type === "mcq") {
+    const question = typeof content["question"] === "string" ? content["question"] : null;
+    const options = Array.isArray(content["options"]) ? content["options"] as unknown[] : null;
+    const correct = content["correct_answer"] ?? content["correct"] ?? content["answer"];
+    const rationale = typeof content["rationale"] === "string" ? content["rationale"] : null;
+    return (
+      <div>
+        {question && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Question</div>
+            <div style={textStyle}>{question}</div>
+          </div>
+        )}
+        {options && options.length > 0 && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Options</div>
+            <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-lg)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>
+              {options.map((o, idx) => (
+                <li key={idx}>{typeof o === "string" ? o : JSON.stringify(o)}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {correct !== undefined && correct !== null && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Correct Answer</div>
+            <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>{String(correct)}</div>
+          </div>
+        )}
+        {rationale && (
+          <div>
+            <div style={labelStyle}>Rationale</div>
+            <div style={textStyle}>{rationale}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (type === "kql") {
+    const scenario = typeof content["scenario"] === "string" ? content["scenario"] : null;
+    const task = typeof content["task"] === "string" ? content["task"] : null;
+    const sampleRaw = content["sample_log_snippet"] ?? content["log_snippet"];
+    const sample = sampleRaw !== undefined && sampleRaw !== null
+      ? (typeof sampleRaw === "string" ? sampleRaw : JSON.stringify(sampleRaw, null, 2))
+      : null;
+    const answer = typeof content["answer_query"] === "string" ? content["answer_query"]
+      : typeof content["answer"] === "string" ? content["answer"] : null;
+    return (
+      <div>
+        {scenario && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Scenario</div>
+            <div style={textStyle}>{scenario}</div>
+          </div>
+        )}
+        {task && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Task</div>
+            <div style={textStyle}>{task}</div>
+          </div>
+        )}
+        {sample && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Sample Log</div>
+            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {sample}
+            </pre>
+          </div>
+        )}
+        {answer && (
+          <div>
+            <div style={labelStyle}>Answer Query</div>
+            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", color: "var(--aiq-color-success)" }}>
+              {answer}
+            </pre>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (type === "log_analysis") {
+    const scenario = typeof content["scenario"] === "string" ? content["scenario"] : null;
+    const logDataRaw = content["log_data"] ?? content["logs"] ?? content["log_snippet"];
+    const logData = logDataRaw !== undefined && logDataRaw !== null
+      ? (typeof logDataRaw === "string" ? logDataRaw : JSON.stringify(logDataRaw, null, 2))
+      : null;
+    const question = typeof content["question"] === "string" ? content["question"] : null;
+    const answerRaw = content["expected_findings"] ?? content["answer"] ?? content["findings"];
+    const answer = answerRaw !== undefined && answerRaw !== null
+      ? (typeof answerRaw === "string" ? answerRaw : JSON.stringify(answerRaw, null, 2))
+      : null;
+    return (
+      <div>
+        {scenario && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Scenario</div>
+            <div style={textStyle}>{scenario}</div>
+          </div>
+        )}
+        {logData && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Log Data</div>
+            <pre style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, background: "var(--aiq-color-bg-sunken)", padding: "var(--aiq-space-xs)", borderRadius: "var(--aiq-radius-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {logData}
+            </pre>
+          </div>
+        )}
+        {question && (
+          <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+            <div style={labelStyle}>Question</div>
+            <div style={textStyle}>{question}</div>
+          </div>
+        )}
+        {answer && (
+          <div>
+            <div style={labelStyle}>Expected Findings</div>
+            <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>
+              {answer}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // scenario + subjective: both have question + answer/rubric hints
+  const question = typeof content["question"] === "string" ? content["question"] : null;
+  const scenario = typeof content["scenario"] === "string" ? content["scenario"] : null;
+  const answerRaw2 = content["expected_answer"] ?? content["answer"] ?? content["model_answer"];
+  const answer = answerRaw2 !== undefined && answerRaw2 !== null
+    ? (typeof answerRaw2 === "string" ? answerRaw2 : JSON.stringify(answerRaw2, null, 2))
+    : null;
+  const rubricRaw = content["rubric_hints"] ?? content["scoring_guide"];
+  const rubricHints = rubricRaw !== undefined && rubricRaw !== null
+    ? (typeof rubricRaw === "string" ? rubricRaw : JSON.stringify(rubricRaw, null, 2))
+    : null;
+  return (
+    <div>
+      {scenario && (
+        <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+          <div style={labelStyle}>Scenario</div>
+          <div style={textStyle}>{scenario}</div>
+        </div>
+      )}
+      {question && (
+        <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+          <div style={labelStyle}>Question</div>
+          <div style={textStyle}>{question}</div>
+        </div>
+      )}
+      {answer && (
+        <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
+          <div style={labelStyle}>Expected Answer</div>
+          <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>
+            {answer}
+          </div>
+        </div>
+      )}
+      {rubricHints && (
+        <div>
+          <div style={labelStyle}>Rubric Hints</div>
+          <div style={textStyle}>
+            {rubricHints}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -103,17 +311,23 @@ export function AdminGenerateWizard(): React.ReactElement {
   const [newCategoryLoading, setNewCategoryLoading] = useState(false);
   const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
 
-  // Generating state
+  // Generating state (D4)
   const [genResults, setGenResults] = useState<CategoryGenResult[]>([]);
+  const [genCurrentIdx, setGenCurrentIdx] = useState<number>(0);
 
-  // Review state
-  const [drafts, setDrafts] = useState<QuestionItem[]>([]);
+  // Review state (D5 — durable)
+  const [drafts, setDrafts] = useState<QuestionListItem[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState<string>("");
   const [approveLoading, setApproveLoading] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  // D5: on-mount check for existing drafts (resume-on-return)
+  const [resumeCount, setResumeCount] = useState<number | null>(null);
 
   // Fetch domains on mount
   useEffect(() => {
@@ -121,6 +335,13 @@ export function AdminGenerateWizard(): React.ReactElement {
     listDomainsApi()
       .then((res) => { setDomains(res.items); setDomainsLoading(false); })
       .catch(() => { setDomainsLoading(false); setConfigError("Failed to load domains"); });
+  }, []);
+
+  // D5: check for existing ai_draft questions on mount to show resume banner
+  useEffect(() => {
+    listQuestionsApi({ status: "ai_draft", pageSize: 1 })
+      .then((res) => { setResumeCount(res.total > 0 ? res.total : null); })
+      .catch(() => { /* non-critical */ });
   }, []);
 
   // Fetch categories when domain changes
@@ -154,7 +375,6 @@ export function AdminGenerateWizard(): React.ReactElement {
         name,
         ...(newDomainDesc.trim() ? { description: newDomainDesc.trim() } : {}),
       });
-      // Refetch domains list and auto-select the new one
       const res = await listDomainsApi();
       setDomains(res.items);
       setSelectedDomainId(created.id);
@@ -180,7 +400,6 @@ export function AdminGenerateWizard(): React.ReactElement {
         name,
         ...(newCategoryDesc.trim() ? { description: newCategoryDesc.trim() } : {}),
       });
-      // Refetch categories for selected domain and auto-select the new one
       const res = await listCategoriesApi(selectedDomainId);
       const configs: CategoryConfig[] = res.items.map((cat) => ({
         category: cat,
@@ -200,65 +419,85 @@ export function AdminGenerateWizard(): React.ReactElement {
     setNewCategoryLoading(false);
   }, [newCategoryName, newCategoryDesc, selectedDomainId]);
 
-  // Generate handler — sequential to respect single-flight mutex
+  // D5: load all ai_draft questions for the review screen
+  const loadDrafts = useCallback(async () => {
+    setDraftsLoading(true);
+    setReviewError(null);
+    try {
+      const q = await listQuestionsApi({ status: "ai_draft", pageSize: 500 });
+      setDrafts(q.items);
+      // Auto-select all for convenience
+      setSelectedDraftIds(new Set(q.items.map((d) => d.id)));
+      // Persist resume count
+      setResumeCount(q.total > 0 ? q.total : null);
+    } catch (err) {
+      setReviewError(err instanceof AdminApiError ? err.apiError.message : "Failed to load drafts");
+    }
+    setDraftsLoading(false);
+  }, []);
+
+  // Generate handler — sequential to respect single-flight mutex (D3-FE + D4)
   const handleGenerate = useCallback(async () => {
-    const checkedConfigs = categoryConfigs.filter((c) => c.checked);
+    const checkedConfigs = categoryConfigs.filter(
+      (c) => c.checked && c.selectedTypes.length > 0,
+    );
     if (!selectedDomainId || !selectedLevel || checkedConfigs.length === 0) return;
 
     const initial: CategoryGenResult[] = checkedConfigs.map((c) => ({
       categoryId: c.category.id,
       status: "pending",
-      questionIds: [],
+      questionCount: 0,
       error: null,
     }));
     setGenResults(initial);
+    setGenCurrentIdx(0);
     setStep("generating");
 
     const results = [...initial];
     for (let i = 0; i < checkedConfigs.length; i++) {
       const cfg = checkedConfigs[i]!;
+      setGenCurrentIdx(i);
       results[i] = { ...results[i]!, status: "generating" };
       setGenResults([...results]);
       try {
-        // Distribute count across selected types
-        const typeCounts: Partial<Record<string, number>> = {};
-        const n = cfg.selectedTypes.length;
-        if (n > 0) {
-          const base = Math.floor(cfg.count / n);
-          let remainder = cfg.count - base * n;
-          for (const t of cfg.selectedTypes) {
-            typeCounts[t] = base + (remainder > 0 ? 1 : 0);
-            if (remainder > 0) remainder--;
-          }
+        // D3-FE: per-type semantics — count = K×C, type_counts = {type: C each}
+        // The server sends this to handleAdminGenerate which honors it in SHARDED mode.
+        // In omnibus mode (default) type_counts is ignored server-side; the wizard
+        // at least sends the correct count total so the right number of questions generates.
+        const C = cfg.count;
+        const typeCounts: Partial<Record<"mcq" | "log_analysis" | "scenario" | "kql" | "subjective", number>> = {};
+        for (const t of cfg.selectedTypes) {
+          typeCounts[t as "mcq" | "log_analysis" | "scenario" | "kql" | "subjective"] = C;
         }
+        const totalCount = cfg.selectedTypes.length * C;
+
         const res = await generateForDomainApi(selectedDomainId, selectedLevel, {
-          count: cfg.count,
-          type_counts: typeCounts as Partial<Record<"mcq" | "log_analysis" | "scenario" | "kql" | "subjective", number>>,
+          count: totalCount,
+          type_counts: typeCounts,
           category_id: cfg.category.id,
         });
-        results[i] = { ...results[i]!, status: "done", questionIds: res.questionIds };
+        results[i] = { ...results[i]!, status: "done", questionCount: res.generated };
       } catch (err) {
         const msg = err instanceof AdminApiError ? err.apiError.message : String(err);
+        // D4: per-category failure — mark failed but continue remaining
         results[i] = { ...results[i]!, status: "failed", error: msg };
       }
       setGenResults([...results]);
     }
 
-    // Load drafts for review — query by domain_id since we no longer have pack_id
-    setDraftsLoading(true);
-    try {
-      const q = await adminApi<{ items: QuestionItem[]; total: number }>(
-        `/admin/questions?status=ai_draft&pageSize=500`,
-      );
-      setDrafts(q.items);
-      setSelectedDraftIds(new Set(q.items.map((d) => d.id)));
-    } catch { /* non-critical */ }
-    setDraftsLoading(false);
+    // Load all drafts for the review screen after generation
+    await loadDrafts();
     setStep("review");
-  }, [categoryConfigs, selectedDomainId, selectedLevel]);
+  }, [categoryConfigs, selectedDomainId, selectedLevel, loadDrafts]);
+
+  // Navigate to review — load fresh drafts from DB (D5: durable)
+  const navigateToReview = useCallback(async () => {
+    await loadDrafts();
+    setStep("review");
+  }, [loadDrafts]);
 
   // Inline edit
-  const startEdit = (draft: QuestionItem) => {
+  const startEdit = (draft: QuestionListItem) => {
     setEditingId(draft.id);
     setEditTopic(draft.topic ?? "");
   };
@@ -271,7 +510,7 @@ export function AdminGenerateWizard(): React.ReactElement {
     setEditingId(null);
   }, [editTopic]);
 
-  // Approve
+  // Approve selected
   const handleApprove = useCallback(async () => {
     const ids = [...selectedDraftIds];
     if (ids.length === 0) return;
@@ -281,6 +520,11 @@ export function AdminGenerateWizard(): React.ReactElement {
       await bulkUpdateQuestionStatus({ ids, status: "active" });
       setDrafts((prev) => prev.filter((d) => !selectedDraftIds.has(d.id)));
       setSelectedDraftIds(new Set());
+      // Update resume count
+      setResumeCount((prev) => {
+        const next = (prev ?? 0) - ids.length;
+        return next > 0 ? next : null;
+      });
     } catch (err) {
       setApproveError(err instanceof AdminApiError ? err.apiError.message : "Approve failed");
     }
@@ -292,11 +536,24 @@ export function AdminGenerateWizard(): React.ReactElement {
   // ---------------------------------------------------------------------------
 
   function renderConfig(): React.ReactElement {
-    const checkedCount = categoryConfigs.filter((c) => c.checked).length;
-    const canGenerate = !!selectedDomainId && !!selectedLevel && checkedCount > 0;
+    const checkedConfigs = categoryConfigs.filter((c) => c.checked && c.selectedTypes.length > 0);
+    const grandTotal = computeGrandTotal(categoryConfigs);
+    const canGenerate = !!selectedDomainId && !!selectedLevel && checkedConfigs.length > 0 && grandTotal > 0;
 
     return (
       <div style={{ maxWidth: 760 }}>
+        {/* D5: Resume-on-return banner */}
+        {resumeCount !== null && (
+          <div style={{ marginBottom: "var(--aiq-space-lg)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-accent-soft)", border: "1px solid var(--aiq-color-accent)", borderRadius: "var(--aiq-radius-md)", display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
+            <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}>
+              You have <strong>{resumeCount}</strong> AI draft question{resumeCount !== 1 ? "s" : ""} awaiting review.
+            </span>
+            <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" onClick={() => void navigateToReview()}>
+              Review drafts
+            </button>
+          </div>
+        )}
+
         {configError && (
           <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-error-soft, #fee2e2)", color: "var(--aiq-color-error, #dc2626)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
             {configError}
@@ -329,20 +586,8 @@ export function AdminGenerateWizard(): React.ReactElement {
               {newDomainError && (
                 <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{newDomainError}</span>
               )}
-              <input
-                type="text"
-                placeholder="Domain name (required)"
-                value={newDomainName}
-                onChange={(e) => setNewDomainName(e.target.value)}
-                style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
-              />
-              <input
-                type="text"
-                placeholder="Description (optional)"
-                value={newDomainDesc}
-                onChange={(e) => setNewDomainDesc(e.target.value)}
-                style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
-              />
+              <input type="text" placeholder="Domain name (required)" value={newDomainName} onChange={(e) => setNewDomainName(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
+              <input type="text" placeholder="Description (optional)" value={newDomainDesc} onChange={(e) => setNewDomainDesc(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
               <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={newDomainLoading || !newDomainName.trim()} onClick={() => void handleCreateDomain()}>
                 {newDomainLoading ? "Creating..." : "Create Domain"}
               </button>
@@ -367,20 +612,8 @@ export function AdminGenerateWizard(): React.ReactElement {
                 {newCategoryError && (
                   <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{newCategoryError}</span>
                 )}
-                <input
-                  type="text"
-                  placeholder="Category name (required)"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
-                />
-                <input
-                  type="text"
-                  placeholder="Description (optional)"
-                  value={newCategoryDesc}
-                  onChange={(e) => setNewCategoryDesc(e.target.value)}
-                  style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
-                />
+                <input type="text" placeholder="Category name (required)" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
+                <input type="text" placeholder="Description (optional)" value={newCategoryDesc} onChange={(e) => setNewCategoryDesc(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
                 <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={newCategoryLoading || !newCategoryName.trim()} onClick={() => void handleCreateCategory()}>
                   {newCategoryLoading ? "Creating..." : "Create Category"}
                 </button>
@@ -393,62 +626,160 @@ export function AdminGenerateWizard(): React.ReactElement {
               <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>No active categories for this domain.</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-                {categoryConfigs.map((cfg, i) => (
-                  <div key={cfg.category.id} style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: cfg.checked ? "var(--aiq-color-accent-soft)" : "var(--aiq-color-bg-raised)", border: "1px solid", borderColor: cfg.checked ? "var(--aiq-color-accent)" : "var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}>
-                    <input type="checkbox" checked={cfg.checked} onChange={(e) => { const next = [...categoryConfigs]; next[i] = { ...next[i]!, checked: e.target.checked }; setCategoryConfigs(next); }} style={{ flexShrink: 0, accentColor: "var(--aiq-color-accent)" }} />
-                    <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>{cfg.category.name}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
-                      <label style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>Count</label>
-                      <input type="number" min={1} max={10} value={cfg.count} onChange={(e) => { const v = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)); const next = [...categoryConfigs]; next[i] = { ...next[i]!, count: v }; setCategoryConfigs(next); }} style={{ width: 52, padding: "2px 4px", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
+                {categoryConfigs.map((cfg, i) => {
+                  // D1: controls disabled unless category is checked
+                  const controlsDisabled = !cfg.checked;
+                  const subtotal = categorySubtotal(cfg);
+
+                  return (
+                    <div key={cfg.category.id} style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: cfg.checked ? "var(--aiq-color-accent-soft)" : "var(--aiq-color-bg-raised)", border: "1px solid", borderColor: cfg.checked ? "var(--aiq-color-accent)" : "var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}>
+                      {/* Row 1: checkbox + name + count + types */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
+                        <input
+                          type="checkbox"
+                          checked={cfg.checked}
+                          onChange={(e) => {
+                            const next = [...categoryConfigs];
+                            next[i] = { ...next[i]!, checked: e.target.checked };
+                            setCategoryConfigs(next);
+                          }}
+                          style={{ flexShrink: 0, accentColor: "var(--aiq-color-accent)" }}
+                        />
+                        <span style={{ flex: 1, minWidth: 120, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500, color: controlsDisabled ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-primary)" }}>
+                          {cfg.category.name}
+                        </span>
+
+                        {/* D1: Count input — disabled when unchecked */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                          <label style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                            Count/type
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            value={cfg.count}
+                            disabled={controlsDisabled}
+                            onChange={(e) => {
+                              const v = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1));
+                              const next = [...categoryConfigs];
+                              next[i] = { ...next[i]!, count: v };
+                              setCategoryConfigs(next);
+                            }}
+                            style={{ width: 52, padding: "2px 4px", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: controlsDisabled ? "var(--aiq-color-bg-sunken)" : "var(--aiq-color-bg-raised)", opacity: controlsDisabled ? 0.5 : 1 }}
+                          />
+                        </div>
+
+                        {/* D1: Type checkboxes — disabled when unchecked */}
+                        <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+                          {(Array.isArray(cfg.category.supported_types) ? cfg.category.supported_types as string[] : ["subjective", "scenario"]).map((t) => (
+                            <label
+                              key={t}
+                              style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "var(--aiq-font-mono)", fontSize: 10, color: controlsDisabled ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)", cursor: controlsDisabled ? "not-allowed" : "pointer", opacity: controlsDisabled ? 0.5 : 1 }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={cfg.selectedTypes.includes(t)}
+                                disabled={controlsDisabled}
+                                onChange={(e) => {
+                                  const next = [...categoryConfigs];
+                                  next[i] = { ...next[i]!, selectedTypes: e.target.checked ? [...cfg.selectedTypes, t] : cfg.selectedTypes.filter((x) => x !== t) };
+                                  setCategoryConfigs(next);
+                                }}
+                                style={{ accentColor: "var(--aiq-color-accent)" }}
+                              />
+                              {t}
+                            </label>
+                          ))}
+                        </div>
+
+                        {/* D2: per-category subtotal */}
+                        {cfg.checked && subtotal > 0 && (
+                          <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", whiteSpace: "nowrap" }}>
+                            = {subtotal} q
+                          </span>
+                        )}
+                        {cfg.checked && subtotal === 0 && (
+                          <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)", whiteSpace: "nowrap" }}>
+                            select a type
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
-                      {(Array.isArray(cfg.category.supported_types) ? cfg.category.supported_types as string[] : ["subjective", "scenario"]).map((t) => (
-                        <label key={t} style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "var(--aiq-font-mono)", fontSize: 10, color: "var(--aiq-color-fg-secondary)", cursor: "pointer" }}>
-                          <input type="checkbox" checked={cfg.selectedTypes.includes(t)} onChange={(e) => { const next = [...categoryConfigs]; next[i] = { ...next[i]!, selectedTypes: e.target.checked ? [...cfg.selectedTypes, t] : cfg.selectedTypes.filter((x) => x !== t) }; setCategoryConfigs(next); }} style={{ accentColor: "var(--aiq-color-accent)" }} />
-                          {t}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
         )}
 
-        <button type="button" className="aiq-btn aiq-btn-primary" disabled={!canGenerate} onClick={() => void handleGenerate()}>
-          Generate Question Set
-        </button>
-        {!canGenerate && (
-          <span style={{ marginLeft: "var(--aiq-space-sm)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-            Select a domain and at least one category first.
-          </span>
-        )}
+        {/* D2: Generate button with grand total */}
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
+          <button
+            type="button"
+            className="aiq-btn aiq-btn-primary"
+            disabled={!canGenerate}
+            onClick={() => void handleGenerate()}
+          >
+            {grandTotal > 0 ? `Generate ${grandTotal} questions` : "Generate Question Set"}
+          </button>
+          {!canGenerate && (
+            <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+              {!selectedDomainId
+                ? "Select a domain first."
+                : categoryConfigs.filter((c) => c.checked).length === 0
+                  ? "Tick at least one category."
+                  : "Select at least one type per checked category."}
+            </span>
+          )}
+        </div>
       </div>
     );
   }
 
   // ---------------------------------------------------------------------------
-  // Render -- generating step
+  // Render -- generating step (D4)
   // ---------------------------------------------------------------------------
 
   function renderGenerating(): React.ReactElement {
-    const checkedConfigs = categoryConfigs.filter((c) => c.checked);
+    const checkedConfigs = categoryConfigs.filter((c) => c.checked && c.selectedTypes.length > 0);
+    const total = checkedConfigs.length;
+    const currentResult = genResults[genCurrentIdx];
+    const currentCfg = currentResult
+      ? checkedConfigs.find((c) => c.category.id === currentResult.categoryId)
+      : undefined;
+
     return (
-      <div style={{ maxWidth: 600 }}>
-        <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", marginBottom: "var(--aiq-space-md)" }}>
-          Generating questions... please wait. This may take 30-90 seconds per category.
-        </p>
+      <div style={{ maxWidth: 640 }}>
+        {/* D4: current progress line */}
+        {currentResult?.status === "generating" && currentCfg && (
+          <div style={{ marginBottom: "var(--aiq-space-lg)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-accent-soft)", border: "1px solid var(--aiq-color-accent)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}>
+            Generating category {genCurrentIdx + 1} of {total}: <strong>{currentCfg.category.name}</strong> ({currentCfg.selectedTypes.join(", ")})…
+          </div>
+        )}
+
+        {/* D4: "you can leave" persistent note */}
+        <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+          You can leave this page — completed categories are saved automatically and will be waiting under Review. Only the category currently generating would need re-running if you leave now.
+        </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-          {genResults.map((r) => {
+          {genResults.map((r, idx) => {
             const cfg = checkedConfigs.find((c) => c.category.id === r.categoryId);
             const sc = statusColor(r.status);
             return (
               <div key={r.categoryId} style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}>
+                <span style={{ width: 20, flexShrink: 0, fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-muted)", textAlign: "right" }}>{idx + 1}</span>
                 <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>{cfg?.category.name ?? r.categoryId}</span>
-                <span style={{ padding: "2px 8px", borderRadius: "var(--aiq-radius-pill)", background: sc.bg, color: sc.color, fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase" }}>{r.status}</span>
-                {r.status === "done" && <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>{r.questionIds.length} questions</span>}
-                {r.status === "failed" && r.error && <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{r.error.slice(0, 80)}</span>}
+                <span style={{ padding: "2px 8px", borderRadius: "var(--aiq-radius-pill)", background: sc.bg, color: sc.color, fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", flexShrink: 0 }}>
+                  {r.status === "done" ? "✓ saved" : r.status === "failed" ? "✗ failed" : r.status}
+                </span>
+                {r.status === "done" && (
+                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{r.questionCount} saved</span>
+                )}
+                {r.status === "failed" && r.error && (
+                  <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.error}>{r.error}</span>
+                )}
               </div>
             );
           })}
@@ -458,101 +789,205 @@ export function AdminGenerateWizard(): React.ReactElement {
   }
 
   // ---------------------------------------------------------------------------
-  // Render -- review step
+  // Render -- review step (D5 — durable)
   // ---------------------------------------------------------------------------
 
   function renderReview(): React.ReactElement {
-    const checkedConfigs = categoryConfigs.filter((c) => c.checked);
     const allSelected = drafts.length > 0 && drafts.every((d) => selectedDraftIds.has(d.id));
-    const catIds = new Set(checkedConfigs.map((c) => c.category.id));
+
+    // Group drafts by category_id, then within each group by type
+    // For draft without category, group under "Uncategorized"
+    const byCategoryId = new Map<string | null, QuestionListItem[]>();
+    for (const draft of drafts) {
+      const key = draft.category_id ?? null;
+      if (!byCategoryId.has(key)) byCategoryId.set(key, []);
+      byCategoryId.get(key)!.push(draft);
+    }
+
+    // Build an ordered list: first known categories (in checkedConfigs order if possible), then null
+    const knownCategoryIds = categoryConfigs.map((c) => c.category.id);
+    const orderedKeys: (string | null)[] = [];
+    for (const id of knownCategoryIds) {
+      if (byCategoryId.has(id)) orderedKeys.push(id);
+    }
+    // Add any category_ids from drafts that weren't in our current wizard selection
+    for (const key of byCategoryId.keys()) {
+      if (key !== null && !orderedKeys.includes(key)) orderedKeys.push(key);
+    }
+    if (byCategoryId.has(null)) orderedKeys.push(null);
 
     return (
-      <div style={{ maxWidth: 800 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", marginBottom: "var(--aiq-space-lg)" }}>
+      <div style={{ maxWidth: 840 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", marginBottom: "var(--aiq-space-lg)", flexWrap: "wrap" }}>
           <h3 style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", margin: 0 }}>
-            Review AI Drafts ({drafts.length})
+            Review AI Drafts {draftsLoading ? "" : `(${drafts.length})`}
           </h3>
-          <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => { setStep("config"); setGenResults([]); setDrafts([]); setSelectedDraftIds(new Set()); }}>
+          <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => void loadDrafts()} disabled={draftsLoading}>
+            {draftsLoading ? "Loading…" : "Refresh"}
+          </button>
+          {/* D5: "Back to config" NEVER discards drafts — only navigates */}
+          <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => setStep("config")}>
             Back to config
           </button>
+        </div>
+
+        {/* D5: persistent note about durability */}
+        <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-xs) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+          Drafts are saved in the database. You can leave and return — they will be here. Approve moves questions to active status.
         </div>
 
         {approveError && (
           <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-error-soft, #fee2e2)", color: "var(--aiq-color-error, #dc2626)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>{approveError}</div>
         )}
+        {reviewError && (
+          <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-error-soft, #fee2e2)", color: "var(--aiq-color-error, #dc2626)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>{reviewError}</div>
+        )}
 
         {draftsLoading ? (
-          <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>Loading drafts...</p>
+          <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>Loading drafts…</p>
         ) : drafts.length === 0 ? (
           <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-            No ai_draft questions found. Generation may have failed or all were already approved.
+            No AI draft questions found. Generate some questions or check if all drafts have already been approved.
           </p>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", marginBottom: "var(--aiq-space-md)" }}>
+            {/* Bulk controls */}
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", cursor: "pointer" }}>
                 <input type="checkbox" checked={allSelected} onChange={(e) => { setSelectedDraftIds(e.target.checked ? new Set(drafts.map((d) => d.id)) : new Set()); }} style={{ accentColor: "var(--aiq-color-accent)" }} />
                 Select all
               </label>
-              <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={selectedDraftIds.size === 0 || approveLoading} onClick={() => void handleApprove()}>
-                {approveLoading ? "Approving..." : `Approve Selected (${selectedDraftIds.size})`}
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                disabled={selectedDraftIds.size === 0 || approveLoading}
+                onClick={() => void handleApprove()}
+              >
+                {approveLoading ? "Approving…" : `Approve Selected (${selectedDraftIds.size})`}
               </button>
             </div>
 
-            {checkedConfigs.map((cfg) => {
-              const catDrafts = drafts.filter((d) => d.category_id === cfg.category.id);
+            {/* D5: grouped by category */}
+            {orderedKeys.map((catId) => {
+              const catDrafts = byCategoryId.get(catId) ?? [];
               if (catDrafts.length === 0) return null;
+
+              // Find category name from either wizard configs or draft's category
+              const catCfg = categoryConfigs.find((c) => c.category.id === catId);
+              const catName = catCfg?.category.name ?? (catId ? `Category ${catId.slice(0, 8)}…` : "Uncategorized");
+
               return (
-                <div key={cfg.category.id} style={{ marginBottom: "var(--aiq-space-xl)" }}>
-                  <h4 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 600, color: "var(--aiq-color-fg-secondary)", marginBottom: "var(--aiq-space-sm)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    {cfg.category.name} ({catDrafts.length})
+                <div key={catId ?? "__uncategorized__"} style={{ marginBottom: "var(--aiq-space-xl)" }}>
+                  <h4 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 600, color: "var(--aiq-color-fg-secondary)", marginBottom: "var(--aiq-space-sm)", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                    {catName}
+                    <span style={{ fontWeight: 400, fontSize: "var(--aiq-text-xs)" }}>({catDrafts.length})</span>
                   </h4>
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-                    {catDrafts.map((draft) => (
-                      <div key={draft.id} style={{ padding: "var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid", borderColor: selectedDraftIds.has(draft.id) ? "var(--aiq-color-accent)" : "var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--aiq-space-sm)" }}>
-                          <input type="checkbox" checked={selectedDraftIds.has(draft.id)} onChange={(e) => { const n = new Set(selectedDraftIds); e.target.checked ? n.add(draft.id) : n.delete(draft.id); setSelectedDraftIds(n); }} style={{ marginTop: 2, flexShrink: 0, accentColor: "var(--aiq-color-accent)" }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: 4 }}>
-                              <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)" }}>{draft.type}</span>
+                    {catDrafts.map((draft) => {
+                      const isExpanded = expandedIds.has(draft.id);
+                      return (
+                        <div key={draft.id} style={{ padding: "var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid", borderColor: selectedDraftIds.has(draft.id) ? "var(--aiq-color-accent)" : "var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}>
+                          {/* Header row */}
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--aiq-space-sm)" }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedDraftIds.has(draft.id)}
+                              onChange={(e) => {
+                                const n = new Set(selectedDraftIds);
+                                e.target.checked ? n.add(draft.id) : n.delete(draft.id);
+                                setSelectedDraftIds(n);
+                              }}
+                              style={{ marginTop: 3, flexShrink: 0, accentColor: "var(--aiq-color-accent)" }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: 4, flexWrap: "wrap" }}>
+                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{draft.type}</span>
+                              </div>
+
+                              {/* Topic (inline edit) */}
+                              {editingId === draft.id ? (
+                                <div style={{ display: "flex", gap: "var(--aiq-space-xs)", marginBottom: "var(--aiq-space-xs)" }}>
+                                  <input
+                                    type="text"
+                                    value={editTopic}
+                                    onChange={(e) => setEditTopic(e.target.value)}
+                                    style={{ flex: 1, padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-accent)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }}
+                                    autoFocus
+                                  />
+                                  <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" onClick={() => void saveEdit(draft.id)}>Save</button>
+                                  <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
+                                </div>
+                              ) : (
+                                <div style={{ display: "flex", alignItems: "baseline", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-xs)" }}>
+                                  <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)", fontWeight: 500 }}>{draft.topic ?? "(no topic)"}</span>
+                                  <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => startEdit(draft)} style={{ flexShrink: 0 }}>Edit</button>
+                                </div>
+                              )}
+
+                              {/* D5: Expand/collapse formatted content — never raw JSON */}
+                              <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+                                <button
+                                  type="button"
+                                  className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                                  onClick={() => {
+                                    setExpandedIds((prev) => {
+                                      const next = new Set(prev);
+                                      next.has(draft.id) ? next.delete(draft.id) : next.add(draft.id);
+                                      return next;
+                                    });
+                                  }}
+                                  style={{ fontSize: "var(--aiq-text-xs)" }}
+                                >
+                                  {isExpanded ? "Hide content" : "Show content"}
+                                </button>
+                                {/* Per-question Approve */}
+                                <button
+                                  type="button"
+                                  className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                                  disabled={approveLoading}
+                                  onClick={() => {
+                                    setSelectedDraftIds(new Set([draft.id]));
+                                    void (async () => {
+                                      setApproveLoading(true);
+                                      setApproveError(null);
+                                      try {
+                                        await bulkUpdateQuestionStatus({ ids: [draft.id], status: "active" });
+                                        setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
+                                        setSelectedDraftIds(new Set());
+                                        setResumeCount((prev) => {
+                                          const next = (prev ?? 1) - 1;
+                                          return next > 0 ? next : null;
+                                        });
+                                      } catch (err) {
+                                        setApproveError(err instanceof AdminApiError ? err.apiError.message : "Approve failed");
+                                      }
+                                      setApproveLoading(false);
+                                    })();
+                                  }}
+                                  style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-success)" }}
+                                >
+                                  Approve
+                                </button>
+                              </div>
+
+                              {/* D5: Formatted content display (never raw JSON) */}
+                              {isExpanded && (
+                                <div style={{ marginTop: "var(--aiq-space-sm)", padding: "var(--aiq-space-sm)", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", borderLeft: "3px solid var(--aiq-color-accent)" }}>
+                                  {renderQuestionContent(
+                                    draft.type,
+                                    draft.content as Record<string, unknown>,
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            {editingId === draft.id ? (
-                              <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
-                                <input type="text" value={editTopic} onChange={(e) => setEditTopic(e.target.value)} style={{ flex: 1, padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-accent)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} autoFocus />
-                                <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" onClick={() => void saveEdit(draft.id)}>Save</button>
-                                <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
-                              </div>
-                            ) : (
-                              <div style={{ display: "flex", alignItems: "baseline", gap: "var(--aiq-space-sm)" }}>
-                                <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>{draft.topic ?? "(no topic)"}</span>
-                                <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => startEdit(draft)} style={{ flexShrink: 0 }}>Edit</button>
-                              </div>
-                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
             })}
-
-            {drafts.filter((d) => !d.category_id || !catIds.has(d.category_id)).length > 0 && (
-              <div style={{ marginBottom: "var(--aiq-space-xl)" }}>
-                <h4 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 600, color: "var(--aiq-color-fg-secondary)", marginBottom: "var(--aiq-space-sm)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Uncategorized ({drafts.filter((d) => !d.category_id || !catIds.has(d.category_id)).length})
-                </h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-                  {drafts.filter((d) => !d.category_id || !catIds.has(d.category_id)).map((draft) => (
-                    <div key={draft.id} style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
-                      <input type="checkbox" checked={selectedDraftIds.has(draft.id)} onChange={(e) => { const n = new Set(selectedDraftIds); e.target.checked ? n.add(draft.id) : n.delete(draft.id); setSelectedDraftIds(n); }} style={{ accentColor: "var(--aiq-color-accent)" }} />
-                      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", textTransform: "uppercase" }}>{draft.type}</span>
-                      <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>{draft.topic ?? "(no topic)"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -571,19 +1006,30 @@ export function AdminGenerateWizard(): React.ReactElement {
             Generate Question Set
           </h2>
           <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", margin: 0 }}>
-            Pick a domain and categories, set per-category counts, then generate AI drafts for review.
+            Pick a domain and categories, set per-type counts, then generate AI drafts for review.
           </p>
         </div>
+
+        {/* Step nav — config/review are always navigable; generating is transient */}
         <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: "var(--aiq-space-xl)" }}>
           {(["config", "generating", "review"] as WizardStep[]).map((s, i) => (
             <React.Fragment key={s}>
-              {i > 0 && <span style={{ color: "var(--aiq-color-border-strong)", fontSize: 12 }}>{" -> "}</span>}
-              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: step === s ? 600 : 400, color: step === s ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)", textTransform: "capitalize" }}>
+              {i > 0 && <span style={{ color: "var(--aiq-color-border-strong)", fontSize: 12 }}>{" → "}</span>}
+              <button
+                type="button"
+                style={{ background: "none", border: "none", padding: 0, cursor: step === "generating" || s === "generating" ? "default" : "pointer", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: step === s ? 600 : 400, color: step === s ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)", textDecoration: "none", textTransform: "capitalize" }}
+                disabled={s === "generating"}
+                onClick={() => {
+                  if (s === "config") { setStep("config"); return; }
+                  if (s === "review") { void navigateToReview(); }
+                }}
+              >
                 {s === "config" ? "Configure" : s === "generating" ? "Generating" : "Review"}
-              </span>
+              </button>
             </React.Fragment>
           ))}
         </div>
+
         {step === "config" && renderConfig()}
         {step === "generating" && renderGenerating()}
         {step === "review" && renderReview()}

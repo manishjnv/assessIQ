@@ -624,6 +624,9 @@ export async function registerQuestionBankRoutes(
       if (q["status"] !== undefined) filters.status = q["status"] as QuestionStatus;
       if (q["tag"] !== undefined) filters.tag = q["tag"];
       if (q["search"] !== undefined) filters.search = q["search"];
+      // Slice 2.2/D5: read-only domain/category filters for durable Review screen.
+      if (q["domain_id"] !== undefined) filters.domain_id = q["domain_id"];
+      if (q["category_id"] !== undefined) filters.category_id = q["category_id"];
       return listQuestions(tenantId, filters);
     },
   );
