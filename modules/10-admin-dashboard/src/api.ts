@@ -336,3 +336,45 @@ export async function generateForDomainApi(
     },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — list questions with filters (Slice 2.2/D5)
+// ---------------------------------------------------------------------------
+
+export interface ListQuestionsFilters {
+  status?: string;
+  domain_id?: string;
+  category_id?: string;
+  pageSize?: number;
+  page?: number;
+}
+
+export interface QuestionListItem {
+  id: string;
+  type: string;
+  topic: string | null;
+  status: string;
+  content: Record<string, unknown>;
+  rubric: Record<string, unknown> | null;
+  domain_id: string | null;
+  category_id: string | null;
+}
+
+/**
+ * GET /api/admin/questions with filters.
+ * Returns items for the durable Review screen (Slice 2.2/D5).
+ */
+export async function listQuestionsApi(
+  filters: ListQuestionsFilters = {},
+): Promise<{ items: QuestionListItem[]; total: number }> {
+  const params = new URLSearchParams();
+  if (filters.status !== undefined) params.set("status", filters.status);
+  if (filters.domain_id !== undefined) params.set("domain_id", filters.domain_id);
+  if (filters.category_id !== undefined) params.set("category_id", filters.category_id);
+  if (filters.pageSize !== undefined) params.set("pageSize", String(filters.pageSize));
+  if (filters.page !== undefined) params.set("page", String(filters.page));
+  const qs = params.toString();
+  return adminApi<{ items: QuestionListItem[]; total: number }>(
+    `/admin/questions${qs ? `?${qs}` : ""}`,
+  );
+}

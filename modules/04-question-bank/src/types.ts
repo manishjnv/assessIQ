@@ -255,6 +255,10 @@ export interface Question {
   created_by: string;
   created_at: Date;
   updated_at: Date;
+  /** Domain tag — set for AI-generated questions, null for human-authored. Added Slice 2.2/D5. */
+  domain_id: string | null;
+  /** Category tag — set for AI-generated questions, null for human-authored. Added Slice 2.2/D5. */
+  category_id: string | null;
 }
 
 export interface QuestionVersion {
@@ -319,6 +323,10 @@ export interface ListQuestionsInput {
   search?: string;      // case-insensitive prefix on topic
   page?: number;
   pageSize?: number;
+  /** Filter by domain UUID — read-only, RLS-scoped. Added Slice 2.2/D5. */
+  domain_id?: string;
+  /** Filter by category UUID — read-only, RLS-scoped. Added Slice 2.2/D5. */
+  category_id?: string;
 }
 
 export interface CreateQuestionInput {
