@@ -1311,3 +1311,13 @@ backup cron, the rclone config, the Caddyfile, or the `ASSESSIQ_MASTER_KEY` env 
 four MVP items above are completed and a restore drill has been run, this entry can be closed
 with a dated note in `docs/06-deployment.md` § DR.
 
+
+## 2026-05-16 — Candidate answer-key leak in take-flow question content
+
+**Symptom:** Admin spotted raw JSON question payloads on the admin attempt-detail page (cosmetic). Opus-directed read-only investigation found the deeper issue: `GET /api/me/attempts/:id` returned `question_versions.content` verbatim to candidates. For mcq this exposed `correct` (answer index) + `rationale`; log_analysis `expected_findings`/`sample_solution`; kql `expected_keywords`/`sample_solution`; scenario `steps[].expected`. Any candidate could open DevTools → Network and read the answers before submitting. Live integrity breach; every assessment/cert issued before this fix is suspect.
+
+**Cause:** `modules/06-attempt-engine/src/repository.ts` `listFrozenQuestionsForAttempt` mapper returned `content: r.content` (the whole JSONB blob). The sibling `rubric` column was correctly excluded (not SELECTed), but answer-key fields embedded *inside* `content` had no field-level stripping. FE TypeScript comments said "not rendered to candidate" — a render-only guard, never a network guard.
+
+**Fix:** Added `sanitizeContentForCandidate(type, content)` (modules/06-attempt-engine/src/repository.ts:314) — pure, allowlist-per-type, fail-closed; applied at the single candidate content chokepoint (the `.map()` in `listFrozenQuestionsForAttempt`). Allowlist keeps only candidate-safe fields; unknown type → `question` only. Prototype-pollution safe. Admin path (modules/07-ai-grading) deliberately untouched. Commit `0a1a7d4`, deployed 2026-05-16.
+
+**Prevention:** 10 pure unit tests (`sanitize-content-for-candidate.test.ts`, no DB) assert presence AND absence of answer-key fields per type — regression guard. Recurrence class: any new question type, any change to `listFrozenQuestionsForAttempt`, or any new candidate endpoint returning question content MUST route through `sanitizeContentForCandidate` (or an equivalent allowlist). Fail-closed default means a new answer-key field is hidden by default, but a new *type* still needs its allowlist entry + a test case.
