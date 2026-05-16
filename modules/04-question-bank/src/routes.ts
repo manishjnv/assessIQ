@@ -75,6 +75,11 @@ import type {
   UpdateLevelPatch,
   UpdateQuestionPatch,
 } from "./types.js";
+import {
+  handleAdminListDomains,
+  handleAdminListCategories,
+  UUID_RE,
+} from "./handlers/admin-domains.js";
 
 // ---------------------------------------------------------------------------
 // Pagination helper — shared by list endpoints
@@ -123,11 +128,15 @@ export function parseGenerateBody(raw: unknown): {
   count: number;
   topicFocus: string | undefined;
   typeCounts: Partial<Record<GenerateTypeKey, number>> | undefined;
+  domainId: string | undefined;
+  categoryId: string | undefined;
 } {
   const body = raw as {
     count?: unknown;
     topic_focus?: unknown;
     type_counts?: unknown;
+    domain_id?: unknown;
+    category_id?: unknown;
   } | null | undefined;
 
   const count = typeof body?.count === "number" ? body.count : 5;
@@ -142,8 +151,19 @@ export function parseGenerateBody(raw: unknown): {
       ? body.topic_focus.trim()
       : undefined;
 
+  // Parse domain_id / category_id — optional UUID strings (Slice 2).
+  // Invalid or missing -> undefined; do NOT throw (these are optional fields).
+  const domainId =
+    typeof body?.domain_id === "string" && UUID_RE.test(body.domain_id)
+      ? body.domain_id
+      : undefined;
+  const categoryId =
+    typeof body?.category_id === "string" && UUID_RE.test(body.category_id)
+      ? body.category_id
+      : undefined;
+
   if (body?.type_counts === undefined || body?.type_counts === null) {
-    return { count, topicFocus, typeCounts: undefined };
+    return { count, topicFocus, typeCounts: undefined, domainId, categoryId };
   }
 
   if (typeof body.type_counts !== "object" || Array.isArray(body.type_counts)) {
@@ -174,7 +194,7 @@ export function parseGenerateBody(raw: unknown): {
     });
   }
 
-  return { count, topicFocus, typeCounts: parsed };
+  return { count, topicFocus, typeCounts: parsed, domainId, categoryId };
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +215,40 @@ export async function registerQuestionBankRoutes(
   opts: RegisterQuestionBankRoutesOptions,
 ): Promise<void> {
   const { adminOnly } = opts;
+
+  // -------------------------------------------------------------------------
+  // Domain + Category read routes (Slice 2)
+  // -------------------------------------------------------------------------
+
+  // GET /api/admin/domains
+  // Returns active domains ordered by display_order. Tenant-scoped via RLS.
+  app.get(
+    "/api/admin/domains",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      return handleAdminListDomains({ tenantId });
+    },
+  );
+
+  // GET /api/admin/categories?domain_id=<uuid>
+  // Returns active categories for a domain, ordered by relevance_score DESC.
+  // domain_id is required and must be a valid UUID.
+  app.get(
+    "/api/admin/categories",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const q = req.query as Record<string, string | undefined>;
+      const domainId = q["domain_id"];
+      if (!domainId || !UUID_RE.test(domainId)) {
+        throw new ValidationError("domain_id must be a valid UUID", {
+          details: { code: "INVALID_PARAM", param: "domain_id" },
+        });
+      }
+      return handleAdminListCategories({ tenantId, domainId });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Pack routes
@@ -533,8 +587,8 @@ export async function registerQuestionBankRoutes(
       const userId = req.session!.userId;
       const { id: packId, levelId } = req.params as { id: string; levelId: string };
 
-      const { count, topicFocus, typeCounts } = parseGenerateBody(req.body);
-      return generateQuestions(tenantId, userId, packId, levelId, count, topicFocus, typeCounts);
+      const { count, topicFocus, typeCounts, domainId, categoryId } = parseGenerateBody(req.body);
+      return generateQuestions(tenantId, userId, packId, levelId, count, topicFocus, typeCounts, domainId, categoryId);
     },
   );
 

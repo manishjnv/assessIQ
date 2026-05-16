@@ -209,3 +209,66 @@ export async function updateTenantAiGenerateMode(
     { method: "PATCH", body: JSON.stringify({ mode }) },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — domains + categories (Slice 2)
+// ---------------------------------------------------------------------------
+
+export interface DomainItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  status: string;
+  display_order: number;
+}
+
+export interface CategoryItem {
+  id: string;
+  domain_id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  relevance_score: number;
+  default_selected: boolean;
+  /** Array of question type strings (e.g. ["mcq", "scenario"]). Stored as jsonb. */
+  supported_types: string[];
+  default_question_count: number;
+  status: string;
+}
+
+export async function listDomainsApi(): Promise<{ items: DomainItem[]; total: number }> {
+  return adminApi<{ items: DomainItem[]; total: number }>("/admin/domains");
+}
+
+export async function listCategoriesApi(
+  domainId: string,
+): Promise<{ items: CategoryItem[]; total: number }> {
+  return adminApi<{ items: CategoryItem[]; total: number }>(
+    `/admin/categories?domain_id=${encodeURIComponent(domainId)}`,
+  );
+}
+
+export interface GenerateWithTagRequest {
+  count: number;
+  type_counts?: Partial<Record<GenerateQuestionType, number>>;
+  domain_id?: string;
+  category_id?: string;
+}
+
+/**
+ * POST /api/admin/packs/:packId/levels/:levelId/generate
+ *
+ * Extended variant that supports domain_id + category_id tagging (Slice 2).
+ * The server validates cross-tenant FK ownership before generating.
+ */
+export async function generateQuestionsWithTagApi(
+  packId: string,
+  levelId: string,
+  body: GenerateWithTagRequest,
+): Promise<GenerateQuestionsResponse> {
+  return adminApi<GenerateQuestionsResponse>(
+    `/admin/packs/${packId}/levels/${levelId}/generate`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}

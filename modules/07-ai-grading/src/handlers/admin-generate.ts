@@ -99,6 +99,18 @@ export interface HandleAdminGenerateInput {
    * Silently ignored in omnibus mode (omnibus skill does its own mixing).
    */
   typeCounts?: Partial<Record<QuestionType, number>>;
+  /**
+   * Optional domain tag. Set only after explicit cross-tenant validation in the
+   * service layer (see generateQuestions in 04-question-bank/src/service.ts).
+   * Postgres FK validation bypasses RLS — the service guard is the primary
+   * security control, not the FK constraint.
+   */
+  domainId?: string | undefined;
+  /**
+   * Optional category tag. Set only after explicit cross-tenant validation.
+   * Both domainId and categoryId must be provided together or both omitted.
+   */
+  categoryId?: string | undefined;
 }
 
 export interface HandleAdminGenerateOutput {
@@ -166,11 +178,15 @@ async function insertDrafts(
   for (const q of output.questions) {
     const id = uuidv7();
     try {
+      // domain_id / category_id: nullable UUID columns added in migration 0018.
+      // They are set only when the service layer has already cross-tenant
+      // validated the FK pair (FK validation bypasses RLS — see service.ts guard).
       await client.query(
         `INSERT INTO questions
            (id, pack_id, level_id, type, topic, points, status, content, rubric,
-            knowledge_base_sources, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, 'ai_draft', $7::jsonb, $8::jsonb, $9::jsonb, $10)`,
+            knowledge_base_sources, created_by, domain_id, category_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 'ai_draft', $7::jsonb, $8::jsonb, $9::jsonb, $10,
+                 $11::uuid, $12::uuid)`,
         [
           id,
           input.packId,
@@ -184,6 +200,8 @@ async function insertDrafts(
             : null,
           JSON.stringify(q.knowledgeBaseSources),
           input.userId,
+          input.domainId ?? null,
+          input.categoryId ?? null,
         ],
       );
       ids.push(id);

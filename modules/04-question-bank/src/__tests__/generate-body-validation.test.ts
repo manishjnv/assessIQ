@@ -153,3 +153,54 @@ describe("parseGenerateBody — type_counts shape validation", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 2: domain_id / category_id parsing
+// ---------------------------------------------------------------------------
+
+describe("parseGenerateBody — domain_id / category_id (Slice 2)", () => {
+  const VALID_UUID = "12345678-1234-4234-8234-123456789abc";
+  const INVALID_UUID = "not-a-uuid";
+
+  it("absent domain_id/category_id -> both undefined", () => {
+    const result = parseGenerateBody({ count: 5 });
+    expect(result.domainId).toBeUndefined();
+    expect(result.categoryId).toBeUndefined();
+  });
+
+  it("valid UUID domain_id -> preserved", () => {
+    const result = parseGenerateBody({ count: 5, domain_id: VALID_UUID });
+    expect(result.domainId).toBe(VALID_UUID);
+    expect(result.categoryId).toBeUndefined();
+  });
+
+  it("valid UUID category_id -> preserved", () => {
+    const result = parseGenerateBody({ count: 5, category_id: VALID_UUID });
+    expect(result.categoryId).toBe(VALID_UUID);
+    expect(result.domainId).toBeUndefined();
+  });
+
+  it("both valid UUIDs -> both preserved", () => {
+    const domId = "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee";
+    const catId = "ffffffff-0000-4111-8222-333333333333";
+    const result = parseGenerateBody({ count: 5, domain_id: domId, category_id: catId });
+    expect(result.domainId).toBe(domId);
+    expect(result.categoryId).toBe(catId);
+  });
+
+  it("invalid UUID domain_id -> undefined (not a throw)", () => {
+    // domain_id/category_id are optional — bad UUID silently becomes undefined
+    const result = parseGenerateBody({ count: 5, domain_id: INVALID_UUID });
+    expect(result.domainId).toBeUndefined();
+  });
+
+  it("invalid UUID category_id -> undefined (not a throw)", () => {
+    const result = parseGenerateBody({ count: 5, category_id: INVALID_UUID });
+    expect(result.categoryId).toBeUndefined();
+  });
+
+  it("non-string domain_id (number) -> undefined", () => {
+    const result = parseGenerateBody({ count: 5, domain_id: 42 });
+    expect(result.domainId).toBeUndefined();
+  });
+});
