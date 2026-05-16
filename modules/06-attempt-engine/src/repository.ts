@@ -294,6 +294,81 @@ export async function insertAttemptQuestions(
 }
 
 /**
+ * Strip answer-key fields from a question's `content` JSONB for the candidate
+ * take-flow. CANDIDATE-PATH-ONLY — the admin grading path
+ * (modules/07-ai-grading) must NEVER call this function; admins must see the
+ * full content including the answer key.
+ *
+ * Allowlist per type (fail-closed: unknown types keep `question` only):
+ *   mcq          → question, options
+ *   log_analysis → question, log_format, log_excerpt, hint
+ *   kql          → question, tables
+ *   scenario     → title, intro, step_dependency, steps
+ *                  (steps elements: only `prompt` key; `expected` and others dropped)
+ *   subjective   → question
+ *   <unknown>    → question only
+ *
+ * If `content` is not a non-null plain object at the top level, it is returned
+ * unchanged — there is no answer key to strip and we must not crash.
+ */
+export function sanitizeContentForCandidate(type: string, content: unknown): unknown {
+  if (content === null || typeof content !== "object" || Array.isArray(content)) {
+    return content;
+  }
+  const c = content as Record<string, unknown>;
+
+  function pick(keys: string[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const k of keys) {
+      if (Object.prototype.hasOwnProperty.call(c, k)) {
+        out[k] = c[k];
+      }
+    }
+    return out;
+  }
+
+  switch (type) {
+    case "mcq":
+      return pick(["question", "options"]);
+
+    case "log_analysis":
+      return pick(["question", "log_format", "log_excerpt", "hint"]);
+
+    case "kql":
+      return pick(["question", "tables"]);
+
+    case "scenario": {
+      const base = pick(["title", "intro", "step_dependency"]);
+      if (Object.prototype.hasOwnProperty.call(c, "steps")) {
+        const rawSteps = c["steps"];
+        if (Array.isArray(rawSteps)) {
+          base["steps"] = rawSteps.map((step) => {
+            if (step !== null && typeof step === "object" && !Array.isArray(step)) {
+              const s = step as Record<string, unknown>;
+              const stepOut: Record<string, unknown> = {};
+              if (Object.prototype.hasOwnProperty.call(s, "prompt")) {
+                stepOut["prompt"] = s["prompt"];
+              }
+              return stepOut;
+            }
+            return step;
+          });
+        }
+        // if steps is not an array, omit it entirely
+      }
+      return base;
+    }
+
+    case "subjective":
+      return pick(["question"]);
+
+    default:
+      // fail-closed: unknown type → question only
+      return pick(["question"]);
+  }
+}
+
+/**
  * List frozen questions for an attempt — JOINs question_versions on
  * (question_id, version) and questions for type/topic/points. Ordered by
  * attempt_questions.position.
@@ -331,7 +406,7 @@ export async function listFrozenQuestionsForAttempt(
     type: r.type,
     topic: r.topic,
     points: r.points,
-    content: r.content,
+    content: sanitizeContentForCandidate(r.type, r.content),
   }));
 }
 
