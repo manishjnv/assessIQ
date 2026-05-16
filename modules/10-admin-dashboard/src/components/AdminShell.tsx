@@ -155,6 +155,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Activity", href: "/admin/activity", icon: "chart", adminOnly: true },
     { label: "AI generation history", href: "/admin/generation-attempts", icon: "sparkle", adminOnly: true },
     { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
+    { label: "Generate Questions", href: "/admin/generate-wizard", icon: "sparkle", adminOnly: true },
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
   ];
 

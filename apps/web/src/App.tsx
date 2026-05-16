@@ -30,6 +30,7 @@ const AdminGenerationAttempts = lazy(() => import('@assessiq/admin-dashboard').t
 const AdminCertificates = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminCertificates })));
 const AdminActivity = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminActivity })));
 const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminUsers })));
+const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
 
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
 const CandidateShell = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateShell })));
@@ -87,6 +88,8 @@ export function App(): JSX.Element {
           <Route path="/admin/reports" element={<RequireSession role="admin"><AdminReports /></RequireSession>} />
           {/* AI generation history (session 2026-05-09) */}
           <Route path="/admin/generation-attempts" element={<RequireSession role="admin"><AdminGenerationAttempts /></RequireSession>} />
+          {/* Generate Question Wizard (Slice 2, 2026-05-16) */}
+          <Route path="/admin/generate-wizard" element={<RequireSession role="admin"><AdminGenerateWizard /></RequireSession>} />
           {/* Certificates admin (Phase 5 Session 5) — AdminCertificates wraps AdminShell internally */}
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           {/* Activity page (Phase 11) */}

@@ -1278,6 +1278,8 @@ export async function generateQuestions(
   count: number,
   topicFocus?: string,
   typeCounts?: Partial<Record<string, number>>,
+  domainId?: string,
+  categoryId?: string,
 ): Promise<{ questionIds: string[]; generated: number; skillSha: string }> {
   // Dynamic import to break the load-time cycle: at module load time
   // neither package has finished resolving. Dynamic import defers until
@@ -1322,6 +1324,45 @@ export async function generateQuestions(
     return result.rows.map((r) => r.topic);
   });
 
+  // ── Cross-tenant FK guard (load-bearing — do NOT remove or short-circuit) ──
+  // Postgres FK validation runs as the table owner and bypasses RLS. A question
+  // in tenant A could reference a domain/category in tenant B without this check.
+  // This explicit query is the primary security control for that boundary.
+  // The guard runs BEFORE generation to fail fast without wasting AI budget.
+  //
+  // SECURITY (Opus, 2026-05-16): domain_id and category_id are an
+  // all-or-nothing pair. If exactly ONE is supplied, the composite tenant
+  // check below is skipped (its `&&` condition is false) while the lone
+  // unvalidated FK still flows to insertDrafts — and Postgres FK validation
+  // bypasses RLS, so a tenant-A question would persist a tenant-B domain_id.
+  // Enforce both-or-neither BEFORE the existence check; partial tagging is
+  // never legitimate (the wizard always sends the pair).
+  if ((domainId !== undefined) !== (categoryId !== undefined)) {
+    throw new ValidationError(
+      "domain_id and category_id must be provided together or both omitted",
+      { details: { code: "CROSS_TENANT_FK_REJECTED", param: "domain_id,category_id" } },
+    );
+  }
+  if (domainId !== undefined && categoryId !== undefined) {
+    const guardResult = await withTenant(tenantId, async (client) => {
+      return client.query<{ exists: boolean }>(
+        `SELECT EXISTS(
+           SELECT 1 FROM categories
+           WHERE id = $1
+             AND domain_id = $2
+             AND tenant_id = $3
+         ) AS exists`,
+        [categoryId, domainId, tenantId],
+      );
+    });
+    if (!guardResult.rows[0]?.exists) {
+      throw new ValidationError(
+        "domain_id/category_id combination does not exist or does not belong to this tenant",
+        { details: { code: "CROSS_TENANT_FK_REJECTED", param: "domain_id,category_id" } },
+      );
+    }
+  }
+
   return handleAdminGenerate({
     tenantId,
     userId,
@@ -1332,6 +1373,8 @@ export async function generateQuestions(
     sources,
     existingTopics,
     ...(typeCounts !== undefined ? { typeCounts } : {}),
+    ...(domainId !== undefined ? { domainId } : {}),
+    ...(categoryId !== undefined ? { categoryId } : {}),
   });
 }
 
