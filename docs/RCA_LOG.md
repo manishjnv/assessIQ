@@ -4,6 +4,26 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-17 — Super-admin first-login MFA bootstrap lockout (chicken-and-egg)
+
+**Symptom:** A freshly-provisioned `super_admin` (manishjnvk@gmail.com, platform tenant) completed Google SSO via the platform login (`tenant=platform`) but was bounced straight back to `/admin/login` — no MFA screen, no error page. User report: "Google, then login." The prior session's slice-1 handoff had labelled this "verified end-to-end (session minted, MFA-gated 401 until TOTP — correct)" — an **incomplete verification**: the 401 was observed in logs and assumed correct, but nobody followed it to the dead-end (the MFA page is unreachable, so TOTP can never be completed).
+
+**Cause:** Three coupled defects in load-bearing `01-auth`, all introduced by slice-1's `super_admin` always-MFA design interacting with the SPA session gate:
+1. `modules/01-auth/src/middleware/require-auth.ts:45` — `requireTotp` was computed `isSuperAdmin ? true : (...)`, forcing TOTP-verified **unconditionally** for super_admin. This overrode the explicit `requireTotpVerified:false` that the read-only state-probe / MFA-bootstrap routes set by design (`whoami`, `logout`, the 4 `/api/auth/totp/*` routes). A pre-TOTP super_admin → `AuthnError` 401 at `/api/auth/whoami` → SPA `useSession()` treats 401 as no-session → `RequireSession` redirects to `/admin/login`. Chicken-and-egg: TOTP required to pass whoami, but whoami must pass to reach the page that sets TOTP. This is the **same bug class as 2026-05-01 obs 534** ("Pre-MFA admin sessions blocked by whoami + logout auth gates"), reintroduced for the new role.
+2. `apps/api/src/routes/auth/totp.ts` — the 4 TOTP bootstrap routes were gated `roles:['admin','reviewer']`. The backend role check is an exact `includes()` with NO hierarchy (unlike the frontend `RequireSession`), so `super_admin` 403'd on enrol/verify even if it reached the page. (Memory obs 1673 "super_admin satisfies admin role gates via includes()" is wrong — code is authoritative.)
+3. `apps/api/src/routes/auth/whoami.ts:44` — `mfaStatus` was `config.MFA_REQUIRED ? (totpVerified?…) : 'verified'`. In prod `MFA_REQUIRED=false`, so a pre-TOTP super_admin would report `'verified'` (had #1 been fixed alone), making the SPA skip `/admin/mfa` and then 401 on every cross-tenant action.
+
+**Fix:** (commit on `main`, surgical `assessiq-api` rebuild — no migration)
+- `require-auth.ts` — honor an **explicit** `opts.requireTotpVerified === false` for every role incl super_admin. Only the 6 probe/bootstrap routes set it (whoami, logout, 4×totp — verified by exhaustive grep). Cross-tenant ACTION routes (`admin-super.ts`) never set it AND additionally require `freshMfaWithinMinutes`, whose gate is independent of `requireTotp` — so the always-MFA invariant on the dangerous surface is provably unchanged.
+- `totp.ts` — add `'super_admin'` to the 4 bootstrap routes' `roles[]`.
+- `whoami.ts` — extracted `computeMfaStatus(role, totpVerified, mfaRequired)`: super_admin is always-MFA regardless of `MFA_REQUIRED`, so a pre-TOTP super_admin reports `'pending'` → SPA routes to `/admin/mfa`.
+
+**Prevention:**
+- New regression suite `modules/01-auth/src/__tests__/super-admin-mfa-bootstrap.test.ts` (7 gate cases incl. the invariant guard: no-flag super_admin still requires TOTP; fresh-MFA never relaxed by the opt-out; role gate still excludes a non-listed role) + `apps/api/src/__tests__/routes/whoami-mfa-status.test.ts` (6 cases). These pin the exact contract that obs 534's fix lacked a test for — which is why the bug class recurred.
+- **Recurring-pattern guardrail (Phase 3):** any change that makes a role's TOTP/auth requirement *unconditional* must be checked against the read-only bootstrap routes (`whoami`, `logout`, `totp/*`) — an unconditional gate that ignores `requireTotpVerified:false` re-creates the first-login lockout. Add to the auth-diff critique checklist.
+- **Verification-completeness guardrail:** "session minted + 401 until TOTP" is NOT proof a login flow works — a login is only verified when a browser reaches the post-MFA authenticated surface. Slice-1's handoff mislabelled an observed 401 as success. Future auth verification must trace the redirect target to a rendered authenticated page, not stop at the first expected-looking 401 (cross-ref RCA 2026-05-13 "smoke tests must exercise actual route paths, not the SPA shell").
+- Adversarial sign-off: Sonnet ACCEPT + Opus-takeover ACCEPT (7 attack vectors; blast radius grep-confirmed; non-super truth table byte-identical). GLM-5.1 leg blocked by the source-exfil guard; Opus-takeover substituted per the `feedback-adversarial-reviewer-routing` stale-agent ladder.
+
 ## 2026-05-15 — Admin lockout from /api/auth/* IP bucket: allowVerifiedAdminBypass dead code
 
 **Symptom:** Admin login flows (`/api/auth/google/start` → `/api/auth/google/cb` → `/api/auth/whoami`) repeatedly returned HTTP 429 in production. The `allowVerifiedAdminBypass` mechanism — intended to give verified admins a higher IP rate limit on selected auth endpoints — was silently inoperative: the bypass predicate required `session.totpVerified === true`, which is never true while `MFA_REQUIRED=false` (the production setting).

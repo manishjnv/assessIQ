@@ -37,7 +37,21 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 
 (`apps/api/src/routes/admin-super.ts:25,41`, `apps/api/src/server.ts:225,229`)
 
-> **DB caveat — migration pending:** `modules/01-auth/migrations/011_sessions.sql:23` has `CHECK (role IN ('admin','reviewer','candidate'))` — `'super_admin'` is absent. `sessions.create()` writes Postgres **first**; the CHECK violation throws before Redis is touched, so the session creation fails entirely (no dangling Redis entry, but no session either — the user gets a 500 at the TOTP-verify step). The prerequisite `ALTER TABLE` migration is tracked in `docs/design/2026-05-10-stage-3-promotion-rollout.md §3`. Do not promote a user to `super_admin` in production until that migration runs. (`modules/01-auth/src/sessions.ts:22`)
+> **DB note (resolved 2026-05-17):** the earlier "`011_sessions.sql` lacks `super_admin`" caveat is **closed**. Slice-1 migration `modules/01-auth/migrations/016_super_admin.sql` (Steps 1a/1b) drops+re-adds `sessions_role_check` and `users_role_check` to include `'super_admin'`, and seeds the platform tenant (`00000000-0000-7000-0000-000000000001`, slug `platform`) + the bootstrap super_admin user (`…0002`, manishjnvk@gmail.com). Applied surgically to prod and confirmed (the platform Google-SSO branch is reachable end-to-end).
+
+### Super-admin platform login (option c — isolated path)
+
+The super-admin logs in through the **normal `/admin/login` page with the Tenant field set to `platform`** (not `wipro-soc`). This embeds the platform tenant id in the OAuth state; `handleGoogleCallback` takes the isolated platform branch: Gate1 id_token (RS256/JWKS/nonce/CSRF) · Gate2 email ∈ `SUPER_ADMIN_EMAILS` (defaults to manishjnvk@gmail.com) · Gate3 platform-tenant `users` row `role='super_admin' status='active'` · Gate4 mint session `totpVerified=false` and redirect `/admin/mfa`. No `oauth_identities` row is read or written on this path (the global `UNIQUE(provider,subject)` constraint stays intact for customer tenants). (`modules/01-auth/src/google-sso.ts:336-428`)
+
+### First-login MFA bootstrap (RCA 2026-05-17 — lockout fix)
+
+`super_admin` is **always-MFA** regardless of `MFA_REQUIRED`. But a pre-TOTP super_admin must still be able to *reach* the screens that set TOTP, or it is permanently locked out. The contract:
+
+- The **read-only state-probe / bootstrap routes** — `whoami`, `logout`, and the four `/api/auth/totp/*` routes — explicitly pass `requireTotpVerified:false`. `require-auth.ts` honors an *explicit* `requireTotpVerified===false` for **every** role including super_admin, so a pre-TOTP super_admin can call them. The 4 TOTP routes additionally list `'super_admin'` in `roles[]` (the backend role gate is exact `includes()` — no hierarchy).
+- `whoami`'s `computeMfaStatus()` reports `'pending'` for a pre-TOTP super_admin **regardless of `MFA_REQUIRED`** (super_admin is always-MFA), so the SPA `RequireSession` routes it to `/admin/mfa` to enrol/verify rather than to the dashboard.
+- Every **cross-tenant ACTION route** (`/api/admin/super/*`) omits `requireTotpVerified:false` *and* additionally sets `freshMfaWithinMinutes` — so super_admin actions remain fully MFA-gated (`totpVerified=true` + TOTP within 15 min). The bootstrap relaxation never reaches the dangerous surface.
+
+(`modules/01-auth/src/middleware/require-auth.ts:43-67`, `apps/api/src/routes/auth/{whoami,totp,logout}.ts`; regression suites `super-admin-mfa-bootstrap.test.ts`, `whoami-mfa-status.test.ts`)
 
 ---
 

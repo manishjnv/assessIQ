@@ -57,7 +57,13 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
     {
       config: { skipAuth: true },
       preHandler: authChain({
-        roles: ['admin', 'reviewer'],
+        // super_admin included: a freshly-provisioned super_admin must be able
+        // to enrol/verify TOTP on first login. The backend role gate is an
+        // exact includes() (no hierarchy), so super_admin must be listed
+        // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
+        // session through; the always-MFA invariant on cross-tenant ACTION
+        // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
+        roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
       }),
     },
@@ -78,7 +84,13 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
       config: { skipAuth: true },
       schema: { body: codeBodySchema },
       preHandler: authChain({
-        roles: ['admin', 'reviewer'],
+        // super_admin included: a freshly-provisioned super_admin must be able
+        // to enrol/verify TOTP on first login. The backend role gate is an
+        // exact includes() (no hierarchy), so super_admin must be listed
+        // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
+        // session through; the always-MFA invariant on cross-tenant ACTION
+        // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
+        roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
       }),
     },
@@ -108,7 +120,13 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
       config: { skipAuth: true },
       schema: { body: codeBodySchema },
       preHandler: authChain({
-        roles: ['admin', 'reviewer'],
+        // super_admin included: a freshly-provisioned super_admin must be able
+        // to enrol/verify TOTP on first login. The backend role gate is an
+        // exact includes() (no hierarchy), so super_admin must be listed
+        // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
+        // session through; the always-MFA invariant on cross-tenant ACTION
+        // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
+        roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
       }),
     },
@@ -137,7 +155,13 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
       config: { skipAuth: true },
       schema: { body: recoveryBodySchema },
       preHandler: authChain({
-        roles: ['admin', 'reviewer'],
+        // super_admin included: a freshly-provisioned super_admin must be able
+        // to enrol/verify TOTP on first login. The backend role gate is an
+        // exact includes() (no hierarchy), so super_admin must be listed
+        // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
+        // session through; the always-MFA invariant on cross-tenant ACTION
+        // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
+        roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
       }),
     },

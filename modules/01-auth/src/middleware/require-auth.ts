@@ -41,10 +41,25 @@ export function requireAuth(opts: RequireAuthOptions = {}): AuthHook {
       // Flip MFA_REQUIRED=true in env to re-harden without code changes.
       const isSuperAdmin = sess.role === "super_admin";
       if (isSuperAdmin || config.MFA_REQUIRED) {
-        // super_admin: always require TOTP. Other roles: respect opts.requireTotpVerified.
-        const requireTotp = isSuperAdmin
-          ? true
-          : (opts.requireTotpVerified ?? (sess.role !== "candidate"));
+        // TOTP-verified gate.
+        //
+        // An EXPLICIT `requireTotpVerified:false` is honored for EVERY role —
+        // including super_admin. Only the read-only state-probe / MFA-bootstrap
+        // routes set this flag (whoami + the four /api/auth/totp/* routes). A
+        // pre-TOTP super_admin MUST be able to reach those, or it can never
+        // complete TOTP — the first-login lockout fixed here (2026-05-17, see
+        // RCA "super-admin first-login MFA bootstrap lockout").
+        //
+        // Every cross-tenant ACTION route omits this flag (so super_admin →
+        // requireTotp=true → totpVerified enforced) AND additionally sets
+        // freshMfaWithinMinutes, whose gate below is NOT relaxed by the opt-out.
+        // The always-MFA invariant on the dangerous surface is unchanged.
+        const requireTotp =
+          opts.requireTotpVerified === false
+            ? false
+            : isSuperAdmin
+              ? true
+              : (opts.requireTotpVerified ?? (sess.role !== "candidate"));
         if (requireTotp && !sess.totpVerified) {
           throw new AuthnError("totp verification required");
         }

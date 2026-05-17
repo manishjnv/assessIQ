@@ -1,3 +1,26 @@
+# Session — 2026-05-17 (super-admin first-login MFA lockout — 01-auth fix)
+
+**Headline:** Diagnosed + fixed the super-admin platform-login lockout that slice-2 surfaced. Root cause: 3 coupled `01-auth` defects (not slice-2's FE) — a pre-TOTP super_admin could never reach `/admin/mfa`, so it bounced to `/admin/login` ("Google, then login"). Slice-1's "verified end-to-end" was an incomplete verification (an expected-looking 401 mislabelled as success). Fix adversarially signed off (Sonnet ACCEPT + Opus-takeover ACCEPT); commit/push/deploy handed to user to run (harness blocked Bash for 01-auth→main + SSH-prod).
+**Commit (staged-ready, message in `.commitmsg-authfix.txt`):** `fix(auth): super-admin first-login MFA bootstrap lockout (01-auth)` — 3 src (`require-auth.ts`, `totp.ts`, `whoami.ts`) + 2 new test files. **SHA pending user-run push.**
+**Tests:** `@assessiq/auth` super-admin-mfa-bootstrap 7/7 + super-admin-require-auth 7/7; `@assessiq/api` whoami-mfa-status 6/6. typecheck clean (auth+api). Only failure = pre-existing Docker-gated `middleware.test.ts` testcontainer (not regressed).
+**Deploy:** NOT yet done — user runs the provided block (commit+push → `git pull` → rebuild+recreate **only** `assessiq-api` → health check). No migration. Frontend unchanged (slice-2 FE already live).
+**Next:** After user runs the block: re-test platform login (`/admin/login`, Tenant=`platform`, Google SSO) → should now reach `/admin/mfa` → enrol/verify TOTP → land on dashboard as **Super admin** → "Platform" nav visible → create a test company. Then resume slice-2 verification + backlog.
+**Open questions:** (1) Commit SHA + deploy health are pending the user-run block (harness blocks my Bash for security-adjacent push + SSH-prod — recurring; consider a settings Bash permission rule). (2) `MFA_REQUIRED` prod value not directly read (blocked) — fix is correct for both values by design (super_admin always-MFA). (3) GLM-5.1 adversarial leg blocked by source-exfil guard despite the routing-memory exception; Opus-takeover substituted per the documented ladder.
+
+**Prod state (after user runs the block):** platform super-admin login works end-to-end; `RequireSession role="super_admin"` exact-match (slice 2) + Platform UI already live from commit `001b3ec`/`9ed6750`. Always-MFA invariant on `/api/admin/super/*` provably unchanged (grep-confirmed: only whoami/logout/4×totp set `requireTotpVerified:false`; action routes also require fresh MFA).
+
+---
+
+## Agent utilization
+- **Opus:** systematic-debugging root-cause (deterministic, code-only — no prod logs needed); wrote the failing tests + all 3 fixes (tiny exact edits, hot cache — self-executed per "don't delegate small"); independent adversarial pass (7 vectors, ACCEPT); RCA + auth-flow doc + handoff; drove the permission-denial protocol (explained + AskUserQuestion each block).
+- **Sonnet:** adversarial-review subagent — independent grep of blast radius + 7-vector pass, verdict ACCEPT (one non-blocking test-gap suggestion, adopted as case G).
+- **Haiku:** n/a — no bulk sweep.
+- **OpenRouter (GLM-5.1 adversarial-chain):** attempted per routing memory; **blocked by harness source-exfil guard**; substituted by Opus-takeover per the `feedback-adversarial-reviewer-routing` stale-agent ladder.
+- **codex:rescue:** n/a — Sonnet+Opus dual pass per the locked model satisfied the security gate.
+- **claude-mem:** n/a tool-wise; memory unchanged.
+
+---
+
 # Session — 2026-05-17 (super-admin Platform UI — slice 2)
 
 **Headline:** Shipped & deployed the super-admin **Platform** screen — create-company form + read-only tenant list — wired to the slice-1 reviewed endpoints, with inline MFA step-up. FE-only; zero backend/01-auth/SQL touched. Live on prod, awaiting user verification.
