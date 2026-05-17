@@ -127,3 +127,9 @@ export type { KbSource } from "./knowledge-base/index.js";
 
 export { registerQuestionBankRoutes } from "./routes.js";
 export type { RegisterQuestionBankRoutesOptions } from "./routes.js";
+
+// ---------------------------------------------------------------------------
+// 4. Tenant taxonomy seed (super-admin onboarding — C5)
+// ---------------------------------------------------------------------------
+
+export { seedTenantTaxonomy } from "./seed.js";

@@ -1,4 +1,4 @@
-import { NotFoundError, streamLogger } from "@assessiq/core";
+import { NotFoundError, ConflictError, streamLogger, uuidv7 } from "@assessiq/core";
 import { withTenant } from "./with-tenant.js";
 import { getPool } from "./pool.js";
 import * as repo from "./repository.js";
@@ -111,6 +111,122 @@ export async function listActiveTenantIds(): Promise<string[]> {
   } finally {
     client.release();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Super-admin-only: create a new tenant (provisioning → caller flips active).
+// ---------------------------------------------------------------------------
+//
+// C2 of the super-admin-onboarding contract.
+//
+// Design invariants (must not be relaxed):
+//   1. System-role transaction is MINIMAL — only tenants + tenant_settings.
+//      No user rows, no role rows, no taxonomy. All those come from the caller
+//      (C4 route) using explicit withTenant(newTenantId) cross-tenant writes.
+//   2. Tenant status starts at 'provisioning'. The caller flips it to 'active'
+//      ONLY after all post-create steps (seed + invite) succeed. Orphan tenants
+//      stay 'provisioning' indefinitely — they are queryable and retryable.
+//   3. Slug uniqueness is enforced at the DB level (UNIQUE constraint on tenants.slug).
+//      A collision surfaces as ConflictError (409) so the caller can show a clean
+//      error without exposing DB internals.
+//   4. The system-role BYPASSRLS path is REQUIRED: there is no app.current_tenant
+//      context for a brand-new tenant. SET LOCAL ROLE assessiq_system lets us
+//      INSERT into tenants (a globally-visible table) and tenant_settings (which
+//      has an RLS policy requiring current_tenant match — the bypass avoids that).
+
+export interface CreateTenantInput {
+  name: string;
+  slug: string;
+  domain?: string;
+}
+
+export interface CreateTenantResult {
+  tenantId: string;
+}
+
+export async function createTenant(
+  input: CreateTenantInput,
+  _createdBySuperAdminUserId: string,
+): Promise<CreateTenantResult> {
+  log.info({ slug: input.slug, name: input.name }, "createTenant: provisioning");
+
+  const tenantId = uuidv7();
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // assessiq_system is BYPASSRLS — required because no app.current_tenant
+    // exists yet for a brand-new tenant. This section is deliberately minimal:
+    // only tenants + tenant_settings. See design invariant #1 above.
+    await client.query("SET LOCAL ROLE assessiq_system");
+
+    // INSERT tenant at status='provisioning'. Slug collision → ConflictError.
+    try {
+      await client.query(
+        `INSERT INTO tenants (id, slug, name, domain, status)
+         VALUES ($1, $2, $3, $4, 'provisioning')`,
+        [tenantId, input.slug, input.name, input.domain ?? null],
+      );
+    } catch (err: unknown) {
+      // PostgreSQL unique_violation = code '23505'.
+      const pg = err as { code?: string };
+      if (pg.code === "23505") {
+        throw new ConflictError(`slug '${input.slug}' is already taken`, {
+          details: { code: "TENANT_SLUG_CONFLICT", slug: input.slug },
+        });
+      }
+      throw err;
+    }
+
+    // INSERT tenant_settings (FK NOT NULL — must exist immediately after tenant).
+    await client.query(
+      `INSERT INTO tenant_settings (tenant_id) VALUES ($1)`,
+      [tenantId],
+    );
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {
+      // Secondary rollback failure — connection likely dead; swallow.
+    });
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  log.info({ tenantId, slug: input.slug }, "createTenant: provisioning complete");
+  return { tenantId };
+}
+
+// ---------------------------------------------------------------------------
+// Super-admin-only: flip tenant status from 'provisioning' to 'active'.
+// ---------------------------------------------------------------------------
+//
+// Called by the C4 route after seedTenantTaxonomy + inviteUser both succeed.
+// Uses the system-role path (same pattern as createTenant) because the
+// sessions table and tenant_settings RLS policies require app.current_tenant
+// to match the row's tenant_id — which is fine for tenant's OWN rows but here
+// we're doing a targeted UPDATE by tenant id, so we use system role for clarity.
+
+export async function activateTenant(tenantId: string): Promise<void> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE assessiq_system");
+    await client.query(
+      `UPDATE tenants SET status = 'active', updated_at = now() WHERE id = $1`,
+      [tenantId],
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+  log.info({ tenantId }, "activateTenant: tenant is now active");
 }
 
 export async function suspendTenant(tenantId: string, reason: string, actorUserId?: string): Promise<void> {

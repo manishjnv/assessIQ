@@ -110,6 +110,22 @@ const ConfigSchema = z
       .default("false")
       .transform((s) => s === "true"),
 
+    // ── Super-admin platform login ──────────────────────────────────────────
+    //
+    // PLATFORM_TENANT_ID: the fixed well-known UUID for the platform tenant.
+    // Seeded in modules/01-auth/migrations/016_super_admin.sql.
+    // The API server asserts at startup that this matches the DB row.
+    // Must be set in production .env; defaults to the fixed seed UUID.
+    PLATFORM_TENANT_ID: z
+      .string()
+      .default("00000000-0000-7000-0000-000000000001"),
+
+    // SUPER_ADMIN_EMAILS: comma-separated list of email addresses allowed to
+    // log in as super_admin. Gate 2 of the 4-gate platform login. Case-insensitive
+    // after normalizeEmail() is applied to both sides.
+    // Example: "manishjnvk@gmail.com,backup@example.com"
+    SUPER_ADMIN_EMAILS: z.string().default("manishjnvk@gmail.com"),
+
     // ── Role-aware IP rate-limit tiers (window fixed at 60s) ────────────────
     // All four are optional with safe defaults — zero-config deploy works.
     // Override in .env to tune without a rebuild.

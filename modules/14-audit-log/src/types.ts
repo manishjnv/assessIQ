@@ -97,6 +97,12 @@ export const ACTION_CATALOG = [
   'dev.mint_session',
   // Super-admin — per-tenant AI generation mode flip (Stage 3 rollout).
   'tenant_settings.ai_generate_mode.updated',
+  // Super-admin — company onboarding (C4 of super-admin-onboarding contract).
+  // tenant.created: fired on full success (provisioning→active flip complete).
+  // tenant.create_incomplete: fired when provisioning succeeds but a later step
+  // (taxonomy seed or admin invite) fails; tenant stays 'provisioning'.
+  'tenant.created',
+  'tenant.create_incomplete',
   // Phase 5 Credentialize — certificate issuance + tier upgrade.
   // See modules/18-certification/SKILL.md and docs/CERTIFICATION_PLAN_GENERIC.md.
   'certification.cert.issue',
