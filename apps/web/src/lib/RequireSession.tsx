@@ -10,8 +10,14 @@ import type { ReactNode } from 'react';
 //   - mfaStatus=pending and not on /admin/mfa → redirect to /admin/mfa
 //   - role mismatch → redirect to unauthRedirect
 //
-// super_admin satisfies any role gate: super_admin > admin > reviewer > candidate.
-// This avoids forking every route guard when platform operators need access.
+// Role hierarchy for the gate:
+//   super_admin satisfies 'admin' and 'reviewer' (super_admin > admin > reviewer > candidate).
+//   HOWEVER, when role === 'super_admin', ONLY a session with role === 'super_admin' passes.
+//   A plain 'admin' is NOT a super_admin and must be redirected — super_admin is a
+//   platform-level role above the tenant hierarchy, not a peer of admin. This asymmetry
+//   prevents tenant admins from accessing platform-only routes while preserving the
+//   existing behaviour for all other role gates. This is FE defense-in-depth; the
+//   backend remains the real boundary.
 //
 // unauthRedirect (new): caller can point unauth redirects at /candidate/login
 // for candidate-facing routes. Default '/admin/login' preserves prior behaviour
@@ -23,7 +29,7 @@ export function RequireSession({
   unauthRedirect = '/admin/login',
 }: {
   children: ReactNode;
-  role?: 'admin' | 'reviewer';
+  role?: 'admin' | 'reviewer' | 'super_admin';
   unauthRedirect?: string;
 }): JSX.Element {
   const { session, loading } = useSession();
@@ -55,10 +61,20 @@ export function RequireSession({
     return <Navigate to="/admin/mfa" replace />;
   }
 
-  // super_admin satisfies any role requirement (super_admin > admin > reviewer).
-  const isSuperAdmin = session.user.role === 'super_admin';
-  if (role !== undefined && session.user.role !== role && !isSuperAdmin) {
-    return <Navigate to={unauthRedirect} replace />;
+  // Role gate — asymmetric by design (see comment above):
+  //   role === 'super_admin': exact match only — admin must NOT pass this gate.
+  //   role === 'admin' | 'reviewer': super_admin satisfies the gate (super_admin > admin > reviewer).
+  if (role !== undefined) {
+    const isSuperAdmin = session.user.role === 'super_admin';
+    if (role === 'super_admin') {
+      // Exact-match: only super_admin passes. A plain admin is redirected.
+      if (!isSuperAdmin) {
+        return <Navigate to={unauthRedirect} replace />;
+      }
+    } else if (session.user.role !== role && !isSuperAdmin) {
+      // For other roles, super_admin satisfies the gate.
+      return <Navigate to={unauthRedirect} replace />;
+    }
   }
 
   return <>{children}</>;
