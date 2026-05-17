@@ -87,10 +87,10 @@ export function App(): JSX.Element {
           <Route path="/admin/assessments/:id" element={<RequireSession role="admin"><AdminAssessmentDetail /></RequireSession>} />
           {/* Reports landing (session 2026-05-04) */}
           <Route path="/admin/reports" element={<RequireSession role="admin"><AdminReports /></RequireSession>} />
-          {/* AI generation history (session 2026-05-09) */}
-          <Route path="/admin/generation-attempts" element={<RequireSession role="admin"><AdminGenerationAttempts /></RequireSession>} />
-          {/* Generate Question Wizard (Slice 2, 2026-05-16) */}
-          <Route path="/admin/generate-wizard" element={<RequireSession role="admin"><AdminGenerateWizard /></RequireSession>} />
+          {/* AI generation history — Phase B1: re-gated to super_admin */}
+          <Route path="/admin/generation-attempts" element={<RequireSession role="super_admin"><AdminGenerationAttempts /></RequireSession>} />
+          {/* Generate Question Wizard — Phase B1: re-gated to super_admin */}
+          <Route path="/admin/generate-wizard" element={<RequireSession role="super_admin"><AdminGenerateWizard /></RequireSession>} />
           {/* Certificates admin (Phase 5 Session 5) — AdminCertificates wraps AdminShell internally */}
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           {/* Activity page (Phase 11) */}

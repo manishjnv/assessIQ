@@ -292,7 +292,7 @@ describe("POST /api/admin/generate endpoint", () => {
     });
 
     const { registerQuestionBankRoutes } = await import("../routes.js");
-    await registerQuestionBankRoutes(app, { adminOnly: [] });
+    await registerQuestionBankRoutes(app, { adminOnly: [], superAdminOnly: [] });
     await app.ready();
     return app;
   }

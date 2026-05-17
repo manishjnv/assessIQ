@@ -83,3 +83,27 @@ export interface UpdateTenantPlanResult {
   updatedAt: string;
   auditId: string;
 }
+
+// ---------------------------------------------------------------------------
+// B1 types — tenant entitlements
+// ---------------------------------------------------------------------------
+
+/** Scope type for an entitlement — 'domain' or 'pack'. */
+export type EntitlementScopeType = 'domain' | 'pack';
+
+/** A row from tenant_entitlements as returned by the service layer. */
+export interface TenantEntitlement {
+  id: string;
+  tenant_id: string;
+  scope_type: EntitlementScopeType;
+  scope_id: string;
+  status: 'active' | 'revoked';
+  granted_at: string; // ISO 8601
+  granted_by: string | null;
+}
+
+/** Input for grantEntitlement / revokeEntitlement. */
+export interface GrantEntitlementInput {
+  scopeType: EntitlementScopeType;
+  scopeId: string;
+}

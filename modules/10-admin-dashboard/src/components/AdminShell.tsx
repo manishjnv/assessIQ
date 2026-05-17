@@ -161,9 +161,12 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Grading", href: "/admin/grading-jobs", icon: "chart" },
     { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
     { label: "Activity", href: "/admin/activity", icon: "chart", adminOnly: true },
-    { label: "AI generation history", href: "/admin/generation-attempts", icon: "sparkle", adminOnly: true },
+    // Phase B1: generation history and generate wizard re-gated to super_admin.
+    // Tenant admins must not see these entries — the backend (Part 4) is
+    // authoritative; this is FE defense-in-depth.
+    { label: "AI generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
     { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
-    { label: "Generate Questions", href: "/admin/generate-wizard", icon: "sparkle", adminOnly: true },
+    { label: "Generate Questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
   ];
 

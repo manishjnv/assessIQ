@@ -211,13 +211,24 @@ export interface RegisterQuestionBankRoutesOptions {
   // hard dep on the apps/api package — same pattern 02-tenancy uses for
   // tenantContextMiddleware.
   adminOnly: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
+  /**
+   * Super-admin-only auth chain (role = 'super_admin').
+   *
+   * Phase B1: AI question/rubric generation and generation-attempt reads/scores
+   * are re-gated to super_admin. Company tenant admins retain all other
+   * question-bank capabilities (CRUD, import, publish, archive, etc.).
+   *
+   * Passed in from apps/api/src/server.ts via DI — same pattern as adminOnly.
+   * Mirror of how 07-ai-grading declares adminOnly + adminFreshMfa in its opts.
+   */
+  superAdminOnly: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
 }
 
 export async function registerQuestionBankRoutes(
   app: FastifyInstance,
   opts: RegisterQuestionBankRoutesOptions,
 ): Promise<void> {
-  const { adminOnly } = opts;
+  const { adminOnly, superAdminOnly } = opts;
 
   // -------------------------------------------------------------------------
   // Domain + Category read routes (Slice 2)
@@ -342,8 +353,10 @@ export async function registerQuestionBankRoutes(
   // -------------------------------------------------------------------------
 
   // POST /api/admin/generate
-  // Admin-only. Finds or creates the auto-managed pack for (tenant, domain),
-  // heals L1/L2/L3 levels, then delegates to generateQuestions().
+  // Super-admin only (Phase B1 re-gate). Finds or creates the auto-managed
+  // pack for (tenant, domain), heals L1/L2/L3 levels, then delegates to
+  // generateQuestions(). Previously adminOnly; now superAdminOnly because
+  // AI generation is an operator-tier capability gated by entitlements.
   //
   // Body: { domain_id: uuid, level: "L1"|"L2"|"L3", count: number,
   //         type_counts?: {...}, category_id?: uuid }
@@ -357,7 +370,7 @@ export async function registerQuestionBankRoutes(
   //   - Legacy POST /api/admin/packs/:id/levels/:levelId/generate is NOT touched.
   app.post(
     "/api/admin/generate",
-    { preHandler: adminOnly },
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -787,12 +800,14 @@ export async function registerQuestionBankRoutes(
   // status='archived' is the only path. Hard delete is a Phase 3 admin tool.
 
   // POST /api/admin/packs/:id/levels/:levelId/generate
+  // Super-admin only (Phase B1 re-gate). AI question generation for a specific
+  // pack/level. Previously adminOnly; now superAdminOnly — see POST /generate above.
   // Body: { count: number (1-30), topic_focus?: string,
   //         type_counts?: { mcq?, log_analysis?, scenario?, kql?, subjective? } }
   // Returns: { questionIds: string[], generated: number, skillSha: string }
   app.post(
     "/api/admin/packs/:id/levels/:levelId/generate",
-    { preHandler: adminOnly },
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -804,11 +819,13 @@ export async function registerQuestionBankRoutes(
   );
 
   // POST /api/admin/questions/:id/generate-rubric
-  // Returns a rubric proposal (NOT saved). Admin must POST to save-rubric to persist.
-  // D2 compliant: admin-only route, no BullMQ/cron/webhook path.
+  // Super-admin only (Phase B1 re-gate). AI rubric generation — operator-tier
+  // capability. Previously adminOnly; now superAdminOnly.
+  // Returns a rubric proposal (NOT saved). Call save-rubric to persist.
+  // D2 compliant: no BullMQ/cron/webhook path.
   app.post(
     "/api/admin/questions/:id/generate-rubric",
-    { preHandler: adminOnly },
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -837,12 +854,14 @@ export async function registerQuestionBankRoutes(
   );
 
   // POST /api/admin/packs/:id/generate-missing-rubrics
+  // Super-admin only (Phase B1 re-gate). AI bulk rubric generation — operator-tier.
+  // Previously adminOnly; now superAdminOnly.
   // Finds first question in pack with rubric IS NULL and type in (subjective, scenario).
   // Returns proposal + cursor (currentQuestionId, nextQuestionId, remainingCount).
   // Does NOT auto-save — admin reviews each proposal and POSTs to save-rubric.
   app.post(
     "/api/admin/packs/:id/generate-missing-rubrics",
-    { preHandler: adminOnly },
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id: packId } = req.params as { id: string };
@@ -851,7 +870,9 @@ export async function registerQuestionBankRoutes(
   );
 
   // GET /api/admin/generation-attempts
-  // Cross-pack history view for AI question-generation attempts.
+  // Super-admin only (Phase B1 re-gate). Cross-pack generation attempt history.
+  // Previously adminOnly; now superAdminOnly — generation history reveals
+  // operator-level AI usage patterns, gated alongside the generation triggers.
   // Query params (all optional):
   //   status   — filter by status enum (success/partial/failed/running)
   //   model    — substring match on model column
@@ -863,7 +884,7 @@ export async function registerQuestionBankRoutes(
   // Returns: { items: GenerationAttempt[], total: number, limit, offset }
   app.get(
     "/api/admin/generation-attempts",
-    { preHandler: adminOnly },
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const q = req.query as Record<string, string | undefined>;
@@ -967,14 +988,16 @@ export async function registerQuestionBankRoutes(
   );
 
   // GET /api/admin/packs/:packId/levels/:levelId/generation-attempts
-  // Returns the most recent 5 generation attempts for this pack+level so admins
-  // can diagnose why a "Generate" click produced 0 rows without SSH'ing the VPS.
+  // Super-admin only (Phase B1 re-gate). Per-level generation attempt history
+  // for diagnosing generation runs. Previously adminOnly; now superAdminOnly —
+  // gated alongside GET /generation-attempts for consistency.
+  // Returns the most recent 5 generation attempts for this pack+level.
   // Body shape:
   //   [{ id, status, count_requested, count_inserted, error_code, error_message,
   //      stderr_tail, model, duration_ms, started_at, finished_at }]
   app.get(
     "/api/admin/packs/:packId/levels/:levelId/generation-attempts",
-    { preHandler: adminOnly },
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { packId, levelId } = req.params as { packId: string; levelId: string };
@@ -1010,7 +1033,11 @@ export async function registerQuestionBankRoutes(
 
   // POST /api/admin/generation-attempts/:id/score
   //
-  // Server-side structural + runtime scoring for a single generation attempt.
+  // Super-admin only (Phase B1 re-gate). Server-side structural + runtime
+  // scoring for a single generation attempt. Previously adminOnly; now
+  // superAdminOnly — scoring exposes AI generation quality metrics gated
+  // alongside generation and history routes for consistent access control.
+  //
   // READ-ONLY — no writes to any table. Sub-100ms for typical attempt sizes
   // (≤30 questions × Zod parse + fixture file reads cached by Node's module loader).
   //
@@ -1029,7 +1056,7 @@ export async function registerQuestionBankRoutes(
   // Returns: ScoreAttemptResponse (documented in modules/10-admin-dashboard/src/api.ts).
   app.post(
     "/api/admin/generation-attempts/:id/score",
-    { preHandler: adminOnly },
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };

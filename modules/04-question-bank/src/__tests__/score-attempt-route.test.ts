@@ -225,7 +225,7 @@ async function buildTestApp(sessionTenantId: string, sessionUserId: string) {
     };
   });
 
-  await registerQuestionBankRoutes(app, { adminOnly: [] });
+  await registerQuestionBankRoutes(app, { adminOnly: [], superAdminOnly: [] });
   await app.ready();
   return app;
 }

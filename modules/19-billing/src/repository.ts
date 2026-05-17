@@ -9,7 +9,7 @@
 // modules/14-audit-log).
 
 import type { PoolClient } from 'pg';
-import type { TenantPlanRow, TenantUsageRow, BillingEventRow } from './types.js';
+import type { TenantPlanRow, TenantUsageRow, BillingEventRow, TenantEntitlement, EntitlementScopeType } from './types.js';
 
 /**
  * Record a graded-attempt billing event.
@@ -199,6 +199,120 @@ export async function getAllBillingEventsForExport(
     [tenantId],
   );
   return result.rows;
+}
+
+// ---------------------------------------------------------------------------
+// B1 — tenant_entitlements repository
+// All functions accept a PoolClient so the caller controls the transaction
+// boundary (critical for the two-role same-tx atomicity invariant).
+// ---------------------------------------------------------------------------
+
+/**
+ * Insert (or re-activate) a tenant entitlement.
+ *
+ * ON CONFLICT DO UPDATE reactivates a previously-revoked row — idempotent:
+ *   grant(active)   → no-op (already active, granted_at/granted_by updated)
+ *   grant(revoked)  → reactivates: status='active', clears revoke fields
+ *
+ * Returns the row id.
+ */
+export async function insertEntitlement(
+  client: PoolClient,
+  tenantId: string,
+  scopeType: EntitlementScopeType,
+  scopeId: string,
+  grantedBy: string | null,
+): Promise<{ id: string }> {
+  const result = await client.query<{ id: string }>(
+    `INSERT INTO tenant_entitlements (tenant_id, scope_type, scope_id, granted_by, status)
+     VALUES ($1, $2, $3, $4, 'active')
+     ON CONFLICT (tenant_id, scope_type, scope_id) DO UPDATE
+       SET status     = 'active',
+           granted_by = EXCLUDED.granted_by,
+           granted_at = now(),
+           revoked_by = NULL,
+           revoked_at = NULL
+     RETURNING id`,
+    [tenantId, scopeType, scopeId, grantedBy],
+  );
+  // INSERT ... RETURNING always returns a row (conflict or not).
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error(`insertEntitlement: no row returned for tenant ${tenantId} scope ${scopeType}:${scopeId}`);
+  }
+  return row;
+}
+
+/**
+ * Revoke an active tenant entitlement.
+ *
+ * Only updates rows where status = 'active'. Returns the row id if a row was
+ * updated, or null if nothing was active to revoke (caller throws NotFoundError).
+ */
+export async function revokeEntitlement(
+  client: PoolClient,
+  tenantId: string,
+  scopeType: EntitlementScopeType,
+  scopeId: string,
+  revokedBy: string,
+): Promise<{ id: string } | null> {
+  const result = await client.query<{ id: string }>(
+    `UPDATE tenant_entitlements
+     SET status     = 'revoked',
+         revoked_by = $4,
+         revoked_at = now()
+     WHERE tenant_id  = $1
+       AND scope_type = $2
+       AND scope_id   = $3
+       AND status     = 'active'
+     RETURNING id`,
+    [tenantId, scopeType, scopeId, revokedBy],
+  );
+  return result.rows[0] ?? null;
+}
+
+/**
+ * List entitlements for a tenant.
+ *
+ * opts.activeOnly = true → only status='active' rows (company-side read path).
+ * opts.activeOnly = false / omitted → all rows (super-admin read path).
+ *
+ * Ordered by scope_type ASC, scope_id ASC for stable rendering.
+ */
+export async function listEntitlements(
+  client: PoolClient,
+  tenantId: string,
+  opts?: { activeOnly?: boolean },
+): Promise<TenantEntitlement[]> {
+  const where = opts?.activeOnly
+    ? `WHERE tenant_id = $1 AND status = 'active'`
+    : `WHERE tenant_id = $1`;
+
+  const result = await client.query<{
+    id: string;
+    tenant_id: string;
+    scope_type: string;
+    scope_id: string;
+    status: string;
+    granted_at: Date;
+    granted_by: string | null;
+  }>(
+    `SELECT id, tenant_id, scope_type, scope_id, status, granted_at, granted_by
+     FROM tenant_entitlements
+     ${where}
+     ORDER BY scope_type ASC, scope_id ASC`,
+    [tenantId],
+  );
+
+  return result.rows.map((r) => ({
+    id: r.id,
+    tenant_id: r.tenant_id,
+    scope_type: r.scope_type as EntitlementScopeType,
+    scope_id: r.scope_id,
+    status: r.status as 'active' | 'revoked',
+    granted_at: r.granted_at instanceof Date ? r.granted_at.toISOString() : String(r.granted_at),
+    granted_by: r.granted_by,
+  }));
 }
 
 /**

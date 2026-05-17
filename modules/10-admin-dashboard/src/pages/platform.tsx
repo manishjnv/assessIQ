@@ -25,9 +25,13 @@ import {
   getTenantBillingDetail,
   updateTenantPlan,
   tenantBillingCsvUrl,
+  getTenantEntitlements,
+  grantTenantEntitlement,
+  revokeTenantEntitlement,
   type CreateCompanyRequest,
   type TenantListItem,
   type TenantBillingDetail,
+  type TenantEntitlement,
 } from "../api.js";
 import { fetchAdminWhoami } from "../session.js";
 
@@ -557,6 +561,33 @@ function BillingDrawer({
   const [planAuditId, setPlanAuditId] = useState<string | null>(null);
   const [planToast, setPlanToast] = useState(false);
 
+  // Entitlement state
+  const [entitlements, setEntitlements] = useState<TenantEntitlement[]>([]);
+  const [entitlementsLoading, setEntitlementsLoading] = useState(true);
+  const [entitlementsError, setEntitlementsError] = useState<string | null>(null);
+  const [grantScopeType, setGrantScopeType] = useState<'domain' | 'pack'>('domain');
+  const [grantScopeId, setGrantScopeId] = useState('');
+  const [grantSaving, setGrantSaving] = useState(false);
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [grantToastAuditId, setGrantToastAuditId] = useState<string | null>(null);
+  const [revokeSaving, setRevokeSaving] = useState<string | null>(null); // entitlement id being revoked
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+
+  const fetchEntitlements = (): void => {
+    setEntitlementsLoading(true);
+    setEntitlementsError(null);
+    void getTenantEntitlements(tenant.id)
+      .then((d) => {
+        setEntitlements(d.entitlements);
+      })
+      .catch((err) => {
+        setEntitlementsError(err instanceof AdminApiError ? err.apiError.message : "Failed to load entitlements.");
+      })
+      .finally(() => {
+        setEntitlementsLoading(false);
+      });
+  };
+
   useEffect(() => {
     let cancelled = false;
     setDrawerLoading(true);
@@ -578,7 +609,43 @@ function BillingDrawer({
     return () => { cancelled = true; };
   }, [tenant.id]);
 
+  useEffect(() => {
+    fetchEntitlements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant.id]);
+
   const isInternalTier = editTier === "internal";
+
+  const handleGrantEntitlement = async (): Promise<void> => {
+    if (!grantScopeId.trim()) return;
+    setGrantSaving(true);
+    setGrantError(null);
+    setGrantToastAuditId(null);
+    try {
+      const res = await grantTenantEntitlement(tenant.id, { scopeType: grantScopeType, scopeId: grantScopeId.trim() });
+      setGrantToastAuditId(res.auditId);
+      setGrantScopeId('');
+      setTimeout(() => setGrantToastAuditId(null), 8_000);
+      fetchEntitlements();
+    } catch (err) {
+      setGrantError(err instanceof AdminApiError ? err.apiError.message : "Grant failed — please try again.");
+    } finally {
+      setGrantSaving(false);
+    }
+  };
+
+  const handleRevokeEntitlement = async (ent: TenantEntitlement): Promise<void> => {
+    setRevokeSaving(ent.id);
+    setRevokeError(null);
+    try {
+      await revokeTenantEntitlement(tenant.id, { scopeType: ent.scope_type, scopeId: ent.scope_id });
+      fetchEntitlements();
+    } catch (err) {
+      setRevokeError(err instanceof AdminApiError ? err.apiError.message : "Revoke failed — please try again.");
+    } finally {
+      setRevokeSaving(null);
+    }
+  };
 
   const handleSavePlan = async (): Promise<void> => {
     setPlanSaving(true);
@@ -897,6 +964,176 @@ function BillingDrawer({
                     Save
                   </button>
                 )}
+              </div>
+            </Card>
+            {/* Entitlements subsection — B1 */}
+            <Card>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+                <div style={{ ...META_LABEL, fontSize: 10 }}>Entitlements</div>
+
+                {/* Active entitlements list */}
+                {entitlementsLoading && (
+                  <div style={{ display: "grid", placeItems: "center", padding: 16 }}>
+                    <Spinner aria-label="Loading entitlements" />
+                  </div>
+                )}
+                {entitlementsError && !entitlementsLoading && (
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>
+                    {entitlementsError}
+                  </p>
+                )}
+                {!entitlementsLoading && !entitlementsError && (
+                  <>
+                    {entitlements.filter((e) => e.status === 'active').length === 0 ? (
+                      <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-fg-muted)", margin: 0 }}>
+                        No active entitlements.
+                      </p>
+                    ) : (
+                      <div
+                        style={{
+                          border: "1px solid var(--aiq-color-border)",
+                          borderRadius: "var(--aiq-radius-md)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {entitlements
+                          .filter((e) => e.status === 'active')
+                          .map((ent) => (
+                            <div
+                              key={ent.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "8px 12px",
+                                borderBottom: "1px solid var(--aiq-color-border)",
+                                fontSize: 12,
+                                fontFamily: "var(--aiq-font-sans)",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontFamily: "var(--aiq-font-mono)",
+                                  fontSize: 10,
+                                  padding: "2px 6px",
+                                  background: "var(--aiq-color-bg-sunken)",
+                                  borderRadius: "var(--aiq-radius-sm)",
+                                  color: "var(--aiq-color-fg-secondary)",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {ent.scope_type}
+                              </span>
+                              <span
+                                style={{
+                                  flex: 1,
+                                  fontFamily: "var(--aiq-font-mono)",
+                                  fontSize: 12,
+                                  color: "var(--aiq-color-fg-primary)",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                                title={ent.scope_id}
+                              >
+                                {ent.scope_id}
+                              </span>
+                              <button
+                                type="button"
+                                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                                disabled={revokeSaving === ent.id}
+                                onClick={() => void handleRevokeEntitlement(ent)}
+                                style={{ flexShrink: 0 }}
+                              >
+                                {revokeSaving === ent.id ? "Revoking…" : "Revoke"}
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {revokeError !== null && (
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>
+                    {revokeError}
+                  </p>
+                )}
+
+                {/* Grant form */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <label
+                        style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
+                      >
+                        Scope type
+                      </label>
+                      <select
+                        value={grantScopeType}
+                        onChange={(e) => setGrantScopeType(e.target.value as 'domain' | 'pack')}
+                        disabled={grantSaving}
+                        style={{
+                          fontFamily: "var(--aiq-font-sans)",
+                          fontSize: 12,
+                          padding: "5px 8px",
+                          borderRadius: "var(--aiq-radius-md)",
+                          border: "1px solid var(--aiq-color-border)",
+                          background: "var(--aiq-color-bg-raised)",
+                          color: "var(--aiq-color-fg-primary)",
+                        }}
+                      >
+                        <option value="domain">domain</option>
+                        <option value="pack">pack</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <label
+                        style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
+                      >
+                        Scope ID
+                      </label>
+                      <input
+                        type="text"
+                        value={grantScopeId}
+                        onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
+                        placeholder={grantScopeType === 'domain' ? 'e.g. soc' : 'pack UUID'}
+                        disabled={grantSaving}
+                        style={{
+                          fontFamily: "var(--aiq-font-mono)",
+                          fontSize: 12,
+                          padding: "5px 8px",
+                          borderRadius: "var(--aiq-radius-md)",
+                          border: "1px solid var(--aiq-color-border)",
+                          background: "var(--aiq-color-bg-raised)",
+                          color: "var(--aiq-color-fg-primary)",
+                          width: "100%",
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                      disabled={grantSaving || !grantScopeId.trim()}
+                      onClick={() => void handleGrantEntitlement()}
+                      style={{ flexShrink: 0 }}
+                    >
+                      {grantSaving ? "Granting…" : "Grant"}
+                    </button>
+                  </div>
+
+                  {grantError !== null && (
+                    <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>
+                      {grantError}
+                    </p>
+                  )}
+
+                  {grantToastAuditId !== null && (
+                    <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-success, #16a34a)", margin: 0 }}>
+                      Granted. Audit: {grantToastAuditId}
+                    </p>
+                  )}
+                </div>
               </div>
             </Card>
           </>
