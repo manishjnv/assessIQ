@@ -44,7 +44,7 @@ CREATE TABLE tenants (
   name            TEXT NOT NULL,
   domain          TEXT,                         -- 'wipro.com' for SSO domain restriction
   branding        JSONB DEFAULT '{}'::jsonb,    -- logo URL, colors, favicon
-  status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','archived')),
+  status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','archived','provisioning')), -- 'provisioning' added by 0077 (2026-05-17): soft-create state set by super-admin createTenant before activateTenant flips it to 'active'
   embed_origins   TEXT[] NOT NULL DEFAULT '{}',  -- Phase 4 (2026-05-03): allowlisted iframe origins for postMessage D2/D8; GIN index below
   privacy_disclosed BOOLEAN NOT NULL DEFAULT FALSE, -- Phase 4 (2026-05-03): gate on POST /api/admin/embed-secrets (D13); must be TRUE before embed JWTs can be issued
   smtp_config     JSONB,                           -- Phase 1 G1.B Session 3 (0004): per-tenant SMTP credentials; NULL = dev stub / fail-closed when SMTP driver active. Shape: {host, port, secure, user, password_enc, from_address, from_name}. password_enc is AES-256-GCM under ASSESSIQ_MASTER_KEY

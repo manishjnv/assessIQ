@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-17 — Create company "INTERNAL ERROR": tenants_status_check missing 'provisioning'
+
+**Symptom:** Every `POST /api/admin/super/companies` (Create company on the Platform page) returned **INTERNAL ERROR** (HTTP 500). Prod logs: `new row for relation "tenants" violates check constraint "tenants_status_check"` (SQLSTATE `23514`) at `modules/02-tenancy/src/service.ts:166`.
+
+**Cause:** `createTenant` inserts the new tenant at `status='provisioning'` (first step of the reviewed soft-create pattern: provisioning → seedTenantTaxonomy → inviteUser → activateTenant flips to `active`). But `0001_tenants.sql` defined the column with an inline auto-named CHECK `status IN ('active','suspended','archived')`. The slice-1 super-admin work shipped `createTenant` + the create-company endpoint but **no migration ever widened the constraint** to allow `'provisioning'`, so the very first INSERT of the orchestration violated it and the whole request 500'd before any tenant row was committed. Same class as RCA 2026-05-13 "migration application is the deploy step" — code shipped, required DDL did not.
+
+**Fix:** `modules/02-tenancy/migrations/0077_tenants_status_provisioning.sql` — `DROP CONSTRAINT IF EXISTS tenants_status_check` then re-`ADD` it as `status IN ('active','suspended','archived','provisioning')`. Pure-additive: prod had only 3 `active` tenants; the new set is a strict superset so no existing row can violate it. Applied surgically (per the never-`tools/migrate.ts` carry-over) + recorded in `schema_migrations` (version + sha256). No app code changed — the constraint now matches what the reviewed code already emits.
+
+**Prevention:** When a service writes a new column value behind a CHECK/enum (here `status='provisioning'`), the same PR must ship the migration that widens the constraint — and a session that ships a `*.sql` must confirm it is actually applied to prod (record version+sha256 in `schema_migrations`; cross-ref RCA 2026-05-13). Phase-3 critique guardrail: a diff that introduces a new literal status/role/enum value written to the DB without a corresponding constraint-widening migration is a bounce.
+
 ## 2026-05-17 — Super-admin re-prompted to enrol TOTP on every login (mfa.tsx ignored totpEnrolled)
 
 **Symptom:** A super_admin who had already enrolled TOTP was shown the **Enrol your authenticator** screen (fresh QR + new secret) on every subsequent login. Entering a code from their real authenticator returned "invalid totp code"; they could never reach the verify path — a re-enrol loop. Prod DB confirmed enrollment WAS persisted (`user_credentials` row for user `…0002`: `totp_secret_enc` set, `totp_enrolled_at=2026-05-17 13:40:29Z`).
