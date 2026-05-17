@@ -1,3 +1,26 @@
+# Session — 2026-05-17 (super-admin Platform UI — slice 2)
+
+**Headline:** Shipped & deployed the super-admin **Platform** screen — create-company form + read-only tenant list — wired to the slice-1 reviewed endpoints, with inline MFA step-up. FE-only; zero backend/01-auth/SQL touched. Live on prod, awaiting user verification.
+**Commits (main, this thread):** `001b3ec` — feat(admin): super-admin Platform UI slice 2 (9 files; new `modules/10-admin-dashboard/src/pages/platform.tsx`).
+**Tests:** `pnpm --filter @assessiq/admin-dashboard --filter @assessiq/web typecheck` → both **Done/clean** (after Opus fix of 4 `exactOptionalPropertyTypes` errors the subagent misreported as passing). YAML valid. Secrets/TODO scan clean. No unit/testcontainer suites run (Docker-gated in dev, pre-existing).
+**Deploy:** `git pull` (`b18060a..001b3ec`) + rebuilt/recreated **only** `assessiq-frontend` (additive-only; neighbor apps uptimes unchanged). `https://assessiq.automateedge.cloud/admin/login` → 200, frontend healthy. No migration, no nginx/systemd/cron change.
+**Next:** **User verifies** `/admin/platform` end-to-end as super-admin (manishjnvk@gmail.com): nav "Platform" entry visible (super-admin only), create a test company, confirm tenant appears in list, confirm MFA step-up fires if TOTP > 15 min stale. Then pick next backlog item (B1 UX bundle / in-wizard inventory counts / legacy soc-l2 reclamation).
+**Open questions:** (1) `adminApi` is imported-but-unused in platform.tsx — harmless (tsconfig has no `noUnusedLocals`), left as-is; trim opportunistically. (2) MFA step-up reuses existing reviewed `/api/auth/totp/verify` — not adversarially re-reviewed (no auth code changed; FE call only). (3) Slug-conflict/400 error-detail shapes were verified against the live backend (`ConflictError.details.code`, `ValidationError.details.code`) — correct.
+
+**Prod state:** Platform UI live. `RequireSession role="super_admin"` is now **exact-match** (a plain tenant `admin` is redirected — super_admin is above the tenant hierarchy, not a peer); `admin`/`reviewer` gates unchanged (super_admin still satisfies them). AdminShell "Platform" nav entry is `superAdminOnly` — invisible to tenant admins. Backend remains the enforced boundary; FE gate is defense-in-depth.
+
+---
+
+## Agent utilization
+- **Opus:** wrote the contract; grounded all endpoint/error/pattern facts; end-gate diff review (ACCEPT); fixed 4 typecheck errors + 2 doc/help factual inaccuracies the subagent introduced; ran Phase-2 gates, deploy, verification, handoff.
+- **Sonnet:** lead build subagent (general-purpose, model=sonnet, no worktree — FE-only) — built all 7 contract items + docs/help; ~37 tool-uses, ~5.5min. Misreported typecheck as passing (truncated final message) — caught by Opus Phase-5 re-run.
+- **Haiku:** n/a — no bulk sweep needed.
+- **OpenRouter:** n/a — `or.mjs` unreachable from subagent context (carry-over #2 still open); Sonnet built directly.
+- **codex:rescue:** n/a — FE-only slice; no backend/01-auth/classifier/SQL touched; `RequireSession` change is FE defense-in-depth, real boundary (reviewed slice-1 backend) unchanged. Per routing matrix, no adversarial gate required.
+- **claude-mem:** n/a tool-wise; memory unchanged (no new durable decision).
+
+---
+
 # Session — 2026-05-17 (gen→assemble→assign loop + leak fix + super-admin slice 1)
 
 **Headline:** Shipped the full AI question-generation → review/approve → blueprint-assemble → assign loop, fixed a live candidate answer-key leak, landed super-admin company-provisioning slice 1. All on prod; every load-bearing change Opus-adversarially-reviewed; 3 real cross-tenant/regression bugs caught pre-deploy.
