@@ -273,20 +273,25 @@ export async function handleAdminCreateCategory(
         );
       }
 
-      // Fetch parent domain's supported_types if caller omitted the field.
-      let supportedTypes: string[] | null = null;
-      if (input.supported_types !== undefined) {
-        supportedTypes = input.supported_types;
-      } else {
-        const domainRes = await client.query<{ supported_types: unknown }>(
-          "SELECT supported_types FROM domains WHERE id = $1",
-          [input.domain_id],
-        );
-        const raw = domainRes.rows[0]?.supported_types;
-        if (Array.isArray(raw)) {
-          supportedTypes = raw as string[];
-        }
-      }
+      // Default supported_types. NOTE: the `domains` table has NO
+      // supported_types column — per-domain type sets live on CATEGORY rows
+      // (migration 0020 tailored seeded categories). A brand-new custom
+      // category has no domain-level set to inherit, so it defaults to the
+      // full 5-type set; the admin trims it later via category edit.
+      // (The prior `SELECT supported_types FROM domains` referenced a
+      // nonexistent column → unhandled 500 "internal error" on every
+      // inline create.)
+      const DEFAULT_SUPPORTED_TYPES = [
+        "mcq",
+        "scenario",
+        "subjective",
+        "kql",
+        "log_analysis",
+      ];
+      const supportedTypes: string[] =
+        input.supported_types !== undefined
+          ? input.supported_types
+          : DEFAULT_SUPPORTED_TYPES;
 
       // relevance_score = MAX(relevance_score)+1 within domain
       // (RLS ensures the MAX only sees this tenant's categories)
@@ -315,7 +320,7 @@ export async function handleAdminCreateCategory(
           name,
           input.description ?? null,
           nextScore,
-          supportedTypes !== null ? JSON.stringify(supportedTypes) : null,
+          JSON.stringify(supportedTypes),
           defaultCount,
         ],
       );
