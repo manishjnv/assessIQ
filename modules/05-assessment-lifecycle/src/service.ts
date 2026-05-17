@@ -37,6 +37,7 @@ import {
 } from "@assessiq/core";
 import { withTenant, getPool } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
+import { assertPublishEntitled } from "@assessiq/billing";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import { hashInvitationToken } from "./tokens.js";
 import type { PoolClient } from "pg";
@@ -688,6 +689,12 @@ export async function publishAssessment(
     //    must go through reopenAssessment)
     assertCanTransition(assessment.status, "published");
 
+    // B2 — server-authoritative entitlement enforcement (authorization gate).
+    // Runs in this withTenant tx; throws AppError 403 NOT_ENTITLED if the
+    // assessment's pack is not entitled (internal tier bypasses). Fail-fast
+    // before pool work. See modules/19-billing assertPublishEntitled + spec B2.
+    await assertPublishEntitled(client, tenantId, assessment.pack_id);
+
     // c. Pool-size pre-flight
     //    Blueprint path (C2): per-criterion check.
     //    No-blueprint path: existing whole-pool count unchanged.
@@ -830,6 +837,12 @@ export async function reopenAssessment(
 
     // Time-boundary check: cannot reopen past closes_at
     assertReopenAllowed(new Date(), assessment.closes_at);
+
+    // B2 — server-authoritative entitlement enforcement (authorization gate,
+    // reopen path). Runs in this withTenant tx; throws AppError 403 NOT_ENTITLED
+    // if the assessment's pack is not entitled (internal tier bypasses).
+    // See modules/19-billing assertPublishEntitled + spec B2.
+    await assertPublishEntitled(client, tenantId, assessment.pack_id);
 
     const updated = await repo.updateAssessmentRow(client, id, { status: "published" });
 

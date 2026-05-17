@@ -36,6 +36,8 @@ export {
   revokeEntitlement,
   listTenantEntitlements,
   getCompanyEntitlements,
+  // B2 exports
+  assertPublishEntitled,
 } from './service.js';
 
 export {
