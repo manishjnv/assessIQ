@@ -1,3 +1,23 @@
+# Session — 2026-05-17 (Phase A1 — monetization metering shipped)
+
+**Headline:** Phase A1 of the approved monetization spec is live in prod — new `modules/19-billing` meters 1 credit per graded attempt, soft-enforcement only, no blocking.
+**Commits (main):** `111dd77` — feat(billing): Phase A1 19-billing (21 files, +1570) · `3f303b7` — docs(billing): data-model + api-contract + spec status.
+**Tests:** `@assessiq/billing` 25/25 pass (20 pure compute-usage always-run + 5 DB-backed Docker-gated: idempotency, same-tx rollback, usage math, backfill). api + ai-grading typecheck clean.
+**Deploy:** migrations `0078/0079/0080` applied surgically to prod + recorded in `schema_migrations` w/ sha256; backfill exact (e2e-walkthrough + foxfiber → free/25; platform + wipro-soc → internal/NULL); `assessiq-api` rebuilt+recreated on `111dd77`, healthy; `GET /api/billing/usage` → 401 (registered, auth-gated, no leak); neighbor containers untouched (additive-only).
+**Next:** Phase **A2** (separate session, same spec): super-admin usage column + per-company billing drawer + `PATCH /api/admin/super/tenants/:id/plan`; company-admin usage banners (green/amber/red). A2 also adds the `tenant_plans` UPDATE path via `assessiq_system`.
+**Open questions:** (1) `e2e-walkthrough-2026-05-15` tenant got free/25 per spec ("only platform+wipro-soc internal") — operator can re-tier it to internal via A2 PATCH if undesired. (2) Two accepted non-blocking gaps from the adversarial gate: `provisionDefaultPlan`'s `includedCredits` param is wider than needed (A2 will formalize custom credits via assessiq_system); `getUsage` planless-fallback branch has no unit test (outside the spec's testing floor — fail-safe + logged). (3) `billing_events` is now in the grade-commit critical path (same blast radius as `audit_log`) — a billing-table outage blocks grading by design (revenue-leak invariant).
+
+---
+
+## Agent utilization
+- **Opus:** wrote the full build contract (11 deliverables) + adversarial contract; Phase-0 reads; Phase-3 diff critique → found 1 blocker (missing createCompany provisioning hook — my own contract omitted it) + 2 revisions, all self-applied (provisioning hook, REVOKE TRUNCATE parity, audit-before-provision reorder); independent adversarial pass (10 vectors, ACCEPT); all surgical prod migration apply + deploy + verification + spec-status edit + handoff.
+- **Sonnet:** build subagent (worktree, load-bearing) — 21 files, 25/25 tests, 3 typechecks clean; independent adversarial subagent — VERDICT accept, 0 blocker/major, 4 non-blocking minors; doc subagent — data-model + api-contract sections, format-matched.
+- **Haiku:** n/a — verification was a small focused probe (Opus ran it directly), not a bulk sweep.
+- **codex:rescue:** n/a — GLM-5.1 leg blocked by source-exfil guard; Sonnet+Opus dual adversarial pass per the `feedback-adversarial-reviewer-routing` documented ladder satisfied the load-bearing gate.
+- **claude-mem:** memory updated — new `project` entry on the grade-commit critical-path constraint.
+
+---
+
 # Session — 2026-05-17 (super-admin first-login MFA lockout — 01-auth fix)
 
 **Headline:** Diagnosed + fixed the super-admin platform-login lockout that slice-2 surfaced. Root cause: 3 coupled `01-auth` defects (not slice-2's FE) — a pre-TOTP super_admin could never reach `/admin/mfa`, so it bounced to `/admin/login` ("Google, then login"). Slice-1's "verified end-to-end" was an incomplete verification (an expected-looking 401 mislabelled as success). Fix adversarially signed off (Sonnet ACCEPT + Opus-takeover ACCEPT); commit/push/deploy handed to user to run (harness blocked Bash for 01-auth→main + SSH-prod).
