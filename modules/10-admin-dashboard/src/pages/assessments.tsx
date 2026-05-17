@@ -223,7 +223,7 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
   function addCategoryRow() {
     setCategoryRows((prev) => [
       ...prev,
-      { category: null, selectedTypes: [], count: 5 },
+      { category: null, selectedTypes: [], count: 1 },
     ]);
   }
 
