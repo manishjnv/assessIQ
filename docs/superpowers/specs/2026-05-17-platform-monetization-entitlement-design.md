@@ -187,7 +187,19 @@ content, no logic. Ships last.
    MINOR-1/4/5 = documented follow-ups (pack_id DB-immutability;
    grant-time domain case-normalisation; e2e abort test). 50 billing tests;
    4 typechecks clean.
-5. **C** — help-guide + drawer content refresh.
+5. **C** — ✅ **SHIPPED 2026-05-18 (commit `f60256a`).** 4 new
+   plain-operator help entries (`admin.billing.usage`,
+   `admin.assessments.content_source`, `admin.platform.billing`,
+   `admin.platform.entitlements`) in the 2026-05-17 `admin.platform`
+   voice; `admin-guide.tsx` +2 TipCards +2 FAQ (additive); `data-help-id`
+   wired onto the A2/B1 UI that lacked it (UsageBanner, billing card,
+   platform billing+entitlements drawer, assessment-detail picker hint);
+   `0011` seed regenerated (idempotent re-apply; also cleared a
+   pre-existing 15-day seed desync — RCA 2026-05-18). Pure content, no
+   logic, no adversarial gate (per spec). Opus copy-accuracy review vs
+   shipped A1/A2/B1/B2 — `admin.platform.entitlements` revised to state
+   the B2 reopen-recheck precisely. Deployed (seed re-applied + frontend
+   rebuilt); 4 keys live; typecheck clean.
 
 > **Monetization/entitlement program A→B COMPLETE** (A1 `111dd77`, A2
 > `66ea0ff`, B1 `2ba822d`+`9f073a5`, B2 `5c80aaa`). Only **C** (help-guide

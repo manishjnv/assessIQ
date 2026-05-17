@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-18 — Help-seed silently desynced: admin.platform short_text 132 > 120-char generator limit
+
+**Symptom:** During Phase C, regenerating `modules/16-help-system/migrations/0011_seed_help_content.sql` from `content/en/admin.yml` produced a ~1.7k-line diff far larger than the 4 new keys being added — the committed seed was stale by ~46 rows (pre-existing YAML edits since 2026-05-03 were never reflected in the seed: `admin.analytics.cohort_report`, `admin.audit*`, the `admin.grading.rerun`→`admin.grading.rerun.opus` rename, etc.).
+
+**Cause:** `tools/generate-help-seed.ts` enforces `short_text` ≤ 120 chars and aborts on violation. The 2026-05-17 `admin.platform` plain-language rewrite set its `short_text` to 132 chars. From that point the generator failed on every run, so **no help-YAML edit reached the seed SQL for ~15 days** — yet nothing surfaced the failure (generator run is a manual dev step, not CI-gated; prod help is DB-backed and the missing rows just silently never appeared in the drawer). The desync was invisible until a session actually re-ran the generator.
+
+**Fix:** Phase C trimmed `admin.platform` short_text 132→118 (meaning preserved), unblocking the generator; regenerated `0011` (now matches YAML truth — 104 rows). Re-applied to prod: `ON CONFLICT (tenant_id,key,locale,version) DO NOTHING` made it safe/idempotent (only the genuinely-new keys inserted; existing prod rows untouched; the stale `admin.grading.rerun` row is harmless orphan content, pre-existing). Commit `f60256a`.
+
+**Prevention:** (1) the `short_text` length cap must fail **loudly and early** — add a CI/pre-commit check (or a `pnpm` script gate) that runs `generate-help-seed.ts` and fails the build if it errors or if the regenerated SQL differs from the committed one (drift = unseeded content). (2) Phase-3 guardrail: a help-YAML diff whose `short_text` exceeds 120 chars, or that does not include a corresponding regenerated `0011` diff, is a bounce. Tracked as a follow-up (the CI gate is not yet wired). Manual discipline until then: always run the generator after editing `admin.yml` and commit the regenerated seed in the same change.
+
 ## 2026-05-18 — Phase B1 backfill 0082 failed at prod apply: bare NULL → text vs uuid
 
 **Symptom:** Applying `modules/19-billing/migrations/0082_entitlements_backfill.sql` to prod errored: `ERROR: column "granted_by" is of type uuid but expression is of type text` (SQLSTATE 42804) at the `INSERT … SELECT DISTINCT … NULL …`. No partial write — single statement under `psql -v ON_ERROR_STOP=1`, failed atomically; `tenant_entitlements` stayed empty (0081 had created it).
