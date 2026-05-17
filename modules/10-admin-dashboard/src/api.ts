@@ -363,6 +363,12 @@ export interface TenantListItem {
   name: string;
   status: string;
   created_at: string;
+  /** First admin invited at company-creation time. Null for tenants with no
+   *  role='admin' user (e.g. the platform tenant). admin_status is 'pending'
+   *  until the admin accepts the invite, then 'active'. */
+  admin_email: string | null;
+  admin_name: string | null;
+  admin_status: string | null;
 }
 
 /**

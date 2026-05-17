@@ -431,10 +431,15 @@ Returns all provisioned tenants. Read-only, no pagination in v1.
 
 **Auth:** `super_admin` only.
 
-**Response 200:**
+**Response 200:** each tenant also carries its **first admin** (earliest `users` row with `role='admin'` in that tenant — the person invited at company-creation). `admin_*` are `null` for tenants with no admin user (e.g. the `platform` tenant, whose operator is `super_admin`). `admin_status` is `pending` until the admin accepts the invite, then `active`.
 ```json
-{ "tenants": [{ "id": "uuid", "slug": "acme-corp", "name": "Acme Corp", "status": "active", "created_at": "2026-05-17T10:00:00Z" }] }
+{ "tenants": [{
+  "id": "uuid", "slug": "acme-corp", "name": "Acme Corp",
+  "status": "active", "created_at": "2026-05-17T10:00:00Z",
+  "admin_email": "admin@acme.com", "admin_name": "Acme Admin", "admin_status": "pending"
+}] }
 ```
+Implementation: `LEFT JOIN LATERAL` against `users` under `SET LOCAL ROLE assessiq_system` (BYPASSRLS — the established cross-tenant system-role pattern for this endpoint; no N+1).
 
 **Source:** `apps/api/src/routes/admin-super.ts`.
 
