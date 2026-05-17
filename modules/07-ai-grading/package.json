@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@assessiq/audit-log": "workspace:*",
+    "@assessiq/billing": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "@assessiq/attempt-engine": "workspace:*",

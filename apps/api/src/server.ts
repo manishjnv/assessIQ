@@ -32,6 +32,7 @@ import { EMBED_COOKIE_NAME } from '@assessiq/embed-sdk';
 import { authChain } from './middleware/auth-chain.js';
 import { config } from '@assessiq/core';
 import { registerVerifyRoutes, registerCertificationRoutes } from '@assessiq/certification';
+import { registerBillingRoutes } from '@assessiq/billing';
 
 const requestLog = streamLogger('request');
 const appLog = streamLogger('app');
@@ -252,6 +253,11 @@ export async function buildServer() {
     candidateAuth: authChain(),
     adminAuth: authChain({ roles: ['admin'] }),
   });
+
+  // Billing / usage-metering routes (Phase A1 — module 19):
+  //   GET /api/billing/usage → BillingUsage JSON (company admin, own tenant)
+  // Soft enforcement only in A1 — see modules/19-billing/SKILL.md.
+  await registerBillingRoutes(app, { companyAdmin: authChain({ roles: ['admin'] }) });
 
   await registerHelpPublicRoutes(app);  await registerHelpTrackRoutes(app);
   // Cast through `unknown` to satisfy strictFunctionTypes parameter
