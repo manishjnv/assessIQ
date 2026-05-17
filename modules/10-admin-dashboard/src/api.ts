@@ -338,6 +338,71 @@ export async function generateForDomainApi(
 }
 
 // ---------------------------------------------------------------------------
+// Typed helpers — super-admin company provisioning + tenant list (Slice 1)
+// ---------------------------------------------------------------------------
+
+export interface CreateCompanyRequest {
+  name: string;
+  slug: string;
+  domain?: string;
+  adminEmail: string;
+  adminName?: string;
+}
+
+export interface CreateCompanyResponse {
+  tenantId: string;
+  slug: string;
+  name: string;
+  status: string;
+  invitation: { id: string; email: string; role: string; expires_at: string } | null;
+}
+
+export interface TenantListItem {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
+
+/**
+ * POST /api/admin/super/companies
+ *
+ * Super-admin only. Provisions a new company tenant and sends an invitation
+ * to the first admin email. Gate: super_admin + fresh-MFA (TOTP within 15 min).
+ */
+export async function createCompanyApi(
+  body: CreateCompanyRequest,
+): Promise<CreateCompanyResponse> {
+  return adminApi<CreateCompanyResponse>("/admin/super/companies", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * GET /api/admin/super/tenants
+ *
+ * Super-admin only. Returns the list of all provisioned tenants.
+ */
+export async function listTenantsApi(): Promise<{ tenants: TenantListItem[] }> {
+  return adminApi<{ tenants: TenantListItem[] }>("/admin/super/tenants");
+}
+
+/**
+ * POST /api/auth/totp/verify
+ *
+ * MFA step-up for super-admin operations requiring fresh TOTP.
+ * Refreshes the session's MFA freshness on success.
+ */
+export async function verifyTotpApi(code: string): Promise<void> {
+  return adminApi<void>("/auth/totp/verify", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Typed helpers — list questions with filters (Slice 2.2/D5)
 // ---------------------------------------------------------------------------
 

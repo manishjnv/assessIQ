@@ -635,6 +635,126 @@ admin.audit.archives.restore_procedure:
 
     Self-service restore via the UI is planned for Phase 4.
 
+# ─── Super-admin Platform provisioning (2026-05-17) ───
+
+admin.platform:
+  audience: admin
+  short_text: "Platform operators provision new company tenants here. Requires fresh MFA. Tenant admins cannot access this page."
+  long_md: |
+    ## Platform — company provisioning
+
+    The **Platform** page is visible only to platform super-admins. Use it to:
+
+    - **Provision a new company tenant** — creates the tenant database row,
+      slugs the company, and sends the first-admin invitation email.
+    - **View all provisioned tenants** — read-only list showing slug, name,
+      status, and creation date.
+
+    **Access control:** only users with `role = super_admin` can reach this
+    page. A tenant admin (`role = admin`) is redirected even if they navigate
+    directly to `/admin/platform`.
+
+    **MFA requirement:** the Create Company form requires fresh TOTP (verified
+    within the last 15 minutes). If your MFA is stale, a step-up prompt appears
+    inline — enter your authenticator code without losing your entered values.
+
+    **What happens after creation:**
+    1. The tenant is created in `provisioning` status.
+    2. Its taxonomy is seeded and an invitation email is sent to the
+       first-admin address.
+    3. The tenant is activated (`active` status) as the final provisioning
+       step — before the admin accepts. If seeding or the invite fails, the
+       tenant stays at `provisioning` and creation reports an error.
+
+  related_keys:
+    - admin.platform.slug
+    - admin.platform.admin_email
+
+admin.platform.slug:
+  audience: admin
+  short_text: "URL-safe company identifier. Auto-suggested from the name. Lowercase letters, digits, and hyphens only."
+  long_md: |
+    ## Company slug
+
+    The slug is the short, URL-safe identifier for a tenant. It appears in
+    webhook payloads, embed-iframe URLs, and the admin sign-in screen.
+
+    **Rules:**
+    - Lowercase letters (`a–z`), digits (`0–9`), and hyphens (`-`) only.
+    - No leading or trailing hyphens.
+    - Must be unique across all tenants — the form will show an error if the
+      slug is already taken.
+
+    **Auto-suggestion:** the form derives a slug from the company name
+    (spaces and invalid characters become hyphens, result is lowercased). You
+    can edit the slug freely before submitting.
+
+    **Stability:** once a tenant is provisioned, the slug should be treated as
+    permanent. Renaming a tenant slug is a manual operation that requires
+    platform support.
+
+admin.platform.admin_email:
+  audience: admin
+  short_text: "Email address of the company's first admin. An invitation link (valid 72 h) is sent here on provisioning."
+  long_md: |
+    ## First-admin email
+
+    The email address entered here receives a one-time invitation link
+    immediately after the tenant is provisioned. The link is valid for 72 hours.
+
+    The invited user signs in via the link and is granted `role = admin` for
+    the new tenant. They can then invite additional admins and reviewers from
+    the Users page.
+
+    If the invitation expires before the admin accepts it, a platform operator
+    can re-provision or manually re-invite via the API.
+
+admin.platform.domain:
+  audience: admin
+  short_text: "Optional email domain for the tenant (e.g. company.com). Used for display — not enforced as a sign-in restriction."
+  long_md: |
+    ## Tenant domain (optional)
+
+    Recording the company's email domain (e.g. `company.com`) is informational
+    only in Phase 1. It is stored on the tenant row and surfaced in the tenant
+    list for operator reference.
+
+    It does **not** currently restrict sign-in to that domain or auto-assign
+    users. Domain-based SSO and auto-provisioning are planned for a future
+    phase.
+
+admin.platform.admin_name:
+  audience: admin
+  short_text: "Optional display name for the first admin. Shown in the invitation email if provided."
+  long_md: |
+    ## Admin display name (optional)
+
+    If provided, the display name is included in the invitation email sent to
+    the first admin. It is also set as the user's `name` field on account
+    creation.
+
+    Leave blank to send the invitation without a personalised greeting.
+
+admin.platform.mfa_code:
+  audience: admin
+  short_text: "6-digit code from your authenticator app. Required before provisioning a new tenant (fresh-MFA gate)."
+  long_md: |
+    ## MFA step-up — authenticator code
+
+    Creating a new company tenant is a high-privilege operation gated behind
+    fresh TOTP verification (code must have been entered within the last 15
+    minutes).
+
+    If your session's MFA is stale, the create form switches to a step-up
+    prompt. Enter the current 6-digit code from your authenticator app
+    (Google Authenticator, Authy, 1Password, etc.) and click **Verify & create**.
+
+    On success the platform automatically retries the create operation — you
+    do not need to re-enter the form values.
+
+    **Lockout:** five wrong codes in a row locks the account for 15 minutes.
+    Wait for the lockout to expire before retrying.
+
     **Grading data:** attempts submitted before archiving retain their scores
     and archetype assignments. No re-grading is triggered on restore.
 

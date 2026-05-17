@@ -521,3 +521,21 @@ apps/storybook/                        # Storybook 8 + @storybook/react-vite hos
 ```
 
 Server-side theme resolver (`theme-resolver.ts`) lands in Phase 1 alongside `02-tenancy`, when the `tenants.branding` JSONB query becomes available; the Phase-0 `ThemeProvider` reads `fixtures/tenants.ts` instead. A future `tokens.ts` (TS export of token names for typesafe usage) is deferred until a consumer actually needs it.
+
+## Super-admin Platform page (2026-05-17)
+
+### `/admin/platform` — company provisioning
+
+Route: `apps/web/src/App.tsx` → `<Route path="/admin/platform" element={<RequireSession role="super_admin"><AdminPlatform /></RequireSession>} />`
+
+Component: `modules/10-admin-dashboard/src/pages/platform.tsx` → `export function AdminPlatform()`
+
+**`RequireSession role="super_admin"` exact-match semantics:** when `role="super_admin"` is passed, only a session with `session.user.role === "super_admin"` is admitted. A plain `admin` is redirected to `/admin/login`. This is asymmetric with all other role gates (`admin`, `reviewer`) where `super_admin` satisfies the gate — because `super_admin` is a platform-level role above the tenant hierarchy, not a peer of admin. The asymmetry is documented with a code comment in `apps/web/src/lib/RequireSession.tsx`. The backend enforces the real gate; this is FE defense-in-depth.
+
+**Nav entry:** `AdminShell` renders a "Platform" nav entry in the Account section with `superAdminOnly: true`. Tenant admins (`role === "admin"`) do not see this entry.
+
+**Page pattern:** mirrors `users.tsx` exactly — `AdminShell breadcrumbs={["Platform"]}`, serif h1 `Companies.`, count Chip, `listTenantsApi()` on mount, `Spinner` / error Chip / empty-state card / read-only zebra table (columns: slug mono, name, status Chip, created en-GB date).
+
+**Create-company modal:** fixed-position Card with backdrop, required fields (name, slug, admin email), collapsible Advanced section (domain, admin display name). Slug auto-derived from name; client-side `[a-z0-9-]+` validation. MFA step-up sub-state on `401 AUTHN_FAILED` + message `/fresh totp/i` — preserves all entered form values, calls `verifyTotpApi`, refreshes session via `fetchAdminWhoami(true)`, auto-retries `createCompanyApi`. No secrets stored beyond the transient 6-digit TOTP code (cleared on success/close).
+
+**Help page key:** `admin.platform` (wired via `AdminShell helpPage="admin.platform"`). Field-level keys: `admin.platform.slug`, `admin.platform.admin_email`, `admin.platform.domain`, `admin.platform.admin_name`, `admin.platform.mfa_code`.

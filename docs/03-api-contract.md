@@ -353,6 +353,8 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 | Method | Path | Purpose | Status |
 |---|---|---|---|
 | `PATCH` | `/api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip `ai_generate_mode` for a target tenant | **live 2026-05-08** |
+| `POST` | `/api/admin/super/companies` | Provision new company tenant + send first-admin invitation | **live 2026-05-17** |
+| `GET` | `/api/admin/super/tenants` | List all provisioned tenants | **live 2026-05-17** |
 
 #### `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`
 
@@ -393,6 +395,48 @@ Flips `tenant_settings.ai_generate_mode` for the named tenant. Used by platform 
 **Design ref:** `docs/design/2026-05-10-stage-3-promotion-rollout.md` §3.
 
 **Source:** `apps/api/src/routes/admin-super.ts:41`, `modules/02-tenancy/src/service.ts` (`updateAiGenerateMode`).
+
+#### `POST /api/admin/super/companies`
+
+Provisions a new company tenant and sends a first-admin invitation email. Requires fresh TOTP (verified within 15 minutes).
+
+**Auth:** `super_admin` + fresh MFA. Returns `401 AUTHN_FAILED` with message containing `"fresh totp"` if MFA is stale (triggers in-form step-up on the frontend, not a redirect).
+
+**Body:**
+```json
+{ "name": "string", "slug": "string", "domain": "string (optional)", "adminEmail": "string", "adminName": "string (optional)" }
+```
+
+**Response 201:**
+```json
+{
+  "tenantId": "uuid",
+  "slug": "acme-corp",
+  "name": "Acme Corp",
+  "status": "active",
+  "invitation": { "id": "uuid", "email": "admin@acme.com", "role": "admin", "expires_at": "2026-05-20T10:00:00Z" }
+}
+```
+A `201` is only returned after the tenant is provisioned **and** activated, so `status` is always `"active"` here. If seeding or the invitation step fails the tenant is left at `provisioning` and the call returns an error (not a `201`). `invitation` may be `null` if the invitation row could not be created.
+
+**Response 400:** `details.code` one of `MISSING_NAME` | `INVALID_SLUG` | `MISSING_ADMIN_EMAIL`.
+**Response 401:** `code = "AUTHN_FAILED"`, message contains `"fresh totp"` — MFA freshness expired; frontend shows step-up prompt.
+**Response 409:** `details.code = "TENANT_SLUG_CONFLICT"` — slug already taken.
+
+**Source:** `apps/api/src/routes/admin-super.ts`.
+
+#### `GET /api/admin/super/tenants`
+
+Returns all provisioned tenants. Read-only, no pagination in v1.
+
+**Auth:** `super_admin` only.
+
+**Response 200:**
+```json
+{ "tenants": [{ "id": "uuid", "slug": "acme-corp", "name": "Acme Corp", "status": "active", "created_at": "2026-05-17T10:00:00Z" }] }
+```
+
+**Source:** `apps/api/src/routes/admin-super.ts`.
 
 ### Candidate
 

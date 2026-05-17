@@ -142,6 +142,14 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     href: string;
     icon: "home" | "chart" | "grid" | "user" | "settings" | "book" | "bell" | "eye" | "clock" | "sparkle";
     adminOnly?: boolean;
+    /**
+     * When true, the entry is shown ONLY to super_admin sessions.
+     * A tenant admin (role === "admin") must NOT see these entries — super_admin
+     * is not a peer of admin, it is a platform-level role above the tenant
+     * hierarchy. This gate is FE defense-in-depth; the backend remains the real
+     * boundary.
+     */
+    superAdminOnly?: boolean;
   }
 
   // Nav split: Workspace (create/run/review) → Account (help + settings)
@@ -162,6 +170,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   const accountEntries: NavEntry[] = [
     { label: "Help guide", href: "/admin/guide", icon: "book" },
     { label: "Settings", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
+    // Platform provisioning — visible to super_admin only; tenant admins must not see this.
+    { label: "Platform", href: "/admin/platform", icon: "settings", superAdminOnly: true },
   ];
 
   // User card footer — kit dashboard.jsx footer slot
@@ -241,7 +251,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} footer={sidebarFooter}>
         <SidebarSection label="Workspace" collapsed={collapsed} />
         {workspaceEntries
-          .filter((e) => !e.adminOnly || isAdmin)
+          .filter((e) => (!e.adminOnly || isAdmin) && (!e.superAdminOnly || session?.user.role === "super_admin"))
           .map((e) => (
             <NavItem
               key={e.href}
@@ -254,7 +264,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
           ))}
         <SidebarSection label="Account" collapsed={collapsed} />
         {accountEntries
-          .filter((e) => !e.adminOnly || isAdmin)
+          .filter((e) => (!e.adminOnly || isAdmin) && (!e.superAdminOnly || session?.user.role === "super_admin"))
           .map((e) => (
             <NavItem
               key={e.href}
