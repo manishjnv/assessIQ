@@ -560,7 +560,7 @@ describe("createAssessment + lifecycle happy path", () => {
   it("createAssessment returns Assessment with status='draft'", async () => {
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "My Assessment", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "My Assessment", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     expect(assessment.status).toBe("draft");
@@ -573,7 +573,7 @@ describe("createAssessment + lifecycle happy path", () => {
     // publishPack bumps version from 1 to 2
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Version Check", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Version Check", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     expect(assessment.pack_version).toBe(2);
@@ -589,7 +589,7 @@ describe("createAssessment + lifecycle happy path", () => {
     await expect(
       createAssessment(
         tenantA,
-        { pack_id: draftPack.id, level_id: draftLevel.id, name: "Unpub Test", question_count: 3 },
+        { pack_id: draftPack.id, level_id: draftLevel.id, name: "Unpub Test", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
         adminA,
       ),
     ).rejects.toSatisfy(
@@ -608,7 +608,7 @@ describe("createAssessment + lifecycle happy path", () => {
     await expect(
       createAssessment(
         tenantA,
-        { pack_id: packBId, level_id: levelId, name: "Cross Pack", question_count: 1 },
+        { pack_id: packBId, level_id: levelId, name: "Cross Pack", question_count: 1, opens_at: new Date(Date.now() + 60_000) },
         adminA,
       ),
     ).rejects.toSatisfy(
@@ -650,7 +650,7 @@ describe("publishAssessment pool-size pre-flight", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 5);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Pool Too Small", question_count: 12 },
+      { pack_id: packId, level_id: levelId, name: "Pool Too Small", question_count: 12, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
 
@@ -667,7 +667,7 @@ describe("publishAssessment pool-size pre-flight", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 5);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Exact Pool", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Exact Pool", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
 
@@ -691,7 +691,7 @@ describe("State machine integration via service", () => {
   it("closeAssessment on a draft assessment → ValidationError(INVALID_STATE_TRANSITION)", async () => {
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Close Draft", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Close Draft", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     // draft → closed is illegal
@@ -705,7 +705,7 @@ describe("State machine integration via service", () => {
   it("closeAssessment on an active assessment → status='closed'", async () => {
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Close Active", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Close Active", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -778,7 +778,7 @@ describe("State machine integration via service", () => {
   it("publishAssessment on already-published → ValidationError(INVALID_STATE_TRANSITION)", async () => {
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Re-publish Test", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Re-publish Test", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -963,7 +963,7 @@ describe("Invitation flow", () => {
     ({ packId, levelId } = await buildPublishedPack(tenantA, adminA, 5));
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Invite Test Assessment", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Invite Test Assessment", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -1026,7 +1026,7 @@ describe("Invitation flow", () => {
   it("inviteUsers against a draft assessment → ConflictError(INVALID_STATE_TRANSITION)", async () => {
     const draftAssessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Draft Invite", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Draft Invite", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await expect(
@@ -1043,7 +1043,7 @@ describe("Invitation flow", () => {
     const { packId: p2, levelId: l2 } = await buildPublishedPack(tenantA, adminA, 5);
     const a2 = await createAssessment(
       tenantA,
-      { pack_id: p2, level_id: l2, name: "Revoke Test", question_count: 5 },
+      { pack_id: p2, level_id: l2, name: "Revoke Test", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, a2.id, adminA);
@@ -1067,7 +1067,7 @@ describe("Invitation flow", () => {
     const { packId: p3, levelId: l3 } = await buildPublishedPack(tenantA, adminA, 5);
     const a3 = await createAssessment(
       tenantA,
-      { pack_id: p3, level_id: l3, name: "Double Revoke", question_count: 5 },
+      { pack_id: p3, level_id: l3, name: "Double Revoke", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, a3.id, adminA);
@@ -1105,7 +1105,7 @@ describe("Cross-tenant RLS isolation", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "RLS Test A", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "RLS Test A", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     assessmentIdA = assessment.id;
@@ -1126,7 +1126,7 @@ describe("Cross-tenant RLS isolation", () => {
     const { packId: pA, levelId: lA } = await buildPublishedPack(tenantA, adminA, 3);
     const aA2 = await createAssessment(
       tenantA,
-      { pack_id: pA, level_id: lA, name: "RLS Invite A", question_count: 3 },
+      { pack_id: pA, level_id: lA, name: "RLS Invite A", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, aA2.id, adminA);
@@ -1185,7 +1185,7 @@ describe("Dev-email log — invitation_candidate template written to stub", () =
     ({ packId, levelId } = await buildPublishedPack(tenantA, adminA, 5));
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Email Log Test", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Email Log Test", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -1294,7 +1294,7 @@ describe("previewAssessment smoke test", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 7);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Preview Smoke", question_count: 5 },
+      { pack_id: packId, level_id: levelId, name: "Preview Smoke", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
 

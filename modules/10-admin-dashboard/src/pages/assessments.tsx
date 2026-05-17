@@ -655,6 +655,10 @@ export function AdminAssessments(): React.ReactElement {
       setCreateError("Assessment name is required.");
       return;
     }
+    if (!newForm.opens_at) {
+      setCreateError("Opens is required — an assessment with no Opens date never becomes active and candidates can't start it. Set when it should open.");
+      return;
+    }
     if (useBlueprintMode && pendingBlueprint === null) {
       setCreateError("Blueprint is incomplete. Select a domain, level, and at least one valid criterion.");
       return;
@@ -992,13 +996,14 @@ export function AdminAssessments(): React.ReactElement {
                       fontWeight: 500,
                     }}
                   >
-                    Opens
+                    Opens *
                   </label>
                   <input
                     className="aiq-input"
                     type="datetime-local"
                     value={newForm.opens_at}
                     onChange={(e) => setNewForm((f) => ({ ...f, opens_at: e.target.value }))}
+                    required
                   />
                 </div>
 
