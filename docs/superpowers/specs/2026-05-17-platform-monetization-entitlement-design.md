@@ -146,8 +146,28 @@ content, no logic. Ships last.
    (internal coercion) fixed, C rejected (gate parity w/ ai-generate-mode),
    D deferred (repo-wide :tenantId UUID-guard sweep), E fixed. 31 billing
    tests + admin-dashboard unit; all typechecks clean.
-3. **B1** — re-gate generation to super-admin; entitlement grant/revoke
-   endpoints + super-admin entitlements UI; existing-tenant entitlement backfill.
+3. **B1** — ✅ **SHIPPED 2026-05-18 (commits `2ba822d` + fix `9f073a5`).**
+   7 generation/generation-attempts routes re-gated `adminOnly`→`superAdminOnly`
+   in `04-question-bank` (CRUD/import/publish/assemble KEEP admin;
+   `07-ai-grading` untouched) + FE nav/SPA-route guards → super_admin
+   (defense-in-depth; backend authoritative). `0081_tenant_entitlements`
+   (tenant RLS select+insert, NO update/delete by design, `UNIQUE(tenant_id,
+   scope_type,scope_id)`, soft-revoke). `0082` **domain-level** backfill
+   (every tenant/domain with an `active` question in a `published` pack;
+   `NULL::uuid` granted_by; idempotent; zero-NULL verification gate **run on
+   prod = PASS**, 3 rows). `grant/revoke` (two-role same-tx `auditInTx`,
+   A2-fixed pattern; revoke no-op → 404 before any audit; scopeId ≤256),
+   `listTenantEntitlements`, company `GET /api/billing/entitlements` (RO,
+   RLS-scoped, active-only); GET/POST/DELETE
+   `/api/admin/super/tenants/:id/entitlements`; ACTION_CATALOG +=
+   `tenant.entitlement_granted/_revoked`; entitlements UI in the A2 billing
+   drawer. Adversarial: Sonnet VERDICT accept (10 vectors; re-gate
+   completeness + backfill correctness exhaustively verified) + Opus
+   adjudication. 43 billing tests; 5 typechecks clean. **B1↔B2 contract
+   (B2 MUST honor):** a referenced pack is entitled iff its `domain` OR its
+   `pack_id` has an `active` entitlement; `internal` tier bypasses the
+   check entirely; backfill is domain-level only (pack-level grants are
+   super-admin-manual via the UI). RCA logged (0082 NULL::uuid prod-apply).
 4. **B2** — publish-time entitlement enforcement + filtered picker.
    **Authorization boundary → Sonnet+Opus adversarial gate before push.**
 5. **C** — help-guide + drawer content refresh.

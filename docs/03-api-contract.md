@@ -187,21 +187,23 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 | `GET`  | `/admin/questions/:id/versions`      | List version snapshots (most-recent first) |
 | `POST` | `/admin/questions/:id/restore`       | Restore from a prior version (body: `{ version: number }`); snapshots current then bumps |
 | `POST` | `/admin/questions/import`            | Bulk import from JSON (Phase 1) — CSV deferred to Phase 2 |
-| `POST` | `/admin/packs/:id/levels/:levelId/generate` | **AI question generation** — generates SOC-grounded `ai_draft` questions for the given level. Body: `{ count?: number (1–10, default 5), topic_focus?: string }`. Returns `{ questionIds: string[], generated: number, skillSha: string }`. Requires `AI_PIPELINE_MODE=claude-code-vps`. Single-flight: 409 `GRADING_IN_PROGRESS` if generation already in flight for this pack/level. Questions land as `status='ai_draft'` with `knowledge_base_sources` provenance. **live 2026-05-08** |
+| `POST` | `/admin/packs/:id/levels/:levelId/generate` | **AI question generation** — generates SOC-grounded `ai_draft` questions for the given level. Body: `{ count?: number (1–10, default 5), topic_focus?: string }`. Returns `{ questionIds: string[], generated: number, skillSha: string }`. Requires `AI_PIPELINE_MODE=claude-code-vps`. Single-flight: 409 `GRADING_IN_PROGRESS` if generation already in flight for this pack/level. Questions land as `status='ai_draft'` with `knowledge_base_sources` provenance. **live 2026-05-08** — **⚠ Phase B1: re-gated to `super_admin`; tenant admins receive 403.** |
 | `POST` | `/admin/questions/bulk-update-status` | Bulk-flip a batch of questions to `active` or `archived` (admin grid action). Body: `{ ids: string[] (1–200 UUIDs), status: 'active' \| 'archived' }`. Returns `{ updated: string[], notFound: string[] }`. Service filters source statuses (`active` only accepts `ai_draft`; `archived` accepts `ai_draft` \| `draft` \| `active`); ids in disallowed source states OR cross-tenant ids land in `notFound`. Always writes a single `bulk_status` summary audit row (G3.D). 400 `INVALID_BULK_SIZE` for empty / >200 ids; 400 `VALIDATION_ERROR` for non-UUID id or bad status. **live 2026-05-11** |
 
 ### Admin — Rubric generation & generation attempts
 
-> **Status: live.** Routes registered in `modules/04-question-bank/src/routes.ts` via `registerQuestionBankRoutes(app, { adminOnly: authChain({roles:['admin']}) })`. All routes are admin-only; tenant scope enforced via RLS + `withTenant`.
+> **Status: live.** Routes registered in `modules/04-question-bank/src/routes.ts` via `registerQuestionBankRoutes(app, { adminOnly: authChain({roles:['admin']}) })`. All routes were admin-only; tenant scope enforced via RLS + `withTenant`.
+>
+> **⚠ Phase B1 (2026-05-18, commits `2ba822d` + `9f073a5`) — generation endpoints re-gated to `super_admin`.** The 6 AI generation and generation-history routes below now require `roles:['super_admin']`. Tenant admins receive `403 AUTHZ_FAILED`. Nav and SPA routes are also super-admin-only as defence-in-depth (backend is authoritative). `save-rubric` and all CRUD/import/publish/assemble/status routes remain on `roles:['admin']` unchanged. See § Phase B1 — generation endpoints re-gated to super_admin below for the full listing.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/admin/questions/:id/generate-rubric` | Generate a rubric proposal for a question. **Does NOT persist** — call `save-rubric` to commit. Returns a rubric object. Requires `AI_PIPELINE_MODE=claude-code-vps`. |
+| `POST` | `/admin/questions/:id/generate-rubric` | Generate a rubric proposal for a question. **Does NOT persist** — call `save-rubric` to commit. Returns a rubric object. Requires `AI_PIPELINE_MODE=claude-code-vps`. **⚠ Phase B1: `super_admin` only.** |
 | `POST` | `/admin/questions/:id/save-rubric` | Persist a rubric for a question. Body: `{ rubric: <rubric object> }` (required — 400 `INVALID_PARAM` if absent). Validates that all anchor weights sum to 100 (server-side). Saves as a new rubric version. Returns the updated rubric. |
-| `POST` | `/admin/packs/:id/generate-missing-rubrics` | Find the first question in the pack with `rubric IS NULL` and `type IN ('subjective', 'scenario')`, generate a proposal, and return it with a pagination cursor. **Does NOT auto-save.** Response: `{ proposal: <rubric>, cursor: { currentQuestionId, nextQuestionId, remainingCount } }`. Call repeatedly until `cursor.nextQuestionId` is null. |
-| `GET`  | `/admin/generation-attempts` | Cross-pack AI question-generation history. Query params (all optional): `status` (`success`\|`partial`\|`failed`\|`running`), `model` (substring match, ILIKE), `pack_id` (UUID), `level_id` (UUID), `since` (ISO-8601, filters `started_at ≥ since`), `limit` (1–100, default 50), `offset` (default 0). Response: `{ items: GenerationAttempt[], total, limit, offset }`. Each item: `id, status, count_requested, count_inserted, error_code, error_message, stderr_tail, skill_sha, model, chunks_planned, chunks_failed, dedupe_dropped, duration_ms, started_at, finished_at, pack_id, level_id, user_id`. |
-| `GET`  | `/admin/packs/:packId/levels/:levelId/generation-attempts` | Most recent 5 generation attempts for a specific pack + level. Useful for diagnosing why a "Generate" click produced 0 rows without SSH access. Response: `Array<{ id, status, count_requested, count_inserted, error_code, error_message, stderr_tail, model, duration_ms, started_at, finished_at }>`. |
-| `POST` | `/admin/generation-attempts/:id/score` | Server-side structural + runtime eval scoring for a single generation attempt. **Read-only — no writes to any table.** Resolves attempt via RLS (404 if absent or cross-tenant), loads inserted questions, runs `scoreQuestion` per question, compares per-type pass rates against `eval/baseline.json` regression thresholds. Response: `{ structural: <per-type breakdown>, runtime: <metrics>, verdict: "pass" \| "regression" \| "warning" \| "n/a" }`. |
+| `POST` | `/admin/packs/:id/generate-missing-rubrics` | Find the first question in the pack with `rubric IS NULL` and `type IN ('subjective', 'scenario')`, generate a proposal, and return it with a pagination cursor. **Does NOT auto-save.** Response: `{ proposal: <rubric>, cursor: { currentQuestionId, nextQuestionId, remainingCount } }`. Call repeatedly until `cursor.nextQuestionId` is null. **⚠ Phase B1: `super_admin` only.** |
+| `GET`  | `/admin/generation-attempts` | Cross-pack AI question-generation history. Query params (all optional): `status` (`success`\|`partial`\|`failed`\|`running`), `model` (substring match, ILIKE), `pack_id` (UUID), `level_id` (UUID), `since` (ISO-8601, filters `started_at ≥ since`), `limit` (1–100, default 50), `offset` (default 0). Response: `{ items: GenerationAttempt[], total, limit, offset }`. Each item: `id, status, count_requested, count_inserted, error_code, error_message, stderr_tail, skill_sha, model, chunks_planned, chunks_failed, dedupe_dropped, duration_ms, started_at, finished_at, pack_id, level_id, user_id`. **⚠ Phase B1: `super_admin` only.** |
+| `GET`  | `/admin/packs/:packId/levels/:levelId/generation-attempts` | Most recent 5 generation attempts for a specific pack + level. Useful for diagnosing why a "Generate" click produced 0 rows without SSH access. Response: `Array<{ id, status, count_requested, count_inserted, error_code, error_message, stderr_tail, model, duration_ms, started_at, finished_at }>`. **⚠ Phase B1: `super_admin` only.** |
+| `POST` | `/admin/generation-attempts/:id/score` | Server-side structural + runtime eval scoring for a single generation attempt. **Read-only — no writes to any table.** Resolves attempt via RLS (404 if absent or cross-tenant), loads inserted questions, runs `scoreQuestion` per question, compares per-type pass rates against `eval/baseline.json` regression thresholds. Response: `{ structural: <per-type breakdown>, runtime: <metrics>, verdict: "pass" \| "regression" \| "warning" \| "n/a" }`. **⚠ Phase B1: `super_admin` only.** |
 
 ### Admin — Assessments & invitations
 
@@ -358,6 +360,9 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 | `GET` | `/api/admin/super/tenants/:tenantId/billing` | Full billing detail for one tenant (A2) | **live 2026-05-17** |
 | `GET` | `/api/admin/super/tenants/:tenantId/billing/export.csv` | Export all billing events as CSV (A2) | **live 2026-05-17** |
 | `PATCH` | `/api/admin/super/tenants/:tenantId/plan` | Update a tenant's tier and/or credit allowance (A2) | **live 2026-05-17** |
+| `GET` | `/api/admin/super/tenants/:tenantId/entitlements` | List all entitlement rows for a tenant (incl. revoked) (B1) | **live 2026-05-18** |
+| `POST` | `/api/admin/super/tenants/:tenantId/entitlements` | Grant a domain or pack entitlement (idempotent; reactivates revoked) (B1) | **live 2026-05-18** |
+| `DELETE` | `/api/admin/super/tenants/:tenantId/entitlements` | Revoke an entitlement (JSON body — see below) (B1) | **live 2026-05-18** |
 
 #### `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`
 
@@ -1438,3 +1443,168 @@ Updates a tenant's billing tier and/or credit allowance. Both fields are optiona
 **Audit:** Emits `tenant.plan_updated` (`ACTION_CATALOG` in `modules/14-audit-log/src/types.ts`). The `UPDATE` on `tenant_plans` and the `audit_log` INSERT are in the same Postgres transaction (atomic — rollback reverts both). This is a **two-role transaction**: the `SELECT … FOR UPDATE` + `UPDATE` on `tenant_plans` runs under `assessiq_system` (BYPASSRLS — no UPDATE RLS policy exists on `tenant_plans` by design); the `auditInTx` write to `audit_log` runs under `assessiq_app` with `set_config('app.current_tenant', tenantId, true)`, satisfying `audit_log`'s INSERT RLS policy and the `modules/14-audit-log/src/audit.ts` contract. This mirrors the reviewed `updateAiGenerateMode` precedent in `@assessiq/tenancy`.
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`updateTenantPlan`).
+
+---
+
+## Phase B1 — generation endpoints re-gated to super_admin
+
+> **Status: LIVE — 2026-05-18 (commits `2ba822d` + `9f073a5`).** Follows Phase A2.
+
+Previously `roles:['admin']`, now `roles:['super_admin']` for the following 7 paths. Tenant admins receive `403 AUTHZ_FAILED`. Nav links and SPA routes for these features are also restricted to super_admin as defence-in-depth — the backend auth gate is authoritative. All other question-bank routes (CRUD, import, publish, assemble, bulk-status) remain on `roles:['admin']` unchanged. `modules/07-ai-grading` grading routes (grade, accept, release, override, etc.) are also unchanged on `roles:['admin']`.
+
+| Path | Previous auth | Phase B1 auth |
+|---|---|---|
+| `POST /api/admin/packs/:id/levels/:levelId/generate` | `roles:['admin']` | `roles:['super_admin']` |
+| `POST /api/admin/questions/:id/generate-rubric` | `roles:['admin']` | `roles:['super_admin']` |
+| `POST /api/admin/packs/:id/generate-missing-rubrics` | `roles:['admin']` | `roles:['super_admin']` |
+| `GET /api/admin/generation-attempts` | `roles:['admin']` | `roles:['super_admin']` |
+| `GET /api/admin/packs/:packId/levels/:levelId/generation-attempts` | `roles:['admin']` | `roles:['super_admin']` |
+| `POST /api/admin/generation-attempts/:id/score` | `roles:['admin']` | `roles:['super_admin']` |
+
+**Source:** `modules/04-question-bank/src/routes.ts` — `superAdminOnly` chain swapped in for `adminOnly` on the 6 generation/history routes; per-route auth documented inline in § Admin — Rubric generation & generation attempts above.
+
+---
+
+## Phase B1 — tenant entitlement endpoints
+
+> **Status: LIVE — 2026-05-18 (commits `2ba822d` + `9f073a5`).** Schema in `docs/02-data-model.md` § `tenant_entitlements`.
+
+### `GET /api/admin/super/tenants/:tenantId/entitlements`
+
+Returns all entitlement rows for the named tenant, including revoked rows.
+
+**Auth:** `super_admin` only. Returns `401 AUTHN_FAILED` / `403 AUTHZ_FAILED` otherwise.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Response 200:**
+```json
+{
+  "entitlements": [
+    {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "scope_type": "domain",
+      "scope_id": "soc",
+      "status": "active",
+      "granted_at": "2026-05-18T00:00:00Z",
+      "granted_by": "uuid-or-null"
+    }
+  ]
+}
+```
+
+`granted_by` is `null` for backfill rows (migration `0082`). Both `active` and `revoked` rows are returned; use `status` to filter.
+
+**Errors:** `401 AUTHN_FAILED` — no session. `403 AUTHZ_FAILED` — caller is not `super_admin`.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts`.
+
+---
+
+### `POST /api/admin/super/tenants/:tenantId/entitlements`
+
+Grants a domain or pack-level entitlement to the named tenant. Idempotent — if the `(tenant, scope_type, scope_id)` already exists and is active, returns the existing row unchanged. If the row exists but is revoked, reactivates it (`ON CONFLICT DO UPDATE`).
+
+**Auth:** `super_admin` only.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body:**
+```json
+{ "scopeType": "domain", "scopeId": "soc" }
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `scopeType` | `"domain" \| "pack"` | Required |
+| `scopeId` | `string` | Required; 1–256 chars; domain label or pack UUID |
+
+**Response 200:**
+```json
+{
+  "tenant_id": "uuid",
+  "scope_type": "domain",
+  "scope_id": "soc",
+  "status": "active",
+  "auditId": "uuid"
+}
+```
+
+**Errors:**
+- `400` `details.code = 'INVALID_SCOPE'` — `scopeType` not `"domain"` or `"pack"`, or `scopeId` is empty or >256 chars.
+- `401 AUTHN_FAILED` — no session.
+- `403 AUTHZ_FAILED` — caller is not `super_admin`.
+
+**Audit:** Emits `tenant.entitlement_granted` (appended to `ACTION_CATALOG` in `modules/14-audit-log/src/types.ts`). Two-role transaction: `assessiq_system` (BYPASSRLS) for the `INSERT … ON CONFLICT DO UPDATE` on `tenant_entitlements`; `assessiq_app` + `set_config('app.current_tenant', tenantId, true)` for the `auditInTx` write — same pattern as `updateTenantPlan`.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`grantTenantEntitlement`).
+
+---
+
+### `DELETE /api/admin/super/tenants/:tenantId/entitlements`
+
+Revokes an active entitlement by soft-delete (sets `status='revoked'`, records `revoked_by` and `revoked_at`). Never hard-deletes.
+
+**Auth:** `super_admin` only.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body (JSON):**
+```json
+{ "scopeType": "domain", "scopeId": "soc" }
+```
+
+Note: this `DELETE` carries a JSON body — required because the scope identity is composite (`scope_type` + `scope_id`). Standard HTTP allows body on DELETE; the Fastify route explicitly enables content-type parsing for this verb.
+
+**Response 200:**
+```json
+{
+  "tenant_id": "uuid",
+  "scope_type": "domain",
+  "scope_id": "soc",
+  "status": "revoked",
+  "auditId": "uuid"
+}
+```
+
+**Errors:**
+- `404` `details.code = 'ENTITLEMENT_NOT_FOUND'` — no active entitlement matching `(tenantId, scopeType, scopeId)` was found. No audit row is written for the no-op.
+- `400` `details.code = 'INVALID_SCOPE'` — `scopeType` / `scopeId` validation failure.
+- `401 AUTHN_FAILED` — no session.
+- `403 AUTHZ_FAILED` — caller is not `super_admin`.
+
+**Audit:** Emits `tenant.entitlement_revoked` (`ACTION_CATALOG` in `modules/14-audit-log/src/types.ts`). Same two-role transaction pattern as grant.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`revokeTenantEntitlement`).
+
+---
+
+### `GET /api/billing/entitlements`
+
+Returns the calling tenant's own active entitlements. Read-only; drives the B2 publish-time scope picker (not yet built).
+
+**Auth:** Company tenant admin (`companyAdmin` chain — `roles:['admin']` scoped to the session tenant). Super-admin can also call as a tenant by establishing a tenant session. `roles:['candidate']` receives `403`.
+
+**Response 200:**
+```json
+{
+  "entitlements": [
+    {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "scope_type": "domain",
+      "scope_id": "soc",
+      "status": "active",
+      "granted_at": "2026-05-18T00:00:00Z",
+      "granted_by": "uuid-or-null"
+    }
+  ]
+}
+```
+
+Active rows only — revoked rows are excluded. RLS-scoped to the session tenant (no cross-tenant leakage possible).
+
+**Errors:** `401 AUTHN_FAILED` — no session. `403 AUTHZ_FAILED` — caller is not a tenant admin.
+
+**Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/entitlements`.

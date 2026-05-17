@@ -1195,6 +1195,74 @@ All three values are derived on-read from the ledger. Self-reconciling: a re-gra
 
 ---
 
+### `tenant_entitlements` (Phase B1)
+
+> **Status:** LIVE — Phase B1 (2026-05-18, commits `2ba822d` + `9f073a5`). Migrations at `modules/19-billing/migrations/`: `0081_tenant_entitlements.sql` (schema), `0082_entitlements_backfill.sql` (data backfill). Applied to production `assessiq-postgres`.
+
+One row per `(tenant, scope)`. Scope is either a domain label (e.g. `soc`) or a specific pack UUID, allowing coarse domain-level grants and fine-grained per-pack overrides.
+
+```sql
+CREATE TABLE tenant_entitlements (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id    UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  scope_type   TEXT        NOT NULL CHECK (scope_type IN ('domain', 'pack')),
+  scope_id     TEXT        NOT NULL,  -- domain label or pack UUID; capped at 256 chars in service layer
+  granted_by   UUID,                  -- super-admin user id; NULL for backfill rows
+  granted_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status       TEXT        NOT NULL DEFAULT 'active'
+                           CHECK (status IN ('active', 'revoked')),
+  revoked_by   UUID,
+  revoked_at   TIMESTAMPTZ,
+  UNIQUE (tenant_id, scope_type, scope_id)
+);
+
+CREATE INDEX tenant_entitlements_tenant_status_idx ON tenant_entitlements (tenant_id, status);
+```
+
+#### RLS — `tenant_entitlements`
+
+```sql
+ALTER TABLE tenant_entitlements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_select ON tenant_entitlements
+  FOR SELECT
+  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+
+CREATE POLICY tenant_isolation_insert ON tenant_entitlements
+  FOR INSERT
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
+```
+
+No UPDATE or DELETE policy by design — grant/revoke run under `assessiq_system` (BYPASSRLS) via the two-role same-transaction pattern: the system role performs the entitlement write, then the role switches to `assessiq_app` + `set_config('app.current_tenant', tenantId, true)` for the `auditInTx` write to `audit_log`. This is the same pattern as A2 `updateTenantPlan`. A company admin reads its own active rows (RO) via `GET /api/billing/entitlements` (RLS-scoped, active-only).
+
+#### Grant / revoke semantics
+
+- **Revoke = status UPDATE to `'revoked'`, never a hard DELETE.** All rows are append/soft — the ledger is auditable.
+- **Re-grant of a revoked `(tenant, scope_type, scope_id)`** reactivates the row via `ON CONFLICT (tenant_id, scope_type, scope_id) DO UPDATE SET status='active', granted_by=…, granted_at=now(), revoked_by=NULL, revoked_at=NULL`. The `UNIQUE` constraint makes grant idempotent — calling grant twice on an already-active scope is a no-op conflict.
+
+#### Backfill — `0082_entitlements_backfill.sql`
+
+Domain-level rows are backfilled for every `(tenant, question_packs.domain)` that has ≥1 `questions.status='active'` row in a `question_packs.status='published'` pack. Key implementation details:
+
+- `granted_by = NULL::uuid` — explicit cast required; a bare `NULL` under `SELECT DISTINCT` resolves to `text` and fails uuid coercion on PG16.
+- Idempotent: `ON CONFLICT (tenant_id, scope_type, scope_id) DO NOTHING`.
+- Ships a zero-NULL verification query that the operator MUST run before any B2 deploy — a live tenant/domain missing an active entitlement would 403 at publish-time in B2.
+- Applied to production 2026-05-18: 3 rows inserted (`e2e-walkthrough→soc`, `wipro-soc→soc`, `wipro-soc→phishing`); verification PASS.
+
+#### B1↔B2 contract
+
+B2 (publish-time enforcement, not yet built) must treat a referenced pack as entitled if its domain OR its `pack_id` has an active entitlement row for the session tenant. The `internal` tier bypasses the entitlement check entirely.
+
+#### Design decisions — `tenant_entitlements`
+
+- **Append/soft-delete, no hard DELETE policy** — mirrors the `audit_log` and `billing_events` append-only invariants. Revoked rows remain in the table as an immutable audit trail.
+- **`UNIQUE(tenant_id, scope_type, scope_id)` makes grant idempotent** — concurrent grant calls collapse to one row; re-grant of a revoked scope updates in place rather than inserting a second row.
+- **`granted_by = NULL` for backfill** — legitimate sentinel; distinguishes system-provisioned rows from operator grants in the audit trail without a separate backfill flag column.
+- **`scope_id` is TEXT (not UUID)** — domain labels (`soc`, `phishing`) are not UUIDs; a TEXT column with a service-layer 256-char cap covers both scope types without needing two columns or a polymorphic FK.
+- **`(tenant_id, status)` index** — the primary query pattern for B2 enforcement is `WHERE tenant_id = ? AND status = 'active'`; the composite index covers this without scanning revoked rows.
+
+---
+
 ### Phase A2 — plan mutation + audit additions
 
 > **Status:** LIVE — Phase A2 (2026-05-17, commit `66ea0ff`). No schema migrations in A2 (all tables were created in A1); A2 adds the application-layer mutation path and the `PATCH /api/admin/super/tenants/:id/plan` endpoint.
@@ -1231,3 +1299,5 @@ The `audit_log.action` column (`TEXT NOT NULL` — see § Audit, notifications, 
 |---|---|---|
 | `tenant_settings.ai_generate_mode.updated` | `updateAiGenerateMode` | `modules/02-tenancy` |
 | `tenant.plan_updated` | `updateTenantPlan` | `modules/19-billing` |
+| `tenant.entitlement_granted` | `grantTenantEntitlement` | `modules/19-billing` |
+| `tenant.entitlement_revoked` | `revokeTenantEntitlement` | `modules/19-billing` |

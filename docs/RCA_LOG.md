@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-18 — Phase B1 backfill 0082 failed at prod apply: bare NULL → text vs uuid
+
+**Symptom:** Applying `modules/19-billing/migrations/0082_entitlements_backfill.sql` to prod errored: `ERROR: column "granted_by" is of type uuid but expression is of type text` (SQLSTATE 42804) at the `INSERT … SELECT DISTINCT … NULL …`. No partial write — single statement under `psql -v ON_ERROR_STOP=1`, failed atomically; `tenant_entitlements` stayed empty (0081 had created it).
+
+**Cause:** `0082` projected a bare untyped `NULL` for the `granted_by UUID` column inside a `SELECT DISTINCT`. PostgreSQL 16 resolves an unknown-type `NULL` under `DISTINCT` to `text` *before* the INSERT target-column coercion, so the text→uuid assignment is rejected. (Without `DISTINCT`, PG would coerce the unknown NULL straight to the target uuid — which is why this is easy to miss.) The B1 backfill **test** (`entitlements-backfill.test.ts`) did not catch it because its `BACKFILL_SQL` was a **hand-copied string**, not the migration file's SQL — and on the test container the same statement did not raise (PG minor-version / planner difference), so the test stayed green while prod failed. Phase-3 critique and the Sonnet adversarial pass both read the migration but neither flagged the untyped-NULL-under-DISTINCT coercion.
+
+**Fix:** `0082` line 62 → `NULL::uuid` (explicit cast — always correct regardless of PG version or `DISTINCT`) + an inline comment. The test's `BACKFILL_SQL` updated to `NULL::uuid` with a comment requiring byte-identity with the migration so it now genuinely mirrors prod. Commit `9f073a5`. Re-applied to prod (idempotent `ON CONFLICT`; the first attempt inserted nothing): `INSERT 0 3`, zero-NULL verification gate PASS.
+
+**Prevention:** (1) Phase-3 critique guardrail — any `NULL` literal inserted into a typed column (esp. under `SELECT DISTINCT`/`UNION`) must carry an explicit `::type` cast; add to the migration-diff checklist. (2) Backfill/migration integration tests must execute the migration file's SQL (read it from disk), not a maintained copy that can silently diverge from prod behaviour. Tracked as a follow-up (the B1 test still uses a copy, now annotated to require byte-identity). (3) Surgical prod apply with `ON_ERROR_STOP=1` worked exactly as intended — it caught the defect atomically with no partial state; keep that as the standard apply harness.
+
 ## 2026-05-17 — Create company "INTERNAL ERROR": tenants_status_check missing 'provisioning'
 
 **Symptom:** Every `POST /api/admin/super/companies` (Create company on the Platform page) returned **INTERNAL ERROR** (HTTP 500). Prod logs: `new row for relation "tenants" violates check constraint "tenants_status_check"` (SQLSTATE `23514`) at `modules/02-tenancy/src/service.ts:166`.
