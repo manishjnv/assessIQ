@@ -639,32 +639,47 @@ admin.audit.archives.restore_procedure:
 
 admin.platform:
   audience: admin
-  short_text: "Platform operators provision new company tenants here. Requires fresh MFA. Tenant admins cannot access this page."
+  short_text: "This is the platform operator page. You can add new companies and see every company on AssessIQ. Company admins never see this page."
   long_md: |
-    ## Platform — company provisioning
+    ## What you can do here
 
-    The **Platform** page is visible only to platform super-admins. Use it to:
+    You are signed in as a **platform operator** — the person who runs
+    AssessIQ for every company. This page is your control centre.
 
-    - **Provision a new company tenant** — creates the tenant database row,
-      slugs the company, and sends the first-admin invitation email.
-    - **View all provisioned tenants** — read-only list showing slug, name,
-      status, and creation date.
+    **Add a new company.**
+    Click **Create company**, then fill in three things:
 
-    **Access control:** only users with `role = super_admin` can reach this
-    page. A tenant admin (`role = admin`) is redirected even if they navigate
-    directly to `/admin/platform`.
+    - the company's name,
+    - a short web-friendly name for it (the "slug" — lowercase letters,
+      numbers and hyphens; it is suggested for you from the name),
+    - the email address of the person who will be that company's first
+      administrator.
 
-    **MFA requirement:** the Create Company form requires fresh TOTP (verified
-    within the last 15 minutes). If your MFA is stale, a step-up prompt appears
-    inline — enter your authenticator code without losing your entered values.
+    AssessIQ then sets the company up and emails that person an invitation
+    to sign in and take over their company. You do not manage the company's
+    day-to-day work — its own administrator does that.
 
-    **What happens after creation:**
-    1. The tenant is created in `provisioning` status.
-    2. Its taxonomy is seeded and an invitation email is sent to the
-       first-admin address.
-    3. The tenant is activated (`active` status) as the final provisioning
-       step — before the admin accepts. If seeding or the invite fails, the
-       tenant stays at `provisioning` and creation reports an error.
+    **See every company.**
+    The list below shows each company, its short name, whether it is active,
+    and the date it was added.
+
+    ## Good to know
+
+    - **Only you see this.** Company administrators and reviewers never see
+      the Platform page or this company list. Each company only ever sees
+      its own data, never another company's.
+    - **Extra sign-in check.** When you create a company, AssessIQ may ask
+      for the 6-digit code from your authenticator app if it has been a
+      while since you signed in. Just enter the code if prompted — anything
+      you have already typed in the form is kept.
+    - **What happens when you add a company.** AssessIQ creates the company,
+      prepares its question categories, emails the first administrator, and
+      switches the company on. If anything goes wrong partway through, the
+      company is left switched off and you see an error — so a half-finished
+      company is never live.
+    - **What you cannot do from here.** This page does not let you log in as
+      a company, change a company's questions or candidates, or remove a
+      company. Those are deliberately separate; ask for them if you need them.
 
   related_keys:
     - admin.platform.slug
