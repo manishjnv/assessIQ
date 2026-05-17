@@ -1239,4 +1239,46 @@ Re-snapshot `display_name` from the current `users` record and recompute `signed
 
 **Response 404:** cert not found in calling tenant.
 
+---
+
+## Admin — Billing (Phase A1, module 19-billing)
+
+> **Status: LIVE — 2026-05-17 (commit `111dd77`).** Route in `modules/19-billing/src/routes.ts`. Auth via `authChain({ roles: ['admin'] })`. Tenant context via `withTenant` (RLS-scoped to session tenant).
+
+### `GET /api/billing/usage`
+
+Returns the calling tenant's credit tier, allowance, and current consumption. Soft-enforcement only — this endpoint reports usage and never blocks a request.
+
+**Auth:** company tenant admin (`authChain({ roles: ['admin'] })`); own tenant only; read-only. `super_admin` satisfies the admin gate via the role hierarchy and resolves to the platform tenant's plan row (`internal` tier, `included_credits: null` — harmless).
+
+**Request:** no query params, no body.
+
+**Response 200** `application/json`:
+```json
+{
+  "tier": "free",
+  "included_credits": 50,
+  "used": 43,
+  "remaining": 7,
+  "overage": 0,
+  "status": "warn"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `tier` | `"free" \| "pro" \| "enterprise" \| "internal"` | From `tenant_plans.tier` |
+| `included_credits` | `number \| null` | `null` when unlimited (`internal` tier) |
+| `used` | `number` | `COUNT(*)` from `billing_events WHERE tenant_id = ?` |
+| `remaining` | `number \| null` | `included_credits - used`; `null` when unlimited; negative value signals overage magnitude |
+| `overage` | `number` | `max(0, used - included_credits)`; `0` when unlimited |
+| `status` | `"ok" \| "warn" \| "over" \| "unlimited"` | `ok` = <80% used; `warn` = 80–<100%; `over` = ≥100%; `unlimited` = `included_credits` is null |
+
+**Errors:**
+
+- `401 AUTHN_FAILED` — no session or invalid session cookie. Verified live.
+- No `404` for a planless tenant — fails safe to `{ tier: "free", included_credits: 0, used: <count>, status: "over" }` and logs a server-side warning. This is an operator-visible data-integrity signal (every tenant should have a plan row post-backfill by migration `0080`).
+
+**Note:** RLS-scoped to the session tenant via `withTenant`. The credit count query is `COUNT(*) FROM billing_events WHERE tenant_id = $1` — no mutable counter, always self-consistent.
+
 **Source:** `modules/18-certification/src/routes.ts` — `POST /api/admin/certificates/:id/reissue`.

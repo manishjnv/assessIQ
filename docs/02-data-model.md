@@ -30,6 +30,7 @@
 | 15-analytics | `attempt_summary_mv` (materialized view — no RLS, explicit tenant filter required) |
 | 16-help-system | `help_content` |
 | 18-certification | `certificates` |
+| 19-billing | `tenant_plans`, `billing_events` |
 
 ---
 
@@ -918,6 +919,7 @@ System-level operations (cross-tenant analytics, support tools) use a `BYPASSRLS
 - Partial indexes on `WHERE deleted_at IS NULL` for users and questions
 - `email_log (tenant_id, created_at DESC)` — timeline feed; partial `(tenant_id, status) WHERE status IN ('queued','failed','bounced')` for retry sweeps
 - `in_app_notifications (tenant_id, audience, created_at DESC) WHERE read_at IS NULL` — unread short-poll query
+- `billing_events_tenant_idx (tenant_id)` — tenant-scoped `COUNT(*)` for used-credit math (module 19-billing)
 - `webhook_deliveries` — no own index; queries always filter through `endpoint_id` which maps back to tenant via RLS JOIN
 - `attempt_summary_mv (tenant_id, attempt_id)` — **UNIQUE** composite required for `REFRESH MATERIALIZED VIEW CONCURRENTLY` (Phase 3 G3.C)
 
@@ -1084,3 +1086,109 @@ CREATE POLICY public_verify_lookup ON certificates
 - **`credential_id` is globally unique** — slug used in QR codes and LinkedIn share URLs; recruiters look it up without knowing the issuing tenant.
 - **Counters use server-side arithmetic** — `UPDATE … SET col = col + 1`. Never read-modify-write. Non-critical analytics: a lost increment is acceptable.
 - **`issued_at` must be truncated to second precision** before HMAC signing — PostgreSQL preserves microseconds; a drift between persisted value and re-signing produces a different digest. See `modules/18-certification/SKILL.md` D6.
+
+---
+
+## 19-billing — `tenant_plans` + `billing_events`
+
+> **Status:** LIVE — Phase A1 (2026-05-17, commit `111dd77`). Migrations at `modules/19-billing/migrations/`: `0078_tenant_plans.sql`, `0079_billing_events.sql`, `0080_backfill_tenant_plans.sql`. Applied to production `assessiq-postgres`.
+
+### `tenant_plans`
+
+One row per tenant — the billing tier and credit allowance. Provisioned by the `createCompany` hook (after the `tenant.created` audit entry, inside the new tenant's `withTenant` context). Pre-existing tenants are backfilled by migration `0080`.
+
+```sql
+CREATE TABLE tenant_plans (
+  tenant_id        UUID        PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  tier             TEXT        NOT NULL DEFAULT 'free'
+                               CHECK (tier IN ('free', 'pro', 'enterprise', 'internal')),
+  included_credits INTEGER     CHECK (included_credits IS NULL OR included_credits >= 0),
+                               -- NULL = unlimited (internal tier only)
+  cycle_start      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                               -- reserved for A2 cycle engine; not queried in A1
+  status           TEXT        NOT NULL DEFAULT 'active'
+                               CHECK (status IN ('active', 'suspended')),
+  notes            TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+#### RLS — `tenant_plans`
+
+```sql
+ALTER TABLE tenant_plans ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_select ON tenant_plans
+  FOR SELECT
+  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+
+CREATE POLICY tenant_isolation_insert ON tenant_plans
+  FOR INSERT
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
+```
+
+No UPDATE or DELETE policy in A1 — plan mutation is deferred to A2 and executed exclusively under the `assessiq_system` BYPASSRLS role. A company admin can only read its own row. Provisioning inserts run under the new tenant's `withTenant` context.
+
+#### Design decisions — `tenant_plans`
+
+- **`included_credits IS NULL` ⇒ unlimited** — avoids a sentinel integer (e.g. `-1` or `MAX_INT`) and makes the unlimited check an explicit `IS NULL` branch at the query layer. Only the `internal` tier ships with NULL credits in A1.
+- **`cycle_start` reserved, not queried** — credit cycles (monthly reset, rollover) are an A2 concern. The column is present now so A2 can add the cycle engine without a schema change.
+- **No mutable counter column** — used-credit count is derived on-read from `billing_events` (`COUNT(*)`). This self-reconciles on re-grade and avoids a counter drift class of bugs.
+
+---
+
+### `billing_events`
+
+Append-only ledger; one row per graded candidate attempt (= 1 consumed credit). Migration `0079_billing_events.sql`.
+
+```sql
+CREATE TABLE billing_events (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id    UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  attempt_id   UUID        NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+  event_type   TEXT        NOT NULL DEFAULT 'assessment_graded'
+                           CHECK (event_type IN ('assessment_graded')),
+  occurred_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, attempt_id)   -- idempotency: re-grade never double-charges
+);
+
+CREATE INDEX billing_events_tenant_idx ON billing_events (tenant_id);
+```
+
+#### RLS — `billing_events`
+
+```sql
+ALTER TABLE billing_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_select ON billing_events
+  FOR SELECT
+  USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+
+CREATE POLICY tenant_isolation_insert ON billing_events
+  FOR INSERT
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
+```
+
+No UPDATE or DELETE policy. Append-only invariant enforced defence-in-depth at the DB role level, mirroring the `audit_log` pattern:
+
+```sql
+REVOKE UPDATE, DELETE, TRUNCATE ON billing_events FROM assessiq_app;
+```
+
+#### Usage math (no mutable counter)
+
+```sql
+-- used      = COUNT(*) FROM billing_events WHERE tenant_id = ?
+-- remaining = included_credits - used          (NULL included_credits ⇒ unlimited)
+-- overage   = max(0, used - included_credits)
+```
+
+All three values are derived on-read from the ledger. Self-reconciling: a re-grade that removes the old grading row and inserts a new one produces at most one `billing_events` row per attempt (UNIQUE constraint).
+
+#### Design decisions — `billing_events`
+
+- **Same transaction as grade-commit** — the `billing_events` INSERT is in the same Postgres transaction as the attempt→`graded` state transition in `07-ai-grading/admin-accept.ts`, mirroring `auditInTx`. A non-conflict DB error rolls back the grade entirely (revenue-leak invariant). `billing_events` availability is therefore in the critical path of grade-commit — identical blast radius to `audit_log`.
+- **`UNIQUE(tenant_id, attempt_id)`** — idempotency firewall. An operator retry or a duplicate grade-commit RPC cannot double-charge a tenant.
+- **`attempt_id ON DELETE CASCADE`** — a GDPR attempt-purge removes the billing row, consistent with the `certificates` table. Accepted: the credit is effectively refunded on purge; this is correct behaviour (the attempt no longer exists).
+- **`event_type` extensible via CHECK** — future event classes (e.g. `ai_question_generated` in A3) extend the enum; the A1 query always filters `WHERE event_type = 'assessment_graded'`.

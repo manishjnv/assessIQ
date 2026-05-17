@@ -117,10 +117,16 @@ content, no logic. Ships last.
 
 ## Phasing (one spec, phased build; each phase = own commit→deploy→verify)
 
-1. **A1** — `19-billing` module: 3 tables + RLS + migrations + provisioning
-   hook + existing-tenant plan backfill + `recordGradedAttempt` + same-tx grade
-   hook + `GET /api/billing/usage`. **Load-bearing (grade-path hook + RLS) →
-   Sonnet+Opus adversarial gate before push.**
+1. **A1** — ✅ **SHIPPED 2026-05-17 (commit `111dd77`).** `19-billing`
+   module: `tenant_plans` + `billing_events` (2 of 3 tables — `tenant_entitlements`
+   is B1 per spec) + RLS + migrations `0078/0079/0080` (applied to prod,
+   recorded in `schema_migrations` w/ sha256) + `createCompany` provisioning
+   hook (ordered after `tenant.created` audit) + existing-tenant plan backfill
+   (e2e-walkthrough + foxfiber → free/25; platform + wipro-soc → internal/NULL)
+   + `recordGradedAttempt` same-tx grade hook in `07-ai-grading/admin-accept.ts`
+   + `GET /api/billing/usage`. **Default free N = 25** (operator-confirmed).
+   Adversarial gate: Sonnet ACCEPT + Opus ACCEPT (10 vectors; GLM leg blocked
+   by source-exfil guard → Opus-takeover per documented ladder). 25/25 tests.
 2. **A2** — super-admin usage column + billing drawer + `PATCH plan`;
    company-admin usage banners.
 3. **B1** — re-gate generation to super-admin; entitlement grant/revoke
