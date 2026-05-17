@@ -60,6 +60,7 @@ export function AdminMfa(): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [enrolled, setEnrolled] = useState<boolean | null>(null);
   const [secretBase32, setSecretBase32] = useState<string | null>(null);
+  const [otpauthUri, setOtpauthUri] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -89,12 +90,12 @@ export function AdminMfa(): JSX.Element {
       .then((data) => {
         if (cancelled) return;
         setSecretBase32(data.secretBase32);
+        setOtpauthUri(data.otpauthUri);
         setEnrolled(false);
-        if (canvasRef.current) {
-          QRCode.toCanvas(canvasRef.current, data.otpauthUri, { width: 180 }, (err) => {
-            if (err) setError(err.message);
-          });
-        }
+        // QR is drawn by the dedicated effect below — NOT here. The <canvas>
+        // only mounts once enrolled===false re-renders, so canvasRef.current
+        // is still null at this point (fixed 2026-05-17: super-admin saw a
+        // blank QR with only the manual key; the inline toCanvas never ran).
       })
       .catch((err: unknown) => {
         if (err instanceof ApiCallError) {
@@ -111,6 +112,18 @@ export function AdminMfa(): JSX.Element {
       cancelled = true;
     };
   }, [loading, session, nav]);
+
+  // Draw the QR once the <canvas> is actually in the DOM. The canvas is
+  // conditionally rendered (enrolled===false && !locked), so it does not
+  // exist when enroll/start resolves — drawing must wait for the mount.
+  useEffect(() => {
+    if (enrolled !== false || locked || otpauthUri === null) return;
+    const canvas = canvasRef.current;
+    if (canvas === null) return;
+    QRCode.toCanvas(canvas, otpauthUri, { width: 180 }, (err) => {
+      if (err) setError(err.message);
+    });
+  }, [enrolled, locked, otpauthUri]);
 
   const verify = async (): Promise<void> => {
     if (!/^\d{6}$/.test(code)) {
