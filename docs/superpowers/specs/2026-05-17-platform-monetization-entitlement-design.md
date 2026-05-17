@@ -168,9 +168,30 @@ content, no logic. Ships last.
    `pack_id` has an `active` entitlement; `internal` tier bypasses the
    check entirely; backfill is domain-level only (pack-level grants are
    super-admin-manual via the UI). RCA logged (0082 NULL::uuid prod-apply).
-4. **B2** — publish-time entitlement enforcement + filtered picker.
-   **Authorization boundary → Sonnet+Opus adversarial gate before push.**
+4. **B2** — ✅ **SHIPPED 2026-05-18 (commit `5c80aaa`).** `@assessiq/billing`
+   `assertPublishEntitled(client,tenantId,packId)` wired into BOTH and ONLY the
+   two →published transitions (`publishAssessment` + `reopenAssessment` in
+   05-assessment-lifecycle), inside their `withTenant` tx, before the status
+   write + `assessment.published` audit (a 403 ROLLBACKs the whole publish —
+   no partial published state). Rule: `internal` tier bypass; missing plan ⇒
+   enforce (fail-closed); entitled iff `pack_id` ∈ active pack-scope OR
+   `question_packs.domain` ∈ active domain-scope; else `AppError 403
+   NOT_ENTITLED`. Reads under the tenant's own RLS (no system role).
+   Convenience-only FE picker hint (fails open). No migration. Adversarial
+   (spec-mandated full gate): Sonnet VERDICT revise (2 MAJOR + 3 MINOR; all 7
+   highest-stakes vectors CLEAN) + Opus adjudication — **no code revisions**;
+   MAJOR-3 (backfill blast-radius) ADOPTED as a strengthened **assessment-level
+   zero-fail pre-deploy gate run on prod = PASS** (0 of the existing
+   published/active assessments would 403); MAJOR-2 (Docker-less test
+   silent-pass) = pre-existing repo-wide pattern → test-harness follow-up;
+   MINOR-1/4/5 = documented follow-ups (pack_id DB-immutability;
+   grant-time domain case-normalisation; e2e abort test). 50 billing tests;
+   4 typechecks clean.
 5. **C** — help-guide + drawer content refresh.
+
+> **Monetization/entitlement program A→B COMPLETE** (A1 `111dd77`, A2
+> `66ea0ff`, B1 `2ba822d`+`9f073a5`, B2 `5c80aaa`). Only **C** (help-guide
+> refresh — pure content, non-load-bearing) remains.
 
 Order is strict: **B2 must not ship before B1's backfill** or existing
 assessments 403 at publish.

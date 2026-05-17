@@ -1253,6 +1253,29 @@ Domain-level rows are backfilled for every `(tenant, question_packs.domain)` tha
 
 B2 (publish-time enforcement, not yet built) must treat a referenced pack as entitled if its domain OR its `pack_id` has an active entitlement row for the session tenant. The `internal` tier bypasses the entitlement check entirely.
 
+#### Phase B2 — publish-time enforcement
+
+> **Status:** LIVE — Phase B2 (2026-05-18, commit `5c80aaa`). No schema migrations — B2 is application-layer only, reading the tables introduced in B1.
+
+**Read model.** At every transition INTO `assessments.status='published'` — both `publishAssessment` and `reopenAssessment` in `modules/05-assessment-lifecycle/src/service.ts`, inside their existing `withTenant` transaction — `assertPublishEntitled(client, tenantId, assessment.pack_id)` (exported from `@assessiq/billing`) runs BEFORE the `status='published'` write and BEFORE the `assessment.published` audit entry. A failure throws `AppError 403 NOT_ENTITLED`; the surrounding `withTenant` issues a ROLLBACK — no partial published row, no audit entry.
+
+**The implemented check (B1↔B2 contract):**
+
+- `tenant_plans.tier = 'internal'` → **bypass** (always allowed regardless of entitlement rows).
+- No `tenant_plans` row for the tenant → **fail-closed** (enforce, NOT bypass).
+- Entitled iff `assessment.pack_id` ∈ active `tenant_entitlements(scope_type='pack')` OR `question_packs.domain` of that pack ∈ active `tenant_entitlements(scope_type='domain')`.
+- Comparison is exact-string; this is intentional and matches the `0082` backfill which derives `scope_id` verbatim from `question_packs.domain`.
+
+**RLS.** Reads on `tenant_plans`, `tenant_entitlements`, and `question_packs` all run under the publishing tenant's own `withTenant` RLS SELECT policies — no system role used; cross-tenant reads are structurally impossible (RLS + server-derived `tenantId`).
+
+**Deploy safety.** B2 went live only after a prod assertion confirmed ZERO existing `published`/`active` assessments would fail the gate (assessment-level check, stronger than the B1 domain-proxy zero-NULL query). 2026-05-18: PASS (`e2e-walkthrough/soc` and `wipro-soc/soc` covered by the `0082` backfill; `wipro-soc` internal-bypass).
+
+**Known follow-ups (not B2 defects):**
+
+- Domain comparison is case-sensitive by design; a future B1-UI hardening should normalise case at grant time rather than at query time.
+- `pack_id` immutability post-draft is enforced at the service layer only; a DB CHECK constraint is a separate hardening task.
+- The Docker-less test silent-pass (no testcontainer available in local-only mode) is a pre-existing repo-wide pattern; a test-harness sweep is tracked separately.
+
 #### Design decisions — `tenant_entitlements`
 
 - **Append/soft-delete, no hard DELETE policy** — mirrors the `audit_log` and `billing_events` append-only invariants. Revoked rows remain in the table as an immutable audit trail.

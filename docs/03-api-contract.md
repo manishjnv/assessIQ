@@ -215,14 +215,24 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 | `POST` | `/admin/assessments`              | Create draft assessment (returns 201) |
 | `GET`  | `/admin/assessments/:id`          | Get assessment by id (extension) |
 | `PATCH`| `/admin/assessments/:id`          | Update — only allowed in `draft` status |
-| `POST` | `/admin/assessments/:id/publish`  | `draft → published` — runs pool-size pre-flight (count active questions ≥ `question_count` else 422 `POOL_TOO_SMALL`) |
+| `POST` | `/admin/assessments/:id/publish`  | `draft → published` — runs pool-size pre-flight (count active questions ≥ `question_count` else 422 `POOL_TOO_SMALL`). **B2: 403 `NOT_ENTITLED` if pack is not entitled for the tenant's plan.** |
 | `POST` | `/admin/assessments/:id/close`    | `active → closed` — illegal on `draft` (state-machine reject) |
-| `POST` | `/admin/assessments/:id/reopen`   | `closed → published` if `now < closes_at`; else 422 `REOPEN_PAST_CLOSES_AT` (extension) |
+| `POST` | `/admin/assessments/:id/reopen`   | `closed → published` if `now < closes_at`; else 422 `REOPEN_PAST_CLOSES_AT` (extension). **B2: 403 `NOT_ENTITLED` if pack is not entitled for the tenant's plan.** |
 | `GET`  | `/admin/assessments/:id/preview`  | Admin sample of the question pool — does NOT create attempt or snapshot (extension) |
 | `GET`  | `/admin/assessments/:id/invitations` | List invitations for an assessment (paginated; filter by `status`) (extension) |
 | `POST` | `/admin/assessments/:id/invite`   | Bulk invite users (body: `{ user_ids: string[] }`); per-user skip reasons returned in `skipped[]` (returns 201) |
 | `DELETE`| `/admin/invitations/:id`         | Revoke invitation — sets status to `expired`; idempotent on already-expired (extension; returns 204) |
 | `GET`  | `/admin/assessments/:id/attempts` | List all attempts (status filter) — **NOT in 05; lands with module 06-attempt-engine (Group G1.C)** |
+
+#### Assessment lifecycle endpoints — error contract (`details.code`)
+
+| `details.code` | HTTP | Where |
+|---|---|---|
+| `POOL_TOO_SMALL` | 422 | `/publish` — active question count < `question_count` for this assessment |
+| `REOPEN_PAST_CLOSES_AT` | 422 | `/reopen` — `now ≥ closes_at`; cannot reopen a window that has already ended |
+| `NOT_ENTITLED` | 403 | `/publish`, `/reopen` — assessment's question pack not entitled for the tenant's plan (B2); see § Phase B2 — publish-time enforcement for body shape |
+| `AUTHN_FAILED` | 401 | All routes — no session |
+| `AUTHZ_FAILED` | 403 | All routes — caller is not a tenant admin |
 
 ### Admin — Grading & review
 
@@ -1608,3 +1618,43 @@ Active rows only — revoked rows are excluded. RLS-scoped to the session tenant
 **Errors:** `401 AUTHN_FAILED` — no session. `403 AUTHZ_FAILED` — caller is not a tenant admin.
 
 **Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/entitlements`.
+
+---
+
+## Phase B2 — publish-time enforcement
+
+> **Status: LIVE — 2026-05-18 (commit `5c80aaa`).** Follows Phase B1. Schema in `docs/02-data-model.md` § `tenant_entitlements` → Phase B2 note.
+
+Every transition INTO `assessments.status='published'` — whether via `POST /admin/assessments/:id/publish` (`draft → published`) or `POST /admin/assessments/:id/reopen` (`closed → published`) — now validates pack entitlement server-side **before** the status write and the `assessment.published` audit event. The check runs inside the existing `withTenant` transaction in `modules/05-assessment-lifecycle/src/service.ts`; a failure rolls back the entire transition (no partial published row, no audit entry).
+
+**Entitlement function:** `assertPublishEntitled(client, tenantId, packId)` exported from `@assessiq/billing`.
+
+**Decision tree:**
+
+1. `tenant_plans.tier = 'internal'` → **bypass** (always allowed).
+2. No `tenant_plans` row for the tenant → **fail-closed** (enforce, not bypass).
+3. `assessment.pack_id` has an active `tenant_entitlements` row with `scope_type='pack'` → **entitled**.
+4. `question_packs.domain` of that pack has an active `tenant_entitlements` row with `scope_type='domain'` → **entitled**.
+5. Neither → **403 `NOT_ENTITLED`**.
+
+Reads (`tenant_plans`, `tenant_entitlements`, `question_packs`) run under the publishing tenant's own `withTenant` RLS — no system role; cross-tenant reads are structurally impossible.
+
+**The picker in `assessment-detail.tsx` is convenience only** — it hints at entitlement when selecting a pack at draft time, but it fails open and is never authoritative. The server 403 is the gate.
+
+**403 NOT_ENTITLED body:**
+
+```json
+{
+  "error": {
+    "code": "NOT_ENTITLED",
+    "message": "The question pack is not entitled for this tenant's plan.",
+    "details": {
+      "code": "NOT_ENTITLED",
+      "pack_id": "<uuid>",
+      "domain": "<domain-label>"
+    }
+  }
+}
+```
+
+A 403 rolls back the publish attempt — there is no partial published state and no `assessment.published` audit row.
