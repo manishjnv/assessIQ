@@ -69,10 +69,16 @@ export function AdminMfa(): JSX.Element {
   const [recoveryCodesCopied, setRecoveryCodesCopied] = useState(false);
   const [recoveryCodesSaved, setRecoveryCodesSaved] = useState(false);
 
-  // Phase 0 doesn't expose a "have you enrolled?" endpoint — the heuristic
-  // is: try /api/auth/totp/enroll/start; if it succeeds, we're enrolling
-  // (returns the otpauth URI to render). If TOTP is already enrolled the
-  // server returns 409 ALREADY_ENROLLED → skip QR, go to verify form.
+  // Decide enrol vs verify from the AUTHORITATIVE session.totpEnrolled
+  // (whoami computes it from user_credentials.totp_enrolled_at). The prior
+  // heuristic — "call enroll/start; 409 ALREADY_ENROLLED ⇒ verify" — was
+  // broken: enrollStart has NO already-enrolled guard and never returns 409,
+  // so an already-enrolled user was shown a fresh QR (new secret) on EVERY
+  // login and could never verify — "invalid totp code" because their
+  // authenticator holds the persisted secret while confirm validates the new
+  // Redis-staged one. Masked until super_admin (always-MFA) hit /admin/mfa;
+  // MFA_REQUIRED=false makes normal admins skip this page entirely.
+  // (2026-05-17 RCA — "re-enrol MFA every login".)
   useEffect(() => {
     if (loading || session === null) return;
     if (session.mfaStatus === 'verified') {
@@ -85,6 +91,15 @@ export function AdminMfa(): JSX.Element {
       return;
     }
 
+    if (session.totpEnrolled === true) {
+      // Already enrolled → VERIFY with the persisted secret. Must NOT call
+      // enroll/start: that stages a brand-new secret and enroll/confirm would
+      // overwrite user_credentials, permanently desyncing the authenticator.
+      setEnrolled(true);
+      return;
+    }
+
+    // Not enrolled (totpEnrolled false/absent) → first-time enrolment.
     let cancelled = false;
     api<EnrollStartResponse>('/auth/totp/enroll/start', { method: 'POST' })
       .then((data) => {
@@ -99,6 +114,7 @@ export function AdminMfa(): JSX.Element {
       })
       .catch((err: unknown) => {
         if (err instanceof ApiCallError) {
+          // Defensive: honour a 409 if enrollStart ever gains the guard.
           if (err.status === 409 || err.apiError.code === 'ALREADY_ENROLLED') {
             setEnrolled(true);
           } else {

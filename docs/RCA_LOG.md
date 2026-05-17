@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-17 — Super-admin re-prompted to enrol TOTP on every login (mfa.tsx ignored totpEnrolled)
+
+**Symptom:** A super_admin who had already enrolled TOTP was shown the **Enrol your authenticator** screen (fresh QR + new secret) on every subsequent login. Entering a code from their real authenticator returned "invalid totp code"; they could never reach the verify path — a re-enrol loop. Prod DB confirmed enrollment WAS persisted (`user_credentials` row for user `…0002`: `totp_secret_enc` set, `totp_enrolled_at=2026-05-17 13:40:29Z`).
+
+**Cause:** `apps/web/src/pages/admin/mfa.tsx` decided enrol-vs-verify with a heuristic: "call `POST /api/auth/totp/enroll/start`; if it returns `409 ALREADY_ENROLLED` → show verify form." But `modules/01-auth/src/totp.ts` `enrollStart` has **no already-enrolled guard** and never returns 409 — it unconditionally mints a new 20-byte secret and stages it in Redis. So `mfa.tsx` always took the enrol branch, showed a new QR, and `enroll/confirm` validated the user's code against the *new Redis-staged* secret instead of the *persisted* one. Meanwhile `whoami` already returns the authoritative `totpEnrolled` (from `getEnrollmentStatus` → `user_credentials.totp_enrolled_at`), which `mfa.tsx` ignored. Latent since the MFA-enrollment-UX work (2026-05-15); masked because `MFA_REQUIRED=false` makes normal admins report `mfaStatus='verified'` and skip `/admin/mfa` entirely. Making `super_admin` always-MFA (the correct lockout fix, same day) was the first code path to actually exercise `/admin/mfa` in prod, exposing it.
+
+**Fix:** `mfa.tsx` now routes on `session.totpEnrolled`: `true` → verify mode (no `enroll/start` call — avoids staging/overwriting a new secret), `false`/absent → first-time enrol. The defensive 409 branch is kept in case `enrollStart` later gains the guard. Frontend-only; both `/auth/totp/verify` and `/enroll/confirm` are server-validated and unchanged — no auth-gate logic touched, no adversarial gate required.
+
+**Prevention:** Use the backend-computed `totpEnrolled` signal — never infer enrolment state from a side-effecting endpoint that has no such guard. Optional follow-up (not done — would be load-bearing `01-auth`, needs the gate): add an idempotency/already-enrolled guard to `enrollStart` so it cannot silently re-stage a secret for an enrolled user (defense-in-depth against an accidental re-enrol overwrite). Tracked as a backlog note.
+
 ## 2026-05-17 — "role super_admin not authorized" on the tenant dashboard (backend role gate had no hierarchy)
 
 **Symptom:** Immediately after the MFA-bootstrap lockout was fixed and a super_admin logged in end-to-end, the tenant dashboard (`/admin`) showed a red **"role super_admin not authorized"** on the grading-queue panel. The super_admin could reach the Platform page but every tenant-admin API call (gated `roles:['admin','reviewer']`) 403'd.
