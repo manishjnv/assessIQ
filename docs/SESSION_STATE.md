@@ -1,3 +1,23 @@
+# Session — 2026-05-17 (Phase A2 — plan management + usage UX shipped)
+
+**Headline:** Phase A2 is live — super-admin can see per-tenant usage, open a billing drawer, change tier/credits (audited), export a CSV ledger; company admins see a soft green/amber/red usage banner. Nothing blocks grading.
+**Commits (main):** `66ea0ff` feat A2 (15 files, +2075) · `458d937` docs A2 (api-contract + data-model + spec).
+**Tests:** `@assessiq/billing` 31/31 (incl. update-tenant-plan a–e, all-tenant-usage) + admin-dashboard usage-message unit; api/billing/admin-dashboard/web typecheck clean.
+**Deploy:** no migration (A1 tables). `git pull` → rebuilt+recreated `assessiq-api` + `assessiq-frontend` on `66ea0ff`, both healthy; all 4 A2 routes → 401 (registered, gated, no leak); no billing errors; neighbor containers untouched (additive-only).
+**Next:** Phase **B1** (separate session, same spec): re-gate Generate Questions to super-admin only; `tenant_entitlements` table + grant/revoke endpoints + super-admin entitlements UI; existing-tenant entitlement backfill. Strict ordering: B2 must not ship before B1's backfill.
+**Open questions:** (1) Deferred finding **D** — route-level `:tenantId` UUID guard is absent on the new (and all existing) `admin-super.ts` routes; not exploitable (superAdminOnly + PG uuid cast fails safe) — tracked as a repo-wide hardening sweep, not a B1 blocker. (2) `cycle_start` is recorded but lifetime-COUNT is used (cycle engine deferred per spec). (3) The worktree isolation for the A2 build produced an unused worktree; the agent wrote to the main tree — harmless here (reviewed + committed from main) but worth noting if it recurs.
+
+---
+
+## Agent utilization
+- **Opus:** A2 build contract (B1–F5 + tests); Phase-0 grounding; Phase-3 diff critique → 2 self-applied robustness fixes (best-effort usage on GET /tenants; PATCH body null-guard); **adjudicated the Sonnet adversarial review** — verified finding A against the `updateAiGenerateMode` precedent (real contract violation → reworked `updateTenantPlan` to a two-role same-tx), fixed B (internal-credits coercion) + E, **rejected C with code evidence** (gate parity: ai-generate-mode uses plain superAdminOnly), deferred D with rationale; all deploy/verify/spec/handoff.
+- **Sonnet:** A2 build subagent (backend + FE + 3 test files; all typechecks/31 tests green); **adversarial-review subagent** — VERDICT revise, 5 substantive findings (1 real BLOCKER-class contract violation caught pre-deploy); doc subagent (api-contract + data-model, format-matched, also fixed a stale A1 Source line).
+- **Haiku:** n/a — verification was a focused route-probe, not a bulk sweep.
+- **codex:rescue:** n/a — spec scopes the full Sonnet+Opus gate to A1 & B2; A2's single load-bearing mutation was gated via a real Sonnet adversarial subagent + Opus adjudication per the documented ladder (GLM leg remains blocked by the source-exfil guard).
+- **claude-mem:** memory unchanged — A2 adds no new cross-session constraint beyond the in-code two-role comment + the existing A1 critical-path memory.
+
+---
+
 # Session — 2026-05-17 (Phase A1 — monetization metering shipped)
 
 **Headline:** Phase A1 of the approved monetization spec is live in prod — new `modules/19-billing` meters 1 credit per graded attempt, soft-enforcement only, no blocking.
