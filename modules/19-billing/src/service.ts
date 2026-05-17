@@ -4,15 +4,30 @@
 // Pure-function helpers (computeUsage) are DB-free and unit-testable.
 
 import type { PoolClient } from 'pg';
-import { withTenant } from '@assessiq/tenancy';
-import { streamLogger } from '@assessiq/core';
+import { withTenant, getPool } from '@assessiq/tenancy';
+import { streamLogger, NotFoundError, ValidationError } from '@assessiq/core';
+import { auditInTx } from '@assessiq/audit-log';
 import {
   insertBillingEvent,
   insertDefaultFreePlan,
   getPlan,
   countBillingEvents,
+  getAllTenantUsageRaw,
+  getTenantPlanRow,
+  countTenantBillingEvents,
+  getRecentBillingEvents,
+  getAllBillingEventsForExport,
+  updateTenantPlanRow,
 } from './repository.js';
-import type { BillingUsage, PlanTier, UsageStatus } from './types.js';
+import type {
+  BillingUsage,
+  PlanTier,
+  UsageStatus,
+  TenantUsageRow,
+  TenantBillingDetail,
+  UpdateTenantPlanPatch,
+  UpdateTenantPlanResult,
+} from './types.js';
 
 const log = streamLogger('billing');
 
@@ -135,4 +150,266 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       status,
     } satisfies BillingUsage;
   });
+}
+
+// ---------------------------------------------------------------------------
+// A2 — system-role transaction helper
+// Mirrors the pattern in apps/api/src/routes/admin-super.ts:289-326.
+// Caller must use this for all cross-tenant billing reads/writes so they
+// operate under assessiq_system (BYPASSRLS).
+// ---------------------------------------------------------------------------
+
+/**
+ * Open a pool client, BEGIN, SET LOCAL ROLE assessiq_system, run fn, COMMIT.
+ * On error: ROLLBACK (swallow rollback error) + rethrow. Always release.
+ *
+ * Mirrors admin-super.ts GET /tenants transaction shape exactly.
+ */
+async function withSystemTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL ROLE assessiq_system');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// A2 — cross-tenant usage (super-admin)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch a usage summary for ALL tenants (super-admin).
+ *
+ * Runs under assessiq_system (BYPASSRLS) via withSystemTx.
+ */
+export async function getAllTenantUsage(): Promise<TenantUsageRow[]> {
+  return withSystemTx(async (client) => {
+    const rows = await getAllTenantUsageRaw(client);
+    return rows.map((r) => {
+      const tier = r.tier as PlanTier;
+      const { remaining, overage, status } = computeUsage(tier, r.included_credits, r.used);
+      return {
+        tenant_id: r.tenant_id,
+        tier,
+        included_credits: r.included_credits,
+        used: r.used,
+        remaining,
+        overage,
+        status,
+      };
+    });
+  });
+}
+
+/**
+ * Fetch the full billing detail for a single tenant (super-admin billing drawer).
+ *
+ * Throws NotFoundError if no plan row exists for the tenant.
+ */
+export async function getTenantBillingDetail(tenantId: string): Promise<TenantBillingDetail> {
+  return withSystemTx(async (client) => {
+    const plan = await getTenantPlanRow(client, tenantId);
+    if (plan === null) {
+      throw new NotFoundError(`No billing plan found for tenant ${tenantId}`, {
+        details: { code: 'PLAN_NOT_FOUND', tenantId },
+      });
+    }
+
+    const used = await countTenantBillingEvents(client, tenantId);
+    const recentEvents = await getRecentBillingEvents(client, tenantId);
+
+    const tier = plan.tier as PlanTier;
+    const { remaining, overage, status } = computeUsage(tier, plan.included_credits, used);
+
+    return {
+      tenant_id: tenantId,
+      tier,
+      included_credits: plan.included_credits,
+      status: plan.status as 'active' | 'suspended',
+      cycle_start: plan.cycle_start instanceof Date
+        ? plan.cycle_start.toISOString()
+        : String(plan.cycle_start),
+      used,
+      remaining,
+      overage,
+      usage_status: status,
+      recent_events: recentEvents,
+    };
+  });
+}
+
+/**
+ * Generate a CSV export of all billing events for a tenant.
+ *
+ * Returns a RFC4180-safe CSV string (header + rows). Values are UUIDs/enums/
+ * timestamps — no embedded commas or quotes expected, but all fields are
+ * quote-wrapped defensively for correctness.
+ */
+export async function getTenantBillingEventsCsv(tenantId: string): Promise<string> {
+  const events = await withSystemTx((client) =>
+    getAllBillingEventsForExport(client, tenantId),
+  );
+
+  const escape = (v: string): string => `"${v.replace(/"/g, '""')}"`;
+
+  const header = 'id,attempt_id,event_type,occurred_at';
+  const lines = events.map((e) =>
+    [
+      escape(e.id),
+      escape(e.attempt_id),
+      escape(e.event_type),
+      escape(e.occurred_at instanceof Date ? e.occurred_at.toISOString() : String(e.occurred_at)),
+    ].join(','),
+  );
+
+  return [header, ...lines].join('\r\n');
+}
+
+// ---------------------------------------------------------------------------
+// A2 — plan mutation (super-admin)
+// ---------------------------------------------------------------------------
+
+const VALID_TIERS: ReadonlySet<string> = new Set(['free', 'pro', 'enterprise', 'internal']);
+
+/**
+ * Update a tenant's billing plan (tier + included_credits).
+ *
+ * Validation rules:
+ *   - tier must be one of free|pro|enterprise|internal
+ *   - includedCredits must be null or integer >= 0
+ *   - tier === 'internal' ⇒ credits are unlimited (null). If the caller omits
+ *     includedCredits while switching to internal, it is coerced to null
+ *     (internal is definitionally unlimited — don't force the caller to send
+ *     an explicit null just to change tier). An EXPLICIT non-null
+ *     includedCredits together with tier==='internal' is a contradiction → 400.
+ *   - tier !== 'internal' ⇒ credits must NOT be null (a finite tier needs a
+ *     finite allowance; there is no sensible default, so the caller must set it).
+ *
+ * TWO-ROLE TRANSACTION (deliberately NOT the generic withSystemTx):
+ *   `tenant_plans` has SELECT+INSERT RLS policies only — NO UPDATE policy by
+ *   A1 design — so the UPDATE itself MUST run under assessiq_system (BYPASSRLS).
+ *   But `auditInTx` writes audit_log, whose INSERT RLS policy is
+ *   `tenant_id = current_setting('app.current_tenant')` and whose documented
+ *   contract (modules/14-audit-log/src/audit.ts) requires the caller to be
+ *   under assessiq_app + app.current_tenant — exactly how the reviewed
+ *   precedent `updateAiGenerateMode` (@assessiq/tenancy) calls it. So within
+ *   ONE transaction we: (a) SET LOCAL ROLE assessiq_system for the lock+UPDATE,
+ *   then (b) SET LOCAL ROLE assessiq_app + set_config('app.current_tenant')
+ *   for auditInTx. Same tx ⇒ UPDATE+audit stay atomic; the audit row is
+ *   written in exactly the role/GUC context audit.ts mandates (so it survives
+ *   a future assessiq_system BYPASSRLS downgrade and matches the precedent).
+ */
+export async function updateTenantPlan(
+  actorUserId: string,
+  tenantId: string,
+  patch: UpdateTenantPlanPatch,
+): Promise<UpdateTenantPlanResult> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Phase A — system role: tenant_plans has no UPDATE RLS policy (A1),
+    // so the lock + UPDATE require BYPASSRLS.
+    await client.query('SET LOCAL ROLE assessiq_system');
+
+    // 1. Lock the row
+    const planRow = await getTenantPlanRow(client, tenantId, true);
+    if (planRow === null) {
+      throw new NotFoundError(`No billing plan found for tenant ${tenantId}`, {
+        details: { code: 'PLAN_NOT_FOUND', tenantId },
+      });
+    }
+
+    const prevTier = planRow.tier as PlanTier;
+    const prevCredits = planRow.included_credits;
+
+    // 2. Compute next values
+    const nextTier: PlanTier = (patch.tier !== undefined ? patch.tier : prevTier);
+    let nextCredits: number | null =
+      'includedCredits' in patch ? (patch.includedCredits ?? null) : prevCredits;
+
+    // internal is definitionally unlimited: coerce omitted credits to null on
+    // the transition to internal so `{ tier: 'internal' }` alone works. An
+    // EXPLICIT non-null includedCredits with internal still falls through to
+    // the contradiction check below (kept as a 400 — operator-mistake guard).
+    if (nextTier === 'internal' && !('includedCredits' in patch)) {
+      nextCredits = null;
+    }
+
+    // 3. Validate
+    if (!VALID_TIERS.has(nextTier)) {
+      throw new ValidationError(`tier must be one of free|pro|enterprise|internal`, {
+        details: { code: 'INVALID_TIER', received: nextTier },
+      });
+    }
+    if (nextCredits !== null && (!Number.isInteger(nextCredits) || nextCredits < 0)) {
+      throw new ValidationError(
+        `includedCredits must be null or a non-negative integer`,
+        { details: { code: 'INVALID_CREDITS', received: nextCredits } },
+      );
+    }
+    if (nextTier === 'internal' && nextCredits !== null) {
+      throw new ValidationError(
+        `internal tier requires includedCredits to be null (unlimited)`,
+        { details: { code: 'INTERNAL_REQUIRES_NULL_CREDITS' } },
+      );
+    }
+    if (nextTier !== 'internal' && nextCredits === null) {
+      throw new ValidationError(
+        `non-internal tiers require a finite includedCredits value`,
+        { details: { code: 'FINITE_TIER_REQUIRES_CREDITS' } },
+      );
+    }
+
+    // 4. UPDATE (still under assessiq_system)
+    const { updated_at } = await updateTenantPlanRow(client, tenantId, nextTier, nextCredits);
+
+    // Phase B — app role + tenant GUC: put auditInTx in exactly the context
+    // its contract (audit.ts) and the reviewed updateAiGenerateMode precedent
+    // require. Same transaction ⇒ the UPDATE above and this audit are atomic.
+    await client.query('SET LOCAL ROLE assessiq_app');
+    await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+
+    // 5. Audit (same tx — atomicity invariant; rollback reverts the UPDATE)
+    const auditRow = await auditInTx(client, {
+      action: 'tenant.plan_updated',
+      actorKind: 'user',
+      actorUserId,
+      tenantId,
+      entityType: 'tenant_plan',
+      entityId: tenantId,
+      after: {
+        tier: nextTier,
+        included_credits: nextCredits,
+        previous_tier: prevTier,
+        previous_included_credits: prevCredits,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    return {
+      tenant_id: tenantId,
+      tier: nextTier,
+      included_credits: nextCredits,
+      previous: { tier: prevTier, included_credits: prevCredits },
+      updatedAt: updated_at instanceof Date ? updated_at.toISOString() : String(updated_at),
+      auditId: auditRow.id,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }

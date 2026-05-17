@@ -1,6 +1,6 @@
 // AssessIQ — modules/19-billing/src/types.ts
 //
-// Public types for the billing / usage-metering module (A1 phase).
+// Public types for the billing / usage-metering module (A1 + A2 phases).
 // Consumed by routes.ts, service.ts, and the admin dashboard.
 
 export type PlanTier = 'free' | 'pro' | 'enterprise' | 'internal';
@@ -29,4 +29,57 @@ export interface BillingUsage {
   remaining: number | null;  // null => unlimited
   overage: number;           // 0 when unlimited or under
   status: UsageStatus;
+}
+
+// ---------------------------------------------------------------------------
+// A2 types — cross-tenant usage (super-admin) + billing detail
+// ---------------------------------------------------------------------------
+
+/** One row in the cross-tenant usage summary (super-admin GET /tenants). */
+export interface TenantUsageRow {
+  tenant_id: string;
+  tier: PlanTier;
+  included_credits: number | null;
+  used: number;
+  remaining: number | null;
+  overage: number;
+  status: UsageStatus;
+}
+
+/** Recent billing event (last 50 per tenant). */
+export interface BillingEventRow {
+  id: string;
+  attempt_id: string;
+  event_type: string;
+  occurred_at: string; // ISO 8601
+}
+
+/** Full billing detail for a single tenant (super-admin billing drawer). */
+export interface TenantBillingDetail {
+  tenant_id: string;
+  tier: PlanTier;
+  included_credits: number | null;
+  status: 'active' | 'suspended';
+  cycle_start: string; // ISO 8601
+  used: number;
+  remaining: number | null;
+  overage: number;
+  usage_status: UsageStatus;
+  recent_events: BillingEventRow[];
+}
+
+/** Patch input for updateTenantPlan. */
+export interface UpdateTenantPlanPatch {
+  tier?: PlanTier;
+  includedCredits?: number | null;
+}
+
+/** Return shape of updateTenantPlan. */
+export interface UpdateTenantPlanResult {
+  tenant_id: string;
+  tier: PlanTier;
+  included_credits: number | null;
+  previous: { tier: PlanTier; included_credits: number | null };
+  updatedAt: string;
+  auditId: string;
 }

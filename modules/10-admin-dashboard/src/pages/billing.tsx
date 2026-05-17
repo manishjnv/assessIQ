@@ -22,12 +22,13 @@
 //   - No claude/anthropic imports or user-facing references.
 //   - No new @assessiq/ui-system primitives — uses existing Card, Chip, Icon.
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Chip, Icon } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { useAdminSession } from "../session.js";
-import { updateTenantAiGenerateMode, type AiGenerateMode } from "../api.js";
+import { updateTenantAiGenerateMode, getCompanyUsage, type AiGenerateMode, type CompanyUsage } from "../api.js";
+import { usageMessage } from "../components/UsageBanner.js";
 
 // ── Shared style objects ──────────────────────────────────────────────────────
 
@@ -89,6 +90,17 @@ export function AdminBilling(): React.ReactElement {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastAuditId, setLastAuditId] = useState<string | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
+
+  // A2 — "Your plan & usage" card state (all admins)
+  const [companyUsage, setCompanyUsage] = useState<CompanyUsage | null>(null);
+
+  useEffect(() => {
+    void getCompanyUsage()
+      .then(setCompanyUsage)
+      .catch(() => {
+        // Fail-silent — card just stays hidden
+      });
+  }, []);
 
   return (
     <AdminShell breadcrumbs={["Settings", "Billing"]} helpPage="admin.settings.billing">
@@ -229,6 +241,88 @@ export function AdminBilling(): React.ReactElement {
             </div>
           </Card>
         )}
+
+        {/* A2 — "Your plan & usage" card (all admins; rendered when usage data is available) */}
+        {companyUsage !== null && (() => {
+          const msg = usageMessage(companyUsage);
+          const statusColor =
+            companyUsage.status === "over"
+              ? "var(--aiq-color-danger, #dc2626)"
+              : companyUsage.status === "warn"
+                ? "var(--aiq-color-warning, #d97706)"
+                : "var(--aiq-color-success, #16a34a)";
+          const statusLabel =
+            companyUsage.status === "unlimited"
+              ? "Unlimited"
+              : companyUsage.status === "ok"
+                ? "On track"
+                : companyUsage.status === "warn"
+                  ? "Near limit"
+                  : "Over limit";
+          return (
+            <Card>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+                  <Icon name="chart" size={18} color="var(--aiq-color-accent)" />
+                  <h2 style={SERIF_H2}>Your plan &amp; usage</h2>
+                  <Chip
+                    variant={companyUsage.status === "over" ? "warn" : companyUsage.status === "warn" ? "default" : "success"}
+                    style={{ marginLeft: "var(--aiq-space-sm)" }}
+                  >
+                    {statusLabel}
+                  </Chip>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                    gap: "var(--aiq-space-md)",
+                  }}
+                >
+                  <div>
+                    <p style={MUTED_SM}>Plan tier</p>
+                    <p style={{ ...BODY_SM, fontWeight: 600, textTransform: "capitalize" }}>
+                      {companyUsage.tier}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={MUTED_SM}>Credits used</p>
+                    <p style={{ ...BODY_SM, fontWeight: 600 }}>{companyUsage.used}</p>
+                  </div>
+                  <div>
+                    <p style={MUTED_SM}>Included</p>
+                    <p style={{ ...BODY_SM, fontWeight: 600 }}>
+                      {companyUsage.included_credits !== null
+                        ? companyUsage.included_credits
+                        : "Unlimited"}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={MUTED_SM}>Remaining</p>
+                    <p style={{ ...BODY_SM, fontWeight: 600 }}>
+                      {companyUsage.remaining !== null
+                        ? companyUsage.remaining
+                        : "Unlimited"}
+                    </p>
+                  </div>
+                  {companyUsage.overage > 0 && (
+                    <div>
+                      <p style={MUTED_SM}>Overage</p>
+                      <p style={{ ...BODY_SM, fontWeight: 600, color: statusColor }}>
+                        +{companyUsage.overage}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {msg !== null && (
+                  <p style={{ ...BODY_SM, color: statusColor, margin: 0 }}>{msg.text}</p>
+                )}
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* Card 1 — How AI grading is paid for today */}
         <Card>

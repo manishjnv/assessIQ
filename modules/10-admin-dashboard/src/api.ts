@@ -357,6 +357,15 @@ export interface CreateCompanyResponse {
   invitation: { id: string; email: string; role: string; expires_at: string } | null;
 }
 
+export interface TenantUsage {
+  tier: 'free' | 'pro' | 'enterprise' | 'internal';
+  included_credits: number | null;
+  used: number;
+  remaining: number | null;
+  overage: number;
+  status: 'ok' | 'warn' | 'over' | 'unlimited';
+}
+
 export interface TenantListItem {
   id: string;
   slug: string;
@@ -369,6 +378,8 @@ export interface TenantListItem {
   admin_email: string | null;
   admin_name: string | null;
   admin_status: string | null;
+  /** A2: billing usage for this tenant, or null if no plan row. */
+  usage: TenantUsage | null;
 }
 
 /**
@@ -448,4 +459,97 @@ export async function listQuestionsApi(
   return adminApi<{ items: QuestionListItem[]; total: number }>(
     `/admin/questions${qs ? `?${qs}` : ""}`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Typed helpers — A2 billing (super-admin + company-admin)
+// ---------------------------------------------------------------------------
+
+export interface TenantBillingDetail {
+  tenant_id: string;
+  tier: 'free' | 'pro' | 'enterprise' | 'internal';
+  included_credits: number | null;
+  status: 'active' | 'suspended';
+  cycle_start: string; // ISO 8601
+  used: number;
+  remaining: number | null;
+  overage: number;
+  usage_status: 'ok' | 'warn' | 'over' | 'unlimited';
+  recent_events: Array<{
+    id: string;
+    attempt_id: string;
+    event_type: string;
+    occurred_at: string;
+  }>;
+}
+
+export interface UpdateTenantPlanRequest {
+  tier?: string;
+  includedCredits?: number | null;
+}
+
+export interface UpdateTenantPlanResponse {
+  tenant_id: string;
+  tier: string;
+  included_credits: number | null;
+  previous: { tier: string; included_credits: number | null };
+  updatedAt: string;
+  auditId: string;
+}
+
+/**
+ * GET /api/admin/super/tenants/:tenantId/billing
+ *
+ * Super-admin only. Returns the full billing detail for a single tenant.
+ */
+export async function getTenantBillingDetail(
+  tenantId: string,
+): Promise<TenantBillingDetail> {
+  return adminApi<TenantBillingDetail>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/billing`,
+  );
+}
+
+/**
+ * PATCH /api/admin/super/tenants/:tenantId/plan
+ *
+ * Super-admin only. Update a tenant's billing plan (tier + includedCredits).
+ * Returns the updated plan + previous values + the audit log row id.
+ */
+export async function updateTenantPlan(
+  tenantId: string,
+  body: UpdateTenantPlanRequest,
+): Promise<UpdateTenantPlanResponse> {
+  return adminApi<UpdateTenantPlanResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/plan`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+/**
+ * Build the absolute URL for downloading a tenant's billing events as CSV.
+ *
+ * Returns a path suitable for use as an <a href download> target.
+ */
+export function tenantBillingCsvUrl(tenantId: string): string {
+  return `${API_BASE}/admin/super/tenants/${encodeURIComponent(tenantId)}/billing/export.csv`;
+}
+
+export interface CompanyUsage {
+  tier: 'free' | 'pro' | 'enterprise' | 'internal';
+  included_credits: number | null;
+  used: number;
+  remaining: number | null;
+  overage: number;
+  status: 'ok' | 'warn' | 'over' | 'unlimited';
+}
+
+/**
+ * GET /api/billing/usage
+ *
+ * Company-admin endpoint (A1). Returns the current tenant's billing usage.
+ * Used by UsageBanner and the billing page "Your plan & usage" card.
+ */
+export async function getCompanyUsage(): Promise<CompanyUsage> {
+  return adminApi<CompanyUsage>("/billing/usage");
 }
