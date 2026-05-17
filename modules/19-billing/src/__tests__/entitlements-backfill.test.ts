@@ -45,11 +45,13 @@ const USERS_MIGRATIONS_DIR    = join(MODULES_ROOT, '03-users', 'migrations');
 const QB_MIGRATIONS_DIR       = join(MODULES_ROOT, '04-question-bank', 'migrations');
 const BILLING_MIGRATIONS_DIR  = join(BILLING_MODULE_ROOT, 'migrations');
 
-// The backfill SQL (extracted from the migration file: just the INSERT statement)
+// The backfill SQL — MUST stay byte-identical to the INSERT in
+// 0082_entitlements_backfill.sql (incl. NULL::uuid — a bare NULL under
+// SELECT DISTINCT resolves to text and fails uuid coercion on PG16).
 // We run it as a superuser (no RLS needed for the backfill).
 const BACKFILL_SQL = `
   INSERT INTO tenant_entitlements (tenant_id, scope_type, scope_id, granted_by, status)
-  SELECT DISTINCT qp.tenant_id, 'domain', qp.domain, NULL, 'active'
+  SELECT DISTINCT qp.tenant_id, 'domain', qp.domain, NULL::uuid, 'active'
   FROM question_packs qp
   JOIN questions q ON q.pack_id = qp.id AND q.status = 'active'
   WHERE qp.status = 'published'
