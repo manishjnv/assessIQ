@@ -1,3 +1,23 @@
+# Session — 2026-05-18 (Phase B1 — entitlements + generation re-gated)
+
+**Headline:** B1 is live — AI question generation is now super-admin-only; `tenant_entitlements` table + super-admin grant/revoke + company read shipped; existing tenants backfilled (domain-level) with the zero-NULL gate PASS. No publish-time enforcement (that is B2).
+**Commits (main):** `2ba822d` feat B1 (21 files) · `9f073a5` fix 0082 NULL::uuid (prod-apply bug) · docs/handoff commits follow.
+**Tests:** `@assessiq/billing` 43/43 (entitlements a–h + backfill); billing/api/question-bank/admin-dashboard/web typecheck clean.
+**Deploy:** migrations `0081`+`0082` applied surgically + recorded (sha256); **zero-NULL verification gate run on prod = PASS** (3 backfill rows: e2e→soc, wipro-soc→soc, wipro-soc→phishing; foxfiber/platform none — no live published content / internal bypass). `assessiq-api` + `assessiq-frontend` rebuilt+recreated on `9f073a5`, healthy; entitlement + re-gated generation routes 401-gated (verified); neighbor containers untouched.
+**Next:** Phase **B2** (separate session — the spec's other full-adversarial-gate phase): publish-time entitlement enforcement at `05-lifecycle` publish path + filtered picker. **MUST honor the B1↔B2 contract** (see memory `entitlement-b1-b2-contract` + spec): pack entitled iff its domain OR pack_id has an active entitlement; `internal` bypasses; **re-run 0082's zero-NULL verification before B2 deploy**. Strict order: B2 cannot ship before this backfill (done) — but re-verify if content changed.
+**Open questions:** (1) RCA 2026-05-18 prevention follow-up: backfill/migration integration tests should execute the migration file's SQL, not a hand-copied string (the B1 test now annotated to require byte-identity but still copies). (2) Carried from A2: repo-wide `:tenantId` UUID-guard hardening sweep across `admin-super.ts` (still deferred). (3) FE: tenant-admin pages that embed a "Generate"/"Generate rubric" button (AdminPackDetail/QuestionEditor) now 403 from backend — intentional (backend authoritative), B1 did not polish those embedded buttons (no spec requirement); a future UX pass could hide them for non-super.
+
+---
+
+## Agent utilization
+- **Opus:** B1 build contract (migrations/RLS/two-role tx/re-gate classification mandate/backfill/tests) + adversarial contract; Phase-0 grounding (route enumeration to pin the re-gate scope); Phase-3 critique (verified all 7 re-gated paths + 22 kept + 07-ai-grading untouched + grant/revoke is the A2-*fixed* two-role pattern, no finding-A regression — ACCEPT no revisions); **adjudicated Sonnet adversarial** (cosmetic 0082 verify-query fixed; scopeId 256 cap added; "add Fastify schema" rejected — consistency w/ reviewed A2 idiom); caught + fixed the **0082 prod-apply NULL::uuid defect** (review-escaped; RCA logged); all surgical migration apply + the spec-mandated zero-NULL gate + deploy/verify + RCA/spec/memory/handoff.
+- **Sonnet:** B1 build subagent (21 files, 43 tests, 5 typechecks, classification table); adversarial subagent (VERDICT accept, 10 vectors, re-gate completeness + backfill correctness exhaustively verified); doc subagent (data-model + api-contract, 7 generation rows updated in-place).
+- **Haiku:** n/a — verification was focused route-probes + a targeted SQL gate, not a bulk sweep.
+- **codex:rescue:** n/a — spec scopes the full gate to A1 & B2; B1 (auth re-gating + prod authz backfill) gated via real Sonnet adversarial + Opus adjudication per the documented ladder (GLM leg still blocked by source-exfil guard).
+- **claude-mem:** new `project` memory `entitlement-b1-b2-contract` (the rule B2 must implement).
+
+---
+
 # Session — 2026-05-17 (Phase A2 — plan management + usage UX shipped)
 
 **Headline:** Phase A2 is live — super-admin can see per-tenant usage, open a billing drawer, change tier/credits (audited), export a CSV ledger; company admins see a soft green/amber/red usage banner. Nothing blocks grading.
