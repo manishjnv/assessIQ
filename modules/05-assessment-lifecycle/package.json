@@ -13,6 +13,7 @@
   "dependencies": {
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/auth": "workspace:*",
+    "@assessiq/billing": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "@assessiq/question-bank": "workspace:*",

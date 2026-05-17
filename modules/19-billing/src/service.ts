@@ -5,7 +5,7 @@
 
 import type { PoolClient } from 'pg';
 import { withTenant, getPool } from '@assessiq/tenancy';
-import { streamLogger, NotFoundError, ValidationError } from '@assessiq/core';
+import { streamLogger, NotFoundError, ValidationError, AppError } from '@assessiq/core';
 import { auditInTx } from '@assessiq/audit-log';
 import {
   insertBillingEvent,
@@ -21,6 +21,9 @@ import {
   insertEntitlement,
   revokeEntitlement as revokeEntitlementRow,
   listEntitlements,
+  getTenantTier,
+  getPackDomain,
+  listActiveEntitlements,
 } from './repository.js';
 import type {
   BillingUsage,
@@ -453,6 +456,75 @@ export async function revokeEntitlement(
  */
 export async function listTenantEntitlements(tenantId: string): Promise<TenantEntitlement[]> {
   return withSystemTx((client) => listEntitlements(client, tenantId));
+}
+
+// ---------------------------------------------------------------------------
+// B2 — server-authoritative publish-time entitlement enforcement
+// ---------------------------------------------------------------------------
+
+/**
+ * Assert that the assessment's question pack is entitled for the tenant.
+ *
+ * This is the SERVER-AUTHORITATIVE publish-time entitlement gate (B2).
+ * It MUST be called on every transition into status='published':
+ *   - publishAssessment  (draft → published)
+ *   - reopenAssessment   (closed → published)
+ *
+ * CONTRACT (locked B1↔B2 spec):
+ *   A pack is entitled iff its pack_id ∈ active tenant_entitlements with
+ *   scope_type='pack' OR its domain (question_packs.domain TEXT) ∈ active
+ *   tenant_entitlements with scope_type='domain'.
+ *
+ * BYPASS: tier === 'internal' → return immediately (operator tenants are
+ *   exempt from entitlement checks). This is the ONLY bypass. A missing
+ *   tenant_plans row (tier === null) does NOT bypass — fail-closed ensures a
+ *   planless tenant cannot publish (data-integrity gap must be surfaced, not
+ *   silently allowed).
+ *
+ * TRANSACTION: runs inside the caller's existing withTenant() tx. All three
+ *   repo reads (getTenantTier, getPackDomain, listActiveEntitlements) run under
+ *   assessiq_app + app.current_tenant, so RLS SELECT policies apply and scope
+ *   every read to the calling tenant's own rows. No new tx or role switch needed.
+ *
+ * THROWS: AppError(msg, 'NOT_ENTITLED', 403, { details: { code, pack_id, domain } })
+ *   if the pack is not entitled.
+ */
+export async function assertPublishEntitled(
+  client: PoolClient,
+  tenantId: string,
+  packId: string,
+): Promise<void> {
+  // Step 1 — tier check: internal tenants bypass entitlement enforcement.
+  // null tier = no plan row = NOT a bypass (fail-closed).
+  const tier = await getTenantTier(client, tenantId);
+  if (tier === 'internal') {
+    return;
+  }
+
+  // Step 2 — look up the pack's domain (may be null if pack not found or
+  // not visible under RLS). A null domain means "no domain match possible"
+  // but does NOT fail the check on its own — the pack_id scope may still match.
+  const domain = await getPackDomain(client, packId);
+
+  // Step 3 — fetch all active entitlements for the tenant.
+  const ents = await listActiveEntitlements(client, tenantId);
+
+  // Step 4 — OR rule: entitled if ANY active entitlement matches pack_id
+  // (scope_type='pack') OR matches domain (scope_type='domain', domain non-null).
+  const entitled = ents.some(
+    (e) =>
+      (e.scope_type === 'pack' && e.scope_id === packId) ||
+      (e.scope_type === 'domain' && domain !== null && e.scope_id === domain),
+  );
+
+  if (!entitled) {
+    throw new AppError(
+      `This assessment's question pack is not entitled for your plan (pack ${packId}${domain ? `, domain ${domain}` : ''}). Contact your platform operator to enable it.`,
+      'NOT_ENTITLED',
+      403,
+      { details: { code: 'NOT_ENTITLED', pack_id: packId, domain } },
+    );
+  }
 }
 
 /**

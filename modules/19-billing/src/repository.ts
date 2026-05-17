@@ -315,6 +315,83 @@ export async function listEntitlements(
   }));
 }
 
+// ---------------------------------------------------------------------------
+// B2 — publish-time entitlement enforcement helpers
+// All three functions run inside the caller's existing withTenant transaction
+// (assessiq_app + app.current_tenant set). RLS SELECT policies apply:
+//   - tenant_plans:       tenant_isolation_select (own row only)
+//   - question_packs:     tenant_isolation         (own rows only)
+//   - tenant_entitlements: tenant_isolation_select  (own rows only)
+// No system role is needed — these are read-only lookups in the tenant's own
+// data. The defense-in-depth tenant_id=$1 on listActiveEntitlements mirrors
+// the existing listEntitlements pattern.
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch the billing tier for a tenant.
+ *
+ * Returns the tier string (e.g. 'free'|'pro'|'enterprise'|'internal') or null
+ * if no tenant_plans row exists. null means "no plan" — callers treat this as
+ * fail-closed (NOT a bypass).
+ *
+ * Runs under the caller's withTenant tx (RLS SELECT policy scopes to own row).
+ */
+export async function getTenantTier(
+  client: PoolClient,
+  tenantId: string,
+): Promise<string | null> {
+  const result = await client.query<{ tier: string }>(
+    `SELECT tier FROM tenant_plans WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  return result.rows[0]?.tier ?? null;
+}
+
+/**
+ * Fetch the domain TEXT field for a question pack.
+ *
+ * Returns the domain string or null if no pack row is found (FK gap, wrong
+ * tenant, or pack archived/not visible). null means "domain unknown" — the
+ * entitlement check continues (pack_id scope can still match); callers do NOT
+ * throw solely because domain is null.
+ *
+ * Runs under the caller's withTenant tx (RLS scopes to own packs).
+ */
+export async function getPackDomain(
+  client: PoolClient,
+  packId: string,
+): Promise<string | null> {
+  const result = await client.query<{ domain: string }>(
+    `SELECT domain FROM question_packs WHERE id = $1`,
+    [packId],
+  );
+  return result.rows[0]?.domain ?? null;
+}
+
+/**
+ * List active entitlements for a tenant.
+ *
+ * Returns scope_type + scope_id for every status='active' row. The explicit
+ * tenant_id=$1 filter is defense-in-depth (RLS already scopes to the current
+ * tenant, but a double filter mirrors the B1 listEntitlements pattern and
+ * guards against any future RLS misconfiguration).
+ *
+ * Runs under the caller's withTenant tx.
+ */
+export async function listActiveEntitlements(
+  client: PoolClient,
+  tenantId: string,
+): Promise<Array<{ scope_type: string; scope_id: string }>> {
+  const result = await client.query<{ scope_type: string; scope_id: string }>(
+    `SELECT scope_type, scope_id
+     FROM tenant_entitlements
+     WHERE status = 'active'
+       AND tenant_id = $1`,
+    [tenantId],
+  );
+  return result.rows;
+}
+
 /**
  * UPDATE tenant_plans row (tier + included_credits).
  * Returns the updated_at timestamp.

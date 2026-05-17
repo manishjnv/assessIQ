@@ -341,6 +341,9 @@ importers:
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth
+      '@assessiq/billing':
+        specifier: workspace:*
+        version: link:../19-billing
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
