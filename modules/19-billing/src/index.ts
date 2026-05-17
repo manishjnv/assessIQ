@@ -8,6 +8,12 @@ export type {
   TenantPlanRow,
   UsageStatus,
   BillingUsage,
+  // A2 types
+  TenantUsageRow,
+  TenantBillingDetail,
+  BillingEventRow,
+  UpdateTenantPlanPatch,
+  UpdateTenantPlanResult,
 } from './types.js';
 
 export {
@@ -16,6 +22,11 @@ export {
   provisionDefaultPlan,
   computeUsage,
   getUsage,
+  // A2 exports
+  getAllTenantUsage,
+  getTenantBillingDetail,
+  getTenantBillingEventsCsv,
+  updateTenantPlan,
 } from './service.js';
 
 export {

@@ -22,8 +22,12 @@ import {
   createCompanyApi,
   listTenantsApi,
   verifyTotpApi,
+  getTenantBillingDetail,
+  updateTenantPlan,
+  tenantBillingCsvUrl,
   type CreateCompanyRequest,
   type TenantListItem,
+  type TenantBillingDetail,
 } from "../api.js";
 import { fetchAdminWhoami } from "../session.js";
 
@@ -50,7 +54,7 @@ const META_LABEL: CSSProperties = {
   color: "var(--aiq-color-fg-muted)",
 };
 
-const ROW_GRID = "1fr 1.4fr 1.8fr 110px 110px";
+const ROW_GRID = "1fr 1.4fr 1.8fr 150px 110px 110px";
 const ROW_GRID_GAP = 12;
 const ROW_PADDING = "16px 20px";
 
@@ -522,6 +526,386 @@ function CreateCompanyForm({
   );
 }
 
+// ── Billing drawer ────────────────────────────────────────────────────────────
+
+const TIER_OPTIONS = [
+  { value: "free", label: "free" },
+  { value: "pro", label: "pro" },
+  { value: "enterprise", label: "enterprise" },
+  { value: "internal", label: "internal" },
+];
+
+function BillingDrawer({
+  tenant,
+  onClose,
+  onPlanUpdated,
+}: {
+  tenant: TenantListItem;
+  onClose: () => void;
+  onPlanUpdated: () => void;
+}): React.ReactElement {
+  const [detail, setDetail] = useState<TenantBillingDetail | null>(null);
+  const [drawerLoading, setDrawerLoading] = useState(true);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
+
+  // Plan editor state
+  const [editTier, setEditTier] = useState<string>("free");
+  const [editCredits, setEditCredits] = useState<string>("25");
+  const [planConfirmPending, setPlanConfirmPending] = useState(false);
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planAuditId, setPlanAuditId] = useState<string | null>(null);
+  const [planToast, setPlanToast] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDrawerLoading(true);
+    setDrawerError(null);
+    void getTenantBillingDetail(tenant.id)
+      .then((d) => {
+        if (cancelled) return;
+        setDetail(d);
+        setEditTier(d.tier);
+        setEditCredits(d.included_credits !== null ? String(d.included_credits) : "");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDrawerError(err instanceof AdminApiError ? err.apiError.message : "Failed to load billing detail.");
+      })
+      .finally(() => {
+        if (!cancelled) setDrawerLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [tenant.id]);
+
+  const isInternalTier = editTier === "internal";
+
+  const handleSavePlan = async (): Promise<void> => {
+    setPlanSaving(true);
+    setPlanError(null);
+    try {
+      const includedCredits = isInternalTier ? null : parseInt(editCredits, 10);
+      const res = await updateTenantPlan(tenant.id, {
+        tier: editTier,
+        includedCredits,
+      });
+      setPlanAuditId(res.auditId);
+      setPlanToast(true);
+      setPlanConfirmPending(false);
+      setTimeout(() => setPlanToast(false), 8_000);
+      onPlanUpdated();
+    } catch (err) {
+      if (err instanceof AdminApiError) {
+        const code = err.apiError.details?.code as string | undefined;
+        setPlanError(
+          code === "INTERNAL_REQUIRES_NULL_CREDITS"
+            ? "Internal tier requires credits to be blank (unlimited)."
+            : code === "FINITE_TIER_REQUIRES_CREDITS"
+              ? "This tier requires a finite credits value."
+              : err.apiError.message,
+        );
+      } else {
+        setPlanError("Save failed — please try again.");
+      }
+      setPlanConfirmPending(false);
+    } finally {
+      setPlanSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.32)",
+        display: "flex",
+        justifyContent: "flex-end",
+        zIndex: 200,
+      }}
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 480,
+          height: "100%",
+          overflowY: "auto",
+          background: "var(--aiq-color-bg-base)",
+          borderLeft: "1px solid var(--aiq-color-border)",
+          padding: "var(--aiq-space-xl)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--aiq-space-lg)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Drawer header */}
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <div>
+            <div style={{ ...META_LABEL, fontSize: 10 }}>Billing — {tenant.slug}</div>
+            <h2
+              className="aiq-serif"
+              style={{ fontSize: 20, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
+            >
+              {tenant.name}
+            </h2>
+          </div>
+          <span style={{ flex: 1 }} />
+          <Button size="sm" variant="ghost" onClick={onClose} aria-label="Close drawer">
+            ×
+          </Button>
+        </div>
+
+        {drawerLoading && (
+          <div style={{ display: "grid", placeItems: "center", padding: 40 }}>
+            <Spinner aria-label="Loading billing detail" />
+          </div>
+        )}
+
+        {drawerError && !drawerLoading && (
+          <Chip>{drawerError}</Chip>
+        )}
+
+        {detail !== null && !drawerLoading && (
+          <>
+            {/* Read-only stats */}
+            <Card>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+                <div>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Tier</p>
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", textTransform: "capitalize" }}>
+                    {detail.tier}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Included credits</p>
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
+                    {detail.included_credits !== null ? detail.included_credits : "Unlimited"}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Used</p>
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
+                    {detail.used}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Remaining</p>
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
+                    {detail.remaining !== null ? detail.remaining : "Unlimited"}
+                  </p>
+                </div>
+                {detail.overage > 0 && (
+                  <div>
+                    <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Overage</p>
+                    <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", color: "var(--aiq-color-danger, #dc2626)" }}>
+                      +{detail.overage}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Cycle start</p>
+                  <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12, margin: "4px 0 0", color: "var(--aiq-color-fg-muted)" }}>
+                    {formatDate(detail.cycle_start)}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Recent events */}
+            {detail.recent_events.length > 0 && (
+              <div>
+                <div style={{ ...META_LABEL, fontSize: 10, marginBottom: 8 }}>
+                  Recent events ({detail.recent_events.length})
+                </div>
+                <div
+                  style={{
+                    border: "1px solid var(--aiq-color-border)",
+                    borderRadius: "var(--aiq-radius-md)",
+                    overflow: "hidden",
+                    maxHeight: 220,
+                    overflowY: "auto",
+                  }}
+                >
+                  {detail.recent_events.map((ev) => (
+                    <div
+                      key={ev.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 8,
+                        padding: "8px 12px",
+                        borderBottom: "1px solid var(--aiq-color-border)",
+                        fontSize: 11,
+                        fontFamily: "var(--aiq-font-mono)",
+                        color: "var(--aiq-color-fg-muted)",
+                      }}
+                    >
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={ev.attempt_id}>
+                        {ev.attempt_id.slice(0, 8)}…
+                      </span>
+                      <span style={{ textAlign: "right" }}>
+                        {new Date(ev.occurred_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* CSV download */}
+            <div>
+              <a
+                href={tenantBillingCsvUrl(tenant.id)}
+                download
+                style={{
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: 13,
+                  color: "var(--aiq-color-accent)",
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                }}
+              >
+                Download CSV
+              </a>
+            </div>
+
+            {/* Plan editor */}
+            <Card>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+                <div style={{ ...META_LABEL, fontSize: 10 }}>Edit plan</div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <label
+                    htmlFor={`tier-select-${tenant.id}`}
+                    style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
+                  >
+                    Tier
+                  </label>
+                  <select
+                    id={`tier-select-${tenant.id}`}
+                    value={editTier}
+                    onChange={(e) => {
+                      setEditTier(e.target.value);
+                      if (e.target.value === "internal") setEditCredits("");
+                      setPlanError(null);
+                    }}
+                    style={{
+                      fontFamily: "var(--aiq-font-sans)",
+                      fontSize: 13,
+                      padding: "6px 10px",
+                      borderRadius: "var(--aiq-radius-md)",
+                      border: "1px solid var(--aiq-color-border)",
+                      background: "var(--aiq-color-bg-raised)",
+                      color: "var(--aiq-color-fg-primary)",
+                      width: "100%",
+                    }}
+                  >
+                    {TIER_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <label
+                    htmlFor={`credits-input-${tenant.id}`}
+                    style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
+                  >
+                    Included credits {isInternalTier && "(disabled — internal tier is unlimited)"}
+                  </label>
+                  <input
+                    id={`credits-input-${tenant.id}`}
+                    type="number"
+                    min={0}
+                    value={isInternalTier ? "" : editCredits}
+                    disabled={isInternalTier}
+                    onChange={(e) => { setEditCredits(e.target.value); setPlanError(null); }}
+                    placeholder={isInternalTier ? "Unlimited" : "e.g. 25"}
+                    style={{
+                      fontFamily: "var(--aiq-font-sans)",
+                      fontSize: 13,
+                      padding: "6px 10px",
+                      borderRadius: "var(--aiq-radius-md)",
+                      border: "1px solid var(--aiq-color-border)",
+                      background: isInternalTier
+                        ? "var(--aiq-color-bg-sunken)"
+                        : "var(--aiq-color-bg-raised)",
+                      color: "var(--aiq-color-fg-primary)",
+                      width: "100%",
+                      opacity: isInternalTier ? 0.5 : 1,
+                    }}
+                  />
+                </div>
+
+                {planError !== null && (
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>
+                    {planError}
+                  </p>
+                )}
+
+                {planToast && planAuditId !== null && (
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-success, #16a34a)", margin: 0 }}>
+                    Plan updated. Audit: {planAuditId}
+                  </p>
+                )}
+
+                {planConfirmPending ? (
+                  <div
+                    style={{
+                      padding: "var(--aiq-space-md)",
+                      background: "var(--aiq-color-bg-sunken)",
+                      borderRadius: "var(--aiq-radius-md)",
+                      border: "1px solid var(--aiq-color-warning, #d97706)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, margin: 0 }}>
+                      Update plan to <strong>{editTier}</strong>
+                      {!isInternalTier ? ` / ${editCredits} credits` : " (unlimited)"}?
+                      This change is audit-logged.
+                    </p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                        disabled={planSaving}
+                        onClick={() => void handleSavePlan()}
+                      >
+                        {planSaving ? "Saving…" : "Confirm"}
+                      </button>
+                      <button
+                        type="button"
+                        className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                        disabled={planSaving}
+                        onClick={() => setPlanConfirmPending(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                    onClick={() => { setPlanConfirmPending(true); setPlanError(null); }}
+                  >
+                    Save
+                  </button>
+                )}
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function AdminPlatform(): React.ReactElement {
@@ -529,6 +913,7 @@ export function AdminPlatform(): React.ReactElement {
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [drawerTenant, setDrawerTenant] = useState<TenantListItem | null>(null);
 
   const fetchTenants = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -560,6 +945,14 @@ export function AdminPlatform(): React.ReactElement {
             void fetchTenants();
           }}
           onCancel={() => setShowCreate(false)}
+        />
+      )}
+
+      {drawerTenant !== null && (
+        <BillingDrawer
+          tenant={drawerTenant}
+          onClose={() => setDrawerTenant(null)}
+          onPlanUpdated={() => void fetchTenants()}
         />
       )}
 
@@ -670,6 +1063,7 @@ export function AdminPlatform(): React.ReactElement {
               <span>Slug</span>
               <span>Name</span>
               <span>First admin</span>
+              <span>Usage</span>
               <span>Status</span>
               <span>Created</span>
             </div>
@@ -684,7 +1078,13 @@ export function AdminPlatform(): React.ReactElement {
                   alignItems: "center",
                   borderTop: i === 0 ? "none" : "1px solid var(--aiq-color-border)",
                   background: i % 2 === 1 ? "var(--aiq-color-bg-raised)" : "transparent",
+                  cursor: "pointer",
                 }}
+                onClick={() => setDrawerTenant(t)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setDrawerTenant(t); }}
+                aria-label={`Open billing drawer for ${t.name}`}
               >
                 {/* Slug — mono */}
                 <span
@@ -750,6 +1150,26 @@ export function AdminPlatform(): React.ReactElement {
                     </>
                   )}
                 </div>
+                {/* Usage — A2 */}
+                <span>
+                  {t.usage === null || t.usage === undefined ? (
+                    <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-muted)" }}>—</span>
+                  ) : t.usage.status === "unlimited" ? (
+                    <Chip>Unlimited</Chip>
+                  ) : (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>
+                        {t.usage.used} / {t.usage.included_credits}
+                      </span>
+                      {t.usage.overage > 0 && (
+                        <Chip variant="warn" style={{ fontSize: 10 }}>+{t.usage.overage}</Chip>
+                      )}
+                      {t.usage.overage === 0 && t.usage.status === "warn" && (
+                        <Chip style={{ fontSize: 10 }}>Near limit</Chip>
+                      )}
+                    </span>
+                  )}
+                </span>
                 {/* Status chip */}
                 <span>
                   <Chip variant={statusVariant(t.status)}>{t.status}</Chip>

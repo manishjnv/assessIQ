@@ -130,6 +130,9 @@ export const ACTION_CATALOG = [
   // These events track the certificate-view login flow; no PII in payload.
   'auth.candidate.login_link_requested',
   'auth.candidate.login_link_consumed',
+  // Phase A2 billing — super-admin plan update (tier / included_credits).
+  // Fired inside updateTenantPlan via auditInTx (same tx as the UPDATE).
+  'tenant.plan_updated',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

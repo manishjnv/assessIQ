@@ -24,7 +24,15 @@ import { ValidationError, streamLogger } from '@assessiq/core';
 import { updateAiGenerateMode, createTenant, activateTenant, getPool } from '@assessiq/tenancy';
 import { inviteUser } from '@assessiq/users';
 import { audit } from '@assessiq/audit-log';
-import { provisionDefaultPlan } from '@assessiq/billing';
+import {
+  provisionDefaultPlan,
+  getAllTenantUsage,
+  getTenantBillingDetail,
+  getTenantBillingEventsCsv,
+  updateTenantPlan,
+  type PlanTier,
+  type UpdateTenantPlanPatch,
+} from '@assessiq/billing';
 import { seedTenantTaxonomy } from '@assessiq/question-bank';
 import { authChain } from '../middleware/auth-chain.js';
 
@@ -273,6 +281,10 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   // whose operator is role='super_admin', not 'admin'). Read-only; no
   // tenant-internal data beyond the admin contact is exposed.
   //
+  // A2 addition: also calls getAllTenantUsage() (from @assessiq/billing) and
+  // attaches a 'usage' field to each tenant row for the Platform UI usage column.
+  // getAllTenantUsage runs its own withSystemTx internally.
+  //
   // The LEFT JOIN LATERAL is correct under SET LOCAL ROLE assessiq_system
   // (BYPASSRLS) — the same cross-tenant system-role pattern this endpoint
   // already uses; no N+1.
@@ -280,7 +292,7 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   // Gate: super_admin + totpVerified (enforced by superAdminOnly chain).
   //
   // Response 200: { tenants: Array<{ id, slug, name, status, created_at,
-  //   admin_email, admin_name, admin_status }> } (admin_* nullable)
+  //   admin_email, admin_name, admin_status, usage }> } (admin_* + usage nullable)
   // ──────────────────────────────────────────────────────────────────────────
   app.get(
     '/api/admin/super/tenants',
@@ -317,13 +329,138 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
         );
         await client.query('COMMIT');
 
-        return reply.code(200).send({ tenants: result.rows });
+        // Attach usage data (A2). getAllTenantUsage uses its own withSystemTx.
+        // Best-effort: billing visibility must NEVER break the core Platform
+        // tenant list (soft-enforcement philosophy). On any billing error,
+        // log and fall back to no usage — rows render with usage:null ("—").
+        let usageMap = new Map<string, Awaited<ReturnType<typeof getAllTenantUsage>>[number]>();
+        try {
+          const usageRows = await getAllTenantUsage();
+          usageMap = new Map(usageRows.map((u) => [u.tenant_id, u]));
+        } catch (usageErr) {
+          log.error({ err: usageErr }, 'admin-super: getAllTenantUsage failed; tenant list returned without usage');
+        }
+
+        const tenants = result.rows.map((row) => ({
+          ...row,
+          usage: usageMap.get(row.id) ?? null,
+        }));
+
+        return reply.code(200).send({ tenants });
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
         throw err;
       } finally {
         client.release();
       }
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/super/tenants/:tenantId/billing
+  //
+  // Full billing detail for a single tenant (super-admin billing drawer).
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Response 200: TenantBillingDetail
+  // Response 404: no billing plan for this tenant (NotFoundError → 404)
+  // Response 403: not super_admin
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get(
+    '/api/admin/super/tenants/:tenantId/billing',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      const detail = await getTenantBillingDetail(tenantId);
+      return reply.code(200).send(detail);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/super/tenants/:tenantId/billing/export.csv
+  //
+  // CSV export of all billing events for a tenant.
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Response 200: text/csv attachment
+  // Response 403: not super_admin
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get(
+    '/api/admin/super/tenants/:tenantId/billing/export.csv',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      const csv = await getTenantBillingEventsCsv(tenantId);
+      return reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header(
+          'content-disposition',
+          `attachment; filename="billing-${tenantId}.csv"`,
+        )
+        .code(200)
+        .send(csv);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PATCH /api/admin/super/tenants/:tenantId/plan
+  //
+  // Update a tenant's billing plan (tier + includedCredits).
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Response 200: { tenant_id, tier, included_credits, previous, updatedAt, auditId }
+  // Response 400: validation error (INVALID_TIER / INTERNAL_REQUIRES_NULL_CREDITS /
+  //               FINITE_TIER_REQUIRES_CREDITS / INVALID_CREDITS)
+  // Response 403: not super_admin
+  // Response 404: tenant has no billing plan row
+  //
+  // Audit guarantee: the UPDATE and the audit_log INSERT are in the same
+  // Postgres transaction via updateTenantPlan → auditInTx. If the audit
+  // INSERT fails, the UPDATE rolls back. Atomicity is non-negotiable per
+  // project CLAUDE.md hard rule (same pattern as ai-generate-mode).
+  // ──────────────────────────────────────────────────────────────────────────
+  app.patch(
+    '/api/admin/super/tenants/:tenantId/plan',
+    // Gate parity: superAdminOnly (session-MFA), intentionally the SAME gate
+    // as PATCH .../ai-generate-mode above — both are super-admin per-tenant
+    // config mutations (soft, reversible, auditInTx-atomic). Fresh-MFA
+    // (superAdminFreshMfa) is reserved for tenant CREATION (POST /companies),
+    // not config edits. Do not "upgrade" this to fresh-MFA without changing
+    // ai-generate-mode too — they must stay consistent.
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      // Guard against a missing/null PATCH body (empty PATCH → no-op revalidate,
+      // never a TypeError 500). Mirrors the ai-generate-mode `body?.` idiom.
+      const body = (req.body ?? {}) as { tier?: unknown; includedCredits?: unknown };
+
+      // Light type-guard — domain validation is fully delegated to updateTenantPlan.
+      const patch: UpdateTenantPlanPatch = {};
+      if (body.tier !== undefined) {
+        if (typeof body.tier !== 'string') {
+          throw new ValidationError('tier must be a string', {
+            details: { code: 'INVALID_TIER', received: body.tier },
+          });
+        }
+        patch.tier = body.tier as PlanTier;
+      }
+      if ('includedCredits' in body) {
+        const ic = body.includedCredits;
+        if (ic !== null && ic !== undefined && typeof ic !== 'number') {
+          throw new ValidationError('includedCredits must be a number or null', {
+            details: { code: 'INVALID_CREDITS', received: ic },
+          });
+        }
+        if (ic !== undefined) {
+          patch.includedCredits = ic as number | null;
+        }
+      }
+
+      const result = await updateTenantPlan(req.session!.userId, tenantId, patch);
+      return reply.code(200).send(result);
     },
   );
 }

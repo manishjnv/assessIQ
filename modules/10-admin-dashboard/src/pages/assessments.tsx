@@ -32,6 +32,7 @@ import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi } from "../api.js";
 import type { DomainItem, CategoryItem } from "../api.js";
+import { UsageBanner } from "../components/UsageBanner.js";
 
 type AssessmentStatus = "draft" | "published" | "active" | "closed";
 
@@ -891,6 +892,9 @@ export function AdminAssessments(): React.ReactElement {
             </button>
           </div>
         </div>
+
+        {/* A2 — usage banner (fail-silent; renders nothing when status=unlimited or loading) */}
+        <UsageBanner />
 
         {/* Inline new-assessment form */}
         {showNewForm && (

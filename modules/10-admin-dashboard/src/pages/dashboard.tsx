@@ -25,6 +25,7 @@ import type { QueueRow } from "@assessiq/ai-grading";
 import { AdminShell } from "../components/AdminShell.js";
 import { useAdminSession } from "../session.js";
 import { adminApi, AdminApiError } from "../api.js";
+import { UsageBanner } from "../components/UsageBanner.js";
 
 interface QueueResponse {
   items: QueueRow[];
@@ -206,6 +207,9 @@ export function AdminDashboard(): React.ReactElement {
             </button>
           </div>
         </div>
+
+        {/* A2 — usage banner (fail-silent; renders nothing when status=unlimited or loading) */}
+        <UsageBanner />
 
         {/* KPI row — 3 cards derived from queue status counts */}
         <div
