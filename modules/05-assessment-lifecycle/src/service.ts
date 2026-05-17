@@ -446,8 +446,22 @@ export async function createAssessment(
       });
     }
 
-    // b. Pack must be published
-    if (pack.status !== "published") {
+    // b. Pack must be published — SKIPPED for blueprint mode.
+    //
+    // Rationale: blueprint assessments resolve their pack via findOrCreatePackForDomain,
+    // which creates auto-managed packs in 'draft' status that the admin never touches.
+    // The "pack must be published" guard was a legacy quality gate for manually-managed
+    // packs; for blueprint mode the real quality gate is the C2 per-criterion pool
+    // pre-flight at publishAssessment (unchanged).
+    //
+    // Non-blueprint (legacy) path: guard is byte-identical to what it was before.
+    //
+    // Tenancy invariant: the resolved pack is ALWAYS this tenant's own auto-pack —
+    // findOrCreatePackForDomain (04/service.ts:1282-1295) enforces
+    //   WHERE id = $1 AND tenant_id = $2
+    // as its first action before any pack is created or returned. Skipping the
+    // published-status check does NOT weaken the tenancy guard.
+    if (rawBlueprint === undefined && pack.status !== "published") {
       throw new ConflictError(
         `Pack '${resolvedInput.pack_id}' must be in 'published' status to create an assessment (current: '${pack.status}')`,
         { details: { code: AL_ERROR_CODES.PACK_NOT_PUBLISHED } },

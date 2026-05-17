@@ -67,18 +67,18 @@ interface AssessmentsResponse {
 type BlueprintLevel = "L1" | "L2" | "L3";
 const BLUEPRINT_LEVELS: BlueprintLevel[] = ["L1", "L2", "L3"];
 
-type BlueprintQuestionType = "mcq" | "scenario" | "subjective" | "kql" | "log_analysis";
-const BLUEPRINT_QUESTION_TYPES: BlueprintQuestionType[] = [
-  "mcq",
-  "scenario",
-  "subjective",
-  "kql",
-  "log_analysis",
-];
-
 interface BlueprintCriterion {
   category_id: string;
-  type: BlueprintQuestionType;
+  type: string;
+  count: number;
+}
+
+// One row in the blueprint builder UI.  Mirrors generate-wizard CategoryConfig.
+// category = the selected CategoryItem; selectedTypes = checked types from supported_types.
+// On submit: flatten to criteria [{category_id, type, count}] per checked type.
+interface BlueprintCategoryRow {
+  category: CategoryItem | null;  // null until admin picks a category
+  selectedTypes: string[];
   count: number;
 }
 
@@ -122,16 +122,39 @@ function assessmentStatusColor(s: string): { bg: string; color: string } {
   }
 }
 
-function criterionTotal(criteria: BlueprintCriterion[]): number {
-  return criteria.reduce((sum, c) => sum + c.count, 0);
+/** Compute live total = Σ(selectedTypes.length × count) across all category rows. */
+function blueprintLiveTotal(rows: BlueprintCategoryRow[]): number {
+  return rows.reduce((sum, r) => {
+    if (r.category === null) return sum;
+    return sum + r.selectedTypes.length * r.count;
+  }, 0);
+}
+
+/**
+ * Flatten category-rows to the backend criteria array shape:
+ *   [{category_id, type, count}]  — one entry per checked type.
+ * The backend blueprint JSON shape is UNCHANGED by this UX change.
+ */
+function flattenToCriteria(rows: BlueprintCategoryRow[]): BlueprintCriterion[] {
+  const out: BlueprintCriterion[] = [];
+  for (const row of rows) {
+    if (row.category === null || row.selectedTypes.length === 0) continue;
+    for (const t of row.selectedTypes) {
+      out.push({ category_id: row.category.id, type: t, count: row.count });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
-// BlueprintBuilder sub-component
+// BlueprintBuilder sub-component (B2 — wizard-pattern, one row per category)
 // ---------------------------------------------------------------------------
 //
-// Isolated to keep AdminAssessments readable. Receives domain list + a callback
-// to push the assembled blueprint up to the parent form.
+// Mirrors the generate-wizard category-row pattern:
+//   Category select + supported_types checkboxes (disabled until category chosen)
+//   + Count input (per checked type, same semantics as the wizard).
+// On change: flattens to [{category_id, type, count}] via flattenToCriteria
+// and pushes up to the parent. Backend blueprint shape is UNCHANGED.
 
 interface BlueprintBuilderProps {
   onBlueprintChange: (bp: { domain_id: string; level: BlueprintLevel; criteria: BlueprintCriterion[] } | null) => void;
@@ -145,10 +168,12 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
   const [selectedDomainId, setSelectedDomainId] = useState<string>("");
   const [selectedLevel, setSelectedLevel] = useState<BlueprintLevel>("L1");
 
+  // Categories for the selected domain (fetched once per domain change)
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
 
-  const [criteria, setCriteria] = useState<BlueprintCriterion[]>([]);
+  // One row per "Add category" click — wizard pattern
+  const [categoryRows, setCategoryRows] = useState<BlueprintCategoryRow[]>([]);
 
   // Load domains on mount
   useEffect(() => {
@@ -167,11 +192,11 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
     })();
   }, []);
 
-  // Load categories when domain changes
+  // Load categories when domain changes; reset rows
   useEffect(() => {
     if (!selectedDomainId) {
       setCategories([]);
-      setCriteria([]);
+      setCategoryRows([]);
       return;
     }
     void (async () => {
@@ -179,47 +204,38 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
       try {
         const data = await listCategoriesApi(selectedDomainId);
         setCategories(data.items.filter((c) => c.status === "active"));
+        // Reset rows when domain changes so stale category refs are cleared
+        setCategoryRows([]);
       } finally {
         setCategoriesLoading(false);
       }
     })();
   }, [selectedDomainId]);
 
-  // Notify parent whenever blueprint changes
+  // Notify parent on every change
   useEffect(() => {
-    if (!selectedDomainId || criteria.length === 0) {
-      onBlueprintChange(null);
-      return;
-    }
-    // Only push if every criterion has a category + type + count >= 1
-    const valid = criteria.every(
-      (c) => c.category_id && c.type && c.count >= 1,
-    );
-    if (!valid) {
-      onBlueprintChange(null);
-      return;
-    }
+    if (!selectedDomainId) { onBlueprintChange(null); return; }
+    const criteria = flattenToCriteria(categoryRows);
+    if (criteria.length === 0) { onBlueprintChange(null); return; }
     onBlueprintChange({ domain_id: selectedDomainId, level: selectedLevel, criteria });
-  }, [selectedDomainId, selectedLevel, criteria, onBlueprintChange]);
+  }, [selectedDomainId, selectedLevel, categoryRows, onBlueprintChange]);
 
-  function addCriterion() {
-    setCriteria((prev) => [
+  function addCategoryRow() {
+    setCategoryRows((prev) => [
       ...prev,
-      { category_id: "", type: "mcq", count: 5 },
+      { category: null, selectedTypes: [], count: 5 },
     ]);
   }
 
-  function removeCriterion(idx: number) {
-    setCriteria((prev) => prev.filter((_, i) => i !== idx));
+  function removeCategoryRow(idx: number) {
+    setCategoryRows((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  function updateCriterion(idx: number, patch: Partial<BlueprintCriterion>) {
-    setCriteria((prev) =>
-      prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)),
-    );
+  function updateRow(idx: number, patch: Partial<BlueprintCategoryRow>) {
+    setCategoryRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   }
 
-  const total = criterionTotal(criteria);
+  const liveTotal = blueprintLiveTotal(categoryRows);
 
   const labelStyle: React.CSSProperties = {
     fontFamily: "var(--aiq-font-sans)",
@@ -252,7 +268,7 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
         }}
       >
         Blueprint mode: each candidate draws a fresh random set per criterion. Domain + Level resolve
-        the question pack automatically.
+        the question pack automatically. Count = questions per checked type.
       </p>
 
       {domainsError && (
@@ -296,10 +312,10 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
         </div>
       </div>
 
-      {/* Criteria table */}
+      {/* Category rows — one per "+ Add category" */}
       {selectedDomainId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-          <div style={labelStyle}>Criteria</div>
+          <div style={labelStyle}>Categories</div>
 
           {categoriesLoading && (
             <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
@@ -313,80 +329,161 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
             </span>
           )}
 
-          {criteria.map((criterion, idx) => (
-            <div
-              key={idx}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 80px auto",
-                gap: "var(--aiq-space-sm)",
-                alignItems: "center",
-              }}
-            >
-              <select
-                className="aiq-input"
-                value={criterion.category_id}
-                onChange={(e) => updateCriterion(idx, { category_id: e.target.value })}
-              >
-                <option value="">— Category —</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+          {categoryRows.map((row, idx) => {
+            // Determine available types: use the selected category's supported_types,
+            // or an empty array until a category is chosen (mirrors wizard pattern).
+            const catSupportedTypes: string[] = row.category !== null && Array.isArray(row.category.supported_types)
+              ? (row.category.supported_types as string[])
+              : [];
+            const controlsDisabled = row.category === null;
+            const rowTotal = row.category !== null ? row.selectedTypes.length * row.count : 0;
 
-              <select
-                className="aiq-input"
-                value={criterion.type}
-                onChange={(e) => updateCriterion(idx, { type: e.target.value as BlueprintQuestionType })}
+            return (
+              <div
+                key={idx}
+                style={{
+                  padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                  background: row.category !== null ? "var(--aiq-color-accent-soft)" : "var(--aiq-color-bg-raised)",
+                  border: "1px solid",
+                  borderColor: row.category !== null ? "var(--aiq-color-accent)" : "var(--aiq-color-border)",
+                  borderRadius: "var(--aiq-radius-md)",
+                }}
               >
-                {BLUEPRINT_QUESTION_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
+                  {/* Category select */}
+                  <select
+                    className="aiq-input"
+                    style={{ minWidth: 160, maxWidth: 220 }}
+                    value={row.category?.id ?? ""}
+                    onChange={(e) => {
+                      const cat = categories.find((c) => c.id === e.target.value) ?? null;
+                      // Reset selectedTypes to all supported_types of the new category (wizard default)
+                      const defaultTypes: string[] = cat !== null && Array.isArray(cat.supported_types)
+                        ? (cat.supported_types as string[])
+                        : [];
+                      updateRow(idx, { category: cat, selectedTypes: defaultTypes });
+                    }}
+                  >
+                    <option value="">— Category —</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
 
-              <input
-                className="aiq-input"
-                type="number"
-                min={1}
-                value={criterion.count}
-                onChange={(e) =>
-                  updateCriterion(idx, { count: Math.max(1, parseInt(e.target.value, 10) || 1) })
-                }
-                style={{ textAlign: "center" }}
-              />
+                  {/* Count input — disabled until category chosen */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                    <label style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", whiteSpace: "nowrap" }}>
+                      Count/type
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={row.count}
+                      disabled={controlsDisabled}
+                      onChange={(e) => {
+                        const v = Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1));
+                        updateRow(idx, { count: v });
+                      }}
+                      style={{
+                        width: 52,
+                        padding: "2px 4px",
+                        fontFamily: "var(--aiq-font-mono)",
+                        fontSize: "var(--aiq-text-sm)",
+                        border: "1px solid var(--aiq-color-border)",
+                        borderRadius: "var(--aiq-radius-sm)",
+                        background: controlsDisabled ? "var(--aiq-color-bg-sunken)" : "var(--aiq-color-bg-raised)",
+                        opacity: controlsDisabled ? 0.5 : 1,
+                        textAlign: "center",
+                      }}
+                    />
+                  </div>
 
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                onClick={() => removeCriterion(idx)}
-                style={{ color: "var(--aiq-color-error, #dc2626)" }}
-                aria-label="Remove criterion"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+                  {/* Type checkboxes from supported_types — disabled until category chosen */}
+                  <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+                    {catSupportedTypes.map((t) => (
+                      <label
+                        key={t}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 3,
+                          fontFamily: "var(--aiq-font-mono)",
+                          fontSize: 10,
+                          color: controlsDisabled ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)",
+                          cursor: controlsDisabled ? "not-allowed" : "pointer",
+                          opacity: controlsDisabled ? 0.5 : 1,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={row.selectedTypes.includes(t)}
+                          disabled={controlsDisabled}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...row.selectedTypes, t]
+                              : row.selectedTypes.filter((x) => x !== t);
+                            updateRow(idx, { selectedTypes: next });
+                          }}
+                          style={{ accentColor: "var(--aiq-color-accent)" }}
+                        />
+                        {t}
+                      </label>
+                    ))}
+                    {!controlsDisabled && catSupportedTypes.length === 0 && (
+                      <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                        (no types)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Per-row subtotal */}
+                  {row.category !== null && rowTotal > 0 && (
+                    <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", whiteSpace: "nowrap" }}>
+                      = {rowTotal} q
+                    </span>
+                  )}
+                  {row.category !== null && row.selectedTypes.length === 0 && (
+                    <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)", whiteSpace: "nowrap" }}>
+                      select a type
+                    </span>
+                  )}
+
+                  {/* Remove row */}
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                    onClick={() => removeCategoryRow(idx)}
+                    style={{ color: "var(--aiq-color-error, #dc2626)", flexShrink: 0 }}
+                    aria-label="Remove category row"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            );
+          })}
 
           <button
             type="button"
             className="aiq-btn aiq-btn-outline aiq-btn-sm"
-            onClick={addCriterion}
-            disabled={categories.length === 0}
+            onClick={addCategoryRow}
+            disabled={categories.length === 0 || categoriesLoading}
           >
-            + Add criterion
+            + Add category
           </button>
 
           {/* Live total */}
-          {criteria.length > 0 && (
+          {categoryRows.length > 0 && (
             <div
               style={{
                 fontFamily: "var(--aiq-font-mono)",
                 fontSize: "var(--aiq-text-sm)",
-                color: total > 0 ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-muted)",
+                color: liveTotal > 0 ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-muted)",
                 fontWeight: 600,
               }}
             >
-              Total: {total} question{total !== 1 ? "s" : ""}
+              Total: {liveTotal} question{liveTotal !== 1 ? "s" : ""}
             </div>
           )}
         </div>

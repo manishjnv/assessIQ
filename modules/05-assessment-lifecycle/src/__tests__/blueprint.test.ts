@@ -506,3 +506,119 @@ describe("C2 — publishAssessment blueprint per-criterion pool pre-flight", () 
       });
   });
 });
+
+// ---------------------------------------------------------------------------
+// B1 (Slice A.1): PACK_NOT_PUBLISHED pre-flight — conditional skip for blueprint
+// ---------------------------------------------------------------------------
+//
+// B1 fix: the pack-published guard in createAssessment is skipped when
+// settings.blueprint is present.  Non-blueprint (legacy) path is unchanged.
+
+describe("B1 — createAssessment pack-published conditional (Slice A.1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("blueprint + draft auto-pack → create SUCCEEDS (B1 fix)", async () => {
+    // Setup: findPackById returns a DRAFT pack (the auto-pack state in production)
+    const qbRepo = await import("../../../04-question-bank/src/repository.js");
+    (qbRepo.findPackById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "pack-00000000-0000-0000-0000-000000000001",
+      status: "draft",  // <-- draft auto-pack; pre-B1 this would throw PACK_NOT_PUBLISHED
+      version: 1,
+    });
+
+    const { withTenant } = await import("@assessiq/tenancy");
+    const repo = await import("../repository.js");
+
+    const ASSESSMENT_RESULT = {
+      id: "assessment-uuid-0000-0000-0000-000000000001",
+      tenant_id: TENANT_A,
+      pack_id: "pack-00000000-0000-0000-0000-000000000001",
+      level_id: "level-L1-0000-0000-0000-000000000002",
+      pack_version: 1,
+      name: "Blueprint Draft Pack Test",
+      description: null,
+      status: "draft",
+      question_count: 5,
+      randomize: true,
+      opens_at: null,
+      closes_at: null,
+      settings: { blueprint: VALID_BLUEPRINT },
+      created_by: "admin-user-id",
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    // withTenant client: domain guard → pass; cat guard x2 → pass
+    const mockClient = makeClient([
+      { rows: [{ slug: "soc" }] },   // domain guard
+      { rows: [{ id: CAT_ID_1 }] }, // cat guard CAT_ID_1
+      { rows: [{ id: CAT_ID_2 }] }, // cat guard CAT_ID_2
+    ]);
+
+    (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) => fn(mockClient),
+    );
+    (repo.insertAssessment as ReturnType<typeof vi.fn>).mockResolvedValue(ASSESSMENT_RESULT);
+
+    const { createAssessment } = await import("../service.js");
+
+    // Must NOT throw PACK_NOT_PUBLISHED
+    const result = await createAssessment(
+      TENANT_A,
+      {
+        pack_id: PACK_ID,
+        level_id: LEVEL_ID,
+        name: "Blueprint Draft Pack Test",
+        question_count: 5,
+        settings: { blueprint: VALID_BLUEPRINT },
+      },
+      "admin-user-id",
+    );
+
+    expect(result.id).toBe(ASSESSMENT_RESULT.id);
+    expect(result.settings).toMatchObject({ blueprint: VALID_BLUEPRINT });
+  });
+
+  it("non-blueprint + draft pack → still throws PACK_NOT_PUBLISHED (regression)", async () => {
+    // Setup: findPackById returns a DRAFT pack
+    const qbRepo = await import("../../../04-question-bank/src/repository.js");
+    (qbRepo.findPackById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "pack-00000000-0000-0000-0000-000000000001",
+      status: "draft",  // draft pack, no blueprint → must still reject
+      version: 1,
+    });
+
+    const { withTenant } = await import("@assessiq/tenancy");
+
+    // No blueprint guard queries needed — guard triggers before FK checks
+    const mockClient = makeClient([]);
+
+    (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) => fn(mockClient),
+    );
+
+    const { createAssessment } = await import("../service.js");
+
+    await expect(
+      createAssessment(
+        TENANT_A,
+        {
+          pack_id: PACK_ID,
+          level_id: LEVEL_ID,
+          name: "Legacy Assessment",
+          question_count: 10,
+          // NO settings.blueprint — legacy path
+        },
+        "admin-user-id",
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      // Must be the original PACK_NOT_PUBLISHED error
+      expect(err).toBeInstanceOf(Error);
+      const details = (err as { details?: Record<string, unknown> }).details;
+      expect(details?.["code"]).toBe("PACK_NOT_PUBLISHED");
+      return true;
+    });
+  });
+});
