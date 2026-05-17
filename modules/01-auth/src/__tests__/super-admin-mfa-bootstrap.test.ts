@@ -99,15 +99,24 @@ describe("super-admin MFA bootstrap — require-auth gate contract", () => {
 
   // ---- Defect #2: backend role gate has no hierarchy ----------------------
 
-  it("D. pre-TOTP super_admin + requireTotpVerified:false but roles:['admin','reviewer'] (the buggy TOTP-route list) → AuthzError (super_admin must be an explicit member)", async () => {
+  it("D. pre-TOTP super_admin + requireTotpVerified:false + roles:['admin','reviewer'] → PASSES (superseded 2026-05-17 by the role hierarchy)", async () => {
+    // SUPERSEDED, intentionally: this case originally asserted AuthzError —
+    // back when the backend role gate was exact includes() with no hierarchy,
+    // so super_admin had to be an EXPLICIT member of every roles[] (Defect #2
+    // of the MFA-lockout RCA; why 'super_admin' was added to the 4 TOTP
+    // routes). The later same-day fix made super_admin the apex role that
+    // satisfies ANY gate (see super-admin-role-hierarchy.test.ts), which
+    // makes the explicit-member requirement moot and the explicit additions
+    // in totp.ts redundant-but-harmless. The correct contract now: a pre-TOTP
+    // super_admin on a route with requireTotpVerified:false passes regardless
+    // of which non-super roles the route lists. This is exactly what fixes the
+    // "role super_admin not authorized" dashboard error.
     const req = makeReq({ role: "super_admin", totpVerified: false });
     const hook = requireAuth({
       roles: ["admin", "reviewer"],
       requireTotpVerified: false,
     });
-    await expect(hook(req as never, {} as never)).rejects.toMatchObject({
-      name: "AuthzError",
-    });
+    await expect(hook(req as never, {} as never)).resolves.toBeUndefined();
   });
 
   // ---- Regression: normal pre-MFA bootstrap unchanged ---------------------
