@@ -59,7 +59,9 @@
 -- ---------------------------------------------------------------------------
 
 INSERT INTO tenant_entitlements (tenant_id, scope_type, scope_id, granted_by, status)
-SELECT DISTINCT qp.tenant_id, 'domain', qp.domain, NULL, 'active'
+-- granted_by is NULL::uuid (explicit cast): a bare NULL under SELECT DISTINCT
+-- resolves to `text` and fails the uuid column coercion on PostgreSQL 16.
+SELECT DISTINCT qp.tenant_id, 'domain', qp.domain, NULL::uuid, 'active'
 FROM question_packs qp
 JOIN questions q ON q.pack_id = qp.id AND q.status = 'active'
 WHERE qp.status = 'published'
