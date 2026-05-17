@@ -1192,3 +1192,42 @@ All three values are derived on-read from the ledger. Self-reconciling: a re-gra
 - **`UNIQUE(tenant_id, attempt_id)`** — idempotency firewall. An operator retry or a duplicate grade-commit RPC cannot double-charge a tenant.
 - **`attempt_id ON DELETE CASCADE`** — a GDPR attempt-purge removes the billing row, consistent with the `certificates` table. Accepted: the credit is effectively refunded on purge; this is correct behaviour (the attempt no longer exists).
 - **`event_type` extensible via CHECK** — future event classes (e.g. `ai_question_generated` in A3) extend the enum; the A1 query always filters `WHERE event_type = 'assessment_graded'`.
+
+---
+
+### Phase A2 — plan mutation + audit additions
+
+> **Status:** LIVE — Phase A2 (2026-05-17, commit `66ea0ff`). No schema migrations in A2 (all tables were created in A1); A2 adds the application-layer mutation path and the `PATCH /api/admin/super/tenants/:id/plan` endpoint.
+
+#### `tenant_plans` mutation path (A2)
+
+`tenant_plans` has SELECT + INSERT RLS policies only — **no UPDATE or DELETE policy** by design (documented in § RLS — `tenant_plans` above). Plan changes via `PATCH /api/admin/super/tenants/:id/plan` therefore run under a **two-role transaction**:
+
+1. `assessiq_system` (BYPASSRLS) performs the row lock (`SELECT … FOR UPDATE`) and the `UPDATE` on `tenant_plans`.
+2. Within the **same transaction**, the role switches to `assessiq_app` + `set_config('app.current_tenant', tenantId, true)` so the `auditInTx` write to `audit_log` runs in the role/GUC context that `audit_log`'s INSERT RLS policy and `modules/14-audit-log/src/audit.ts`'s contract require.
+
+This mirrors the reviewed `updateAiGenerateMode` precedent in `@assessiq/tenancy`. The `UPDATE` and the `audit_log` INSERT are atomic — a rollback reverts both.
+
+`cycle_start` is **read-only in A2** — reserved for a future billing-cycle engine. Usage in A2 is lifetime `COUNT(*)`, not cycle-windowed.
+
+#### Validation invariants — `updateTenantPlan` (`@assessiq/billing`)
+
+Enforced in the `updateTenantPlan` service function before the transaction opens:
+
+- `tier ∈ {free, pro, enterprise, internal}`
+- `included_credits` is `NULL` or an integer ≥ 0
+- `tier = 'internal' ⇒ included_credits IS NULL` (unlimited; `includedCredits` omitted on transition to `internal` is coerced to `null`)
+- `tier ≠ 'internal' ⇒ included_credits IS NOT NULL`
+
+Corresponding 400 error codes: `INVALID_TIER`, `INVALID_CREDITS`, `INTERNAL_REQUIRES_NULL_CREDITS`, `FINITE_TIER_REQUIRES_CREDITS` (see `docs/03-api-contract.md` § PATCH `.../plan`).
+
+#### `audit_log.action` catalog — A2 addition
+
+`'tenant.plan_updated'` was appended to `ACTION_CATALOG` in `modules/14-audit-log/src/types.ts` (append-only addition). Emitted by `updateTenantPlan` via `auditInTx`. The existing `'tenant_settings.ai_generate_mode.updated'` action (added in A1) is unchanged.
+
+The `audit_log.action` column (`TEXT NOT NULL` — see § Audit, notifications, help above) carries free-form action strings whose valid values are defined in `ACTION_CATALOG`. Known values after A2:
+
+| Action | Emitted by | Module |
+|---|---|---|
+| `tenant_settings.ai_generate_mode.updated` | `updateAiGenerateMode` | `modules/02-tenancy` |
+| `tenant.plan_updated` | `updateTenantPlan` | `modules/19-billing` |

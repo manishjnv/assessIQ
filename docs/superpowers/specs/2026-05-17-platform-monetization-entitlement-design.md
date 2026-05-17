@@ -127,8 +127,25 @@ content, no logic. Ships last.
    + `GET /api/billing/usage`. **Default free N = 25** (operator-confirmed).
    Adversarial gate: Sonnet ACCEPT + Opus ACCEPT (10 vectors; GLM leg blocked
    by source-exfil guard → Opus-takeover per documented ladder). 25/25 tests.
-2. **A2** — super-admin usage column + billing drawer + `PATCH plan`;
-   company-admin usage banners.
+2. **A2** — ✅ **SHIPPED 2026-05-17 (commit `66ea0ff`).** Super-admin: per-row
+   usage column + overage chip on the Platform list (best-effort — never
+   500s the list), billing drawer (tier/included/used/remaining/overage/
+   cycle_start + last-50 events + CSV export), `PATCH
+   /api/admin/super/tenants/:id/plan` (tenant_plans UPDATE via a two-role
+   same-tx: `assessiq_system` for the lock+UPDATE since `tenant_plans` has
+   no UPDATE RLS policy, then `assessiq_app`+`app.current_tenant` for
+   `auditInTx` per audit.ts's contract & the `updateAiGenerateMode`
+   precedent), `GET …/billing`, `GET …/billing/export.csv`.
+   `tenant.plan_updated` added to module-14 ACTION_CATALOG. Company-admin:
+   fail-silent `UsageBanner` (green/amber/red) on Dashboard + Assessments +
+   "Your plan & usage" card on the Billing page (legacy grading-limit
+   content untouched). Validation: tier∈{free,pro,enterprise,internal},
+   credits null|int≥0, internal⇒null (omitted credits coerced), finite⇒
+   credits. No migration (A1 tables). Adversarial: Sonnet review (revise,
+   5 findings) + Opus adjudication — A (auditInTx-under-wrong-role) & B
+   (internal coercion) fixed, C rejected (gate parity w/ ai-generate-mode),
+   D deferred (repo-wide :tenantId UUID-guard sweep), E fixed. 31 billing
+   tests + admin-dashboard unit; all typechecks clean.
 3. **B1** — re-gate generation to super-admin; entitlement grant/revoke
    endpoints + super-admin entitlements UI; existing-tenant entitlement backfill.
 4. **B2** — publish-time entitlement enforcement + filtered picker.

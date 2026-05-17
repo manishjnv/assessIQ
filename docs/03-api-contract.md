@@ -354,7 +354,10 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 |---|---|---|---|
 | `PATCH` | `/api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip `ai_generate_mode` for a target tenant | **live 2026-05-08** |
 | `POST` | `/api/admin/super/companies` | Provision new company tenant + send first-admin invitation | **live 2026-05-17** |
-| `GET` | `/api/admin/super/tenants` | List all provisioned tenants | **live 2026-05-17** |
+| `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: each tenant carries `usage` summary) | **live 2026-05-17** |
+| `GET` | `/api/admin/super/tenants/:tenantId/billing` | Full billing detail for one tenant (A2) | **live 2026-05-17** |
+| `GET` | `/api/admin/super/tenants/:tenantId/billing/export.csv` | Export all billing events as CSV (A2) | **live 2026-05-17** |
+| `PATCH` | `/api/admin/super/tenants/:tenantId/plan` | Update a tenant's tier and/or credit allowance (A2) | **live 2026-05-17** |
 
 #### `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`
 
@@ -432,14 +435,32 @@ Returns all provisioned tenants. Read-only, no pagination in v1.
 **Auth:** `super_admin` only.
 
 **Response 200:** each tenant also carries its **first admin** (earliest `users` row with `role='admin'` in that tenant — the person invited at company-creation). `admin_*` are `null` for tenants with no admin user (e.g. the `platform` tenant, whose operator is `super_admin`). `admin_status` is `pending` until the admin accepts the invite, then `active`.
+
+**A2 extension:** each tenant object now also carries a `usage` summary field:
+
+```ts
+usage: {
+  tier: "free" | "pro" | "enterprise" | "internal",
+  included_credits: number | null,   // null = unlimited (internal tier)
+  used: number,
+  remaining: number | null,          // null when unlimited; negative = overage magnitude
+  overage: number,
+  status: "ok" | "warn" | "over" | "unlimited"
+} | null
+```
+
+`usage` is `null` when the per-tenant billing aggregate could not be computed (best-effort — the endpoint never fails the whole list because of a billing row absence for one tenant).
+
 ```json
 { "tenants": [{
   "id": "uuid", "slug": "acme-corp", "name": "Acme Corp",
   "status": "active", "created_at": "2026-05-17T10:00:00Z",
-  "admin_email": "admin@acme.com", "admin_name": "Acme Admin", "admin_status": "pending"
+  "admin_email": "admin@acme.com", "admin_name": "Acme Admin", "admin_status": "pending",
+  "usage": { "tier": "free", "included_credits": 50, "used": 43, "remaining": 7, "overage": 0, "status": "warn" }
 }] }
 ```
-Implementation: `LEFT JOIN LATERAL` against `users` under `SET LOCAL ROLE assessiq_system` (BYPASSRLS — the established cross-tenant system-role pattern for this endpoint; no N+1).
+
+Implementation: `LEFT JOIN LATERAL` against `users` under `SET LOCAL ROLE assessiq_system` (BYPASSRLS — the established cross-tenant system-role pattern for this endpoint; no N+1). The `usage` aggregate is a second lateral join (or a subquery) against `tenant_plans` + `billing_events`, also under the system role.
 
 **Source:** `apps/api/src/routes/admin-super.ts`.
 
@@ -1281,4 +1302,139 @@ Returns the calling tenant's credit tier, allowance, and current consumption. So
 
 **Note:** RLS-scoped to the session tenant via `withTenant`. The credit count query is `COUNT(*) FROM billing_events WHERE tenant_id = $1` — no mutable counter, always self-consistent.
 
-**Source:** `modules/18-certification/src/routes.ts` — `POST /api/admin/certificates/:id/reissue`.
+**Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/usage`.
+
+---
+
+## Admin — Super Billing (Phase A2, module 19-billing)
+
+> **Status: LIVE — 2026-05-17 (commit `66ea0ff`).** Routes in `apps/api/src/routes/admin-super.ts`. Auth via `authChain({ roles: ['super_admin'] })` (`superAdminOnly` gate — same as all other super routes). No fresh-MFA requirement (fresh-MFA is reserved for tenant creation; config edits like plan changes do not require step-up).
+
+### `GET /api/admin/super/tenants/:tenantId/billing`
+
+Returns full billing detail for a single tenant. Intended for the platform operator billing drill-down view.
+
+**Auth:** `super_admin` only (`superAdminOnly`). Tenant admins and reviewers receive `403 AUTHZ_FAILED`.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Request:** no query params, no body.
+
+**Response 200** `application/json` — `TenantBillingDetail`:
+```json
+{
+  "tenant_id": "uuid",
+  "tier": "free",
+  "included_credits": 50,
+  "status": "active",
+  "cycle_start": "2026-01-01T00:00:00Z",
+  "used": 43,
+  "remaining": 7,
+  "overage": 0,
+  "usage_status": "warn",
+  "recent_events": [
+    { "id": "uuid", "attempt_id": "uuid", "event_type": "assessment_graded", "occurred_at": "2026-05-17T09:00:00Z" }
+  ]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `tenant_id` | `string` (UUID) | Target tenant |
+| `tier` | `"free" \| "pro" \| "enterprise" \| "internal"` | From `tenant_plans.tier` |
+| `included_credits` | `number \| null` | `null` when unlimited (`internal` tier) |
+| `status` | `"active" \| "suspended"` | From `tenant_plans.status` |
+| `cycle_start` | ISO8601 string | Reserved; not cycle-windowed in A2 — usage is lifetime `COUNT(*)` |
+| `used` | `number` | `COUNT(*)` from `billing_events WHERE tenant_id = ?` |
+| `remaining` | `number \| null` | `included_credits - used`; `null` when unlimited; negative = overage magnitude |
+| `overage` | `number` | `max(0, used - included_credits)`; `0` when unlimited |
+| `usage_status` | `"ok" \| "warn" \| "over" \| "unlimited"` | `ok` = <80% used; `warn` = 80–<100%; `over` = ≥100%; `unlimited` = credits null |
+| `recent_events` | `Array<{ id, attempt_id, event_type, occurred_at }>` | Last 50 billing events, newest first |
+
+**Errors:**
+
+- `404` `details.code = 'PLAN_NOT_FOUND'` — target tenant has no `tenant_plans` row (data-integrity signal; every tenant should have a row post-backfill by migration `0080`).
+- `401 AUTHN_FAILED` — no session.
+- `403 AUTHZ_FAILED` — caller is not `super_admin`.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts`.
+
+---
+
+### `GET /api/admin/super/tenants/:tenantId/billing/export.csv`
+
+Downloads all billing events for a tenant as an RFC4180 CSV file.
+
+**Auth:** `super_admin` only.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Request:** no query params, no body.
+
+**Response 200** `text/csv; charset=utf-8`:
+
+- `Content-Disposition: attachment; filename="billing-<tenantId>.csv"`
+- RFC4180 body: header row `id,attempt_id,event_type,occurred_at`; one data row per `billing_events` record (all events for the tenant, newest first); every field double-quoted.
+
+**Errors:**
+
+- `401 AUTHN_FAILED` — no session.
+- `403 AUTHZ_FAILED` — caller is not `super_admin`.
+
+**Note:** No `404` for a tenant with zero events — returns a header-only CSV. A `404` for an unknown `tenantId` may be returned if tenant existence is validated before the query.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts`.
+
+---
+
+### `PATCH /api/admin/super/tenants/:tenantId/plan`
+
+Updates a tenant's billing tier and/or credit allowance. Both fields are optional — omitting a field keeps the previous value.
+
+**Auth:** `super_admin` only (`superAdminOnly` — same gate as `PATCH .../ai-generate-mode`). No fresh-MFA required (fresh-MFA is reserved for tenant creation, not config edits).
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body** (both fields optional):
+```json
+{ "tier": "pro", "includedCredits": 200 }
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `tier` | `"free" \| "pro" \| "enterprise" \| "internal"` (optional) | Omit to keep existing tier |
+| `includedCredits` | `number \| null` (optional) | Omit to keep existing value; `tier:'internal'` with `includedCredits` omitted coerces credits to `null` (unlimited) |
+
+**Response 200** `application/json`:
+```json
+{
+  "tenant_id": "uuid",
+  "tier": "pro",
+  "included_credits": 200,
+  "previous": { "tier": "free", "included_credits": 50 },
+  "updatedAt": "2026-05-17T10:30:00Z",
+  "auditId": "uuid"
+}
+```
+
+- `previous` — tier and credits before this call (for undo / audit display).
+- `auditId` — UUID of the `audit_log` row committed atomically with the `UPDATE`.
+
+**Validation errors (400):**
+
+| `details.code` | Condition |
+|---|---|
+| `INVALID_TIER` | `tier` not in `"free" \| "pro" \| "enterprise" \| "internal"` |
+| `INVALID_CREDITS` | `includedCredits` is not `null` and not an integer ≥ 0 |
+| `INTERNAL_REQUIRES_NULL_CREDITS` | `tier = "internal"` with explicit non-null `includedCredits` |
+| `FINITE_TIER_REQUIRES_CREDITS` | `tier` is non-`internal` and `includedCredits` is explicitly `null` |
+
+**Errors:**
+
+- `404` `details.code = 'PLAN_NOT_FOUND'` — target tenant has no `tenant_plans` row.
+- `401 AUTHN_FAILED` — no session.
+- `403 AUTHZ_FAILED` — caller is not `super_admin`.
+
+**Audit:** Emits `tenant.plan_updated` (`ACTION_CATALOG` in `modules/14-audit-log/src/types.ts`). The `UPDATE` on `tenant_plans` and the `audit_log` INSERT are in the same Postgres transaction (atomic — rollback reverts both). This is a **two-role transaction**: the `SELECT … FOR UPDATE` + `UPDATE` on `tenant_plans` runs under `assessiq_system` (BYPASSRLS — no UPDATE RLS policy exists on `tenant_plans` by design); the `auditInTx` write to `audit_log` runs under `assessiq_app` with `set_config('app.current_tenant', tenantId, true)`, satisfying `audit_log`'s INSERT RLS policy and the `modules/14-audit-log/src/audit.ts` contract. This mirrors the reviewed `updateAiGenerateMode` precedent in `@assessiq/tenancy`.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`updateTenantPlan`).
