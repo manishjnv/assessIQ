@@ -81,6 +81,9 @@ importers:
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../../modules/01-auth
+      '@assessiq/billing':
+        specifier: workspace:*
+        version: link:../../modules/19-billing
       '@assessiq/certification':
         specifier: workspace:*
         version: link:../../modules/18-certification
@@ -392,6 +395,9 @@ importers:
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth
+      '@assessiq/billing':
+        specifier: workspace:*
+        version: link:../19-billing
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
@@ -814,6 +820,37 @@ importers:
       '@types/qrcode':
         specifier: ^1.5.6
         version: 1.5.6
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.17)(jsdom@25.0.1)
+
+  modules/19-billing:
+    dependencies:
+      '@assessiq/audit-log':
+        specifier: workspace:*
+        version: link:../14-audit-log
+      '@assessiq/core':
+        specifier: workspace:*
+        version: link:../00-core
+      '@assessiq/tenancy':
+        specifier: workspace:*
+        version: link:../02-tenancy
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.5
+      pg:
+        specifier: ^8.13.0
+        version: 8.20.0
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
       tsx:
         specifier: ^4.19.0
         version: 4.21.0

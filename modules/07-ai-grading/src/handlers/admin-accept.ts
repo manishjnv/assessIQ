@@ -28,6 +28,7 @@ import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
 import { computeAttemptScore } from "@assessiq/scoring";
 import { auditInTx } from "@assessiq/audit-log";
+import { recordGradedAttempt } from "@assessiq/billing";
 
 const log = streamLogger("grading");
 
@@ -212,6 +213,11 @@ async function acceptProposals(
       attempt_status_now: "graded",
     },
   });
+
+  // Revenue metering — same transaction as the grade commit (mirrors the
+  // auditInTx same-tx invariant). Idempotent via UNIQUE(tenant_id,attempt_id);
+  // any non-conflict db error rolls back the grade too (revenue-leak invariant).
+  await recordGradedAttempt(client, tenantId, attemptId);
 
   return gradings;
 }

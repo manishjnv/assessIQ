@@ -24,6 +24,7 @@ import { ValidationError, streamLogger } from '@assessiq/core';
 import { updateAiGenerateMode, createTenant, activateTenant, getPool } from '@assessiq/tenancy';
 import { inviteUser } from '@assessiq/users';
 import { audit } from '@assessiq/audit-log';
+import { provisionDefaultPlan } from '@assessiq/billing';
 import { seedTenantTaxonomy } from '@assessiq/question-bank';
 import { authChain } from '../middleware/auth-chain.js';
 
@@ -237,6 +238,18 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
           invitationId: invitation?.id ?? null,
         },
       });
+
+      // Step 6: provision the default free billing plan (Phase A1, module 19).
+      // Ordered AFTER the tenant.created audit on purpose: createCompany is the
+      // highest-risk tenant-create surface, so the creation must always be
+      // audited even if plan provisioning fails. Runs in its own
+      // withTenant(tenantId) tx; idempotent via ON CONFLICT (tenant_id) DO
+      // NOTHING so a createCompany retry is safe. A failure here throws (500;
+      // operator sees it immediately) but never leaves a planless tenant
+      // silent: GET /api/billing/usage fails safe to status 'over' until the
+      // idempotent provision is re-run.
+      await provisionDefaultPlan(tenantId);
+      log.info({ tenantId }, 'createCompany: default free plan provisioned');
 
       return reply.code(201).send({
         tenantId,
