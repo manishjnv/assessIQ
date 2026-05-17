@@ -1,3 +1,23 @@
+# Session — 2026-05-18 (Phase C — help content; monetization/entitlement program A→C COMPLETE)
+
+**Headline:** C shipped — plain-operator help for plans/usage/entitlements (company + super-admin), guide TipCards/FAQ, help-id wiring. The full monetization/entitlement program (A1→A2→B1→B2→C) is complete and live.
+**Commits (main):** `f60256a` docs(help) Phase C · docs/handoff commits follow.
+**Tests:** typecheck clean (admin-dashboard, web, help-system). No unit suite (pure content). Seed regenerated valid (104 rows).
+**Deploy:** no new migration number — `0011_seed_help_content.sql` regenerated + re-applied to prod (idempotent `ON CONFLICT DO NOTHING`: only the 4 new keys inserted, existing rows untouched; also cleared a pre-existing ~15-day seed desync, see RCA). 4 new help keys confirmed live in `help_content`. `assessiq-frontend` rebuilt+recreated (admin-guide + help-id attrs); api correctly untouched (no api change); neighbors intact.
+**Next:** **The spec program is fully delivered — no further monetization/entitlement phases.** Pick from the tracked follow-ups (none load-bearing, none blocking): see Open questions.
+**Open questions / tracked follow-ups (carried across A2/B1/B2/C; none block anything):** (1) **CI gate for the help-seed** — `generate-help-seed.ts` failures (e.g. short_text >120) are silent; wire a build/pre-commit check that the regenerated `0011` matches the committed one (RCA 2026-05-18). (2) repo-wide test-harness sweep — `if(!dockerAvailable) return` silently greens DB tests incl. authz (pre-existing pattern). (3) grant-time domain case-normalisation in the B1 super-admin entitlements UI (B2 read side stays exact-match by design). (4) DB-level `pack_id` immutability on non-draft assessments (service-layer-enforced today). (5) optional e2e test: failed B2 gate leaves assessment `draft`. (6) repo-wide `:tenantId` UUID-guard sweep on `admin-super.ts` (since A2). (7) migration integration tests should run the migration-file SQL, not a hand-copied string (RCA B1).
+
+---
+
+## Agent utilization
+- **Opus:** C build contract (exact factual-accuracy spec for the 4 entries — the real risk of a content phase); Phase-0 grounding (help-system seed mechanism, ON CONFLICT idempotency, the tone reference, the stale-`generate.draft` reconciliation = no rewrite needed); Phase-3 **copy-accuracy review** vs shipped A1/A2/B1/B2 → fixed `admin.platform.entitlements` to state the B2 reopen-recheck precisely; verified the seed diff is add-only/non-destructive + the lone `UPDATE` is embedded help-text; RCA (seed desync root cause + CI-gate prevention); spec/memory/handoff; deploy + verify.
+- **Sonnet:** C build subagent (4 help entries in-voice, guide TipCards/FAQ, help-id wiring, seed regen; surfaced + fixed the pre-existing 132-char `admin.platform` generator-block as a necessary unblock; typechecks clean).
+- **Haiku:** n/a — verification was a targeted help_content query + health check, not a bulk sweep.
+- **codex:rescue:** n/a — C is non-load-bearing pure content; spec explicitly scopes the adversarial gate to A1/B2 only.
+- **claude-mem:** updated `entitlement-b1-b2-contract` (A→C complete; added the help-seed CI-gate follow-up).
+
+---
+
 # Session — 2026-05-18 (Phase B2 — publish-time entitlement enforcement; A→B COMPLETE)
 
 **Headline:** B2 is live — every assessment publish/reopen now server-validates pack entitlement (403 NOT_ENTITLED); internal bypasses; fail-closed on missing plan. The monetization/entitlement program A→B is complete; only C (help-guide content) remains.
