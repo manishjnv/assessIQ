@@ -27,13 +27,24 @@ export function requireAuth(opts: RequireAuthOptions = {}): AuthHook {
         throw new AuthzError(`role ${sess.role} not authorized`);
       }
 
-      // TOTP-verified gate. config.MFA_REQUIRED short-circuits the check —
+      // TOTP-verified gate.
+      //
+      // super_admin ALWAYS requires totpVerified=true, regardless of
+      // MFA_REQUIRED env. This is non-negotiable: a super_admin session that
+      // hasn't completed TOTP cannot access any route — not even routes that
+      // would otherwise allow non-MFA sessions when MFA_REQUIRED=false.
+      //
+      // For all other roles: config.MFA_REQUIRED short-circuits the check —
       // when MFA is opt-in (Phase 0 default for early stage), every gate
       // that would otherwise demand TOTP becomes a no-op. Role gates above
       // remain authoritative; this only relaxes the second-factor demand.
       // Flip MFA_REQUIRED=true in env to re-harden without code changes.
-      if (config.MFA_REQUIRED) {
-        const requireTotp = opts.requireTotpVerified ?? (sess.role !== "candidate");
+      const isSuperAdmin = sess.role === "super_admin";
+      if (isSuperAdmin || config.MFA_REQUIRED) {
+        // super_admin: always require TOTP. Other roles: respect opts.requireTotpVerified.
+        const requireTotp = isSuperAdmin
+          ? true
+          : (opts.requireTotpVerified ?? (sess.role !== "candidate"));
         if (requireTotp && !sess.totpVerified) {
           throw new AuthnError("totp verification required");
         }
@@ -41,6 +52,8 @@ export function requireAuth(opts: RequireAuthOptions = {}): AuthHook {
         // Fresh-MFA gate (step-up). Only meaningful when MFA is enforced
         // — when MFA_REQUIRED=false the freshness check has nothing to
         // measure (lastTotpAt would always be null) and is skipped.
+        // super_admin: step-up is always enforced when freshMfaWithinMinutes
+        // is specified (same as MFA_REQUIRED=true behavior).
         if (opts.freshMfaWithinMinutes !== undefined) {
           if (sess.lastTotpAt === null) {
             throw new AuthnError("fresh totp required");

@@ -38,7 +38,7 @@ export interface OidcStartOutput {
 
 export interface OidcCallbackOutput {
   sessionToken: string;
-  user: { id: string; email: string; tenantId: string; role: "admin" | "reviewer" | "candidate" };
+  user: { id: string; email: string; tenantId: string; role: "admin" | "super_admin" | "reviewer" | "candidate" };
   redirectTo: string;
 }
 
@@ -245,7 +245,7 @@ interface UserRow {
   id: string;
   tenant_id: string;
   email: string;
-  role: "admin" | "reviewer" | "candidate";
+  role: "admin" | "super_admin" | "reviewer" | "candidate";
   status: string;
   deleted_at: string | null;
 }
@@ -330,18 +330,109 @@ export async function handleGoogleCallback(input: {
   const subject = claims.sub;
   const idpEmail = normalizeEmail(claims.email ?? "");
 
-  // --- 5. Resolve AssessIQ user (oauth_identities → users) ---
+  // ---------------------------------------------------------------------------
+  // --- 5. Resolve AssessIQ user ---
   //
-  // The oauth_identities table has UNIQUE(provider, subject) as a global key,
-  // meaning a Google account maps to exactly one AssessIQ user. We scope
-  // the lookup within the tenant's RLS context via withTenant — both
-  // tables are RLS-protected and will filter to the tenant automatically.
+  // PLATFORM BRANCH (option c — isolated path):
+  //   When the state's tenantId matches the fixed PLATFORM_TENANT_ID, this is
+  //   a super-admin login attempt. The platform branch:
+  //     Gate 1: valid id_token — already verified above (RS256/JWKS/nonce/CSRF).
+  //     Gate 2: email ∈ SUPER_ADMIN_EMAILS allowlist.
+  //     Gate 3: users row in platform tenant with role='super_admin' & status='active'.
+  //     Gate 4: mint session totpVerified=false → force MFA (ALWAYS, regardless
+  //             of MFA_REQUIRED env). Redirect to /admin/mfa unconditionally.
+  //   CRITICAL: NO oauth_identities INSERT or lookup on this path. The global
+  //   UNIQUE(provider,subject) constraint stays intact for customer tenants.
+  //   Any gate failure → generic AuthnError (no enumeration).
   //
+  // CUSTOMER TENANT BRANCH (normal path — BYTE-UNCHANGED):
+  //   Pass 1: oauth_identities by (provider='google', subject).
+  //   Pass 2: users by (tenant_id [via RLS], email) — JIT link.
+  //   Pass 3: no user → AuthnError (no self-registration in Phase 1).
+  // ---------------------------------------------------------------------------
+
+  let user: UserRow | null = null;
+
+  const platformTenantId = config.PLATFORM_TENANT_ID;
+
+  if (tenantId === platformTenantId) {
+    // -------------------------------------------------------------------------
+    // PLATFORM BRANCH — super-admin login
+    // -------------------------------------------------------------------------
+
+    // Gate 2: email in SUPER_ADMIN_EMAILS allowlist (comma-separated, normalized).
+    const allowlist = (config.SUPER_ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((e) => normalizeEmail(e.trim()))
+      .filter((e) => e.length > 0);
+    if (!allowlist.includes(idpEmail)) {
+      // Generic AuthnError — no enumeration of why.
+      throw new AuthnError("authentication failed");
+    }
+
+    // Gate 3: platform-tenant users row with role='super_admin' & status='active'.
+    // System-role read: bypasses RLS because app.current_tenant would need to
+    // be set to the platform tenant — using withTenant(platformTenantId) is
+    // equivalent and correct here; it scopes the query to platform tenant only.
+    await withTenant(platformTenantId, async (client) => {
+      const userRes = await client.query<UserRow>(
+        `SELECT id, tenant_id, email, role, status, deleted_at
+         FROM users
+         WHERE email = $1`,
+        [idpEmail],
+      );
+      if (userRes.rows.length > 0) {
+        user = userRes.rows[0]!;
+      }
+    });
+
+    if (user === null) {
+      throw new AuthnError("authentication failed");
+    }
+
+    const platformUser = user as UserRow;
+
+    // Gate 3 continued: role must be super_admin AND status must be active AND not deleted.
+    if (
+      platformUser.role !== "super_admin" ||
+      platformUser.status !== "active" ||
+      platformUser.deleted_at !== null
+    ) {
+      throw new AuthnError("authentication failed");
+    }
+
+    // Gate 4: mint session totpVerified=false; ALWAYS force MFA for super_admin.
+    // NO oauth_identities INSERT on this path — invariant from contract option (c).
+    const { token: sessionToken } = await sessions.create({
+      userId: platformUser.id,
+      tenantId: platformTenantId,
+      role: "super_admin",
+      totpVerified: false,
+      ip,
+      ua,
+    });
+
+    // Super-admin ALWAYS requires MFA — redirect to /admin/mfa regardless of
+    // MFA_REQUIRED env. The requireAuth gate for super routes enforces
+    // totpVerified===true independently.
+    return {
+      sessionToken,
+      user: {
+        id: platformUser.id,
+        email: platformUser.email,
+        tenantId: platformTenantId,
+        role: "super_admin" as const,
+      },
+      redirectTo: "/admin/mfa",
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // CUSTOMER TENANT BRANCH — normal Google SSO path (BYTE-UNCHANGED below)
+  // -------------------------------------------------------------------------
   // Pass 1: oauth_identities by (provider='google', subject).
   // Pass 2: users by (tenant_id [via RLS], email) — JIT link.
   // Pass 3: no user → AuthnError (no self-registration in Phase 1).
-
-  let user: UserRow | null = null;
 
   // Pass 1 — try oauth_identities lookup within tenant scope.
   await withTenant(tenantId, async (client) => {

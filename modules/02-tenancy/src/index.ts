@@ -8,8 +8,10 @@ export {
   updateTenantSettings,
   suspendTenant,
   updateAiGenerateMode,
+  createTenant,
+  activateTenant,
 } from "./service.js";
-export type { UpdateAiGenerateModeResult } from "./service.js";
+export type { UpdateAiGenerateModeResult, CreateTenantInput, CreateTenantResult } from "./service.js";
 export { findTenantSettings } from "./repository.js";
 export type {
   Tenant,
