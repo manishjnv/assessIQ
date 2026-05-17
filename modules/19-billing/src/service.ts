@@ -18,6 +18,9 @@ import {
   getRecentBillingEvents,
   getAllBillingEventsForExport,
   updateTenantPlanRow,
+  insertEntitlement,
+  revokeEntitlement as revokeEntitlementRow,
+  listEntitlements,
 } from './repository.js';
 import type {
   BillingUsage,
@@ -27,6 +30,9 @@ import type {
   TenantBillingDetail,
   UpdateTenantPlanPatch,
   UpdateTenantPlanResult,
+  TenantEntitlement,
+  EntitlementScopeType,
+  GrantEntitlementInput,
 } from './types.js';
 
 const log = streamLogger('billing');
@@ -277,6 +283,190 @@ export async function getTenantBillingEventsCsv(tenantId: string): Promise<strin
 // ---------------------------------------------------------------------------
 // A2 — plan mutation (super-admin)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// B1 — entitlement service
+// All mutations use the EXACT two-role same-tx pattern from updateTenantPlan:
+//   own client → BEGIN → SET LOCAL ROLE assessiq_system (BYPASSRLS write)
+//   → mutate row → SET LOCAL ROLE assessiq_app + set_config(current_tenant)
+//   → auditInTx → COMMIT. Same tx = mutation + audit are atomic.
+// ---------------------------------------------------------------------------
+
+const VALID_SCOPE_TYPES: ReadonlySet<string> = new Set(['domain', 'pack']);
+
+/**
+ * Grant a scope entitlement to a tenant.
+ *
+ * Idempotent: granting an already-active entitlement updates granted_at/by.
+ * Re-granting a previously-revoked entitlement reactivates it.
+ *
+ * Throws ValidationError (INVALID_SCOPE) if scopeType is not 'domain'|'pack'
+ * or if scopeId is an empty string.
+ */
+export async function grantEntitlement(
+  actorUserId: string,
+  tenantId: string,
+  input: GrantEntitlementInput,
+): Promise<{ tenant_id: string; scope_type: EntitlementScopeType; scope_id: string; status: 'active'; auditId: string }> {
+  if (!VALID_SCOPE_TYPES.has(input.scopeType)) {
+    throw new ValidationError(
+      `scopeType must be one of domain|pack`,
+      { details: { code: 'INVALID_SCOPE', received: input.scopeType } },
+    );
+  }
+  if (
+    typeof input.scopeId !== 'string' ||
+    input.scopeId.trim().length === 0 ||
+    input.scopeId.trim().length > 256
+  ) {
+    throw new ValidationError(
+      `scopeId must be a non-empty string of at most 256 characters`,
+      { details: { code: 'INVALID_SCOPE', received: input.scopeId } },
+    );
+  }
+
+  const scopeType = input.scopeType as EntitlementScopeType;
+  const scopeId = input.scopeId.trim();
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Phase A — system role: tenant_entitlements has no UPDATE/DELETE RLS
+    // policy, so INSERT/UPDATE require BYPASSRLS (assessiq_system).
+    await client.query('SET LOCAL ROLE assessiq_system');
+
+    const { id: entitlementId } = await insertEntitlement(client, tenantId, scopeType, scopeId, actorUserId);
+
+    // Phase B — app role + tenant GUC: put auditInTx in the context its
+    // contract requires. Same transaction → mutation + audit are atomic.
+    await client.query('SET LOCAL ROLE assessiq_app');
+    await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+
+    const auditRow = await auditInTx(client, {
+      action: 'tenant.entitlement_granted',
+      actorKind: 'user',
+      actorUserId,
+      tenantId,
+      entityType: 'tenant_entitlement',
+      entityId: tenantId,
+      after: { scope_type: scopeType, scope_id: scopeId, status: 'active', entitlement_id: entitlementId },
+    });
+
+    await client.query('COMMIT');
+
+    return { tenant_id: tenantId, scope_type: scopeType, scope_id: scopeId, status: 'active', auditId: auditRow.id };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Revoke an active scope entitlement from a tenant.
+ *
+ * Throws NotFoundError (ENTITLEMENT_NOT_FOUND) if no active entitlement
+ * exists for the given tenant + scope. In that case NO audit row is written
+ * and NO row is changed — no-op must not produce an audit trail.
+ *
+ * Throws ValidationError (INVALID_SCOPE) on bad input.
+ */
+export async function revokeEntitlement(
+  actorUserId: string,
+  tenantId: string,
+  input: GrantEntitlementInput,
+): Promise<{ tenant_id: string; scope_type: EntitlementScopeType; scope_id: string; status: 'revoked'; auditId: string }> {
+  if (!VALID_SCOPE_TYPES.has(input.scopeType)) {
+    throw new ValidationError(
+      `scopeType must be one of domain|pack`,
+      { details: { code: 'INVALID_SCOPE', received: input.scopeType } },
+    );
+  }
+  if (
+    typeof input.scopeId !== 'string' ||
+    input.scopeId.trim().length === 0 ||
+    input.scopeId.trim().length > 256
+  ) {
+    throw new ValidationError(
+      `scopeId must be a non-empty string of at most 256 characters`,
+      { details: { code: 'INVALID_SCOPE', received: input.scopeId } },
+    );
+  }
+
+  const scopeType = input.scopeType as EntitlementScopeType;
+  const scopeId = input.scopeId.trim();
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Phase A — system role: BYPASSRLS required for the UPDATE.
+    await client.query('SET LOCAL ROLE assessiq_system');
+
+    const revoked = await revokeEntitlementRow(client, tenantId, scopeType, scopeId, actorUserId);
+
+    if (revoked === null) {
+      // Nothing was active to revoke — throw BEFORE writing any audit row.
+      // ROLLBACK here is a no-op (no writes yet) but keeps the pattern clean.
+      await client.query('ROLLBACK');
+      throw new NotFoundError(
+        `No active entitlement found for tenant ${tenantId} scope ${scopeType}:${scopeId}`,
+        { details: { code: 'ENTITLEMENT_NOT_FOUND', tenantId, scopeType, scopeId } },
+      );
+    }
+
+    // Phase B — app role + tenant GUC: auditInTx in its required context.
+    await client.query('SET LOCAL ROLE assessiq_app');
+    await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+
+    const auditRow = await auditInTx(client, {
+      action: 'tenant.entitlement_revoked',
+      actorKind: 'user',
+      actorUserId,
+      tenantId,
+      entityType: 'tenant_entitlement',
+      entityId: tenantId,
+      after: { scope_type: scopeType, scope_id: scopeId, status: 'revoked', entitlement_id: revoked.id },
+    });
+
+    await client.query('COMMIT');
+
+    return { tenant_id: tenantId, scope_type: scopeType, scope_id: scopeId, status: 'revoked', auditId: auditRow.id };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * List all entitlements for a tenant (super-admin path).
+ *
+ * Uses withSystemTx (assessiq_system / BYPASSRLS) to read across tenant
+ * boundaries without needing app.current_tenant set. Returns all statuses
+ * (active + revoked) so the super-admin UI can show history.
+ */
+export async function listTenantEntitlements(tenantId: string): Promise<TenantEntitlement[]> {
+  return withSystemTx((client) => listEntitlements(client, tenantId));
+}
+
+/**
+ * List active entitlements for the authenticated tenant's own context
+ * (company-admin path).
+ *
+ * Uses withTenant(tenantId) so RLS is fully enforced — the SELECT policy on
+ * tenant_entitlements limits rows to the current tenant. Returns only
+ * status='active' rows (activeOnly: true) since company admins have no need
+ * to see revoked history.
+ */
+export async function getCompanyEntitlements(tenantId: string): Promise<TenantEntitlement[]> {
+  return withTenant(tenantId, (c) => listEntitlements(c, tenantId, { activeOnly: true }));
+}
 
 const VALID_TIERS: ReadonlySet<string> = new Set(['free', 'pro', 'enterprise', 'internal']);
 

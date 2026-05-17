@@ -14,6 +14,10 @@ export type {
   BillingEventRow,
   UpdateTenantPlanPatch,
   UpdateTenantPlanResult,
+  // B1 types
+  EntitlementScopeType,
+  TenantEntitlement,
+  GrantEntitlementInput,
 } from './types.js';
 
 export {
@@ -27,6 +31,11 @@ export {
   getTenantBillingDetail,
   getTenantBillingEventsCsv,
   updateTenantPlan,
+  // B1 exports
+  grantEntitlement,
+  revokeEntitlement,
+  listTenantEntitlements,
+  getCompanyEntitlements,
 } from './service.js';
 
 export {

@@ -168,7 +168,13 @@ export async function buildServer() {
   // Question-bank admin routes — same admin-gated authChain. The module
   // accepts the chain as an injected dep so the library stays Fastify-shape-
   // compatible without a hard apps/api import.
-  await registerQuestionBankRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+  // Question-bank admin routes. Phase B1: generation endpoints are re-gated to
+  // super_admin; all other question-bank routes (CRUD, import, publish) remain
+  // adminOnly. Both chains are injected so the module stays apps/api-agnostic.
+  await registerQuestionBankRoutes(app, {
+    adminOnly: authChain({ roles: ['admin'] }),
+    superAdminOnly: authChain({ roles: ['super_admin'] }),
+  });
 
   // Assessment-lifecycle admin routes — same admin-gated authChain DI shape.
   // Registers /api/admin/assessments/* and /api/admin/invitations/:id (DELETE).

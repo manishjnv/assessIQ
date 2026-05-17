@@ -553,3 +553,78 @@ export interface CompanyUsage {
 export async function getCompanyUsage(): Promise<CompanyUsage> {
   return adminApi<CompanyUsage>("/billing/usage");
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — B1 entitlements (super-admin + company-admin)
+// ---------------------------------------------------------------------------
+
+export interface TenantEntitlement {
+  id: string;
+  tenant_id: string;
+  scope_type: 'domain' | 'pack';
+  scope_id: string;
+  status: 'active' | 'revoked';
+  granted_at: string; // ISO 8601
+  granted_by: string | null;
+}
+
+export interface GrantEntitlementRequest {
+  scopeType: 'domain' | 'pack';
+  scopeId: string;
+}
+
+/**
+ * GET /api/admin/super/tenants/:tenantId/entitlements
+ *
+ * Super-admin only. Returns all entitlements (active + revoked) for a tenant.
+ */
+export async function getTenantEntitlements(
+  tenantId: string,
+): Promise<{ entitlements: TenantEntitlement[] }> {
+  return adminApi<{ entitlements: TenantEntitlement[] }>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/entitlements`,
+  );
+}
+
+/**
+ * POST /api/admin/super/tenants/:tenantId/entitlements
+ *
+ * Super-admin only. Grant a scope entitlement to a tenant.
+ * Idempotent: re-granting reactivates a revoked row.
+ */
+export async function grantTenantEntitlement(
+  tenantId: string,
+  body: GrantEntitlementRequest,
+): Promise<{ tenant_id: string; scope_type: string; scope_id: string; status: 'active'; auditId: string }> {
+  return adminApi<{ tenant_id: string; scope_type: string; scope_id: string; status: 'active'; auditId: string }>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/entitlements`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+/**
+ * DELETE /api/admin/super/tenants/:tenantId/entitlements
+ *
+ * Super-admin only. Revoke an active scope entitlement from a tenant.
+ * Uses DELETE-with-body (scopeType + scopeId in the body).
+ * Throws 404 (ENTITLEMENT_NOT_FOUND) if nothing active to revoke.
+ */
+export async function revokeTenantEntitlement(
+  tenantId: string,
+  body: GrantEntitlementRequest,
+): Promise<{ revoked: true; tenant_id: string; scope_type: string; scope_id: string; status: 'revoked'; auditId: string }> {
+  return adminApi<{ revoked: true; tenant_id: string; scope_type: string; scope_id: string; status: 'revoked'; auditId: string }>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/entitlements`,
+    { method: 'DELETE', body: JSON.stringify(body) },
+  );
+}
+
+/**
+ * GET /api/billing/entitlements
+ *
+ * Company-admin endpoint (B1). Returns the current tenant's active entitlements.
+ * RLS-scoped: only the calling tenant's own active rows are returned.
+ */
+export async function getCompanyEntitlements(): Promise<{ entitlements: TenantEntitlement[] }> {
+  return adminApi<{ entitlements: TenantEntitlement[] }>('/billing/entitlements');
+}

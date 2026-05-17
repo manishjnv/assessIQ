@@ -133,6 +133,10 @@ export const ACTION_CATALOG = [
   // Phase A2 billing — super-admin plan update (tier / included_credits).
   // Fired inside updateTenantPlan via auditInTx (same tx as the UPDATE).
   'tenant.plan_updated',
+  // Phase B1 entitlements — super-admin grant / revoke of domain or pack scope.
+  // Fired inside grantEntitlement / revokeEntitlement via auditInTx (same tx).
+  'tenant.entitlement_granted',
+  'tenant.entitlement_revoked',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

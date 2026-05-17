@@ -30,8 +30,12 @@ import {
   getTenantBillingDetail,
   getTenantBillingEventsCsv,
   updateTenantPlan,
+  listTenantEntitlements,
+  grantEntitlement,
+  revokeEntitlement,
   type PlanTier,
   type UpdateTenantPlanPatch,
+  type EntitlementScopeType,
 } from '@assessiq/billing';
 import { seedTenantTaxonomy } from '@assessiq/question-bank';
 import { authChain } from '../middleware/auth-chain.js';
@@ -461,6 +465,128 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
 
       const result = await updateTenantPlan(req.session!.userId, tenantId, patch);
       return reply.code(200).send(result);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/super/tenants/:tenantId/entitlements
+  //
+  // List all entitlements (active + revoked) for a tenant (super-admin view).
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Runs under assessiq_system (BYPASSRLS) via listTenantEntitlements which
+  // internally uses withSystemTx — no app.current_tenant required.
+  //
+  // Response 200: { entitlements: TenantEntitlement[] }
+  // Response 403: not super_admin
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get(
+    '/api/admin/super/tenants/:tenantId/entitlements',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      const entitlements = await listTenantEntitlements(tenantId);
+      return reply.code(200).send({ entitlements });
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // POST /api/admin/super/tenants/:tenantId/entitlements
+  //
+  // Grant a scope entitlement to a tenant.
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Body: { scopeType: 'domain'|'pack', scopeId: string }
+  //
+  // Idempotent: re-granting an active entitlement updates granted_at/by;
+  // re-granting a revoked row reactivates it.
+  //
+  // Audit guarantee: the INSERT/UPDATE and the audit_log INSERT are in the
+  // same Postgres transaction via grantEntitlement → auditInTx. Atomicity
+  // matches the A2 updateTenantPlan pattern.
+  //
+  // Response 200: { tenant_id, scope_type, scope_id, status: 'active', auditId }
+  // Response 400: invalid scope (INVALID_SCOPE)
+  // Response 403: not super_admin
+  // ──────────────────────────────────────────────────────────────────────────
+  app.post(
+    '/api/admin/super/tenants/:tenantId/entitlements',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      const body = (req.body ?? {}) as { scopeType?: unknown; scopeId?: unknown };
+
+      // Light type-guard — domain validation is delegated to grantEntitlement.
+      if (typeof body.scopeType !== 'string' || body.scopeType.trim().length === 0) {
+        throw new ValidationError('scopeType must be a non-empty string', {
+          details: { code: 'INVALID_SCOPE', received: body.scopeType },
+        });
+      }
+      if (typeof body.scopeId !== 'string' || body.scopeId.trim().length === 0) {
+        throw new ValidationError('scopeId must be a non-empty string', {
+          details: { code: 'INVALID_SCOPE', received: body.scopeId },
+        });
+      }
+
+      const result = await grantEntitlement(req.session!.userId, tenantId, {
+        scopeType: body.scopeType as EntitlementScopeType,
+        scopeId: body.scopeId,
+      });
+      return reply.code(200).send(result);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // DELETE /api/admin/super/tenants/:tenantId/entitlements
+  //
+  // Revoke an active scope entitlement from a tenant.
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Decision: DELETE-with-body. There is no direct precedent for DELETE-with-
+  // body in this codebase (other DELETEs use path params for identity, e.g.
+  // DELETE /api/admin/embed-origins uses body). Since entitlements are
+  // identified by (tenant_id, scope_type, scope_id) — a composite key, not a
+  // single UUID — encoding all three in the URL path would produce an unwieldy
+  // URL and/or require URL-encoding of arbitrary scope_id strings. Body is the
+  // more ergonomic approach. Fastify supports DELETE-with-body natively (no
+  // configuration needed). Query params are an acceptable alternative but body
+  // is more consistent with the POST (grant) shape above and avoids encoding
+  // issues with scope_id values that contain slashes or special characters.
+  //
+  // Body: { scopeType: 'domain'|'pack', scopeId: string }
+  //
+  // Response 200: { tenant_id, scope_type, scope_id, status: 'revoked', auditId }
+  // Response 400: invalid scope (INVALID_SCOPE)
+  // Response 403: not super_admin
+  // Response 404: ENTITLEMENT_NOT_FOUND — nothing active to revoke
+  // ──────────────────────────────────────────────────────────────────────────
+  app.delete(
+    '/api/admin/super/tenants/:tenantId/entitlements',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      const body = (req.body ?? {}) as { scopeType?: unknown; scopeId?: unknown };
+
+      // Light type-guard — domain validation is delegated to revokeEntitlement.
+      if (typeof body.scopeType !== 'string' || body.scopeType.trim().length === 0) {
+        throw new ValidationError('scopeType must be a non-empty string', {
+          details: { code: 'INVALID_SCOPE', received: body.scopeType },
+        });
+      }
+      if (typeof body.scopeId !== 'string' || body.scopeId.trim().length === 0) {
+        throw new ValidationError('scopeId must be a non-empty string', {
+          details: { code: 'INVALID_SCOPE', received: body.scopeId },
+        });
+      }
+
+      const result = await revokeEntitlement(req.session!.userId, tenantId, {
+        scopeType: body.scopeType as EntitlementScopeType,
+        scopeId: body.scopeId,
+      });
+      return reply.code(200).send({ revoked: true, ...result });
     },
   );
 }

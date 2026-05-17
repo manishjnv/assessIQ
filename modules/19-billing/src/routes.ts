@@ -13,7 +13,7 @@
 // session's tenantId. Cross-tenant reads are impossible at the DB layer.
 
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
-import { getUsage } from './service.js';
+import { getUsage, getCompanyEntitlements } from './service.js';
 
 // ---------------------------------------------------------------------------
 // DI shape — mirrors the RegisterAssessmentLifecycleRoutesOptions pattern
@@ -48,6 +48,20 @@ export async function registerBillingRoutes(
     async (req) => {
       const tenantId = req.session!.tenantId;
       return getUsage(tenantId);
+    },
+  );
+
+  // GET /api/billing/entitlements
+  // Returns the active entitlements for the authenticated admin's own tenant.
+  // Company-admin path: RLS-scoped via withTenant, activeOnly=true.
+  // Response 200: { entitlements: TenantEntitlement[] }
+  app.get(
+    '/api/billing/entitlements',
+    { preHandler: companyAdmin },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const entitlements = await getCompanyEntitlements(tenantId);
+      return { entitlements };
     },
   );
 }
