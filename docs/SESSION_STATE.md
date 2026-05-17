@@ -1,3 +1,23 @@
+# Session — 2026-05-18 (Phase B2 — publish-time entitlement enforcement; A→B COMPLETE)
+
+**Headline:** B2 is live — every assessment publish/reopen now server-validates pack entitlement (403 NOT_ENTITLED); internal bypasses; fail-closed on missing plan. The monetization/entitlement program A→B is complete; only C (help-guide content) remains.
+**Commits (main):** `5c80aaa` feat B2 · docs/handoff commits follow.
+**Tests:** `@assessiq/billing` 50/50 (assert-publish-entitled a–g); billing/assessment-lifecycle/api/admin-dashboard typecheck clean.
+**Deploy:** no migration. **Pre-deploy assessment-level zero-fail gate run on prod = PASS** (0 existing published/active assessments would 403 — e2e/soc covered by B1 backfill, wipro-soc internal-bypass) — this is the strengthened gate adopted from adversarial MAJOR-3, stronger than the B1 domain-proxy query. `assessiq-api`+`assessiq-frontend` rebuilt+recreated on `5c80aaa`, both healthy; publish route serving (401 unauth — gate is post-auth); neighbor containers untouched.
+**Next:** Phase **C** (separate session, **non-load-bearing**, last phase): help-guide + drawer content refresh — pure content, no logic, no adversarial gate. Plain-operator language consistent with the 2026-05-17 admin.platform rewrite: company-admin "Your plan & usage" + "Where your questions come from"; super-admin platform/plan/entitlement guidance. Audit `modules/10-admin-dashboard/src/pages/admin-guide.tsx` + `16-help-system` YAML.
+**Open questions / tracked follow-ups (none block C):** (1) repo-wide test-harness sweep — `if(!dockerAvailable) return` silently greens DB tests (incl. authz tests) on Docker-less CI; pre-existing pattern across all billing/cert/audit suites; convert to `it.skipIf`. (2) grant-time domain case-normalisation in the B1 super-admin entitlements UI (read side stays exact-match by design). (3) DB-level `pack_id` immutability on non-draft assessments (service-layer-enforced today). (4) optional e2e test: failed gate leaves assessment `draft`. (5) carried: repo-wide `:tenantId` UUID-guard sweep on `admin-super.ts` (since A2). (6) RCA 2026-05-18: migration integration tests should run the migration file SQL, not a copy.
+
+---
+
+## Agent utilization
+- **Opus:** B2 build + adversarial contracts; Phase-0 grounding (pinned the two-and-only-two →published paths + single-pack model + 403 class); Phase-3 critique (ACCEPT no revisions — gate faithful to the locked contract, both paths gated before the in-tx status write); **adjudicated the Sonnet adversarial revise** (no code changes — verified each finding on merit: ADOPTED MAJOR-3 as a strengthened assessment-level prod pre-deploy gate; classified MAJOR-2 as the accepted pre-existing A1-10a pattern; rejected MINOR-4 `lower()` with the backfill-exact-match rationale; MINOR-1/5 as scoped-out follow-ups); ran the **critical pre-deploy zero-fail gate** (PASS) before deploy; deploy/verify; spec/memory/handoff.
+- **Sonnet:** B2 build subagent (8 files, 50 tests, 4 typechecks, exhaustive →published path audit + single-pack proof); **adversarial subagent** (full spec-mandated gate — VERDICT revise, 7 highest-stakes vectors CLEAN, 2 MAJOR + 3 MINOR surfaced incl. the sharper deploy-gate idea that was adopted); doc subagent (api-contract 403 contract on publish+reopen + data-model B2 note).
+- **Haiku:** n/a — verification was a targeted SQL gate + route probe, not a bulk sweep.
+- **codex:rescue:** n/a — B2 is exactly the spec's A1/B2 full-gate scope; satisfied via real Sonnet adversarial + Opus adjudication per the documented ladder (GLM leg still blocked by source-exfil guard).
+- **claude-mem:** updated `entitlement-b1-b2-contract` (now: A→B complete, implemented rule, the reusable assessment-level pre-deploy gate pattern, 4 follow-ups).
+
+---
+
 # Session — 2026-05-18 (Phase B1 — entitlements + generation re-gated)
 
 **Headline:** B1 is live — AI question generation is now super-admin-only; `tenant_entitlements` table + super-admin grant/revoke + company read shipped; existing tenants backfilled (domain-level) with the zero-NULL gate PASS. No publish-time enforcement (that is B2).
