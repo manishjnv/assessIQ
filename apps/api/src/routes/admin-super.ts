@@ -251,13 +251,23 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   // ──────────────────────────────────────────────────────────────────────────
   // GET /api/admin/super/tenants
   //
-  // List all tenants (system-role read). Returns slug/name/status/created_at.
-  // Provides operational visibility for the super-admin without exposing
-  // tenant-internal data.
+  // List all tenants (system-role read). Returns slug/name/status/created_at
+  // plus the tenant's FIRST admin (email/name/status) — the person invited at
+  // company-creation time — so the Platform UI can show who owns each company.
+  // The first admin is the earliest-created users row with role='admin' in
+  // that tenant (status is 'pending' until they accept the invite, then
+  // 'active'). NULL for tenants with no admin user (e.g. the platform tenant,
+  // whose operator is role='super_admin', not 'admin'). Read-only; no
+  // tenant-internal data beyond the admin contact is exposed.
+  //
+  // The LEFT JOIN LATERAL is correct under SET LOCAL ROLE assessiq_system
+  // (BYPASSRLS) — the same cross-tenant system-role pattern this endpoint
+  // already uses; no N+1.
   //
   // Gate: super_admin + totpVerified (enforced by superAdminOnly chain).
   //
-  // Response 200: { tenants: Array<{ id, slug, name, status, created_at }> }
+  // Response 200: { tenants: Array<{ id, slug, name, status, created_at,
+  //   admin_email, admin_name, admin_status }> } (admin_* nullable)
   // ──────────────────────────────────────────────────────────────────────────
   app.get(
     '/api/admin/super/tenants',
@@ -274,10 +284,23 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
           name: string;
           status: string;
           created_at: Date;
+          admin_email: string | null;
+          admin_name: string | null;
+          admin_status: string | null;
         }>(
-          `SELECT id, slug, name, status, created_at
-           FROM tenants
-           ORDER BY created_at ASC`,
+          `SELECT t.id, t.slug, t.name, t.status, t.created_at,
+                  a.email  AS admin_email,
+                  a.name   AS admin_name,
+                  a.status AS admin_status
+           FROM tenants t
+           LEFT JOIN LATERAL (
+             SELECT u.email, u.name, u.status
+             FROM users u
+             WHERE u.tenant_id = t.id AND u.role = 'admin'
+             ORDER BY u.created_at ASC
+             LIMIT 1
+           ) a ON true
+           ORDER BY t.created_at ASC`,
         );
         await client.query('COMMIT');
 

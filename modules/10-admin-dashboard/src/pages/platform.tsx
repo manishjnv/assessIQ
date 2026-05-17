@@ -50,7 +50,7 @@ const META_LABEL: CSSProperties = {
   color: "var(--aiq-color-fg-muted)",
 };
 
-const ROW_GRID = "1fr 2fr 120px 120px";
+const ROW_GRID = "1fr 1.4fr 1.8fr 110px 110px";
 const ROW_GRID_GAP = 12;
 const ROW_PADDING = "16px 20px";
 
@@ -669,6 +669,7 @@ export function AdminPlatform(): React.ReactElement {
             >
               <span>Slug</span>
               <span>Name</span>
+              <span>First admin</span>
               <span>Status</span>
               <span>Created</span>
             </div>
@@ -705,6 +706,50 @@ export function AdminPlatform(): React.ReactElement {
                 >
                   {t.name}
                 </span>
+                {/* First admin — email (+ name secondary), pending/active hint */}
+                <div style={{ minWidth: 0 }}>
+                  {t.admin_email === null ? (
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: "var(--aiq-color-fg-muted)",
+                      }}
+                    >
+                      —
+                    </span>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--aiq-color-fg-primary)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={t.admin_email}
+                      >
+                        {t.admin_email}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--aiq-color-fg-secondary)",
+                          marginTop: 2,
+                        }}
+                      >
+                        {t.admin_name && t.admin_name !== t.admin_email
+                          ? `${t.admin_name} · `
+                          : ""}
+                        {t.admin_status === "pending"
+                          ? "invite pending"
+                          : t.admin_status === "active"
+                            ? "accepted"
+                            : (t.admin_status ?? "")}
+                      </div>
+                    </>
+                  )}
+                </div>
                 {/* Status chip */}
                 <span>
                   <Chip variant={statusVariant(t.status)}>{t.status}</Chip>
