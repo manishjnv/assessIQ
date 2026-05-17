@@ -388,6 +388,17 @@ export async function createAssessment(
   input: CreateAssessmentInput,
   createdByUserId: string,
 ): Promise<Assessment> {
+  // Slice A.2 — opens_at is mandatory.
+  // Fail fast BEFORE resolveBlueprintPackLevel so a missing Opens never
+  // triggers a spurious findOrCreatePackForDomain (auto-pack creation).
+  // Placed before withTenant: zero side effects on null opens_at.
+  if (input.opens_at == null) {
+    throw new ValidationError(
+      "opens_at is required: an assessment with no opens_at never transitions to active (time-boundary worker requires opens_at IS NOT NULL)",
+      { details: { code: AL_ERROR_CODES.OPENS_AT_REQUIRED, field: "opens_at" } },
+    );
+  }
+
   // Validate window before touching the DB (avoids a round-trip on bad input)
   assertValidWindow(input.opens_at ?? null, input.closes_at ?? null);
 
@@ -571,6 +582,15 @@ export async function updateAssessment(
       throw new ConflictError(
         `Assessment '${id}' must be in 'draft' status to update (current: '${current.status}')`,
         { details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_DRAFT } },
+      );
+    }
+
+    // Slice A.2 — reject explicit opens_at: null patch (prevent clearing it).
+    // A patch that omits opens_at is unaffected (undefined = no-op).
+    if (patch.opens_at === null) {
+      throw new ValidationError(
+        "opens_at is required: an assessment with no opens_at never transitions to active (time-boundary worker requires opens_at IS NOT NULL)",
+        { details: { code: AL_ERROR_CODES.OPENS_AT_REQUIRED, field: "opens_at" } },
       );
     }
 

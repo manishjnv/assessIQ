@@ -164,6 +164,7 @@ describe("C1 — createAssessment blueprint cross-tenant category guard", () => 
           level_id: LEVEL_ID,
           name: "Test Assessment",
           question_count: 5,
+          opens_at: new Date(Date.now() + 60_000),
           settings: { blueprint: VALID_BLUEPRINT },
         },
         "admin-user-id",
@@ -199,6 +200,7 @@ describe("C1 — createAssessment blueprint cross-tenant category guard", () => 
           level_id: LEVEL_ID,
           name: "Test Assessment",
           question_count: 5,
+          opens_at: new Date(Date.now() + 60_000),
           settings: { blueprint: VALID_BLUEPRINT },
         },
         "admin-user-id",
@@ -227,7 +229,7 @@ describe("C1 — createAssessment blueprint cross-tenant category guard", () => 
       status: "draft",
       question_count: 5,
       randomize: true,
-      opens_at: null,
+      opens_at: new Date(Date.now() + 60_000),
       closes_at: null,
       settings: { blueprint: VALID_BLUEPRINT },
       created_by: "admin-user-id",
@@ -258,6 +260,7 @@ describe("C1 — createAssessment blueprint cross-tenant category guard", () => 
         level_id: LEVEL_ID,
         name: "Test Assessment",
         question_count: 5,
+        opens_at: new Date(Date.now() + 60_000),
         settings: { blueprint: VALID_BLUEPRINT },
       },
       "admin-user-id",
@@ -289,6 +292,7 @@ describe("C1 — blueprint Zod validation", () => {
           level_id: LEVEL_ID,
           name: "Test Assessment",
           question_count: 5,
+          opens_at: new Date(Date.now() + 60_000),
           settings: {
             blueprint: {
               domain_id: DOMAIN_ID,
@@ -317,6 +321,7 @@ describe("C1 — blueprint Zod validation", () => {
           level_id: LEVEL_ID,
           name: "Test Assessment",
           question_count: 5,
+          opens_at: new Date(Date.now() + 60_000),
           settings: {
             blueprint: {
               domain_id: DOMAIN_ID,
@@ -572,6 +577,7 @@ describe("B1 — createAssessment pack-published conditional (Slice A.1)", () =>
         level_id: LEVEL_ID,
         name: "Blueprint Draft Pack Test",
         question_count: 5,
+        opens_at: new Date(Date.now() + 60_000),
         settings: { blueprint: VALID_BLUEPRINT },
       },
       "admin-user-id",
@@ -609,6 +615,7 @@ describe("B1 — createAssessment pack-published conditional (Slice A.1)", () =>
           level_id: LEVEL_ID,
           name: "Legacy Assessment",
           question_count: 10,
+          opens_at: new Date(Date.now() + 60_000),
           // NO settings.blueprint — legacy path
         },
         "admin-user-id",
@@ -620,5 +627,244 @@ describe("B1 — createAssessment pack-published conditional (Slice A.1)", () =>
       expect(details?.["code"]).toBe("PACK_NOT_PUBLISHED");
       return true;
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slice A.2: opens_at mandatory — createAssessment + updateAssessment
+// ---------------------------------------------------------------------------
+//
+// Acceptance:
+//  1. createAssessment with opens_at null → OPENS_AT_REQUIRED (blueprint path)
+//  2. createAssessment with opens_at null → OPENS_AT_REQUIRED (non-blueprint path)
+//  3. createAssessment with opens_at set → proceeds past the check
+//  4. updateAssessment {opens_at: null} → OPENS_AT_REQUIRED
+//  5. updateAssessment without opens_at key → unaffected (other fields patch fine)
+//  6. The create check fires BEFORE resolveBlueprintPackLevel (no auto-pack on missing Opens)
+
+import * as qbService from "../../../04-question-bank/src/service.js";
+
+describe("Slice A.2 — opens_at mandatory (createAssessment)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("blueprint path: opens_at=null → OPENS_AT_REQUIRED (before pack resolution)", async () => {
+    const { createAssessment } = await import("../service.js");
+    // findOrCreatePackForDomain must NOT be called when opens_at is missing
+    const findOrCreate = vi.mocked(qbService.findOrCreatePackForDomain);
+    findOrCreate.mockClear();
+
+    await expect(
+      createAssessment(
+        TENANT_A,
+        {
+          pack_id: PACK_ID,
+          level_id: LEVEL_ID,
+          name: "No Opens Blueprint",
+          question_count: 5,
+          // opens_at deliberately omitted (undefined == null check)
+          settings: { blueprint: VALID_BLUEPRINT },
+        },
+        "admin-user-id",
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details?.["code"]).toBe("OPENS_AT_REQUIRED");
+      return true;
+    });
+
+    // Assert no auto-pack was created (findOrCreatePackForDomain not called)
+    expect(findOrCreate).not.toHaveBeenCalled();
+  });
+
+  it("non-blueprint path: opens_at=null → OPENS_AT_REQUIRED", async () => {
+    const { createAssessment } = await import("../service.js");
+
+    await expect(
+      createAssessment(
+        TENANT_A,
+        {
+          pack_id: PACK_ID,
+          level_id: LEVEL_ID,
+          name: "No Opens Legacy",
+          question_count: 5,
+          // opens_at deliberately omitted
+        },
+        "admin-user-id",
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details?.["code"]).toBe("OPENS_AT_REQUIRED");
+      return true;
+    });
+  });
+
+  it("opens_at explicit null → OPENS_AT_REQUIRED", async () => {
+    const { createAssessment } = await import("../service.js");
+
+    await expect(
+      createAssessment(
+        TENANT_A,
+        {
+          pack_id: PACK_ID,
+          level_id: LEVEL_ID,
+          name: "Explicit Null Opens",
+          question_count: 5,
+          opens_at: null,
+        },
+        "admin-user-id",
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details?.["code"]).toBe("OPENS_AT_REQUIRED");
+      return true;
+    });
+  });
+
+  it("opens_at set → check passes and proceeds (blueprint path)", async () => {
+    const { withTenant } = await import("@assessiq/tenancy");
+    const repo = await import("../repository.js");
+
+    const ASSESSMENT_RESULT = {
+      id: "assessment-uuid-0000-0000-0000-000000000001",
+      tenant_id: TENANT_A,
+      pack_id: "pack-00000000-0000-0000-0000-000000000001",
+      level_id: "level-L1-0000-0000-0000-000000000002",
+      pack_version: 1,
+      name: "With Opens Blueprint",
+      description: null,
+      status: "draft",
+      question_count: 5,
+      randomize: true,
+      opens_at: new Date(Date.now() + 60_000),
+      closes_at: null,
+      settings: { blueprint: VALID_BLUEPRINT },
+      created_by: "admin-user-id",
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    // Domain + cat guards pass; pack/level mocks already set at file top
+    const mockClient = makeClient([
+      { rows: [{ slug: "soc" }] },   // domain guard
+      { rows: [{ id: CAT_ID_1 }] }, // cat guard CAT_ID_1
+      { rows: [{ id: CAT_ID_2 }] }, // cat guard CAT_ID_2
+    ]);
+
+    (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) => fn(mockClient),
+    );
+    (repo.insertAssessment as ReturnType<typeof vi.fn>).mockResolvedValue(ASSESSMENT_RESULT);
+
+    const { createAssessment } = await import("../service.js");
+
+    const result = await createAssessment(
+      TENANT_A,
+      {
+        pack_id: PACK_ID,
+        level_id: LEVEL_ID,
+        name: "With Opens Blueprint",
+        question_count: 5,
+        opens_at: new Date(Date.now() + 60_000),
+        settings: { blueprint: VALID_BLUEPRINT },
+      },
+      "admin-user-id",
+    );
+
+    expect(result.id).toBe(ASSESSMENT_RESULT.id);
+  });
+});
+
+describe("Slice A.2 — opens_at mandatory (updateAssessment)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("patch {opens_at: null} → OPENS_AT_REQUIRED", async () => {
+    const { withTenant } = await import("@assessiq/tenancy");
+    const repo = await import("../repository.js");
+
+    const EXISTING_ASSESSMENT = {
+      id: "assessment-id-update-1",
+      tenant_id: TENANT_A,
+      pack_id: PACK_ID,
+      level_id: LEVEL_ID,
+      pack_version: 1,
+      name: "Existing Assessment",
+      description: null,
+      status: "draft",
+      question_count: 5,
+      randomize: true,
+      opens_at: new Date(Date.now() + 60_000),
+      closes_at: null,
+      settings: {},
+      created_by: "admin-user-id",
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    (repo.findAssessmentById as ReturnType<typeof vi.fn>).mockResolvedValue(EXISTING_ASSESSMENT);
+
+    const mockClient = makeClient([]);
+    (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) => fn(mockClient),
+    );
+
+    const { updateAssessment } = await import("../service.js");
+
+    await expect(
+      updateAssessment(TENANT_A, "assessment-id-update-1", { opens_at: null }, "admin-user-id"),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details?.["code"]).toBe("OPENS_AT_REQUIRED");
+      return true;
+    });
+  });
+
+  it("patch without opens_at key → unaffected (name patch succeeds)", async () => {
+    const { withTenant } = await import("@assessiq/tenancy");
+    const repo = await import("../repository.js");
+
+    const EXISTING_ASSESSMENT = {
+      id: "assessment-id-update-2",
+      tenant_id: TENANT_A,
+      pack_id: PACK_ID,
+      level_id: LEVEL_ID,
+      pack_version: 1,
+      name: "Old Name",
+      description: null,
+      status: "draft",
+      question_count: 5,
+      randomize: true,
+      opens_at: new Date(Date.now() + 60_000),
+      closes_at: null,
+      settings: {},
+      created_by: "admin-user-id",
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    const UPDATED = { ...EXISTING_ASSESSMENT, name: "New Name" };
+
+    (repo.findAssessmentById as ReturnType<typeof vi.fn>).mockResolvedValue(EXISTING_ASSESSMENT);
+    (repo.updateAssessmentRow as ReturnType<typeof vi.fn>).mockResolvedValue(UPDATED);
+
+    const mockClient = makeClient([]);
+    (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) => fn(mockClient),
+    );
+
+    const { updateAssessment } = await import("../service.js");
+
+    // Patch only name — opens_at key is absent → must NOT throw
+    const result = await updateAssessment(
+      TENANT_A,
+      "assessment-id-update-2",
+      { name: "New Name" },
+      "admin-user-id",
+    );
+
+    expect(result.name).toBe("New Name");
   });
 });
