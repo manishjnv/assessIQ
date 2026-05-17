@@ -19,6 +19,31 @@ import { authChain } from '../../middleware/auth-chain.js';
 // preHandler 401's, and the SPA bounces back to /login — making MFA
 // enrollment unreachable on first login.
 
+/**
+ * Decide the `mfaStatus` the SPA sees.
+ *
+ * `mfaStatus` reflects "is the MFA gate satisfied", not "has the user done TOTP".
+ * When MFA_REQUIRED=false the gate is opt-in for admin/reviewer, so report
+ * 'verified' and let them in without an MFA round-trip.
+ *
+ * EXCEPTION — super_admin is always-MFA regardless of MFA_REQUIRED (mirrors the
+ * require-auth.ts invariant). A pre-TOTP super_admin MUST report 'pending' so
+ * the SPA's RequireSession routes it to /admin/mfa to enrol/verify. Without
+ * this carve-out a pre-TOTP super_admin would be sent to the dashboard and then
+ * 401 on every cross-tenant action. (RCA 2026-05-17 — first-login MFA lockout.)
+ */
+export function computeMfaStatus(
+  role: string,
+  totpVerified: boolean,
+  mfaRequired: boolean,
+): 'verified' | 'pending' {
+  const alwaysMfa = role === 'super_admin';
+  if (mfaRequired || alwaysMfa) {
+    return totpVerified ? 'verified' : 'pending';
+  }
+  return 'verified';
+}
+
 export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     '/api/auth/whoami',
@@ -34,16 +59,14 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
           getTenantById(sess.tenantId),
           totp.getEnrollmentStatus(sess.userId, sess.tenantId),
         ]);
-        // mfaStatus reflects "the MFA gate is satisfied" not "the user has done TOTP".
-        // When MFA_REQUIRED=false the gate is bypassed for everyone, so report
-        // 'verified'. Otherwise the SPA's RequireSession guard at
-        // apps/web/src/lib/RequireSession.tsx:44 would treat the still-false
-        // totpVerified row as 'pending' and force-redirect to /admin/mfa, which
-        // is exactly the loop we set MFA_REQUIRED=false to avoid.
-        // When MFA_REQUIRED=true, fall back to the row's own totpVerified value.
-        const mfaStatus = config.MFA_REQUIRED
-          ? sess.totpVerified ? 'verified' : 'pending'
-          : 'verified';
+        // See computeMfaStatus — MFA_REQUIRED=false reports 'verified' for
+        // admin/reviewer (no MFA round-trip), but super_admin is always-MFA so
+        // a pre-TOTP super_admin reports 'pending' → SPA routes it to /admin/mfa.
+        const mfaStatus = computeMfaStatus(
+          sess.role,
+          sess.totpVerified,
+          config.MFA_REQUIRED,
+        );
         return {
           user: {
             id: user.id,
