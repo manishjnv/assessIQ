@@ -739,7 +739,7 @@ function BillingDrawer({
           <>
             {/* Read-only stats */}
             <Card>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+              <div data-help-id="admin.platform.billing" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
                 <div>
                   <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Tier</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", textTransform: "capitalize" }}>
@@ -968,7 +968,7 @@ function BillingDrawer({
             </Card>
             {/* Entitlements subsection — B1 */}
             <Card>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+              <div data-help-id="admin.platform.entitlements" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
                 <div style={{ ...META_LABEL, fontSize: 10 }}>Entitlements</div>
 
                 {/* Active entitlements list */}

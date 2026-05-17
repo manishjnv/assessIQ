@@ -97,6 +97,7 @@ export function UsageBanner(): React.ReactElement | null {
 
   return (
     <div
+      data-help-id="admin.billing.usage"
       style={{
         display: "flex",
         alignItems: "center",

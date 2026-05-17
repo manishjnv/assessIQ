@@ -402,7 +402,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
               ← Back
             </button>
             {assessment.status === "draft" && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--aiq-space-xs)" }}>
+              <div data-help-id="admin.assessments.content_source" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--aiq-space-xs)" }}>
                 <button
                   type="button"
                   data-help-id="admin.assessments.publish"

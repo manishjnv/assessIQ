@@ -261,7 +261,7 @@ export function AdminBilling(): React.ReactElement {
                   : "Over limit";
           return (
             <Card>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
+              <div data-help-id="admin.billing.usage" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
                   <Icon name="chart" size={18} color="var(--aiq-color-accent)" />
                   <h2 style={SERIF_H2}>Your plan &amp; usage</h2>
