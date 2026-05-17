@@ -1,3 +1,27 @@
+# Session — 2026-05-17 (gen→assemble→assign loop + leak fix + super-admin slice 1)
+
+**Headline:** Shipped the full AI question-generation → review/approve → blueprint-assemble → assign loop, fixed a live candidate answer-key leak, landed super-admin company-provisioning slice 1. All on prod; every load-bearing change Opus-adversarially-reviewed; 3 real cross-tenant/regression bugs caught pre-deploy.
+**Commits (main, this thread):** `0a1a7d4` leak fix · `935af6c` RCA · `3790667` 2.1a supported_types · `9022d4b` 2.1b inline create dom/cat · `0b3a5ba` 2.1c eliminate Pack · `4f861d1` 2.2 wizard UX · `b8a434b` Review render fix · `282d2ec` Phase2-A blueprint · `fd3661b` A.1 · `4b0b5ee` (other session) cat-create-500 · `916c3a2` A.2 Opens mandatory · `e081c5e` count→1 · `8b3bdde` super-admin slice 1. Surgical migrations: `0018/0019/0020` (Slice 1/2.1a), `016_super_admin.sql`.
+**Tests:** typecheck clean every slice; pure unit/mock tests pass; testcontainer suites Docker-gated in dev (pre-existing, not regressed). Customer-login regression for super-admin proven structurally AND live (manishjnvk logged into wipro-soc 200 right after platform login).
+**Next:** Build **super-admin UI** (create-company form + tenant list) — `POST /api/admin/super/companies` is live but API-only (no screen); user verified platform login works (session minted, MFA-gated 401 until TOTP — correct).
+**Open questions:** (1) 251 legacy `soc-l2` questions untagged → invisible to blueprints (reclamation slice queued, needs grounding+gate). (2) Difficulty slice #1/#2/#4/#6 (user approved #6; prompt-skill parts design-gated). (3) Priority: super-admin UI vs B1 UX (breadcrumbs/recent-entries/tenant-switcher) vs legacy reclamation.
+
+**Prod state:** super-admin = manishjnvk@gmail.com on platform tenant `00000000-0000-7000-0000-000000000001` (user `…0002`), 4-gate isolated login (option c, oauth global-unique untouched), always-MFA. Generate wizard + durable Review + blueprint assess&assign all live. Answer-key leak CLOSED+verified. Question inventory: 251 active in legacy `soc-l2` UNTAGGED (not blueprint-usable) — regenerate+approve into `dom-<domain>` to fill blueprint pools.
+
+**Plans/memory:** `.claude/plans/*` contracts all Opus-approved+built. `MEMORY.md` current (operating model, onboarding/tenancy model, deliver-over-ceremony, simple-summary). Operating model: Sonnet leads; or.mjs unreachable from subagents ALL session (flagships unused — Sonnet built directly; scorecard item to fix); Opus = gates + load-bearing reviews + surgical migrations + tiny self-fixes. Grounding→Opus-gate→build→review→deploy→verify caught Slice2 partial-FK bypass, render-field bug, A.1 pack-published block.
+
+---
+
+## Agent utilization
+- **Opus:** all design gates, every load-bearing adversarial review, surgical prod migrations (0018-0020, 016), small self-fixes (e081c5e, b8a434b), all contracts.
+- **Sonnet:** lead on every slice (grounding + build + self-check); adversarial-review subagent early.
+- **Haiku:** n/a — Sonnet leads handled discovery.
+- **OpenRouter flagships:** n/a in practice — `or.mjs` unreachable from subagent context every attempt (logged; fix the subagent→or.mjs path).
+- **codex:rescue:** n/a — superseded by locked Sonnet-lead + Opus-review model.
+- **claude-mem:** n/a tool-wise; memory written/updated manually.
+
+---
+
 # Session — 2026-05-15 (E2E walkthrough + bug fixes)
 
 **Headline:** Full production E2E walkthrough completed — 2 bugs fixed (heartbeat gate, cert SQL), certificate AIQ-2026-05-88GB5C issued with distinction tier, all 21 smoke test checks pass.
