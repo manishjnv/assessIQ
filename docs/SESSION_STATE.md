@@ -22,6 +22,36 @@
 
 ---
 
+
+## Full backlog / queued (NOT yet built — durable list, was only in ephemeral todo)
+Priority order is a suggestion; user decides.
+
+**Near-term, low-risk:**
+1. Super-admin UI — create-company form (name/slug/first-admin-email) + tenant list (slug/name/status). Calls existing reviewed POST /api/admin/super/companies + GET /api/admin/super/tenants. Mostly FE. **= the "Next" task.**
+2. B1 UX bundle: clickable breadcrumbs; recent-entries dropdown on key text inputs (assessment/domain/category name); de-emphasize tenant label → make it a tenant switcher (multi-tenant admin). FE, end-gate.
+3. In-wizard "existing inventory" counts — per category/type show existing approved/draft BEFORE generating (stop duplicate generation). FE + small read.
+4. default-Opens-to-now UX safeguard (or block publish if opens_at null) — minor.
+
+**High-value, gated (load-bearing / needs grounding+design-gate):**
+5. Legacy `soc-l2` 251-orphan reclamation — tag (domain/category) + make blueprint-usable. Load-bearing data op; grounding→design-gate. Blocks real blueprint use.
+6. Difficulty-quality slice: #1 per-level rubric, #2 per-level structure, #4 AI-difficulty-estimate shown in Review, #6 role-anchored generation (user APPROVED #6). #1/#5/#6 touch VPS prompt-skills = deploy-event + eval-rebaseline, design-gated.
+7. Omnibus per-type enforcement — type_counts ignored in omnibus mode (only sharded honors it); fixing = 07-ai-grading load-bearing, escalate.
+8. Multi-domain blueprint (one assessment spanning domains) — deferred from Phase 2 Slice A; needs module-06 surgery.
+9. phishing question TYPE end-to-end (DB enum + take-flow render + grading skill + eval baseline) — large independent track.
+
+**Smaller / deferred:**
+10. F2: "Grade all" button non-functional on attempt-detail. F3: no certificate affordance on attempt-detail.
+11. Per-question swap in blueprint review — moot under per-candidate random draw; revisit only if curation needed.
+12. Server-side candidate search — invite list 100-user cap (known limitation).
+13. Phase 2 domain/category CRUD management screens (manage taxonomy beyond seed).
+14. Export (MD/PDF/Excel/JSON) for questions/packs.
+15. Type-overlap cleanup (log_analysis is both a type & conceptually a category) — user said no strict restriction; deferred.
+16. Zod `issues` forwarded in ValidationError.details — pre-existing module-wide info-leak pattern; separate cleanup (raised in Slice 2 review).
+17. Run testcontainer suites in CI — Docker-gated, never run in dev this whole session (no regression seen, but unverified by execution).
+18. Tooling: fix or.mjs unreachable from subagent context — flagships went unused all session (Sonnet built directly); investigate the subagent→or.mjs path.
+19. Harmless noted artifact: failed generate / rejected blueprint can leave an idempotent empty auto-pack — accepted, low priority.
+
+
 # Session — 2026-05-15 (E2E walkthrough + bug fixes)
 
 **Headline:** Full production E2E walkthrough completed — 2 bugs fixed (heartbeat gate, cert SQL), certificate AIQ-2026-05-88GB5C issued with distinction tier, all 21 smoke test checks pass.
