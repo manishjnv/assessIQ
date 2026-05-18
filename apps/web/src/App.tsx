@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ThemeProvider, TENANT_FIXTURES } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
+import { AdminSelectIdentity } from './pages/admin/select-identity';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
 import { RequireSession } from './lib/RequireSession';
 import { Expired, ErrorPage as TakeError, TakeRoot } from './pages/take';
@@ -66,6 +67,8 @@ export function App(): JSX.Element {
           <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          {/* P1 — identity picker for multi-tenant Google login; no RequireSession */}
+          <Route path="/admin/select-identity" element={<AdminSelectIdentity />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
           <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
           <Route path="/admin" element={<RequireSession role="admin"><AdminDashboard /></RequireSession>} />

@@ -238,6 +238,7 @@ describe('AssessIQ auth routes — security-critical', () => {
   describe('GET /api/auth/google/cb', () => {
     it('sets aiq_sess cookie with HttpOnly + SameSite=Lax on successful callback', async () => {
       vi.mocked(auth.handleGoogleCallback).mockResolvedValue({
+        kind: 'session',
         sessionToken: 'sess-token-abc',
         user: { id: 'u_1', email: 'a@x.com', tenantId: 't_1', role: 'admin' },
         redirectTo: '/admin/mfa',

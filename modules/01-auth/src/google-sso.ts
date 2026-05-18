@@ -1,7 +1,18 @@
 // modules/01-auth/src/google-sso.ts
 //
 // Google OIDC start + callback. RS256 id_token verify via JWKS; state + nonce
-// CSRF protection; oauth_identities → users by (tenant_id, email) resolution.
+// CSRF protection; cross-tenant identity resolution after verification.
+//
+// P1 changes (login-identity-simplification):
+//   - startGoogleSso: tenantId removed from opts + state. State is now
+//     <random>[|<returnTo>] only.
+//   - handleGoogleCallback: after CSRF/code-exchange/JWKS/nonce (steps 1-4,
+//     UNCHANGED), resolves all eligible identities via resolveLoginIdentities
+//     (login-continuation.ts). 0 → reject; 1 → mintForIdentity (single);
+//     ≥2 → issue continuation token, return {kind:'select',...}.
+//   - mintForIdentity: extracted from the pre-P1 callback. Behaviour is
+//     byte-identical for any single identity (pure extract — no logic change).
+//   - OidcCallbackOutput: now a discriminated union (kind:'session' | kind:'select').
 //
 // Email matching with 03-users requires normalizeEmail() at both sides;
 // 03-users users are stored lowercase via the same helper at write time.
@@ -17,6 +28,11 @@ import { config, AuthnError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { sessions } from "./sessions.js";
 import { constantTimeEqual } from "./crypto-util.js";
+import {
+  resolveLoginIdentities,
+  storeLoginContinuation,
+  type ResolvedIdentity,
+} from "./login-continuation.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -36,11 +52,25 @@ export interface OidcStartOutput {
   nonceCookie: { name: string; value: string; opts: CookieOpts };
 }
 
-export interface OidcCallbackOutput {
-  sessionToken: string;
-  user: { id: string; email: string; tenantId: string; role: "admin" | "super_admin" | "reviewer" | "candidate" };
-  redirectTo: string;
-}
+// Discriminated union — P1 adds the 'select' variant.
+// The cb route inspects `out.kind` to choose its response path.
+export type OidcCallbackOutput =
+  | {
+      kind: "session";
+      sessionToken: string;
+      user: {
+        id: string;
+        email: string;
+        tenantId: string;
+        role: "admin" | "super_admin" | "reviewer" | "candidate";
+      };
+      redirectTo: string;
+    }
+  | {
+      kind: "select";
+      continuationToken: string;
+      redirectTo: "/admin/select-identity";
+    };
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -48,7 +78,9 @@ export interface OidcCallbackOutput {
 
 const COOKIE_STATE_NAME = "aiq_oauth_state";
 const COOKIE_NONCE_NAME = "aiq_oauth_nonce";
+export const COOKIE_CONTINUATION_NAME = "aiq_login_cont";
 const COOKIE_TTL_SEC = 600; // 10 minutes — Google's auth UI cap
+const CONTINUATION_COOKIE_TTL_SEC = 300; // 5 minutes
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
@@ -100,6 +132,16 @@ function cookieOpts(path = "/"): CookieOpts {
   };
 }
 
+export function continuationCookieOpts(path = "/"): CookieOpts {
+  return {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path,
+    maxAge: CONTINUATION_COOKIE_TTL_SEC,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // returnTo whitelist — only /admin/* and /take/* paths are safe destinations.
 // ---------------------------------------------------------------------------
@@ -116,10 +158,12 @@ function safeReturnTo(returnTo: string | undefined): string {
 
 // ---------------------------------------------------------------------------
 // startGoogleSso
+//
+// P1 change: tenantId removed from opts. State is now <random>[|<returnTo>]
+// only — the callback resolves identities by email across ALL tenants.
 // ---------------------------------------------------------------------------
 
 export async function startGoogleSso(opts: {
-  tenantId: string;
   returnTo?: string;
 }): Promise<OidcStartOutput> {
   const clientId = config.GOOGLE_CLIENT_ID;
@@ -131,14 +175,12 @@ export async function startGoogleSso(opts: {
 
   // State: random 32 bytes base64url. Stored as the cookie value and sent as
   // the Google state= param. On callback, constantTimeEqual verifies them.
-  // The tenantId is embedded after a pipe so the callback can scope DB queries.
+  // P1: state no longer embeds tenantId; it is now <random>[|<returnTo>].
   const stateRandom = randomBytes(32).toString("base64url");
   const rt = safeReturnTo(opts.returnTo);
 
-  // Full state encodes: <random>|<tenantId>[|<returnTo if non-default>]
-  // This keeps the CSRF token opaque while carrying the context the callback
-  // needs without a server-side state store (no Redis round-trip on start).
-  const stateParts: string[] = [stateRandom, opts.tenantId];
+  // Full state encodes: <random>[|<returnTo if non-default>]
+  const stateParts: string[] = [stateRandom];
   if (rt !== "/admin") {
     stateParts.push(rt);
   }
@@ -221,7 +263,7 @@ async function exchangeCode(code: string): Promise<GoogleTokenResponse> {
 // id_token payload shape we care about
 // ---------------------------------------------------------------------------
 
-interface GoogleIdTokenClaims {
+export interface GoogleIdTokenClaims {
   sub: string;
   email: string;
   email_verified?: boolean;
@@ -232,14 +274,8 @@ interface GoogleIdTokenClaims {
 }
 
 // ---------------------------------------------------------------------------
-// DB row types
+// DB row type used within mintForIdentity
 // ---------------------------------------------------------------------------
-
-interface OauthIdentityRow {
-  id: string;
-  user_id: string;
-  tenant_id: string;
-}
 
 interface UserRow {
   id: string;
@@ -251,7 +287,195 @@ interface UserRow {
 }
 
 // ---------------------------------------------------------------------------
+// mintForIdentity
+//
+// Encapsulates the per-identity mint+redirect logic. This is a PURE EXTRACT
+// from the pre-P1 handleGoogleCallback — logic is byte-identical for any
+// single identity. The only unavoidable difference is:
+//   (a) claims is now optional (undefined when called from selectLoginIdentity
+//       which has no Google claims object). When undefined, raw_profile
+//       email/name/picture are omitted; the INSERT ON CONFLICT DO NOTHING
+//       in the common case already created the link from the initial login.
+//   (b) The function receives a ResolvedIdentity instead of reading DB rows
+//       inline; it re-reads the user row fresh for defence-in-depth.
+//
+// Callers: handleGoogleCallback (1-identity case) + selectLoginIdentity.
+// ---------------------------------------------------------------------------
+
+export async function mintForIdentity(
+  identity: ResolvedIdentity,
+  ctx: {
+    subject: string;
+    claims?: GoogleIdTokenClaims;
+    ip: string;
+    ua: string;
+    embeddedReturnTo: string | undefined;
+  },
+): Promise<OidcCallbackOutput & { kind: "session" }> {
+  const { subject, claims, ip, ua, embeddedReturnTo } = ctx;
+  const platformTenantId = config.PLATFORM_TENANT_ID;
+
+  if (identity.isPlatform || identity.role === "super_admin") {
+    // -------------------------------------------------------------------------
+    // PLATFORM BRANCH — super-admin mint
+    //
+    // Defence-in-depth re-asserts:
+    //   1. Re-check SUPER_ADMIN_EMAILS allowlist when claims are present.
+    //   2. Re-read the platform users row fresh (status/role/deleted).
+    // -------------------------------------------------------------------------
+
+    // Gate-2 re-assert (when claims available — normal callback path).
+    if (claims?.email !== undefined) {
+      const platformEmail = normalizeEmail(claims.email);
+      const allowlist = (config.SUPER_ADMIN_EMAILS ?? "")
+        .split(",")
+        .map((e) => normalizeEmail(e.trim()))
+        .filter((e) => e.length > 0);
+      if (!allowlist.includes(platformEmail)) {
+        throw new AuthnError("authentication failed");
+      }
+    }
+    // When claims absent (select path), resolveLoginIdentities already filtered
+    // by allowlist at consumeLoginContinuation time AND at re-resolve in
+    // selectLoginIdentity. Defence-in-depth is satisfied by the fresh DB read below.
+
+    // Gate-3 re-read: fresh platform users row.
+    let platformUser: UserRow | null = null;
+    await withTenant(platformTenantId, async (client) => {
+      const userRes = await client.query<UserRow>(
+        `SELECT id, tenant_id, email, role, status, deleted_at
+         FROM users
+         WHERE id = $1`,
+        [identity.userId],
+      );
+      if (userRes.rows.length > 0) {
+        platformUser = userRes.rows[0]!;
+      }
+    });
+
+    if (
+      platformUser === null ||
+      (platformUser as UserRow).role !== "super_admin" ||
+      (platformUser as UserRow).status !== "active" ||
+      (platformUser as UserRow).deleted_at !== null
+    ) {
+      throw new AuthnError("authentication failed");
+    }
+
+    // Gate-4: mint totpVerified=false; ALWAYS redirect /admin/mfa.
+    // NO oauth_identities INSERT on this path.
+    const { token: sessionToken } = await sessions.create({
+      userId: (platformUser as UserRow).id,
+      tenantId: platformTenantId,
+      role: "super_admin",
+      totpVerified: false,
+      ip,
+      ua,
+    });
+
+    return {
+      kind: "session",
+      sessionToken,
+      user: {
+        id: (platformUser as UserRow).id,
+        email: (platformUser as UserRow).email,
+        tenantId: platformTenantId,
+        role: "super_admin" as const,
+      },
+      redirectTo: "/admin/mfa",
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // CUSTOMER TENANT BRANCH — normal mint
+  // -------------------------------------------------------------------------
+
+  let resolvedUser: UserRow | null = null;
+
+  await withTenant(identity.tenantId, async (client) => {
+    // Re-read user row fresh (status/deleted guard re-checked at mint time).
+    const userRes = await client.query<UserRow>(
+      `SELECT id, tenant_id, email, role, status, deleted_at
+       FROM users
+       WHERE id = $1
+         AND status = 'active'
+         AND deleted_at IS NULL`,
+      [identity.userId],
+    );
+
+    if (userRes.rows.length === 0) {
+      return; // will throw below
+    }
+
+    const found = userRes.rows[0]!;
+    resolvedUser = found;
+
+    // oauth_identities JIT-link (ON CONFLICT (provider,subject) DO NOTHING).
+    // raw_profile email/name/picture are optional — omit when claims absent.
+    await client.query(
+      `INSERT INTO oauth_identities
+         (tenant_id, user_id, provider, subject, email_verified, raw_profile)
+       VALUES ($1, $2, 'google', $3, $4, $5)
+       ON CONFLICT (provider, subject) DO NOTHING`,
+      [
+        found.tenant_id,
+        found.id,
+        subject,
+        claims?.email_verified ?? false,
+        JSON.stringify({
+          sub: subject,
+          ...(claims?.email !== undefined ? { email: claims.email } : {}),
+          ...(claims?.name !== undefined ? { name: claims.name } : {}),
+          ...(claims?.picture !== undefined ? { picture: claims.picture } : {}),
+        }),
+      ],
+    );
+  });
+
+  if (resolvedUser === null) {
+    throw new AuthnError("authentication failed");
+  }
+
+  const user = resolvedUser as UserRow;
+
+  // Mint session.
+  const { token: sessionToken } = await sessions.create({
+    userId: user.id,
+    tenantId: user.tenant_id,
+    role: user.role,
+    totpVerified: false,
+    ip,
+    ua,
+  });
+
+  // Determine redirect target — identical logic to pre-P1 callback.
+  const adminLanding = config.MFA_REQUIRED ? "/admin/mfa" : "/admin";
+  const redirectTo =
+    user.role === "candidate"
+      ? "/"
+      : embeddedReturnTo !== undefined
+        ? safeReturnTo(embeddedReturnTo)
+        : adminLanding;
+
+  return {
+    kind: "session",
+    sessionToken,
+    user: {
+      id: user.id,
+      email: user.email,
+      tenantId: user.tenant_id,
+      role: user.role,
+    },
+    redirectTo,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // handleGoogleCallback
+//
+// P1 change: state no longer contains tenantId; identity resolution is
+// cross-tenant via resolveLoginIdentities (called AFTER full verification).
+// Steps 1-4 (CSRF, code exchange, JWKS, nonce) are BYTE-UNCHANGED.
 // ---------------------------------------------------------------------------
 
 export async function handleGoogleCallback(input: {
@@ -264,7 +488,7 @@ export async function handleGoogleCallback(input: {
 }): Promise<OidcCallbackOutput> {
   const { code, state, stateCookieValue, nonceCookieValue, ip, ua } = input;
 
-  // --- 1. State CSRF check ---
+  // --- 1. State CSRF check --- (BYTE-UNCHANGED)
   // constantTimeEqual requires equal-length buffers. Mismatched lengths are
   // safe to reject early — no timing signal leaks from a length comparison.
   if (
@@ -278,20 +502,16 @@ export async function handleGoogleCallback(input: {
     throw new AuthnError("OAuth state mismatch — possible CSRF attack");
   }
 
-  // Parse the embedded context from state: <random>|<tenantId>[|<returnTo>]
+  // Parse the embedded context from state: <random>[|<returnTo>]
+  // P1: tenantId segment removed. parts[0] = random, parts[1] = optional returnTo.
   const parts = state.split("|");
-  // parts[0] = random, parts[1] = tenantId, parts[2] = optional returnTo
-  const tenantId = parts[1];
-  const embeddedReturnTo = parts[2];
+  // parts[0] = random (already verified by CSRF check above)
+  const embeddedReturnTo = parts[1]; // optional returnTo (was parts[2] pre-P1)
 
-  if (!tenantId) {
-    throw new AuthnError("OAuth state is malformed — missing tenant context");
-  }
-
-  // --- 2. Exchange code for tokens ---
+  // --- 2. Exchange code for tokens --- (BYTE-UNCHANGED)
   const tokens = await exchangeCode(code);
 
-  // --- 3. Verify id_token via JWKS ---
+  // --- 3. Verify id_token via JWKS --- (BYTE-UNCHANGED)
   const clientId = config.GOOGLE_CLIENT_ID;
   if (!clientId) {
     throw new AuthnError("Google SSO is not configured");
@@ -313,7 +533,7 @@ export async function handleGoogleCallback(input: {
     throw new AuthnError("Google id_token verification failed", { cause: err });
   }
 
-  // --- 4. Nonce check ---
+  // --- 4. Nonce check --- (BYTE-UNCHANGED)
   // The nonce claim from the verified id_token must match the cookie value.
   if (
     nonceCookieValue === undefined ||
@@ -327,235 +547,63 @@ export async function handleGoogleCallback(input: {
     throw new AuthnError("OAuth nonce mismatch — replay or injection detected");
   }
 
+  // --- 4b. Require a Google-verified email ---
+  // Email is now the SOLE cross-tenant identity key (pre-P1 the tenant slug
+  // added a scoping factor). A login MUST require Google to have verified the
+  // address, else an unverified-email Google account that collides with a
+  // provisioned user could authenticate. Fail-closed, generic (no enumeration).
+  // Robust check: jose parses the id_token as JSON so email_verified is a
+  // boolean per OIDC, but tolerate a stringized "true" defensively — a
+  // wrongly-strict guard on the sole login path would be a total outage.
+  // Reject only explicit false / missing.
+  const emailVerified =
+    claims.email_verified === true ||
+    (claims.email_verified as unknown) === "true";
+  if (!emailVerified) {
+    throw new AuthnError("authentication failed");
+  }
+
   const subject = claims.sub;
   const idpEmail = normalizeEmail(claims.email ?? "");
 
   // ---------------------------------------------------------------------------
-  // --- 5. Resolve AssessIQ user ---
+  // --- 5. Resolve identities --- (P1: cross-tenant, post-verification only)
   //
-  // PLATFORM BRANCH (option c — isolated path):
-  //   When the state's tenantId matches the fixed PLATFORM_TENANT_ID, this is
-  //   a super-admin login attempt. The platform branch:
-  //     Gate 1: valid id_token — already verified above (RS256/JWKS/nonce/CSRF).
-  //     Gate 2: email ∈ SUPER_ADMIN_EMAILS allowlist.
-  //     Gate 3: users row in platform tenant with role='super_admin' & status='active'.
-  //     Gate 4: mint session totpVerified=false → force MFA (ALWAYS, regardless
-  //             of MFA_REQUIRED env). Redirect to /admin/mfa unconditionally.
-  //   CRITICAL: NO oauth_identities INSERT or lookup on this path. The global
-  //   UNIQUE(provider,subject) constraint stays intact for customer tenants.
-  //   Any gate failure → generic AuthnError (no enumeration).
-  //
-  // CUSTOMER TENANT BRANCH (normal path — BYTE-UNCHANGED):
-  //   Pass 1: oauth_identities by (provider='google', subject).
-  //   Pass 2: users by (tenant_id [via RLS], email) — JIT link.
-  //   Pass 3: no user → AuthnError (no self-registration in Phase 1).
+  // PRECONDITION: called only here, after steps 1-4 have fully verified the
+  // Google id_token. The email is Google-verified at this point.
   // ---------------------------------------------------------------------------
 
-  let user: UserRow | null = null;
+  const identities = await resolveLoginIdentities(idpEmail);
 
-  const platformTenantId = config.PLATFORM_TENANT_ID;
+  if (identities.length === 0) {
+    throw new AuthnError("authentication failed");
+  }
 
-  if (tenantId === platformTenantId) {
-    // -------------------------------------------------------------------------
-    // PLATFORM BRANCH — super-admin login
-    // -------------------------------------------------------------------------
-
-    // Gate 2: email in SUPER_ADMIN_EMAILS allowlist (comma-separated, normalized).
-    const allowlist = (config.SUPER_ADMIN_EMAILS ?? "")
-      .split(",")
-      .map((e) => normalizeEmail(e.trim()))
-      .filter((e) => e.length > 0);
-    if (!allowlist.includes(idpEmail)) {
-      // Generic AuthnError — no enumeration of why.
-      throw new AuthnError("authentication failed");
-    }
-
-    // Gate 3: platform-tenant users row with role='super_admin' & status='active'.
-    // System-role read: bypasses RLS because app.current_tenant would need to
-    // be set to the platform tenant — using withTenant(platformTenantId) is
-    // equivalent and correct here; it scopes the query to platform tenant only.
-    await withTenant(platformTenantId, async (client) => {
-      const userRes = await client.query<UserRow>(
-        `SELECT id, tenant_id, email, role, status, deleted_at
-         FROM users
-         WHERE email = $1`,
-        [idpEmail],
-      );
-      if (userRes.rows.length > 0) {
-        user = userRes.rows[0]!;
-      }
-    });
-
-    if (user === null) {
-      throw new AuthnError("authentication failed");
-    }
-
-    const platformUser = user as UserRow;
-
-    // Gate 3 continued: role must be super_admin AND status must be active AND not deleted.
-    if (
-      platformUser.role !== "super_admin" ||
-      platformUser.status !== "active" ||
-      platformUser.deleted_at !== null
-    ) {
-      throw new AuthnError("authentication failed");
-    }
-
-    // Gate 4: mint session totpVerified=false; ALWAYS force MFA for super_admin.
-    // NO oauth_identities INSERT on this path — invariant from contract option (c).
-    const { token: sessionToken } = await sessions.create({
-      userId: platformUser.id,
-      tenantId: platformTenantId,
-      role: "super_admin",
-      totpVerified: false,
+  if (identities.length === 1) {
+    // Single identity — mint immediately (identical behaviour to pre-P1 callback).
+    return mintForIdentity(identities[0]!, {
+      subject,
+      claims,
       ip,
       ua,
-    });
-
-    // Super-admin ALWAYS requires MFA — redirect to /admin/mfa regardless of
-    // MFA_REQUIRED env. The requireAuth gate for super routes enforces
-    // totpVerified===true independently.
-    return {
-      sessionToken,
-      user: {
-        id: platformUser.id,
-        email: platformUser.email,
-        tenantId: platformTenantId,
-        role: "super_admin" as const,
-      },
-      redirectTo: "/admin/mfa",
-    };
-  }
-
-  // -------------------------------------------------------------------------
-  // CUSTOMER TENANT BRANCH — normal Google SSO path (BYTE-UNCHANGED below)
-  // -------------------------------------------------------------------------
-  // Pass 1: oauth_identities by (provider='google', subject).
-  // Pass 2: users by (tenant_id [via RLS], email) — JIT link.
-  // Pass 3: no user → AuthnError (no self-registration in Phase 1).
-
-  // Pass 1 — try oauth_identities lookup within tenant scope.
-  await withTenant(tenantId, async (client) => {
-    const identityRes = await client.query<OauthIdentityRow>(
-      `SELECT oi.id, oi.user_id, oi.tenant_id
-       FROM oauth_identities oi
-       WHERE oi.provider = 'google' AND oi.subject = $1`,
-      [subject],
-    );
-
-    if (identityRes.rows.length > 0) {
-      const identity = identityRes.rows[0]!;
-      const userRes = await client.query<UserRow>(
-        `SELECT id, tenant_id, email, role, status, deleted_at
-         FROM users
-         WHERE id = $1`,
-        [identity.user_id],
-      );
-      if (userRes.rows.length > 0) {
-        user = userRes.rows[0]!;
-      }
-    }
-  });
-
-  // Pass 2 — email JIT-link within tenant scope.
-  if (user === null) {
-    await withTenant(tenantId, async (client) => {
-      const userRes = await client.query<UserRow>(
-        `SELECT id, tenant_id, email, role, status, deleted_at
-         FROM users
-         WHERE email = $1`,
-        [idpEmail],
-      );
-
-      if (userRes.rows.length > 0) {
-        const found = userRes.rows[0]!;
-        user = found;
-
-        // JIT-link: insert the oauth_identities row so future logins use
-        // Pass 1 (faster, avoids email normalization edge cases).
-        // ON CONFLICT DO NOTHING guards against a race where two concurrent
-        // callbacks both hit Pass 2 simultaneously.
-        await client.query(
-          `INSERT INTO oauth_identities
-             (tenant_id, user_id, provider, subject, email_verified, raw_profile)
-           VALUES ($1, $2, 'google', $3, $4, $5)
-           ON CONFLICT (provider, subject) DO NOTHING`,
-          [
-            found.tenant_id,
-            found.id,
-            subject,
-            claims.email_verified ?? false,
-            JSON.stringify({
-              sub: subject,
-              email: claims.email,
-              name: claims.name,
-              picture: claims.picture,
-            }),
-          ],
-        );
-      }
+      embeddedReturnTo,
     });
   }
 
-  // Pass 3 — no user → reject (no self-registration in Phase 1).
-  if (user === null) {
-    throw new AuthnError("user not in tenant");
-  }
-
-  // --- 6. Guard: active + not soft-deleted ---
-  // Cast because TypeScript doesn't narrow `user` after the async closures.
-  const resolvedUser = user as UserRow;
-
-  if (resolvedUser.status !== "active") {
-    throw new AuthnError("user account is disabled");
-  }
-  if (resolvedUser.deleted_at !== null) {
-    throw new AuthnError("user account has been deleted");
-  }
-
-  // --- 7. Mint session ---
-  // totpVerified semantics:
-  //   - candidate:                always true (magic-link-issued; no admin gate)
-  //   - admin/reviewer + MFA_REQUIRED=true:  false (pre-MFA; user must enrol/verify TOTP)
-  //   - admin/reviewer + MFA_REQUIRED=false: false on the row (the user genuinely
-  //     hasn't done TOTP), but requireAuth bypasses the gate when MFA_REQUIRED=false
-  //     so the false-state still grants full access. Keeping the row "honest" means
-  //     flipping MFA_REQUIRED to true later doesn't grandfather existing sessions
-  //     past the gate — they'll re-prompt for TOTP enrolment, which is the right
-  //     re-hardening behaviour.
-  const { token: sessionToken } = await sessions.create({
-    userId: resolvedUser.id,
-    tenantId: resolvedUser.tenant_id,
-    role: resolvedUser.role,
-    totpVerified: false,
+  // ≥2 identities — issue a continuation token; do NOT mint a session.
+  const continuationToken = await storeLoginContinuation({
+    idpEmail,
+    subject,
     ip,
     ua,
+    embeddedReturnTo,
+    candidates: identities.map((i) => i.userId),
   });
 
-  // --- 8. Determine redirect target ---
-  // Candidates skip MFA. Admins/reviewers:
-  //   - MFA_REQUIRED=true  → /admin/mfa (pre-MFA enrolment / step-up)
-  //   - MFA_REQUIRED=false → safeReturnTo(embedded) || /admin (skip MFA hop)
-  // safeReturnTo handles whitelisting; embeddedReturnTo is from the state token.
-  const adminLanding = config.MFA_REQUIRED
-    ? "/admin/mfa"
-    : "/admin";
-  const redirectTo =
-    resolvedUser.role === "candidate"
-      ? "/"
-      : embeddedReturnTo !== undefined
-        ? safeReturnTo(embeddedReturnTo)
-        : adminLanding;
-
   return {
-    sessionToken,
-    user: {
-      id: resolvedUser.id,
-      email: resolvedUser.email,
-      tenantId: resolvedUser.tenant_id,
-      role: resolvedUser.role,
-    },
-    redirectTo,
+    kind: "select",
+    continuationToken,
+    redirectTo: "/admin/select-identity",
   };
 }
 

@@ -24,10 +24,14 @@
 //    --accent → --aiq-color-accent, --shadow-lg → --aiq-shadow-lg, etc.) per
 //    docs/10-branding-guideline.md § 0 step 4.
 
-import { useState, type CSSProperties } from 'react';
-import { Button, Chip, Field, Logo } from '@assessiq/ui-system';
+import { type CSSProperties } from 'react';
+import { Button, Chip, Logo } from '@assessiq/ui-system';
 
-const DEFAULT_TENANT_SLUG = 'wipro-soc';
+// P1 — Tenant field removed. Identity resolution is now cross-tenant: Google
+// verifies the email, then the backend resolves all eligible identities for
+// that email across tenants. If there is exactly one match, the user is
+// admitted immediately (same as before). If there are multiple matches, the
+// user is redirected to /admin/select-identity to choose.
 
 const SERIF_H1: CSSProperties = {
   fontSize: 44,
@@ -38,11 +42,8 @@ const SERIF_H1: CSSProperties = {
 };
 
 export function AdminLogin(): JSX.Element {
-  const [tenantSlug, setTenantSlug] = useState(DEFAULT_TENANT_SLUG);
-
   const startGoogleSso = (): void => {
-    const url = `/api/auth/google/start?tenant=${encodeURIComponent(tenantSlug)}`;
-    window.location.href = url;
+    window.location.href = '/api/auth/google/start';
   };
 
   return (
@@ -78,24 +79,11 @@ export function AdminLogin(): JSX.Element {
           Pick up where you left off — your assessments are saved and waiting.
         </p>
 
-        <div
-          style={{ marginBottom: 20 }}
-          data-help-id="admin.auth.login.tenant_slug"
-        >
-          <Field
-            label="Tenant"
-            value={tenantSlug}
-            onChange={(e) => setTenantSlug(e.target.value)}
-            placeholder="wipro-soc"
-          />
-        </div>
-
         <Button
           size="lg"
           variant="outline"
           leftIcon="google"
           onClick={startGoogleSso}
-          disabled={tenantSlug.length === 0}
           style={{ width: '100%', justifyContent: 'center' }}
         >
           Continue with Google

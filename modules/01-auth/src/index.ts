@@ -33,12 +33,28 @@ export {
   startGoogleSso,
   handleGoogleCallback,
   normalizeEmail,
+  mintForIdentity,
+  COOKIE_CONTINUATION_NAME,
+  continuationCookieOpts,
 } from "./google-sso.js";
 export type {
   OidcStartOutput,
   OidcCallbackOutput,
   CookieOpts,
+  GoogleIdTokenClaims,
 } from "./google-sso.js";
+
+export {
+  resolveLoginIdentities,
+  storeLoginContinuation,
+  consumeLoginContinuation,
+  peekLoginContinuation,
+  selectLoginIdentity,
+} from "./login-continuation.js";
+export type {
+  ResolvedIdentity,
+  LoginContinuationPayload,
+} from "./login-continuation.js";
 
 export { mintCandidateSession } from "./magic-link.js";
 export type { MintCandidateSessionInput } from "./magic-link.js";

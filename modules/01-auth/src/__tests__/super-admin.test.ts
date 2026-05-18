@@ -143,11 +143,13 @@ function mockGoogleFlow(claims: {
   } as Awaited<ReturnType<typeof jose.jwtVerify>>);
 }
 
-async function buildStateAndNonce(tenantId: string): Promise<{
+// P1: tenantId no longer embedded in state — startGoogleSso takes no tenantId.
+// The parameter is kept for call-site compatibility but ignored.
+async function buildStateAndNonce(_tenantId?: string): Promise<{
   stateCookieValue: string;
   nonceCookieValue: string;
 }> {
-  const result = await startGoogleSso({ tenantId });
+  const result = await startGoogleSso({});
   return {
     stateCookieValue: result.stateCookie.value,
     nonceCookieValue: result.nonceCookie.value,
@@ -317,6 +319,8 @@ describe("platform login — super_admin", () => {
       ua: "TestAgent/1.0",
     });
 
+    expect(result.kind).toBe("session");
+    if (result.kind !== "session") throw new Error("expected session");
     expect(result.user.role).toBe("super_admin");
     expect(result.user.tenantId).toBe(PLATFORM_TENANT_ID);
     expect(result.redirectTo).toBe("/admin/mfa");
@@ -434,6 +438,7 @@ describe("platform login — super_admin", () => {
       ua: "UA",
     });
 
+    if (result.kind !== "session") throw new Error("expected session");
     const sess = await sessions.get(result.sessionToken);
     expect(sess!.totpVerified).toBe(false);
     expect(result.redirectTo).toBe("/admin/mfa");
@@ -510,6 +515,8 @@ describe("customer-tenant login — regression (path UNCHANGED)", () => {
       ua: "UA",
     });
 
+    expect(result.kind).toBe("session");
+    if (result.kind !== "session") throw new Error("expected session");
     // Must be admin role (never super_admin) from the customer tenant.
     expect(result.user.role).toBe("admin");
     expect(result.user.tenantId).toBe(customerTenantId);
@@ -564,6 +571,8 @@ describe("customer-tenant login — regression (path UNCHANGED)", () => {
       ua: "UA",
     });
 
+    expect(result.kind).toBe("session");
+    if (result.kind !== "session") throw new Error("expected session");
     expect(result.user.id).toBe(jitUserId);
     expect(result.user.role).toBe("admin");
 
@@ -596,7 +605,8 @@ describe("customer-tenant login — regression (path UNCHANGED)", () => {
         ip: "10.0.1.3",
         ua: "UA",
       }),
-    ).rejects.toMatchObject({ name: "AuthnError", message: "user not in tenant" });
+    // P1: cross-tenant resolve returns empty → generic "authentication failed".
+    ).rejects.toMatchObject({ name: "AuthnError", message: "authentication failed" });
   });
 });
 
