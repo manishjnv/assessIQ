@@ -30,8 +30,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi } from "../api.js";
-import type { DomainItem, CategoryItem } from "../api.js";
+import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi, getCompanyEntitlements, getCompanyUsage } from "../api.js";
+import type { DomainItem, CategoryItem, TenantEntitlement, CompanyUsage } from "../api.js";
+import { HelpTip } from "@assessiq/help-system/components";
 import { UsageBanner } from "../components/UsageBanner.js";
 
 type AssessmentStatus = "draft" | "published" | "active" | "closed";
@@ -159,9 +160,13 @@ function flattenToCriteria(rows: BlueprintCategoryRow[]): BlueprintCriterion[] {
 
 interface BlueprintBuilderProps {
   onBlueprintChange: (bp: { domain_id: string; level: BlueprintLevel; criteria: BlueprintCriterion[] } | null) => void;
+  /** Set of entitled domain scope_ids. null = fail-open (show all). Empty set + not null = no content enabled yet. */
+  entitledDomains: Set<string> | null;
+  /** When true, skip filtering entirely (internal/unlimited tenant). */
+  skipFilter: boolean;
 }
 
-function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.ReactElement {
+function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilter }: BlueprintBuilderProps): React.ReactElement {
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [domainsLoading, setDomainsLoading] = useState(true);
   const [domainsError, setDomainsError] = useState<string | null>(null);
@@ -182,7 +187,13 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
       setDomainsLoading(true);
       try {
         const data = await listDomainsApi();
-        setDomains(data.items.filter((d) => d.status === "active"));
+        const active = data.items.filter((d) => d.status === "active");
+        // D3: filter to entitled domains unless skip (internal/unlimited) or fail-open (null).
+        // Entitlement scope_id for domain type = question_packs.domain TEXT = DomainItem.slug.
+        const filtered = (skipFilter || entitledDomains === null)
+          ? active
+          : active.filter((d) => entitledDomains.has(d.slug));
+        setDomains(filtered);
       } catch (err) {
         setDomainsError(
           err instanceof AdminApiError ? err.apiError.message : "Failed to load domains.",
@@ -281,22 +292,38 @@ function BlueprintBuilder({ onBlueprintChange }: BlueprintBuilderProps): React.R
       {/* Domain + Level row */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--aiq-space-md)" }}>
         <div>
-          <div style={labelStyle}>Domain</div>
+          <div style={labelStyle}>
+            <HelpTip helpId="admin.assessments.list.content_source">
+              <span>Domain</span>
+            </HelpTip>
+          </div>
           {domainsLoading ? (
             <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
               Loading…
             </span>
+          ) : !skipFilter && entitledDomains !== null && domains.length === 0 ? (
+            <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+              No content is enabled for your company yet — contact your platform operator.
+            </span>
           ) : (
-            <select
-              className="aiq-input"
-              value={selectedDomainId}
-              onChange={(e) => setSelectedDomainId(e.target.value)}
-            >
-              <option value="">— Select domain —</option>
-              {domains.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
+            <>
+              <select
+                className="aiq-input"
+                value={selectedDomainId}
+                onChange={(e) => setSelectedDomainId(e.target.value)}
+                disabled={domains.length === 0}
+              >
+                <option value="">— Select domain —</option>
+                {domains.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              {!skipFilter && entitledDomains !== null && (
+                <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
+                  Only content your company is entitled to is shown. Contact your platform operator to enable more.
+                </p>
+              )}
+            </>
           )}
         </div>
         <div>
@@ -612,6 +639,11 @@ export function AdminAssessments(): React.ReactElement {
     criteria: BlueprintCriterion[];
   } | null>(null);
 
+  // D3 — entitlement filtering for the domain picker
+  // null = fail-open (show all). Non-null set = filter to entitled domains.
+  const [entitledDomains, setEntitledDomains] = useState<Set<string> | null>(null);
+  const [skipEntitlementFilter, setSkipEntitlementFilter] = useState(false);
+
   // Created assessment ID for preview adequacy display
   const [createdAssessmentId, setCreatedAssessmentId] = useState<string | null>(null);
 
@@ -637,6 +669,37 @@ export function AdminAssessments(): React.ReactElement {
   useEffect(() => {
     void fetchAssessments(statusFilter);
   }, [fetchAssessments, statusFilter]);
+
+  // D3 — load entitlements + usage on mount to determine domain picker filtering.
+  // Fail-open: any error leaves entitledDomains=null (show all).
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [usageData, entsData] = await Promise.all([
+          getCompanyUsage().catch(() => null as CompanyUsage | null),
+          getCompanyEntitlements().catch(() => null as { entitlements: TenantEntitlement[] } | null),
+        ]);
+
+        // Internal/unlimited tenants bypass filtering
+        if (usageData !== null && (usageData.tier === 'internal' || usageData.status === 'unlimited')) {
+          setSkipEntitlementFilter(true);
+          return;
+        }
+
+        if (entsData !== null) {
+          const domainScopeIds = new Set(
+            entsData.entitlements
+              .filter((e) => e.status === 'active' && e.scope_type === 'domain')
+              .map((e) => e.scope_id),
+          );
+          setEntitledDomains(domainScopeIds);
+        }
+        // If entsData is null (fetch failed), entitledDomains stays null → fail-open
+      } catch {
+        // Fail-open: leave entitledDomains=null so the server's B2 gate still applies
+      }
+    })();
+  }, []);
 
   function handleStatusChange(val: string) {
     setSearchParams(
@@ -1040,7 +1103,11 @@ export function AdminAssessments(): React.ReactElement {
               {/* Blueprint builder — only shown when blueprint mode is on */}
               {useBlueprintMode && (
                 <div style={{ marginBottom: "var(--aiq-space-md)" }}>
-                  <BlueprintBuilder onBlueprintChange={setPendingBlueprint} />
+                  <BlueprintBuilder
+                    onBlueprintChange={setPendingBlueprint}
+                    entitledDomains={entitledDomains}
+                    skipFilter={skipEntitlementFilter}
+                  />
                 </div>
               )}
 

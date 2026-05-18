@@ -392,6 +392,50 @@ export async function listActiveEntitlements(
   return result.rows;
 }
 
+// ---------------------------------------------------------------------------
+// D1 — content-scopes reader (super-admin, read-only)
+// Runs inside the caller's withSystemTx (assessiq_system / BYPASSRLS).
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the distinct domain labels and pack list visible for a tenant.
+ *
+ * domains: distinct non-empty domain values from question_packs rows.
+ *   These are exactly the strings that domain-scoped entitlements use as
+ *   scope_id (consistent with the 0082 backfill migration).
+ *
+ * packs: every pack with id, name, domain (ordered by name).
+ *   Column is `name` TEXT NOT NULL per 0010_question_packs.sql migration.
+ */
+export async function getTenantContentScopes(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ domains: string[]; packs: Array<{ id: string; name: string; domain: string }> }> {
+  const [domainsResult, packsResult] = await Promise.all([
+    client.query<{ domain: string }>(
+      `SELECT DISTINCT domain
+       FROM question_packs
+       WHERE tenant_id = $1
+         AND domain IS NOT NULL
+         AND domain <> ''
+       ORDER BY domain`,
+      [tenantId],
+    ),
+    client.query<{ id: string; name: string; domain: string }>(
+      `SELECT id, name, domain
+       FROM question_packs
+       WHERE tenant_id = $1
+       ORDER BY name`,
+      [tenantId],
+    ),
+  ]);
+
+  return {
+    domains: domainsResult.rows.map((r) => r.domain),
+    packs: packsResult.rows,
+  };
+}
+
 /**
  * UPDATE tenant_plans row (tier + included_credits).
  * Returns the updated_at timestamp.

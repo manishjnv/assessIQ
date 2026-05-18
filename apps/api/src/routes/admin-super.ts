@@ -31,6 +31,7 @@ import {
   getTenantBillingEventsCsv,
   updateTenantPlan,
   listTenantEntitlements,
+  listTenantContentScopes,
   grantEntitlement,
   revokeEntitlement,
   type PlanTier,
@@ -488,6 +489,30 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
       const { tenantId } = req.params as { tenantId: string };
       const entitlements = await listTenantEntitlements(tenantId);
       return reply.code(200).send({ entitlements });
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/super/tenants/:tenantId/content-scopes
+  //
+  // Return the distinct domain labels and pack list for a tenant so the
+  // billing drawer can offer a dropdown instead of a free-text scope_id input.
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Runs under assessiq_system (BYPASSRLS) via listTenantContentScopes which
+  // internally uses withSystemTx — no app.current_tenant required.
+  //
+  // Response 200: { domains: string[]; packs: Array<{ id, name, domain }> }
+  // Response 403: not super_admin
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get(
+    '/api/admin/super/tenants/:tenantId/content-scopes',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      const scopes = await listTenantContentScopes(tenantId);
+      return reply.code(200).send(scopes);
     },
   );
 

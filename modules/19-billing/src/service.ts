@@ -24,6 +24,7 @@ import {
   getTenantTier,
   getPackDomain,
   listActiveEntitlements,
+  getTenantContentScopes,
 } from './repository.js';
 import type {
   BillingUsage,
@@ -456,6 +457,20 @@ export async function revokeEntitlement(
  */
 export async function listTenantEntitlements(tenantId: string): Promise<TenantEntitlement[]> {
   return withSystemTx((client) => listEntitlements(client, tenantId));
+}
+
+/**
+ * List the distinct content scopes (domains + packs) visible for a tenant.
+ *
+ * Used by the super-admin billing drawer to populate the Grant scope_id
+ * dropdown instead of a free-text input. Runs under assessiq_system
+ * (BYPASSRLS) via withSystemTx — same cross-tenant read pattern as
+ * listTenantEntitlements.
+ */
+export async function listTenantContentScopes(
+  tenantId: string,
+): Promise<{ domains: string[]; packs: Array<{ id: string; name: string; domain: string }> }> {
+  return withSystemTx((client) => getTenantContentScopes(client, tenantId));
 }
 
 // ---------------------------------------------------------------------------

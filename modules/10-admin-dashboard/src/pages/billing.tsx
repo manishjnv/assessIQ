@@ -26,6 +26,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Chip, Icon } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { HelpTip } from "@assessiq/help-system/components";
 import { useAdminSession } from "../session.js";
 import { updateTenantAiGenerateMode, getCompanyUsage, type AiGenerateMode, type CompanyUsage } from "../api.js";
 import { usageMessage } from "../components/UsageBanner.js";
@@ -261,10 +262,15 @@ export function AdminBilling(): React.ReactElement {
                   : "Over limit";
           return (
             <Card>
-              <div data-help-id="admin.billing.usage" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
                   <Icon name="chart" size={18} color="var(--aiq-color-accent)" />
-                  <h2 style={SERIF_H2}>Your plan &amp; usage</h2>
+                  {/* Help key renamed to the page-prefix-matching id so the
+                      drawer resolves: billing page helpPage="admin.settings.billing"
+                      loads keys LIKE 'admin.settings.billing.%'. */}
+                  <HelpTip helpId="admin.settings.billing.usage">
+                    <h2 style={SERIF_H2}>Your plan &amp; usage</h2>
+                  </HelpTip>
                   <Chip
                     variant={companyUsage.status === "over" ? "warn" : companyUsage.status === "warn" ? "default" : "success"}
                     style={{ marginLeft: "var(--aiq-space-sm)" }}
