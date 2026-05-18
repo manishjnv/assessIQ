@@ -96,10 +96,12 @@ export function AdminLogin(): JSX.Element {
           Continue with Google
         </Button>
 
-        {/* P2 — Email-OTP secondary action (admin/reviewer only). */}
+        {/* P2 — Email-OTP secondary action (admin/reviewer only).
+            variant="outline" (not ghost) so it reads as a real button,
+            consistent with the Google action above per the UI kit. */}
         <Button
           size="lg"
-          variant="ghost"
+          variant="outline"
           onClick={startEmailOtp}
           style={{ width: '100%', justifyContent: 'center', marginTop: 12 }}
         >
