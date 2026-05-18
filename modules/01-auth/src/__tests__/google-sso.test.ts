@@ -152,7 +152,8 @@ async function buildStateAndNonce(): Promise<{
   stateCookieValue: string;
   nonceCookieValue: string;
 }> {
-  const result = await startGoogleSso({ tenantId });
+  // P1: startGoogleSso no longer takes tenantId.
+  const result = await startGoogleSso({});
   return {
     stateCookieValue: result.stateCookie.value,
     nonceCookieValue: result.nonceCookie.value,
@@ -319,7 +320,8 @@ beforeEach(() => {
 
 describe("startGoogleSso", () => {
   it("produces a redirect URL containing client_id, redirect_uri, state, nonce, scope, response_type", async () => {
-    const result = await startGoogleSso({ tenantId });
+    // P1: no tenantId parameter.
+    const result = await startGoogleSso({});
 
     const url = new URL(result.redirectUrl);
     expect(url.hostname).toBe("accounts.google.com");
@@ -333,15 +335,16 @@ describe("startGoogleSso", () => {
     expect(url.searchParams.get("nonce")).toBeTruthy();
   });
 
-  it("embeds tenantId in the state so callback can scope queries", async () => {
-    const result = await startGoogleSso({ tenantId });
-    // State format: <random>|<tenantId>[|<returnTo>]
+  it("P1: state is <random> only (no tenantId embedded)", async () => {
+    const result = await startGoogleSso({});
+    // P1 state format: <random>[|<returnTo>]. With no returnTo, it's just the random part.
     const stateParts = result.stateCookie.value.split("|");
-    expect(stateParts[1]).toBe(tenantId);
+    // Should be exactly 1 part (no pipe) when no returnTo supplied.
+    expect(stateParts).toHaveLength(1);
   });
 
   it("state and nonce cookies have httpOnly=true, secure=true, sameSite=lax, path=/, maxAge<=600", async () => {
-    const result = await startGoogleSso({ tenantId });
+    const result = await startGoogleSso({});
 
     for (const cookie of [result.stateCookie, result.nonceCookie]) {
       expect(cookie.opts.httpOnly).toBe(true);
@@ -354,7 +357,7 @@ describe("startGoogleSso", () => {
   });
 
   it("cookie names are aiq_oauth_state and aiq_oauth_nonce", async () => {
-    const result = await startGoogleSso({ tenantId });
+    const result = await startGoogleSso({});
     expect(result.stateCookie.name).toBe("aiq_oauth_state");
     expect(result.nonceCookie.name).toBe("aiq_oauth_nonce");
   });
@@ -473,6 +476,8 @@ it("resolves user via oauth_identities when subject matches", async () => {
     ua: "Mozilla/5.0",
   });
 
+  expect(result.kind).toBe("session");
+  if (result.kind !== "session") throw new Error("expected session");
   expect(result.user.id).toBe(userId);
   expect(result.user.email).toBe("linked@example.com");
   expect(result.user.tenantId).toBe(tenantId);
@@ -504,6 +509,8 @@ it("JIT-links oauth_identities when no identity row exists but email matches a u
     ua: "Mozilla/5.0",
   });
 
+  expect(result.kind).toBe("session");
+  if (result.kind !== "session") throw new Error("expected session");
   expect(result.user.id).toBe(userId);
 
   // Verify the JIT-linked oauth_identities row was inserted.
@@ -539,7 +546,8 @@ it("throws AuthnError when email does not exist in the tenant", async () => {
       ip: "10.0.0.3",
       ua: "Mozilla/5.0",
     }),
-  ).rejects.toMatchObject({ name: "AuthnError", message: "user not in tenant" });
+  // P1: cross-tenant resolve → generic "authentication failed" (no enumeration).
+  ).rejects.toMatchObject({ name: "AuthnError", message: "authentication failed" });
 });
 
 // ---------------------------------------------------------------------------
@@ -664,6 +672,8 @@ it("mints a pre-MFA session with totpVerified=false", async () => {
     ua: "Mozilla/5.0",
   });
 
+  expect(result.kind).toBe("session");
+  if (result.kind !== "session") throw new Error("expected session");
   expect(result.sessionToken).toBeTruthy();
   expect(result.redirectTo).toBe("/admin/mfa");
 
