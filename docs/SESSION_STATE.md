@@ -1,3 +1,23 @@
+# Session — 2026-05-19 (Login P2 — email-OTP for admin/reviewer)
+
+**Headline:** Shipped P2 — `admin`/`reviewer` can log in with a 6-digit code emailed to their address, as an alternative to Google SSO. `super_admin` can NEVER use it (triple-blocked, adversarially proven); `candidate` magic-link untouched. Reuses P1's resolver/continuation/picker. Load-bearing `01-auth`; no session/RLS/data-model/migration change.
+**Commits (main):** `a16fdb1` feat P2 (17 files, +1711) · docs/handoff follow. (P1 chain: `bcbbda7` spec, `62c2558` P1, `f104327` P1-docs.)
+**Tests:** auth/api/notifications typecheck PASS; notifications 107/107 (incl. 3 new `admin_email_otp` render tests); auth 47 units pass (Docker-gated incl. new `email-otp.test.ts` skip — established pattern).
+**Deploy:** api+frontend rebuilt+recreated on `a16fdb1`; HTTP-verified — `/api/auth/login/email/request` → 200 generic anti-enum body; `/email/verify` → 200 `{ok:false}` generic; login page 200; no ENOENT (BLOCKER-1 template fix confirmed); neighbors untouched. **Real code-email delivery + entry is USER-verified next.**
+**Next:** User tests P2 (see chat guide — key check: email-OTP for an email that is super_admin+admin must send a code and show ONLY the admin identities, never super_admin). Then: open follow-ups, or new work.
+**Open questions / accepted residuals:** (1) **finding-5 (= P1 finding-2), open:** continuation/OTP rate-limit IP derived via `cf-connecting-ip ?? req.ip` — spoofable if origin reached without Cloudflare. PRE-EXISTING codebase-wide (sessions/candidate-login/rate-limit/P1/P2 all identical); correct fix = app-wide Fastify `trustProxy`/CF-range config (its own security task, NOT auth-phase-scoped). HIGH-priority tracked. (2) P1 super_admin→/admin/mfa live spot-check still pending from the user (code-proven; non-blocking). (3) prior carried follow-ups unchanged.
+
+---
+
+## Agent utilization
+- **Opus:** P2 build contract (reuse-P1, triple super_admin block, anti-enum constant-work); Phase-0 grounding (candidate-login infra + P1 reusable surface); Phase-3 read `email-otp.ts` + the P1-edits in full (minimal/byte-preserving confirmed); **adjudicated the Sonnet adversarial *revise*** — security invariants proven HELD, bounced 4 fixes (BLOCKER missing-template, MAJOR timing-oracle, 2 MINOR), Opus-verified the fix diff (constant-work control-flow + 800ms floor + filterEligible unchanged) + self-fixed a stale comment; accepted finding-5 as the documented systemic residual (same as P1 finding-2); deploy + HTTP verify + docs/04-auth-flows P2 section + handoff + memory.
+- **Sonnet:** P2 build subagent (worktree, load-bearing; 17 files; reused P1, hard-invariant checklist); **adversarial subagent** (VERDICT revise; all security invariants traced HELD; surfaced the BLOCKER + MAJOR + MINORs); **fix-pass subagent** (4 targeted fixes; notifications 107/107).
+- **Haiku:** n/a — targeted HTTP probes, not a bulk sweep.
+- **codex:rescue:** n/a — GLM/codex leg blocked by source-exfil guard; Sonnet adversarial + Opus adjudication + Opus fix-verification satisfied the mandatory 01-auth gate per `feedback-adversarial-reviewer-routing`.
+- **claude-mem:** updated `login-tenantless-identity-flow` (P2 SHIPPED; finding-5).
+
+---
+
 # Session — 2026-05-19 (Login P1 — tenant-less login + cross-tenant identity picker)
 
 **Headline:** Shipped P1 of the approved login-simplification spec — `/admin/login` has no Tenant field; after Google verifies the email, all identities across tenants are resolved and 0→reject / 1→straight-in / ≥2→a role/tenant picker. Load-bearing `01-auth` core rewrite; super_admin isolation + always-MFA preserved; no session/RLS/data-model change. **P2 (admin/reviewer email-OTP) deliberately NOT built yet** — separate phase, gated on user verifying P1's real Google-SSO flow first.
