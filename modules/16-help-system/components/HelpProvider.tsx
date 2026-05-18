@@ -2,7 +2,7 @@
  * HelpProvider — top-level React provider for the AssessIQ help system.
  *
  * On mount (or when page/audience/locale change):
- *  1. Checks localStorage for a cached response (TTL 1 h).
+ *  1. Checks localStorage for a cached response (TTL 1 min).
  *  2. If cache is stale/absent, fetches /api/help?page=&audience=&locale=
  *     with credentials:'include'.
  *  3. Populates the context entries Map and writes back to localStorage.
@@ -36,7 +36,7 @@ export interface HelpProviderProps {
 
 // ─── Cache helpers ────────────────────────────────────────────────────────────
 
-const TTL_MS = 3_600_000; // 1 hour
+const TTL_MS = 60_000; // 1 minute — help content is small and operator-edited; correctness (a help deploy is visible within ~1 min) outweighs the cache.
 
 interface CacheEntry {
   fetchedAt: number;
