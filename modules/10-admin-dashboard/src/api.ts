@@ -628,3 +628,33 @@ export async function revokeTenantEntitlement(
 export async function getCompanyEntitlements(): Promise<{ entitlements: TenantEntitlement[] }> {
   return adminApi<{ entitlements: TenantEntitlement[] }>('/billing/entitlements');
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — D1 content-scopes (super-admin billing drawer)
+// ---------------------------------------------------------------------------
+
+export interface ContentScopeItem {
+  id: string;
+  name: string;
+  domain: string;
+}
+
+export interface TenantContentScopes {
+  domains: string[];
+  packs: ContentScopeItem[];
+}
+
+/**
+ * GET /api/admin/super/tenants/:tenantId/content-scopes
+ *
+ * Super-admin only. Returns the distinct domain labels and pack list for a
+ * tenant so the billing drawer grant form can use a dropdown instead of a
+ * free-text scope_id input.
+ */
+export async function getTenantContentScopes(
+  tenantId: string,
+): Promise<TenantContentScopes> {
+  return adminApi<TenantContentScopes>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/content-scopes`,
+  );
+}

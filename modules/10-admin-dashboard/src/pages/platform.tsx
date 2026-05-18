@@ -26,13 +26,16 @@ import {
   updateTenantPlan,
   tenantBillingCsvUrl,
   getTenantEntitlements,
+  getTenantContentScopes,
   grantTenantEntitlement,
   revokeTenantEntitlement,
   type CreateCompanyRequest,
   type TenantListItem,
   type TenantBillingDetail,
   type TenantEntitlement,
+  type TenantContentScopes,
 } from "../api.js";
+import { HelpTip } from "@assessiq/help-system/components";
 import { fetchAdminWhoami } from "../session.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -573,6 +576,10 @@ function BillingDrawer({
   const [revokeSaving, setRevokeSaving] = useState<string | null>(null); // entitlement id being revoked
   const [revokeError, setRevokeError] = useState<string | null>(null);
 
+  // Content-scopes state (D1/D2) — for dropdown grant form
+  const [contentScopes, setContentScopes] = useState<TenantContentScopes | null>(null);
+  const [contentScopesError, setContentScopesError] = useState<string | null>(null);
+
   const fetchEntitlements = (): void => {
     setEntitlementsLoading(true);
     setEntitlementsError(null);
@@ -611,6 +618,13 @@ function BillingDrawer({
 
   useEffect(() => {
     fetchEntitlements();
+    // Also fetch content-scopes for the grant dropdown (D1/D2)
+    setContentScopesError(null);
+    void getTenantContentScopes(tenant.id)
+      .then((s) => setContentScopes(s))
+      .catch((err) => {
+        setContentScopesError(err instanceof AdminApiError ? err.apiError.message : "couldn't load list — type manually");
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant.id]);
 
@@ -695,8 +709,7 @@ function BillingDrawer({
     >
       <div
         style={{
-          width: "100%",
-          maxWidth: 480,
+          width: "min(720px, 92vw)",
           height: "100%",
           overflowY: "auto",
           background: "var(--aiq-color-bg-base)",
@@ -739,7 +752,14 @@ function BillingDrawer({
           <>
             {/* Read-only stats */}
             <Card>
-              <div data-help-id="admin.platform.billing" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+                {/* Section heading with HelpTip — admin.platform.billing */}
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <HelpTip helpId="admin.platform.billing">
+                    <span style={{ ...META_LABEL, fontSize: 10 }}>Usage &amp; plan</span>
+                  </HelpTip>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)" }}>
                 <div>
                   <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Tier</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", textTransform: "capitalize" }}>
@@ -778,7 +798,8 @@ function BillingDrawer({
                     {formatDate(detail.cycle_start)}
                   </p>
                 </div>
-              </div>
+                </div>{/* end inner grid */}
+              </div>{/* end outer flex column */}
             </Card>
 
             {/* Recent events */}
@@ -968,8 +989,12 @@ function BillingDrawer({
             </Card>
             {/* Entitlements subsection — B1 */}
             <Card>
-              <div data-help-id="admin.platform.entitlements" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
-                <div style={{ ...META_LABEL, fontSize: 10 }}>Entitlements</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <HelpTip helpId="admin.platform.entitlements">
+                    <span style={{ ...META_LABEL, fontSize: 10 }}>Entitlements</span>
+                  </HelpTip>
+                </div>
 
                 {/* Active entitlements list */}
                 {entitlementsLoading && (
@@ -1071,7 +1096,7 @@ function BillingDrawer({
                       </label>
                       <select
                         value={grantScopeType}
-                        onChange={(e) => setGrantScopeType(e.target.value as 'domain' | 'pack')}
+                        onChange={(e) => { setGrantScopeType(e.target.value as 'domain' | 'pack'); setGrantScopeId(''); setGrantError(null); }}
                         disabled={grantSaving}
                         style={{
                           fontFamily: "var(--aiq-font-sans)",
@@ -1093,23 +1118,64 @@ function BillingDrawer({
                       >
                         Scope ID
                       </label>
-                      <input
-                        type="text"
-                        value={grantScopeId}
-                        onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
-                        placeholder={grantScopeType === 'domain' ? 'e.g. soc' : 'pack UUID'}
-                        disabled={grantSaving}
-                        style={{
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: 12,
-                          padding: "5px 8px",
-                          borderRadius: "var(--aiq-radius-md)",
-                          border: "1px solid var(--aiq-color-border)",
-                          background: "var(--aiq-color-bg-raised)",
-                          color: "var(--aiq-color-fg-primary)",
-                          width: "100%",
-                        }}
-                      />
+                      {/* D2: dropdown from content-scopes when available; fallback to free-text */}
+                      {contentScopes !== null && !contentScopesError ? (
+                        <>
+                          <select
+                            value={grantScopeId}
+                            onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
+                            disabled={grantSaving}
+                            style={{
+                              fontFamily: "var(--aiq-font-mono)",
+                              fontSize: 12,
+                              padding: "5px 8px",
+                              borderRadius: "var(--aiq-radius-md)",
+                              border: "1px solid var(--aiq-color-border)",
+                              background: "var(--aiq-color-bg-raised)",
+                              color: "var(--aiq-color-fg-primary)",
+                              width: "100%",
+                            }}
+                          >
+                            <option value="">— Select —</option>
+                            {grantScopeType === 'domain'
+                              ? contentScopes.domains
+                                  .filter((d) => !entitlements.some((e) => e.status === 'active' && e.scope_type === 'domain' && e.scope_id === d))
+                                  .map((d) => <option key={d} value={d}>{d}</option>)
+                              : contentScopes.packs
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.name}{p.domain ? ` (${p.domain})` : ''}
+                                    </option>
+                                  ))
+                            }
+                          </select>
+                        </>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            value={grantScopeId}
+                            onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
+                            placeholder={grantScopeType === 'domain' ? 'e.g. soc' : 'pack UUID'}
+                            disabled={grantSaving}
+                            style={{
+                              fontFamily: "var(--aiq-font-mono)",
+                              fontSize: 12,
+                              padding: "5px 8px",
+                              borderRadius: "var(--aiq-radius-md)",
+                              border: "1px solid var(--aiq-color-border)",
+                              background: "var(--aiq-color-bg-raised)",
+                              color: "var(--aiq-color-fg-primary)",
+                              width: "100%",
+                            }}
+                          />
+                          {contentScopesError !== null && (
+                            <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, color: "var(--aiq-color-fg-muted)" }}>
+                              {contentScopesError}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </div>
                     <button
                       type="button"
