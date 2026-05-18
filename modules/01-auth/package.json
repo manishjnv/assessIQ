@@ -16,6 +16,7 @@
   "dependencies": {
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/core": "workspace:*",
+    "@assessiq/notifications": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "argon2": "^0.40.0",
     "ioredis": "^5.4.0",

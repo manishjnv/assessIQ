@@ -25,6 +25,7 @@
 //    docs/10-branding-guideline.md § 0 step 4.
 
 import { type CSSProperties } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
 
 // P1 — Tenant field removed. Identity resolution is now cross-tenant: Google
@@ -42,8 +43,14 @@ const SERIF_H1: CSSProperties = {
 };
 
 export function AdminLogin(): JSX.Element {
+  const navigate = useNavigate();
+
   const startGoogleSso = (): void => {
     window.location.href = '/api/auth/google/start';
+  };
+
+  const startEmailOtp = (): void => {
+    navigate('/admin/login/email');
   };
 
   return (
@@ -87,6 +94,16 @@ export function AdminLogin(): JSX.Element {
           style={{ width: '100%', justifyContent: 'center' }}
         >
           Continue with Google
+        </Button>
+
+        {/* P2 — Email-OTP secondary action (admin/reviewer only). */}
+        <Button
+          size="lg"
+          variant="ghost"
+          onClick={startEmailOtp}
+          style={{ width: '100%', justifyContent: 'center', marginTop: 12 }}
+        >
+          Email me a sign-in code
         </Button>
       </main>
     </div>

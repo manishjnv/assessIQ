@@ -44,6 +44,11 @@
     "greeting": "Hi {{recipientName}},",
     "security_warning": "If you did not perform this action, contact your administrator immediately and change your password."
   },
+  "admin_email_otp": {
+    "page_title": "Your AssessIQ sign-in code",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Your sign-in code."
+  },
   "weekly_digest_admin": {
     "page_title": "Weekly digest",
     "brand_wordmark": "AssessIQ",

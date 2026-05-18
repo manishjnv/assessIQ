@@ -39,6 +39,7 @@ const CandidateShell = lazy(() => import('@assessiq/candidate-ui').then(m => ({ 
 const CandidateActivity = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateActivity })));
 
 const AdminMfa = lazy(() => import('./pages/admin/mfa').then(m => ({ default: m.AdminMfa })));
+const AdminEmailOtp = lazy(() => import('./pages/admin/email-otp').then(m => ({ default: m.AdminEmailOtp })));
 const CandidateLoginVerify = lazy(() => import('./pages/candidate/CandidateLoginVerify').then(m => ({ default: m.CandidateLoginVerify })));
 const InviteAccept = lazy(() => import('./pages/invite-accept').then(m => ({ default: m.InviteAccept })));
 const AttemptPage = lazy(() => import('./pages/take').then(m => ({ default: m.AttemptPage })));
@@ -69,6 +70,8 @@ export function App(): JSX.Element {
           <Route path="/admin/login" element={<AdminLogin />} />
           {/* P1 — identity picker for multi-tenant Google login; no RequireSession */}
           <Route path="/admin/select-identity" element={<AdminSelectIdentity />} />
+          {/* P2 — email-OTP login (admin/reviewer only); no RequireSession (pre-session) */}
+          <Route path="/admin/login/email" element={<AdminEmailOtp />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
           <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
           <Route path="/admin" element={<RequireSession role="admin"><AdminDashboard /></RequireSession>} />
