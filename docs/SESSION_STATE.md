@@ -1,3 +1,23 @@
+# Session — 2026-05-19 (Login P1 — tenant-less login + cross-tenant identity picker)
+
+**Headline:** Shipped P1 of the approved login-simplification spec — `/admin/login` has no Tenant field; after Google verifies the email, all identities across tenants are resolved and 0→reject / 1→straight-in / ≥2→a role/tenant picker. Load-bearing `01-auth` core rewrite; super_admin isolation + always-MFA preserved; no session/RLS/data-model change. **P2 (admin/reviewer email-OTP) deliberately NOT built yet** — separate phase, gated on user verifying P1's real Google-SSO flow first.
+**Commits (main):** `bcbbda7` spec · `62c2558` feat P1 (11 files, +1476/−296) · docs/handoff follow.
+**Tests:** `@assessiq/auth` typecheck PASS, 47 units pass (Docker-gated suites skip — established pattern). api/web clean of P1 errors (residual = pre-existing `_log.ts`/`05-lifecycle`/untracked `mfa.test.tsx`). 2 build-introduced typecheck regressions caught by Phase-2 + self-fixed (auth.test mock `kind`, select-identity Chip variant).
+**Deploy:** api+frontend rebuilt+recreated on `62c2558`; verified at HTTP layer — `GET /api/auth/google/start` (NO tenant) → **302 to Google** (was 400 pre-P1); `/api/auth/login/identities` → 401 (registered+gated); `/admin/login` → 200; no auth errors; neighbors untouched. No migration. **Real end-to-end Google SSO + multi-identity picker is USER-verified next (can't perform OAuth myself).**
+**Next:** User tests P1 (see chat guide). Once P1 confirmed working end-to-end → build **P2** (admin/reviewer email-OTP, reuses P1 resolver + candidate-login security infra, own adversarial gate).
+**Open questions / accepted residual:** (1) **Adversarial finding-2 (open, accepted, tracked):** continuation-token ip-binding derives client IP via `cf-connecting-ip ?? req.ip` — spoofable if origin reached without Cloudflare. PRE-EXISTING codebase-wide pattern (sessions/candidate-login/rate-limit identical); gated behind a 256-bit HttpOnly single-use token; correct fix = app-wide `trustProxy`/CF-range config (NOT P1-scoped). High-priority security follow-up. (2) Carried follow-ups from prior sessions unchanged (help-seed CI gate, test-harness Docker sweep, etc.).
+
+---
+
+## Agent utilization
+- **Opus:** ran `superpowers:brainstorming` (scope/super_admin/auth-matrix/architecture decisions one-at-a-time), wrote+committed the spec; Phase-0 grounding of the load-bearing google-sso flow; wrote the exhaustive P1 build contract; **Phase-3 read the full callback + login-continuation + mintForIdentity + routes** (faithful, sound); Phase-2 caught+self-fixed 2 typecheck regressions; **adjudicated the Sonnet adversarial** (applied finding-1 email_verified with a robust true/"true" guard to avoid a total-login-outage; accepted finding-2 as a documented pre-existing systemic residual with rationale; noted finding-3); surgical deploy + HTTP-surface verification; docs/04-auth-flows + handoff + memory.
+- **Sonnet:** P1 build subagent (worktree, load-bearing; 11 files, behaviour-preserving extract + new resolver/continuation/picker; reported a full hard-invariant checklist); **adversarial-review subagent** — VERDICT accept, 7 highest-stakes invariants traced CLEAN, surfaced finding-1 (fixed) + finding-2 (the accepted residual).
+- **Haiku:** n/a — targeted HTTP probes + grep, not a bulk sweep.
+- **codex:rescue:** n/a — GLM/codex leg blocked by the source-exfil guard; the documented substitute (real Sonnet adversarial subagent + independent Opus adjudication) satisfied the mandatory 01-auth gate, per `feedback-adversarial-reviewer-routing`.
+- **claude-mem:** new `project` memory `login-tenantless-identity-flow` (the new login model + finding-2 residual + P2-pending).
+
+---
+
 # Session — 2026-05-19 (Monetization UX hardening — prod-testing feedback)
 
 **Headline:** Fixed 3 real defects operator testing found in the shipped A1–C UI: the assessment-create picker now filters to entitled domains; super-admin entitlement Grant is a domain/pack dropdown (no more free-text junk); help drawers actually open on the monetization surfaces. B2 server enforcement untouched.
