@@ -59,6 +59,9 @@ export type {
 export { mintCandidateSession } from "./magic-link.js";
 export type { MintCandidateSessionInput } from "./magic-link.js";
 
+// P2 — Email-OTP login (admin + reviewer only).
+export { requestEmailOtp, verifyEmailOtp } from "./email-otp.js";
+
 export {
   requestCandidateLoginLink,
   requestCandidateLoginLinkSystem,

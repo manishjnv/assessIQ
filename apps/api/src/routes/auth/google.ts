@@ -8,6 +8,8 @@ import {
   resolveLoginIdentities,
   peekLoginContinuation,
   selectLoginIdentity,
+  requestEmailOtp,
+  verifyEmailOtp,
 } from '@assessiq/auth';
 import { authChain, publicAuthChain } from '../../middleware/auth-chain.js';
 
@@ -236,6 +238,117 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
 
       reply.header('Cache-Control', 'no-store');
       return reply.send({ redirectTo: out.redirectTo });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // P2 — Email-OTP routes (admin/reviewer only)
+  // -------------------------------------------------------------------------
+
+  // POST /api/auth/login/email/request
+  // Anti-enumeration: ALWAYS returns 200 { ok: true } regardless of whether
+  // the email is eligible, rate-limited, unknown, or Redis is down.
+  // No session required (publicAuthChain). The code is proof-of-email-ownership
+  // and must be entered on the verify screen — it is NOT a clickable link
+  // (avoids email-preview-crawler burnout; same rationale as candidate magic-link).
+  //
+  // CSRF note: this is a POST JSON endpoint with no session and no state-change
+  // reachable without the OTP code. SameSite=lax on the continuation cookie is
+  // unchanged from P1. No CSRF protection needed here — the code IS the CSRF token.
+  app.post(
+    '/api/auth/login/email/request',
+    {
+      config: { skipAuth: true },
+      preHandler: publicAuthChain,
+    },
+    async (req, reply) => {
+      reply.header('Cache-Control', 'no-store');
+
+      const body = req.body as Record<string, unknown> | undefined;
+      const emailRaw = body?.['email'];
+
+      // Basic plausible-email validation (non-empty string with an '@').
+      // Over-reject is worse than under-reject here — anti-enumeration requires
+      // returning identical 200 for any input. We validate only to avoid
+      // obviously malformed values being passed to normalizeEmail.
+      if (typeof emailRaw !== 'string' || emailRaw.trim().length === 0 || !emailRaw.includes('@')) {
+        // Return identical 200 — structural enumeration prevention.
+        return reply.status(200).send({ ok: true, message: "If that email can sign in, we've sent a 6-digit code." });
+      }
+
+      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
+
+      // requestEmailOtp never throws for enumeration-sensitive reasons.
+      // Redis error, ineligible email, rate-limit → all silently return.
+      await requestEmailOtp({ email: emailRaw, ip, ua });
+
+      return reply.status(200).send({ ok: true, message: "If that email can sign in, we've sent a 6-digit code." });
+    },
+  );
+
+  // POST /api/auth/login/email/verify
+  // Body: { email, code }
+  // On success (kind:'session') → set SESSION_COOKIE_NAME + return { ok:true, redirectTo }.
+  // On success (kind:'select') → set continuation cookie + return { ok:true, redirectTo:'/admin/select-identity' }.
+  // On AuthnError → 200 { ok:false, error:'invalid_code' } (matches candidate verify-link
+  //   200-with-ok:false pattern; never distinguish expired/wrong/locked — anti-enumeration).
+  //
+  // HTTP 200-with-ok:false chosen for consistency with candidate verify-link (same module,
+  // same anti-enumeration contract: the error is part of the protocol, not transport).
+  app.post(
+    '/api/auth/login/email/verify',
+    {
+      config: { skipAuth: true },
+      preHandler: publicAuthChain,
+    },
+    async (req, reply) => {
+      reply.header('Cache-Control', 'no-store');
+
+      const body = req.body as Record<string, unknown> | undefined;
+      const emailRaw = body?.['email'];
+      const codeRaw = body?.['code'];
+
+      if (
+        typeof emailRaw !== 'string' || emailRaw.trim().length === 0 ||
+        typeof codeRaw !== 'string' || codeRaw.trim().length === 0
+      ) {
+        return reply.status(200).send({ ok: false, error: 'invalid_code' });
+      }
+
+      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
+
+      let out: Awaited<ReturnType<typeof verifyEmailOtp>>;
+      try {
+        out = await verifyEmailOtp({ email: emailRaw, code: codeRaw, ip, ua });
+      } catch {
+        // Any thrown AuthnError → generic ok:false. Never distinguish reason.
+        return reply.status(200).send({ ok: false, error: 'invalid_code' });
+      }
+
+      if (out.kind === 'session') {
+        // Single identity minted — set session cookie (same flags as cb route + /select).
+        reply.setCookie(config.SESSION_COOKIE_NAME, out.sessionToken, {
+          httpOnly: true,
+          secure: config.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 8 * 3600,
+        });
+        return reply.status(200).send({ ok: true, redirectTo: out.redirectTo });
+      }
+
+      // kind === 'select' — ≥2 identities. Set continuation cookie (same as cb route).
+      const contOpts = continuationCookieOpts('/');
+      reply.setCookie(COOKIE_CONTINUATION_NAME, out.continuationToken, {
+        httpOnly: true,
+        secure: config.NODE_ENV === 'production',
+        sameSite: contOpts.sameSite,
+        path: contOpts.path,
+        maxAge: contOpts.maxAge,
+      });
+      return reply.status(200).send({ ok: true, redirectTo: '/admin/select-identity' });
     },
   );
 }

@@ -32,6 +32,7 @@ import {
   AttemptGradedCandidateVarsSchema,
   AttemptReadyForReviewAdminVarsSchema,
   WeeklyDigestAdminVarsSchema,
+  AdminEmailOtpVarsSchema,
 } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -54,6 +55,8 @@ const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   attempt_graded_candidate: AttemptGradedCandidateVarsSchema,
   attempt_ready_for_review_admin: AttemptReadyForReviewAdminVarsSchema,
   weekly_digest_admin: WeeklyDigestAdminVarsSchema,
+  // P2: Email-OTP sign-in code (admin/reviewer only).
+  admin_email_otp: AdminEmailOtpVarsSchema,
 };
 
 // ---------------------------------------------------------------------------

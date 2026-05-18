@@ -42,7 +42,20 @@ export interface ResolvedIdentity {
 
 export interface LoginContinuationPayload {
   idpEmail: string;
-  subject: string;
+  // P2: subject is now optional. Google SSO sets this to the Google sub (always
+  // a string). Email-OTP sets this to undefined — no Google identity exists.
+  // selectLoginIdentity passes payload.subject into mintForIdentity, which (per
+  // the P2 B2 change) skips the oauth_identities INSERT when subject is undefined.
+  //
+  // SECURITY NOTE on super_admin exclusion via this path:
+  // For an email-OTP continuation (subject=undefined), storeLoginContinuation is
+  // only called from verifyEmailOtp, which places ONLY admin/reviewer userIds in
+  // candidates (filterEligible guards this). selectLoginIdentity asserts
+  // `identityUserId ∈ payload.candidates` — a super_admin userId is never in that
+  // list, so even though the re-resolve in selectLoginIdentity returns all roles,
+  // the candidates-membership assertion structurally blocks super_admin selection.
+  // DO NOT change selectLoginIdentity logic — the guard already holds.
+  subject: string | undefined;
   ip: string;
   ua: string;
   embeddedReturnTo: string | undefined;
@@ -331,8 +344,13 @@ export async function selectLoginIdentity(opts: {
   // No Google id_token claims available at select time — claims omitted.
   // mintForIdentity handles this: raw_profile fields are optional, and the
   // allowlist re-check falls back to the DB-row guard (see mintForIdentity comment).
+  //
+  // P2: payload.subject is now `string | undefined`. With exactOptionalPropertyTypes,
+  // we must not pass `subject: undefined` explicitly (that differs from omitting
+  // the property). Use conditional spread so that when subject is undefined (email-OTP
+  // origin), the property is absent — mintForIdentity then skips oauth_identities INSERT.
   return mintForIdentity(chosen, {
-    subject: payload.subject,
+    ...(payload.subject !== undefined ? { subject: payload.subject } : {}),
     ip,
     ua,
     embeddedReturnTo: payload.embeddedReturnTo,

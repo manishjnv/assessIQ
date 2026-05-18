@@ -404,6 +404,34 @@ describe('email template rendering', () => {
       }),
     ).toThrow();
   });
+
+  // P2: admin_email_otp template — render smoke test.
+  it('renders admin_email_otp template with valid vars (non-empty subject + body, code present)', () => {
+    const result = renderTemplate('admin_email_otp', {
+      code: '123456',
+      expires_minutes: 10,
+    });
+
+    expect(result.subject.length).toBeGreaterThan(0);
+    expect(result.html.length).toBeGreaterThan(0);
+    expect(result.text.length).toBeGreaterThan(0);
+    expect(result.html).toContain('123456');
+    expect(result.text).toContain('123456');
+    expect(result.html).toContain('10');
+    expect(result.text).toContain('10');
+  });
+
+  it('admin_email_otp: renderTemplate does NOT throw for valid vars', () => {
+    expect(() =>
+      renderTemplate('admin_email_otp', { code: '000000', expires_minutes: 10 }),
+    ).not.toThrow();
+  });
+
+  it('admin_email_otp: ZodError thrown when code is not 6 chars', () => {
+    expect(() =>
+      renderTemplate('admin_email_otp', { code: '12345', expires_minutes: 10 } as Parameters<typeof renderTemplate<'admin_email_otp'>>[1]),
+    ).toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------

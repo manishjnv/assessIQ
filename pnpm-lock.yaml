@@ -254,6 +254,9 @@ importers:
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
+      '@assessiq/notifications':
+        specifier: workspace:*
+        version: link:../13-notifications
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:../02-tenancy

@@ -20,6 +20,8 @@ export const EmailTemplateNameSchema = z.enum([
   'attempt_graded_candidate',
   'attempt_ready_for_review_admin',
   'weekly_digest_admin',
+  // P2: email-OTP sign-in code for admin/reviewer.
+  'admin_email_otp',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -78,6 +80,12 @@ export const AttemptReadyForReviewAdminVarsSchema = z.object({
   tenantName: z.string().min(1),
 });
 
+// P2: Email-OTP sign-in code (admin/reviewer only).
+export const AdminEmailOtpVarsSchema = z.object({
+  code: z.string().length(6),
+  expires_minutes: z.number().int().positive(),
+});
+
 export const WeeklyDigestAdminVarsSchema = z.object({
   tenantName: z.string().min(1),
   weekEnding: z.string(), // ISO8601 date
@@ -96,6 +104,7 @@ export type AttemptSubmittedCandidateVars = z.infer<typeof AttemptSubmittedCandi
 export type AttemptGradedCandidateVars = z.infer<typeof AttemptGradedCandidateVarsSchema>;
 export type AttemptReadyForReviewAdminVars = z.infer<typeof AttemptReadyForReviewAdminVarsSchema>;
 export type WeeklyDigestAdminVars = z.infer<typeof WeeklyDigestAdminVarsSchema>;
+export type AdminEmailOtpVars = z.infer<typeof AdminEmailOtpVarsSchema>;
 
 export type TemplateVarsMap = {
   invitation_admin: InvitationAdminVars;
@@ -106,6 +115,8 @@ export type TemplateVarsMap = {
   attempt_graded_candidate: AttemptGradedCandidateVars;
   attempt_ready_for_review_admin: AttemptReadyForReviewAdminVars;
   weekly_digest_admin: WeeklyDigestAdminVars;
+  // P2: Email-OTP sign-in code (admin/reviewer only).
+  admin_email_otp: AdminEmailOtpVars;
 };
 
 // ---------------------------------------------------------------------------

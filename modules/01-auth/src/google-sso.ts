@@ -305,7 +305,11 @@ interface UserRow {
 export async function mintForIdentity(
   identity: ResolvedIdentity,
   ctx: {
-    subject: string;
+    // P2: subject is now optional. Email-OTP origin has no Google identity, so
+    // subject is undefined for that path. When subject is undefined, the
+    // oauth_identities INSERT (customer branch) is skipped — no bogus Google link
+    // is written. Google callback + P1 /select always pass a subject ⇒ byte-unchanged.
+    subject?: string;
     claims?: GoogleIdTokenClaims;
     ip: string;
     ua: string;
@@ -412,24 +416,36 @@ export async function mintForIdentity(
 
     // oauth_identities JIT-link (ON CONFLICT (provider,subject) DO NOTHING).
     // raw_profile email/name/picture are optional — omit when claims absent.
-    await client.query(
-      `INSERT INTO oauth_identities
-         (tenant_id, user_id, provider, subject, email_verified, raw_profile)
-       VALUES ($1, $2, 'google', $3, $4, $5)
-       ON CONFLICT (provider, subject) DO NOTHING`,
-      [
-        found.tenant_id,
-        found.id,
-        subject,
-        claims?.email_verified ?? false,
-        JSON.stringify({
-          sub: subject,
-          ...(claims?.email !== undefined ? { email: claims.email } : {}),
-          ...(claims?.name !== undefined ? { name: claims.name } : {}),
-          ...(claims?.picture !== undefined ? { picture: claims.picture } : {}),
-        }),
-      ],
-    );
+    //
+    // P2: subject is optional. Email-OTP origin (subject === undefined) has no
+    // Google identity — skip this INSERT entirely so no bogus oauth link is written.
+    // The session is still minted for the resolved customer user above.
+    // Google callback + P1 /select always pass a subject ⇒ behaviour byte-unchanged.
+    //
+    // NOTE: The super_admin branch (isPlatform || role === 'super_admin') above is
+    // UNREACHABLE from the email-OTP path because filterEligible() in email-otp.ts
+    // excludes platform rows and super_admin roles before mintForIdentity is called.
+    // This comment serves as a defence-in-depth confirmation.
+    if (subject !== undefined) {
+      await client.query(
+        `INSERT INTO oauth_identities
+           (tenant_id, user_id, provider, subject, email_verified, raw_profile)
+         VALUES ($1, $2, 'google', $3, $4, $5)
+         ON CONFLICT (provider, subject) DO NOTHING`,
+        [
+          found.tenant_id,
+          found.id,
+          subject,
+          claims?.email_verified ?? false,
+          JSON.stringify({
+            sub: subject,
+            ...(claims?.email !== undefined ? { email: claims.email } : {}),
+            ...(claims?.name !== undefined ? { name: claims.name } : {}),
+            ...(claims?.picture !== undefined ? { picture: claims.picture } : {}),
+          }),
+        ],
+      );
+    }
   });
 
   if (resolvedUser === null) {
