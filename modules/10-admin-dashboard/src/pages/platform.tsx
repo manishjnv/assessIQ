@@ -568,9 +568,8 @@ function BillingDrawer({
   const [entitlements, setEntitlements] = useState<TenantEntitlement[]>([]);
   const [entitlementsLoading, setEntitlementsLoading] = useState(true);
   const [entitlementsError, setEntitlementsError] = useState<string | null>(null);
-  const [grantScopeType, setGrantScopeType] = useState<'domain' | 'pack'>('domain');
+  const grantScopeType = 'domain' as const;
   const [grantScopeId, setGrantScopeId] = useState('');
-  const [grantAdvancedOpen, setGrantAdvancedOpen] = useState(false);
   const [grantSaving, setGrantSaving] = useState(false);
   const [grantError, setGrantError] = useState<string | null>(null);
   const [grantToastAuditId, setGrantToastAuditId] = useState<string | null>(null);
@@ -1139,8 +1138,8 @@ function BillingDrawer({
                       {/* D2: dropdown from content-scopes when available; fallback to free-text */}
                       {contentScopes !== null && !contentScopesError ? (
                         <select
-                          value={grantScopeType === 'domain' ? grantScopeId : ''}
-                          onChange={(e) => { setGrantScopeType('domain'); setGrantScopeId(e.target.value); setGrantError(null); }}
+                          value={grantScopeId}
+                          onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
                           disabled={grantSaving}
                           style={{
                             fontFamily: "var(--aiq-font-mono)",
@@ -1163,8 +1162,8 @@ function BillingDrawer({
                         <>
                           <input
                             type="text"
-                            value={grantScopeType === 'domain' ? grantScopeId : ''}
-                            onChange={(e) => { setGrantScopeType('domain'); setGrantScopeId(e.target.value); setGrantError(null); }}
+                            value={grantScopeId}
+                            onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
                             placeholder="e.g. soc"
                             disabled={grantSaving}
                             style={{
@@ -1189,117 +1188,16 @@ function BillingDrawer({
                     <button
                       type="button"
                       className="aiq-btn aiq-btn-primary aiq-btn-sm"
-                      disabled={grantSaving || !(grantScopeType === 'domain' && grantScopeId.trim())}
+                      disabled={grantSaving || !grantScopeId.trim()}
                       onClick={() => void handleGrantEntitlement()}
                       style={{ flexShrink: 0 }}
                     >
-                      {grantSaving && grantScopeType === 'domain' ? "Granting…" : "Grant"}
+                      {grantSaving ? "Granting…" : "Grant"}
                     </button>
                   </div>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 11, color: "var(--aiq-color-fg-muted)", margin: 0 }}>
                     Granting a subject domain lets this company use every question pack in it.
                   </p>
-
-                  {/* Advanced: grant a single pack instead */}
-                  <div style={{ marginTop: 4 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGrantAdvancedOpen((o) => !o);
-                        // Reset to domain mode when collapsing
-                        if (grantAdvancedOpen) { setGrantScopeType('domain'); setGrantScopeId(''); setGrantError(null); }
-                      }}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        fontFamily: "var(--aiq-font-sans)",
-                        fontSize: 11,
-                        color: "var(--aiq-color-fg-muted)",
-                        textDecoration: "underline",
-                        textUnderlineOffset: 2,
-                      }}
-                      aria-expanded={grantAdvancedOpen}
-                    >
-                      {grantAdvancedOpen ? "▾ Hide advanced" : "▸ Advanced: grant a single pack instead"}
-                    </button>
-
-                    {grantAdvancedOpen && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                            <label
-                              style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
-                            >
-                              Pack
-                            </label>
-                            {contentScopes !== null && !contentScopesError ? (
-                              <select
-                                value={grantScopeType === 'pack' ? grantScopeId : ''}
-                                onChange={(e) => { setGrantScopeType('pack'); setGrantScopeId(e.target.value); setGrantError(null); }}
-                                disabled={grantSaving}
-                                style={{
-                                  fontFamily: "var(--aiq-font-mono)",
-                                  fontSize: 12,
-                                  padding: "5px 8px",
-                                  borderRadius: "var(--aiq-radius-md)",
-                                  border: "1px solid var(--aiq-color-border)",
-                                  background: "var(--aiq-color-bg-raised)",
-                                  color: "var(--aiq-color-fg-primary)",
-                                  width: "100%",
-                                }}
-                              >
-                                <option value="">— Select pack —</option>
-                                {contentScopes.packs.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.name}{p.domain ? ` (${p.domain})` : ''}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <>
-                                <input
-                                  type="text"
-                                  value={grantScopeType === 'pack' ? grantScopeId : ''}
-                                  onChange={(e) => { setGrantScopeType('pack'); setGrantScopeId(e.target.value); setGrantError(null); }}
-                                  placeholder="pack UUID"
-                                  disabled={grantSaving}
-                                  style={{
-                                    fontFamily: "var(--aiq-font-mono)",
-                                    fontSize: 12,
-                                    padding: "5px 8px",
-                                    borderRadius: "var(--aiq-radius-md)",
-                                    border: "1px solid var(--aiq-color-border)",
-                                    background: "var(--aiq-color-bg-raised)",
-                                    color: "var(--aiq-color-fg-primary)",
-                                    width: "100%",
-                                  }}
-                                />
-                                {contentScopesError !== null && (
-                                  <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, color: "var(--aiq-color-fg-muted)" }}>
-                                    {contentScopesError}
-                                  </span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            className="aiq-btn aiq-btn-primary aiq-btn-sm"
-                            disabled={grantSaving || !(grantScopeType === 'pack' && grantScopeId.trim())}
-                            onClick={() => void handleGrantEntitlement()}
-                            style={{ flexShrink: 0 }}
-                          >
-                            {grantSaving && grantScopeType === 'pack' ? "Granting…" : "Grant"}
-                          </button>
-                        </div>
-                        <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 11, color: "var(--aiq-color-fg-muted)", margin: 0 }}>
-                          Pack scope grants only that one pack — use a domain grant unless you specifically need this.
-                        </p>
-                      </div>
-                    )}
-                  </div>
 
                   {grantError !== null && (
                     <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>
