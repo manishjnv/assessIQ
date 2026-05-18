@@ -16,7 +16,7 @@
 
 import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Chip, Logo } from '@assessiq/ui-system';
+import { Button, Chip, Logo, Field } from '@assessiq/ui-system';
 
 const SERIF_H1: CSSProperties = {
   fontSize: 44,
@@ -129,27 +129,19 @@ export function AdminEmailOtp(): JSX.Element {
             </p>
 
             <form onSubmit={(e) => { void handleEmailSubmit(e); }}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                disabled={submitting}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '12px 16px',
-                  fontSize: 15,
-                  fontFamily: 'var(--aiq-font-sans)',
-                  border: '1px solid var(--aiq-color-border-default)',
-                  borderRadius: 6,
-                  background: 'var(--aiq-color-bg-base)',
-                  color: 'var(--aiq-color-fg-primary)',
-                  marginBottom: 16,
-                  outline: 'none',
-                }}
-              />
+              <div style={{ marginBottom: 16 }}>
+                <Field
+                  label="Email address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  disabled={submitting}
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
               <Button
                 size="lg"
                 variant="outline"
@@ -186,52 +178,34 @@ export function AdminEmailOtp(): JSX.Element {
             </p>
 
             <form onSubmit={(e) => { void handleCodeSubmit(e); }}>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                value={code}
-                onChange={(e) => {
-                  // Allow only digits.
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                  setCode(val);
-                  if (codeError !== null) setCodeError(null);
-                }}
-                placeholder="000000"
-                required
-                disabled={submitting}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '12px 16px',
-                  fontSize: 24,
-                  letterSpacing: '0.25em',
-                  fontFamily: 'var(--aiq-font-mono)',
-                  border: `1px solid ${codeError !== null ? 'var(--aiq-color-danger, #e53e3e)' : 'var(--aiq-color-border-default)'}`,
-                  borderRadius: 6,
-                  background: 'var(--aiq-color-bg-base)',
-                  color: 'var(--aiq-color-fg-primary)',
-                  marginBottom: 8,
-                  outline: 'none',
-                  textAlign: 'center',
-                }}
-              />
-
-              {codeError !== null && (
-                <p
-                  style={{
-                    color: 'var(--aiq-color-danger, #e53e3e)',
-                    fontSize: 14,
-                    margin: '0 0 16px',
-                    fontFamily: 'var(--aiq-font-sans)',
+              <div style={{ marginBottom: 16 }}>
+                <Field
+                  label="6-digit code"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => {
+                    // Allow only digits.
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setCode(val);
+                    if (codeError !== null) setCodeError(null);
                   }}
-                >
-                  {codeError}
-                </p>
-              )}
-
-              {codeError === null && <div style={{ marginBottom: 16 }} />}
+                  placeholder="000000"
+                  required
+                  disabled={submitting}
+                  autoComplete="one-time-code"
+                  autoFocus
+                  {...(codeError !== null ? { error: codeError } : {})}
+                  style={{
+                    fontSize: 24,
+                    letterSpacing: '0.25em',
+                    fontFamily: 'var(--aiq-font-mono)',
+                    textAlign: 'center',
+                  }}
+                />
+              </div>
 
               <Button
                 size="lg"
