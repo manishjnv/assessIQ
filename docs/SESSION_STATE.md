@@ -1,3 +1,23 @@
+# Session — 2026-05-19 (Monetization UX hardening — prod-testing feedback)
+
+**Headline:** Fixed 3 real defects operator testing found in the shipped A1–C UI: the assessment-create picker now filters to entitled domains; super-admin entitlement Grant is a domain/pack dropdown (no more free-text junk); help drawers actually open on the monetization surfaces. B2 server enforcement untouched.
+**Commits (main):** `47722db` fix(billing): monetization UX hardening · docs commit follows.
+**Tests:** typecheck billing/api/admin-dashboard PASS (`web` only the pre-existing untracked `mfa.test.tsx`). No adversarial gate (non-load-bearing UI + read-only superAdminOnly endpoint mirroring A2/B1; B2 enforcement unchanged).
+**Deploy:** new `GET /api/admin/super/tenants/:id/content-scopes`; `0011` help seed regenerated + re-applied (2 C help keys renamed to page-prefix-correct ids — old rows harmless orphans; all 4 keys live); api+frontend rebuilt+healthy; neighbors intact. Junk `dsfdsf`/`ir` entitlements deleted from `e2e-walkthrough`; baseline restored = **free / 25 / domain:soc(active)**.
+**Next:** operator re-tests the 3 fixes (see chat re-test guide). Spec program A→C remains COMPLETE; this was a post-launch UX follow-up, not a new phase.
+**Open questions / follow-ups (carried; none blocking):** systemic — all *other* legacy `data-help-id` attributes across admin pages are still inert (app-wide help-surfacing gap predating monetization work); plus the prior carried list (help-seed CI gate, test-harness Docker sweep, domain case-normalisation, pack_id DB-immutability, `:tenantId` UUID-guard sweep, migration-tests-run-the-file). RCA 2026-05-19 added.
+
+---
+
+## Agent utilization
+- **Opus:** triaged the 6 feedback points (3 real defects, 1 expected-behaviour explained, 2 UX); root-caused each (B2 picker on wrong page; C help inert + key-prefix mismatch; B1 scope free-text); wrote the fix contract; Phase-3 — **verified the picker filter against prod** (`domains.slug == question_packs.domain == entitlement scope_id`), confirmed fail-open/internal-exempt, found+fixed the help-key prefix mismatch (renamed 2 keys, regenerated seed); deploy + junk cleanup + baseline restore + RCA/handoff.
+- **Sonnet:** build subagent (content-scopes endpoint, scope dropdown, picker filter, HelpTip wiring, drawer width; surfaced the help page-key resolution rule + the 2 non-resolving keys for Opus to adjudicate; typechecks).
+- **Haiku:** n/a — targeted prod SQL checks + curl, not a bulk sweep.
+- **codex:rescue:** n/a — non-load-bearing UI; B2 authorization seam untouched.
+- **claude-mem:** no memory change (no new durable cross-session fact; behaviour matches the existing entitlement memory).
+
+---
+
 # Session — 2026-05-18 (Phase C — help content; monetization/entitlement program A→C COMPLETE)
 
 **Headline:** C shipped — plain-operator help for plans/usage/entitlements (company + super-admin), guide TipCards/FAQ, help-id wiring. The full monetization/entitlement program (A1→A2→B1→B2→C) is complete and live.
