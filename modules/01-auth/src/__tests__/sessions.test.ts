@@ -333,7 +333,7 @@ it("sessions.refresh returns null for unknown token", async () => {
 // Test 6 — sessions.refresh destroys idle-expired session and returns null
 // ---------------------------------------------------------------------------
 
-it("sessions.refresh destroys idle-expired session (lastSeenAt >30min ago) and returns null", async () => {
+it("sessions.refresh destroys idle-expired session (lastSeenAt >60min ago) and returns null", async () => {
   const created = await sessions.create({
     userId: userA,
     tenantId: tenantA,
@@ -346,11 +346,12 @@ it("sessions.refresh destroys idle-expired session (lastSeenAt >30min ago) and r
   const tokenHash = sha256Hex(created.token);
   const redis = getRedis();
 
-  // Manually backdate lastSeenAt to 31 minutes ago in the Redis JSON.
+  // Manually backdate lastSeenAt to 61 minutes ago in the Redis JSON
+  // (must exceed IDLE_EVICTION_MS = 60 min for the idle-expired path).
   const rawJson = await redis.get(`aiq:sess:${tokenHash}`);
   expect(rawJson).not.toBeNull();
   const sessData = JSON.parse(rawJson!) as Record<string, unknown>;
-  const stalePast = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+  const stalePast = new Date(Date.now() - 61 * 60 * 1000).toISOString();
   sessData["lastSeenAt"] = stalePast;
   await redis.set(`aiq:sess:${tokenHash}`, JSON.stringify(sessData), "KEEPTTL");
 

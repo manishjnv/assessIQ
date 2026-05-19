@@ -163,7 +163,7 @@ The strict path. Every admin must clear both factors.
 - Name: `aiq_sess`
 - Value: 32-byte random; only the `sha256` hash is stored
 - Flags: `HttpOnly; Secure; SameSite=Lax; Path=/`
-- Lifetime: 8 hours sliding (idle 30 min)
+- Lifetime: 8 hours sliding (idle 60 min)
 - On every request: middleware reads cookie → looks up Redis → checks `totp_verified` → loads tenant context
 
 **Security middleware order (Fastify) — updated 2026-05-04:**
@@ -566,7 +566,7 @@ The session produced by this flow uses the same `aiq_sess` cookie as admin and a
 | Role | `candidate` |
 | `session_type` | `standard` (not `embed`) |
 
-The 30-day fixed lifetime is intentional and differs from the 8-hour sliding admin session. Candidates are not expected to visit daily; a long fixed window avoids forcing re-auth on infrequent returners. Idle eviction (the 30-minute `lastSeenAt` check in sessionLoader) is **disabled** for candidate sessions — see `modules/01-auth/src/candidate-login.ts` for the `skipIdleEviction: true` flag on `sessions.create`.
+The 30-day fixed lifetime is intentional and differs from the 8-hour sliding admin session. Candidates are not expected to visit daily; a long fixed window avoids forcing re-auth on infrequent returners. Idle eviction (the 60-minute `lastSeenAt` check in sessionLoader) is **disabled** for candidate sessions — see `modules/01-auth/src/candidate-login.ts` for the `skipIdleEviction: true` flag on `sessions.create`.
 
 ### Anti-enumeration
 
