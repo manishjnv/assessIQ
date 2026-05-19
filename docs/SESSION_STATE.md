@@ -1,3 +1,23 @@
+# Session — 2026-05-19 (Admin idle-timeout 30→60 min + P1/P2 user-verified)
+
+**Headline:** Operator-reported "logged out while exploring the console" root-caused to the 30-min sessionLoader idle-eviction (NOT the login rate-limit — unrelated, only counts failed login attempts). Bumped `IDLE_EVICTION_MS` 30→60 min. Also: user confirmed P1 (Google multi-identity) AND P2 (admin/reviewer email-OTP) AND super_admin→MFA→authenticator all work live — **follow-ups #2 and #3 are now CLOSED**.
+**Commits (main):** `a75c8b5` feat(auth) idle-eviction 30→60 min (4 files: sessions.ts constant + comment, sessions.test.ts 31→61 backdate, SKILL.md, 04-auth-flows.md). **Push + deploy pending user-run (harness blocks credentialed push/SSH — recurring).**
+**Tests:** auth typecheck — my files (sessions.ts/sessions.test.ts) zero errors; the 2 residual errors are the pre-existing `@assessiq/notifications` build-order resolution in email-otp.ts (untouched here, carried from P2). No new failures introduced.
+**Deploy:** NOT yet — no migration; needs `git pull` + rebuild/recreate `assessiq-api` only (additive, namespaced). Commands in the post-session note to the user.
+**Next:** User runs push + `assessiq-api` redeploy, then confirms an admin session survives ~45 min idle (was evicted at 30). Then: open follow-up #1 (app-wide trustProxy/CF-IP) remains the top real-security item.
+**Open questions / residuals:** #1 (trustProxy/CF-IP IP-spoof, pre-existing codebase-wide) still open, HIGH. #2/#3 CLOSED (user-verified live this session). Carried hygiene list unchanged (help-seed CI gate, Docker-gated test sweep, migration-runs-the-file, domain case-norm, pack_id DB-immutability, app-wide help-surfacing).
+
+---
+
+## Agent utilization
+- **Opus:** root-caused the logout (idle-eviction vs rate-limit disambiguation); located the single `IDLE_EVICTION_MS` constant + all 5 doc/comment/test couplings; made all 9 edits directly (small, hot-cache — self-execute beats subagent cold-start); self-ran the adversarial pass (one-constant UX relaxation within unchanged 8h hard-cap envelope — verdict ACCEPT, footer-note per scale-rigor-to-magnitude); Phase-2 typecheck (clean for touched files); commit + message-cleanup amend + handoff/docs.
+- **Sonnet:** n/a — change too small to delegate (≤11 lines, 4 files, all in Opus hot cache; subagent cold-start would cost more than the Opus tokens saved).
+- **Haiku:** n/a — no bulk sweep.
+- **codex:rescue:** n/a — 01-auth diff, but a single user-approved idle-timeout constant within the existing hard-expiry envelope; per global "scale rigor to magnitude" this is the allowlist-tweak class → Opus self-adversarial + footer note, not the full rescue ceremony. No identity/tenant/authz boundary touched.
+- **claude-mem:** no new durable cross-session fact (obs 3409 already records the idle/hard-expiry config; this is a value change within it). SESSION_STATE + 04-auth-flows + SKILL.md carry the detail.
+
+---
+
 # Session — 2026-05-19 (Login P2 — email-OTP for admin/reviewer)
 
 **Headline:** Shipped P2 — `admin`/`reviewer` can log in with a 6-digit code emailed to their address, as an alternative to Google SSO. `super_admin` can NEVER use it (triple-blocked, adversarially proven); `candidate` magic-link untouched. Reuses P1's resolver/continuation/picker. Load-bearing `01-auth`; no session/RLS/data-model/migration change.
