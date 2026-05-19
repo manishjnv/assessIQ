@@ -7,6 +7,7 @@ import {
   CANDIDATE_SESSION_TTL_SEC,
   CANDIDATE_LOGIN_TOKEN_TTL_SEC,
   sessions,
+  extractClientIp,
 } from '@assessiq/auth';
 import { sendEmail } from '@assessiq/notifications';
 import { authChain } from '../../middleware/auth-chain.js';
@@ -63,7 +64,7 @@ export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise
         return reply.status(204).send();
       }
 
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
 
       // Call service layer. Returns null on:
@@ -130,7 +131,7 @@ export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise
         return reply.status(200).send({ ok: false, error: 'invalid_link' });
       }
 
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
 
       // FIX 4 — Session-fixation hygiene.

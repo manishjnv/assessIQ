@@ -742,3 +742,63 @@ The canonical trust-boundary table. Every route that runs without a `requireAuth
 > Routes using `publicChain: authChain({ requireSession: false })` (e.g. `/take/*`) still pass through the session-loader hook — a valid session is loaded if present, but its absence is not an error. This is auth-**optional**, not auth-bypassed.
 
 > Routes in `/api/auth/*` are auth-**establishing** — they CREATE or complete sessions. They are listed here because they accept unauthenticated callers, not because they skip authorization logic.
+
+---
+
+## Origin-verify header (anti-IP-spoof)
+
+### Threat
+
+Production topology is `Cloudflare (DNS-proxy) → shared Caddy → assessiq-api (Fastify)`. The origin IP `:443` is directly reachable — an attacker can bypass Cloudflare and set arbitrary `cf-connecting-ip` headers, spoofing any client IP. This defeats all per-IP rate limits (§ Rate limit tiers) and any IP-bound session tokens (magic-link, email-OTP continuation).
+
+### Mechanism
+
+Cloudflare injects a shared secret as the `x-origin-verify` request header via a **Cloudflare Transform Rule** (operator-applied out-of-band; see TODO below). The API extracts the client IP via `extractClientIp(req)` (implemented in `modules/01-auth/src/client-ip.ts`) which validates this header before trusting `cf-connecting-ip`.
+
+Config vars (`modules/00-core/src/config.ts`, `.env.example`):
+
+| Var | Default | Purpose |
+|---|---|---|
+| `ORIGIN_VERIFY_SECRET` | _(unset)_ | Shared secret Cloudflare injects as `x-origin-verify`. Unset = no secret, dev/test/CI boot safely. |
+| `ORIGIN_TRUST_MODE` | `off` | Controls enforcement level (see modes below). |
+
+### Three modes
+
+| Mode | Behaviour | Use when |
+|---|---|---|
+| `off` | Returns `cf-connecting-ip ?? req.ip` — **byte-identical to the old inline expression.** Zero behaviour change. | Default; safe to deploy before Transform Rule is live. |
+| `log` | Same return value as `off`. Emits one structured `warn` (`event: 'origin-unverified'`) when `x-origin-verify` is absent or mismatched. **Never changes the returned IP.** | Transform Rule is deployed; confirm logs show verified requests before enforcing. |
+| `enforce` | Returns `cf-connecting-ip` only when `x-origin-verify` constant-time-equals `ORIGIN_VERIFY_SECRET`. On mismatch, returns `req.socket.remoteAddress ?? req.ip` and **never** honours `cf-connecting-ip` or `x-forwarded-for`. | Transform Rule confirmed in logs, secret rotated. |
+
+Secret comparison uses `crypto.timingSafeEqual` on equal-length UTF-8 `Buffer`s. Length mismatch returns `false` immediately after a dummy compare to avoid a length oracle (never uses `===`).
+
+The function never throws — the entire body is wrapped in a try/catch that returns `req.ip ?? '0.0.0.0'` on any unexpected error, preventing a crypto exception from crashing every request.
+
+### Rollout order
+
+1. **Deploy `off` (current default)** — no behaviour change. Safe to merge and deploy immediately.
+2. **Apply the Cloudflare Transform Rule** (operator step, out-of-band):
+   - Rule: "For all requests to `assessiq.automateedge.cloud`, add request header `x-origin-verify: <secret>`."
+   - Generate secret: `openssl rand -hex 32`
+   - Set `ORIGIN_VERIFY_SECRET=<same value>` in production `.env` / Docker secrets.
+3. **Flip `ORIGIN_TRUST_MODE=log`** — confirm production logs show `origin-unverified` absent for normal traffic; it should appear only for direct-to-origin probes.
+4. **Flip `ORIGIN_TRUST_MODE=enforce`** — IP spoofing is now defeated.
+
+### What is NOT included
+
+- Blocking direct-to-origin requests outright (e.g. `403` when unverified in enforce mode) — the current design falls back to the raw socket IP rather than rejecting. Rejection would be a Phase 3 hardening step.
+- `trustProxy: false` — the Fastify `trustProxy: true` flag (server.ts line 44) is intentionally out of scope this round; it affects Fastify's own XFF parsing and requires a separate assessment.
+- Automatic secret rotation — operator responsibility via the Transform Rule and Docker secrets.
+
+### Downstream impact
+
+- `modules/00-core/src/config.ts`: two new env vars (`ORIGIN_VERIFY_SECRET`, `ORIGIN_TRUST_MODE`).
+- `modules/01-auth/src/client-ip.ts`: new module; exports `extractClientIp(req): string`.
+- `modules/01-auth/src/middleware/index.ts`: re-exports `extractClientIp` from `client-ip.ts` (replaces the rate-limit-internal one in the public barrel).
+- `modules/01-auth/src/index.ts`: `extractClientIp` now resolves to `client-ip.ts` via the middleware barrel.
+- `apps/api/src/server.ts:77,146`: inline expressions replaced.
+- `apps/api/src/routes/_log.ts:87`: inline expression replaced (also fixes the `_log` in-memory rate limiter, which had the same spoofable-CF-header issue).
+- `apps/api/src/routes/auth/candidate.ts:66,133`, `embed.ts:80,196`, `google.ts:105,167,217,279,319`, `dev/mint-session.ts:194`: all 13 call sites replaced.
+- `.env.example`: two new vars with rollout comments.
+
+> **TODO (operator, out-of-band):** Apply the Cloudflare Transform Rule to inject `x-origin-verify: <secret>` on every request to the zone. This is a Cloudflare dashboard action — it is NOT applied by any code in this repo. Until it is applied, `ORIGIN_TRUST_MODE=off` is the correct setting.

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { AppError, AuthnError, ValidationError } from '@assessiq/core';
 import { config } from '@assessiq/core';
-import { verifyEmbedToken, mintEmbedToken } from '@assessiq/auth';
+import { verifyEmbedToken, mintEmbedToken, extractClientIp } from '@assessiq/auth';
 import {
   getEmbedOrigins,
   buildEmbedCsp,
@@ -77,7 +77,7 @@ export async function registerEmbedRoutes(app: FastifyInstance): Promise<void> {
       });
 
       // Mint the embed session and set the aiq_embed_sess cookie (D6, D7).
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = req.headers['user-agent'] ?? 'unknown';
       const sessionResult = await mintEmbedSession({
         userId,
@@ -193,7 +193,7 @@ w.AssessIQ=AssessIQ;
           });
         }
 
-        const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+        const ip = extractClientIp(req);
         const ua = req.headers['user-agent'] ?? 'unknown';
 
         const token = await mintEmbedToken({
