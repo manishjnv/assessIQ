@@ -38,7 +38,7 @@ export interface Session {
 
 const SESSION_TTL_SEC = 8 * 60 * 60;          // 8h hard expiry
 const USER_INDEX_TTL_SEC = 9 * 60 * 60;       // 9h — outlives the longest session
-export const IDLE_EVICTION_MS = 30 * 60 * 1000; // 30 min idle cutoff (sessionLoader uses)
+export const IDLE_EVICTION_MS = 60 * 60 * 1000; // 60 min idle cutoff (sessionLoader uses)
 
 const SESSION_KEY = (hash: string): string => `aiq:sess:${hash}`;
 const USER_INDEX_KEY = (userId: string): string => `aiq:user:sessions:${userId}`;
@@ -174,7 +174,7 @@ export function isIdleExpired(session: Session, nowMs = Date.now()): boolean {
 // Called from `requireAuth` middleware on every authenticated request that
 // passes role/scope checks. NOT called by sessionLoader, /api/auth/whoami
 // pre-MFA, or unauthenticated public endpoints — extending lifetime on every
-// idle ping would let curl-keepalive defeat the 30-min idle eviction.
+// idle ping would let curl-keepalive defeat the 60-min idle eviction.
 async function refreshSession(token: string): Promise<Session | null> {
   const tokenHash = sha256Hex(token);
   const session = await getSession(token);

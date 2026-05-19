@@ -99,9 +99,9 @@ This addendum pre-flights Window 4 (G0.C Session 4) by freezing every implementa
 
 Postgres mirror (`sessions` table, `02-DATA:145–157`) holds the same fields in snake_case; Redis is the fast-path read, Postgres is the durable record. Both are written transactionally on session create; expiry sweeper (Phase 3) keeps them in sync.
 
-**Sliding-refresh trigger.** Every authenticated request that *passes* `requireAuth` extends `expiresAt` by 8h and updates `lastSeenAt`. Health checks, `/api/auth/whoami` pre-MFA, and unauthenticated public endpoints do **not** refresh. Idle eviction at 30 min: if `now - lastSeenAt > 30 min`, sessionLoader treats the session as expired even when `expiresAt > now`.
+**Sliding-refresh trigger.** Every authenticated request that *passes* `requireAuth` extends `expiresAt` by 8h and updates `lastSeenAt`. Health checks, `/api/auth/whoami` pre-MFA, and unauthenticated public endpoints do **not** refresh. Idle eviction at 60 min: if `now - lastSeenAt > 60 min`, sessionLoader treats the session as expired even when `expiresAt > now`.
 
-**Source.** `PLAN` decision #5; `04-AUTH:84–89` (cookie spec, 8h sliding, 30min idle); `04-AUTH:91–97` (middleware order — sessionLoader runs before tenantContext).
+**Source.** `PLAN` decision #5; `04-AUTH:84–89` (cookie spec, 8h sliding, 60min idle); `04-AUTH:91–97` (middleware order — sessionLoader runs before tenantContext).
 
 **Rationale.** lowerCamelCase + ISO timestamps mean the JSON parses directly into the TypeScript `Session` type with no field-name mapping layer. Idle-eviction-distinct-from-hard-expiry is the standard banking-app pattern: protects against an attacker who steals a cookie when the legitimate user has been idle but hasn't yet hit hard expiry. Refreshing only on `requireAuth` (not health checks) prevents an attacker's curl-keepalive from extending the lifetime indefinitely without ever touching business endpoints — which would also generate audit signal.
 
@@ -318,7 +318,7 @@ Lets a candidate sign in to view their certificates at `/candidate/certificates`
 
 `sessions.create` is called with an explicit `expiresAt` calculated as `Date.now() + 30 * 24 * 60 * 60 * 1000`. The knob to change this is the constant `CANDIDATE_SESSION_TTL_MS` exported from `candidate-login.ts`. Do not change the value without also updating `docs/04-auth-flows.md` § Flow 6 and the `candidate.auth.session-status` help entry.
 
-`skipIdleEviction: true` is passed to `sessions.create`. This disables the 30-minute `lastSeenAt` idle-eviction check that the sessionLoader applies to admin sessions. Candidates are expected to access their certificates infrequently; idle-eviction would log them out after 30 minutes of browser inactivity, which is a poor UX for a 30-day session.
+`skipIdleEviction: true` is passed to `sessions.create`. This disables the 60-minute `lastSeenAt` idle-eviction check that the sessionLoader applies to admin sessions. Candidates are expected to access their certificates infrequently; idle-eviction would log them out after 60 minutes of browser inactivity, which is a poor UX for a 30-day session.
 
 ### Audit actions emitted
 
