@@ -759,8 +759,10 @@ Config vars (`modules/00-core/src/config.ts`, `.env.example`):
 
 | Var | Default | Purpose |
 |---|---|---|
-| `ORIGIN_VERIFY_SECRET` | _(unset)_ | Shared secret Cloudflare injects as `x-origin-verify`. Unset = no secret, dev/test/CI boot safely. |
+| `ORIGIN_VERIFY_SECRET` | _(unset)_ | Shared secret Cloudflare injects as `x-origin-verify`. Unset = dev/test/CI boot safely. **When set, must be ≥16 chars** (Zod `.min(16)`) — an empty/short secret would make the constant-time compare trivially satisfiable. |
 | `ORIGIN_TRUST_MODE` | `off` | Controls enforcement level (see modes below). |
+
+**Boot guard (config `superRefine`):** `ORIGIN_TRUST_MODE=enforce` with a missing/short `ORIGIN_VERIFY_SECRET` **refuses to load config** — the process exits at startup rather than booting into a state where `isOriginVerified()` returns `false` for every request (which would make the rate-limit fail-closed path throw on *every* request = silent site-wide outage). A failed config load means the new container never goes healthy and the old one keeps serving — loud and recoverable. `off`/`log` with no secret boot fine.
 
 ### Three modes
 
@@ -768,9 +770,9 @@ Config vars (`modules/00-core/src/config.ts`, `.env.example`):
 |---|---|---|
 | `off` | Returns `cf-connecting-ip ?? req.ip` — **byte-identical to the old inline expression.** Zero behaviour change. | Default; safe to deploy before Transform Rule is live. |
 | `log` | Same return value as `off`. Emits one structured `warn` (`event: 'origin-unverified'`) when `x-origin-verify` is absent or mismatched. **Never changes the returned IP.** | Transform Rule is deployed; confirm logs show verified requests before enforcing. |
-| `enforce` | Returns `cf-connecting-ip` only when `x-origin-verify` constant-time-equals `ORIGIN_VERIFY_SECRET`. On mismatch, returns `req.socket.remoteAddress ?? req.ip` and **never** honours `cf-connecting-ip` or `x-forwarded-for`. | Transform Rule confirmed in logs, secret rotated. |
+| `enforce` | Verified (`x-origin-verify` matches): trust `cf-connecting-ip`. **Unverified** behaviour differs by consumer: the **rate-limit middleware** (`extractRateLimitClientIp`) returns `null` → flows into the *existing* production fail-closed `throw RateLimitError` (request **rejected** — not bucketed by a spoofed cf-ip nor by the constant shared-Caddy socket IP). The **generic `extractClientIp`** (12 audit/log/login-binding sites) returns `req.socket.remoteAddress ?? req.ip` and never honours `cf-connecting-ip`/`x-forwarded-for`. | Transform Rule confirmed in logs, secret set. |
 
-Secret comparison uses `crypto.timingSafeEqual` on equal-length UTF-8 `Buffer`s. Length mismatch returns `false` immediately after a dummy compare to avoid a length oracle (never uses `===`).
+Secret comparison: both sides are hashed to fixed-length 32-byte **SHA-256 digests**, then compared with `crypto.timingSafeEqual`. There is no length-mismatch branch, so comparison time is independent of both attacker-input and secret length — zero length-oracle surface (never uses `===`).
 
 The function never throws — the entire body is wrapped in a try/catch that returns `req.ip ?? '0.0.0.0'` on any unexpected error, preventing a crypto exception from crashing every request.
 
@@ -784,11 +786,20 @@ The function never throws — the entire body is wrapped in a try/catch that ret
 3. **Flip `ORIGIN_TRUST_MODE=log`** — confirm production logs show `origin-unverified` absent for normal traffic; it should appear only for direct-to-origin probes.
 4. **Flip `ORIGIN_TRUST_MODE=enforce`** — IP spoofing is now defeated.
 
+### Adjudicated adversarial residuals (Sonnet review + Opus adjudication)
+
+The 01-auth gate (`feedback-adversarial-reviewer-routing`) ran a Sonnet adversarial pass (verdict REVISE, 7 findings) adjudicated by Opus. Fixed-with-tests: F1 boot guard (CRITICAL), F5 SHA-256 compare, F6 secret min-16, F7 extractor rename. Remaining **accepted residuals**:
+
+- **F4 — unverified login IP-binding (tracked, NOT a regression).** In `enforce`+unverified, the 7 login IP-binding sites (candidate/embed/google) bind the session to the constant shared-Caddy socket IP, so the bind is degenerate for *unverified* sessions. This is **not worse than the pre-existing state** — `cf-connecting-ip` is already fully spoofable today, so unverified IP-binding is already weak. **Verified** (real-Cloudflare) sessions get *strictly better* binding than before. Expanding the 7 login sites to reject-on-unverified (like rate-limit does) was deliberately out of scope: it risks login-availability if the CF rule lags, and the real mitigation is the network-layer origin lockdown (separate session). Tracked HIGH alongside the origin-lockdown follow-up.
+- **F3 — `_log.ts checkIpRateLimit` shares one bucket for unverified traffic.** *By design.* Verified traffic uses its real cf-ip (independent buckets, unaffected); unverified traffic sharing one throttled bucket is the intended conservative posture for traffic that did not provably traverse Cloudflare.
+- **F2 — `mint-session.ts` sentinel `'0.0.0.0'` vs old `'127.0.0.1'`.** The one site where `off` mode is not byte-identical. Dev-only (`NODE_ENV`-gated), and the sentinel is unreachable in practice (`req.ip` always populated under Fastify). Inline comment at the site; audit-cosmetic only.
+
 ### What is NOT included
 
-- Blocking direct-to-origin requests outright (e.g. `403` when unverified in enforce mode) — the current design falls back to the raw socket IP rather than rejecting. Rejection would be a Phase 3 hardening step.
-- `trustProxy: false` — the Fastify `trustProxy: true` flag (server.ts line 44) is intentionally out of scope this round; it affects Fastify's own XFF parsing and requires a separate assessment.
-- Automatic secret rotation — operator responsibility via the Transform Rule and Docker secrets.
+- **Network-layer origin lockdown** — making the origin reachable *only* via Cloudflare (Authenticated Origin Pulls / CF-IP firewall / tunnel). This is the *complete* fix; the shared-secret header is the app-layer half. Separate gated session (shared-VPS infra, rule #8). Until then the secret's secrecy is the only thing preventing a determined attacker who reaches the origin from forging `x-origin-verify`.
+- Blocking direct-to-origin requests outright with a `403` at the edge — out of app scope.
+- `trustProxy: false` — the Fastify `trustProxy: true` flag (`server.ts`) is intentionally untouched this round; it affects Fastify's own XFF parsing and needs a separate assessment.
+- Automatic secret rotation — operator responsibility via the Transform Rule + `.env`.
 
 ### Downstream impact
 

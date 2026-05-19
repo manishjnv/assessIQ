@@ -1,3 +1,23 @@
+# Session — 2026-05-19 (Follow-up #1: origin-verify anti-IP-spoof — app-layer half SHIPPED at `off`)
+
+**Headline:** Confirmed the tracked #1 is a **live exploitable vuln** (origin :443 reachable bypassing Cloudflare; spoofed `CF-Connecting-IP` → HTTP 200, proven). Shipped the **app-layer half**: a Cloudflare-injected `x-origin-verify` shared-secret gate centralised in `extractClientIp`/`isOriginVerified`, env-gated `off→log→enforce`, deployed at **`off` (true no-op, verified)**. Network-layer origin lockdown is the agreed **separate next session**. Enforcement is **pending the operator's Cloudflare Transform Rule + secret + flip** (user owns that step).
+**Commits (main):** `3b2fe73` feat(auth) origin-verify gate (16 files: new client-ip.ts + 2 test files, config+superRefine, rate-limit, 13 sites, .env.example, 04-auth-flows). Docs/RCA/handoff follow in a 2nd commit.
+**Tests:** core typecheck PASS · **config 23/23** (incl. 4 new enforce-boot-guard + min-16) · auth typecheck PASS (my files; only pre-existing `@assessiq/notifications` residual) · **client-ip 20/20 + rate-limit-origin-verify 6/6** · api origin-verify sites 0 errors (total 1 = notifications baseline) · `middleware.test.ts` Redis-suite Docker-skips locally (established pattern; the new guard has Redis-free unit coverage).
+**Deploy:** api+worker rebuilt+recreated on `3b2fe73` at default `off`; container `Up (healthy)`, `assessiq-api listening` (config Zod+superRefine pass at boot), public health 200, off-mode no-op confirmed (origin spoof still 200 — closes only at `enforce`). Neighbors untouched, no migration.
+**Next:** **Operator applies the Cloudflare Transform Rule** (exact rule + `openssl rand -hex 32` secret in the chat handoff) → set `ORIGIN_VERIFY_SECRET` in `/srv/assessiq/.env` → flip `ORIGIN_TRUST_MODE=log`, observe ~1 day → flip `enforce`, re-run the `--resolve` probe (must stop trusting the spoofed IP). THEN schedule the **network-layer origin lockdown** session (the complete fix; shared-VPS infra, codex:rescue-gated).
+**Open questions / residuals:** F4 (unverified login IP-binding degenerate in enforce) — **NOT a regression** (same as today; verified sessions strictly better), tracked HIGH with the origin-lockdown task. Secret secrecy is the only barrier until network-layer lands. `trustProxy:true` deliberately untouched (separate assessment). Carried hygiene list unchanged.
+
+---
+
+## Agent utilization
+- **Opus:** Phase-0 grounding; ran the read-only prod-edge inspection + the benign exploit-confirmation probe; designed the shared-secret approach + env-gated rollout; wrote the Sonnet build contract; **Phase-3 line-by-line** caught the CRITICAL scope gap (rate-limiter not on hardened path) — self-fixed the seam (isOriginVerified shared predicate + null→fail-closed) since SendMessage unavailable; **Phase-2** caught the Fastify-type incompat the subagent missed (socket structural) — self-fixed; **adjudicated the Sonnet adversarial** (REVISE/7): fixed F1(CRIT boot-guard)/F5(sha256)/F6(min-16)/F7(rename) with tests, reasoned F2/F3/F4 as doc/by-design/not-regression; commit/push/deploy-at-off/verify/docs/RCA/handoff.
+- **Sonnet:** build subagent (worktree, 13-file impl + client-ip.ts + tests + docs; reported diff — but mis-claimed api-typecheck clean, Phase-2 caught it); adversarial-review subagent (self-contained; verdict REVISE, surfaced the CRITICAL enforce-no-secret outage + 6 more — high-value catch).
+- **Haiku:** n/a — targeted probes, not a bulk sweep.
+- **codex:rescue:** n/a — GLM/codex source-exfil guard blocks 01-auth; documented substitute (Sonnet adversarial + Opus adjudication) satisfied the mandatory gate per `feedback-adversarial-reviewer-routing`.
+- **claude-mem:** to update — new project memory for the origin-verify model + the live-vuln finding + the network-layer follow-up.
+
+---
+
 # Session — 2026-05-19 (Admin idle-timeout 30→60 min + P1/P2 user-verified)
 
 **Headline:** Operator-reported "logged out while exploring the console" root-caused to the 30-min sessionLoader idle-eviction (NOT the login rate-limit — unrelated, only counts failed login attempts). Bumped `IDLE_EVICTION_MS` 30→60 min. Also: user confirmed P1 (Google multi-identity) AND P2 (admin/reviewer email-OTP) AND super_admin→MFA→authenticator all work live — **follow-ups #2 and #3 are now CLOSED**.
