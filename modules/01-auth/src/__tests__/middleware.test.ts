@@ -13,7 +13,7 @@
  *
  * NODE_ENV / config note: `config` is a singleton loaded at module-import time from
  * process.env. Tests that need to observe production-mode behaviour (test 10) mock
- * `extractClientIp` directly rather than mutating process.env after import, which
+ * `extractRateLimitClientIp` directly rather than mutating process.env after import, which
  * avoids the singleton-capture problem documented in the task spec.
  *
  * Rate-limit tiers (role-aware, all routes):
@@ -30,7 +30,7 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 
 import { requestIdMiddleware } from "../middleware/request-id.js";
 import { parseCookieHeader, cookieParserMiddleware } from "../middleware/cookie-parser.js";
-import { rateLimitMiddleware, extractClientIp, resolveIpBucketMax } from "../middleware/rate-limit.js";
+import { rateLimitMiddleware, extractRateLimitClientIp, resolveIpBucketMax } from "../middleware/rate-limit.js";
 import { requireAuth, requireRole, requireScope, requireFreshMfa } from "../middleware/require-auth.js";
 import { AuthnError, AuthzError, RateLimitError, nowIso, config } from "@assessiq/core";
 import { setRedisForTesting, closeRedis, getRedis } from "../redis.js";
@@ -166,13 +166,13 @@ describe("rate-limit (Redis testcontainer)", () => {
   });
 
   // -------------------------------------------------------------------------
-  // extractClientIp — pure unit (no Redis needed, but grouped here for clarity)
+  // extractRateLimitClientIp — pure unit (no Redis needed, but grouped here for clarity)
   // -------------------------------------------------------------------------
 
-  describe("extractClientIp", () => {
+  describe("extractRateLimitClientIp", () => {
     it("test 9: returns cf-connecting-ip when present", () => {
       const req = makeReq({ headers: { "cf-connecting-ip": "1.2.3.4" } });
-      expect(extractClientIp(req)).toBe("1.2.3.4");
+      expect(extractRateLimitClientIp(req)).toBe("1.2.3.4");
     });
 
     it("test 10: returns null when no CF header and NODE_ENV is production (mocked)", () => {
@@ -183,7 +183,7 @@ describe("rate-limit (Redis testcontainer)", () => {
       const spy = vi.spyOn(config, "NODE_ENV", "get").mockReturnValue("production");
       try {
         const req = makeReq({ headers: {} }); // no CF, no XFF
-        expect(extractClientIp(req)).toBeNull();
+        expect(extractRateLimitClientIp(req)).toBeNull();
       } finally {
         spy.mockRestore();
       }
@@ -192,7 +192,7 @@ describe("rate-limit (Redis testcontainer)", () => {
     it("test 11: uses x-forwarded-for first hop in non-production when no CF header", () => {
       // NODE_ENV is "test" (set by vitest.setup.ts) — falls through to XFF branch.
       const req = makeReq({ headers: { "x-forwarded-for": "5.6.7.8, 9.9.9.9" } });
-      expect(extractClientIp(req)).toBe("5.6.7.8");
+      expect(extractRateLimitClientIp(req)).toBe("5.6.7.8");
     });
   });
 

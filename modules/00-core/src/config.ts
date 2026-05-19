@@ -139,6 +139,39 @@ const ConfigSchema = z
     RATE_LIMIT_IP_ANON: z.coerce.number().int().positive().default(30),
     // API-key-backed traffic: batch integrations, webhooks, server-to-server.
     RATE_LIMIT_IP_APIKEY: z.coerce.number().int().positive().default(600),
+
+    // ── Origin-verify anti-IP-spoof ─────────────────────────────────────────
+    //
+    // Production topology: Cloudflare (DNS-proxy) → shared Caddy → assessiq-api
+    // (Fastify). The origin IP :443 is directly reachable, so an attacker can
+    // bypass Cloudflare and spoof any cf-connecting-ip value. The origin-verify
+    // mechanism mitigates this: Cloudflare injects a shared secret as the
+    // x-origin-verify request header via a Transform Rule. The API only trusts
+    // cf-connecting-ip when that header matches the secret.
+    //
+    // ORIGIN_VERIFY_SECRET: shared secret Cloudflare injects as the
+    // x-origin-verify request header. Optional so dev/test/CI boot without it,
+    // but when present it must be ≥16 chars — an empty/short secret would make
+    // the constant-time compare trivially satisfiable (adversarial finding 6).
+    ORIGIN_VERIFY_SECRET: z
+      .string()
+      .min(16, "ORIGIN_VERIFY_SECRET must be ≥16 chars when set")
+      .optional(),
+
+    // ORIGIN_TRUST_MODE: three-stage rollout gate.
+    //   off     — legacy behaviour: trust cf-connecting-ip ?? req.ip with zero
+    //             validation. Zero-behavior-change deploy until ops flips it.
+    //   log     — same return value as off (cf ?? req.ip), but emits a structured
+    //             warn when the x-origin-verify header is absent or mismatched.
+    //             Use to confirm the CF Transform Rule is in place before enforce.
+    //   enforce — only trusts cf-connecting-ip when x-origin-verify passes a
+    //             constant-time compare against ORIGIN_VERIFY_SECRET. If the
+    //             compare fails, falls back to the raw socket IP and ignores
+    //             cf-connecting-ip / x-forwarded-for entirely.
+    // Rollout order: off → log (confirm headers in prod logs) → enforce.
+    ORIGIN_TRUST_MODE: z
+      .enum(["off", "log", "enforce"])
+      .default("off"),
   })
   .superRefine((data, ctx) => {
     if (
@@ -162,6 +195,27 @@ const ConfigSchema = z
           "ANTHROPIC_API_KEY must NOT be set when AI_PIPELINE_MODE=claude-code-vps " +
           "(ambient AI calls are forbidden per CLAUDE.md rule #1)",
         path: ["ANTHROPIC_API_KEY"],
+      });
+    }
+    // Adversarial finding 1 (CRITICAL): ORIGIN_TRUST_MODE=enforce with no
+    // ORIGIN_VERIFY_SECRET makes isOriginVerified() return false for EVERY
+    // request → the rate-limit fail-closed path throws on every request →
+    // total global outage. Refuse to boot instead: a failed config load means
+    // the new container never goes healthy and the old one keeps serving (loud,
+    // recoverable) rather than a silent site-wide 429 (catastrophic). log/off
+    // with no secret is fine — log only warns, off is legacy passthrough.
+    if (
+      data.ORIGIN_TRUST_MODE === "enforce" &&
+      (data.ORIGIN_VERIFY_SECRET === undefined ||
+        data.ORIGIN_VERIFY_SECRET.length < 16)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "ORIGIN_TRUST_MODE=enforce requires a ≥16-char ORIGIN_VERIFY_SECRET. " +
+          "Set the secret (and the matching Cloudflare Transform Rule) BEFORE " +
+          "switching to enforce. Rollout order: off → log → enforce.",
+        path: ["ORIGIN_TRUST_MODE"],
       });
     }
     if (

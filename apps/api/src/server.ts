@@ -7,6 +7,7 @@ import {
   uuidv7,
 } from '@assessiq/core';
 import { tenantContextMiddleware } from '@assessiq/tenancy';
+import { extractClientIp } from '@assessiq/auth';
 import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
 import { registerHealthRoutes } from './routes/health.js';
@@ -74,7 +75,7 @@ export async function buildServer() {
     const ctx = {
       requestId: String(req.id),
       // tenantId/userId populated by dev-auth + tenant hooks below
-      ip: (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip,
+      ip: extractClientIp(req),
       ua: req.headers['user-agent'] ?? 'unknown',
     };
     req.assessiqCtx = ctx;
@@ -143,7 +144,7 @@ export async function buildServer() {
         route: req.routeOptions?.url,
         status: reply.statusCode,
         latencyMs: Math.round(reply.elapsedTime),
-        ip: (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip,
+        ip: extractClientIp(req),
         ua: req.headers['user-agent'] ?? 'unknown',
       },
       'http.request',

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { streamLogger } from '@assessiq/core';
+import { extractClientIp } from '@assessiq/auth';
 
 const frontendLog = streamLogger('frontend');
 
@@ -84,7 +85,7 @@ export async function registerLogIngestRoutes(app: FastifyInstance): Promise<voi
       schema: { body: logIngestBodySchema },
     },
     async (req, reply) => {
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
 
       if (!checkIpRateLimit(ip)) {
         return reply.code(429).send({

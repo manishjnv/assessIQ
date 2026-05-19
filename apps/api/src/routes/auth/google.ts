@@ -10,6 +10,7 @@ import {
   selectLoginIdentity,
   requestEmailOtp,
   verifyEmailOtp,
+  extractClientIp,
 } from '@assessiq/auth';
 import { authChain, publicAuthChain } from '../../middleware/auth-chain.js';
 
@@ -102,7 +103,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
       const stateCookieValue = req.cookies?.[STATE_COOKIE];
       const nonceCookieValue = req.cookies?.[NONCE_COOKIE];
 
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
 
       const out = await handleGoogleCallback({
@@ -164,7 +165,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
         return reply.status(401).send({ error: 'unauthorized' });
       }
 
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
 
       try {
@@ -214,7 +215,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
         });
       }
 
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
 
       const out = await selectLoginIdentity({
@@ -276,7 +277,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
         return reply.status(200).send({ ok: true, message: "If that email can sign in, we've sent a 6-digit code." });
       }
 
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
 
       // requestEmailOtp never throws for enumeration-sensitive reasons.
@@ -316,7 +317,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
         return reply.status(200).send({ ok: false, error: 'invalid_code' });
       }
 
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip;
+      const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
 
       let out: Awaited<ReturnType<typeof verifyEmailOtp>>;

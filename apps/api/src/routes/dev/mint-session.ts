@@ -35,7 +35,7 @@
 import type { FastifyInstance } from 'fastify';
 import { config, AuthnError, ValidationError, uuidv7 } from '@assessiq/core';
 import { getPool, getTenantBySlug } from '@assessiq/tenancy';
-import { sessions } from '@assessiq/auth';
+import { sessions, extractClientIp } from '@assessiq/auth';
 import type { Role } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
 
@@ -191,7 +191,13 @@ export async function registerDevMintSessionRoute(app: FastifyInstance): Promise
       // Mint a fully-verified session (totpVerified=true so the spec doesn't
       // need to complete the TOTP flow). The session role is `effectiveRole`,
       // which is the existing user's DB role or — for new users — 'candidate'.
-      const ip = (req.headers['cf-connecting-ip'] as string | undefined) ?? req.ip ?? '127.0.0.1';
+      // NOTE (adversarial finding 2): the old inline expression here ended in
+      // `?? '127.0.0.1'`; extractClientIp's terminal sentinel is '0.0.0.0'.
+      // This is the ONE site where off-mode is not byte-identical. Harmless:
+      // dev-only route (NODE_ENV-gated), and the sentinel is only reached if
+      // both cf-connecting-ip AND req.ip are absent, which never happens under
+      // Fastify (req.ip is always populated). Audit-cosmetic only.
+      const ip = extractClientIp(req);
       const ua = req.headers['user-agent'] ?? 'playwright-e2e';
       const sessionOut = await sessions.create({
         userId,

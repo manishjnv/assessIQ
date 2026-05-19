@@ -129,4 +129,57 @@ describe("loadConfig", () => {
     });
     expect(cfg.DATABASE_URL).toBe("postgresql://user:pass@localhost:5432/aiq");
   });
+
+  // --- ORIGIN_TRUST_MODE / ORIGIN_VERIFY_SECRET (adversarial findings 1 & 6) ---
+
+  it("defaults ORIGIN_TRUST_MODE to off and ORIGIN_VERIFY_SECRET to undefined", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV });
+    expect(cfg.ORIGIN_TRUST_MODE).toBe("off");
+    expect(cfg.ORIGIN_VERIFY_SECRET).toBeUndefined();
+  });
+
+  it("off/log mode boots fine with NO secret (no regression, rollout-safe)", () => {
+    expect(() =>
+      loadConfig({ ...VALID_BASE_ENV, ORIGIN_TRUST_MODE: "log" })
+    ).not.toThrow();
+    expect(() =>
+      loadConfig({ ...VALID_BASE_ENV, ORIGIN_TRUST_MODE: "off" })
+    ).not.toThrow();
+  });
+
+  it("CRITICAL (finding 1): enforce mode with NO secret refuses to boot", () => {
+    expect(() =>
+      loadConfig({ ...VALID_BASE_ENV, ORIGIN_TRUST_MODE: "enforce" })
+    ).toThrow("ORIGIN_TRUST_MODE=enforce requires a ≥16-char ORIGIN_VERIFY_SECRET");
+  });
+
+  it("CRITICAL (finding 1): enforce mode with a too-short secret refuses to boot", () => {
+    expect(() =>
+      loadConfig({
+        ...VALID_BASE_ENV,
+        ORIGIN_TRUST_MODE: "enforce",
+        ORIGIN_VERIFY_SECRET: "tooshort",
+      })
+    ).toThrow();
+  });
+
+  it("finding 6: a short ORIGIN_VERIFY_SECRET is rejected even in log mode", () => {
+    expect(() =>
+      loadConfig({
+        ...VALID_BASE_ENV,
+        ORIGIN_TRUST_MODE: "log",
+        ORIGIN_VERIFY_SECRET: "short",
+      })
+    ).toThrow("ORIGIN_VERIFY_SECRET must be ≥16 chars when set");
+  });
+
+  it("enforce mode boots when a ≥16-char secret is present", () => {
+    const cfg = loadConfig({
+      ...VALID_BASE_ENV,
+      ORIGIN_TRUST_MODE: "enforce",
+      ORIGIN_VERIFY_SECRET: "a-sufficiently-long-origin-secret",
+    });
+    expect(cfg.ORIGIN_TRUST_MODE).toBe("enforce");
+    expect(cfg.ORIGIN_VERIFY_SECRET).toBe("a-sufficiently-long-origin-secret");
+  });
 });

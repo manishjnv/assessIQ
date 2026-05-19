@@ -1,5 +1,6 @@
 import { config, RateLimitError } from "@assessiq/core";
 import { getRedis } from "../redis.js";
+import { isOriginVerified } from "../client-ip.js";
 import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 
 // Role-aware IP rate-limiting applied to ALL routes (not only /api/auth/*).
@@ -69,7 +70,19 @@ async function evalBucket(limit: Limit): Promise<BucketResult> {
 // Extracts the client IP. Production uses CF-Connecting-IP (Caddy normalized).
 // In non-production, falls back to x-forwarded-for first hop for dev convenience —
 // fail-closed in production: missing CF header means "no client IP", not "use XFF".
-function extractClientIp(req: AuthRequest): string | null {
+function extractRateLimitClientIp(req: AuthRequest): string | null {
+  // Origin-verify gate (ORIGIN_TRUST_MODE=enforce only): a request that did
+  // not provably traverse Cloudflare (missing/wrong x-origin-verify) has NO
+  // trustworthy client IP. Return null so it flows into the EXISTING prod
+  // fail-closed throw below — deliberately NOT bucketed by a spoofable
+  // cf-connecting-ip, and NOT by req.socket (always the shared Caddy peer, so
+  // a socket-IP bucket would merge every attacker into one allowance — strictly
+  // worse than rejecting). off/log modes keep legacy behaviour unchanged
+  // (isOriginVerified()===true under off; log-mode observability is emitted by
+  // client-ip.ts, not here, to avoid a double warn and any bucketing change).
+  if (config.ORIGIN_TRUST_MODE === "enforce" && !isOriginVerified(req)) {
+    return null;
+  }
   const cf = req.headers["cf-connecting-ip"];
   if (typeof cf === "string" && cf.length > 0) return cf;
 
@@ -119,7 +132,7 @@ export interface RateLimitOptions {}
 
 export function rateLimitMiddleware(_opts: RateLimitOptions = {}): AuthHook {
   return async (req, reply) => {
-    const ip = extractClientIp(req);
+    const ip = extractRateLimitClientIp(req);
 
     // Fail-closed in production: cannot identify the caller, cannot enforce a
     // limit. CF-Connecting-IP is set by Cloudflare unconditionally on every
@@ -195,6 +208,6 @@ export function rateLimitMiddleware(_opts: RateLimitOptions = {}): AuthHook {
 }
 
 // Test export — mirrors the addendum-pinned IP source policy.
-export { extractClientIp };
+export { extractRateLimitClientIp };
 // Test export — resolveIpBucketMax for tier verification tests.
 export { resolveIpBucketMax };
