@@ -422,6 +422,25 @@
   font-size: max(16px, var(--aiq-input-size-base, 14px)) !important;
 }
 
+/* ─────────────────────────────────────────────────────────────
+ * Admin Mobile Port — A4 cross-cutting input rule.
+ * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (cross-cutting input)
+ *
+ * Every <input>, <textarea>, <select> inside any admin page must
+ * compute font-size ≥ 16px on mobile to defeat iOS Safari's
+ * auto-zoom-on-focus. Scoped to .aiq-admin-shell so candidate-facing
+ * surfaces (which are M2b-tuned separately) are unaffected.
+ *
+ * Excludes <input type="checkbox|radio"> — those don't trigger zoom
+ * and we don't want to upsize the box. !important needed because
+ * many admin inputs set font-size via inline style.
+ * ───────────────────────────────────────────────────────────── */
+[data-viewport="mobile"] .aiq-admin-shell textarea,
+[data-viewport="mobile"] .aiq-admin-shell input:not([type="checkbox"]):not([type="radio"]),
+[data-viewport="mobile"] .aiq-admin-shell select {
+  font-size: max(16px, var(--aiq-input-size-base, 14px)) !important;
+}
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;

@@ -983,7 +983,7 @@ function BillingDrawer({
                     <span style={{ ...META_LABEL, fontSize: 10 }}>Usage &amp; plan</span>
                   </HelpTip>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)" }}>
+                <div className="aiq-admin-detail-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)" }}>
                 <div>
                   <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Tier</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", textTransform: "capitalize" }}>
@@ -1044,6 +1044,7 @@ function BillingDrawer({
                   {detail.recent_events.map((ev) => (
                     <div
                       key={ev.id}
+                      className="aiq-admin-detail-two-col"
                       style={{
                         display: "grid",
                         gridTemplateColumns: "1fr 1fr",
