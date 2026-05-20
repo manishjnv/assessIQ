@@ -1486,7 +1486,14 @@ function ManageMenu({
   }
 
   return (
-    <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
+    <div
+      ref={menuRef}
+      style={{
+        position: "relative",
+        display: "inline-block",
+        zIndex: open ? 1000 : "auto",
+      }}
+    >
       <Button
         size="sm"
         variant="ghost"
@@ -1503,11 +1510,11 @@ function ManageMenu({
             position: "absolute",
             right: 0,
             top: "calc(100% + 4px)",
-            background: "var(--aiq-color-bg-base)",
+            background: "var(--aiq-color-bg-base, #ffffff)",
             border: "1px solid var(--aiq-color-border)",
             borderRadius: "var(--aiq-radius-md)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            zIndex: 400,
+            zIndex: 1000,
             minWidth: 180,
             paddingTop: 4,
             paddingBottom: 4,
