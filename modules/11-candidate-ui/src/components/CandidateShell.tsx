@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import { Icon } from '@assessiq/ui-system';
 import { CandidateSessionBanner } from './CandidateSessionBanner.js';
 
 // ---------------------------------------------------------------------------
@@ -73,8 +75,43 @@ export interface CandidateShellProps {
 
 const TOP_BAR_HEIGHT = 52;
 
+// M4 — shared NavLink style. Active route gets a soft raised background +
+// primary fg color; inactive stays secondary. Applies in both the desktop
+// inline nav and the mobile overflow menu.
+const NAV_LINK_BASE: React.CSSProperties = {
+  fontFamily: 'var(--aiq-font-sans)',
+  fontSize: 13,
+  fontWeight: 500,
+  textDecoration: 'none',
+  padding: '6px 10px',
+  borderRadius: 'var(--aiq-radius-sm)',
+  display: 'inline-block',
+};
+
+function navLinkStyle({ isActive }: { isActive: boolean }): React.CSSProperties {
+  return {
+    ...NAV_LINK_BASE,
+    color: isActive ? 'var(--aiq-color-fg-primary)' : 'var(--aiq-color-fg-secondary)',
+    background: isActive ? 'var(--aiq-color-bg-raised)' : 'transparent',
+  };
+}
+
+function menuItemStyle({ isActive }: { isActive: boolean }): React.CSSProperties {
+  return {
+    ...NAV_LINK_BASE,
+    width: '100%',
+    color: isActive ? 'var(--aiq-color-fg-primary)' : 'var(--aiq-color-fg-secondary)',
+    background: isActive ? 'var(--aiq-color-bg-raised)' : 'transparent',
+  };
+}
+
 export function CandidateShell({ children }: CandidateShellProps): React.ReactElement {
   const { data, loading } = useWhoami();
+  // M4 — mobile overflow-menu open state. Desktop never opens it (the
+  // .aiq-candidate-nav-mobile container is display:none on desktop); closes
+  // on outside-click, Escape, or item-select.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSignOut = async (): Promise<void> => {
     try {
@@ -85,10 +122,31 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
     window.location.href = '/candidate/login';
   };
 
+  // M4 — outside-click + Escape close the mobile overflow menu. Effect is a
+  // no-op when menuOpen=false (no listeners attached), so desktop pays nothing.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--aiq-color-bg-base)' }}>
+    <div className="aiq-candidate-shell" style={{ minHeight: '100vh', background: 'var(--aiq-color-bg-base)' }}>
       {/* Sticky top bar */}
       <header
+        className="aiq-candidate-shell-header"
         style={{
           position: 'sticky',
           top: 0,
@@ -98,7 +156,6 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           borderBottom: '1px solid var(--aiq-color-border)',
           display: 'flex',
           alignItems: 'center',
-          padding: '0 24px',
           gap: 16,
         }}
       >
@@ -113,13 +170,26 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           <span>AssessIQ</span>
         </div>
 
+        {/* M4 — Desktop inline nav. Hidden on mobile via .aiq-candidate-nav-desktop
+            CSS rule. Same routes as the mobile overflow menu below. */}
+        <nav className="aiq-candidate-nav-desktop" aria-label="Candidate sections">
+          <NavLink to="/candidate/certificates" style={navLinkStyle}>
+            Certificates
+          </NavLink>
+          <NavLink to="/candidate/activity" style={navLinkStyle}>
+            Activity
+          </NavLink>
+        </nav>
+
         <div style={{ flex: 1 }} />
 
-        {/* Session info + sign out — right */}
+        {/* Session info + sign out — right (desktop). Hidden on mobile via
+            .aiq-candidate-shell-userinfo CSS rule; Sign out is reachable
+            from the mobile overflow menu instead. */}
         {!loading && data !== null && (
           <div
+            className="aiq-candidate-shell-userinfo"
             style={{
-              display: 'flex',
               alignItems: 'center',
               gap: 8,
               fontFamily: 'var(--aiq-font-sans)',
@@ -154,6 +224,107 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
             </button>
           </div>
         )}
+
+        {/* M4 — Mobile overflow menu. Hidden on desktop via .aiq-candidate-nav-mobile
+            CSS rule. On mobile this is the entire right side of the header:
+            menu contains Certificates / Activity / Sign out. Same handlers as
+            the desktop inline controls — no behavior divergence. */}
+        <div className="aiq-candidate-nav-mobile" ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Open navigation menu"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            data-help-id="candidate.shell.nav.mobile_menu"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--aiq-color-border-strong)',
+              borderRadius: 'var(--aiq-radius-pill)',
+              width: 32,
+              height: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+              color: 'var(--aiq-color-fg-primary)',
+            }}
+          >
+            <Icon name="drag" size={14} />
+          </button>
+          {menuOpen && (
+            <ul
+              role="menu"
+              aria-label="Candidate navigation"
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 8,
+                minWidth: 180,
+                background: 'var(--aiq-color-bg-base)',
+                border: '1px solid var(--aiq-color-border)',
+                borderRadius: 'var(--aiq-radius-md)',
+                boxShadow: 'var(--aiq-shadow-md)',
+                padding: 'var(--aiq-space-xs)',
+                margin: 0,
+                listStyle: 'none',
+                zIndex: 101,
+              }}
+            >
+              <li role="none">
+                <NavLink
+                  role="menuitem"
+                  to="/candidate/certificates"
+                  onClick={() => setMenuOpen(false)}
+                  style={menuItemStyle}
+                >
+                  Certificates
+                </NavLink>
+              </li>
+              <li role="none">
+                <NavLink
+                  role="menuitem"
+                  to="/candidate/activity"
+                  onClick={() => setMenuOpen(false)}
+                  style={menuItemStyle}
+                >
+                  Activity
+                </NavLink>
+              </li>
+              <li
+                role="separator"
+                aria-orientation="horizontal"
+                style={{
+                  borderTop: '1px solid var(--aiq-color-border)',
+                  margin: 'var(--aiq-space-xs) 0',
+                }}
+              />
+              <li role="none">
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void handleSignOut();
+                  }}
+                  style={{
+                    ...NAV_LINK_BASE,
+                    width: '100%',
+                    textAlign: 'left',
+                    color: 'var(--aiq-color-fg-secondary)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Sign out
+                </button>
+              </li>
+            </ul>
+          )}
+        </div>
       </header>
 
       {/* Session-expiry banner — only renders when ≤5 days left */}

@@ -86,6 +86,24 @@ candidate.attempt.kql.editor:
     Validation does not run your query against real data. The grader judges
     correctness by combining keyword presence with AI rubric review.
 
+candidate.shell.nav.mobile_menu:
+  audience: candidate
+  short_text: "Open the navigation menu. Jump to Certificates, Activity, or sign out."
+  long_md: |
+    ## Candidate navigation menu
+
+    On a phone the top bar is too narrow to show the Certificates / Activity
+    links inline. Tap the small handle icon on the right of the top bar to
+    open a dropdown menu containing:
+
+    - **Certificates** — your earned certificates.
+    - **Activity** — your assessment history and rankings.
+    - **Sign out** — end your session.
+
+    The menu closes automatically when you pick an item, when you tap
+    outside it, or when you press Escape. On a laptop these links appear
+    inline in the top bar and the handle button is hidden.
+
 candidate.attempt.kql.mobile_tip:
   audience: candidate
   short_text: "KQL is easier on a desktop browser. Switching is recommended for syntax-heavy queries."

@@ -20,6 +20,7 @@ import {
   StackedBarChart,
   LeaderboardList,
   Spinner,
+  useViewport,
 } from "@assessiq/ui-system";
 import type {
   StatCardBreakdownItem,
@@ -209,6 +210,9 @@ const PERIOD_LABELS: Record<LeaderboardPeriod, string> = {
 
 export function CandidateActivity(): React.ReactElement {
   const [period, setPeriod] = useState<LeaderboardPeriod>('week');
+  // M4 — viewport-aware LeaderboardList column count (2 desktop / 1 mobile).
+  // The grid + heatmap reflow via CSS classes; the leaderboard takes a prop.
+  const viewport = useViewport();
 
   const [stats,          setStats]          = useState<CandidateActivityStatsResponse | null>(null);
   const [statsError,     setStatsError]     = useState<string | null>(null);
@@ -400,7 +404,7 @@ export function CandidateActivity(): React.ReactElement {
           </div>
         )}
         {!statsLoading && !statsError && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--aiq-space-md)" }}>
+          <div className="aiq-candidate-activity-stats" style={{ display: "grid", gap: "var(--aiq-space-md)" }}>
             <StatCard
               label="Assessments completed"
               value={stats?.completions.total ?? 0}
@@ -502,13 +506,18 @@ export function CandidateActivity(): React.ReactElement {
             </div>
           )}
           {!heatmapLoading && !heatmapError && (
-            <ActivityHeatmap
-              data={heatmapData}
-              weeks={52}
-              monthLabels={monthLabels}
-              {...(streakSummary !== undefined ? { streakSummary } : {})}
-              aria-label="52-week activity heatmap"
-            />
+            // M4 — Wrap in horizontal-scroll container so the 52-week × 7-day
+            // grid (~290px min) doesn't squish on a 360px viewport. Desktop
+            // is wider than the heatmap so overflow-x: auto is a no-op there.
+            <div className="aiq-candidate-activity-heatmap-scroll" style={{ overflowX: 'auto' }}>
+              <ActivityHeatmap
+                data={heatmapData}
+                weeks={52}
+                monthLabels={monthLabels}
+                {...(streakSummary !== undefined ? { streakSummary } : {})}
+                aria-label="52-week activity heatmap"
+              />
+            </div>
           )}
         </div>
 
@@ -606,7 +615,7 @@ export function CandidateActivity(): React.ReactElement {
           {!leaderboardLoading && !leaderboardError && leaderboardItems.length > 0 && (
             <LeaderboardList
               items={leaderboardItems}
-              columns={2}
+              columns={viewport === 'mobile' ? 1 : 2}
             />
           )}
         </div>
