@@ -65,6 +65,12 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
         roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
+        // Credential endpoint (adversarial finding 1, 2026-05-20): enroll/start
+        // generates a fresh TOTP secret on every call. Per-route per-IP cap
+        // (20/min) prevents a verified-admin session (5000/min IP, 300/min user)
+        // from rapidly cycling pending secrets — defense-in-depth on the
+        // enrollment surface even though confirm is the actual credential check.
+        credentialEndpoint: true,
       }),
     },
     async (req) => {
@@ -92,6 +98,10 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
         roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
+        // Credential endpoint: per-route per-IP cap (20/min) applied regardless
+        // of session tier. Maintains TOTP brute-force protection even after the
+        // verified-admin IP cap was lifted to 5000/min (tiered redesign 2026-05-20).
+        credentialEndpoint: true,
       }),
     },
     async (req) => {
@@ -128,6 +138,10 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
         roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
+        // Credential endpoint: per-route per-IP cap (20/min) applied regardless
+        // of session tier. Maintains TOTP brute-force protection even after the
+        // verified-admin IP cap was lifted to 5000/min (tiered redesign 2026-05-20).
+        credentialEndpoint: true,
       }),
     },
     async (req, reply) => {
@@ -163,6 +177,10 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
         roles: ['admin', 'reviewer', 'super_admin'],
         requireTotpVerified: false,
+        // Credential endpoint: per-route per-IP cap (20/min) applied regardless
+        // of session tier. Maintains TOTP brute-force protection even after the
+        // verified-admin IP cap was lifted to 5000/min (tiered redesign 2026-05-20).
+        credentialEndpoint: true,
       }),
     },
     async (req, reply) => {

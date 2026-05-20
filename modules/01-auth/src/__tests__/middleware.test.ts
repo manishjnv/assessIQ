@@ -466,19 +466,32 @@ describe("rate-limit (Redis testcontainer)", () => {
       await expect(handler(req(), makeReply())).rejects.toBeInstanceOf(RateLimitError);
     });
 
-    // PathN: Verified admin hits /api/auth/totp/verify 101 times.
-    // Path N decision (2026-05-15, user-approved): TOTP verify is NOT special-cased.
-    // Admin gets 100/min/IP even on TOTP verify. Brute-force window drops ~35d →
-    // ~3.5d @ 50% probability — deliberate regression, documented in
-    // docs/04-auth-flows.md § Rate limit tiers.
+    // PathN: Pre-MFA admin hits /api/auth/totp/verify 101 times.
+    // Path N decision (2026-05-15, user-approved): TOTP verify is NOT special-cased
+    // for IP tier. Pre-MFA admin gets RATE_LIMIT_IP_ADMIN (100/min) — UNCHANGED
+    // from before the 2026-05-20 tiered redesign.
     //
-    // Each iteration uses a unique userId so the per-user 60/min bucket never
+    // Tiered redesign (2026-05-20): IP cap for verified admin lifted to 5000/min,
+    // but the CREDENTIAL bucket (20/min default) is the actual brute-force guard
+    // on /totp/verify when credentialEndpoint:true is used by the route. The IP
+    // bucket (100/min for pre-MFA, 5000/min for verified) and credential bucket
+    // (20/min) exist independently; the effective cap is min(ip, credential, user).
+    //
+    // This test pins:
+    //   (a) Pre-MFA admin IP bucket is still 100/min (pre-MFA path UNCHANGED).
+    //   (b) The rateLimitMiddleware() base handler (without credentialEndpoint)
+    //       still exhausts at 101 on the IP bucket — proving IP enforcement.
+    //
+    // The credential bucket (20/min) is tested in rate-limit-tiered.test.ts T9.
+    //
+    // Each iteration uses a unique userId so the per-user bucket never
     // saturates, isolating this test to IP-tier enforcement only.
-    it("PathN: admin gets 100/min/IP on TOTP verify (Path N — blacklist dropped per user decision 2026-05-15, brute-force window ~3.5 days)", async () => {
+    it("PathN: pre-MFA admin gets RATE_LIMIT_IP_ADMIN (100/min) on TOTP verify — IP bucket unchanged (2026-05-20 redesign: credential cap tested separately in rate-limit-tiered.test.ts T9)", async () => {
       const handler = rateLimitMiddleware();
       const ip = "50.1.1.2";
       let counter = 0;
       // Pre-MFA session (totpVerified=false — that's the state when calling totp/verify)
+      // Pre-MFA admin: UNCHANGED behaviour from before the tiered redesign.
       const req = () => {
         counter++;
         return makeReq({
@@ -489,7 +502,7 @@ describe("rate-limit (Redis testcontainer)", () => {
             userId: `no-bypass-pathn-user-${counter}`,  // unique → user bucket never saturates
             tenantId: `no-bypass-pathn-tenant-${counter}`,
             role: "admin" as const,
-            totpVerified: false,
+            totpVerified: false,  // pre-MFA — IP cap is RATE_LIMIT_IP_ADMIN (100), not VERIFIED_ADMIN (5000)
             expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
             lastSeenAt: nowIso(),
             lastTotpAt: null,
@@ -497,13 +510,57 @@ describe("rate-limit (Redis testcontainer)", () => {
         });
       };
 
-      // Exhaust the 100-request admin IP limit.
+      // Exhaust the 100-request pre-MFA admin IP limit (UNCHANGED from 2026-05-15 design).
       for (let i = 0; i < config.RATE_LIMIT_IP_ADMIN; i++) {
         await handler(req(), makeReply());
       }
 
-      // Request 101 must throw — no special-casing for totp/verify.
+      // Request 101 must throw — IP bucket exhausted (pre-MFA admin, unchanged).
       await expect(handler(req(), makeReply())).rejects.toBeInstanceOf(RateLimitError);
+    });
+
+    // PathN-Credential: The credential bucket (20/min) bites BEFORE the IP bucket
+    // on /totp/verify when credentialEndpoint:true is used. This proves the
+    // brute-force window IMPROVES in the tiered redesign (20/min credential cap
+    // applies to all tiers, incl. pre-MFA admin at 100/min).
+    it("PathN-Credential: credential bucket (20/min) exhausts before IP bucket (100/min) on TOTP verify — brute-force window improvement from tiered redesign 2026-05-20", async () => {
+      const handler = rateLimitMiddleware({ credentialEndpoint: true });
+      const ip = "50.1.1.10";
+      let counter = 0;
+      const req = () => {
+        counter++;
+        const base = makeReq({
+          url: "/api/auth/totp/verify",
+          headers: { "cf-connecting-ip": ip },
+          session: {
+            id: `sess-credpathn-${counter}`,
+            userId: `cred-pathn-user-${counter}`,  // unique → user bucket never saturates
+            tenantId: `cred-pathn-tenant-${counter}`,
+            role: "admin" as const,
+            totpVerified: false,
+            expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            lastSeenAt: nowIso(),
+            lastTotpAt: null,
+          },
+        });
+        // routeOptions is not on AuthRequest (it's Fastify-internal); cast to set it
+        // so rateLimitMiddleware's `routeOptions?.url` path resolves to the route pattern.
+        (base as unknown as Record<string, unknown>)["routeOptions"] = { url: "/api/auth/totp/verify" };
+        return base;
+      };
+
+      // Exhaust the 20-request CREDENTIAL limit (not the 100/min IP limit).
+      for (let i = 0; i < config.RATE_LIMIT_CREDENTIAL; i++) {
+        await handler(req(), makeReply());
+      }
+
+      // Request 21 must throw — credential bucket exhausted (not IP bucket).
+      await expect(handler(req(), makeReply())).rejects.toSatisfy((err: unknown) => {
+        return (
+          err instanceof RateLimitError &&
+          (err.details as { scope?: string } | undefined)?.scope === "credential"
+        );
+      });
     });
 
     // N2: Unauth request to a non-/api/auth/* route → IP bucket fires at anon rate.

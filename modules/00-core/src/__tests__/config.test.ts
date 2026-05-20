@@ -182,4 +182,54 @@ describe("loadConfig", () => {
     expect(cfg.ORIGIN_TRUST_MODE).toBe("enforce");
     expect(cfg.ORIGIN_VERIFY_SECRET).toBe("a-sufficiently-long-origin-secret");
   });
+
+  // --- Rate-limit tiered vars (2026-05-20 redesign) ---
+
+  it("defaults RATE_LIMIT_IP_VERIFIED_ADMIN to 5000", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV });
+    expect(cfg.RATE_LIMIT_IP_VERIFIED_ADMIN).toBe(5000);
+  });
+
+  it("defaults RATE_LIMIT_USER_VERIFIED_ADMIN to 300", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV });
+    expect(cfg.RATE_LIMIT_USER_VERIFIED_ADMIN).toBe(300);
+  });
+
+  it("defaults RATE_LIMIT_CREDENTIAL to 20", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV });
+    expect(cfg.RATE_LIMIT_CREDENTIAL).toBe(20);
+  });
+
+  it("env override respected: RATE_LIMIT_IP_VERIFIED_ADMIN=8000 is parsed correctly", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV, RATE_LIMIT_IP_VERIFIED_ADMIN: "8000" });
+    expect(cfg.RATE_LIMIT_IP_VERIFIED_ADMIN).toBe(8000);
+  });
+
+  it("env override respected: RATE_LIMIT_USER_VERIFIED_ADMIN=500 is parsed correctly", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV, RATE_LIMIT_USER_VERIFIED_ADMIN: "500" });
+    expect(cfg.RATE_LIMIT_USER_VERIFIED_ADMIN).toBe(500);
+  });
+
+  it("env override respected: RATE_LIMIT_CREDENTIAL=30 is parsed correctly", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV, RATE_LIMIT_CREDENTIAL: "30" });
+    expect(cfg.RATE_LIMIT_CREDENTIAL).toBe(30);
+  });
+
+  it("invalid RATE_LIMIT_IP_VERIFIED_ADMIN=0 (zero fails .positive())", () => {
+    expect(() =>
+      loadConfig({ ...VALID_BASE_ENV, RATE_LIMIT_IP_VERIFIED_ADMIN: "0" }),
+    ).toThrow("Configuration validation failed");
+  });
+
+  it("invalid RATE_LIMIT_USER_VERIFIED_ADMIN=-1 (negative fails .positive())", () => {
+    expect(() =>
+      loadConfig({ ...VALID_BASE_ENV, RATE_LIMIT_USER_VERIFIED_ADMIN: "-1" }),
+    ).toThrow("Configuration validation failed");
+  });
+
+  it("invalid RATE_LIMIT_CREDENTIAL=0 (zero fails .positive())", () => {
+    expect(() =>
+      loadConfig({ ...VALID_BASE_ENV, RATE_LIMIT_CREDENTIAL: "0" }),
+    ).toThrow("Configuration validation failed");
+  });
 });
