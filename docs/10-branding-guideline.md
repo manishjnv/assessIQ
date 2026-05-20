@@ -563,7 +563,27 @@ Pages reference the tokens directly (e.g., `padding: var(--aiq-page-padding-y) v
 
 ### 15.3 Pattern reflows (catalog — populated incrementally by later phases)
 
-Each later phase of the mobile port adds its reflow rule here. M0 only ships the foundation; no pattern reflows are wired yet.
+Each later phase of the mobile port adds its reflow rule here.
+
+#### Two-pane magic-link landing → single column (M1 — 2026-05-20)
+
+Pages: [`apps/web/src/pages/candidate/CandidateLogin.tsx`](../apps/web/src/pages/candidate/CandidateLogin.tsx), [`apps/web/src/pages/take/TokenLanding.tsx`](../apps/web/src/pages/take/TokenLanding.tsx), [`apps/web/src/pages/take/Expired.tsx`](../apps/web/src/pages/take/Expired.tsx), [`apps/web/src/pages/take/ErrorPage.tsx`](../apps/web/src/pages/take/ErrorPage.tsx).
+
+| Element | Desktop | Mobile |
+| --- | --- | --- |
+| Grid | `1fr 1fr` (form + visual aside) | `1fr` (form only) |
+| Right aside | rendered | `display: none` (DOM kept; CSS-hidden) |
+| `<main>` padding | `48px 64px` | `24px 22px` |
+| Hero serif `<h1>` | `44px / 1.05` (TokenLanding · Expired · ErrorPage) or `36px / 1.1` (CandidateLogin) | `30px / 1.1` |
+| Primary button | inline | full-width (unchanged across viewports) |
+
+Mechanism: outer container carries `.aiq-take-twopane` (or `.aiq-candidate-login` for the portal login) + `<main>` carries `.aiq-take-main` (or `.aiq-candidate-login-main`). All overrides live in [`tokens.css`](../modules/17-ui-system/src/styles/tokens.css) under `[data-viewport="mobile"]` (the M0 mechanism — *not* a page-local `@media` rule). For the hero H1, `.aiq-take-twopane` scopes two CSS vars (`--aiq-take-h1-size`, `--aiq-take-h1-lh`) that the inline `SERIF_H1` style object reads; the desktop value defaults to `44px` via `var()` fallback.
+
+**Anti-pattern guards** (apply when adding more pages to this reflow):
+- DOM tree must be identical between viewports. Mobile must NOT swap the component tree — only CSS layout deltas. Divergent behavior across viewports is a bounce (`docs/plans/MOBILE_KIT_PORT.md` § Anti-pattern guards #5).
+- Anti-enumeration copy and 200 ms timing floor remain unchanged.
+- Same backend payloads on both viewports; same rate-limit error surfaces.
+- `CandidateLoginVerify` (centered spinner intermediary) needs no reflow — it is viewport-agnostic by construction (`placeItems: 'center'`).
 
 ### 15.4 Email-webview testing
 

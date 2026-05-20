@@ -235,6 +235,7 @@ Same Google SSO flow as admin, but:
    → verify token_hash exists, not expired, status='pending'
    → mark status='viewed'
    → render landing page; CTA "Begin assessment"
+   (mobile: same DOM, single-column reflow per docs/10-branding-guideline.md § 15.3 — M1)
 
 3. Candidate clicks "Begin"
    → POST /api/take/start { token }
@@ -588,6 +589,12 @@ Do not add any response field that differentiates "email found" from "email not 
 **Rate-limit key design:** The email component of the Redis key is `sha256(lower(email))` — the raw email address is never written to Redis keyspace, logs, or memory dumps. Only the IP component is plaintext (IPs are already logged by Caddy/Fastify).
 
 Unconsumed, expired tokens are swept by the existing session expiry sweeper (Phase 3 follow-up). The partial index `candidate_login_tokens_user_unconsumed_idx ON (user_id) WHERE consumed_at IS NULL` keeps the live-token lookup fast even with a long history of expired rows.
+
+### Mobile rendering (M1 — 2026-05-20)
+
+The candidate magic-link UI (`/candidate/login`, `/candidate/login/verify`) is mobile-tuned via CSS only; **no flow, no API, no semantics change.** Under `[data-viewport="mobile"]` (M0 mechanism — see [`docs/10-branding-guideline.md` § 15](./10-branding-guideline.md#15-mobile)) the two-pane layout collapses to a single column, the right aside is hidden via `display: none`, and `<main>` padding shrinks from `48px 64px` to `24px 22px`. `CandidateLoginVerify` (centered spinner) is viewport-agnostic and unchanged.
+
+Anti-enumeration timing, rate-limit copy, the unconditional 204 response, and the magic-link token semantics are identical across viewports. See [`docs/10-branding-guideline.md` § 15.3](./10-branding-guideline.md#153-pattern-reflows-catalog--populated-incrementally-by-later-phases) for the full reflow catalog entry.
 
 ---
 

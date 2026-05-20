@@ -36,8 +36,10 @@ const META_LABEL: CSSProperties = {
 };
 
 const SERIF_H1: CSSProperties = {
-  fontSize: 44,
-  lineHeight: 1.05,
+  // CSS vars cascade from .aiq-take-twopane outer div (see tokens.css).
+  // Desktop 44/1.05; mobile 30/1.1 — M1 phase of MOBILE_KIT_PORT.
+  fontSize: 'var(--aiq-take-h1-size, 44px)',
+  lineHeight: 'var(--aiq-take-h1-lh, 1.05)',
   margin: '0 0 12px',
   fontWeight: 400,
   letterSpacing: '-0.025em',
@@ -351,17 +353,16 @@ export function TokenLanding(): JSX.Element {
 
   return (
     <div
-      className="aiq-screen"
+      className="aiq-screen aiq-take-twopane"
       style={{
         minHeight: '100vh',
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
         gap: 0,
       }}
     >
       <main
+        className="aiq-take-main"
         style={{
-          padding: '48px 64px',
           display: 'flex',
           flexDirection: 'column',
         }}
