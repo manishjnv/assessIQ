@@ -684,9 +684,13 @@ Mechanism:
 - Heatmap overflow-scroll does not change the underlying `ActivityHeatmap` props or the 15-analytics API contract.
 - Leaderboard `columns` prop is the only viewport-aware JS branch in M4 — all other deltas are CSS-only. This is acceptable per anti-pattern #5 because `columns` is a layout hint that doesn't change backend payloads or surfaced errors.
 
-#### Admin graceful-degrade interstitial (M5 — 2026-05-20)
+#### Admin graceful-degrade interstitial (M5 — 2026-05-20, **superseded 2026-05-21**)
 
-File: [`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx). The M0 stub became a real component in M5; first wrap point is around `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx).
+> **Superseded by the Admin Mobile Port (A0–A6, 2026-05-21).** Every admin page is now mobile-responsive; the `ViewportLock` component, the `aiq_admin_mobile_override` sessionStorage key, and the `admin.shell.mobile_continue_anyway` help_id are all removed. See [`docs/plans/ADMIN_MOBILE_PORT.md`](./plans/ADMIN_MOBILE_PORT.md) for the recipe catalog (R1 filter strip, R2 table scroll with sticky first column, R3 deferred, R4 two-col stack, R5 deferred wizard nav, R6 deferred editor accordion, cross-cutting iOS 16px+ input rule). The original M5 design is preserved in git history (last commit before A6: `9cd643f`).
+
+The original M5 description below is kept for historical context only.
+
+File: [`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) (deleted in A6). The M0 stub became a real component in M5; first wrap point was around `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx).
 
 **Scope:** show a friendly "Admin tools work best on desktop" interstitial when ALL of these hold:
 - viewport is `mobile` (M0's `data-viewport` mechanism via `useViewport()`)

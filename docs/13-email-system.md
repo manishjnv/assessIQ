@@ -456,12 +456,22 @@ For: `candidate_login_link`, `admin_email_otp`, `totp_enrolled`, `attempt_submit
 
 For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `weekly_digest_admin`.
 
-**Inputs:** `reason`, `unsubscribe_href` (per-recipient signed URL).
+**Empirical check, 2026-05-21:** grep across the codebase for `/unsubscribe`, `/preferences`, `/account/preferences`, `/privacy`, `privacy-policy` — **zero matches**. **None of the 4 footer-row endpoints exist today.** Per anti-pattern guard "never ship a row that 404s", the entire link row must conditionally collapse when no href is provided. A9b is designed to be safe on day-zero with all 4 hrefs `null` (collapses the row + the trailing border), and to light up incrementally as each endpoint ships.
+
+**Inputs:**
+
+| Name | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `reason` | string | yes | Why the recipient is getting this email (CAN-SPAM-required). |
+| `unsubscribe_href` | URL or `null` | no | Per-recipient signed URL. `null` until endpoint ships. |
+| `preferences_href` | URL or `null` | no | `null` until endpoint ships. |
+| `help_href` | URL or `null` | no | `null` until endpoint ships. |
+| `privacy_href` | URL or `null` | no | `null` until endpoint ships. |
 
 **HTML:**
 
 ```html
-<!-- A9b email-footer-commercial — adds unsubscribe / preferences / help / privacy row -->
+<!-- A9b email-footer-commercial — unsubscribe / preferences / help / privacy row collapses per-link -->
 <tr>
   <td style="padding:28px 40px 32px;background:#fafafa;border-top:1px solid #e4e4e7">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -476,14 +486,16 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
           {{reason}}
         </td>
       </tr>
+      {{#if has_any_link}}
       <tr>
         <td style="padding-bottom:20px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px">
           {{#if unsubscribe_href}}<a href="{{unsubscribe_href}}" style="color:#3f3f46;text-decoration:none;margin-right:18px">{{_t_unsubscribe}}</a>{{/if}}
-          <a href="{{preferences_href}}" style="color:#3f3f46;text-decoration:none;margin-right:18px">{{_t_preferences}}</a>
-          <a href="{{help_href}}" style="color:#3f3f46;text-decoration:none;margin-right:18px">{{_t_help}}</a>
-          <a href="{{privacy_href}}" style="color:#3f3f46;text-decoration:none">{{_t_privacy}}</a>
+          {{#if preferences_href}}<a href="{{preferences_href}}" style="color:#3f3f46;text-decoration:none;margin-right:18px">{{_t_preferences}}</a>{{/if}}
+          {{#if help_href}}<a href="{{help_href}}" style="color:#3f3f46;text-decoration:none;margin-right:18px">{{_t_help}}</a>{{/if}}
+          {{#if privacy_href}}<a href="{{privacy_href}}" style="color:#3f3f46;text-decoration:none">{{_t_privacy}}</a>{{/if}}
         </td>
       </tr>
+      {{/if}}
       <tr>
         <td style="border-top:1px solid #e4e4e7;padding-top:16px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em">
           {{_t_legal_entity}} &middot; {{_t_legal_address}} &middot; &copy; {{copyright_year}}
@@ -494,7 +506,28 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 </tr>
 ```
 
-**`{{#if unsubscribe_href}}` rationale.** Per open decision #6 (still unresolved), the `/unsubscribe?token=<jwt>` endpoint may not exist when E1 ships. The conditional collapses the link gracefully — never ship a row that 404s. E2a author passes `unsubscribe_href=null` until the endpoint is ready.
+**Collapse logic.** The outer `{{#if has_any_link}}` removes the entire link row + its 20 px bottom padding when no hrefs are provided — otherwise the footer ships a 20 px gap of empty space above the legal line. Each inner `{{#if <name>_href}}` removes the individual link + its `margin-right`. The render-time context must compute `has_any_link = !!(unsubscribe_href || preferences_href || help_href || privacy_href)` and pass it on the partial invocation — this avoids a `{{#or}}` helper that Handlebars doesn't ship.
+
+**Day-zero shape (2026-05-21).** Every commercial template calls A9b with all 4 hrefs `null`. The footer renders as: brand mark → reason copy → legal line. No dead links, no empty link row.
+
+**Incremental enable.** As each endpoint ships, the corresponding template passes the real href on the partial invocation. CAN-SPAM unsubscribe is the priority — when `/unsubscribe?token=<jwt>` lands, every commercial template starts passing `unsubscribe_href={{computed_per_recipient}}`. The other 3 (preferences, help, privacy) can stay collapsed indefinitely without legal exposure.
+
+**CAN-SPAM caveat.** US CAN-SPAM **requires** an unsubscribe mechanism on commercial messages. A9b's day-zero shape (no unsubscribe link) is technically non-compliant — but only matters if any commercial template actually ships to a US recipient before the unsubscribe endpoint is built. **Mitigation:** until `/unsubscribe` lands, treat all 4 commercial templates as **invitation-only** sends (recipients have an existing business relationship → exemption). When the product opens up to broader marketing-style sends, the endpoint MUST exist first. Track as an explicit follow-up.
+
+### A-TXT — Plain-text variants (decision: NO atom set)
+
+**Decision:** TXT variants stay hand-authored. No shared partials, no TXT atom set.
+
+**Why.** The 9 production `.txt` templates are 15-17 lines each. Their structure is `Subject: <line>` + blank + body + `— AssessIQ` signature. Across the 9 templates, the only repeated content is the trailing signature (4 chars: `— AssessIQ`). Atomicizing a 4-char signature into a Handlebars partial adds machinery (one more partial file, one more register call, one more place to drift) for negative net benefit.
+
+**What E1/E2 still must do for TXT:**
+
+1. **Maintain HTML+TXT semantic parity** — anti-pattern guard #10 in [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md). When E2 adds a preheader to the HTML variant, the TXT variant gets a one-line summary in the same place (after the subject line). When E2 adds a meta-card row in HTML, the TXT variant gets the same data as `KEY: value` lines.
+2. **Preserve the `Subject: <…>\n\n<body>` convention** — [render.ts:131-139](modules/13-notifications/src/email/render.ts#L131-L139) parses it.
+3. **Preserve i18n `{{_t_*}}` vars** — TXT compiles with `noEscape: true` but i18n substitution still happens. Don't inline literal English strings.
+4. **No HTML tags in TXT.** Even when the HTML uses `<strong>` inside `meta_rows.v`, the TXT variant uses uppercase or asterisks (`*Distinguished*`) instead. The render pipeline does NOT auto-strip — the template author writes the parallel text.
+
+**Lint addition for E1:** `modules/13-notifications/test/lint-txt-parity.test.ts` — for each template name in the EmailTemplateNameSchema, assert both `.html` and `.txt` files exist and that the `.txt` file's first line matches `/^Subject: \S/`. Fails loudly if either invariant breaks.
 
 ### A10 — `{{> email-ghost-link }}`
 
@@ -563,16 +596,24 @@ Where `meta_rows` is built in the Zod-validated context (E2a):
 {
   preheader: "You've been invited to take an AssessIQ assessment.",
   meta_rows: [
-    { k: "Assessment", v: `<strong>${assessmentName}</strong>` },
-    { k: "Tenant",     v: tenantName },
-    { k: "Expires",    v: expiresAt },
+    // SAFETY: meta_rows[*].v is rendered via {{{v}}} (triple-stash, HTML-unescaped).
+    // Every v MUST be a literal or a server-controlled value — NEVER a user / tenant /
+    // candidate string. See docs/13-email-system.md §2 A7.
+    { k: "Assessment", v: `<strong>${escapeHtml(assessmentName)}</strong>` },
+    { k: "Tenant",     v: escapeHtml(tenantName) },
+    { k: "Expires",    v: escapeHtml(expiresAt) },
   ],
-  unsubscribe_href: null,           // open decision #6
-  preferences_href: PROD_URLS.prefs,
-  help_href:        PROD_URLS.help,
-  privacy_href:     PROD_URLS.privacy,
-  reason:           "You're receiving this because an AssessIQ admin invited you to take an assessment.",
-  copyright_year:   "2026",
+
+  // Day-zero footer state (2026-05-21): all 4 link endpoints unbuilt — see §2 A9b.
+  // Partial collapses the entire link row when has_any_link is false.
+  unsubscribe_href: null,
+  preferences_href: null,
+  help_href:        null,
+  privacy_href:     null,
+  has_any_link:     false,
+
+  reason:         "You're receiving this because an AssessIQ admin invited you to take an assessment.",
+  copyright_year: "2026",
 }
 ```
 
@@ -647,21 +688,37 @@ The 9 existing templates in `modules/13-notifications/src/email/templates/` are 
 
 Helpers E1 must register: `concat` (~5 lines, string join for serif H1 composition in templates). **No `partial` helper** — block partials are built-in Handlebars and need no helper. **No `ifEquals` helper** either — A5's `size` variant is implemented by splitting `email-lede` into two partials (see §6.1) instead of a runtime conditional.
 
-### §6.1 i18n keys E1 must add before partials register
+### §6.1 i18n keys — what exists today vs what E1 must add
 
-A1, A3, A9a, A9b reference i18n keys that do not exist in [`modules/13-notifications/src/email/strings/en.json`](../modules/13-notifications/src/email/strings/en.json) today. E1 must add them as part of the same commit that registers the partials, or the first render will produce empty interpolations:
+**Verified against** [`modules/13-notifications/src/email/strings/en.json`](../modules/13-notifications/src/email/strings/en.json) **on 2026-05-21.** The file is **per-template namespaced** (not flat) — keys nest under `<template_name>.<key>`, and the `buildVars()` resolver in [`i18n.ts`](../modules/13-notifications/src/email/i18n.ts) flattens them to `_t_<key>` at render time.
 
-| Key | Used by | Suggested `en` value |
-| --- | --- | --- |
-| `page_title` | A1 `<title>` | (per-template — falls back to `subject` if not set) |
-| `brand_wordmark` | A3 header | `AssessIQ` |
-| `legal_entity` | A9a, A9b footer | (resolved via open decision #5) |
-| `legal_address` | A9a, A9b footer | (resolved via open decision #5) |
-| `unsubscribe` | A9b footer | `Unsubscribe` |
-| `preferences` | A9b footer | `Preferences` |
-| `help` | A9b footer | `Help` |
-| `privacy` | A9b footer | `Privacy` |
-| `cta` | per-template overrides | (per-template — `Sign in`, `View results`, etc.) |
+**Already present in all 9 templates** (no E1 work needed):
+
+- `page_title` — used by A1 `<title>`. Every template has a sensible value already.
+- `brand_wordmark` — used by A3 header. All 9 templates have `"AssessIQ"`.
+
+**New cross-template footer keys E1 must add.** These do not exist in `en.json` today. They are NOT per-template — they belong in a new top-level `_shared` namespace so the same string serves every footer:
+
+```jsonc
+{
+  "_shared": {
+    "legal_entity":   "AssessIQ",                       // open decision #5 may rename
+    "legal_address":  "<PENDING open decision #5>",     // E1 cannot ship without this
+    "unsubscribe":    "Unsubscribe",                    // A9b only (commercial)
+    "preferences":    "Preferences",                    // A9b only — endpoint NOT built yet (bug 6)
+    "help":           "Help",                           // A9b only — endpoint NOT built yet (bug 6)
+    "privacy":        "Privacy"                         // A9b only — endpoint NOT built yet (bug 6)
+  },
+  "invitation_candidate": { ... },                       // existing
+  ...
+}
+```
+
+**`buildVars()` extension required.** [`i18n.ts`](../modules/13-notifications/src/email/i18n.ts) currently resolves only per-template keys. E1 extends it to merge `_shared.*` into every template's flattened `_t_*` namespace. Per-template keys win on collision (no `_shared` key should collide with a template-specific key today; lint can enforce this).
+
+**Open-decision #5 blocker.** E1 cannot ship the footer partials with a placeholder address — CAN-SPAM requires the literal physical address, not a Handlebars var that resolves to "TBD". Either decision #5 lands before E1 starts, or E1 ships A9a/A9b with the address row commented-out and the partials are completed in a follow-up commit once the address is decided.
+
+**`cta` is already per-template** — every template's existing `<template>.cta` key is reused as-is. The partials reference `{{_t_cta}}` which resolves per-template via the existing buildVars flow.
 
 ---
 
@@ -686,7 +743,9 @@ A1, A3, A9a, A9b reference i18n keys that do not exist in [`modules/13-notificat
 - [x] **Blocker 1 (composition syntax):** §3 rewritten against built-in Handlebars block partials (`{{#> name}}…{{> @partial-block}}…{{/name}}`); slot-var + subexpression-partial patterns explicitly rejected with rationale. A1 + A4 atoms updated.
 - [x] **Blocker 2 (triple-stash policy):** [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) anti-pattern guard #9 amended to document A7's sole exception; A7 strengthened with three enforcement layers (per-template SAFETY comment, runtime `assertSafeMetaRows()` invariant, CI lint against candidate/tenant/user var-name patterns).
 - [x] **Blocker 3 (snapshot strategy):** [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) E1 "Render unit tests" rewritten — frozen `.pre-e1.html` fixtures + `node-html-parser` DOM-tree canonical-form comparison, NOT raw-string snapshots. Pre-E1 fixture-capture commit lands first, on its own.
-- [x] **i18n prerequisite (§6.1):** 9 new `en` keys listed as E1 prerequisite so first render doesn't produce empty interpolations.
+- [x] **Bug 4 (TXT atom set):** §2 A-TXT decision — TXT variants stay hand-authored, no shared partials. Lint added: `lint-txt-parity.test.ts` asserts both `.html` + `.txt` files exist per template and the `.txt` first line matches `/^Subject: \S/`.
+- [x] **Bug 5 (i18n keys):** §6.1 rewritten against the real per-template-namespaced `en.json`. Only ~6 new cross-template keys (under new `_shared` namespace) need adding — `page_title` and `brand_wordmark` already exist in all 9 templates. `buildVars()` extension scoped to merge `_shared.*` into every template's `_t_*` namespace.
+- [x] **Bug 6 (commercial footer endpoints):** §2 A9b updated against empirical grep finding (no `/unsubscribe`, `/preferences`, `/privacy` exist). Per-link conditional collapse for all 4 hrefs; outer `{{#if has_any_link}}` removes the row entirely on day zero. §3 composition example updated to day-zero shape (all 4 hrefs `null`).
 - [ ] User has resolved open decision #5 (physical address) — **blocks E1**.
 
 E1 cannot start until decision #5 is resolved (the footer partial needs the literal address baked in). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.
