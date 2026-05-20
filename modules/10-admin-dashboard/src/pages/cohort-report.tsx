@@ -52,7 +52,7 @@ export function AdminCohortReport(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={["Reports", "Cohort"]} helpPage="admin.reports.cohort">
+      <AdminShell breadcrumbs={[{ label: "Reports", href: "/admin/reports" }, "Cohort"]} helpPage="admin.reports.cohort">
         <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
           <Spinner aria-label="Loading cohort report" />
         </div>
@@ -62,7 +62,7 @@ export function AdminCohortReport(): React.ReactElement {
 
   if (error || !stats) {
     return (
-      <AdminShell breadcrumbs={["Reports", "Cohort"]} helpPage="admin.reports.cohort">
+      <AdminShell breadcrumbs={[{ label: "Reports", href: "/admin/reports" }, "Cohort"]} helpPage="admin.reports.cohort">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
       </AdminShell>
     );
@@ -72,7 +72,7 @@ export function AdminCohortReport(): React.ReactElement {
   const maxArchetypeCount = Math.max(...archetypeEntries.map(([, c]) => c), 1);
 
   return (
-    <AdminShell breadcrumbs={["Reports", "Cohort"]} helpPage="admin.reports.cohort">
+    <AdminShell breadcrumbs={[{ label: "Reports", href: "/admin/reports" }, "Cohort"]} helpPage="admin.reports.cohort">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         <div>
           <div style={{ marginBottom: 12 }}>

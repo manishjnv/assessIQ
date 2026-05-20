@@ -285,7 +285,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={["Assessments", "Detail"]} helpPage="admin.assessments.detail">
+      <AdminShell breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, "Detail"]} helpPage="admin.assessments.detail">
         <div
           style={{
             color: "var(--aiq-color-fg-muted)",
@@ -302,7 +302,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   if (error || !assessment) {
     return (
-      <AdminShell breadcrumbs={["Assessments", "Detail"]} helpPage="admin.assessments.detail">
+      <AdminShell breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, "Detail"]} helpPage="admin.assessments.detail">
         <div
           style={{
             color: "var(--aiq-color-danger)",
@@ -320,7 +320,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   return (
     <AdminShell
-      breadcrumbs={["Assessments", assessment.name]}
+      breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, assessment.name]}
       helpPage="admin.assessments.detail"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>

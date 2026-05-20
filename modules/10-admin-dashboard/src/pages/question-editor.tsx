@@ -196,7 +196,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   }
 
   return (
-    <AdminShell breadcrumbs={["Question Bank", "New question"]} helpPage="admin.question.editor">
+    <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "New question"]} helpPage="admin.question.editor">
       <form onSubmit={(e) => void handleSubmit(e)} style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)", maxWidth: 640 }}>
         <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
           New question.</h1>
@@ -415,7 +415,7 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={["Question Bank", "Editor"]} helpPage="admin.question.editor">
+      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
         <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
           <Spinner aria-label="Loading question" />
         </div>
@@ -425,7 +425,7 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
 
   if (error && !question) {
     return (
-      <AdminShell breadcrumbs={["Question Bank", "Editor"]} helpPage="admin.question.editor">
+      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
       </AdminShell>
     );
@@ -433,7 +433,7 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
 
   if (!question) {
     return (
-      <AdminShell breadcrumbs={["Question Bank", "Editor"]} helpPage="admin.question.editor">
+      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>Not found.</div>
       </AdminShell>
     );
@@ -452,7 +452,7 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
   const weightOk = combinedTotal === 100;
 
   return (
-    <AdminShell breadcrumbs={["Question Bank", question.id.slice(0, 8)]} helpPage="admin.question.editor">
+    <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, question.id.slice(0, 8)]} helpPage="admin.question.editor">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Header row: title + status badge + back button */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)" }}>

@@ -228,7 +228,7 @@ export function AdminAttemptDetail(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={["Attempts", "Detail"]} helpPage="admin.attempts.detail">
+      <AdminShell breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, "Detail"]} helpPage="admin.attempts.detail">
         <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
           <Spinner aria-label="Loading attempt" />
         </div>
@@ -238,7 +238,7 @@ export function AdminAttemptDetail(): React.ReactElement {
 
   if (!detail) {
     return (
-      <AdminShell breadcrumbs={["Attempts", "Detail"]} helpPage="admin.attempts.detail">
+      <AdminShell breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, "Detail"]} helpPage="admin.attempts.detail">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
       </AdminShell>
     );
@@ -248,7 +248,7 @@ export function AdminAttemptDetail(): React.ReactElement {
   const isGradeable = attempt.status === "submitted" || attempt.status === "pending_admin_grading";
 
   return (
-    <AdminShell breadcrumbs={["Attempts", attempt.id.slice(0, 8)]} helpPage="admin.attempts.detail">
+    <AdminShell breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, attempt.id.slice(0, 8)]} helpPage="admin.attempts.detail">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>

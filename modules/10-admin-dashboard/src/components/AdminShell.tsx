@@ -19,10 +19,18 @@ import { Sidebar, NavItem, SidebarSection } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";
 
+/**
+ * Breadcrumb segment — either a plain string (non-clickable label) or
+ * `{ label, href }` for a clickable parent segment. The last segment in the
+ * array is treated as the current page and is never clickable regardless of
+ * whether an `href` is provided.
+ */
+export type BreadcrumbSegment = string | { label: string; href: string };
+
 export interface AdminShellProps {
   children: React.ReactNode;
-  /** Breadcrumb segments — e.g. ["Attempts", "Detail"]. */
-  breadcrumbs?: string[];
+  /** Breadcrumb segments — e.g. `["Attempts", "Detail"]` or `[{label:"Attempts", href:"/admin/attempts"}, "Detail"]`. */
+  breadcrumbs?: BreadcrumbSegment[];
   /** Help page key e.g. "admin.grading.queue". */
   helpPage?: string;
 }
@@ -34,7 +42,13 @@ function sidebarCollapsedKey(tenantId: string): string {
 
 const MFA_NUDGE_DISMISSED_KEY = "aiq.admin.mfa-nudge-dismissed";
 
-function MfaNudgeBanner({ onDismiss }: { onDismiss: () => void }): React.ReactElement {
+function MfaNudgeBanner({
+  onDismiss,
+  onSetup,
+}: {
+  onDismiss: () => void;
+  onSetup: () => void;
+}): React.ReactElement {
   return (
     <div
       style={{
@@ -58,16 +72,22 @@ function MfaNudgeBanner({ onDismiss }: { onDismiss: () => void }): React.ReactEl
         }}
       >
         <strong>Secure your account.</strong> Enable two-factor authentication to protect against unauthorised access.{" "}
-        <a
-          href="/admin/mfa"
+        <button
+          type="button"
+          onClick={onSetup}
           style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            font: "inherit",
             color: "var(--aiq-color-accent)",
             fontWeight: 500,
-            textDecoration: "none",
+            textDecoration: "underline",
           }}
         >
           Set up authenticator &rarr;
-        </a>
+        </button>
       </span>
       <button
         type="button"
@@ -326,8 +346,16 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
-            <span
+            <button
+              type="button"
+              onClick={() => navigate("/admin")}
+              aria-label="Go to dashboard"
               style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                font: "inherit",
                 fontFamily: "var(--aiq-font-mono)",
                 fontSize: "var(--aiq-text-xs)",
                 textTransform: "uppercase",
@@ -336,12 +364,20 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
               }}
             >
               AssessIQ
-            </span>
+            </button>
             {session?.tenant.slug && (
               <>
                 <span style={{ color: "var(--aiq-color-border-strong)" }}>/</span>
-                <span
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin")}
+                  aria-label={`${session.tenant.slug} — go to dashboard`}
                   style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    font: "inherit",
                     fontFamily: "var(--aiq-font-mono)",
                     fontSize: "var(--aiq-text-xs)",
                     color: "var(--aiq-color-accent)",
@@ -350,7 +386,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                   }}
                 >
                   {session.tenant.slug}
-                </span>
+                </button>
               </>
             )}
           </div>
@@ -376,10 +412,13 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
         {/* MFA enrollment nudge — shown once per session for unenrolled admins/reviewers */}
         {session?.totpEnrolled === false && !nudgeDismissed && (
-          <MfaNudgeBanner onDismiss={dismissNudge} />
+          <MfaNudgeBanner onDismiss={dismissNudge} onSetup={() => navigate("/admin/mfa")} />
         )}
 
-        {/* Breadcrumbs */}
+        {/* Breadcrumbs — last segment is current page (never clickable). Earlier
+            segments are clickable when supplied as `{label, href}` so users can
+            navigate up; plain string segments stay as non-clickable labels for
+            backward compatibility with callers that pre-date the typed form. */}
         {breadcrumbs && breadcrumbs.length > 0 && (
           <div
             style={{
@@ -392,20 +431,39 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
               flexShrink: 0,
             }}
           >
-            {breadcrumbs.map((crumb, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <span style={{ color: "var(--aiq-color-fg-muted)", fontSize: 12 }}>/</span>}
-                <span
-                  style={{
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                    color: i === breadcrumbs.length - 1 ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-muted)",
-                  }}
-                >
-                  {crumb}
-                </span>
-              </React.Fragment>
-            ))}
+            {breadcrumbs.map((crumb, i) => {
+              const isLast = i === breadcrumbs.length - 1;
+              const label = typeof crumb === "string" ? crumb : crumb.label;
+              const href = typeof crumb === "string" ? undefined : crumb.href;
+              const baseStyle = {
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+                color: isLast ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-muted)",
+              } as const;
+              return (
+                <React.Fragment key={i}>
+                  {i > 0 && <span style={{ color: "var(--aiq-color-fg-muted)", fontSize: 12 }}>/</span>}
+                  {href && !isLast ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(href)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        ...baseStyle,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ) : (
+                    <span style={baseStyle}>{label}</span>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         )}
 
