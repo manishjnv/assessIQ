@@ -95,6 +95,27 @@ jobs:
       - name: Logging-discipline lint
         run: pnpm tsx tools/lint-logging-discipline.ts
 
+      # 9b'. Help-seed drift check — RCA prevention for the 2026-05-18
+      # 15-day YAML/SQL desync (admin.platform short_text >120 chars was
+      # silently dropped by the generator's Zod validator after a YAML edit,
+      # leaving 0011_seed_help_content.sql out of sync with content/en/*.yml
+      # for ~15 days). The generator IS loud on validation failure (exits 1
+      # on >120 chars etc.); what was missing was the regenerate-and-diff
+      # gate. Re-runs the generator and fails the build if the committed
+      # 0011_seed_help_content.sql differs from a fresh regeneration.
+      # See docs/RCA_LOG.md 2026-05-18 entry.
+      - name: Help-seed drift check
+        shell: bash
+        run: |
+          set -e
+          pnpm tsx tools/generate-help-seed.ts
+          if ! git diff --exit-code --stat \
+               modules/16-help-system/migrations/0011_seed_help_content.sql; then
+            echo "::error::Help-seed drift: the regenerated SQL does not match the committed 0011_seed_help_content.sql. Run 'pnpm help:seed:regen' locally and commit the regenerated migration."
+            exit 1
+          fi
+          echo "Help-seed drift: clean"
+
       # 9c. Edge-routing lint — RCA-prevention against /help/* + /take/* fallthrough.
       # Asserts every non-/api/* Fastify route mount is in the canonical Caddy
       # @api matcher in docs/06-deployment.md. See RCA_LOG.md 2026-05-02 + 2026-05-03.
