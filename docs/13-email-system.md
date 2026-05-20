@@ -9,9 +9,28 @@
 
 ---
 
+## §0 North-star rule (read first — non-negotiable)
+
+**The Email Kit is a design-philosophy reference, NOT a per-email mockup catalog.**
+
+The scope of this port is: **make every existing AssessIQ email follow the kit's design philosophy.** Tokens, atoms, type rhythm, footer breadth, voice — applied uniformly across the 9 production templates that we ALREADY send. The kit happens to draw explicit screens for 5 of those 9; that is a *work-order* convenience (those are faster to author because the kit gives more reference), not a *categorical* distinction. The other 4 (`candidate_login_link`, `admin_email_otp`, `totp_enrolled`, `attempt_submitted_candidate`) compose from the same atoms and follow the same philosophy.
+
+Concrete implications, in case anyone is tempted to interpret the kit as a catalog:
+
+1. **Pulse newsletter is NOT a product addition.** The kit ships a "Pulse" mockup; production sends `weekly_digest_admin` and only that. The port applies the Pulse *philosophy* (editorial eyebrow, serif headline, stacked meta cards, footer breadth) to the existing weekly digest. It does NOT introduce a candidate-facing monthly newsletter.
+2. **Don't skip a template because the kit didn't draw a screen for it.** `admin_email_otp`, `candidate_login_link`, `totp_enrolled`, `attempt_submitted_candidate` all get the same atom set + token contract + voice treatment as the kit-mapped ones. The plan's E2a / E2b split is sequencing, not a permission gate.
+3. **Don't add a new template because the kit hints at it.** If something feels missing (password reset, attempt-abandoned nudge, account-deletion confirmation, …) that is a separate product decision, surfaced and approved outside this port. The kit's atoms remain available for it when/if it ships.
+4. **Don't lose existing content.** Every var, every i18n string, every condition in the 9 production templates today is load-bearing. E1 ports the wrapper; E2 reapplies the kit's *visual* contract to the *same* content surface. If a candidate or admin gets a noticeably different *message* after the port, that's a bounce.
+
+This rule mirrors `feedback-functionality-drives-ui.md` ("UI kits are palettes of idioms, not product specs") applied to the email surface. It is the same rule the Mobile Kit Port and the AccessIQ UI Template port followed.
+
+---
+
+---
+
 ## Source-of-truth chain
 
-```
+```text
 modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/   ← visual contract (mocks)
   ├── emails/email-atoms.jsx                                     ← kit atom shapes (React + flex)
   ├── design-system/tokens.md                                    ← kit token values
@@ -535,7 +554,7 @@ Open decisions 1, 2, 3, 4, 8, 9, 10 from the plan are **resolved here** with the
 
 E1 takes the 10 atom designs in §2 and materializes them as Handlebars partials in `modules/13-notifications/src/email/partials/`:
 
-```
+```text
 partials/
 ├── email-shell.html
 ├── email-preheader.html
