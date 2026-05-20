@@ -5,7 +5,7 @@
 > | Phase | Status |
 > | --- | --- |
 > | A0 — Foundation tokens | SHIPPED 2026-05-21 |
-> | A1 — AdminShell drawer + reflow | NOT YET STARTED |
+> | A1 — AdminShell drawer + reflow | SHIPPED 2026-05-21 |
 > | A2 — List / table pages | NOT YET STARTED |
 > | A3 — Detail / report pages | NOT YET STARTED |
 > | A4 — Settings / help pages | NOT YET STARTED |

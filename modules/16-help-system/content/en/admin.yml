@@ -2131,3 +2131,27 @@ admin.shell.mobile_continue_anyway:
     phone — switch to a desktop browser instead of relying on the
     override.
 
+# ─── Admin Mobile Port — A1 AdminShell mobile reflow (2026-05-21) ────────────
+
+admin.shell.nav.mobile_menu:
+  audience: admin
+  short_text: "Open the navigation drawer. Available on phone-sized viewports — on a laptop the sidebar is always visible."
+  long_md: |
+    ## Open navigation menu
+
+    Tap to open the full admin navigation drawer. Available on phone-sized
+    viewports only — on a laptop or desktop the sidebar is always visible in
+    the left column and this button does not appear.
+
+    **Closing the drawer.**
+    The drawer closes automatically when you:
+
+    - Tap any navigation item (the page loads and the drawer closes).
+    - Tap the dark backdrop behind the drawer.
+    - Press **Escape** on a hardware keyboard.
+
+    **Keyboard users.** When the drawer opens, focus moves to the first
+    navigation item. Tab cycles through items inside the drawer; Shift-Tab
+    cycles backwards. Focus returns to the hamburger button when the drawer
+    closes.
+
