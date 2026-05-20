@@ -608,6 +608,28 @@ Mechanism: outer attempt wrapper carries `.aiq-attempt-shell`, which scopes a `-
 - A new `data-help-id="candidate.attempt.navigator.toggle"` exists for the new control with a same-PR entry in `modules/16-help-system/content/en/candidate.yml` (PROJECT_BRAIN § 9 same-PR rule).
 - Per-question-type tunings (KQL editor, subjective, log/scenario) are explicitly out of M2a — they belong in M2b and may need a "desktop-required" interstitial decision before any rendering changes.
 
+#### AttemptPage answer-area mobile sizing + KQL caveat tip (M2b — 2026-05-20)
+
+Per-question-type mobile tuning of the same `Attempt.tsx`. CSS-var indirection on `.aiq-attempt-shell`; no DOM restructure for any question type.
+
+| Element | Desktop | Mobile | Why |
+| --- | --- | --- | --- |
+| Subjective `<textarea>` | 15px sans | 16px sans | iOS Safari auto-zooms form inputs whose computed `font-size` is below 16px on focus; pushing to ≥ 16px defeats the auto-zoom and preserves layout. |
+| KQL `<textarea>` (Phase 1: plain textarea, Monaco deferred) | 13px mono | 16px mono | Same auto-zoom defense; mono font retained for syntax readability. |
+| Log-analysis finding `<input>` | 14px sans | 16px sans | Same. |
+| Log-analysis explanation `<textarea>` | 15px sans | 16px sans | Same. |
+| Scenario step `<textarea>` | 15px sans | 16px sans | Same. |
+| KQL caveat tip (new) | hidden (`display: none`) | shown (`display: block`) above the tables/textarea | Sets candidate expectation that KQL is meaningfully easier on a laptop without blocking the mobile answer. |
+| MCQ option `<label>` text | 15px sans | 15px sans (unchanged) | Tap target already ≥ 44 px; option text is a `<div>` inside a `<label>` with an `opacity: 0` radio — no form-input focus zoom risk. |
+
+Mechanism: `.aiq-attempt-shell` scopes two new CSS vars — `--aiq-answer-input-size` (15→16) and `--aiq-answer-mono-size` (13→16). Each affected textarea / input reads via `fontSize: 'var(--aiq-answer-input-size)'` (or `--aiq-answer-mono-size` for KQL). The KQL tip is a new `<p class="aiq-attempt-kql-mobile-tip">` element with `display: none` desktop, `display: block` mobile; carries `data-help-id="candidate.attempt.kql.mobile_tip"` and a same-PR entry in `modules/16-help-system/content/en/candidate.yml`.
+
+**Anti-pattern guards (M2b-specific):**
+- No DOM restructure inside any answer area. The tip is the only new element, and it renders in both viewports (CSS-only visibility toggle).
+- KQL grading semantics, autosave debounce, blur flush, and integrity-hook surface unchanged. Mobile font-size change is presentation only.
+- "Desktop-required interstitial" rec from the original plan was rejected for Phase 1 because today's KqlAnswerArea is a plain textarea, not Monaco — the textarea works on mobile, just less ergonomically. When Monaco lands as part of Phase 2 KQL editor work, M2b' will revisit with the interstitial option as a follow-up.
+- No change to MCQ option `<label>` — it is not a focusable form input, so iOS does not auto-zoom on tap.
+
 ### 15.4 Email-webview testing
 
 Magic-link candidates click email links from Gmail / Outlook / Apple Mail in-app browsers, not Safari/Chrome. Any page touched by the mobile port (especially M1 candidate-auth pages) must be smoke-tested in at least one in-app webview before claiming the phase done. Common gotchas: minimum 16px font-size on inputs (otherwise iOS auto-zooms), missing `gap` polyfills in older WebViews, and aggressive paragraph-truncation.

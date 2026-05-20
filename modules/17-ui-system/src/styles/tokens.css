@@ -190,6 +190,21 @@
 [data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-next-btn   { order: 3; flex: 1 1 auto; justify-content: center; }
 [data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-submit-btn { order: 4; flex: 1 0 100%; justify-content: center; }
 
+/* M2b — per-question-type answer-input sizing + KQL mobile-only tip.
+ *   --aiq-answer-input-size: sans textareas + log finding input (15 desktop / 16 mobile).
+ *   --aiq-answer-mono-size:  KQL textarea mono font (13 desktop / 16 mobile).
+ * Both bump to 16px on mobile to defeat iOS Safari's auto-zoom-on-focus
+ * for inputs whose computed font-size is below 16px. Desktop values
+ * preserve pre-M2b sizes byte-identically. */
+.aiq-attempt-shell { --aiq-answer-input-size: 15px; --aiq-answer-mono-size: 13px; }
+[data-viewport="mobile"] .aiq-attempt-shell {
+  --aiq-answer-input-size: 16px;
+  --aiq-answer-mono-size:  16px;
+}
+/* KQL mobile-only caveat tip — hidden on desktop, block on mobile. */
+.aiq-attempt-kql-mobile-tip { display: none; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-kql-mobile-tip { display: block; }
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;

@@ -86,6 +86,25 @@ candidate.attempt.kql.editor:
     Validation does not run your query against real data. The grader judges
     correctness by combining keyword presence with AI rubric review.
 
+candidate.attempt.kql.mobile_tip:
+  audience: candidate
+  short_text: "KQL is easier on a desktop browser. Switching is recommended for syntax-heavy queries."
+  long_md: |
+    ## Why KQL is shown with a desktop tip on phones
+
+    The KQL question type expects you to write a structured query. Mobile
+    keyboards lack the punctuation, operators, and pipe character that KQL
+    uses frequently, and the small viewport makes it hard to see your full
+    query while you write it.
+
+    You can still answer here — the textarea works the same on phone and
+    desktop, and your autosave runs identically. But if the question is
+    syntax-heavy (multiple pipes, complex joins, regex), it is meaningfully
+    faster to open the link on a laptop and answer from there.
+
+    This tip only appears on phones. On desktop you see the same editor
+    without the notice.
+
 candidate.attempt.scenario.steps:
   audience: candidate
   short_text: "Multi-step incident. Some steps may unlock only after submitting earlier steps."

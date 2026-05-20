@@ -311,7 +311,9 @@ function SubjectiveAnswerArea({
           minHeight: 200,
           padding: 'var(--aiq-space-md)',
           fontFamily: 'var(--aiq-font-sans)',
-          fontSize: 15,
+          // M2b: 15px desktop / 16px mobile via .aiq-attempt-shell CSS var.
+          // 16px on mobile defeats iOS Safari's auto-zoom-on-focus.
+          fontSize: 'var(--aiq-answer-input-size)',
           lineHeight: 1.6,
           color: 'var(--aiq-color-fg-primary)',
           background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
@@ -363,6 +365,27 @@ function KqlAnswerArea({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
+      {/* M2b — KQL caveat tip. Mobile-only via .aiq-attempt-kql-mobile-tip
+          CSS rule (display:none desktop, display:block mobile). Same DOM
+          both viewports; CSS toggles visibility. Content + help_id are
+          surface-only — no grading or autosave semantics affected. */}
+      <p
+        className="aiq-attempt-kql-mobile-tip"
+        data-help-id="candidate.attempt.kql.mobile_tip"
+        style={{
+          margin: 0,
+          padding: 'var(--aiq-space-sm) var(--aiq-space-md)',
+          fontFamily: 'var(--aiq-font-sans)',
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: 'var(--aiq-color-fg-secondary)',
+          background: 'var(--aiq-color-bg-raised)',
+          border: '1px solid var(--aiq-color-border)',
+          borderRadius: 'var(--aiq-radius-sm)',
+        }}
+      >
+        Tip: KQL is easier on a desktop browser. You can answer here, but consider switching for syntax-heavy queries.
+      </p>
       {tables.length > 0 && (
         <div
           style={{
@@ -389,7 +412,8 @@ function KqlAnswerArea({
           minHeight: 200,
           padding: 'var(--aiq-space-md)',
           fontFamily: 'var(--aiq-font-mono)',
-          fontSize: 13,
+          // M2b: 13px mono desktop / 16px mono mobile via .aiq-attempt-shell CSS var.
+          fontSize: 'var(--aiq-answer-mono-size)',
           lineHeight: 1.6,
           color: 'var(--aiq-color-fg-primary)',
           background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
@@ -581,7 +605,9 @@ function LogAnalysisAnswerArea({
                 flex: 1,
                 padding: 'var(--aiq-space-sm) var(--aiq-space-md)',
                 fontFamily: 'var(--aiq-font-sans)',
-                fontSize: 14,
+                // M2b: 14px desktop bumps to 15px desktop / 16px mobile via the
+                // .aiq-attempt-shell CSS var. Mobile 16px defeats iOS auto-zoom.
+                fontSize: 'var(--aiq-answer-input-size)',
                 color: 'var(--aiq-color-fg-primary)',
                 background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
                 border: '1px solid var(--aiq-color-border)',
@@ -646,7 +672,8 @@ function LogAnalysisAnswerArea({
             minHeight: 120,
             padding: 'var(--aiq-space-md)',
             fontFamily: 'var(--aiq-font-sans)',
-            fontSize: 15,
+            // M2b: 15px desktop / 16px mobile via the .aiq-attempt-shell CSS var.
+            fontSize: 'var(--aiq-answer-input-size)',
             lineHeight: 1.6,
             color: 'var(--aiq-color-fg-primary)',
             background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
@@ -774,7 +801,8 @@ function ScenarioAnswerArea({
               minHeight: 100,
               padding: 'var(--aiq-space-md)',
               fontFamily: 'var(--aiq-font-sans)',
-              fontSize: 15,
+              // M2b: 15px desktop / 16px mobile via the .aiq-attempt-shell CSS var.
+              fontSize: 'var(--aiq-answer-input-size)',
               lineHeight: 1.6,
               color: 'var(--aiq-color-fg-primary)',
               background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
