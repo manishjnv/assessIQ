@@ -13,7 +13,7 @@
 //  - Sidebar filter state in sessionStorage only (no localStorage).
 //  - No claude/anthropic imports.
 
-import React, { useState } from "react";
+import React, { Fragment, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Sidebar, NavItem, SidebarSection } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
@@ -152,22 +152,40 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     superAdminOnly?: boolean;
   }
 
-  // Nav split: Workspace (create/run/review) → Account (help + settings)
-  // kit dashboard.jsx: SidebarSection "Workspace" then "Account"
+  // Nav split into four sections (2026-05-20 IA reorg):
+  //   Workspace — the assessment lifecycle pipeline (Dashboard + design→take→grade→report)
+  //   Library   — question-bank surface (catalogue + AI generation + history)
+  //   Admin     — management / audit (users, activity log)
+  //   Account   — help, settings, super-admin platform
+  // The previous 10-item flat WORKSPACE list was scan-heavy; four sub-headers
+  // group items by intent without introducing collapsibles (lowest-risk reorg).
+  // Role filtering (adminOnly / superAdminOnly) is applied per section by the
+  // shared renderEntries helper below.
   const workspaceEntries: NavEntry[] = [
     { label: "Dashboard", href: "/admin", icon: "home" },
     { label: "Assessments", href: "/admin/assessments", icon: "clock", adminOnly: true },
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
     { label: "Grading", href: "/admin/grading-jobs", icon: "chart" },
     { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
-    { label: "Activity", href: "/admin/activity", icon: "chart", adminOnly: true },
-    // Phase B1: generation history and generate wizard re-gated to super_admin.
-    // Tenant admins must not see these entries — the backend (Part 4) is
-    // authoritative; this is FE defense-in-depth.
-    { label: "AI generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
+  ];
+
+  // Library — question-bank surface. Phase B1: generation history + generate
+  // wizard remain super_admin-only (FE defense-in-depth; backend Part 4 is
+  // authoritative). "AI generation history" renamed to "Generation history"
+  // for nav consistency (Activity is also a history; "AI" prefix is implied
+  // by living inside the Library section).
+  const libraryEntries: NavEntry[] = [
     { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
     { label: "Generate Questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
+    { label: "Generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
+  ];
+
+  // Admin — management + audit. Users moved out of Workspace (it's a
+  // management task, not a daily workspace activity). Activity (audit log)
+  // joins it as a sibling — both are management/oversight surfaces.
+  const adminEntries: NavEntry[] = [
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
+    { label: "Activity", href: "/admin/activity", icon: "chart", adminOnly: true },
   ];
 
   const accountEntries: NavEntry[] = [
@@ -252,10 +270,13 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     >
       {/* Sidebar */}
       <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} footer={sidebarFooter}>
-        <SidebarSection label="Workspace" collapsed={collapsed} />
-        {workspaceEntries
-          .filter((e) => (!e.adminOnly || isAdmin) && (!e.superAdminOnly || session?.user.role === "super_admin"))
-          .map((e) => (
+        {(() => {
+          // Shared filter — adminOnly + superAdminOnly gates are identical
+          // across all sections; extracted to keep each section a one-liner.
+          const visible = (e: NavEntry): boolean =>
+            (!e.adminOnly || isAdmin) &&
+            (!e.superAdminOnly || session?.user.role === "super_admin");
+          const renderEntry = (e: NavEntry): JSX.Element => (
             <NavItem
               key={e.href}
               label={e.label}
@@ -264,20 +285,29 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
               active={path === e.href || (e.href !== "/admin" && path.startsWith(e.href))}
               collapsed={collapsed}
             />
-          ))}
-        <SidebarSection label="Account" collapsed={collapsed} />
-        {accountEntries
-          .filter((e) => (!e.adminOnly || isAdmin) && (!e.superAdminOnly || session?.user.role === "super_admin"))
-          .map((e) => (
-            <NavItem
-              key={e.href}
-              label={e.label}
-              icon={e.icon}
-              href={e.href}
-              active={path === e.href || (e.href !== "/admin" && path.startsWith(e.href))}
-              collapsed={collapsed}
-            />
-          ))}
+          );
+          // Render a section header only if at least one of its entries is
+          // visible to the current role — avoids an empty "Admin" label for
+          // a reviewer who has no admin entries.
+          const renderSection = (label: string, entries: NavEntry[]): JSX.Element | null => {
+            const shown = entries.filter(visible);
+            if (shown.length === 0) return null;
+            return (
+              <Fragment key={label}>
+                <SidebarSection label={label} collapsed={collapsed} />
+                {shown.map(renderEntry)}
+              </Fragment>
+            );
+          };
+          return (
+            <>
+              {renderSection("Workspace", workspaceEntries)}
+              {renderSection("Library", libraryEntries)}
+              {renderSection("Admin", adminEntries)}
+              {renderSection("Account", accountEntries)}
+            </>
+          );
+        })()}
       </Sidebar>
 
       {/* Main */}
