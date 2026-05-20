@@ -649,6 +649,38 @@ Mechanism: outer `<header>` carries `.aiq-submitted-header`; `<main>` carries `.
 - The Phase 1 grading flow always returns `status: 'grading_pending'` — the "graded state" of the plan (score-ring + cert links) does not exist yet in this codepath. When Phase 2 result rendering lands, M3' will re-cover the graded-state mobile layout as a follow-up.
 - No new help_id added — the existing `candidate.submit.confirm` on the status `<Card>` stays wired.
 
+#### CandidateShell + CandidateActivity mobile reflow (M4 — 2026-05-20)
+
+Files: [`modules/11-candidate-ui/src/components/CandidateShell.tsx`](../modules/11-candidate-ui/src/components/CandidateShell.tsx), [`modules/11-candidate-ui/src/components/CandidateActivity.tsx`](../modules/11-candidate-ui/src/components/CandidateActivity.tsx), [`modules/11-candidate-ui/src/components/MyCertificates.tsx`](../modules/11-candidate-ui/src/components/MyCertificates.tsx).
+
+**Scope clarification:** the original M4 plan assumed `CandidateShell` had a sidebar to reshape — it does not (the shell is already a thin top bar with no nav between pages). M4 therefore (a) **adds** inline NavLinks for the two existing candidate routes (Certificates, Activity) to the shell on both viewports, and (b) on mobile collapses them — plus the Sign out action — into an overflow menu. Net-new affordance, justified by the existing route inventory (no new routes added).
+
+| Element | Desktop | Mobile |
+| --- | --- | --- |
+| Top-bar padding | `0 24px` | `0 16px` |
+| Inline NavLinks (Certificates / Activity) | visible (flex row) | hidden (`display: none`) |
+| Signed-in text + Sign out (top-bar right) | visible | hidden (Sign out moved into menu) |
+| Overflow-menu button (`Icon name="drag"` pill) | hidden | visible (32×32 pill, `aria-haspopup="menu"`) |
+| Overflow-menu dropdown | n/a | absolute-positioned `<ul role="menu">` below the button; items: Certificates, Activity, separator, Sign out |
+| Activity stats grid | `repeat(3, 1fr)` | `1fr` (cards stack vertically) |
+| Activity heatmap | rendered directly | wrapped in `<div style={{overflowX:'auto'}}>` so the 52×7 grid scrolls horizontally inside the card |
+| Activity leaderboard | `LeaderboardList columns={2}` | `columns={1}` (prop driven by `useViewport()` from `@assessiq/ui-system`) |
+| MyCertificates `<h1>` | `var(--aiq-h1-size)` = 36px (M0 token) | 30px (M0 token) |
+
+Mechanism:
+- Shell: same DOM both viewports. Six CSS rules in [`tokens.css`](../modules/17-ui-system/src/styles/tokens.css) toggle `.aiq-candidate-nav-desktop` / `.aiq-candidate-shell-userinfo` (visible desktop, hidden mobile) vs `.aiq-candidate-nav-mobile` (hidden desktop, inline-flex mobile). The mobile overflow menu uses controlled `useState` for open/closed, with a `useEffect` listening for outside-click (`mousedown` on document, `menuRef.contains` test) and Escape. NavLink `onClick` closes the menu before navigating; Sign out closes then fires `handleSignOut`. New `data-help-id="candidate.shell.nav.mobile_menu"` on the toggle, with same-PR entry in `modules/16-help-system/content/en/candidate.yml`.
+- Activity stats: inline `gridTemplateColumns` moves to `.aiq-candidate-activity-stats` class so the mobile override (`grid-template-columns: 1fr`) can take effect via CSS cascade.
+- Activity heatmap: wrapped in a `.aiq-candidate-activity-heatmap-scroll` div with `overflow-x: auto`. Desktop is wider than the 290px min-content heatmap so the wrapper is a no-op there.
+- Activity leaderboard: imports `useViewport` from `@assessiq/ui-system`, computes `columns={viewport === 'mobile' ? 1 : 2}` — same prop, just viewport-aware.
+- MyCertificates h1: a one-line swap from `var(--aiq-text-3xl)` to `var(--aiq-h1-size)` — desktop value preserved (both equal 36px); mobile auto-shrinks to 30px via the M0 mobile-token override.
+
+**Anti-pattern guards (M4-specific):**
+- DOM tree identical between viewports. The Sign out button exists in both the desktop right-side block AND the mobile overflow menu; only one is visible per viewport, both call the same `handleSignOut`.
+- No new routes, no new flows. The NavLinks point at existing routes that were previously reachable only by direct URL.
+- Mobile menu opens via controlled state, not `<details>` — so outside-click and Escape close it (the `<details>` element has no outside-click semantic).
+- Heatmap overflow-scroll does not change the underlying `ActivityHeatmap` props or the 15-analytics API contract.
+- Leaderboard `columns` prop is the only viewport-aware JS branch in M4 — all other deltas are CSS-only. This is acceptable per anti-pattern #5 because `columns` is a layout hint that doesn't change backend payloads or surfaced errors.
+
 ### 15.4 Email-webview testing
 
 Magic-link candidates click email links from Gmail / Outlook / Apple Mail in-app browsers, not Safari/Chrome. Any page touched by the mobile port (especially M1 candidate-auth pages) must be smoke-tested in at least one in-app webview before claiming the phase done. Common gotchas: minimum 16px font-size on inputs (otherwise iOS auto-zooms), missing `gap` polyfills in older WebViews, and aggressive paragraph-truncation.

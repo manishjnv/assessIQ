@@ -219,6 +219,28 @@
 [data-viewport="mobile"] .aiq-submitted-main   { padding: 24px 22px; }
 [data-viewport="mobile"] .aiq-submitted-h1     { font-size: 32px; line-height: 1.1; }
 
+/* CandidateShell + CandidateActivity mobile tunes — M4 phase of MOBILE_KIT_PORT.
+ * Files: modules/11-candidate-ui/src/components/{CandidateShell,CandidateActivity}.tsx.
+ * Same DOM both viewports — CSS toggles visibility of the desktop inline nav
+ * vs the mobile overflow menu (same NavLinks, same routes, same handlers).
+ * Sign out reachable in BOTH viewports: desktop right-side text-link, mobile
+ * inside the overflow menu after a separator. */
+.aiq-candidate-shell-header   { padding: 0 24px; }
+.aiq-candidate-nav-desktop    { display: flex; gap: 4px; align-items: center; }
+.aiq-candidate-shell-userinfo { display: flex; }
+.aiq-candidate-nav-mobile     { display: none; }
+
+[data-viewport="mobile"] .aiq-candidate-shell-header   { padding: 0 16px; }
+[data-viewport="mobile"] .aiq-candidate-shell .aiq-candidate-nav-desktop    { display: none; }
+[data-viewport="mobile"] .aiq-candidate-shell .aiq-candidate-shell-userinfo { display: none; }
+[data-viewport="mobile"] .aiq-candidate-shell .aiq-candidate-nav-mobile     { display: inline-flex; }
+
+/* CandidateActivity stats row — 3-col desktop, 1-col mobile. Heatmap card +
+ * timeline card + leaderboard card all retain their --aiq-space-xl padding
+ * because their internal contents (charts, lists) are already responsive. */
+.aiq-candidate-activity-stats { grid-template-columns: repeat(3, 1fr); }
+[data-viewport="mobile"] .aiq-candidate-activity-stats { grid-template-columns: 1fr; }
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;

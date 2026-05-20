@@ -107,9 +107,12 @@ export function MyCertificates(): React.ReactElement {
       .finally(() => setLoading(false));
   }, []);
 
+  // M4 — h1 fontSize reads M0's --aiq-h1-size token (36px desktop / 30px mobile).
+  // Desktop value matches the prior var(--aiq-text-3xl); mobile auto-shrinks
+  // for small viewports. All other typography unchanged.
   const headingStyle: React.CSSProperties = {
     fontFamily: 'var(--aiq-font-serif)',
-    fontSize: 'var(--aiq-text-3xl)',
+    fontSize: 'var(--aiq-h1-size)',
     fontWeight: 400,
     margin: 0,
     letterSpacing: '-0.02em',
