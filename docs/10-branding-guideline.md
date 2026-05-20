@@ -525,9 +525,11 @@ modules/17-ui-system/AssessIQ_UI_Template/Logo/
 
 If a future surface needs the richer kit mark (e.g. an admin "branding settings" preview), import the SVG from `apps/web/public/brand/logo/assessiq-mark.svg` directly — don't duplicate it into `Logo.tsx`.
 
+**Tagline — RESOLVED 2026-05-19.** The site-wide brand line is **`Graded on evidence.`**, recorded as canonical in [`copy-and-voice.md` § Tagline](../modules/17-ui-system/AssessIQ_UI_Template/design-system/copy-and-voice.md). It replaces the earlier placeholder *"A calmer way to measure ability."* The runtime `meta description` + `og:description` in [`apps/web/index.html`](../apps/web/index.html) are updated. **Remaining divergence:** the baked OG social card raster and the stacked lockup subtagline still render the *old* placeholder text — they are images, not markup, so the new line only reaches them by editing the kit source and running `pnpm --filter @assessiq/ui-system brand:regen` (§13.b workflow 1). Deferred deliberately (no official social push yet); regenerate before any social launch so shares match the site.
+
 **Pending decisions (still open as of 2026-05-03):**
 
-- OG card copy (`A calmer way to measure ability.`, `ASSESSMENT · MEASURED`, `EST · 2026`) is from the original kit; not in any approved doc. Live now because skipping the OG card on every social share is worse than shipping the placeholder. Revisit before any official social push.
+- OG card eyebrow / footer copy (`ASSESSMENT · MEASURED`, `EST · 2026`) is from the original kit; not in any approved doc. Live now because skipping the OG card on every social share is worse than shipping the placeholder. Revisit before any official social push (alongside the tagline raster regen above).
 - OG card domain shows `assessiq.io` — placeholder. Real production domain is `assessiq.automateedge.cloud`. Not changed automatically because `assessiq.io` may be a planned acquisition.
 - Stacked lockup carries `ASSESSMENT · 2026` subtagline — not in any approved doc; same defer-to-decision.
 

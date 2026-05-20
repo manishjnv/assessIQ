@@ -22,6 +22,16 @@ Tone: **calm, confident, editorial.** AccessIQ talks like a thoughtful editor, n
 
 ---
 
+## Tagline (canonical brand line)
+
+**`Graded on evidence.`** — the site-wide tagline. Use verbatim in `apps/web/index.html` `meta description` + `og:description`, the OG social card, and any marketing surface.
+
+- Approved 2026-05-19, replacing the earlier placeholder *"A calmer way to measure ability."*
+- It is on-voice by construction: factual, three words, ends with a period, no banned hype words ("smart" / "intelligently" / "powerful" / "magic" stay out). It states what the product *does* (grades against anchor evidence), not a mood.
+- Do not introduce alternate taglines per surface. One brand line; this is it. New marketing copy may *support* it but must not replace it without a recorded decision here.
+
+---
+
 ## Microcopy patterns
 
 | Element | Pattern | Example |
