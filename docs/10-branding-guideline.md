@@ -558,6 +558,9 @@ The following CSS custom properties are overridden under `[data-viewport="mobile
 | `--aiq-page-padding-y` | `32px` | `20px` | kit README |
 | `--aiq-card-padding` | `24px` | `18px` | kit README (card padding 16–20px) |
 | `--aiq-h1-size` | `36px` (`--aiq-text-3xl`) | `30px` | kit README (H1 28–34px) |
+| `--aiq-admin-shell-topbar-padding-x` | `var(--aiq-space-xl)` (24px) | `var(--aiq-space-md)` (12px) | Admin Mobile Port A0 — AdminShell top bar gutter |
+| `--aiq-admin-shell-topbar-h` | `52px` | `48px` | Admin Mobile Port A0 — AdminShell top bar height |
+| `--aiq-admin-drawer-width` | unset (sidebar in-flow) | `min(280px, 85vw)` | Admin Mobile Port A1 — off-canvas drawer width |
 
 Pages reference the tokens directly (e.g., `padding: var(--aiq-page-padding-y) var(--aiq-page-padding-x)`) so the override applies automatically when the viewport changes.
 
