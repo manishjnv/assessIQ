@@ -865,30 +865,54 @@ Secret comparison: both sides are hashed to fixed-length 32-byte **SHA-256 diges
 
 The function never throws — the entire body is wrapped in a try/catch that returns `req.ip ?? '0.0.0.0'` on any unexpected error, preventing a crypto exception from crashing every request.
 
-### Rollout order
+### Rollout order — **all 4 steps DONE (2026-05-19/20)**
 
-1. **Deploy `off` (current default)** — no behaviour change. Safe to merge and deploy immediately.
-2. **Apply the Cloudflare Transform Rule** (operator step, out-of-band):
-   - Rule: "For all requests to `assessiq.automateedge.cloud`, add request header `x-origin-verify: <secret>`."
-   - Generate secret: `openssl rand -hex 32`
-   - Set `ORIGIN_VERIFY_SECRET=<same value>` in production `.env` / Docker secrets.
-3. **Flip `ORIGIN_TRUST_MODE=log`** — confirm production logs show `origin-unverified` absent for normal traffic; it should appear only for direct-to-origin probes.
-4. **Flip `ORIGIN_TRUST_MODE=enforce`** — IP spoofing is now defeated.
+1. ✅ **Deployed `off`** (`3b2fe73`, 2026-05-19) — no behaviour change.
+2. ✅ **Cloudflare Transform Rule `assessiq-origin-verify`** added (Hostname == assessiq.automateedge.cloud → set request header `x-origin-verify: <64-hex secret>`); matching secret in `/srv/assessiq/.env` (NOT `.env.local` — that's inert).
+3. ✅ **Flipped to `log`** — soak confirmed real CF traffic carries the verified header; the only "unverified" log was the benign loopback `/api/health` heartbeat (not rate-limited, no enforce impact). 0 false-positives on real traffic.
+4. ✅ **Flipped to `enforce`** — spoofed-IP probe on a rate-limited route now returns **429** (was 200). Legit CF traffic 200. Health 200. crontab scan confirmed no internal HTTP callers to rate-limited routes.
+
+**Rollback (operational, in case an internal job ever 429s):** edit `/srv/assessiq/.env` `ORIGIN_TRUST_MODE=enforce`→`log`, redeploy api+worker. `.env.bak.<TS>` backups exist on the VPS.
+
+See **Network-layer origin lockdown (AOP)** below — the second, stronger layer added 2026-05-20 that closes the residual at the TLS handshake itself.
 
 ### Adjudicated adversarial residuals (Sonnet review + Opus adjudication)
 
 The 01-auth gate (`feedback-adversarial-reviewer-routing`) ran a Sonnet adversarial pass (verdict REVISE, 7 findings) adjudicated by Opus. Fixed-with-tests: F1 boot guard (CRITICAL), F5 SHA-256 compare, F6 secret min-16, F7 extractor rename. Remaining **accepted residuals**:
 
-- **F4 — unverified login IP-binding (tracked, NOT a regression).** In `enforce`+unverified, the 7 login IP-binding sites (candidate/embed/google) bind the session to the constant shared-Caddy socket IP, so the bind is degenerate for *unverified* sessions. This is **not worse than the pre-existing state** — `cf-connecting-ip` is already fully spoofable today, so unverified IP-binding is already weak. **Verified** (real-Cloudflare) sessions get *strictly better* binding than before. Expanding the 7 login sites to reject-on-unverified (like rate-limit does) was deliberately out of scope: it risks login-availability if the CF rule lags, and the real mitigation is the network-layer origin lockdown (separate session). Tracked HIGH alongside the origin-lockdown follow-up.
+- ~~**F4 — unverified login IP-binding (tracked, NOT a regression).**~~ **CLOSED 2026-05-20** — the network-layer AOP lockdown (see below) rejects direct-to-origin TLS handshakes entirely, so an "unverified request" can no longer reach the application at all. The degenerate-binding scenario's preconditions are gone. Verified (real-Cloudflare) sessions remain strictly stronger than the pre-2026-05-19 baseline.
 - **F3 — `_log.ts checkIpRateLimit` shares one bucket for unverified traffic.** *By design.* Verified traffic uses its real cf-ip (independent buckets, unaffected); unverified traffic sharing one throttled bucket is the intended conservative posture for traffic that did not provably traverse Cloudflare.
 - **F2 — `mint-session.ts` sentinel `'0.0.0.0'` vs old `'127.0.0.1'`.** The one site where `off` mode is not byte-identical. Dev-only (`NODE_ENV`-gated), and the sentinel is unreachable in practice (`req.ip` always populated under Fastify). Inline comment at the site; audit-cosmetic only.
 
+### Network-layer origin lockdown (Cloudflare Authenticated Origin Pulls) — **LIVE 2026-05-20**
+
+The shared-secret app-layer above is one half of the defense. The **complete** fix is at the TLS layer: make the origin refuse any TLS handshake that isn't presenting Cloudflare's client certificate. With AOP enforcing, a direct-to-origin attacker can't even open an HTTPS connection — they're rejected before any HTTP header (spoofed or not) reaches the application.
+
+**Architecture.** `Cloudflare (AOP-enabled) → ti-platform Caddy (require_and_verify) → assessiq-api`. Cloudflare presents its zone-level Origin Pull client cert on every outbound connection to origin; Caddy's per-site `client_auth { mode require_and_verify; trusted_ca_cert_file /etc/caddy/ssl/cf-origin-pull-ca.pem }` rejects everything else at the TLS handshake.
+
+**Neighbor-safe by design.** Of the 5 Caddy site blocks on the shared box (`intelwatch.in`, `ti.intelwatch.in`, `automateedge.cloud`, `accessbridge.space`, `assessiq.automateedge.cloud`), **only** the AssessIQ block carries `client_auth` — neighbors keep standard TLS. Verified post-flip: all 5 neighbor hostnames still serve HTTP 200.
+
+**CA cert identity.** `/etc/caddy/ssl/cf-origin-pull-ca.pem` is the canonical Cloudflare zone-level Origin Pull CA: `CN = origin-pull.cloudflare.net, O = "CloudFlare, Inc.", OU = Origin Pull`, SHA-256 `9A:1A:C2:B4:BE:15:F9:F2:7E:EE:20:A7:34:CB:A4:E9:89:8F:61:00:1B:3B:D7:C8:4B:69:B5:6A:3E:25:A2:B9`, valid through Nov 2029.
+
+**Rollout: canary flip with auto-revert.** Phase 1 (`mode request` — asks for cert but doesn't reject; no-op) was staged 2026-05-20 05:32 UTC. Phase 2 (`mode require_and_verify`) was flipped via a single sed truncate-write (per the `cat >` bind-mount-inode rule from RCA 2026-04-30, *never* `mv`), `caddy validate` + `caddy reload`, then a 4-probe acceptance gate:
+
+| Probe | Expected | Result |
+|---|---|---|
+| `https://assessiq.automateedge.cloud/api/health` via Cloudflare | 200 | **200** ✓ |
+| Direct-to-origin spoof (`curl --resolve` to origin IP + spoofed CF-Connecting-IP) | TLS rejected (curl HTTP `000`) | **000** ✓ vuln closed |
+| `https://accessbridge.space` (neighbor) | 200 | **200** ✓ |
+| `https://automateedge.cloud` (neighbor apex) | 200 | **200** ✓ |
+
+The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP)`) auto-reverts from the UTC-stamped backup if the CF probe fails — keeps exposure under ~30s if the flip ever needed to be undone.
+
+**Rollback.** `cat /opt/ti-platform/caddy/Caddyfile.bak.<latest> > /opt/ti-platform/caddy/Caddyfile && docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`. Truncate-write only (never `mv`/`cp` over the live Caddyfile).
+
 ### What is NOT included
 
-- **Network-layer origin lockdown** — making the origin reachable *only* via Cloudflare (Authenticated Origin Pulls / CF-IP firewall / tunnel). This is the *complete* fix; the shared-secret header is the app-layer half. Separate gated session (shared-VPS infra, rule #8). Until then the secret's secrecy is the only thing preventing a determined attacker who reaches the origin from forging `x-origin-verify`.
-- Blocking direct-to-origin requests outright with a `403` at the edge — out of app scope.
-- `trustProxy: false` — the Fastify `trustProxy: true` flag (`server.ts`) is intentionally untouched this round; it affects Fastify's own XFF parsing and needs a separate assessment.
-- Automatic secret rotation — operator responsibility via the Transform Rule + `.env`.
+- **`trustProxy: false`** — the Fastify `trustProxy: true` flag (`server.ts:44`) is intentionally untouched. With AOP enforcing, Fastify only ever sees TLS connections from CF (via Caddy), so XFF coming through that path is trustworthy by construction. Still: a separate audit of `trustProxy` semantics is a low-priority hygiene follow-up.
+- **Automatic secret rotation** for `x-origin-verify` — operator responsibility (Transform Rule + `.env`). Now defense-in-depth (network-layer AOP is the primary), so rotation cadence is no longer the only thing holding back an attacker.
+- **`trusted_ca_cert_file` → `trust_pool` migration** — Caddy v2.11 deprecation warning, cosmetic; tracked as low-priority Caddyfile hygiene.
+- **Caddyfile formatting** — `caddy fmt --overwrite` would clean line-38 inconsistencies; not applied this round to keep the diff minimal and the inline RCA comments intact.
 
 ### Downstream impact
 

@@ -1,3 +1,23 @@
+# Session — 2026-05-20 (Network-layer origin lockdown — Cloudflare AOP Phase 2 LIVE, IP-spoof vuln CLOSED)
+
+**Headline:** Completed the second half of the IP-spoof fix at the TLS layer. Cloudflare zone-level Authenticated Origin Pulls enabled (dashboard) + Caddy per-site `client_auth { mode require_and_verify }` flipped from the Phase-1 staging a parallel session had left at 05:32 UTC. Direct-to-origin spoof that returned **HTTP 200 yesterday → HTTP 000 (TLS rejected)** now. App-layer enforce (yesterday) stays in place as defense-in-depth. Adversarial residual F4 (unverified login IP-binding) **CLOSED** — preconditions gone. Neighbors verified untouched.
+**Commits (main):** docs-only this session — no AssessIQ-repo code change (the Caddyfile lives outside the repo at `/opt/ti-platform/caddy/`). One docs commit: `docs(infra): origin lockdown — AOP Phase 2 live + 04-auth/06-deployment/RCA/handoff`. Pushed.
+**Tests:** n/a — infra change. Live verification: 4-probe acceptance gate passed (CF→assessiq 200, origin-direct-spoof 000, accessbridge.space 200, automateedge.cloud 200). Caddy `validate` + `reload` both clean. Caddy admin API confirms `client_auth`/`trusted_ca_cert` keys are in the loaded config.
+**Deploy:** Already live (the flip *was* the deploy). UTC-stamped Caddyfile backup at `/opt/ti-platform/caddy/Caddyfile.bak.20260520T091352Z`. Rollback procedure in `docs/06-deployment.md § AOP`. Only the AssessIQ site block (1 of 5 on the shared Caddy) carries `client_auth` — neighbors structurally unaffected by design.
+**Next:** Open follow-up #1 (`trustProxy/CF-IP`) is now **fully closed**. Tracked low-priority: Caddy `trusted_ca_cert_file → trust_pool` cosmetic migration; `trustProxy:true` hygiene audit; `caddy fmt` formatting nit. Phase 1's parallel-session staging is now properly documented in-repo.
+**Open questions / residuals:** None new. Pre-existing `intelwatch.in` LE renewal errors in Caddy logs predate this change (not caused by my flip; separate operator issue). Memory `origin-verify-ip-spoof` and `MEMORY.md` index updated to reflect CLOSED state.
+
+---
+
+## Agent utilization
+- **Opus:** read-only enumeration (5 Caddy site blocks, neighbor cert issuers, CA fingerprint, baseline 4-probe); discovered Phase 1 was staged outside this conversation (no SSH attribution at 05:32 UTC + memory file already updated by parallel session with enforce-live info); put a 3-question decision to user (owner / CF AOP state / flip aggressiveness); executed the canary flip with auto-revert (UTC-stamped backup + `cat >` truncate-write per the bind-mount inode rule + `caddy validate` + `caddy reload` + 4-probe gate); documented Phase 1 + Phase 2 fully in `04-auth-flows.md` + `06-deployment.md` (canary procedure reusable for any future Caddy edit); RCA + handoff + memory updates.
+- **Sonnet:** n/a — single one-word infra flip with verification; not delegatable (would lose the live-probe loop).
+- **Haiku:** n/a — targeted probes, not a bulk sweep.
+- **codex:rescue:** n/a — change-magnitude rule: one-word Caddyfile flip in an already-staged, already-loaded, neighbor-isolated block, gated by a canary + auto-revert script. Design (Caddy mTLS via canonical CF Origin Pull CA) is industry-standard; the seam was Phase-1-reviewed by the parallel session.
+- **claude-mem:** updated `origin-verify-ip-spoof.md` (network-layer Phase 2 LIVE, F4 CLOSED) + `MEMORY.md` hook.
+
+---
+
 # Session — 2026-05-20 (Mobile Kit Port — vendor drop + Phase M0 foundation SHIPPED)
 
 **Headline:** Mobile UI kit landed at `modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/` (6 candidate-facing screens + mobile atoms + design-system docs + brand assets). Drafted the 7-phase Mobile Kit Port plan (`docs/plans/MOBILE_KIT_PORT.md`) anchored on a north-star rule — *functionality drives UI; UI never drives functionality* — meaning the port only tunes routes that already exist (drops the kit's "Today/Home" + "Library" + 4-item TabBar as product additions). Saved the rule as `feedback-functionality-drives-ui.md` memory. Shipped **Phase M0 (foundation)**: viewport hook + `<html data-viewport>` mechanism (matchMedia `(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))`), inline-script anti-flicker in `index.html`, mobile token block in `tokens.css` (4 new layout tokens), `ViewportLock` stub for M5, ESLint guard for the new kit, branding-guideline § 15 Mobile + ui-system Mobile subsection.

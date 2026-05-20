@@ -175,6 +175,54 @@ RCA reference: `docs/RCA_LOG.md` 2026-05-08 entry documents the three incident c
 
 ---
 
+## Authenticated Origin Pulls (AOP) — origin TLS-locked to Cloudflare (live 2026-05-20)
+
+Closes the confirmed IP-spoof vuln (see `docs/RCA_LOG.md` 2026-05-19 and 2026-05-20) at the TLS layer: the origin rejects any HTTPS handshake that isn't presenting Cloudflare's zone-level Origin Pull client certificate. This is the **complete** fix; the app-layer `x-origin-verify` shared-secret (see `docs/04-auth-flows.md § Origin-verify header`) is defense-in-depth.
+
+**State (verified):**
+
+- Caddyfile (`/opt/ti-platform/caddy/Caddyfile`) AssessIQ block carries `tls ... { client_auth { mode require_and_verify; trusted_ca_cert_file /etc/caddy/ssl/cf-origin-pull-ca.pem } }`. **Only the AssessIQ site block has `client_auth`** — neighbors (`intelwatch.in`, `ti.intelwatch.in`, `automateedge.cloud`, `accessbridge.space`) are untouched and remain on standard TLS.
+- CA cert (host) `/opt/ti-platform/caddy/ssl/cf-origin-pull-ca.pem` is the canonical Cloudflare Origin Pull CA (`CN=origin-pull.cloudflare.net`, SHA-256 `9A:1A:C2:B4:...:25:A2:B9`, valid through Nov 2029). Mount: `/opt/ti-platform/caddy/ssl → /etc/caddy/ssl` (host → container).
+- Cloudflare-side: zone-level AOP enabled in the dashboard (Zone → SSL/TLS → Origin Server → Authenticated Origin Pulls → ON).
+
+**Flip procedure (canary with auto-revert; reuse for any future Caddy edit):**
+
+```bash
+# Backup is a SEPARATE file (cp safe; bind-mount inode trap only applies to the live file).
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+cp /opt/ti-platform/caddy/Caddyfile /opt/ti-platform/caddy/Caddyfile.bak.${TS}
+
+# Truncate-write the edit (sed -i / mv would change inode -> bind-mount sees stale content; RCA 2026-04-30).
+NEW=$(sed "s/mode request/mode require_and_verify/" /opt/ti-platform/caddy/Caddyfile)
+printf "%s\n" "$NEW" > /opt/ti-platform/caddy/Caddyfile      # same inode
+
+# Validate before reload — Caddy keeps old config on validate-fail, but explicit is better.
+docker exec ti-platform-caddy-1 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker exec ti-platform-caddy-1 caddy reload   --config /etc/caddy/Caddyfile --adapter caddyfile
+
+# 4-probe acceptance gate
+CF=$(curl -s -m 8 -o /dev/null -w "%{http_code}" https://assessiq.automateedge.cloud/api/health)        # need 200
+SP=$(curl -s -m 10 -k --resolve assessiq.automateedge.cloud:443:72.61.227.64 \
+       -H "CF-Connecting-IP: 203.0.113.99" -o /dev/null -w "%{http_code}" \
+       https://assessiq.automateedge.cloud/api/health)                                                   # need NOT 200
+N1=$(curl -s -m 8 -o /dev/null -w "%{http_code}" https://accessbridge.space)                            # need 200
+N2=$(curl -s -m 8 -L -o /dev/null -w "%{http_code}" https://automateedge.cloud)                         # need 200
+
+# Auto-revert if the CF probe fails
+if [ "$CF" != "200" ]; then
+  cat /opt/ti-platform/caddy/Caddyfile.bak.${TS} > /opt/ti-platform/caddy/Caddyfile   # truncate-write again
+  docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+fi
+```
+
+**Rollback.** Same `cat backup > Caddyfile` pattern + reload. `.bak.<TS>` files accumulate in `/opt/ti-platform/caddy/` (5 visible at last check, oldest May 2). Keep the last few; prune older.
+
+**Operational notes:**
+
+- **Bind-mount inode trap (RCA 2026-04-30)**: NEVER `mv newfile /opt/ti-platform/caddy/Caddyfile` and NEVER `sed -i` — those create a new inode, and Docker's bind-mount continues to point at the orphaned old inode. Caddy will reload from the OLD content. Use truncate-write (`cat >`, `printf >`, `tee` w/o `-a`) so the inode is preserved.
+- **Caddy admin API**: `docker exec ti-platform-caddy-1 wget -qO- http://127.0.0.1:2019/config/` returns the currently-loaded JSON config — use to verify `client_auth`/`trusted_ca_cert` keys are actually present after reload (don't assume from the Caddyfile diff alone).
+- **Caddy deprecation warning** logged on reload: `'trusted_ca_cert_file' field is deprecated. Use the 'trust_pool' field instead.` — Caddy v2.11.1. Non-breaking; tracked as Caddyfile hygiene follow-up.
+
 ## Reverse-proxy plan — additive Caddyfile block
 
 The ti-platform Caddyfile (at `/opt/ti-platform/caddy/Caddyfile`) already has Cloudflare IPs in `trusted_proxies` and uses bridge-gateway upstreams (`172.17.0.1:<port>`) to reach apps on other Docker networks (this is the pattern roadmap and accessbridge use today). Match that pattern — no edits to ti-platform's `docker-compose.yml`, no `extra_hosts`, no shared-network coupling.
