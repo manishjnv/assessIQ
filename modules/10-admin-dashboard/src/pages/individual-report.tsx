@@ -56,7 +56,7 @@ export function AdminIndividualReport(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={["Reports", "Individual"]} helpPage="admin.reports.individual">
+      <AdminShell breadcrumbs={[{ label: "Reports", href: "/admin/reports" }, "Individual"]} helpPage="admin.reports.individual">
         <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
           <Spinner aria-label="Loading individual report" />
         </div>
@@ -66,7 +66,7 @@ export function AdminIndividualReport(): React.ReactElement {
 
   if (error || !report) {
     return (
-      <AdminShell breadcrumbs={["Reports", "Individual"]} helpPage="admin.reports.individual">
+      <AdminShell breadcrumbs={[{ label: "Reports", href: "/admin/reports" }, "Individual"]} helpPage="admin.reports.individual">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
       </AdminShell>
     );
@@ -77,7 +77,7 @@ export function AdminIndividualReport(): React.ReactElement {
     .map((a) => a.auto_pct);
 
   return (
-    <AdminShell breadcrumbs={["Reports", "Individual", report.email]} helpPage="admin.reports.individual">
+    <AdminShell breadcrumbs={[{ label: "Reports", href: "/admin/reports" }, "Individual", report.email]} helpPage="admin.reports.individual">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         <div>
           <div style={{ marginBottom: 12 }}>

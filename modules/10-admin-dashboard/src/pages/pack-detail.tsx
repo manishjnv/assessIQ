@@ -636,7 +636,7 @@ export function AdminPackDetail(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={["Question Bank", "Pack"]} helpPage="admin.question_bank.pack">
+      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Pack"]} helpPage="admin.question_bank.pack">
         <div
           style={{
             color: "var(--aiq-color-fg-muted)",
@@ -653,7 +653,7 @@ export function AdminPackDetail(): React.ReactElement {
 
   if (error || !pack) {
     return (
-      <AdminShell breadcrumbs={["Question Bank", "Pack"]} helpPage="admin.question_bank.pack">
+      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Pack"]} helpPage="admin.question_bank.pack">
         <div
           style={{
             color: "var(--aiq-color-danger)",
@@ -677,7 +677,7 @@ export function AdminPackDetail(): React.ReactElement {
   }, {});
 
   return (
-    <AdminShell breadcrumbs={["Question Bank", pack.name]} helpPage="admin.question_bank.pack">
+    <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, pack.name]} helpPage="admin.question_bank.pack">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Pack header */}
         <div>
