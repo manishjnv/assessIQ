@@ -21,7 +21,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { ValidationError, NotFoundError, ConflictError, streamLogger } from '@assessiq/core';
-import { updateAiGenerateMode, createTenant, activateTenant, getPool } from '@assessiq/tenancy';
+import { updateAiGenerateMode, createTenant, activateTenant, getPool, assertTenantActive } from '@assessiq/tenancy';
 import { inviteUser } from '@assessiq/users';
 import { audit } from '@assessiq/audit-log';
 import {
@@ -84,6 +84,8 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
     { preHandler: superAdminOnly },
     async (req, reply) => {
       const { tenantId } = req.params as { tenantId: string };
+      // Write-block guard: reject mutations on suspended/archived tenants.
+      await assertTenantActive(tenantId);
       const body = req.body as { mode?: unknown };
 
       // Validate mode: must be exactly one of the three allowed values.
@@ -309,6 +311,8 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
     async (req, reply) => {
       const session = req.session!;
       const { tenantId } = req.params as { tenantId: string };
+      // Write-block guard: reject mutations on suspended/archived tenants.
+      await assertTenantActive(tenantId);
 
       // Resolve the tenant's first admin under assessiq_system (BYPASSRLS).
       // Scoped to tenantId from the URL — never crosses to another tenant.
@@ -572,6 +576,8 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
     { preHandler: superAdminOnly },
     async (req, reply) => {
       const { tenantId } = req.params as { tenantId: string };
+      // Write-block guard: reject mutations on suspended/archived tenants.
+      await assertTenantActive(tenantId);
       // Guard against a missing/null PATCH body (empty PATCH → no-op revalidate,
       // never a TypeError 500). Mirrors the ai-generate-mode `body?.` idiom.
       const body = (req.body ?? {}) as { tier?: unknown; includedCredits?: unknown };
@@ -675,6 +681,8 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
     { preHandler: superAdminOnly },
     async (req, reply) => {
       const { tenantId } = req.params as { tenantId: string };
+      // Write-block guard: reject mutations on suspended/archived tenants.
+      await assertTenantActive(tenantId);
       const body = (req.body ?? {}) as { scopeType?: unknown; scopeId?: unknown };
 
       // Light type-guard — domain validation is delegated to grantEntitlement.
@@ -727,6 +735,8 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
     { preHandler: superAdminOnly },
     async (req, reply) => {
       const { tenantId } = req.params as { tenantId: string };
+      // Write-block guard: reject mutations on suspended/archived tenants.
+      await assertTenantActive(tenantId);
       const body = (req.body ?? {}) as { scopeType?: unknown; scopeId?: unknown };
 
       // Light type-guard — domain validation is delegated to revokeEntitlement.

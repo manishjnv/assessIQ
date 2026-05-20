@@ -3,6 +3,11 @@ import { withTenant } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 import { sessions, isIdleExpired } from "../sessions.js";
 import type { AuthHook } from "./types.js";
+// TenantStatusRow is a local interface — session-loader must not import from
+// 02-tenancy/src/lifecycle.ts (that would create a circular dep path via
+// @assessiq/tenancy). The tenant status query here mirrors assertTenantActive
+// but runs under app-role RLS (withinTenant) rather than system role, since
+// we already have a tenant context from the session cookie.
 
 // Reads the aiq_sess cookie, looks up the session via Redis, applies the
 // idle-eviction cutoff, and (defense-in-depth per 03-users carry-forward)
@@ -24,6 +29,10 @@ interface UserStatusRow {
   deleted_at: string | null;
 }
 
+interface TenantStatusRow {
+  status: string;
+}
+
 async function userIsActive(tenantId: string, userId: string): Promise<boolean> {
   // Defense-in-depth: even if Redis sweep-on-disable missed a session,
   // the Postgres status check fails-closed.
@@ -41,6 +50,29 @@ async function userIsActive(tenantId: string, userId: string): Promise<boolean> 
     const row = result.rows[0];
     if (row === undefined) return false;
     return row.status === "active" && row.deleted_at === null;
+  });
+}
+
+// Defense-in-depth: verify the tenant is still active on every authenticated
+// request. Complements the userIsActive check — a suspended/archived tenant
+// should block ALL its users, even if individual user rows are still 'active'.
+//
+// Uses withTenant (assessiq_app role, RLS-scoped) because we already have a
+// valid tenantId from the session cookie. This is safe: if the tenants row is
+// invisible due to a misconfigured RLS policy, the function returns false and
+// the session is rejected (fail-closed — same philosophy as userIsActive).
+//
+// Allowed: 'active' and 'provisioning' (createTenant orchestration window).
+// All other statuses (suspended, archived) → false → session destroyed.
+async function tenantIsActive(tenantId: string): Promise<boolean> {
+  return withTenant(tenantId, async (client: PoolClient) => {
+    const result = await client.query<TenantStatusRow>(
+      `SELECT status FROM tenants WHERE id = $1`,
+      [tenantId],
+    );
+    const row = result.rows[0];
+    if (row === undefined) return false;
+    return row.status === "active" || row.status === "provisioning";
   });
 }
 
@@ -69,12 +101,30 @@ export function sessionLoaderMiddleware(opts: SessionLoaderOptions = {}): AuthHo
       return;
     }
 
+    // Lifecycle checks below are POINT-IN-TIME at session-load. If the operator
+    // suspends a tenant or disables a user mid-request — between this guard
+    // and the route handler — the handler will still complete its work for
+    // that one request. Lifecycle transitions are infrequent and revoke
+    // sessions atomically with the status flip, so the next request is
+    // guaranteed to fail. Acceptable per Phase A architectural principles;
+    // Phase B/C lifecycle endpoints document this as the contract.
+    //
+    // Error-message hygiene: the throws below carry a generic message and
+    // route the scope (user vs tenant) through `details.scope`. The frontend
+    // (Phase D) picks the right copy via `details.scope` — `code` and the
+    // raw message are never displayed to the user. This prevents a
+    // cookie-holding attacker from distinguishing "my account was disabled"
+    // from "my company was suspended" via the error string itself.
     if (opts.skipUserStatusCheck !== true) {
+      // User check runs FIRST — a disabled user should receive a user-scope
+      // error, not a tenant-scope error (per Phase A architectural principle #4).
       try {
         const active = await userIsActive(session.tenantId, session.userId);
         if (!active) {
           await sessions.destroy(token);
-          throw new AuthnError("user disabled or deleted");
+          throw new AuthnError("session rejected", {
+            details: { scope: "user", reason: "inactive" },
+          });
         }
       } catch (err) {
         if (err instanceof AuthnError) throw err;
@@ -86,7 +136,31 @@ export function sessionLoaderMiddleware(opts: SessionLoaderOptions = {}): AuthHo
           { err, kind: "session-loader-user-check-failed", userId: session.userId, tenantId: session.tenantId },
           "session loader user-status check failed; rejecting session",
         );
-        throw new AuthnError("user status check failed");
+        throw new AuthnError("session rejected", {
+          details: { scope: "user", reason: "check_failed" },
+        });
+      }
+
+      // Tenant check runs SECOND (defense-in-depth): even if the user is
+      // individually active, a suspended or archived tenant blocks all sessions.
+      // skipUserStatusCheck gates both checks together (dev/test scaffolding).
+      try {
+        const tenantActive = await tenantIsActive(session.tenantId);
+        if (!tenantActive) {
+          await sessions.destroy(token);
+          throw new AuthnError("session rejected", {
+            details: { scope: "tenant", reason: "inactive" },
+          });
+        }
+      } catch (err) {
+        if (err instanceof AuthnError) throw err;
+        req.log?.warn(
+          { err, kind: "session-loader-tenant-check-failed", tenantId: session.tenantId },
+          "session loader tenant-status check failed; rejecting session",
+        );
+        throw new AuthnError("session rejected", {
+          details: { scope: "tenant", reason: "check_failed" },
+        });
       }
     }
 
