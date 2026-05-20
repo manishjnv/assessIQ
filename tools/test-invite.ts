@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // One-shot invite tester. Calls inviteUsers directly to verify the
 // 2026-05-09 tenantId-threading fix produces a real email_log row.
 import { inviteUsers } from "@assessiq/assessment-lifecycle";

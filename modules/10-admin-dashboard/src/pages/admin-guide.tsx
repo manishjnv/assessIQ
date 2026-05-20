@@ -111,7 +111,7 @@ function UL({ items }: { items: React.ReactNode[] }): React.ReactElement {
   );
 }
 
-function Callout({ children }: { children: React.ReactNode }): React.ReactElement {
+function _Callout({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
     <div
       style={{

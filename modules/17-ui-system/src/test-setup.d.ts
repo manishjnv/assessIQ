@@ -5,7 +5,7 @@
 import "vitest";
 
 declare module "vitest" {
-  interface Assertion<T = unknown> {
+  interface Assertion<_T = unknown> {
     toHaveNoViolations(): void;
   }
 }

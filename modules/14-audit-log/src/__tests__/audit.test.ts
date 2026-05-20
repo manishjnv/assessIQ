@@ -20,7 +20,7 @@
  *   - list() — basic pagination + filter by action
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
 import { readdir, readFile } from 'node:fs/promises';

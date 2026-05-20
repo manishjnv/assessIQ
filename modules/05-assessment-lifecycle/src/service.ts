@@ -108,7 +108,7 @@ function assertPageSize(pageSize: number): void {
  * Translate a Postgres unique-violation (23505) to a ConflictError with the
  * given domain error code. Re-throws all other errors unchanged.
  */
-function rethrowUnique(err: unknown, code: string, message: string): never {
+function _rethrowUnique(err: unknown, code: string, message: string): never {
   if (
     err !== null &&
     typeof err === "object" &&

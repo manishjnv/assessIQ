@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/admin-revoke-integration.test.ts
 //
 // PII rule test for revoke().

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/admin-reissue.test.ts
 //
 // Phase 5 Session 5 — unit tests for reissue (POST /api/admin/certificates/:credentialId/reissue).

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import fs from "node:fs";
-import path from "node:path";
 
 // ---------------------------------------------------------------------------
 // MCP Rejection Logger

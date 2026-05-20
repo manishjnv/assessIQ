@@ -291,12 +291,10 @@ export function CandidateActivity(): React.ReactElement {
     void fetchHeatmap();
     void fetchTimeline();
     void fetchLeaderboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     void fetchStats(period);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
   // ---- Derived display data ----

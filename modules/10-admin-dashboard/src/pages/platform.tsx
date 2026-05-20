@@ -12,12 +12,11 @@
 //   - META_LABEL / ROW_GRID / zebra rows
 //   - data-help-id on form controls
 
-import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import React, { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import {
-  adminApi,
   AdminApiError,
   createCompanyApi,
   resendInvitationApi,
@@ -638,7 +637,6 @@ function BillingDrawer({
       .catch((err) => {
         setContentScopesError(err instanceof AdminApiError ? err.apiError.message : "couldn't load list — type manually");
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant.id]);
 
   const isInternalTier = editTier === "internal";

@@ -257,7 +257,7 @@ interface RouteMount {
  */
 function extractRoutes(filePath: string, content: string): RouteMount[] {
   const routes: RouteMount[] = [];
-  const lines = content.split("\n");
+  const _lines = content.split("\n");
 
   // Pattern 1: app.METHOD("url"  or  app.METHOD('url'
   //   Captures: (1) method, (2) quote char, (3) url

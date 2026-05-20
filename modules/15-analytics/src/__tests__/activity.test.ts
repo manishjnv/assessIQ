@@ -316,7 +316,7 @@ async function seedFixtures(): Promise<ActivityFixture> {
 
     // --- Date helpers ---
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const _todayStr = now.toISOString().slice(0, 10);
     // 3 days ago
     const d3 = new Date(now.getTime() - 3 * 86_400_000);
     // 30 days ago

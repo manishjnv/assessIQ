@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/list-mine.test.ts
 //
 // Phase 5 Session 5 — unit tests for listForUser (GET /api/certificates).

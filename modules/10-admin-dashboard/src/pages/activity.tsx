@@ -293,14 +293,12 @@ export function AdminActivity(): React.ReactElement {
   useEffect(() => {
     void fetchHeatmap();
     void fetchTimeline();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Stats + leaderboard: re-fetch when period changes
   useEffect(() => {
     void fetchStats(period);
     void fetchLeaderboard(period);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
   // ---- Derived display data ----

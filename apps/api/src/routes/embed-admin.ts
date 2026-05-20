@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { AppError, ValidationError } from '@assessiq/core';
+import { ValidationError } from '@assessiq/core';
 import {
   listEmbedOrigins,
   addEmbedOrigin,

@@ -500,6 +500,7 @@ export function AdminPackDetail(): React.ReactElement {
     } catch (err) {
       // Surface as a console warning — this is a convenience affordance,
       // not blocking. The pack is still usable without activating all.
+      // eslint-disable-next-line no-console
       console.warn("activate-questions error:", err instanceof AdminApiError ? err.apiError.message : err);
     } finally {
       setActivatingLevel(null);
@@ -533,6 +534,7 @@ export function AdminPackDetail(): React.ReactElement {
       });
       await fetchPack();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.warn("archive-question error:", err instanceof AdminApiError ? err.apiError.message : err);
     } finally {
       setArchivingQuestion(null);
@@ -552,6 +554,7 @@ export function AdminPackDetail(): React.ReactElement {
       setLevelSelections((prev) => ({ ...prev, [levelId]: new Set() }));
       await fetchPack();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.warn(
         "bulk-update error:",
         err instanceof AdminApiError ? err.apiError.message : err,

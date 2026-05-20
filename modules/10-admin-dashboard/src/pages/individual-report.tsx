@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { Chip, Spinner, Sparkline, StatCard } from "@assessiq/ui-system";
+import { Chip, Spinner, Sparkline } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { ArchetypeRadar } from "../components/ArchetypeRadar.js";
 import { adminApi, AdminApiError } from "../api.js";

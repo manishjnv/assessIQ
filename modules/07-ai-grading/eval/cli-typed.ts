@@ -683,7 +683,7 @@ export function renderAttemptReport(
 
   // ── Section 1: Attempt header ─────────────────────────────────────────────
   const durationStr = d.durationMs !== null ? fmtDuration(d.durationMs) : "n/a";
-  const shortId = d.id.slice(0, 8);
+  const _shortId = d.id.slice(0, 8);
 
   lines.push(`Attempt ${d.id}`);
   lines.push(`Pack ${d.packId} / Level ${d.levelId}`);

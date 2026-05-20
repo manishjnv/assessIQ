@@ -119,7 +119,6 @@ export const AttemptTimer: React.FC<AttemptTimerProps> = ({
     // into getRemainingSeconds on each tick naturally.
     // onExpire omitted deliberately: changing the callback between renders
     // must not restart the interval — the ref captures the stable intent.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endsAt]);
 
   // -------------------------------------------------------------------
@@ -137,7 +136,7 @@ export const AttemptTimer: React.FC<AttemptTimerProps> = ({
   // Derived display values
   // -------------------------------------------------------------------
   const displaySeconds = Math.max(0, Math.floor(remainingSeconds));
-  const formatted = formatRemaining(displaySeconds);
+  const _formatted = formatRemaining(displaySeconds);
   const color = colorForRemaining(displaySeconds);
 
   // -------------------------------------------------------------------

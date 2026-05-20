@@ -59,7 +59,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const CLI_PATH = resolve(__dirname, "../cli.ts");
 // tsx binary at workspace root
-const TSX_BIN = resolve(__dirname, "../../../../node_modules/.bin/tsx");
+const _TSX_BIN = resolve(__dirname, "../../../../node_modules/.bin/tsx");
 
 // ---------------------------------------------------------------------------
 // Canned GradingProposal returned by the mock runtime

@@ -55,7 +55,6 @@ import * as repo from '../repository.js';
 import {
   MAX_CREDENTIAL_ID_RETRIES,
   MAX_TIER_UPGRADE_RETRIES,
-  TierUpgradeConflictError,
   issueCertificate,
 } from '../service.js';
 import { CREDENTIAL_ID_REGEX } from '../types.js';

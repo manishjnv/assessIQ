@@ -146,7 +146,7 @@ export function AdminAttemptDetail(): React.ReactElement {
     }
   }
 
-  async function handleAccept(questionId: string, proposal: GradingProposal) {
+  async function handleAccept(questionId: string, _proposal: GradingProposal) {
     if (!id) return;
     setAccepting(true);
     try {
@@ -402,7 +402,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                     stageTwo={proposal}
                     stageThree={escalation}
                     onReconcile={(stage, note) => {
-                      const chosenProposal = stage === "3" ? escalation : proposal;
+                      const _chosenProposal = stage === "3" ? escalation : proposal;
                       void adminApi(`/admin/attempts/${id}/accept`, {
                         method: "POST",
                         body: JSON.stringify({

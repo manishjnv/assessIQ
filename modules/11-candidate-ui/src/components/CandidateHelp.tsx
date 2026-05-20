@@ -57,7 +57,7 @@ const SECTION_H2: CSSProperties = {
   padding: "0",
 };
 
-const BODY_P: CSSProperties = {
+const _BODY_P: CSSProperties = {
   fontFamily: "var(--aiq-font-sans)",
   fontSize: 14,
   lineHeight: 1.6,

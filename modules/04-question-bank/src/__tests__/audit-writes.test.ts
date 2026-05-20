@@ -38,7 +38,7 @@ import {
   saveRubric,
   bulkUpdateQuestionStatus,
 } from "../service.js";
-import type { CreatePackInput, CreateQuestionInput } from "../types.js";
+import type { CreateQuestionInput } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Path helpers (Windows: strip leading slash before drive letter)

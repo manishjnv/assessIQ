@@ -77,7 +77,6 @@ export function useIntegrityHooks({
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId, currentQuestionId, enabled]);
 
   // ── Copy / paste ──────────────────────────────────────────────────────────
@@ -103,7 +102,6 @@ export function useIntegrityHooks({
       document.removeEventListener("copy", handleCopy);
       document.removeEventListener("paste", handlePaste);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId, currentQuestionId, enabled]);
 
   // ── Question view ─────────────────────────────────────────────────────────
@@ -113,6 +111,5 @@ export function useIntegrityHooks({
     if (!enabled || currentQuestionId === null) return;
 
     emit("question_view", currentQuestionId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId, currentQuestionId, enabled]);
 }

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // tools/test-issue-cert.ts
 //
 // One-shot certificate-issuance smoke. Issues a real certificate against an

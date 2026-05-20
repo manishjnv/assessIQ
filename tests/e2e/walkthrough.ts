@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * E2E walkthrough smoke test — 2026-05-15
  *

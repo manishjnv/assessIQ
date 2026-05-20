@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/share-linkedin.test.ts
 //
 // Phase 5 Session 6 — unit tests for incrementShareCount

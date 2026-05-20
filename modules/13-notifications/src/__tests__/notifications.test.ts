@@ -113,7 +113,7 @@ vi.mock('nodemailer', () => ({
   },
 }));
 // Accessor for tests that need to assert on sendMail calls
-async function getMockSendMail() {
+async function _getMockSendMail() {
   const nodemailer = await import('nodemailer');
   return (nodemailer.default.createTransport as ReturnType<typeof vi.fn>).mock.results[0]?.value?.sendMail as ReturnType<typeof vi.fn> | undefined;
 }
@@ -611,7 +611,7 @@ describe('webhook deliver-job HTTP semantics', () => {
   it('2xx response marks delivery as delivered', async () => {
     const { getWebhookDeliveryById, getWebhookEndpointById, updateWebhookDeliveryStatus } =
       await import('../repository.js');
-    const { getDecryptedSecret } = await import('../webhooks/service.js');
+    const { getDecryptedSecret: _getDecryptedSecret } = await import('../webhooks/service.js');
 
     vi.mocked(getWebhookDeliveryById).mockResolvedValueOnce({
       id: 'del-1',

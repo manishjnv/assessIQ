@@ -22,7 +22,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { authenticator as _authenticatorBase } from "@otplib/preset-default";
-import { HashAlgorithms, KeyEncodings, totpToken } from "@otplib/core";
+import { HashAlgorithms, KeyEncodings } from "@otplib/core";
 import type { AuthenticatorOptions } from "@otplib/core";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";

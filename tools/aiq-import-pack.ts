@@ -35,7 +35,7 @@ import { readFile } from "node:fs/promises";
 import { Client } from "pg";
 import { config } from "@assessiq/core";
 import { AppError } from "@assessiq/core";
-import { setPoolForTesting, getPool, closePool } from "@assessiq/tenancy";
+import { closePool } from "@assessiq/tenancy";
 import { bulkImport } from "../modules/04-question-bank/src/service.js";
 
 // ---------------------------------------------------------------------------

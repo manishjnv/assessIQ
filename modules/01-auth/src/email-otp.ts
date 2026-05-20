@@ -26,8 +26,8 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
 import { randomInt } from "node:crypto";
-import { config, AuthnError } from "@assessiq/core";
-import { normalizeEmail, mintForIdentity, COOKIE_CONTINUATION_NAME, continuationCookieOpts } from "./google-sso.js";
+import { AuthnError } from "@assessiq/core";
+import { normalizeEmail, mintForIdentity } from "./google-sso.js";
 import type { OidcCallbackOutput } from "./google-sso.js";
 import {
   resolveLoginIdentities,

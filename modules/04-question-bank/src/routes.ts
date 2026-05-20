@@ -42,7 +42,6 @@ import type {
 import {
   listPacks,
   createPack,
-  getPack,
   getPackWithLevels,
   updatePack,
   publishPack,
