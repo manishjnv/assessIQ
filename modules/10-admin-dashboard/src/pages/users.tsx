@@ -647,6 +647,7 @@ function UserManageMenu({
     disabled = false,
   ): React.ReactElement => (
     <button
+      key={label}
       type="button"
       onClick={(e) => {
         e.stopPropagation();

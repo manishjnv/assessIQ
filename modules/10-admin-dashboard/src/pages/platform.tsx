@@ -1458,6 +1458,7 @@ function ManageMenu({
 
   const menuItem = (label: string, onClick: () => void, danger = false): React.ReactElement => (
     <button
+      key={label}
       type="button"
       onClick={(e) => {
         e.stopPropagation();
