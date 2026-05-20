@@ -539,3 +539,32 @@ If a future surface needs the richer kit mark (e.g. an admin "branding settings"
 - **Score model.** The template's `132/160` + percentile + raw 0–100 bars are wrong for AssessIQ — see `docs/05-ai-pipeline.md` § Score computation for the banded model that replaces them.
 - **Auth flow.** Template's email/password + signup is not the v1 product — see `docs/04-auth-flows.md` for Google SSO + TOTP MFA + admin-invite-only.
 - **Components beyond what the template shipped.** New domain components (`RubricEditor`, `BandPicker`, `AnchorChip`, `GradingProposalCard`, `HelpTip`, `HelpDrawer`, `TotpEnrollment`) are listed in `docs/08-ui-system.md` and built per-module — they must conform to this guideline but are not pre-designed here.
+
+## 15. Mobile
+
+The mobile UI kit lives at [`modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/). It is a **palette of idioms** (tokens, atoms, layout patterns) for tuning existing pages on small viewports — *not* a product spec. Per [docs/plans/MOBILE_KIT_PORT.md](./plans/MOBILE_KIT_PORT.md), the port adopts kit visuals only for routes that already exist in the product. Adding a new page, route, or user flow because the kit ships a screen for it is out of scope.
+
+### 15.1 Viewport mechanism
+
+The SPA distinguishes two viewports: `mobile` and `desktop`. The current viewport is published as `data-viewport="mobile" | "desktop"` on `<html>`, driven by `window.matchMedia('(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))')`. The initial value is set by an inline script in [`apps/web/index.html`](../apps/web/index.html) before the React bundle loads (avoids first-paint flicker); the React side keeps it in sync via `useViewportSync()` in [`modules/17-ui-system/src/hooks/useViewportSync.ts`](../modules/17-ui-system/src/hooks/useViewportSync.ts), wired into the existing `ThemeProvider`. Components that need to branch on viewport import `useViewport()` from `@assessiq/ui-system`.
+
+### 15.2 Token deltas
+
+The following CSS custom properties are overridden under `[data-viewport="mobile"]` in [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css):
+
+| Token | Desktop | Mobile | Source |
+| --- | --- | --- | --- |
+| `--aiq-page-padding-x` | `40px` | `22px` | kit README (page padding 20–24px) |
+| `--aiq-page-padding-y` | `32px` | `20px` | kit README |
+| `--aiq-card-padding` | `24px` | `18px` | kit README (card padding 16–20px) |
+| `--aiq-h1-size` | `36px` (`--aiq-text-3xl`) | `30px` | kit README (H1 28–34px) |
+
+Pages reference the tokens directly (e.g., `padding: var(--aiq-page-padding-y) var(--aiq-page-padding-x)`) so the override applies automatically when the viewport changes.
+
+### 15.3 Pattern reflows (catalog — populated incrementally by later phases)
+
+Each later phase of the mobile port adds its reflow rule here. M0 only ships the foundation; no pattern reflows are wired yet.
+
+### 15.4 Email-webview testing
+
+Magic-link candidates click email links from Gmail / Outlook / Apple Mail in-app browsers, not Safari/Chrome. Any page touched by the mobile port (especially M1 candidate-auth pages) must be smoke-tested in at least one in-app webview before claiming the phase done. Common gotchas: minimum 16px font-size on inputs (otherwise iOS auto-zooms), missing `gap` polyfills in older WebViews, and aggressive paragraph-truncation.

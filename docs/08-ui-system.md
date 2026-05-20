@@ -539,3 +539,26 @@ Component: `modules/10-admin-dashboard/src/pages/platform.tsx` → `export funct
 **Create-company modal:** fixed-position Card with backdrop, required fields (name, slug, admin email), collapsible Advanced section (domain, admin display name). Slug auto-derived from name; client-side `[a-z0-9-]+` validation. MFA step-up sub-state on `401 AUTHN_FAILED` + message `/fresh totp/i` — preserves all entered form values, calls `verifyTotpApi`, refreshes session via `fetchAdminWhoami(true)`, auto-retries `createCompanyApi`. No secrets stored beyond the transient 6-digit TOTP code (cleared on success/close).
 
 **Help page key:** `admin.platform` (wired via `AdminShell helpPage="admin.platform"`). Field-level keys: `admin.platform.slug`, `admin.platform.admin_email`, `admin.platform.domain`, `admin.platform.admin_name`, `admin.platform.mfa_code`.
+
+---
+
+## Mobile (added in Mobile Kit Port M0 — 2026-05-20)
+
+See [docs/10-branding-guideline.md § 15. Mobile](./10-branding-guideline.md#15-mobile) for the visual contract.
+
+### Viewport hooks
+
+- `useViewport(): 'mobile' | 'desktop'` — exported from `@assessiq/ui-system`. SSR-safe (returns `'desktop'` when `window` is undefined). Subscribes to `matchMedia` change events.
+- `useViewportSync(): void` — side-effect hook that writes `data-viewport` on `<html>` and keeps it in sync. Called once inside `ThemeProvider`; no need for consumers to call it directly.
+
+### Mobile token block
+
+Lives in [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css) as a `[data-viewport="mobile"]` block. Currently overrides four tokens: `--aiq-page-padding-x`, `--aiq-page-padding-y`, `--aiq-card-padding`, `--aiq-h1-size`. Later phases of the mobile port may add to this list — never remove or rename existing keys.
+
+### ViewportLock (stub)
+
+[`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) is a pass-through stub reserved for Phase M5 of the mobile port (admin graceful-degrade interstitial). Do not implement the interstitial logic until M5.
+
+### ESLint guard
+
+[`eslint.config.js`](../eslint.config.js) blocks runtime imports from `**/AssessIQ-Mobile-Kit/**` (in addition to the existing `**/AssessIQ_UI_Template/**` block). Hand-port idioms into `modules/17-ui-system/src/components/` per the desktop-kit pattern.

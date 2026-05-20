@@ -69,6 +69,14 @@
   --aiq-space-3xl: calc(var(--u) * 12);
   --aiq-space-4xl: calc(var(--u) * 16);
 
+  /* Layout — page-level padding tokens; viewport-aware via [data-viewport]
+   * overrides below. Page-x is the horizontal page gutter; card-x/y are
+   * surface-padding defaults. */
+  --aiq-page-padding-x: 40px;
+  --aiq-page-padding-y: 32px;
+  --aiq-card-padding:   24px;
+  --aiq-h1-size:        var(--aiq-text-3xl);  /* desktop h1: 36px */
+
   /* Typography — editorial trio */
   --aiq-font-serif: "Newsreader", "Source Serif Pro", Georgia, serif;
   --aiq-font-sans:  "Geist", -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -111,6 +119,21 @@
 [data-density="compact"]     { --u: 3px; }
 [data-density="cozy"]        { --u: 4px; }
 [data-density="comfortable"] { --u: 5px; }
+
+/* Mobile viewport overrides — applied when matchMedia matches
+ * (max-width: 719px) OR (pointer:coarse + max-width: 1024px).
+ * The data-viewport attribute lives on <html> and is set by an inline
+ * script in apps/web/index.html before React mounts, then kept in sync
+ * by useViewportSync() inside ThemeProvider.
+ *
+ * See docs/plans/MOBILE_KIT_PORT.md § Phase M0. Mobile kit deltas
+ * documented in modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/README.md. */
+[data-viewport="mobile"] {
+  --aiq-page-padding-x: 22px;
+  --aiq-page-padding-y: 20px;
+  --aiq-card-padding:   18px;
+  --aiq-h1-size:        30px;  /* between mobile 28-34px range per kit README */
+}
 
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
