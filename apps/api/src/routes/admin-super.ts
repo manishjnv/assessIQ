@@ -21,7 +21,18 @@
 
 import type { FastifyInstance } from 'fastify';
 import { ValidationError, NotFoundError, ConflictError, streamLogger } from '@assessiq/core';
-import { updateAiGenerateMode, createTenant, activateTenant, getPool, assertTenantActive } from '@assessiq/tenancy';
+import {
+  updateAiGenerateMode,
+  createTenant,
+  activateTenant,
+  getPool,
+  assertTenantActive,
+  suspendTenant,
+  resumeTenant,
+  archiveTenant,
+  unarchiveTenant,
+} from '@assessiq/tenancy';
+import { sessions, logLifecycleEvent } from '@assessiq/auth';
 import { inviteUser } from '@assessiq/users';
 import { audit } from '@assessiq/audit-log';
 import {
@@ -401,6 +412,210 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   );
 
   // ──────────────────────────────────────────────────────────────────────────
+  // POST /api/admin/super/tenants/:tenantId/suspend
+  // POST /api/admin/super/tenants/:tenantId/resume
+  // POST /api/admin/super/tenants/:tenantId/archive
+  // POST /api/admin/super/tenants/:tenantId/unarchive
+  //
+  // Tenant lifecycle transitions. All gated by superAdminFreshMfa (same gate
+  // as POST /companies — these are privilege-affecting actions: suspend and
+  // archive revoke all active sessions for the tenant).
+  //
+  // Body: { reason?: string }  — optional, max 500 chars.
+  //
+  // Shared handler flow:
+  //   1. Parse + validate body.reason.
+  //   2. Call the matching service function (suspend/resume/archive/unarchive).
+  //   3. For suspend + archive (only when noOp === false): destroyAllForTenant.
+  //   4. logLifecycleEvent (only when noOp === false).
+  //   5. Return 200 { tenantId, slug, status, previousStatus, noOp, auditId,
+  //      sessionsRevoked? }.
+  //
+  // No assertTenantActive guard — these endpoints manage the state themselves.
+  //
+  // Response 200: lifecycle result (see body above)
+  // Response 400: INVALID_REASON (reason is wrong type or too long)
+  // Response 409: INVALID_LIFECYCLE_TRANSITION (wrong-direction call)
+  // Response 403: not super_admin / MFA too old
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function parseLifecycleBody(body: unknown): { reason: string | undefined } {
+    const b = (body ?? {}) as Record<string, unknown>;
+    const reason = b['reason'];
+    if (reason === undefined || reason === null) {
+      return { reason: undefined };
+    }
+    if (typeof reason !== 'string' || reason.trim().length === 0) {
+      throw new ValidationError('reason must be a non-empty string if provided', {
+        details: { code: 'INVALID_REASON', received: reason },
+      });
+    }
+    if (reason.length > 500) {
+      throw new ValidationError('reason must be 500 characters or fewer', {
+        details: { code: 'INVALID_REASON', maxLength: 500, received: reason.length },
+      });
+    }
+    // Strip ASCII control characters (including NUL \x00) — these are valid in
+    // jsonb columns but can crash downstream SIEM tooling and corrupt log
+    // displays. Reasons are free-form human text; control chars never belong.
+    // eslint-disable-next-line no-control-regex
+    if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(reason)) {
+      throw new ValidationError('reason contains disallowed control characters', {
+        details: { code: 'INVALID_REASON', cause: 'control_chars' },
+      });
+    }
+    return { reason: reason.trim() };
+  }
+
+  app.post(
+    '/api/admin/super/tenants/:tenantId/suspend',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { tenantId } = req.params as { tenantId: string };
+      const { reason } = parseLifecycleBody(req.body);
+
+      const result = await suspendTenant(tenantId, session.userId, session.tenantId, reason);
+
+      let sessionsRevoked: { count: number; affectedUsers: string[] } | undefined;
+      if (!result.noOp) {
+        // Sweep all active sessions for this tenant. Note: on noOp we
+        // deliberately SKIP this sweep — the Phase A session-loader's
+        // tenantIsActive defense-in-depth catches any orphaned cookie on
+        // its next request and clears it then. Re-sweeping on every noOp
+        // would be wasted work for an idempotent operator click.
+        const revoked = await sessions.destroyAllForTenant(tenantId);
+        sessionsRevoked = { count: revoked.revokedCount, affectedUsers: revoked.affectedUsers };
+        logLifecycleEvent({
+          action: 'tenant.suspended',
+          actor: { userId: session.userId, role: session.role },
+          target: { entityType: 'tenant', entityId: tenantId },
+          before: { status: result.previousStatus },
+          after: { status: result.newStatus, reason: reason ?? null },
+          sessionsRevoked: { count: revoked.revokedCount, userIds: revoked.affectedUsers },
+        });
+      }
+
+      log.info({ tenantId, noOp: result.noOp }, 'POST suspend: done');
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        slug: result.slug,
+        status: result.newStatus,
+        previousStatus: result.previousStatus,
+        noOp: result.noOp,
+        auditId: result.auditId,
+        ...(sessionsRevoked !== undefined ? { sessionsRevoked } : {}),
+      });
+    },
+  );
+
+  app.post(
+    '/api/admin/super/tenants/:tenantId/resume',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { tenantId } = req.params as { tenantId: string };
+      const { reason } = parseLifecycleBody(req.body);
+
+      const result = await resumeTenant(tenantId, session.userId, session.tenantId, reason);
+
+      if (!result.noOp) {
+        logLifecycleEvent({
+          action: 'tenant.resumed',
+          actor: { userId: session.userId, role: session.role },
+          target: { entityType: 'tenant', entityId: tenantId },
+          before: { status: result.previousStatus },
+          after: { status: result.newStatus, reason: reason ?? null },
+        });
+      }
+
+      log.info({ tenantId, noOp: result.noOp }, 'POST resume: done');
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        slug: result.slug,
+        status: result.newStatus,
+        previousStatus: result.previousStatus,
+        noOp: result.noOp,
+        auditId: result.auditId,
+      });
+    },
+  );
+
+  app.post(
+    '/api/admin/super/tenants/:tenantId/archive',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { tenantId } = req.params as { tenantId: string };
+      const { reason } = parseLifecycleBody(req.body);
+
+      const result = await archiveTenant(tenantId, session.userId, session.tenantId, reason);
+
+      let sessionsRevoked: { count: number; affectedUsers: string[] } | undefined;
+      if (!result.noOp) {
+        // Sweep all active sessions for this tenant. Note: on noOp we
+        // deliberately SKIP this sweep — the Phase A session-loader's
+        // tenantIsActive defense-in-depth catches any orphaned cookie on
+        // its next request and clears it then. Re-sweeping on every noOp
+        // would be wasted work for an idempotent operator click.
+        const revoked = await sessions.destroyAllForTenant(tenantId);
+        sessionsRevoked = { count: revoked.revokedCount, affectedUsers: revoked.affectedUsers };
+        logLifecycleEvent({
+          action: 'tenant.archived',
+          actor: { userId: session.userId, role: session.role },
+          target: { entityType: 'tenant', entityId: tenantId },
+          before: { status: result.previousStatus },
+          after: { status: result.newStatus, reason: reason ?? null },
+          sessionsRevoked: { count: revoked.revokedCount, userIds: revoked.affectedUsers },
+        });
+      }
+
+      log.info({ tenantId, noOp: result.noOp }, 'POST archive: done');
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        slug: result.slug,
+        status: result.newStatus,
+        previousStatus: result.previousStatus,
+        noOp: result.noOp,
+        auditId: result.auditId,
+        ...(sessionsRevoked !== undefined ? { sessionsRevoked } : {}),
+      });
+    },
+  );
+
+  app.post(
+    '/api/admin/super/tenants/:tenantId/unarchive',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { tenantId } = req.params as { tenantId: string };
+      const { reason } = parseLifecycleBody(req.body);
+
+      const result = await unarchiveTenant(tenantId, session.userId, session.tenantId, reason);
+
+      if (!result.noOp) {
+        logLifecycleEvent({
+          action: 'tenant.unarchived',
+          actor: { userId: session.userId, role: session.role },
+          target: { entityType: 'tenant', entityId: tenantId },
+          before: { status: result.previousStatus },
+          after: { status: result.newStatus, reason: reason ?? null },
+        });
+      }
+
+      log.info({ tenantId, noOp: result.noOp }, 'POST unarchive: done');
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        slug: result.slug,
+        status: result.newStatus,
+        previousStatus: result.previousStatus,
+        noOp: result.noOp,
+        auditId: result.auditId,
+      });
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
   // GET /api/admin/super/tenants
   //
   // List all tenants (system-role read). Returns slug/name/status/created_at
@@ -416,6 +631,14 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   // attaches a 'usage' field to each tenant row for the Platform UI usage column.
   // getAllTenantUsage runs its own withSystemTx internally.
   //
+  // Phase B addition:
+  //   - ?include_archived=true|1 (default: false) — when false, WHERE t.status
+  //     <> 'archived' is applied (existing behaviour). When true, the filter is
+  //     dropped and archived tenants appear in the list.
+  //   - admin_count + reviewer_count per row: active (non-deleted) user counts
+  //     by role, computed via LEFT JOIN LATERAL scalar subqueries in the same
+  //     BYPASSRLS transaction. No N+1.
+  //
   // The LEFT JOIN LATERAL is correct under SET LOCAL ROLE assessiq_system
   // (BYPASSRLS) — the same cross-tenant system-role pattern this endpoint
   // already uses; no N+1.
@@ -423,12 +646,17 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   // Gate: super_admin + totpVerified (enforced by superAdminOnly chain).
   //
   // Response 200: { tenants: Array<{ id, slug, name, status, created_at,
-  //   admin_email, admin_name, admin_status, usage }> } (admin_* + usage nullable)
+  //   admin_email, admin_name, admin_status, usage,
+  //   admin_count, reviewer_count }> } (admin_* + usage nullable)
   // ──────────────────────────────────────────────────────────────────────────
   app.get(
     '/api/admin/super/tenants',
     { preHandler: superAdminOnly },
-    async (_req, reply) => {
+    async (req, reply) => {
+      // Parse ?include_archived — accept '1' or 'true' (case-insensitive).
+      const qs = (req.query ?? {}) as Record<string, string | undefined>;
+      const includeArchived = qs['include_archived'] === '1' || qs['include_archived']?.toLowerCase() === 'true';
+
       const pool = getPool();
       const client = await pool.connect();
       try {
@@ -444,12 +672,16 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
           admin_name: string | null;
           admin_status: string | null;
           admin_invitation_expires_at: Date | null;
+          admin_count: number;
+          reviewer_count: number;
         }>(
           `SELECT t.id, t.slug, t.name, t.status, t.created_at,
                   a.email  AS admin_email,
                   a.name   AS admin_name,
                   a.status AS admin_status,
-                  i.expires_at AS admin_invitation_expires_at
+                  i.expires_at AS admin_invitation_expires_at,
+                  COALESCE(ac.cnt, 0)::int AS admin_count,
+                  COALESCE(rc.cnt, 0)::int AS reviewer_count
            FROM tenants t
            LEFT JOIN LATERAL (
              SELECT u.email, u.name, u.status
@@ -467,7 +699,23 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
              ORDER BY ui.created_at DESC
              LIMIT 1
            ) i ON true
-           WHERE t.status <> 'archived'
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*) AS cnt
+             FROM users u
+             WHERE u.tenant_id = t.id
+               AND u.role = 'admin'
+               AND u.status = 'active'
+               AND u.deleted_at IS NULL
+           ) ac ON true
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*) AS cnt
+             FROM users u
+             WHERE u.tenant_id = t.id
+               AND u.role = 'reviewer'
+               AND u.status = 'active'
+               AND u.deleted_at IS NULL
+           ) rc ON true
+           ${includeArchived ? '' : "WHERE t.status <> 'archived'"}
            ORDER BY t.created_at ASC`,
         );
         await client.query('COMMIT');

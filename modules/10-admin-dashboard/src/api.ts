@@ -381,6 +381,10 @@ export interface TenantListItem {
   admin_invitation_expires_at: string | null;
   /** A2: billing usage for this tenant, or null if no plan row. */
   usage: TenantUsage | null;
+  /** Phase B: active admin count (excluding super_admin and disabled users). */
+  admin_count: number;
+  /** Phase B: active reviewer count. */
+  reviewer_count: number;
 }
 
 /**
@@ -402,9 +406,93 @@ export async function createCompanyApi(
  * GET /api/admin/super/tenants
  *
  * Super-admin only. Returns the list of all provisioned tenants.
+ * Pass `includeArchived: true` to also surface archived tenants
+ * (adds `?include_archived=true` to the request).
  */
-export async function listTenantsApi(): Promise<{ tenants: TenantListItem[] }> {
-  return adminApi<{ tenants: TenantListItem[] }>("/admin/super/tenants");
+export async function listTenantsApi(
+  opts?: { includeArchived?: boolean },
+): Promise<{ tenants: TenantListItem[] }> {
+  const qs = opts?.includeArchived ? "?include_archived=true" : "";
+  return adminApi<{ tenants: TenantListItem[] }>(`/admin/super/tenants${qs}`);
+}
+
+// ---------------------------------------------------------------------------
+// Typed helpers — tenant lifecycle (Phase B)
+// ---------------------------------------------------------------------------
+
+export interface LifecycleResponse {
+  tenantId: string;
+  slug: string;
+  status: 'active' | 'suspended' | 'archived';
+  previousStatus: 'active' | 'suspended' | 'archived';
+  sessionsRevoked?: { count: number; affectedUsers: string[] };
+  noOp: boolean;
+  auditId: string | null;
+}
+
+/**
+ * POST /api/admin/super/tenants/:tenantId/suspend
+ *
+ * Transitions active → suspended. Destroys all active sessions for the tenant.
+ * Idempotent: already-suspended returns 200 + noOp:true.
+ * Requires super_admin + fresh MFA (401 with "fresh totp" → MfaStepUp).
+ */
+export async function suspendTenantApi(
+  tenantId: string,
+  reason?: string,
+): Promise<LifecycleResponse> {
+  return adminApi<LifecycleResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/suspend`,
+    { method: 'POST', body: JSON.stringify(reason !== undefined ? { reason } : {}) },
+  );
+}
+
+/**
+ * POST /api/admin/super/tenants/:tenantId/resume
+ *
+ * Transitions suspended → active.
+ * Idempotent: already-active returns 200 + noOp:true.
+ */
+export async function resumeTenantApi(
+  tenantId: string,
+  reason?: string,
+): Promise<LifecycleResponse> {
+  return adminApi<LifecycleResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/resume`,
+    { method: 'POST', body: JSON.stringify(reason !== undefined ? { reason } : {}) },
+  );
+}
+
+/**
+ * POST /api/admin/super/tenants/:tenantId/archive
+ *
+ * Transitions active or suspended → archived. Destroys all active sessions.
+ * Idempotent: already-archived returns 200 + noOp:true.
+ */
+export async function archiveTenantApi(
+  tenantId: string,
+  reason?: string,
+): Promise<LifecycleResponse> {
+  return adminApi<LifecycleResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/archive`,
+    { method: 'POST', body: JSON.stringify(reason !== undefined ? { reason } : {}) },
+  );
+}
+
+/**
+ * POST /api/admin/super/tenants/:tenantId/unarchive
+ *
+ * Transitions archived → active.
+ * Idempotent: already-active returns 200 + noOp:true.
+ */
+export async function unarchiveTenantApi(
+  tenantId: string,
+  reason?: string,
+): Promise<LifecycleResponse> {
+  return adminApi<LifecycleResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/unarchive`,
+    { method: 'POST', body: JSON.stringify(reason !== undefined ? { reason } : {}) },
+  );
 }
 
 export interface ResendInvitationResponse {

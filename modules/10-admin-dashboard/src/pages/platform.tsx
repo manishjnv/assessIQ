@@ -29,22 +29,36 @@ import {
   getTenantContentScopes,
   grantTenantEntitlement,
   revokeTenantEntitlement,
+  suspendTenantApi,
+  resumeTenantApi,
+  archiveTenantApi,
+  unarchiveTenantApi,
   type CreateCompanyRequest,
   type TenantListItem,
   type TenantBillingDetail,
   type TenantEntitlement,
   type TenantContentScopes,
+  type LifecycleResponse,
 } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { fetchAdminWhoami } from "../session.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type TenantStatus = "active" | "provisioning" | string;
+type TenantStatus = "active" | "provisioning" | "suspended" | "archived" | string;
+
+type LifecycleAction = "suspend" | "resume" | "archive" | "unarchive";
+
+interface LifecycleModalState {
+  action: LifecycleAction;
+  tenant: TenantListItem;
+}
 
 const STATUS_VARIANT: Record<string, ChipVariant> = {
   active: "success",
   provisioning: "accent",
+  suspended: "default",
+  archived: "default",
 };
 
 function statusVariant(status: TenantStatus): ChipVariant {
@@ -533,6 +547,157 @@ function CreateCompanyForm({
   );
 }
 
+// ── Lifecycle confirmation modal ─────────────────────────────────────────────
+
+const LIFECYCLE_COPY: Record<
+  LifecycleAction,
+  { title: (name: string) => string; body: (name: string, userCount: number) => string; verb: string }
+> = {
+  suspend: {
+    title: (name) => `Suspend ${name}?`,
+    body: (name, count) =>
+      `Suspending ${name} will sign out all active users immediately (${count} users) and prevent future logins. All data, billing, and entitlements are preserved. You can resume any time.`,
+    verb: "Suspend",
+  },
+  resume: {
+    title: (name) => `Resume ${name}?`,
+    body: (name) =>
+      `Resuming will allow ${name}'s users to sign in again. They will need to re-authenticate.`,
+    verb: "Resume",
+  },
+  archive: {
+    title: (name) => `Archive ${name}?`,
+    body: (name) =>
+      `Archiving will sign out all active users immediately, prevent future logins, and hide this tenant from the default Platform view. All data is preserved. You can unarchive any time.`,
+    verb: "Archive",
+  },
+  unarchive: {
+    title: (name) => `Unarchive ${name}?`,
+    body: (name) =>
+      `Unarchiving will restore this tenant to active status. Users may sign in again.`,
+    verb: "Unarchive",
+  },
+};
+
+function LifecycleConfirmModal({
+  action,
+  tenant,
+  onConfirm,
+  onCancel,
+}: {
+  action: LifecycleAction;
+  tenant: TenantListItem;
+  onConfirm: (reason: string | undefined) => Promise<void>;
+  onCancel: () => void;
+}): React.ReactElement {
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const copy = LIFECYCLE_COPY[action];
+  const userCount = (tenant.admin_count ?? 0) + (tenant.reviewer_count ?? 0);
+
+  const handleConfirm = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      await onConfirm(reason.trim() || undefined);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.36)",
+        display: "grid",
+        placeItems: "center",
+        zIndex: 300,
+      }}
+      onClick={onCancel}
+      role="presentation"
+    >
+      <Card
+        padding="lg"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 480 }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+          <h2
+            className="aiq-serif"
+            style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
+          >
+            {copy.title(tenant.name)}
+          </h2>
+          <span style={{ flex: 1 }} />
+          <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close" disabled={loading}>
+            ×
+          </Button>
+        </div>
+
+        <p
+          style={{
+            fontSize: 13,
+            color: "var(--aiq-color-fg-secondary)",
+            margin: "0 0 20px",
+            lineHeight: 1.5,
+          }}
+        >
+          {copy.body(tenant.name, userCount)}
+        </p>
+
+        {/* Optional reason textarea */}
+        <div style={{ marginBottom: 20 }}>
+          <label
+            style={{
+              display: "block",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: 12,
+              fontWeight: 500,
+              marginBottom: 6,
+            }}
+          >
+            Reason (optional)
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+            disabled={loading}
+            placeholder="Briefly describe why (recorded in the audit log)…"
+            rows={3}
+            style={{
+              width: "100%",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: 13,
+              padding: "8px 10px",
+              borderRadius: "var(--aiq-radius-md)",
+              border: "1px solid var(--aiq-color-border)",
+              background: "var(--aiq-color-bg-raised)",
+              color: "var(--aiq-color-fg-primary)",
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+          <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10 }}>
+            {reason.length} / 500
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Button variant="ghost" onClick={onCancel} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={() => void handleConfirm()} loading={loading}>
+            {copy.verb}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── Billing drawer ────────────────────────────────────────────────────────────
 
 const TIER_OPTIONS = [
@@ -551,6 +716,8 @@ function BillingDrawer({
   onClose: () => void;
   onPlanUpdated: () => void;
 }): React.ReactElement {
+  // Editing is locked when tenant is not in an active/provisioning state
+  const isReadOnly = tenant.status !== "active" && tenant.status !== "provisioning";
   const [detail, setDetail] = useState<TenantBillingDetail | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(true);
   const [drawerError, setDrawerError] = useState<string | null>(null);
@@ -776,6 +943,23 @@ function BillingDrawer({
           </Button>
         </div>
 
+        {/* Read-only banner — shown when tenant is suspended or archived */}
+        {isReadOnly && (
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "var(--aiq-color-bg-sunken)",
+              borderRadius: "var(--aiq-radius-md)",
+              border: "1px solid var(--aiq-color-border)",
+              fontSize: 13,
+              color: "var(--aiq-color-fg-secondary)",
+              lineHeight: 1.5,
+            }}
+          >
+            This tenant is <strong>{tenant.status}</strong>. Configuration is read-only.
+          </div>
+        )}
+
         {drawerLoading && (
           <div style={{ display: "grid", placeItems: "center", padding: 40 }}>
             <Spinner aria-label="Loading billing detail" />
@@ -999,7 +1183,7 @@ function BillingDrawer({
                       <button
                         type="button"
                         className="aiq-btn aiq-btn-primary aiq-btn-sm"
-                        disabled={planSaving}
+                        disabled={planSaving || isReadOnly}
                         onClick={() => void handleSavePlan()}
                       >
                         {planSaving ? "Saving…" : "Confirm"}
@@ -1018,6 +1202,7 @@ function BillingDrawer({
                   <button
                     type="button"
                     className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                    disabled={isReadOnly}
                     onClick={() => { setPlanConfirmPending(true); setPlanError(null); }}
                   >
                     Save
@@ -1104,7 +1289,7 @@ function BillingDrawer({
                               <button
                                 type="button"
                                 className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                                disabled={revokeSaving === ent.id}
+                                disabled={revokeSaving === ent.id || isReadOnly}
                                 onClick={() => void handleRevokeEntitlement(ent)}
                                 style={{ flexShrink: 0 }}
                               >
@@ -1187,7 +1372,7 @@ function BillingDrawer({
                     <button
                       type="button"
                       className="aiq-btn aiq-btn-primary aiq-btn-sm"
-                      disabled={grantSaving || !grantScopeId.trim()}
+                      disabled={grantSaving || !grantScopeId.trim() || isReadOnly}
                       onClick={() => void handleGrantEntitlement()}
                       style={{ flexShrink: 0 }}
                     >
@@ -1219,6 +1404,132 @@ function BillingDrawer({
   );
 }
 
+// ── Per-row Manage menu ───────────────────────────────────────────────────────
+
+function ManageMenu({
+  tenant,
+  onOpenBilling,
+  onLifecycleAction,
+}: {
+  tenant: TenantListItem;
+  onOpenBilling: () => void;
+  onLifecycleAction: (action: LifecycleAction) => void;
+}): React.ReactElement {
+  const [open, setOpen] = useState(false);
+
+  // Close on outside click
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const menuItem = (label: string, onClick: () => void, danger = false): React.ReactElement => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setOpen(false);
+        onClick();
+      }}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "7px 14px",
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "var(--aiq-font-sans)",
+        fontSize: 13,
+        color: danger ? "var(--aiq-color-danger, #dc2626)" : "var(--aiq-color-fg-primary)",
+        whiteSpace: "nowrap",
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--aiq-color-bg-sunken)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+    >
+      {label}
+    </button>
+  );
+
+  const lifecycleItems: React.ReactElement[] = [];
+  if (tenant.status === "active") {
+    lifecycleItems.push(menuItem("Suspend tenant", () => onLifecycleAction("suspend"), true));
+    lifecycleItems.push(menuItem("Archive tenant", () => onLifecycleAction("archive"), true));
+  } else if (tenant.status === "suspended") {
+    lifecycleItems.push(menuItem("Resume tenant", () => onLifecycleAction("resume")));
+    lifecycleItems.push(menuItem("Archive tenant", () => onLifecycleAction("archive"), true));
+  } else if (tenant.status === "archived") {
+    lifecycleItems.push(menuItem("Unarchive tenant", () => onLifecycleAction("unarchive")));
+  } else if (tenant.status === "provisioning") {
+    lifecycleItems.push(
+      <div
+        key="provisioning"
+        style={{
+          padding: "7px 14px",
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: 12,
+          color: "var(--aiq-color-fg-muted)",
+        }}
+      >
+        Provisioning in progress
+      </div>,
+    );
+  }
+
+  return (
+    <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+      >
+        Manage ▾
+      </Button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 4px)",
+            background: "var(--aiq-color-bg-base)",
+            border: "1px solid var(--aiq-color-border)",
+            borderRadius: "var(--aiq-radius-md)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            zIndex: 400,
+            minWidth: 180,
+            paddingTop: 4,
+            paddingBottom: 4,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {menuItem("Open billing", () => { onOpenBilling(); })}
+          {menuItem("Manage users", () => { alert("Users drill-down ships in Phase C"); })}
+          {lifecycleItems.length > 0 && (
+            <div
+              style={{
+                height: 1,
+                background: "var(--aiq-color-border)",
+                margin: "4px 0",
+              }}
+            />
+          )}
+          {lifecycleItems}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function AdminPlatform(): React.ReactElement {
@@ -1231,11 +1542,19 @@ export function AdminPlatform(): React.ReactElement {
   const [resendError, setResendError] = useState<string | null>(null);
   const [resendToast, setResendToast] = useState<string | null>(null);
 
-  const fetchTenants = useCallback(async (): Promise<void> => {
+  // Phase B: Show archived toggle (session-scoped, default false)
+  const [includeArchived, setIncludeArchived] = useState(false);
+
+  // Phase B: Lifecycle modal + action state
+  const [lifecycleModal, setLifecycleModal] = useState<LifecycleModalState | null>(null);
+  const [lifecycleToast, setLifecycleToast] = useState<string | null>(null);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+
+  const fetchTenants = useCallback(async (archived = includeArchived): Promise<void> => {
     setLoading(true);
     setFetchError(null);
     try {
-      const data = await listTenantsApi();
+      const data = await listTenantsApi({ includeArchived: archived });
       setTenants(data.tenants);
     } catch (err) {
       if (err instanceof AdminApiError) {
@@ -1246,11 +1565,13 @@ export function AdminPlatform(): React.ReactElement {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    void fetchTenants();
-  }, [fetchTenants]);
+    void fetchTenants(includeArchived);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchTenants, includeArchived]);
 
   const handleResend = async (tenantId: string): Promise<void> => {
     setResendingTenantId(tenantId);
@@ -1262,7 +1583,7 @@ export function AdminPlatform(): React.ReactElement {
         `Resent invite to ${res.invitation.email} · expires ${formatDate(res.invitation.expires_at)}`,
       );
       setTimeout(() => setResendToast(null), 4000);
-      void fetchTenants();
+      void fetchTenants(includeArchived);
     } catch (err) {
       setResendError(
         err instanceof AdminApiError ? err.apiError.message : "Resend failed — please try again.",
@@ -1272,13 +1593,61 @@ export function AdminPlatform(): React.ReactElement {
     }
   };
 
+  // Phase B: Lifecycle action handler — called by LifecycleConfirmModal.onConfirm
+  const handleLifecycleConfirm = async (
+    action: LifecycleAction,
+    tenant: TenantListItem,
+    reason: string | undefined,
+  ): Promise<void> => {
+    setLifecycleError(null);
+    setLifecycleToast(null);
+    const apiMap: Record<LifecycleAction, (id: string, r?: string) => Promise<LifecycleResponse>> = {
+      suspend: suspendTenantApi,
+      resume: resumeTenantApi,
+      archive: archiveTenantApi,
+      unarchive: unarchiveTenantApi,
+    };
+    const verb = LIFECYCLE_COPY[action].verb;
+    try {
+      const res = await apiMap[action](tenant.id, reason);
+      setLifecycleModal(null);
+      if (res.noOp) {
+        setLifecycleToast(`${verb} ${tenant.name} — already in target state`);
+      } else {
+        const revoked = res.sessionsRevoked?.count ?? 0;
+        setLifecycleToast(`${verb} ${tenant.name} — ${revoked} user${revoked !== 1 ? "s" : ""} signed out`);
+      }
+      setTimeout(() => setLifecycleToast(null), 4000);
+      void fetchTenants(includeArchived);
+    } catch (err) {
+      if (err instanceof AdminApiError) {
+        const details = err.apiError.details as Record<string, unknown> | undefined;
+        if (details?.code === "INVALID_LIFECYCLE_TRANSITION") {
+          const current = details.currentStatus as string | undefined;
+          setLifecycleError(
+            `${tenant.name} is in ${current ?? "unknown"} state and cannot be ${verb.toLowerCase()}d`,
+          );
+        } else {
+          setLifecycleError(err.apiError.message);
+        }
+      } else {
+        setLifecycleError("Unexpected error — please try again.");
+      }
+      // Keep modal closed on error; error shows at page level
+      setLifecycleModal(null);
+    }
+  };
+
+  // Updated ROW_GRID to accommodate Manage column at end
+  const ROW_GRID_WITH_MANAGE = `${ROW_GRID} 120px`;
+
   return (
     <AdminShell breadcrumbs={["Platform"]} helpPage="admin.platform">
       {showCreate && (
         <CreateCompanyForm
           onSuccess={() => {
             setShowCreate(false);
-            void fetchTenants();
+            void fetchTenants(includeArchived);
           }}
           onCancel={() => setShowCreate(false)}
         />
@@ -1288,7 +1657,18 @@ export function AdminPlatform(): React.ReactElement {
         <BillingDrawer
           tenant={drawerTenant}
           onClose={() => setDrawerTenant(null)}
-          onPlanUpdated={() => void fetchTenants()}
+          onPlanUpdated={() => void fetchTenants(includeArchived)}
+        />
+      )}
+
+      {lifecycleModal !== null && (
+        <LifecycleConfirmModal
+          action={lifecycleModal.action}
+          tenant={lifecycleModal.tenant}
+          onConfirm={(reason) =>
+            handleLifecycleConfirm(lifecycleModal.action, lifecycleModal.tenant, reason)
+          }
+          onCancel={() => setLifecycleModal(null)}
         />
       )}
 
@@ -1344,6 +1724,41 @@ export function AdminPlatform(): React.ReactElement {
             <Chip variant="success">{resendToast}</Chip>
           </div>
         )}
+        {/* Phase B: lifecycle action toast / error */}
+        {lifecycleToast && (
+          <div style={{ marginBottom: 16 }}>
+            <Chip variant="success">{lifecycleToast}</Chip>
+          </div>
+        )}
+        {lifecycleError && (
+          <div style={{ marginBottom: 16 }}>
+            <Chip>{lifecycleError}</Chip>
+          </div>
+        )}
+
+        {/* Phase B: Show archived toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+              userSelect: "none",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: 13,
+              color: "var(--aiq-color-fg-secondary)",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(e) => setIncludeArchived(e.target.checked)}
+              style={{ cursor: "pointer" }}
+            />
+            Show archived tenants
+          </label>
+        </div>
 
         {/* Data rows or loading / empty */}
         {loading ? (
@@ -1397,7 +1812,7 @@ export function AdminPlatform(): React.ReactElement {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: ROW_GRID,
+                gridTemplateColumns: ROW_GRID_WITH_MANAGE,
                 gap: ROW_GRID_GAP,
                 padding: "12px 20px",
                 background: "var(--aiq-color-bg-raised)",
@@ -1408,170 +1823,193 @@ export function AdminPlatform(): React.ReactElement {
             >
               <span>Slug</span>
               <span>Name</span>
-              <span>First admin</span>
+              <span>Primary contact</span>
               <span>Usage</span>
               <span>Tenant</span>
               <span>Created</span>
+              <span></span>
             </div>
-            {tenants.map((t, i) => (
-              <div
-                key={t.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: ROW_GRID,
-                  gap: ROW_GRID_GAP,
-                  padding: ROW_PADDING,
-                  alignItems: "center",
-                  borderTop: i === 0 ? "none" : "1px solid var(--aiq-color-border)",
-                  background: i % 2 === 1 ? "var(--aiq-color-bg-raised)" : "transparent",
-                  cursor: "pointer",
-                }}
-                onClick={() => setDrawerTenant(t)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setDrawerTenant(t); }}
-                aria-label={`Open billing drawer for ${t.name}`}
-              >
-                {/* Slug — mono */}
-                <span
+            {tenants.map((t, i) => {
+              const isArchived = t.status === "archived";
+              return (
+                <div
+                  key={t.id}
                   style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: 12,
-                    color: "var(--aiq-color-fg-secondary)",
+                    display: "grid",
+                    gridTemplateColumns: ROW_GRID_WITH_MANAGE,
+                    gap: ROW_GRID_GAP,
+                    padding: ROW_PADDING,
+                    alignItems: "center",
+                    borderTop: i === 0 ? "none" : "1px solid var(--aiq-color-border)",
+                    background: i % 2 === 1 ? "var(--aiq-color-bg-raised)" : "transparent",
+                    opacity: isArchived ? 0.7 : 1,
                   }}
                 >
-                  {t.slug}
-                </span>
-                {/* Name */}
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 500,
-                    color: "var(--aiq-color-fg-primary)",
-                  }}
-                >
-                  {t.name}
-                </span>
-                {/* First admin — email (+ name secondary), pending/active hint */}
-                <div style={{ minWidth: 0 }}>
-                  {t.admin_email === null ? (
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: "var(--aiq-color-fg-muted)",
-                      }}
-                    >
-                      —
-                    </span>
-                  ) : (
-                    <>
-                      <div
+                  {/* Slug — mono, strikethrough on archived */}
+                  <span
+                    style={{
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: 12,
+                      color: "var(--aiq-color-fg-secondary)",
+                      textDecoration: isArchived ? "line-through" : "none",
+                    }}
+                  >
+                    {t.slug}
+                  </span>
+                  {/* Name — strikethrough on archived */}
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 500,
+                      color: "var(--aiq-color-fg-primary)",
+                      textDecoration: isArchived ? "line-through" : "none",
+                    }}
+                  >
+                    {t.name}
+                  </span>
+                  {/* Primary contact — email (+ name secondary), pending/active hint + Phase B count badge */}
+                  <div style={{ minWidth: 0 }}>
+                    {t.admin_email === null ? (
+                      <span
                         style={{
                           fontSize: 13,
-                          color: "var(--aiq-color-fg-primary)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          color: "var(--aiq-color-fg-muted)",
                         }}
-                        title={t.admin_email}
                       >
-                        {t.admin_email}
-                      </div>
-                      <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-                        {t.admin_status === "pending" ? (
-                          <>
-                            <Chip variant="warn" leftIcon="clock">Invite pending</Chip>
-                            {t.admin_invitation_expires_at !== null && (
-                              <span
-                                style={{
-                                  fontFamily: "var(--aiq-font-mono)",
-                                  fontSize: 10,
-                                  color: "var(--aiq-color-fg-muted)",
+                        —
+                      </span>
+                    ) : (
+                      <>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "var(--aiq-color-fg-primary)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={t.admin_email}
+                        >
+                          {t.admin_email}
+                        </div>
+                        <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                          {t.admin_status === "pending" ? (
+                            <>
+                              <Chip variant="warn" leftIcon="clock">Invite pending</Chip>
+                              {t.admin_invitation_expires_at !== null && (
+                                <span
+                                  style={{
+                                    fontFamily: "var(--aiq-font-mono)",
+                                    fontSize: 10,
+                                    color: "var(--aiq-color-fg-muted)",
+                                  }}
+                                >
+                                  · expires {formatDate(t.admin_invitation_expires_at)}
+                                </span>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                loading={resendingTenantId === t.id}
+                                disabled={resendingTenantId !== null}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleResend(t.id);
                                 }}
                               >
-                                · expires {formatDate(t.admin_invitation_expires_at)}
-                              </span>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              loading={resendingTenantId === t.id}
-                              disabled={resendingTenantId !== null}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void handleResend(t.id);
+                                {resendingTenantId === t.id ? "Resending…" : "Resend invite"}
+                              </Button>
+                            </>
+                          ) : t.admin_status === "active" ? (
+                            <>
+                              {t.admin_name && t.admin_name !== t.admin_email && (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: "var(--aiq-color-fg-secondary)",
+                                  }}
+                                >
+                                  {t.admin_name}
+                                </span>
+                              )}
+                              <Chip variant="success" leftIcon="check">Accepted</Chip>
+                            </>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: "var(--aiq-color-fg-secondary)",
                               }}
                             >
-                              {resendingTenantId === t.id ? "Resending…" : "Resend invite"}
-                            </Button>
-                          </>
-                        ) : t.admin_status === "active" ? (
-                          <>
-                            {t.admin_name && t.admin_name !== t.admin_email && (
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  color: "var(--aiq-color-fg-secondary)",
-                                }}
-                              >
-                                {t.admin_name}
-                              </span>
-                            )}
-                            <Chip variant="success" leftIcon="check">Accepted</Chip>
-                          </>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              color: "var(--aiq-color-fg-secondary)",
-                            }}
-                          >
-                            {t.admin_name && t.admin_name !== t.admin_email
-                              ? `${t.admin_name} · `
-                              : ""}
-                            {t.admin_status ?? ""}
-                          </span>
+                              {t.admin_name && t.admin_name !== t.admin_email
+                                ? `${t.admin_name} · `
+                                : ""}
+                              {t.admin_status ?? ""}
+                            </span>
+                          )}
+                        </div>
+                        {/* Phase B: admin/reviewer count badge */}
+                        {((t.admin_count ?? 0) > 0 || (t.reviewer_count ?? 0) > 0) && (
+                          <div style={{ marginTop: 4 }}>
+                            <span style={{ ...META_LABEL, fontSize: 10 }}>
+                              {t.admin_count ?? 0} admin{(t.admin_count ?? 0) !== 1 ? "s" : ""} · {t.reviewer_count ?? 0} reviewer{(t.reviewer_count ?? 0) !== 1 ? "s" : ""}
+                            </span>
+                          </div>
                         )}
-                      </div>
-                    </>
-                  )}
-                </div>
-                {/* Usage — A2 */}
-                <span>
-                  {t.usage === null || t.usage === undefined ? (
-                    <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-muted)" }}>—</span>
-                  ) : t.usage.status === "unlimited" ? (
-                    <Chip>Unlimited</Chip>
-                  ) : (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>
-                        {t.usage.used} / {t.usage.included_credits}
+                      </>
+                    )}
+                  </div>
+                  {/* Usage — A2 */}
+                  <span>
+                    {t.usage === null || t.usage === undefined ? (
+                      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-muted)" }}>—</span>
+                    ) : t.usage.status === "unlimited" ? (
+                      <Chip>Unlimited</Chip>
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>
+                          {t.usage.used} / {t.usage.included_credits}
+                        </span>
+                        {t.usage.overage > 0 && (
+                          <Chip variant="warn" style={{ fontSize: 10 }}>+{t.usage.overage}</Chip>
+                        )}
+                        {t.usage.overage === 0 && t.usage.status === "warn" && (
+                          <Chip style={{ fontSize: 10 }}>Near limit</Chip>
+                        )}
                       </span>
-                      {t.usage.overage > 0 && (
-                        <Chip variant="warn" style={{ fontSize: 10 }}>+{t.usage.overage}</Chip>
-                      )}
-                      {t.usage.overage === 0 && t.usage.status === "warn" && (
-                        <Chip style={{ fontSize: 10 }}>Near limit</Chip>
-                      )}
-                    </span>
-                  )}
-                </span>
-                {/* Status chip */}
-                <span>
-                  <Chip variant={statusVariant(t.status)}>{t.status}</Chip>
-                </span>
-                {/* Created — mono, en-GB */}
-                <span
-                  style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: 11,
-                    color: "var(--aiq-color-fg-muted)",
-                  }}
-                >
-                  {formatDate(t.created_at)}
-                </span>
-              </div>
-            ))}
+                    )}
+                  </span>
+                  {/* Status chip — Phase B: archived gets strikethrough label */}
+                  <span>
+                    {t.status === "archived" ? (
+                      <Chip variant="default">
+                        <span style={{ textDecoration: "line-through" }}>archived</span>
+                      </Chip>
+                    ) : (
+                      <Chip variant={statusVariant(t.status)}>{t.status}</Chip>
+                    )}
+                  </span>
+                  {/* Created — mono, en-GB */}
+                  <span
+                    style={{
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: 11,
+                      color: "var(--aiq-color-fg-muted)",
+                    }}
+                  >
+                    {formatDate(t.created_at)}
+                  </span>
+                  {/* Phase B: Manage menu */}
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <ManageMenu
+                      tenant={t}
+                      onOpenBilling={() => setDrawerTenant(t)}
+                      onLifecycleAction={(action) => setLifecycleModal({ action, tenant: t })}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
