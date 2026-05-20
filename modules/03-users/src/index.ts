@@ -1,4 +1,5 @@
 export * from './types.js';
+export { assertUserActive } from './lifecycle.js';
 export { normalizeEmail } from './normalize.js';
 export {
   listUsers,

@@ -146,6 +146,19 @@ export const ACTION_CATALOG = [
   // future 'tenant.suspended' which blocks logins; archive only hides.
   'tenant.archived',
   'tenant.unarchived',
+  // Phase A — tenant lifecycle controls.
+  // tenant.suspended / tenant.resumed: super-admin blocks / restores login access.
+  // tenant.purged: forward-compat for 6-month retention purge; wired in a later phase.
+  'tenant.resumed',
+  'tenant.purged',
+  // Phase A — user lifecycle controls.
+  // user.disabled / user.reenabled: tenant-admin (or super-admin override) pauses / restores a user.
+  // user.invitation_cancelled: pending invite explicitly cancelled before acceptance.
+  // user.soft_deleted / user.restored: already in catalog as user.deleted / user.restored;
+  //   these aliases use the lifecycle vocabulary from the plan for consistent querying.
+  'user.reenabled',
+  'user.invitation_cancelled',
+  'user.soft_deleted',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

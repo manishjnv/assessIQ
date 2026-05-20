@@ -77,6 +77,9 @@ export type {
   RequestCandidateLoginLinkOutput,
 } from "./candidate-login.js";
 
+export { logLifecycleEvent } from "./lifecycle-log.js";
+export type { LifecycleEvent } from "./lifecycle-log.js";
+
 export {
   requestIdMiddleware,
   cookieParserMiddleware,

@@ -283,6 +283,45 @@ async function destroyAllForUser(userId: string, tenantId: string): Promise<numb
   return hashes.length;
 }
 
+// Whole-tenant session revocation — called at suspend/archive time so every
+// active cookie in the tenant stops working atomically with the status flip.
+//
+// Strategy: SELECT the distinct user_ids that have sessions in this tenant
+// (RLS-scoped via withTenant), then delegate each per-user sweep to the
+// well-tested destroyAllForUser path. This reuses the Redis-index sweep
+// logic rather than duplicating it.
+//
+// Returns { revokedCount, affectedUsers } where revokedCount is the sum of
+// Redis hashes cleared across all users (proxy for sessions revoked).
+async function destroyAllForTenant(
+  tenantId: string,
+): Promise<{ revokedCount: number; affectedUsers: string[] }> {
+  // 1. Collect distinct user_ids that have at least one session row in Postgres.
+  //    withTenant pins RLS to tenantId so we only see sessions for this tenant.
+  const userIds = await withTenant(tenantId, async (client) => {
+    const result = await client.query<{ user_id: string }>(
+      `SELECT DISTINCT user_id FROM sessions WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    return result.rows.map((r) => r.user_id);
+  });
+
+  if (userIds.length === 0) {
+    return { revokedCount: 0, affectedUsers: [] };
+  }
+
+  // 2. For each user, call the existing destroyAllForUser which handles both
+  //    the Redis sweep and the Postgres DELETE. Accumulate the count of
+  //    Redis hashes cleared (each hash = one session token).
+  let revokedCount = 0;
+  for (const userId of userIds) {
+    const count = await destroyAllForUser(userId, tenantId);
+    revokedCount += count;
+  }
+
+  return { revokedCount, affectedUsers: userIds };
+}
+
 // Public surface — exact signature pinned in modules/01-auth/SKILL.md § 10.
 export const sessions = {
   create: createSession,
@@ -291,6 +330,7 @@ export const sessions = {
   markTotpVerified,
   destroy: destroyByToken,
   destroyAllForUser,
+  destroyAllForTenant,
 };
 
 // Re-export type only — keeps the import surface tidy for downstream consumers.
