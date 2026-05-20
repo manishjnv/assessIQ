@@ -367,13 +367,23 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 | `PATCH` | `/api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip `ai_generate_mode` for a target tenant | **live 2026-05-08** |
 | `POST` | `/api/admin/super/companies` | Provision new company tenant + send first-admin invitation | **live 2026-05-17** |
 | `POST` | `/api/admin/super/tenants/:tenantId/invitations/resend` | Re-issue a pending admin invitation for an existing tenant | **live 2026-05-20** |
-| `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: `usage`; 2026-05-20: `admin_invitation_expires_at`) | **live 2026-05-17** |
+| `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: `usage`; Phase B: `admin_count`, `reviewer_count`; `admin_invitation_expires_at`; `?include_archived=true`) | **live 2026-05-17** |
 | `GET` | `/api/admin/super/tenants/:tenantId/billing` | Full billing detail for one tenant (A2) | **live 2026-05-17** |
 | `GET` | `/api/admin/super/tenants/:tenantId/billing/export.csv` | Export all billing events as CSV (A2) | **live 2026-05-17** |
 | `PATCH` | `/api/admin/super/tenants/:tenantId/plan` | Update a tenant's tier and/or credit allowance (A2) | **live 2026-05-17** |
 | `GET` | `/api/admin/super/tenants/:tenantId/entitlements` | List all entitlement rows for a tenant (incl. revoked) (B1) | **live 2026-05-18** |
 | `POST` | `/api/admin/super/tenants/:tenantId/entitlements` | Grant a domain or pack entitlement (idempotent; reactivates revoked) (B1) | **live 2026-05-18** |
 | `DELETE` | `/api/admin/super/tenants/:tenantId/entitlements` | Revoke an entitlement (JSON body — see below) (B1) | **live 2026-05-18** |
+| `POST` | `/api/admin/super/tenants/:tenantId/suspend` | Tenant lifecycle: `active → suspended` (revokes all sessions) | **live 2026-05-20** |
+| `POST` | `/api/admin/super/tenants/:tenantId/resume` | Tenant lifecycle: `suspended → active` | **live 2026-05-20** |
+| `POST` | `/api/admin/super/tenants/:tenantId/archive` | Tenant lifecycle: `active\|suspended → archived` (revokes all sessions) | **live 2026-05-20** |
+| `POST` | `/api/admin/super/tenants/:tenantId/unarchive` | Tenant lifecycle: `archived → active` | **live 2026-05-20** |
+| `GET` | `/api/admin/super/tenants/:tenantId/users` | List users + pending invitations for a tenant (Phase C) | **live 2026-05-20** |
+| `POST` | `/api/admin/super/users/:userId/disable` | Super-admin user disable; LAST_ADMIN override path | **live 2026-05-20** |
+| `POST` | `/api/admin/super/users/:userId/reenable` | Super-admin user reenable | **live 2026-05-20** |
+| `DELETE` | `/api/admin/super/users/:userId` | Super-admin soft-delete; LAST_ADMIN override path | **live 2026-05-20** |
+| `POST` | `/api/admin/super/users/:userId/restore` | Super-admin restore soft-deleted user | **live 2026-05-20** |
+| `DELETE` | `/api/admin/super/users/invitations/:invitationId` | Super-admin cancel pending invitation | **live 2026-05-20** |
 
 #### `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`
 
@@ -519,6 +529,486 @@ usage: {
 Implementation: `LEFT JOIN LATERAL` against `users` under `SET LOCAL ROLE assessiq_system` (BYPASSRLS — the established cross-tenant system-role pattern for this endpoint; no N+1). The `usage` aggregate is a second lateral join (or a subquery) against `tenant_plans` + `billing_events`, also under the system role.
 
 **Source:** `apps/api/src/routes/admin-super.ts`.
+
+#### Tenant lifecycle endpoints (Phase B)
+
+Shipped in commit `2af9849` (2026-05-20). All four endpoints are gated by `superAdminFreshMfa` — `super_admin` role + TOTP verified within **15 minutes**. When MFA is stale the route layer rejects with `401 AUTHN_FAILED`; the response body `details.code = 'FRESH_MFA_REQUIRED'` tells the frontend to render a step-up prompt.
+
+Body parsing (`parseLifecycleBody`) rejects reason strings that: exceed 500 characters, are non-string/empty if provided, or contain ASCII control characters (including NUL `\x00` — valid in jsonb but crash SIEM tooling). These all return `400 INVALID_REASON`.
+
+The shared response type is `LifecycleResponse` (from `modules/10-admin-dashboard/src/api.ts`):
+
+```ts
+{
+  tenantId: string;
+  slug: string;
+  status: 'active' | 'suspended' | 'archived';
+  previousStatus: 'active' | 'suspended' | 'archived';
+  noOp: boolean;
+  auditId: string | null;                                    // null on noOp
+  sessionsRevoked?: { count: number; affectedUsers: string[] }; // suspend + archive only
+}
+```
+
+---
+
+#### `POST /api/admin/super/tenants/:tenantId/suspend`
+
+Transitions the target tenant from `active` to `suspended`. Suspending a tenant blocks all future logins for that tenant's users and immediately destroys all active sessions.
+
+**Auth:** `super_admin` + fresh TOTP (verified within 15 minutes). `401 AUTHN_FAILED` with `details.code = 'FRESH_MFA_REQUIRED'` when MFA is stale.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body:** `{ reason?: string }` (max 500 chars; NUL + ASCII control chars rejected with `400 INVALID_REASON`).
+
+**Response 200:**
+```json
+{
+  "tenantId": "uuid",
+  "slug": "acme-corp",
+  "status": "suspended",
+  "previousStatus": "active",
+  "noOp": false,
+  "auditId": "uuid",
+  "sessionsRevoked": { "count": 3, "affectedUsers": ["uuid1", "uuid2", "uuid3"] }
+}
+```
+
+**Idempotency:** Already-suspended tenant returns `200` with `noOp: true`, `auditId: null`, and no `sessionsRevoked` field. No audit row is written and no session sweep is performed on a no-op call.
+
+**Side effects (non-noOp only):** Calls `sessions.destroyAllForTenant(tenantId)` after the DB commit. Audit row written inside the `withTenant` transaction via `auditInTx` (UPDATE + audit INSERT are atomic). `logLifecycleEvent` fires at INFO level.
+
+**Allowed source states:** `active` only. Any other source state raises `409 INVALID_LIFECYCLE_TRANSITION`.
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_LIFECYCLE_TRANSITION` | 409 | Source state is not `active` |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP not verified within 15 minutes |
+| `TENANT_NOT_FOUND` | 404 | `tenantId` does not exist |
+
+**Audit action emitted:** `tenant.suspended` (scoped to the target tenant's audit log).
+
+**Source:** `apps/api/src/routes/admin-super.ts:471`, `modules/02-tenancy/src/service.ts` (`suspendTenant`, allowed source: `["active"]`).
+
+---
+
+#### `POST /api/admin/super/tenants/:tenantId/resume`
+
+Transitions the target tenant from `suspended` back to `active`. Does not destroy or create sessions — users must log in again normally after resume.
+
+**Auth:** `super_admin` + fresh TOTP (verified within 15 minutes). `401 AUTHN_FAILED` with `details.code = 'FRESH_MFA_REQUIRED'` when MFA is stale.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body:** `{ reason?: string }` (max 500 chars; NUL + ASCII control chars rejected with `400 INVALID_REASON`).
+
+**Response 200:**
+```json
+{
+  "tenantId": "uuid",
+  "slug": "acme-corp",
+  "status": "active",
+  "previousStatus": "suspended",
+  "noOp": false,
+  "auditId": "uuid"
+}
+```
+
+**Idempotency:** Already-active tenant returns `200` with `noOp: true`, `auditId: null`. No audit row is written.
+
+**Side effects (non-noOp only):** Audit row written inside `withTenant` transaction via `auditInTx`. `logLifecycleEvent` fires at INFO level. No session sweep — sessions are not destroyed on resume.
+
+**Allowed source states:** `suspended` only. Any other source state raises `409 INVALID_LIFECYCLE_TRANSITION`.
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_LIFECYCLE_TRANSITION` | 409 | Source state is not `suspended` |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP not verified within 15 minutes |
+| `TENANT_NOT_FOUND` | 404 | `tenantId` does not exist |
+
+**Audit action emitted:** `tenant.resumed` (scoped to the target tenant's audit log).
+
+**Source:** `apps/api/src/routes/admin-super.ts:513`, `modules/02-tenancy/src/service.ts` (`resumeTenant`, allowed source: `["suspended"]`).
+
+---
+
+#### `POST /api/admin/super/tenants/:tenantId/archive`
+
+Transitions the target tenant from `active` or `suspended` to `archived`. Archiving hides the tenant from the default Platform UI list and immediately destroys all active sessions. All data (users, attempts, audit history) is retained.
+
+**Auth:** `super_admin` + fresh TOTP (verified within 15 minutes). `401 AUTHN_FAILED` with `details.code = 'FRESH_MFA_REQUIRED'` when MFA is stale.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body:** `{ reason?: string }` (max 500 chars; NUL + ASCII control chars rejected with `400 INVALID_REASON`).
+
+**Response 200:**
+```json
+{
+  "tenantId": "uuid",
+  "slug": "acme-corp",
+  "status": "archived",
+  "previousStatus": "active",
+  "noOp": false,
+  "auditId": "uuid",
+  "sessionsRevoked": { "count": 1, "affectedUsers": ["uuid1"] }
+}
+```
+
+**Idempotency:** Already-archived tenant returns `200` with `noOp: true`, `auditId: null`, and no `sessionsRevoked` field. No session sweep on no-op.
+
+**Side effects (non-noOp only):** Calls `sessions.destroyAllForTenant(tenantId)` after DB commit. Audit row written inside `withTenant` transaction via `auditInTx`. `logLifecycleEvent` fires at WARN level.
+
+**Allowed source states:** `active` or `suspended`. Any other source state raises `409 INVALID_LIFECYCLE_TRANSITION`.
+
+**Visibility:** Archived tenants are excluded from `GET /api/admin/super/tenants` by default. Pass `?include_archived=true` to surface them.
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_LIFECYCLE_TRANSITION` | 409 | Source state is not `active` or `suspended` |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP not verified within 15 minutes |
+| `TENANT_NOT_FOUND` | 404 | `tenantId` does not exist |
+
+**Audit action emitted:** `tenant.archived` (scoped to the target tenant's audit log).
+
+**Source:** `apps/api/src/routes/admin-super.ts:545`, `modules/02-tenancy/src/service.ts` (`archiveTenant`, allowed sources: `["active", "suspended"]`).
+
+---
+
+#### `POST /api/admin/super/tenants/:tenantId/unarchive`
+
+Transitions the target tenant from `archived` back to `active`. Does not restore sessions.
+
+**Auth:** `super_admin` + fresh TOTP (verified within 15 minutes). `401 AUTHN_FAILED` with `details.code = 'FRESH_MFA_REQUIRED'` when MFA is stale.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Body:** `{ reason?: string }` (max 500 chars; NUL + ASCII control chars rejected with `400 INVALID_REASON`).
+
+**Response 200:**
+```json
+{
+  "tenantId": "uuid",
+  "slug": "acme-corp",
+  "status": "active",
+  "previousStatus": "archived",
+  "noOp": false,
+  "auditId": "uuid"
+}
+```
+
+**Idempotency:** Already-active tenant returns `200` with `noOp: true`, `auditId: null`. No audit row written.
+
+**Side effects (non-noOp only):** Audit row written inside `withTenant` transaction via `auditInTx`. `logLifecycleEvent` fires at INFO level. No session sweep — no sessions exist for an archived tenant.
+
+**Allowed source states:** `archived` only. Any other source state raises `409 INVALID_LIFECYCLE_TRANSITION`.
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_LIFECYCLE_TRANSITION` | 409 | Source state is not `archived` |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP not verified within 15 minutes |
+| `TENANT_NOT_FOUND` | 404 | `tenantId` does not exist |
+
+**Audit action emitted:** `tenant.unarchived` (scoped to the target tenant's audit log).
+
+**Source:** `apps/api/src/routes/admin-super.ts:587`, `modules/02-tenancy/src/service.ts` (`unarchiveTenant`, allowed source: `["archived"]`).
+
+---
+
+#### User lifecycle endpoints (Phase C)
+
+Shipped in commit `a888a43` (2026-05-20). Two parallel surfaces:
+
+- **Tenant-admin endpoints** (`/api/admin/users/…`) — operate within the caller's own tenant; enforce the LAST_ADMIN invariant unconditionally. Gated by `adminOnly` (`admin` role + `totpVerified`).
+- **Super-admin override endpoints** (`/api/admin/super/users/…`) — operate cross-tenant; can bypass LAST_ADMIN when `confirm_last_admin: true` is provided with a non-empty `reason`. Gated by `superAdminFreshMfa` (`super_admin` + TOTP within 15 min).
+
+Both surfaces share the same `parseLifecycleBody` reason-validation logic (max 500 chars, no control chars, `400 INVALID_REASON` on violation).
+
+---
+
+#### `GET /api/admin/super/tenants/:tenantId/users`
+
+Returns all users in the target tenant plus all pending (unaccepted) invitations. Runs under `assessiq_system` (BYPASSRLS) — no RLS context restriction, so disabled and soft-deleted users are included when requested.
+
+**Auth:** `super_admin` only (session TOTP; no fresh-MFA requirement).
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**Query params:**
+| Param | Default | Meaning |
+|---|---|---|
+| `include_disabled` | `false` | Include `status='disabled'` users (`true` or `1`) |
+| `include_deleted` | `false` | Include `deleted_at IS NOT NULL` users (`true` or `1`) |
+
+**Response 200:**
+```json
+{
+  "users": [
+    { "id": "uuid", "email": "...", "name": "...", "role": "admin", "status": "active", "deleted_at": null, "created_at": "...", "updated_at": "..." }
+  ],
+  "pending_invitations": [
+    { "id": "uuid", "email": "...", "role": "admin", "expires_at": "...", "created_at": "..." }
+  ]
+}
+```
+
+Users are ordered `created_at DESC, id DESC`. Pending invitations are `accepted_at IS NULL`, ordered `created_at DESC`.
+
+**Source:** `apps/api/src/routes/admin-super.ts:974`.
+
+---
+
+#### Tenant-admin user lifecycle endpoints (Phase C)
+
+These five endpoints are gated by `adminOnly` (tenant `admin` role, `totpVerified`). RLS enforces tenant scoping — a `userId` that belongs to a different tenant is invisible and returns `404`. The LAST_ADMIN invariant is enforced unconditionally (no override path).
+
+##### `POST /api/admin/users/:userId/disable`
+
+Disables a user account. Sweeps all active Redis sessions for the target user after the DB commit.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, status: "disabled", previousStatus: "active" }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `CANNOT_DISABLE_SELF` | 400 | Caller is attempting to disable their own account |
+| `LAST_ADMIN` | 409 | Target is the last active admin in the tenant |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.disabled`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:169`, `modules/03-users/src/service.ts` (`updateUser`).
+
+---
+
+##### `POST /api/admin/users/:userId/reenable`
+
+Re-enables a previously disabled user account. Sets `status` back to `active`.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, status: "active", previousStatus: "disabled" }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.reenabled`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:210`.
+
+---
+
+##### `DELETE /api/admin/users/:userId`
+
+Soft-deletes a user (sets `deleted_at = now()`). Cascades to pending invitations for the user's email (deletes `user_invitations` rows where `lower(email) = lower(target.email) AND accepted_at IS NULL`). Sweeps Redis sessions after commit.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, deleted: true }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `CANNOT_DELETE_SELF` | 400 | Caller is attempting to delete their own account |
+| `LAST_ADMIN` | 409 | Target is the last active admin in the tenant |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit actions emitted:** `user.deleted` in `audit_log` (via `auditInTx` in the service-layer transaction) plus `user.soft_deleted` in the lifecycle operational JSONL log (via `logLifecycleEvent` in the route handler). The two action names are catalogued as equivalent — see [`modules/14-audit-log/src/types.ts:157`](modules/14-audit-log/src/types.ts#L157).
+
+**Source:** `apps/api/src/routes/admin-users.ts:304`, `modules/03-users/src/service.ts` (`softDelete`).
+
+---
+
+##### `POST /api/admin/users/:userId/restore`
+
+Restores a soft-deleted user by clearing `deleted_at`. Does NOT recreate invitations or sessions — the user must be re-invited or log in again.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, status }` — `status` reflects the user's current `users.status` (e.g. `"active"` or `"disabled"` — whatever it was before soft-delete).
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.restored`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:242`, `modules/03-users/src/service.ts` (`restore`).
+
+---
+
+##### `DELETE /api/admin/users/invitations/:invitationId`
+
+Cancels a pending (unaccepted) invitation. Deletes the `user_invitations` row and, if the associated user record is still `status='pending'`, also deletes that `users` row (`cascadedPendingUser: true` in the response).
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Path params:** `invitationId` — UUID of the invitation.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:**
+```json
+{ "invitationId": "uuid", "email": "...", "cascadedPendingUser": true, "cancelledUserId": "uuid" }
+```
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVITATION_NOT_FOUND` | 404 | No invitation row with this id (or cross-tenant — RLS makes it invisible) |
+| `INVITATION_ALREADY_ACCEPTED` | 409 | `accepted_at IS NOT NULL` — invitation was already used |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.invitation_cancelled`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:265`, `modules/03-users/src/service.ts` (`cancelInvitation`).
+
+---
+
+#### Super-admin user lifecycle override endpoints (Phase C)
+
+Gated by `superAdminFreshMfa` (`super_admin` + TOTP within **15 minutes**). These are the cross-tenant counterparts to the tenant-admin endpoints above. Key differences:
+
+- **Cross-tenant:** the target user's `tenantId` is resolved via a `assessiq_system` (BYPASSRLS) query on `userId`, then the operation runs under `withTenant(targetTenantId)`. The super-admin's session `tenantId` (the `platform` tenant) is never used for the data operation.
+- **LAST_ADMIN override:** when the action would normally raise `LAST_ADMIN`, passing `confirm_last_admin: true` **and** a non-empty `reason` bypasses the guard. Without both fields, `LAST_ADMIN` fires identically to the tenant-admin path. The audit row carries `is_override: true` in the `after` JSON. `logLifecycleEvent` fires at **WARN** level when `isOverride: true`.
+- **No self-action guards:** super-admins do not live in any tenant, so `CANNOT_DISABLE_SELF` and `CANNOT_DELETE_SELF` never apply.
+
+**Body shape for all super-admin lifecycle endpoints:** `{ reason?: string, confirm_last_admin?: boolean }`
+
+---
+
+##### `POST /api/admin/super/users/:userId/disable`
+
+Cross-tenant disable. Sweeps Redis sessions for the target user after DB commit.
+
+**Auth:** `super_admin` + fresh TOTP (15 min).
+
+**Response 200:** `{ userId, status: "disabled", previousStatus, isOverride: boolean }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `LAST_ADMIN` | 409 | Last active admin; `confirm_last_admin: true` + non-empty `reason` required to override |
+| `INVALID_REASON` | 400 | reason validation failure |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP stale |
+
+**Audit action emitted:** `user.disabled`. `after.is_override: true` when override path fired.
+
+**Source:** `apps/api/src/routes/admin-super.ts:1139`.
+
+---
+
+##### `POST /api/admin/super/users/:userId/reenable`
+
+Cross-tenant reenable. Sets `status = 'active'`. No LAST_ADMIN check (enabling, not restricting). `confirm_last_admin` is accepted in the body but has no effect.
+
+**Auth:** `super_admin` + fresh TOTP (15 min).
+
+**Response 200:** `{ userId, status: "active", previousStatus }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_REASON` | 400 | reason validation failure |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP stale |
+
+**Audit action emitted:** `user.reenabled`.
+
+**Source:** `apps/api/src/routes/admin-super.ts:1227`.
+
+---
+
+##### `DELETE /api/admin/super/users/:userId`
+
+Cross-tenant soft-delete. Sets `deleted_at = now()`. Cascades to pending invitations for the user's email (same cascade as the tenant-admin path). Sweeps Redis sessions after commit.
+
+**Auth:** `super_admin` + fresh TOTP (15 min).
+
+**Response 200:** `{ userId, deleted: true, isOverride: boolean }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `LAST_ADMIN` | 409 | Last active admin; `confirm_last_admin: true` + non-empty `reason` required to override |
+| `INVALID_REASON` | 400 | reason validation failure |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP stale |
+
+**Audit action emitted:** `user.soft_deleted`. `after.is_override: true` when override path fired.
+
+**Source:** `apps/api/src/routes/admin-super.ts:1354`.
+
+---
+
+##### `POST /api/admin/super/users/:userId/restore`
+
+Cross-tenant restore. Clears `deleted_at`. Does not recreate invitations or sessions.
+
+**Auth:** `super_admin` + fresh TOTP (15 min).
+
+**Response 200:** `{ userId, status, previousDeletedAt }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_REASON` | 400 | reason validation failure |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP stale |
+
+**Audit action emitted:** `user.restored`.
+
+**Source:** `apps/api/src/routes/admin-super.ts:1433`.
+
+---
+
+##### `DELETE /api/admin/super/users/invitations/:invitationId`
+
+Cross-tenant invitation cancellation. Resolves the invitation's `tenantId` via `assessiq_system` BYPASSRLS lookup, then delegates to `cancelInvitation(targetTenantId, …)`. Returns the same response shape as the tenant-admin path.
+
+**Auth:** `super_admin` + fresh TOTP (15 min).
+
+**Path params:** `invitationId` — UUID of the invitation.
+
+**Body:** `{ reason?: string }` (`confirm_last_admin` is not applicable here).
+
+**Response 200:**
+```json
+{ "invitationId": "uuid", "email": "...", "cascadedPendingUser": true, "cancelledUserId": "uuid" }
+```
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVITATION_NOT_FOUND` | 404 | No invitation row with this id |
+| `INVITATION_ALREADY_ACCEPTED` | 409 | Invitation already used |
+| `INVALID_REASON` | 400 | reason validation failure |
+| `FRESH_MFA_REQUIRED` | 401 | TOTP stale |
+
+**Audit action emitted:** `user.invitation_cancelled`.
+
+**Note:** This route is registered **before** `DELETE /api/admin/super/users/:userId` so Fastify's static-segment-first matching resolves `invitations` correctly and never confuses it with a `userId`.
+
+**Source:** `apps/api/src/routes/admin-super.ts:1282`.
 
 ### Candidate
 

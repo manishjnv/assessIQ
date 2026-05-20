@@ -638,6 +638,118 @@ Master encryption key: 32-byte random, in env var `ASSESSIQ_MASTER_KEY` (base64)
 - [x] **Role-aware IP rate limiting on all routes** (2026-05-15) — four-tier design, see § below
 - [ ] Account lockout after 5 failed TOTP attempts in 15 min
 
+## Tenant + User lifecycle state machines (Phase B + Phase C, 2026-05-20)
+
+Commits: `ae89669` (Phase B — tenant lifecycle), `2af9849` + `a888a43` (Phase C — user lifecycle + super-admin drill-down).
+
+### Tenant state machine
+
+States: `provisioning`, `active`, `suspended`, `archived`.
+
+**Allowed transitions** (source arrays from `performLifecycleTransition` in [`modules/02-tenancy/src/service.ts:366–444`](modules/02-tenancy/src/service.ts#L366)):
+
+| Transition | Trigger | Session effect |
+|---|---|---|
+| `provisioning` → `active` | First admin invite accepted (separate onboarding flow) | — |
+| `active` → `suspended` | `POST /api/admin/super/tenants/:tenantId/suspend` | `destroyAllForTenant` |
+| `active` → `archived` | `POST /api/admin/super/tenants/:tenantId/archive` | `destroyAllForTenant` |
+| `suspended` → `active` | `POST /api/admin/super/tenants/:tenantId/resume` | none |
+| `suspended` → `archived` | `POST /api/admin/super/tenants/:tenantId/archive` | `destroyAllForTenant` |
+| `archived` → `active` | `POST /api/admin/super/tenants/:tenantId/unarchive` | none |
+
+**Disallowed transitions** (throw `ConflictError { code: "INVALID_LIFECYCLE_TRANSITION" }`):
+
+- `provisioning` → `suspended` / `archived`
+- `archived` → `suspended`
+
+Any transition where source equals target is **idempotent**: the endpoint returns `200` with `noOp: true`, no audit row is written, and no session sweep runs.
+
+**Session revocation.** `suspend` and `archive` both call `sessions.destroyAllForTenant(tenantId)` ([`modules/01-auth/src/sessions.ts:296–323`](modules/01-auth/src/sessions.ts#L296)) immediately after the DB status flip. The sweep collects all `user_id`s with active Postgres session rows for the tenant, then calls `destroyAllForUser` per user — clearing both the Redis hash keys and the Postgres `sessions` rows — so every active cookie becomes invalid on the very next request. This is defence-in-depth: even a cookie-holder who did not observe the suspend cannot reuse their session. `resume` and `unarchive` do **not** recreate sessions; affected users must sign in again normally.
+
+---
+
+### User state machine
+
+States: `pending`, `active`, `disabled` (the `users.status` column) plus the orthogonal `deleted_at IS NOT NULL` soft-delete flag. The two axes are independent: a user can be `disabled` and then soft-deleted, or `active` and soft-deleted.
+
+**Allowed transitions** (source: [`modules/03-users/src/invariants.ts:70–83`](modules/03-users/src/invariants.ts#L70) for status, service layer for soft-delete/restore):
+
+| Transition | Trigger | Session effect |
+|---|---|---|
+| `pending` → `active` | `acceptInvitation` (magic-link; out of scope here — see Flow 1a / 2) | — |
+| `pending` → `disabled` | admin revoke-before-accept via `PATCH status=disabled` | none (no sessions yet) |
+| `active` → `disabled` | `POST /api/admin/users/:id/disable` (tenant-admin) or `POST /api/admin/super/users/:userId/disable` (super-admin) | `sweepUserSessions(userId)` |
+| `disabled` → `active` | `POST /api/admin/users/:id/reenable` / `…/super/…/reenable` | — |
+| `active` → soft-deleted (`deleted_at` set) | `DELETE /api/admin/users/:id` / `…/super/…/:userId` | `sweepUserSessions(userId)` + cascades pending invitations |
+| `disabled` → soft-deleted | same endpoints | `sweepUserSessions(userId)` + cascades pending invitations |
+| soft-deleted → (prior status) | `POST /api/admin/users/:id/restore` / `…/super/…/restore` | none; status column unchanged |
+
+`restore` clears `deleted_at` only — the `status` column reverts to whatever it was before deletion (could be `active` or `disabled`). Pending invitations are **not** recreated on restore.
+
+**Last-admin invariant.** Cannot disable or soft-delete the last `active` + `role='admin'` + `deleted_at IS NULL` user in a tenant. Enforced by `assertNotLastAdmin` ([`modules/03-users/src/invariants.ts:19–51`](modules/03-users/src/invariants.ts#L19)) on the tenant-admin path via a `FOR NO KEY UPDATE` CTE to prevent TOCTOU races. The super-admin path inlines its own equivalent SQL ([`apps/api/src/routes/admin-super.ts:1154–1173`](apps/api/src/routes/admin-super.ts#L1154)) and bypasses when `confirm_last_admin: true` **and** `reason` is non-empty — details.code remains `"LAST_ADMIN"` on refusal. The `assertNotLastAdmin` function itself is never called from the super-admin path.
+
+**Self-action guards.** The tenant-admin path (`apps/api/src/routes/admin-users.ts`) throws `ConflictError { code: "CANNOT_DISABLE_SELF" }` and `{ code: "CANNOT_DELETE_SELF" }` when the actor targets their own user record. The super-admin path has no equivalent guard: `super_admin` sessions carry the platform tenant context and do not live inside any company tenant, so the guard does not apply.
+
+---
+
+### Session-loader enforcement contract
+
+Every authenticated request runs `userIsActive` then `tenantIsActive` inside `sessionLoaderMiddleware` ([`modules/01-auth/src/middleware/session-loader.ts:86–178`](modules/01-auth/src/middleware/session-loader.ts#L86)), after the Redis session lookup and idle-eviction check.
+
+Both functions throw `AuthnError("session rejected")` on failure; the session token is destroyed before the throw so the cookie cannot be replayed.
+
+**Structured `details` payload:**
+
+| `details.scope` | `details.reason` | Condition |
+|---|---|---|
+| `"user"` | `"inactive"` | `users.status !== 'active'` OR `users.deleted_at IS NOT NULL` ([`session-loader.ts:52`](modules/01-auth/src/middleware/session-loader.ts#L52)) |
+| `"user"` | `"check_failed"` | DB error during user check — fail-closed ([`session-loader.ts:139`](modules/01-auth/src/middleware/session-loader.ts#L139)) |
+| `"tenant"` | `"inactive"` | `tenants.status NOT IN ('active', 'provisioning')` ([`session-loader.ts:75`](modules/01-auth/src/middleware/session-loader.ts#L75)) |
+| `"tenant"` | `"check_failed"` | DB error during tenant check — fail-closed ([`session-loader.ts:161`](modules/01-auth/src/middleware/session-loader.ts#L161)) |
+
+User check runs **first** — a disabled user receives a `scope: "user"` error even if their tenant is also suspended, keeping the error scope unambiguous.
+
+**Error-message hygiene.** The `AuthnError` message is intentionally the generic string `"session rejected"` for both scopes. A cookie-holding attacker cannot distinguish "my account was disabled" from "my tenant was suspended" via the error string. The `details.scope` field is surfaced in the API error envelope for **internal observability** (server logs, operator tooling) and is the contract Phase D will use to render state-aware copy on post-auth screens. State-aware copy is not a security boundary — operators may still observe the scope via logs.
+
+`tenantIsActive` allows both `'active'` and `'provisioning'` — the latter permits the `createTenant` orchestration window (seed + invite steps) without blocking the first admin's session mid-flow.
+
+---
+
+### Audit log emissions
+
+Source: [`modules/14-audit-log/src/types.ts`](modules/14-audit-log/src/types.ts) `ACTION_CATALOG`.
+
+**Tenant lifecycle actions:**
+
+- `tenant.suspended` — active → suspended
+- `tenant.resumed` — suspended → active
+- `tenant.archived` — active/suspended → archived
+- `tenant.unarchived` — archived → active
+- `tenant.purged` — forward-compat for 6-month retention purge; wired in a later phase
+
+**User lifecycle actions:**
+
+- `user.disabled` — active → disabled
+- `user.reenabled` — disabled → active
+- `user.soft_deleted` / `user.deleted` — any status → soft-deleted. The catalog keeps both names for backward compatibility:
+  - Tenant-admin path: `auditInTx` (audit_log) emits `user.deleted`; `logLifecycleEvent` (operational JSONL) emits `user.soft_deleted`.
+  - Super-admin path: BOTH channels emit `user.soft_deleted`.
+  - Catalog comment in [`modules/14-audit-log/src/types.ts:157`](modules/14-audit-log/src/types.ts#L157) notes the two are functionally equivalent — the duplicate exists so admin queries scoped to `user.deleted` don't miss historic rows.
+- `user.restored` — soft-deleted → prior status
+- `user.invitation_cancelled` — pending invitation explicitly cancelled before acceptance
+
+Audit rows are written inside the **same `withTenant` transaction** as the status mutation via `auditInTx` — if the audit write fails, the status change rolls back. No-op transitions (idempotent same-state calls) do not emit an audit row.
+
+**Override rows.** When the super-admin bypass path is used (`confirm_last_admin: true` + non-empty `reason`), the audit row's `after` JSONB column includes `is_override: true` ([`admin-super.ts:1199`](apps/api/src/routes/admin-super.ts#L1199), [`admin-super.ts:1412`](apps/api/src/routes/admin-super.ts#L1412)). `logLifecycleEvent` emits at `WARN` level when `isOverride=true` ([`admin-super.ts:1066`](apps/api/src/routes/admin-super.ts#L1066)).
+
+---
+
+### Lifecycle carry-forwards (not in this commit)
+
+- **Mint-time `assertTenantActive` on magic-link / SSO / email-OTP session creation.** Session creation endpoints do not call `assertTenantActive` at mint time. A suspended tenant's new-login attempt is not blocked at the `createSession` call — it is blocked by `sessionLoaderMiddleware` on the very next authenticated request (so no privilege escalation is possible), but the minted cookie exists for a brief window before the next request evicts it. Listed as a carry-forward hardening pass.
+- **Provisioning TTL.** There is no TTL on `tenants.status = 'provisioning'`. A tenant whose first admin never accepts the invitation will sit in `provisioning` indefinitely; a background cleanup sweep is not implemented.
+- **Phase D state-aware copy.** The frontend does not yet render different UI copy for `details.scope = "user"` vs `"tenant"`. The structured field exists in the error envelope so it can be wired to Phase D screens without a backend change.
+
 ## Role-aware IP rate limiting
 
 > **Status: LIVE 2026-05-15** — redesign replaces the 2026-05-04 opt-in bypass. See `modules/01-auth/src/middleware/rate-limit.ts` + `apps/api/src/middleware/auth-chain.ts`.

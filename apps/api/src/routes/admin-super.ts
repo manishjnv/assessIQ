@@ -647,8 +647,14 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   // Gate: super_admin + totpVerified (enforced by superAdminOnly chain).
   //
   // Response 200: { tenants: Array<{ id, slug, name, status, created_at,
-  //   admin_email, admin_name, admin_status, usage,
-  //   admin_count, reviewer_count }> } (admin_* + usage nullable)
+  //   admin_email, admin_name, admin_status, admin_invitation_expires_at,
+  //   usage, admin_count, reviewer_count }> } (admin_* + usage nullable).
+  //
+  // `admin_invitation_expires_at` is the expires_at of the FIRST admin's
+  // pending invitation row (NULL if the admin already accepted or no
+  // invitation exists). Used by the Platform UI to surface expired-invite
+  // chips on tenant rows so operators can decide whether to call the
+  // resend-invitation endpoint.
   // ──────────────────────────────────────────────────────────────────────────
   app.get(
     '/api/admin/super/tenants',
