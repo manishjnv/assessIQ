@@ -58,6 +58,7 @@ export function AdminMfa(): JSX.Element {
   const { session, loading } = useSession();
   const nav = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const codeInputRef = useRef<HTMLInputElement | null>(null);
   const [enrolled, setEnrolled] = useState<boolean | null>(null);
   const [secretBase32, setSecretBase32] = useState<string | null>(null);
   const [otpauthUri, setOtpauthUri] = useState<string | null>(null);
@@ -141,8 +142,14 @@ export function AdminMfa(): JSX.Element {
     });
   }, [enrolled, locked, otpauthUri]);
 
-  const verify = async (): Promise<void> => {
-    if (!/^\d{6}$/.test(code)) {
+  // verify accepts an explicit `codeArg` so the auto-submit path (called from
+  // onChange the moment a 6th digit is entered) can pass the fresh value
+  // without racing the setCode state update. Falls back to the `code` state
+  // when called from the button click.
+  const verify = async (codeArg?: string): Promise<void> => {
+    if (submitting) return; // idempotent guard — auto-submit + a stray click won't double-fire
+    const c = codeArg ?? code;
+    if (!/^\d{6}$/.test(c)) {
       setError('Enter a 6-digit code from your authenticator app.');
       return;
     }
@@ -153,7 +160,7 @@ export function AdminMfa(): JSX.Element {
         // Enrollment path — capture recovery codes before navigating away.
         const resp = await api<EnrollConfirmResponse>('/auth/totp/enroll/confirm', {
           method: 'POST',
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code: c }),
         });
         setRecoveryCodes(resp.recoveryCodes);
         await fetchWhoami(true);
@@ -162,7 +169,7 @@ export function AdminMfa(): JSX.Element {
       } else {
         await api('/auth/totp/verify', {
           method: 'POST',
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code: c }),
         });
         await fetchWhoami(true);
         nav('/admin', { replace: true });
@@ -181,6 +188,12 @@ export function AdminMfa(): JSX.Element {
         setError('Verification failed.');
       }
       setSubmitting(false);
+      // Re-focus the input so the user can retype immediately without clicking.
+      // Select-all so the wrong code is overwritten by the first new keystroke.
+      setTimeout(() => {
+        codeInputRef.current?.focus();
+        codeInputRef.current?.select();
+      }, 0);
     }
   };
 
@@ -452,13 +465,27 @@ export function AdminMfa(): JSX.Element {
           </label>
           <input
             id="totp-code"
+            ref={codeInputRef}
+            // Autofocus the OTP field so the cursor lands here on page load —
+            // the input only renders after enrolled is determined, so this
+            // fires on the right mount and only once. After a wrong-code error
+            // we re-focus + select in the verify catch path (see above).
+            autoFocus
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
             value={locked ? '' : code}
             onChange={(e) => {
-              setCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+              const next = e.target.value.replace(/\D/g, '').slice(0, 6);
+              setCode(next);
               setError(null);
+              // Auto-submit the moment the 6th digit is entered — no need for
+              // the user to reach for the Verify button. Pass `next` directly:
+              // setCode is async so verify() reading `code` would race.
+              // `submitting` and `locked` guards in verify() keep it safe.
+              if (next.length === 6 && !submitting && !locked) {
+                void verify(next);
+              }
             }}
             disabled={locked || submitting}
             placeholder="••••••"
@@ -492,7 +519,7 @@ export function AdminMfa(): JSX.Element {
           {/* Primary verify button — full-width per template idiom */}
           <Button
             size="lg"
-            onClick={verify}
+            onClick={() => void verify()}
             disabled={code.length !== 6 || submitting || locked}
             style={{ width: '100%', marginTop: 16, justifyContent: 'center' }}
             rightIcon="arrow"
