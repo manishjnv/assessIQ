@@ -318,6 +318,38 @@ function Pager({
   );
 }
 
+// ── FilterChip — chip-styled toggle button (real <button>, full hit-target) ──
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        margin: 0,
+        cursor: "pointer",
+        font: "inherit",
+        color: "inherit",
+        display: "inline-flex",
+      }}
+    >
+      <Chip variant={active ? "accent" : "default"}>{children}</Chip>
+    </button>
+  );
+}
+
 // ── UserLifecycleConfirmModal ─────────────────────────────────────────────────
 
 interface UserModalCopy {
@@ -668,8 +700,19 @@ function UserManageMenu({
     return <></>;
   }
 
+  // When the menu is open the wrapper takes a real z-index so the absolute
+  // dropdown can stack above subsequent table rows. With z-index: auto the
+  // dropdown's own z-index does not escape its non-stacking-context parent
+  // and later rows can paint adjacent to it.
   return (
-    <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
+    <div
+      ref={menuRef}
+      style={{
+        position: "relative",
+        display: "inline-block",
+        zIndex: open ? 1000 : "auto",
+      }}
+    >
       <Button
         size="sm"
         variant="ghost"
@@ -686,11 +729,11 @@ function UserManageMenu({
             position: "absolute",
             right: 0,
             top: "calc(100% + 4px)",
-            background: "var(--aiq-color-bg-base)",
+            background: "var(--aiq-color-bg-base, #ffffff)",
             border: "1px solid var(--aiq-color-border)",
             borderRadius: "var(--aiq-radius-md)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            zIndex: 400,
+            zIndex: 1000,
             minWidth: 180,
             paddingTop: 4,
             paddingBottom: 4,
@@ -730,7 +773,14 @@ function InvitationManageMenu({
   if (readOnly) return <></>;
 
   return (
-    <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
+    <div
+      ref={menuRef}
+      style={{
+        position: "relative",
+        display: "inline-block",
+        zIndex: open ? 1000 : "auto",
+      }}
+    >
       <Button
         size="sm"
         variant="ghost"
@@ -747,11 +797,11 @@ function InvitationManageMenu({
             position: "absolute",
             right: 0,
             top: "calc(100% + 4px)",
-            background: "var(--aiq-color-bg-base)",
+            background: "var(--aiq-color-bg-base, #ffffff)",
             border: "1px solid var(--aiq-color-border)",
             borderRadius: "var(--aiq-radius-md)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            zIndex: 400,
+            zIndex: 1000,
             minWidth: 180,
             paddingTop: 4,
             paddingBottom: 4,
@@ -805,9 +855,12 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
 
-  // Phase C toggles — session-scoped (no localStorage)
-  const [showDisabled, setShowDisabled] = useState(false);
-  const [showRemoved, setShowRemoved] = useState(false);
+  // Phase C toggles — session-scoped (no localStorage).
+  // In super-admin context default ON so that a freshly-disabled/removed user
+  // is immediately visible (parent always fetches with includeDisabled +
+  // includeDeleted). In tenant-admin context default OFF for a cleaner list.
+  const [showDisabled, setShowDisabled] = useState(isSuperContext);
+  const [showRemoved, setShowRemoved] = useState(isSuperContext);
 
   // Phase C page-level feedback
   const [actionToast, setActionToast] = useState<string | null>(null);
@@ -905,12 +958,16 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
           const confirmLastAdmin = isSuperContext && !!lifecycleExtraWarning && activeAdminCount <= 1;
           await lifecycleHandlers.disable(user.id, reason, confirmLastAdmin || undefined);
           setActionToast(`${displayName} disabled.`);
+          // Auto-reveal so the now-disabled row stays visible to the operator.
+          setShowDisabled(true);
         } else if (action === "reenable") {
           await lifecycleHandlers.reenable(user.id, reason);
           setActionToast(`${displayName} re-enabled.`);
         } else if (action === "softDelete") {
           await lifecycleHandlers.softDelete(user.id, reason);
           setActionToast(`${displayName} removed.`);
+          // Auto-reveal so the now-removed row stays visible to the operator.
+          setShowRemoved(true);
         } else if (action === "restore") {
           await lifecycleHandlers.restore(user.id, reason);
           setActionToast(`${displayName} restored.`);
@@ -1049,38 +1106,26 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {!isSuperContext && (["admin", "reviewer"] as const).map((r) => (
-              <span
+              <FilterChip
                 key={r}
+                active={roleFilter === r}
                 onClick={() => { setRoleFilter(roleFilter === r ? null : r); setPage(1); }}
-                style={{ cursor: "pointer" }}
-                role="button"
-                aria-pressed={roleFilter === r}
               >
-                <Chip variant={roleFilter === r ? "accent" : "default"}>{r}</Chip>
-              </span>
+                {r}
+              </FilterChip>
             ))}
-            {/* Show disabled toggle */}
-            <span
+            <FilterChip
+              active={showDisabled}
               onClick={() => { setShowDisabled(!showDisabled); setPage(1); }}
-              style={{ cursor: "pointer" }}
-              role="button"
-              aria-pressed={showDisabled}
             >
-              <Chip variant={showDisabled ? "accent" : "default"}>
-                {showDisabled ? "Showing disabled" : "Show disabled users"}
-              </Chip>
-            </span>
-            {/* Show removed toggle */}
-            <span
+              {showDisabled ? "Showing disabled" : "Show disabled users"}
+            </FilterChip>
+            <FilterChip
+              active={showRemoved}
               onClick={() => { setShowRemoved(!showRemoved); setPage(1); }}
-              style={{ cursor: "pointer" }}
-              role="button"
-              aria-pressed={showRemoved}
             >
-              <Chip variant={showRemoved ? "accent" : "default"}>
-                {showRemoved ? "Showing removed" : "Show removed users"}
-              </Chip>
-            </span>
+              {showRemoved ? "Showing removed" : "Show removed users"}
+            </FilterChip>
           </div>
         </div>
 
