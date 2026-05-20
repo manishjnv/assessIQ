@@ -65,8 +65,20 @@ export function Table<T>({
   emptyMessage = "No data.",
   "data-test-id": testId,
 }: TableProps<T>): React.ReactElement {
+  // Width: a bare number is a pixel length. A string is passed through as-is
+  // (so callers can pass "1fr", "minmax(120px, 1fr)", "auto", etc.). Without
+  // the `px` suffix, a numeric width like `80` produced "80" — an invalid
+  // CSS grid track length that silently invalidated the whole
+  // grid-template-columns declaration and collapsed the table into a single
+  // implicit column.
   const gridTemplateColumns = columns
-    .map((c) => (c.width ? String(c.width) : "1fr"))
+    .map((c) =>
+      typeof c.width === "number"
+        ? `${c.width}px`
+        : c.width != null && c.width !== ""
+          ? c.width
+          : "1fr",
+    )
     .join(" ");
 
   function handleSortClick(col: ColumnDef<T>) {

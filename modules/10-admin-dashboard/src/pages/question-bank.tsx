@@ -16,12 +16,15 @@
 //  - Filter state in URL query params only.
 //  - Empty-state renders; no hardcoded fake rows.
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
+import { packStatusDisplay } from "../lib/status.js";
+import { formatDate } from "../lib/format.js";
+import { domainLabel } from "../lib/domains.js";
 
 type PackStatus = "draft" | "published" | "archived";
 
@@ -49,21 +52,94 @@ const STATUS_TABS: { label: string; value: string }[] = [
   { label: "Archived", value: "archived" },
 ];
 
-function packStatusColor(s: string): { bg: string; color: string } {
-  switch (s) {
-    case "published":
-      return { bg: "var(--aiq-color-success-soft)", color: "var(--aiq-color-success)" };
-    case "archived":
-      return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-muted)" };
-    default:
-      return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
-  }
-}
-
 interface NewPackForm {
   name: string;
   domain: string;
   description: string;
+}
+
+// Row-level overflow menu. Minimal self-contained popover so the destructive
+// "Archive" action isn't surfaced as a loud red button on every row. Promote
+// to @assessiq/ui-system if/when a second page needs it.
+interface RowOverflowMenuProps {
+  busy?: boolean;
+  onArchive: () => void;
+}
+
+function RowOverflowMenu({ busy, onArchive }: RowOverflowMenuProps): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="More actions"
+        className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+        disabled={busy}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        style={{ padding: "4px 8px", fontSize: 16, lineHeight: 1 }}
+      >
+        {busy ? "…" : "⋯"}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            right: 0,
+            zIndex: 30,
+            minWidth: 160,
+            background: "var(--aiq-color-bg-base)",
+            border: "1px solid var(--aiq-color-border)",
+            borderRadius: "var(--aiq-radius-md)",
+            boxShadow: "var(--aiq-shadow-lg)",
+            padding: 4,
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              onArchive();
+            }}
+            style={{
+              width: "100%",
+              justifyContent: "flex-start",
+              color: "var(--aiq-color-danger)",
+            }}
+          >
+            Archive…
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function AdminQuestionBank(): React.ReactElement {
@@ -210,7 +286,7 @@ export function AdminQuestionBank(): React.ReactElement {
             letterSpacing: "0.04em",
           }}
         >
-          {row.domain}
+          {domainLabel(row.domain)}
         </span>
       ),
     },
@@ -218,23 +294,8 @@ export function AdminQuestionBank(): React.ReactElement {
       key: "status",
       label: "Status",
       render: (row: PackListItem) => {
-        const c = packStatusColor(row.status);
-        return (
-          <span
-            style={{
-              fontFamily: "var(--aiq-font-mono)",
-              fontSize: "var(--aiq-text-xs)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              padding: "1px 8px",
-              borderRadius: "var(--aiq-radius-pill)",
-              background: c.bg,
-              color: c.color,
-            }}
-          >
-            {row.status}
-          </span>
-        );
+        const s = packStatusDisplay(row.status);
+        return <Chip variant={s.variant}>{s.label}</Chip>;
       },
     },
     {
@@ -279,7 +340,7 @@ export function AdminQuestionBank(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {new Date(row.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+          {formatDate(row.created_at)}
         </span>
       ),
     },
@@ -288,31 +349,30 @@ export function AdminQuestionBank(): React.ReactElement {
       label: "",
       width: 140,
       render: (row: PackListItem) => (
-        <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
-          {row.status !== "archived" && (
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-              disabled={archivingPackId === row.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleArchivePack(row);
-              }}
-              style={{ color: "var(--aiq-color-danger)" }}
-            >
-              {archivingPackId === row.id ? "…" : "Archive"}
-            </button>
-          )}
+        <div
+          style={{
+            display: "flex",
+            gap: "var(--aiq-space-xs)",
+            alignItems: "center",
+            justifyContent: "flex-end",
+          }}
+        >
           <button
             type="button"
-            className="aiq-btn aiq-btn-outline aiq-btn-sm"
+            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/admin/question-bank/${row.id}`);
             }}
           >
-            Open
+            View →
           </button>
+          {row.status !== "archived" && (
+            <RowOverflowMenu
+              busy={archivingPackId === row.id}
+              onArchive={() => void handleArchivePack(row)}
+            />
+          )}
         </div>
       ),
     },
@@ -482,28 +542,38 @@ export function AdminQuestionBank(): React.ReactElement {
           </div>
         )}
 
-        {/* Search + filter row */}
+        {/* Filter row — quiet ghost tabs, search, right-aligned results count */}
         <div
+          className="aiq-admin-filter-strip"
           style={{
             display: "flex",
             alignItems: "center",
             gap: "var(--aiq-space-md)",
             flexWrap: "wrap",
+            borderBottom: "1px solid var(--aiq-color-border)",
+            paddingBottom: "var(--aiq-space-sm)",
           }}
         >
-          <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                type="button"
-                className={`aiq-btn aiq-btn-sm ${
-                  statusFilter === tab.value ? "aiq-btn-primary" : "aiq-btn-outline"
-                }`}
-                onClick={() => handleStatusChange(tab.value)}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div style={{ display: "flex", gap: "var(--aiq-space-2xs)" }}>
+            {STATUS_TABS.map((tab) => {
+              const isActive = statusFilter === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => handleStatusChange(tab.value)}
+                  aria-pressed={isActive}
+                  className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                  style={{
+                    background: isActive ? "var(--aiq-color-accent-soft)" : "transparent",
+                    color: isActive ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-secondary)",
+                    fontWeight: isActive ? 500 : 400,
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
           <form
             onSubmit={handleSearchSubmit}
@@ -521,6 +591,20 @@ export function AdminQuestionBank(): React.ReactElement {
               Search
             </button>
           </form>
+          <span style={{ flex: 1 }} />
+          {!loading && !error && (
+            <span
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--aiq-color-fg-muted)",
+              }}
+            >
+              {items.length} {items.length === 1 ? "result" : "results"}
+            </span>
+          )}
         </div>
 
         {error && (
@@ -535,50 +619,54 @@ export function AdminQuestionBank(): React.ReactElement {
           </div>
         )}
 
-        {loading ? (
-          <div
-            style={{
-              color: "var(--aiq-color-fg-muted)",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              padding: "var(--aiq-space-xl) 0",
-            }}
-          >
-            Loading…
+        <div
+          className="aiq-card"
+          data-density="compact"
+          style={{ padding: 0, overflow: "hidden" }}
+        >
+          <div className="aiq-admin-table-scroll">
+            {!loading && items.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "var(--aiq-space-3xl) var(--aiq-space-lg)",
+                }}
+              >
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-serif)",
+                    fontSize: "var(--aiq-text-xl)",
+                    fontWeight: 400,
+                    margin: "0 0 var(--aiq-space-sm)",
+                    letterSpacing: "-0.015em",
+                  }}
+                >
+                  {statusFilter || searchQuery ? "No packs match this filter." : "No question packs yet."}
+                </p>
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    color: "var(--aiq-color-fg-muted)",
+                    margin: "0 auto",
+                    maxWidth: 360,
+                  }}
+                >
+                  {statusFilter || searchQuery
+                    ? "Try a different filter, or clear search to see all packs."
+                    : "Create your first pack to get started."}
+                </p>
+              </div>
+            ) : (
+              <Table
+                columns={columns}
+                data={items}
+                loading={loading}
+                emptyMessage="No question packs found."
+              />
+            )}
           </div>
-        ) : items.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "var(--aiq-space-3xl) 0",
-              color: "var(--aiq-color-fg-muted)",
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "var(--aiq-font-serif)",
-                fontSize: "var(--aiq-text-xl)",
-                fontWeight: 400,
-                margin: "0 0 var(--aiq-space-sm)",
-              }}
-            >
-              No question packs yet.
-            </p>
-            <p
-              style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", margin: 0 }}
-            >
-              Create your first pack to get started.
-            </p>
-          </div>
-        ) : (
-        <div className="aiq-admin-table-scroll">
-          <Table
-            columns={columns}
-            data={items}
-            emptyMessage="No question packs found."
-          />
         </div>
-        )}
       </div>
     </AdminShell>
   );
