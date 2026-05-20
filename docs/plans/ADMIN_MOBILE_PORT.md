@@ -6,7 +6,7 @@
 > | --- | --- |
 > | A0 — Foundation tokens | SHIPPED 2026-05-21 |
 > | A1 — AdminShell drawer + reflow | SHIPPED 2026-05-21 |
-> | A2 — List / table pages | NOT YET STARTED |
+> | A2 — List / table pages | SHIPPED 2026-05-21 |
 > | A3 — Detail / report pages | NOT YET STARTED |
 > | A4 — Settings / help pages | NOT YET STARTED |
 > | A5 — Editor pages | NOT YET STARTED |

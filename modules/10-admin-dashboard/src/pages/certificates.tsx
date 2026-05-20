@@ -393,6 +393,7 @@ export function AdminCertificates(): React.ReactElement {
 
       {/* ── Filter bar ── */}
       <div
+        className="aiq-admin-filter-strip"
         style={{
           padding: "0 var(--aiq-space-xl) var(--aiq-space-md)",
           display: "flex",
