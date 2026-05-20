@@ -113,7 +113,7 @@ export function AdminIndividualReport(): React.ReactElement {
         {report.attempts
           .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
           .map((attempt) => (
-            <div key={attempt.attempt_id} className="aiq-card" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--aiq-space-xl)", padding: "var(--aiq-space-xl)", alignItems: "start" }}>
+            <div key={attempt.attempt_id} className="aiq-card aiq-admin-detail-two-col" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--aiq-space-xl)", padding: "var(--aiq-space-xl)", alignItems: "start" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
                 <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>
                   {attempt.assessment_name}
