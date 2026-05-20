@@ -366,7 +366,8 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 |---|---|---|---|
 | `PATCH` | `/api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip `ai_generate_mode` for a target tenant | **live 2026-05-08** |
 | `POST` | `/api/admin/super/companies` | Provision new company tenant + send first-admin invitation | **live 2026-05-17** |
-| `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: each tenant carries `usage` summary) | **live 2026-05-17** |
+| `POST` | `/api/admin/super/tenants/:tenantId/invitations/resend` | Re-issue a pending admin invitation for an existing tenant | **live 2026-05-20** |
+| `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: `usage`; 2026-05-20: `admin_invitation_expires_at`) | **live 2026-05-17** |
 | `GET` | `/api/admin/super/tenants/:tenantId/billing` | Full billing detail for one tenant (A2) | **live 2026-05-17** |
 | `GET` | `/api/admin/super/tenants/:tenantId/billing/export.csv` | Export all billing events as CSV (A2) | **live 2026-05-17** |
 | `PATCH` | `/api/admin/super/tenants/:tenantId/plan` | Update a tenant's tier and/or credit allowance (A2) | **live 2026-05-17** |
@@ -443,6 +444,44 @@ A `201` is only returned after the tenant is provisioned **and** activated, so `
 
 **Source:** `apps/api/src/routes/admin-super.ts`.
 
+#### `POST /api/admin/super/tenants/:tenantId/invitations/resend`
+
+Re-issue a pending admin invitation for an existing tenant when the original magic link expired, was lost, or the recipient never received it. Reuses the canonical `inviteUser()` re-invite path — the existing pending invitation is deleted, a fresh token is minted, and the invitation email is resent (same 7-day TTL). The new token *invalidates* the old one (same email = same pending row gets replaced).
+
+**Why this exists, not `PATCH /companies`:** A super-admin who just provisioned a company should not have to re-run the entire `POST /companies` flow (which would 409 on the slug) to get a new invitation token. This route is the surgical fix.
+
+**Why it's idempotent (in effect):** Calling it twice in a row produces two emails but only the second token is valid — the second call replaces the first pending invitation. The user cannot end up with two simultaneous live tokens for the same email.
+
+**Auth:** `super_admin` + **fresh MFA** (15-minute window) — same gate as `POST /companies` because this is privilege-granting (the magic link grants admin role on accept). A stale-TOTP session cannot blast invite emails.
+
+**Request body:** `{}` — no parameters. The tenant is identified by the URL `:tenantId`; the recipient email is read server-side from the tenant's first admin row (the earliest-created `role='admin'` user). Looking up the email from the DB rather than trusting the request body prevents a CSRF-style "resend to attacker email" abuse.
+
+**Tenant scoping:** the email lookup is scoped by `WHERE u.tenant_id = $1` from the URL param, **never** from `session.tenantId`. The super-admin's session lives in the `platform` tenant; the lookup must use the target tenant.
+
+**Response 200:**
+```json
+{
+  "invitation": {
+    "id": "uuid",
+    "email": "admin@acme.com",
+    "role": "admin",
+    "expires_at": "2026-05-27T10:00:00Z"
+  }
+}
+```
+
+**Response 401:** `code = "AUTHN_FAILED"`, message contains `"fresh totp"` — MFA freshness expired; frontend shows step-up prompt (same pattern as `POST /companies`).
+**Response 404:** `details.code = "NO_PENDING_ADMIN"` — the tenant has no admin user (`role='admin'`) to resend to. Possible causes: tenant predates the C4 super-admin onboarding contract; admin was hard-deleted.
+**Response 409:** `details.code = "ADMIN_ALREADY_ACCEPTED"` — the admin's `users.status` is already `active`. The frontend should refetch the tenants list — the row stale.
+**Response 409:** `details.code = "ADMIN_DISABLED_OR_DELETED"` — admin is disabled (`status='disabled'`) or soft-deleted (`deleted_at IS NOT NULL`). Operator must restore/enable before re-inviting (matches `inviteUser` semantics from addendum § 3).
+**Response 403:** caller is not `super_admin`.
+
+**Audit:** two rows are written for one successful call (intentional — different query surfaces):
+- `user.invited` with `kind='reinvite'` — written inside `inviteUser` via `auditInTx`, scoped to the target tenant. Surfaces "who has been re-invited within tenant X".
+- `admin.invitation.resent` — written by the route handler via `audit()` after `inviteUser` succeeds, scoped to the super-admin's `platform` tenant. Surfaces "what cross-tenant resend actions has super-admin Y taken".
+
+**Source:** `apps/api/src/routes/admin-super.ts`. Catalog entry: `modules/14-audit-log/src/types.ts` `ACTION_CATALOG`.
+
 #### `GET /api/admin/super/tenants`
 
 Returns all provisioned tenants. Read-only, no pagination in v1.
@@ -450,6 +489,8 @@ Returns all provisioned tenants. Read-only, no pagination in v1.
 **Auth:** `super_admin` only.
 
 **Response 200:** each tenant also carries its **first admin** (earliest `users` row with `role='admin'` in that tenant — the person invited at company-creation). `admin_*` are `null` for tenants with no admin user (e.g. the `platform` tenant, whose operator is `super_admin`). `admin_status` is `pending` until the admin accepts the invite, then `active`.
+
+**2026-05-20 addition.** Each row also carries `admin_invitation_expires_at: string | null`, sourced from a second `LEFT JOIN LATERAL` against `user_invitations` scoped to `(tenant_id, lower(email), accepted_at IS NULL)` (matches the partial index in `021_user_invitations.sql`; cross-tenant safe). Non-null only while `admin_status === 'pending'`; the Platform UI uses it to render an "Invite pending · expires …" Chip and gate the new Resend-invite action.
 
 **A2 extension:** each tenant object now also carries a `usage` summary field:
 
