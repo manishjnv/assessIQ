@@ -1167,7 +1167,7 @@ export function AdminAssessments(): React.ReactElement {
         )}
 
         {/* Filter chips */}
-        <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+        <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -1234,11 +1234,13 @@ export function AdminAssessments(): React.ReactElement {
             </p>
           </div>
         ) : (
-          <Table
-            columns={columns}
-            data={items}
-            emptyMessage="No assessments found."
-          />
+          <div className="aiq-admin-table-scroll">
+            <Table
+              columns={columns}
+              data={items}
+              emptyMessage="No assessments found."
+            />
+          </div>
         )}
       </div>
     </AdminShell>

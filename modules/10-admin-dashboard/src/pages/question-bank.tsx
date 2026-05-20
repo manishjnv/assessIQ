@@ -491,7 +491,7 @@ export function AdminQuestionBank(): React.ReactElement {
             flexWrap: "wrap",
           }}
         >
-          <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
+          <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab.value}
@@ -571,11 +571,13 @@ export function AdminQuestionBank(): React.ReactElement {
             </p>
           </div>
         ) : (
-        <Table
+        <div className="aiq-admin-table-scroll">
+          <Table
             columns={columns}
             data={items}
             emptyMessage="No question packs found."
           />
+        </div>
         )}
       </div>
     </AdminShell>
