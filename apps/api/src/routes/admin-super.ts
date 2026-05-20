@@ -463,6 +463,7 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
              ORDER BY ui.created_at DESC
              LIMIT 1
            ) i ON true
+           WHERE t.status <> 'archived'
            ORDER BY t.created_at ASC`,
         );
         await client.query('COMMIT');
