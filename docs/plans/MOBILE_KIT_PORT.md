@@ -1,5 +1,7 @@
 # Mobile Kit Port — Phased Implementation Plan
 
+> **Status: SHIPPED (M0–M6 complete, 2026-05-20).** Full candidate-facing surface mobile-tuned in a single day across 7 phases. Visual-only port — no new routes, no flow / auth / backend changes. Admin remains desktop-only with a graceful-degrade interstitial. See [PROJECT_BRAIN.md decision log entry 2026-05-20](../../PROJECT_BRAIN.md#decision-log) for the consolidated summary.
+
 **Goal:** Apply the mobile UI kit shipped at `modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/` to the **routes and features that already exist** in the candidate-facing product. Make the app legible and usable on phones without changing any product flow, auth posture, or backend semantics.
 
 **Authored:** 2026-05-20 from Phase 0 inspection of the mobile kit drop (folder appeared as an untracked add — see `git status`), the existing route inventory in [apps/web/src/App.tsx](../../apps/web/src/App.tsx), and project memory `feedback-functionality-drives-ui.md`.
@@ -8,7 +10,11 @@
 
 **Phasing summary:** 7 phases, ~7–9 sessions of work. M0 (foundation) and M1 (login/magic-link mobile tune) deliver the biggest user-visible wins per byte. M2 (AttemptPage) is the highest-value mobile surface — likely 2 sessions because of per-question-type handling (KQL editor on mobile has real viewport constraints).
 
-**Progress:** ☐ M0 (foundation) · ☐ M1 (login + magic-link landing) · ☐ M2 (AttemptPage) · ☐ M3 (Submitted) · ☐ M4 (Certificates + Activity) · ☐ M5 (admin graceful-degrade) · ☐ M6 (docs + handoff) — **0/7 complete**.
+**Progress:** ✅ M0 (foundation, `b6e8f1c`) · ✅ M1 (login + magic-link landing, `eaa849b`) · ✅ M2a (AttemptPage chrome, `fb1c701`) · ✅ M2b (per-Q-type sizing + KQL tip, `4d4b20c` + help-seed catch-up `bc4f366`) · ✅ M3 (Submitted, `4393cbb`) · ✅ M4 (CandidateShell nav + Activity, `a385f94` + help-seed catch-up `4ee9e5a`) · ✅ M5 (admin graceful-degrade, `7fede89` + help-seed catch-up `672283f`) · ✅ M6 (docs + handoff) — **7/7 complete**.
+
+**Deferred follow-ups** (not part of M0–M6 scope):
+- **M2b'** — KQL desktop-required interstitial revisit when Phase 2 Monaco editor lands. Today's M2b chose a caveat-tip + plain textarea because the KqlAnswerArea isn't yet Monaco-class. Once Monaco is wired, the interstitial-vs-render-with-caveats decision should be re-litigated.
+- **M3'** — graded-state mobile layout (score-ring stacks above breakdown + cert links) when Phase 2 result rendering lands. Today's M3 only covers the pending-grading state because that's the only state this codepath renders in Phase 1.
 
 ---
 

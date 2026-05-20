@@ -542,23 +542,65 @@ Component: `modules/10-admin-dashboard/src/pages/platform.tsx` → `export funct
 
 ---
 
-## Mobile (added in Mobile Kit Port M0 — 2026-05-20)
+## Mobile (Mobile Kit Port M0–M6 SHIPPED — 2026-05-20)
 
-See [docs/10-branding-guideline.md § 15. Mobile](./10-branding-guideline.md#15-mobile) for the visual contract.
+See [docs/10-branding-guideline.md § 15. Mobile](./10-branding-guideline.md#15-mobile) for the canonical visual contract + the full per-pattern reflow catalog (M1 magic-link landing, M2a AttemptPage chrome, M2b per-question-type sizing, M3 Submitted, M4 CandidateShell nav + Activity, M5 admin graceful-degrade). This section catalogs the API surface that lives in `@assessiq/ui-system` and `apps/web/src/lib/`.
 
-### Viewport hooks
+### Viewport hooks (`@assessiq/ui-system`)
 
-- `useViewport(): 'mobile' | 'desktop'` — exported from `@assessiq/ui-system`. SSR-safe (returns `'desktop'` when `window` is undefined). Subscribes to `matchMedia` change events.
-- `useViewportSync(): void` — side-effect hook that writes `data-viewport` on `<html>` and keeps it in sync. Called once inside `ThemeProvider`; no need for consumers to call it directly.
+- `useViewport(): 'mobile' | 'desktop'` — SSR-safe (returns `'desktop'` when `window` is undefined). Subscribes to `matchMedia` change events so live resize / orientation changes update the value. Source: [`modules/17-ui-system/src/hooks/useViewport.ts`](../modules/17-ui-system/src/hooks/useViewport.ts).
+- `useViewportSync(): void` — side-effect hook that writes `data-viewport` on `<html>` and keeps it in sync. Called once inside `ThemeProvider`; consumers never call it directly. Source: [`modules/17-ui-system/src/hooks/useViewportSync.ts`](../modules/17-ui-system/src/hooks/useViewportSync.ts).
+- Predicate constant: `VIEWPORT_QUERY` = `(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))`. The combined OR covers small phones AND iPads in portrait. Single source-of-truth — never duplicate this predicate elsewhere.
+
+### First-paint hint
+
+[`apps/web/index.html`](../apps/web/index.html) carries a tiny inline IIFE in `<head>` that sets `data-viewport` on `<html>` BEFORE the React bundle loads. Without this, the page paints in desktop layout for one frame then re-flows to mobile. The IIFE has a try/catch with `'desktop'` fallback so any `matchMedia` weirdness can't blank the page.
 
 ### Mobile token block
 
-Lives in [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css) as a `[data-viewport="mobile"]` block. Currently overrides four tokens: `--aiq-page-padding-x`, `--aiq-page-padding-y`, `--aiq-card-padding`, `--aiq-h1-size`. Later phases of the mobile port may add to this list — never remove or rename existing keys.
+Lives in [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css) as the `[data-viewport="mobile"]` block + per-page class-scoped overrides. Final set of M0-introduced viewport-aware tokens:
 
-### ViewportLock (stub)
+| Token | Desktop | Mobile |
+| --- | --- | --- |
+| `--aiq-page-padding-x` | `40px` | `22px` |
+| `--aiq-page-padding-y` | `32px` | `20px` |
+| `--aiq-card-padding` | `24px` | `18px` |
+| `--aiq-h1-size` | `var(--aiq-text-3xl)` = 36px | `30px` |
 
-[`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) is a pass-through stub reserved for Phase M5 of the mobile port (admin graceful-degrade interstitial). Do not implement the interstitial logic until M5.
+Later phases added scoped CSS vars on container classes (not in the global token registry):
+
+| Scope | Var | Desktop | Mobile | Phase |
+| --- | --- | --- | --- | --- |
+| `.aiq-take-twopane` | `--aiq-take-h1-size` / `--aiq-take-h1-lh` | `44px` / `1.05` | `30px` / `1.1` | M1 |
+| `.aiq-attempt-shell` | `--aiq-attempt-q-size` | `var(--aiq-text-2xl)` = 30px | `22px` | M2a |
+| `.aiq-attempt-shell` | `--aiq-answer-input-size` | `15px` | `16px` | M2b (defeats iOS auto-zoom on form inputs < 16px) |
+| `.aiq-attempt-shell` | `--aiq-answer-mono-size` | `13px` | `16px` | M2b (same defeat, mono-font preserved) |
+
+Never remove or rename existing keys.
+
+### ViewportLock (M5 — fully implemented)
+
+[`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) wraps `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx) and renders the "Admin tools work best on desktop" interstitial when ALL hold: viewport is `mobile`, path starts with `/admin/`, path is not one of `{login, login/email, select-identity, mfa}`, no `sessionStorage.aiq_admin_mobile_override='1'` is set, not in embed mode (`?embed=true`). Pass-through otherwise — candidate, take-flow, embed, 404 routes are not affected because their pathnames don't match `/admin/`. Override storage is `sessionStorage` (per-tab, clears on tab close) — the plan's "per-session" + `localStorage` wording was contradictory; M5 honors the per-session intent. Security gates (rate-limit errors, locked-account, MFA prompts) render exactly as on desktop when the override is on — the override only relaxes layout.
 
 ### ESLint guard
 
-[`eslint.config.js`](../eslint.config.js) blocks runtime imports from `**/AssessIQ-Mobile-Kit/**` (in addition to the existing `**/AssessIQ_UI_Template/**` block). Hand-port idioms into `modules/17-ui-system/src/components/` per the desktop-kit pattern.
+[`eslint.config.js`](../eslint.config.js) blocks runtime imports from `**/AssessIQ-Mobile-Kit/**` (in addition to the existing `**/AssessIQ_UI_Template/**` block). Hand-port idioms into `modules/17-ui-system/src/components/` per the desktop-kit pattern. The Mobile Kit is REFERENCE-ONLY — never imported from production code.
+
+### Where mobile-mode components live
+
+- Foundation: `modules/17-ui-system/src/hooks/{useViewport,useViewportSync}.ts`, `modules/17-ui-system/src/styles/tokens.css` (`[data-viewport="mobile"]` block + per-page scoped overrides).
+- Magic-link auth (M1): `apps/web/src/pages/candidate/CandidateLogin.tsx`, `apps/web/src/pages/take/{TokenLanding,Expired,ErrorPage}.tsx` (CSS-only reflow on the M1 shared `.aiq-take-twopane` class).
+- Take-flow chrome (M2a): `apps/web/src/pages/take/Attempt.tsx` (header padding shrink, navigator-aside hidden + lazy `<Drawer>` mount via the new `aiq-attempt-nav-toggle` button, footer flex-wrap restack).
+- Take-flow answer areas (M2b): same file — textareas + the log-analysis finding `<input>` read `--aiq-answer-input-size`; the KQL textarea reads `--aiq-answer-mono-size` and renders a mobile-only `.aiq-attempt-kql-mobile-tip` caveat above the editor.
+- Submitted page (M3): `apps/web/src/pages/take/Submitted.tsx` (class-managed header/main padding + hero h1 size).
+- Candidate portal (M4): `modules/11-candidate-ui/src/components/CandidateShell.tsx` (new shell-level nav + mobile overflow menu via controlled state + outside-click + Escape), `CandidateActivity.tsx` (stats grid 3→1 col, heatmap horizontal-scroll wrapper, leaderboard `columns={viewport === 'mobile' ? 1 : 2}` via `useViewport()`), `MyCertificates.tsx` (1-line h1 size swap to `var(--aiq-h1-size)`).
+- Admin graceful-degrade (M5): `apps/web/src/lib/ViewportLock.tsx` (above).
+
+### Help-system entries added by the port
+
+- `candidate.attempt.navigator.toggle` (M2a — bottom-sheet navigator toggle).
+- `candidate.attempt.kql.mobile_tip` (M2b — KQL caveat tip).
+- `candidate.shell.nav.mobile_menu` (M4 — candidate-shell overflow menu).
+- `admin.shell.mobile_continue_anyway` (M5 — admin interstitial override).
+
+All four wired via `data-help-id` on the actual control and seeded into 0011 by `pnpm help:seed:regen`.

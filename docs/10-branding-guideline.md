@@ -561,9 +561,9 @@ The following CSS custom properties are overridden under `[data-viewport="mobile
 
 Pages reference the tokens directly (e.g., `padding: var(--aiq-page-padding-y) var(--aiq-page-padding-x)`) so the override applies automatically when the viewport changes.
 
-### 15.3 Pattern reflows (catalog — populated incrementally by later phases)
+### 15.3 Pattern reflows (catalog — M1–M5 shipped 2026-05-20)
 
-Each later phase of the mobile port adds its reflow rule here.
+All seven phases of the Mobile Kit Port shipped on 2026-05-20. The entries below are the canonical reflow contract for every mobile-tuned candidate-facing surface in the SPA. Any future mobile work touching these patterns reads here first.
 
 #### Two-pane magic-link landing → single column (M1 — 2026-05-20)
 
