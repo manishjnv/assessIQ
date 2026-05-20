@@ -24,6 +24,11 @@ export type { UseCountUpOptions } from "./hooks/useCountUp.js";
 
 export { useReducedMotion } from "./hooks/useReducedMotion.js";
 
+export { useViewport } from "./hooks/useViewport.js";
+export type { Viewport } from "./hooks/useViewport.js";
+
+export { useViewportSync } from "./hooks/useViewportSync.js";
+
 export { ThemeProvider } from "./theme/ThemeProvider.js";
 export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from "./theme/ThemeProvider.js";
 

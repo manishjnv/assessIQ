@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { useViewportSync } from "../hooks/useViewportSync.js";
 
 export interface TenantBranding {
   primary?: string;       // OKLCH or hex; sets --aiq-color-accent
@@ -29,6 +30,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   className,
   "data-test-id": dataTestId,
 }) => {
+  // Keep data-viewport on <html> in sync with matchMedia. The inline script in
+  // apps/web/index.html sets the initial value before React mounts; this hook
+  // takes over for the lifetime of the app. See docs/plans/MOBILE_KIT_PORT.md § M0.
+  useViewportSync();
+
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
