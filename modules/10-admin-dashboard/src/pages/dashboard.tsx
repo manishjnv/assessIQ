@@ -261,12 +261,14 @@ export function AdminDashboard(): React.ReactElement {
           )}
 
           <div className="aiq-card" style={{ padding: 0, overflow: "hidden" }}>
-            <Table<QueueRow>
-              data={queueItems}
-              columns={columns}
-              loading={loading}
-              emptyMessage="No attempts awaiting grading."
-            />
+            <div className="aiq-admin-table-scroll">
+              <Table<QueueRow>
+                data={queueItems}
+                columns={columns}
+                loading={loading}
+                emptyMessage="No attempts awaiting grading."
+              />
+            </div>
           </div>
         </section>
       </div>
