@@ -84,14 +84,14 @@ export function App(): JSX.Element {
           <Route path="/admin/grading-jobs" element={<RequireSession role="admin"><AdminGradingJobs /></RequireSession>} />
           <Route path="/admin/reports/cohort/:assessmentId" element={<RequireSession role="admin"><AdminCohortReport /></RequireSession>} />
           <Route path="/admin/reports/individual/:userId" element={<RequireSession role="admin"><AdminIndividualReport /></RequireSession>} />
-          <Route path="/admin/question-bank/questions/:id" element={<RequireSession role="admin"><AdminQuestionEditor /></RequireSession>} />
+          <Route path="/admin/question-bank/questions/:id" element={<RequireSession role="super_admin"><AdminQuestionEditor /></RequireSession>} />
           <Route path="/admin/settings/billing" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
           <Route path="/admin/settings/help-content" element={<RequireSession role="admin"><AdminHelpContent /></RequireSession>} />
           <Route path="/admin/guide" element={<RequireSession role="admin"><AdminShell breadcrumbs={["Help guide"]}><AdminGuide /></AdminShell></RequireSession>} />
           {/* Question Bank pages (session 2026-05-04) */}
-          <Route path="/admin/question-bank" element={<RequireSession role="admin"><AdminQuestionBank /></RequireSession>} />
+          <Route path="/admin/question-bank" element={<RequireSession role="super_admin"><AdminQuestionBank /></RequireSession>} />
           {/* /admin/question-bank/questions/:id must come before /:id to match literal segment */}
-          <Route path="/admin/question-bank/:id" element={<RequireSession role="admin"><AdminPackDetail /></RequireSession>} />
+          <Route path="/admin/question-bank/:id" element={<RequireSession role="super_admin"><AdminPackDetail /></RequireSession>} />
           {/* Assessments (Cycles) pages (session 2026-05-04) */}
           <Route path="/admin/assessments" element={<RequireSession role="admin"><AdminAssessments /></RequireSession>} />
           <Route path="/admin/assessments/:id" element={<RequireSession role="admin"><AdminAssessmentDetail /></RequireSession>} />
