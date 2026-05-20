@@ -298,13 +298,6 @@ export function CandidateLogin(): JSX.Element {
             )}
           </div>
         </div>
-
-        {/* Mono footer — matches TokenLanding.tsx idiom */}
-        <div style={{ ...META_LABEL, display: 'flex', gap: 16 }}>
-          <span>Phase 1 · 2026</span>
-          <span style={{ flex: 1 }} />
-          <span>Magic-link · candidate</span>
-        </div>
       </main>
 
       {/* ── Right pane — candidate-side calming idiom ─────────────────── */}

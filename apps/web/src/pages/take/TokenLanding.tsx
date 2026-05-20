@@ -370,13 +370,6 @@ export function TokenLanding(): JSX.Element {
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <div style={{ width: '100%', maxWidth: 380 }}>{leftContent}</div>
         </div>
-
-        {/* Mono footer — matches login.tsx idiom */}
-        <div style={{ ...META_LABEL, display: 'flex', gap: 16 }}>
-          <span>Phase 1 · 2026</span>
-          <span style={{ flex: 1 }} />
-          <span>Magic-link · candidate</span>
-        </div>
       </main>
 
       <TakeRightPane />
