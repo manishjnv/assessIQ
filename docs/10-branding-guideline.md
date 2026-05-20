@@ -630,6 +630,25 @@ Mechanism: `.aiq-attempt-shell` scopes two new CSS vars — `--aiq-answer-input-
 - "Desktop-required interstitial" rec from the original plan was rejected for Phase 1 because today's KqlAnswerArea is a plain textarea, not Monaco — the textarea works on mobile, just less ergonomically. When Monaco lands as part of Phase 2 KQL editor work, M2b' will revisit with the interstitial option as a follow-up.
 - No change to MCQ option `<label>` — it is not a focusable form input, so iOS does not auto-zoom on tap.
 
+#### Submitted page mobile reflow (M3 — 2026-05-20)
+
+Page: [`apps/web/src/pages/take/Submitted.tsx`](../apps/web/src/pages/take/Submitted.tsx). Terminal post-submit screen. Already single-column (no right aside to hide), so M3 only retunes chrome padding + hero h1 size.
+
+| Element | Desktop | Mobile |
+| --- | --- | --- |
+| `<header>` padding | `32px 48px` | `24px 22px` |
+| `<main>` padding | `48px` | `24px 22px` |
+| Hero serif `<h1>` | `52px / 1.05` | `32px / 1.1` |
+| `<Card>` (Grading pending) | unchanged | unchanged (Spinner size="sm" already mobile-friendly) |
+| Attempt ID mono footer | unchanged | unchanged |
+
+Mechanism: outer `<header>` carries `.aiq-submitted-header`; `<main>` carries `.aiq-submitted-main`; h1 carries `.aiq-submitted-h1` alongside the existing `.aiq-serif`. The three desktop rules + three `[data-viewport="mobile"]` overrides live in [`tokens.css`](../modules/17-ui-system/src/styles/tokens.css). All other inline styles preserved (flex layout, alignment, margin, fontWeight, letterSpacing).
+
+**Anti-pattern guards (M3-specific):**
+- Polling cadence (`setInterval` 30 s), terminal `Navigate` redirects, `getResult` invocation, spinner primitive, and the "grading pending" / pollError state machine are byte-identical to pre-M3.
+- The Phase 1 grading flow always returns `status: 'grading_pending'` — the "graded state" of the plan (score-ring + cert links) does not exist yet in this codepath. When Phase 2 result rendering lands, M3' will re-cover the graded-state mobile layout as a follow-up.
+- No new help_id added — the existing `candidate.submit.confirm` on the status `<Card>` stays wired.
+
 ### 15.4 Email-webview testing
 
 Magic-link candidates click email links from Gmail / Outlook / Apple Mail in-app browsers, not Safari/Chrome. Any page touched by the mobile port (especially M1 candidate-auth pages) must be smoke-tested in at least one in-app webview before claiming the phase done. Common gotchas: minimum 16px font-size on inputs (otherwise iOS auto-zooms), missing `gap` polyfills in older WebViews, and aggressive paragraph-truncation.

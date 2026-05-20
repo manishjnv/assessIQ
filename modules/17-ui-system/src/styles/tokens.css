@@ -205,6 +205,20 @@
 .aiq-attempt-kql-mobile-tip { display: none; }
 [data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-kql-mobile-tip { display: block; }
 
+/* Submitted-page mobile reflow — M3 phase of MOBILE_KIT_PORT.
+ * Page: apps/web/src/pages/take/Submitted.tsx. The page is already a
+ * single-column centered terminal screen (no right aside to hide), so
+ * M3 only adjusts chrome padding + the hero h1 size for small viewports.
+ * Polling cadence (30s), spinner primitive, grading-pending semantics,
+ * and attempt-id footer are byte-identical to desktop. */
+.aiq-submitted-header { padding: 32px 48px; }
+.aiq-submitted-main   { padding: 48px; }
+.aiq-submitted-h1     { font-size: 52px; line-height: 1.05; }
+
+[data-viewport="mobile"] .aiq-submitted-header { padding: 24px 22px; }
+[data-viewport="mobile"] .aiq-submitted-main   { padding: 24px 22px; }
+[data-viewport="mobile"] .aiq-submitted-h1     { font-size: 32px; line-height: 1.1; }
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;
