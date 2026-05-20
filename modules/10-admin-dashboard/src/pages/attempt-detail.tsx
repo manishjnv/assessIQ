@@ -319,7 +319,7 @@ export function AdminAttemptDetail(): React.ReactElement {
           return (
             <div
               key={q.id}
-              className="aiq-card"
+              className="aiq-card aiq-admin-detail-two-col"
               style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-xl)", padding: "var(--aiq-space-xl)" }}
             >
               {/* Left: question + answer */}
@@ -360,6 +360,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                         Override reason (required)
                       </span>
                       <textarea
+                        className="aiq-admin-longform-textarea"
                         rows={2}
                         value={overrideForm.reason}
                         onChange={(e) => setOverrideForm((f) => ({ ...f, reason: e.target.value }))}
