@@ -41,6 +41,7 @@
 // 4. Mono pager idiom (prev / "X / Y" / next with ghost buttons + arrow icons).
 
 import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
@@ -603,17 +604,40 @@ function UserManageMenu({
   onAction: (action: UserLifecycleAction, extraWarning?: string) => void;
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
-  const menuRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
 
+  // Portal-based dropdown placement. The table container uses overflow:hidden
+  // (needed for the rounded corners), so a dropdown rendered inside the row
+  // gets clipped on the last row. Rendering at document.body with fixed
+  // coords escapes that. Anchored via getBoundingClientRect on open; closes
+  // on outside click or any scroll/resize (avoids stale-position artifacts).
   useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    if (triggerRef.current === null) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+
+    const onMouseDown = (e: MouseEvent): void => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) === true) return;
+      if (panelRef.current?.contains(target) === true) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const onScrollOrResize = (): void => setOpen(false);
+
+    document.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
   }, [open]);
 
   const menuItem = (
@@ -700,50 +724,44 @@ function UserManageMenu({
     return <></>;
   }
 
-  // When the menu is open the wrapper takes a real z-index so the absolute
-  // dropdown can stack above subsequent table rows. With z-index: auto the
-  // dropdown's own z-index does not escape its non-stacking-context parent
-  // and later rows can paint adjacent to it.
   return (
-    <div
-      ref={menuRef}
-      style={{
-        position: "relative",
-        display: "inline-block",
-        zIndex: open ? 1000 : "auto",
-      }}
-    >
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((o) => !o);
-        }}
-      >
-        Manage ▾
-      </Button>
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 4px)",
-            background: "var(--aiq-color-bg-base, #ffffff)",
-            border: "1px solid var(--aiq-color-border)",
-            borderRadius: "var(--aiq-radius-md)",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            zIndex: 1000,
-            minWidth: 180,
-            paddingTop: 4,
-            paddingBottom: 4,
+    <>
+      <div ref={triggerRef} style={{ position: "relative", display: "inline-block" }}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((o) => !o);
           }}
-          onClick={(e) => e.stopPropagation()}
         >
-          {items}
-        </div>
-      )}
-    </div>
+          Manage ▾
+        </Button>
+      </div>
+      {open && coords !== null &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{
+              position: "fixed",
+              top: coords.top,
+              right: coords.right,
+              background: "var(--aiq-color-bg-base, #ffffff)",
+              border: "1px solid var(--aiq-color-border)",
+              borderRadius: "var(--aiq-radius-md)",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              zIndex: 1000,
+              minWidth: 180,
+              paddingTop: 4,
+              paddingBottom: 4,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {items}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -757,85 +775,101 @@ function InvitationManageMenu({
   onCancel: () => void;
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
-  const menuRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
 
   useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    if (triggerRef.current === null) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+
+    const onMouseDown = (e: MouseEvent): void => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) === true) return;
+      if (panelRef.current?.contains(target) === true) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const onScrollOrResize = (): void => setOpen(false);
+
+    document.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
   }, [open]);
 
   if (readOnly) return <></>;
 
   return (
-    <div
-      ref={menuRef}
-      style={{
-        position: "relative",
-        display: "inline-block",
-        zIndex: open ? 1000 : "auto",
-      }}
-    >
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((o) => !o);
-        }}
-      >
-        Manage ▾
-      </Button>
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 4px)",
-            background: "var(--aiq-color-bg-base, #ffffff)",
-            border: "1px solid var(--aiq-color-border)",
-            borderRadius: "var(--aiq-radius-md)",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            zIndex: 1000,
-            minWidth: 180,
-            paddingTop: 4,
-            paddingBottom: 4,
+    <>
+      <div ref={triggerRef} style={{ position: "relative", display: "inline-block" }}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((o) => !o);
           }}
-          onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-              onCancel();
-            }}
+          Manage ▾
+        </Button>
+      </div>
+      {open && coords !== null &&
+        createPortal(
+          <div
+            ref={panelRef}
             style={{
-              display: "block",
-              width: "100%",
-              textAlign: "left",
-              padding: "7px 14px",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: 13,
-              color: "var(--aiq-color-danger, #dc2626)",
-              whiteSpace: "nowrap",
+              position: "fixed",
+              top: coords.top,
+              right: coords.right,
+              background: "var(--aiq-color-bg-base, #ffffff)",
+              border: "1px solid var(--aiq-color-border)",
+              borderRadius: "var(--aiq-radius-md)",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              zIndex: 1000,
+              minWidth: 180,
+              paddingTop: 4,
+              paddingBottom: 4,
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--aiq-color-bg-sunken)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+            onClick={(e) => e.stopPropagation()}
           >
-            Cancel invitation
-          </button>
-        </div>
-      )}
-    </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                onCancel();
+              }}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "7px 14px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: 13,
+                color: "var(--aiq-color-danger, #dc2626)",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--aiq-color-bg-sunken)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+            >
+              Cancel invitation
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

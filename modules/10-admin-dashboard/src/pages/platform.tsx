@@ -12,7 +12,8 @@
 //   - META_LABEL / ROW_GRID / zebra rows
 //   - data-help-id on form controls
 
-import React, { useCallback, useEffect, useState, type CSSProperties } from "react";
+import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
@@ -1419,17 +1420,40 @@ function ManageMenu({
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Close on outside click
-  const menuRef = React.useRef<HTMLDivElement>(null);
+  // Portal-anchored dropdown — same reason as users.tsx: parent table uses
+  // overflow:hidden for rounded corners, which clips an absolutely-positioned
+  // dropdown on the last row. Render to document.body via createPortal,
+  // anchored via getBoundingClientRect, position:fixed. Closes on outside
+  // click or any scroll/resize.
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+
   useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    if (triggerRef.current === null) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+
+    const onMouseDown = (e: MouseEvent): void => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) === true) return;
+      if (panelRef.current?.contains(target) === true) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const onScrollOrResize = (): void => setOpen(false);
+
+    document.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
   }, [open]);
 
   const menuItem = (label: string, onClick: () => void, danger = false): React.ReactElement => (
@@ -1486,30 +1510,27 @@ function ManageMenu({
   }
 
   return (
-    <div
-      ref={menuRef}
-      style={{
-        position: "relative",
-        display: "inline-block",
-        zIndex: open ? 1000 : "auto",
-      }}
-    >
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((o) => !o);
-        }}
-      >
-        Manage ▾
-      </Button>
-      {open && (
+    <>
+      <div ref={triggerRef} style={{ position: "relative", display: "inline-block" }}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((o) => !o);
+          }}
+        >
+          Manage ▾
+        </Button>
+      </div>
+      {open && coords !== null &&
+        createPortal(
         <div
+          ref={panelRef}
           style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 4px)",
+            position: "fixed",
+            top: coords.top,
+            right: coords.right,
             background: "var(--aiq-color-bg-base, #ffffff)",
             border: "1px solid var(--aiq-color-border)",
             borderRadius: "var(--aiq-radius-md)",
@@ -1533,9 +1554,10 @@ function ManageMenu({
             />
           )}
           {lifecycleItems}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 
