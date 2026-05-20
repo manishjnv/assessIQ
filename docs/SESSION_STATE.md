@@ -1,3 +1,60 @@
+# Session — 2026-05-21 (Email Kit Port E0 reconciliation — 3 blockers + 3 bugs fixed)
+
+**Headline:** Reviewed the Email Kit Port plan + E0 output ([docs/plans/EMAIL_KIT_PORT.md](plans/EMAIL_KIT_PORT.md), [docs/13-email-system.md](13-email-system.md)). Identified 3 blockers (invalid Handlebars composition syntax, triple-stash policy contradiction, brittle string-snapshot strategy) + 3 secondary bugs (TXT atom set unspecified, i18n keys assumption wrong, footer endpoints don't exist). All 6 fixed in two commits. E0 §8 acceptance gate now has 6 new `[x]` items; open decision #5 (physical mailing address) remains the only unresolved gate for E1.
+
+**Commits (main):**
+
+- `a1f6f56` docs(email-kit) E0 reconciliation — fix 3 blockers (composition, triple-stash, snapshot strategy). **Clean — 2 files (E0 doc + plan).**
+- `2cfc8ce` docs(email-kit) E0 reconciliation — fix bugs 4, 5, 6 (TXT, i18n, footer endpoints). **⚠ Accidentally bundled 4 unrelated files from a parallel claude-code session that staged work concurrently: `apps/web/src/App.tsx`, `docs/10-branding-guideline.md`, `docs/plans/ADMIN_MOBILE_PORT.md`, `modules/16-help-system/content/en/admin.yml`. The commit message describes only the email-kit work; the bundled files are real work from another session, not destroyed/garbled.** Soft-reset attempted to unbundle but HEAD reverted (parallel session interference). See "Open questions" below.
+
+**Tests:** n/a — docs only, no code touched.
+
+**Deploy:** **skipped** per project Definition of Done step 2 — docs-only changes are deploy-irrelevant ([CLAUDE.md](../CLAUDE.md) rule #9).
+
+**Next:**
+
+1. **User triage of `2cfc8ce` bundling.** Options: (a) push as-is — bundled files are legitimate parallel-session work, just lumped with email-kit docs; (b) split via `git rebase -i` + checkout HEAD~1 → split → recommit (requires the parallel session to be quiescent); (c) leave commit + amend the message to acknowledge the 4 extras. Recommend (a) — the work is correct, just misattributed; future PR commit messages stay accurate. No data loss either way.
+2. **E1 cannot start** until open decision #5 (physical mailing address for footer `{{_t_legal_address}}`) is resolved by the user.
+3. Per CAN-SPAM caveat in [13-email-system.md](13-email-system.md) §2 A9b: until `/unsubscribe` ships, treat all 4 commercial templates as invitation-only sends (existing-relationship exemption).
+
+**Open questions / residuals:**
+
+- (a) **Parallel claude-code sessions are committing concurrently.** Memory 3658 already flags this. Today's symptom: my soft-reset of `2cfc8ce` left `git log --oneline` still showing `2cfc8ce` at HEAD — i.e. either the reset didn't take, or another session re-applied the commit. Going forward, recommend serializing claude-code work on this repo, or each session works on its own git worktree.
+- (b) **Push not performed this session.** Two clean-ish commits sit local. Push at your discretion after triaging `2cfc8ce`.
+- (c) Open decisions #5 (physical address), #7 (OTP-code preheader leak), #11 (Litmus budget) remain — same as previous session.
+
+---
+
+## Agent utilization
+
+- **Opus 4.7:** Full review of plan + E0 doc against actual `render.ts` contract; identified 3 blockers + 3 secondary bugs. Authored all 6 fixes inline as Edit ops (no subagents — files were already in hot read cache, total ≤200 lines across 2 docs, well under the self-execute threshold per global CLAUDE.md). Routing telemetry: `Opus · review + 6 doc fixes + 2 commits · reworked: Y (2cfc8ce bundled extras; surfaced to user vs. attempting recovery via parallel-session-hostile git ops)`.
+- **Sonnet:** n/a — no contract complex enough; docs in hot cache.
+- **Haiku:** n/a — no bulk live-prod sweep needed for a docs-only change.
+- **codex:rescue:** n/a — docs-only design reconciliation, no security/auth/AI-classifier code touched. Email rendering pipeline (`render.ts`) read but not modified.
+- **claude-mem:** Used implicit prior observations (3658 parallel sessions, 3674 E0 docs complete, 3690 Gmail leak, 3706 assessiq.in purchase). No new durable memory candidate — the fix details live in commits + this handoff; the bundling pattern would only be worth saving if it recurs and proves needs-coordination across sessions.
+
+---
+
+# Session — 2026-05-21 (Hide personal Gmail in From: header — Resend cutover runbook)
+
+**Headline:** Operator flagged that production candidate-invitation emails were arriving From: `AssessIQ <manishjnvk@gmail.com>` — i.e. leaking the operator's personal Gmail on every transactional send. Audit found the cause at [.env.local:9-10](../.env.local#L9-L10) (the live `.env` overrides the Zod default `noreply@automateedge.cloud` with the personal Gmail + an app-password SMTP relay). Zero-budget plan written + in-repo half implemented: keep the existing root-domain sender `noreply@automateedge.cloud` (already owned, already the Zod default), cut over the SMTP transport from Gmail to Resend (free tier — 3K/mo, 100/day, already named in [docs/plans/PHASE_3_KICKOFF.md](plans/PHASE_3_KICKOFF.md)). Plan file at `C:\Users\manis\.claude\plans\how-to-hide-my-partitioned-koala.md`. No code or runtime behavior changed.
+**Commits (main):** *(pending user OK to commit)* — two staged edits: `.env.example` comment block now points at Resend explicitly with the `smtps://resend:<key>@smtp.resend.com:465` format and a pointer to the cutover runbook; `docs/06-deployment.md` gains a new "Email sender (Resend cutover)" section between `.env template` and `DNS — Cloudflare` covering Resend signup, the 4 DNS records, DMARC, VPS env swap, verification, app-password revocation, and free-tier limits.
+**Tests:** n/a — docs + env-example only. No code, no schema, no behavior.
+**Deploy:** **none from this session.** The cutover itself is gated on three off-platform user actions: (1) Resend signup with `manishjnvk@gmail.com`, (2) 4 DNS records + 1 DMARC record at Hostinger DNS for `automateedge.cloud`, (3) SSH to assessiq-vps and swap `SMTP_URL` + `EMAIL_FROM` in `/srv/assessiq/.env` then `up -d --no-deps --force-recreate assessiq-api assessiq-worker`. Full step-by-step in [docs/06-deployment.md § "Email sender (Resend cutover)"](06-deployment.md).
+**Next:** Operator runs the cutover per the runbook. After cutover: revoke the Gmail app-password at `myaccount.google.com → Security → App passwords` (leaked secret in `.env.local` history, still authorized until revoked).
+**Open questions / residuals:** (a) **Sender domain flipped — user purchased `assessiq.in` 2026-05-21.** Plan file at `C:\Users\manis\.claude\plans\how-to-hide-my-partitioned-koala.md` updated to lead with `noreply@assessiq.in` as the primary sender; `automateedge.cloud` retained as fallback only. The in-repo cutover doc + .env.example default still document the automateedge.cloud path — to be rewritten as a single bundle alongside the actual env swap (deferred — user will configure later). **Do not commit the staged in-repo edits as-is; pair with the assessiq.in rewrite at cutover time.** (b) **Free-tier cap = 100/day** — any cohort blast >100/day will need the $20/mo Resend tier; not blocking today's volumes. (c) **`docs/04-auth-flows.md` not edited** — current text does not reference From: anywhere; would be over-documentation. Will update post-cutover only if a From: reference becomes load-bearing for the auth narrative. (d) **Reply-to handling for `noreply@assessiq.in`** — open question for cutover: set up a registrar-side forwarder to `manishjnvk@gmail.com`, or use a separate `support@assessiq.in` Resend identity for reply-able outgoing mail.
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Phase 0 read of CLAUDE.md (project + global) + MEMORY.md (auto). Audit delegated to Explore — synthesized the 6-point report into the zero-budget plan + 3 user clarifications (domain, provider, scope). Wrote the plan file + the in-repo edits (`.env.example` comment, `docs/06-deployment.md` cutover section, this handoff). Routing telemetry: `Opus · plan + 3 doc edits + handoff · reworked: N (one markdownlint nit fixed inline — fenced code block language)`.
+- **Sonnet:** n/a — no implementation contract complex enough to justify a Sonnet subagent; total in-repo diff is ~80 lines across 3 files, well under the self-execute threshold.
+- **Haiku:** n/a — no bulk live-prod sweeps this session (cutover itself is operator-gated).
+- **codex:rescue:** n/a — no security-adjacent code touched. Env-var swap + docs only; auth/tenancy/grading/audit untouched. App-password revocation IS a security hygiene item, but it's a Google-account action the operator does directly, not code.
+- **claude-mem:** Explore subagent surfaced the audit memory at obs 3681 (sender-config-as-Zod-default) and 3685 (live override = personal Gmail). No new durable memory candidate from this session — the cutover runbook lives in `docs/06-deployment.md` (the canonical place), no need to also save it as a memory.
+
+---
+
 # Session — 2026-05-21 (AdminShell UX fixes + MFA self-redirect RCA + Email Kit Port E0)
 
 **Headline:** Three small UI/UX wins followed by Phase E0 of the email kit port. (1) The MFA nudge banner's "Set up authenticator" link is now a real button via React Router `useNavigate`; the topbar "AssessIQ / tenant-slug" and lower breadcrumb intermediate segments are clickable on every admin page. (2) RCA on a still-broken "Set up authenticator" link — root cause was NOT the banner, it was `mfa.tsx` self-redirecting back to `/admin` whenever `mfaStatus === 'verified'` (which is *always* true for opt-in tenant admins via `computeMfaStatus`); guard tightened to also require `totpEnrolled === true`. (3) Email Kit Port Phase E0 shipped — new [`docs/13-email-system.md`](13-email-system.md) (~530 lines) with the resolved token table, 10 email-safe atom HTML designs (inline-styled tables, MSO/VML CTA wrap, dual transactional/commercial footers), divergence catalog, and the still-open product decisions split from the now-defaulted ones. E1 blocked on open-decision #5 (physical mailing address).
