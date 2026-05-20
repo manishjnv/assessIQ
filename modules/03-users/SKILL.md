@@ -21,15 +21,19 @@ Future: `analyst` (read-only reports), `pack_author` (question-bank only). Add v
 
 ## Public surface
 ```ts
-listUsers({ tenantId, role?, status?, search?, page, pageSize }): Promise<PaginatedUsers>
+listUsers({ tenantId, role?, status?, search?, page, pageSize, includeDeleted? }): Promise<PaginatedUsers>
 getUser(id): Promise<User>
 createUser({ email, name, role, metadata }): Promise<User>
 updateUser(id, patch): Promise<User>
-softDelete(id): Promise<void>
-restore(id): Promise<User>
+softDelete(userId, actorUserId, reason?)  : Promise<void>   // Phase C: emits audit + cascades pending invitations for the user's email
+restore(userId, actorUserId, reason?)     : Promise<User>
+disable(userId, actorUserId, reason?)     : Promise<User>   // Phase C dedicated endpoint — POST /users/:id/disable
+reenable(userId, actorUserId, reason?)    : Promise<User>   // Phase C dedicated endpoint — POST /users/:id/reenable
+cancelInvitation(invitationId, actorUserId, reason?): Promise<CancelInvitationResult>  // NEW Phase C — modules/03-users/src/invitations.ts
 
 inviteUser({ email, role, assessmentIds? }): Promise<{ user, invitation }>
 acceptInvitation(token): Promise<{ user, sessionToken }>
+assertUserActive(userId, tenantId): Promise<void>           // Phase A foundation; throws AuthnError { details: { scope: "user", reason } }
 bulkImport(csv: Buffer): Promise<ImportReport>
 ```
 
@@ -374,6 +378,8 @@ listUsers({
 
 **Downstream impact.** Window 5 migration `020_users.sql` adds `CREATE INDEX users_email_lower_idx ON users (tenant_id, lower(email) text_pattern_ops) WHERE deleted_at IS NULL;` for the prefix-search hot path. Phase 1 admin-dashboard binds the search box's debounce to ≥300ms to avoid hammering the DB on each keystroke.
 
+**Phase C extension.** `listUsers` accepts `includeDeleted: boolean` (default `false`). When `true`, the repository drops the `deleted_at IS NULL` predicate from the WHERE clause. The frontend admin UI uses this for the "Show removed users" filter (mutually exclusive with "Show disabled users" per commit `650b4a8`). Route wiring: `apps/api/src/routes/admin-users.ts` line 78 reads `q['includeDeleted'] === 'true'` and passes `includeDeleted` into `ListUsersInput`.
+
 ### 10. Per-tenant email uniqueness
 
 **Decision.**
@@ -483,6 +489,79 @@ Candidate onboarding in Phase 0 is two-step (admin discipline, no enforcement): 
 **Considered & rejected.** (a) **Single invitation table** — would force a status-flag union that's hard to query and audit. (b) **`inviteUser` creates only `user_invitations` and silently ignores `assessmentIds`** — silent data loss is worse than throwing. (c) **`inviteUser` creates `assessment_invitations` directly when `role='candidate'`** — cross-module coupling into 05-assessment-lifecycle which doesn't exist yet.
 
 **Downstream impact.** Window 5 path-tests admin and reviewer roles only; the candidate-role path test asserts the 501. Phase 1's 05-assessment-lifecycle ships `inviteCandidatesToAssessment(assessmentId, userIds)` which creates `assessment_invitations` rows and sends magic-link emails. At that point, `inviteUser` may be extended to call into 05's API, or remain admin/reviewer-only depending on UX preference (decision deferred to Phase 1).
+
+---
+
+### 14. Phase C lifecycle actions + super-admin override
+
+**State machine extension.** Phase C surfaces 5 dedicated lifecycle actions instead of overloading `PATCH /users/:id` with status changes. The `deleted_at` timestamp flag is ORTHOGONAL to `status` — soft-deleted users keep their prior `status` value untouched. `restore` only clears `deleted_at`; it does not alter `status`. As a consequence, the UI "Restore" action lands the user back in whatever state they were in before deletion (typically `disabled` for an admin-deleted user, `active` for an accidental delete).
+
+**Transition table.**
+
+| From | To | Action | Side effects |
+|---|---|---|---|
+| `active` | `disabled` | `disable` | Redis session sweep (`sweepUserSessions`) + audit `user.disabled` |
+| `disabled` | `active` | `reenable` | audit `user.reenabled` |
+| any non-deleted | soft-deleted (prior status kept) | `softDelete` | Redis session sweep + audit `user.soft_deleted` + cascade: DELETE pending invitations for the user's email in the same tx |
+| soft-deleted | prior status (unchanged) | `restore` | audit `user.restored`; no invitation or session side effects |
+| `pending` | cancelled (row deleted) | `cancelInvitation` | DELETE invitation row + matching `pending`-status user row + audit `user.invitation_cancelled` |
+
+**Sources.** `modules/03-users/src/service.ts` (`softDelete` lines 309–358, `restore` lines 364–401); `modules/03-users/src/invitations.ts` (`cancelInvitation` lines 242–316); `apps/api/src/routes/admin-users.ts` (Phase C endpoint block, lines 155–310); `apps/api/src/routes/admin-super.ts` lines 1075–1400.
+
+**LAST_ADMIN invariant.**
+
+`assertNotLastAdmin(client, targetUserId, mutationKind)` lives in `modules/03-users/src/invariants.ts` (lines 19–51). It runs a two-step CTE query inside the active `withTenant` transaction:
+
+```sql
+WITH locked_admins AS (
+  SELECT id FROM users
+   WHERE role = 'admin' AND status = 'active' AND deleted_at IS NULL
+     AND id <> $1
+   FOR NO KEY UPDATE
+)
+SELECT count(*)::text AS count FROM locked_admins
+```
+
+No `WHERE tenant_id` clause — RLS scopes the count to the current tenant automatically (CLAUDE.md hard rule #4). `FOR NO KEY UPDATE` locks the candidate rows for the duration of the transaction, preventing a concurrent second admin from being demoted in a race.
+
+Throws `ConflictError` `{ code: 'LAST_ADMIN' }` (HTTP 409) when the count is 0.
+
+- **Tenant-admin path** (`apps/api/src/routes/admin-users.ts`): `assertNotLastAdmin` fires unconditionally on `disable` or `softDelete` of an active admin. No override flag exists on this path.
+- **Super-admin path** (`apps/api/src/routes/admin-super.ts`): bypasses the helper and runs its own inline direct SQL (same COUNT query, same no-WHERE-tenant_id pattern) when the request body carries `confirm_last_admin: true` AND a non-empty `reason`. When the bypass is active, the audit row written by `auditInTx` carries `is_override: true` in its `after` JSON. `logLifecycleEvent` is called with `isOverride: true`, which causes it to fire at `WARN` level (vs the normal `INFO`).
+- **Why inline SQL instead of an option on `assertNotLastAdmin`:** keeps the canonical helper monomorphic — the tenant-admin code path can never accidentally invoke override mode because the flag is only parsed in the super-admin handler scope.
+
+**Self-action guards (tenant-admin path only).**
+
+These guards are enforced in `apps/api/src/routes/admin-users.ts` before the service call, not inside the service layer:
+
+- `CANNOT_DISABLE_SELF` (400 `ValidationError`) — fires when `session.userId === targetUserId` on the `disable` endpoint.
+- `CANNOT_DELETE_SELF` (400 `ValidationError`) — fires when `session.userId === targetUserId` on the soft-delete (`DELETE /users/:id`) endpoint.
+
+Super-admins don't belong to any tenant, so these guards do not apply to the super-admin path in `admin-super.ts`.
+
+**Audit catalog additions** (see `modules/14-audit-log/src/types.ts` lines 155–162).
+
+Four new actions appended to `ACTION_CATALOG` in Phase C:
+
+| Action name | Emitted by | Notes |
+|---|---|---|
+| `user.reenabled` | `admin-users.ts` / `admin-super.ts` reenable handler | Distinct from `user.updated kind=status_change` — named action enables direct querying |
+| `user.invitation_cancelled` | `cancelInvitation` via `auditInTx` inside `withTenant` | `after` payload carries `email`, `reason`, `cascaded_pending_user` (bool), `cancelled_user_id` |
+| `user.soft_deleted` | Catalog alias; actual service emits `user.deleted` (pre-Phase-C name) | Kept as alias for consistent Phase-C vocabulary in external queries |
+| `user.restored` | `restore` service function | Pre-existed in catalog from G3.D slice (2026-05-11); reused unchanged |
+
+(`user.disabled` and `user.created` predated Phase C and are unchanged.)
+
+**`cancelInvitation` cascade detail** (`modules/03-users/src/invitations.ts` lines 242–316, all steps inside one `withTenant` transaction):
+
+1. Look up invitation by `id`. Not found → `NotFoundError` `{ code: 'INVITATION_NOT_FOUND' }` (404).
+2. `accepted_at IS NOT NULL` → `ConflictError` `{ code: 'INVITATION_ALREADY_ACCEPTED' }` (409).
+3. Find matching user row: same normalized email, `status='pending'`, `deleted_at IS NULL`. If found, `DELETE FROM users WHERE id = $pendingUserId` (they never logged in; `cascadedPendingUser = true`).
+4. `DELETE FROM user_invitations WHERE id = $invitationId`.
+5. `auditInTx` emits `user.invitation_cancelled`.
+6. Returns `{ email, userId, cascadedPendingUser }`.
+
+The super-admin `cancelInvitation` path (`admin-super.ts` lines 1288–1358) resolves the target tenant via a system-role (`assessiq_system` / BYPASSRLS) lookup first, then delegates to the same `cancelInvitation` service function for the actual work.
 
 ---
 
