@@ -13,6 +13,8 @@ import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
+import { attemptStatusDisplay } from "../lib/status.js";
+import { formatTimestamp } from "../lib/format.js";
 
 type AttemptStatus = "submitted" | "pending_admin_grading" | "graded" | "released" | "auto_submitted";
 
@@ -38,15 +40,6 @@ const STATUS_TABS: { label: string; value: string }[] = [
   { label: "Graded", value: "graded" },
   { label: "Released", value: "released" },
 ];
-
-function statusColor(s: string): { bg: string; color: string } {
-  switch (s) {
-    case "graded": return { bg: "var(--aiq-color-success-soft)", color: "var(--aiq-color-success)" };
-    case "released": return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-secondary)" };
-    case "pending_admin_grading": return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
-    default: return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-secondary)" };
-  }
-}
 
 const SESSION_KEY = "aiq.admin.attempts.statusFilter";
 
@@ -90,12 +83,8 @@ export function AdminAttempts(): React.ReactElement {
       key: "status",
       label: "Status",
       render: (row: AttemptListItem) => {
-        const c = statusColor(row.status);
-        return (
-          <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.04em", padding: "1px 8px", borderRadius: "var(--aiq-radius-pill)", background: c.bg, color: c.color }}>
-            {row.status}
-          </span>
-        );
+        const s = attemptStatusDisplay(row.status);
+        return <Chip variant={s.variant}>{s.label}</Chip>;
       },
     },
     {
@@ -103,21 +92,21 @@ export function AdminAttempts(): React.ReactElement {
       label: "Submitted",
       render: (row: AttemptListItem) => (
         <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-          {row.submitted_at ? new Date(row.submitted_at).toLocaleString() : "—"}
+          {formatTimestamp(row.submitted_at)}
         </span>
       ),
     },
     {
       key: "action",
       label: "",
-      width: 80,
+      width: 96,
       render: (row: AttemptListItem) => (
         <button
           type="button"
-          className="aiq-btn aiq-btn-outline aiq-btn-sm"
+          className="aiq-btn aiq-btn-ghost aiq-btn-sm"
           onClick={() => navigate(`/admin/attempts/${row.id}`)}
         >
-          Open
+          View →
         </button>
       ),
     },
@@ -139,18 +128,53 @@ export function AdminAttempts(): React.ReactElement {
           </p>
         </div>
 
-        {/* Status filter tabs */}
-        <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              className={`aiq-btn aiq-btn-sm ${statusFilter === tab.value ? "aiq-btn-primary" : "aiq-btn-outline"}`}
-              onClick={() => handleTabChange(tab.value)}
+        {/* Status filter row — quiet ghost tabs, right-aligned results count */}
+        <div
+          className="aiq-admin-filter-strip"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--aiq-space-md)",
+            flexWrap: "wrap",
+            borderBottom: "1px solid var(--aiq-color-border)",
+            paddingBottom: "var(--aiq-space-sm)",
+          }}
+        >
+          <div style={{ display: "flex", gap: "var(--aiq-space-2xs)", flexWrap: "wrap" }}>
+            {STATUS_TABS.map((tab) => {
+              const isActive = statusFilter === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => handleTabChange(tab.value)}
+                  aria-pressed={isActive}
+                  className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                  style={{
+                    background: isActive ? "var(--aiq-color-accent-soft)" : "transparent",
+                    color: isActive ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-secondary)",
+                    fontWeight: isActive ? 500 : 400,
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+          <span style={{ flex: 1 }} />
+          {!loading && !error && (
+            <span
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--aiq-color-fg-muted)",
+              }}
             >
-              {tab.label}
-            </button>
-          ))}
+              {items.length} {items.length === 1 ? "result" : "results"}
+            </span>
+          )}
         </div>
 
         {error && (
@@ -159,14 +183,47 @@ export function AdminAttempts(): React.ReactElement {
           </div>
         )}
 
-        <div className="aiq-card" style={{ padding: 0, overflow: "hidden" }}>
+        <div
+          className="aiq-card"
+          data-density="compact"
+          style={{ padding: 0, overflow: "hidden" }}
+        >
           <div className="aiq-admin-table-scroll">
-            <Table<AttemptListItem>
-              data={items}
-              columns={columns}
-              loading={loading}
-              emptyMessage="No attempts found."
-            />
+            {!loading && items.length === 0 ? (
+              <div style={{ padding: "var(--aiq-space-3xl) var(--aiq-space-lg)", textAlign: "center" }}>
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-serif)",
+                    fontSize: "var(--aiq-text-xl)",
+                    fontWeight: 400,
+                    margin: "0 0 var(--aiq-space-sm)",
+                    letterSpacing: "-0.015em",
+                  }}
+                >
+                  No attempts {statusFilter ? "in this state" : "yet"}.
+                </p>
+                <p
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    color: "var(--aiq-color-fg-muted)",
+                    margin: "0 auto",
+                    maxWidth: 360,
+                  }}
+                >
+                  {statusFilter
+                    ? "Try a different filter, or wait for new submissions."
+                    : "Candidate submissions will appear here as they come in."}
+                </p>
+              </div>
+            ) : (
+              <Table<AttemptListItem>
+                data={items}
+                columns={columns}
+                loading={loading}
+                emptyMessage="No attempts found."
+              />
+            )}
           </div>
         </div>
       </div>
