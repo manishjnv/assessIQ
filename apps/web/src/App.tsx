@@ -34,6 +34,7 @@ const AdminActivity = lazy(() => import('@assessiq/admin-dashboard').then(m => (
 const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminUsers })));
 const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
 const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminPlatform })));
+const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
 
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
 const CandidateShell = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateShell })));
@@ -110,6 +111,8 @@ export function App(): JSX.Element {
           <Route path="/admin/activity" element={<RequireSession role="admin"><AdminActivity /></RequireSession>} />
           {/* Platform provisioning — super_admin only (exact-match gate) */}
           <Route path="/admin/platform" element={<RequireSession role="super_admin"><AdminPlatform /></RequireSession>} />
+          {/* Phase C — super-admin per-tenant user drill-down */}
+          <Route path="/admin/platform/:tenantId/users" element={<RequireSession role="super_admin"><SuperAdminUsers /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 
           {/* Candidate auth routes — no RequireSession (public pages). */}

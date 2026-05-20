@@ -13,6 +13,7 @@
 //   - data-help-id on form controls
 
 import React, { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
@@ -1416,6 +1417,7 @@ function ManageMenu({
   onLifecycleAction: (action: LifecycleAction) => void;
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Close on outside click
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -1513,7 +1515,7 @@ function ManageMenu({
           onClick={(e) => e.stopPropagation()}
         >
           {menuItem("Open billing", () => { onOpenBilling(); })}
-          {menuItem("Manage users", () => { alert("Users drill-down ships in Phase C"); })}
+          {menuItem("Manage users", () => { navigate(`/admin/platform/${tenant.id}/users`); })}
           {lifecycleItems.length > 0 && (
             <div
               style={{

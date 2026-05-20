@@ -54,4 +54,5 @@ export { AdminActivity } from "./pages/activity.js";
 export { AdminUsers } from "./pages/users.js";
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
+export { SuperAdminUsers } from "./pages/super-admin-users.js";
 export { domainLabel, DOMAIN_LABELS } from "./lib/domains.js";

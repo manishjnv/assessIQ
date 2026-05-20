@@ -218,6 +218,105 @@ export async function inviteUser(
 }
 
 // ---------------------------------------------------------------------------
+// cancelInvitation
+// ---------------------------------------------------------------------------
+
+export interface CancelInvitationResult {
+  email: string;
+  userId: string | null;
+  cascadedPendingUser: boolean;
+}
+
+/**
+ * Cancel a pending invitation (admin action — before the invitee has accepted).
+ *
+ * Behavior (all inside one withTenant tx):
+ *   1. Look up the invitation by id. Not found → NotFoundError INVITATION_NOT_FOUND.
+ *   2. Already accepted → ConflictError INVITATION_ALREADY_ACCEPTED.
+ *   3. If a matching pending user exists (same normalized email, deleted_at IS NULL,
+ *      status='pending') → delete that user row (they never logged in).
+ *   4. Delete the invitation row.
+ *   5. auditInTx user.invitation_cancelled.
+ *   6. Return { email, userId, cascadedPendingUser }.
+ */
+export async function cancelInvitation(
+  tenantId: string,
+  invitationId: string,
+  actorUserId: string,
+  reason?: string,
+): Promise<CancelInvitationResult> {
+  log.info({ tenantId, invitationId }, 'cancelInvitation');
+
+  return withTenant(tenantId, async (client) => {
+    // Step 1: look up the invitation by id.
+    const result = await client.query<{
+      id: string;
+      email: string;
+      role: string;
+      accepted_at: Date | null;
+    }>(
+      `SELECT id, email, role, accepted_at FROM user_invitations WHERE id = $1 LIMIT 1`,
+      [invitationId],
+    );
+    const invRow = result.rows[0];
+    if (invRow === undefined) {
+      throw new NotFoundError(`Invitation not found: ${invitationId}`, {
+        details: { code: 'INVITATION_NOT_FOUND' },
+      });
+    }
+
+    // Step 2: already accepted → reject.
+    if (invRow.accepted_at !== null) {
+      throw new ConflictError(
+        'This invitation has already been accepted and cannot be cancelled.',
+        { details: { code: 'INVITATION_ALREADY_ACCEPTED' } },
+      );
+    }
+
+    const normalizedInvEmail = normalizeEmail(invRow.email);
+
+    // Step 3: look up the matching pending user — same normalized email,
+    //         not soft-deleted, status='pending'. If found, delete the user row
+    //         (they never logged in; cascade is safe).
+    const pendingUser = await repo.findUserByEmailNormalized(client, normalizedInvEmail);
+    let userId: string | null = null;
+    let cascadedPendingUser = false;
+
+    if (
+      pendingUser !== null &&
+      pendingUser.status === 'pending' &&
+      pendingUser.deleted_at === null
+    ) {
+      userId = pendingUser.id;
+      cascadedPendingUser = true;
+      await client.query(`DELETE FROM users WHERE id = $1`, [pendingUser.id]);
+    }
+
+    // Step 4: delete the invitation row.
+    await repo.deleteInvitation(client, invitationId);
+
+    // Step 5: audit row.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId,
+      action: 'user.invitation_cancelled',
+      entityType: 'user',
+      // entityId: pending user id if cascaded, else use invitation email as the identity anchor.
+      entityId: userId ?? normalizedInvEmail,
+      after: redactUserForAudit({
+        email: normalizedInvEmail,
+        role: invRow.role,
+        reason: reason ?? null,
+        cascaded_pending_user: cascadedPendingUser,
+      }),
+    });
+
+    return { email: normalizedInvEmail, userId, cascadedPendingUser };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // acceptInvitation
 // ---------------------------------------------------------------------------
 

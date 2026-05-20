@@ -31,10 +31,11 @@ import {
   resumeTenant,
   archiveTenant,
   unarchiveTenant,
+  withTenant,
 } from '@assessiq/tenancy';
 import { sessions, logLifecycleEvent } from '@assessiq/auth';
-import { inviteUser } from '@assessiq/users';
-import { audit } from '@assessiq/audit-log';
+import { inviteUser, cancelInvitation, sweepUserSessions } from '@assessiq/users';
+import { audit, auditInTx } from '@assessiq/audit-log';
 import {
   provisionDefaultPlan,
   getAllTenantUsage,
@@ -950,6 +951,537 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
         scopeId: body.scopeId,
       });
       return reply.code(200).send(result);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/super/tenants/:tenantId/users
+  //
+  // List ALL users in a target tenant (including disabled + soft-deleted when
+  // requested) plus any pending invitations, for the super-admin Users page.
+  //
+  // Gate: super_admin + totpVerified (superAdminOnly).
+  //
+  // Query params:
+  //   ?include_disabled=true  — include status='disabled' users (default: false)
+  //   ?include_deleted=true   — include deleted_at IS NOT NULL users (default: false)
+  //
+  // Runs under assessiq_system (BYPASSRLS) to read across tenant boundaries.
+  //
+  // Response 200: { users: [...], pending_invitations: [...] }
+  // Response 403: not super_admin
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get(
+    '/api/admin/super/tenants/:tenantId/users',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = req.params as { tenantId: string };
+      const qs = (req.query ?? {}) as Record<string, string | undefined>;
+      const includeDisabled =
+        qs['include_disabled'] === '1' || qs['include_disabled']?.toLowerCase() === 'true';
+      const includeDeleted =
+        qs['include_deleted'] === '1' || qs['include_deleted']?.toLowerCase() === 'true';
+
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SET LOCAL ROLE assessiq_system');
+
+        // Build user WHERE conditions.
+        const userConditions: string[] = ['u.tenant_id = $1'];
+        if (!includeDeleted) {
+          userConditions.push('u.deleted_at IS NULL');
+        }
+        if (!includeDisabled) {
+          userConditions.push("u.status <> 'disabled'");
+        }
+        const userWhere = userConditions.join(' AND ');
+
+        const usersResult = await client.query<{
+          id: string;
+          email: string;
+          name: string;
+          role: string;
+          status: string;
+          deleted_at: Date | null;
+          created_at: Date;
+          updated_at: Date;
+        }>(
+          `SELECT u.id, u.email, u.name, u.role, u.status,
+                  u.deleted_at, u.created_at, u.updated_at
+           FROM users u
+           WHERE ${userWhere}
+           ORDER BY u.created_at DESC, u.id DESC`,
+          [tenantId],
+        );
+
+        const invitationsResult = await client.query<{
+          id: string;
+          email: string;
+          role: string;
+          expires_at: Date;
+          created_at: Date;
+        }>(
+          `SELECT ui.id, ui.email, ui.role, ui.expires_at, ui.created_at
+           FROM user_invitations ui
+           WHERE ui.tenant_id = $1 AND ui.accepted_at IS NULL
+           ORDER BY ui.created_at DESC`,
+          [tenantId],
+        );
+
+        await client.query('COMMIT');
+
+        return reply.code(200).send({
+          users: usersResult.rows,
+          pending_invitations: invitationsResult.rows,
+        });
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Super-admin user lifecycle overrides
+  //
+  // POST   /api/admin/super/users/:userId/disable
+  // POST   /api/admin/super/users/:userId/reenable
+  // DELETE /api/admin/super/users/:userId
+  // POST   /api/admin/super/users/:userId/restore
+  // DELETE /api/admin/super/users/invitations/:invitationId
+  //
+  // Gate: superAdminFreshMfa (MFA within 15 min).
+  // Body: { reason?: string, confirm_last_admin?: boolean }
+  //
+  // Cross-tenant design: look up the target user's tenantId via system-role
+  // query, then operate under withTenant(targetTenantId). NEVER use
+  // session.tenantId (the platform tenant) for the data operation.
+  //
+  // Last-admin override: when the action would normally fail LAST_ADMIN,
+  // AND confirm_last_admin === true AND reason is non-empty, the assertion is
+  // bypassed. The audit row carries is_override=true; logLifecycleEvent fires
+  // at WARN level via isOverride=true.
+  //
+  // Self-action: super_admins don't live in any tenant; the self-protection
+  // guard that applies to tenant admins does NOT apply here.
+  //
+  // Option (b) from spec: super-admin handlers inline their own
+  // withTenant/SQL/auditInTx flow to keep the override path isolated from the
+  // shared service functions (which always enforce assertNotLastAdmin).
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Resolve the target user's tenantId via system-role (BYPASSRLS) query.
+   * Returns null when the user does not exist.
+   */
+  async function resolveUserTenant(userId: string): Promise<{
+    tenantId: string;
+    email: string;
+    name: string;
+    role: string;
+    status: string;
+    deleted_at: Date | null;
+  } | null> {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SET LOCAL ROLE assessiq_system');
+      const res = await client.query<{
+        tenant_id: string;
+        email: string;
+        name: string;
+        role: string;
+        status: string;
+        deleted_at: Date | null;
+      }>(
+        `SELECT tenant_id, email, name, role, status, deleted_at
+         FROM users WHERE id = $1 LIMIT 1`,
+        [userId],
+      );
+      await client.query('COMMIT');
+      const row = res.rows[0];
+      if (row === undefined) return null;
+      return {
+        tenantId: row.tenant_id,
+        email: row.email,
+        name: row.name,
+        role: row.role,
+        status: row.status,
+        deleted_at: row.deleted_at,
+      };
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Parse super-admin lifecycle body: reason + confirm_last_admin override flag.
+   */
+  function parseSuperLifecycleBody(body: unknown): {
+    reason: string | undefined;
+    confirm_last_admin: boolean;
+  } {
+    const b = (body ?? {}) as Record<string, unknown>;
+    // Reuse the existing parseLifecycleBody closure (defined above in this scope).
+    const { reason } = parseLifecycleBody(b);
+    const confirm_last_admin = b['confirm_last_admin'] === true;
+    return { reason, confirm_last_admin };
+  }
+
+  // POST /api/admin/super/users/:userId/disable
+  app.post(
+    '/api/admin/super/users/:userId/disable',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { userId } = req.params as { userId: string };
+      const { reason, confirm_last_admin } = parseSuperLifecycleBody(req.body);
+
+      const target = await resolveUserTenant(userId);
+      if (target === null) {
+        throw new NotFoundError(`User not found: ${userId}`);
+      }
+      const targetTenantId = target.tenantId;
+
+      // Inline disable with optional last-admin bypass.
+      const updated = await withTenant(targetTenantId, async (client) => {
+        // Check if this would violate last-admin invariant.
+        if (target.role === 'admin' && target.status === 'active' && target.deleted_at === null) {
+          const countRes = await client.query<{ count: string }>(
+            `SELECT count(*) FROM users
+              WHERE role = 'admin' AND status = 'active' AND deleted_at IS NULL
+                AND id <> $1`,
+            [userId],
+          );
+          const otherAdmins = parseInt(countRes.rows[0]?.count ?? '0', 10);
+          if (otherAdmins === 0) {
+            if (!confirm_last_admin || !reason) {
+              throw new ConflictError(
+                'This is the last active admin. Pass confirm_last_admin=true and a non-empty reason to override.',
+                { details: { code: 'LAST_ADMIN' } },
+              );
+            }
+          }
+        }
+
+        // Apply status change.
+        const res = await client.query<{
+          id: string; status: string;
+        }>(
+          `UPDATE users SET status = 'disabled', updated_at = now()
+           WHERE id = $1
+           RETURNING id, status`,
+          [userId],
+        );
+        const row = res.rows[0];
+        if (row === undefined) throw new NotFoundError(`User not found: ${userId}`);
+
+        const isOverride = confirm_last_admin && !!reason;
+        await auditInTx(client, {
+          tenantId: targetTenantId,
+          actorKind: 'user',
+          actorUserId: session.userId,
+          action: 'user.disabled',
+          entityType: 'user',
+          entityId: userId,
+          before: { status: target.status },
+          after: {
+            status: 'disabled',
+            reason: reason ?? null,
+            ...(isOverride ? { is_override: true } : {}),
+          },
+        });
+
+        return { id: row.id, status: row.status, isOverride };
+      });
+
+      // Sweep Redis sessions after commit.
+      await sweepUserSessions(userId);
+
+      logLifecycleEvent({
+        action: 'user.disabled',
+        actor: { userId: session.userId, role: session.role },
+        target: { entityType: 'user', entityId: userId },
+        before: { status: target.status },
+        after: { status: 'disabled', reason: reason ?? null },
+        isOverride: updated.isOverride,
+      });
+
+      return reply.code(200).send({
+        userId: updated.id,
+        status: updated.status,
+        previousStatus: target.status,
+        isOverride: updated.isOverride,
+      });
+    },
+  );
+
+  // POST /api/admin/super/users/:userId/reenable
+  app.post(
+    '/api/admin/super/users/:userId/reenable',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { userId } = req.params as { userId: string };
+      const { reason } = parseSuperLifecycleBody(req.body);
+
+      const target = await resolveUserTenant(userId);
+      if (target === null) {
+        throw new NotFoundError(`User not found: ${userId}`);
+      }
+      const targetTenantId = target.tenantId;
+
+      const updated = await withTenant(targetTenantId, async (client) => {
+        const res = await client.query<{ id: string; status: string }>(
+          `UPDATE users SET status = 'active', updated_at = now()
+           WHERE id = $1
+           RETURNING id, status`,
+          [userId],
+        );
+        const row = res.rows[0];
+        if (row === undefined) throw new NotFoundError(`User not found: ${userId}`);
+
+        await auditInTx(client, {
+          tenantId: targetTenantId,
+          actorKind: 'user',
+          actorUserId: session.userId,
+          action: 'user.reenabled',
+          entityType: 'user',
+          entityId: userId,
+          before: { status: target.status },
+          after: { status: 'active', reason: reason ?? null },
+        });
+
+        return row;
+      });
+
+      logLifecycleEvent({
+        action: 'user.reenabled',
+        actor: { userId: session.userId, role: session.role },
+        target: { entityType: 'user', entityId: userId },
+        before: { status: target.status },
+        after: { status: 'active', reason: reason ?? null },
+      });
+
+      return reply.code(200).send({
+        userId: updated.id,
+        status: updated.status,
+        previousStatus: target.status,
+      });
+    },
+  );
+
+  // DELETE /api/admin/super/users/invitations/:invitationId
+  // NOTE: static "invitations" segment registered BEFORE /:userId DELETE.
+  app.delete(
+    '/api/admin/super/users/invitations/:invitationId',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { invitationId } = req.params as { invitationId: string };
+      const { reason } = parseSuperLifecycleBody(req.body);
+
+      // Resolve the invitation's tenantId via system-role lookup.
+      const pool = getPool();
+      const sysClient = await pool.connect();
+      let targetTenantId: string | null = null;
+      try {
+        await sysClient.query('BEGIN');
+        await sysClient.query('SET LOCAL ROLE assessiq_system');
+        const res = await sysClient.query<{ tenant_id: string; accepted_at: Date | null }>(
+          `SELECT tenant_id, accepted_at FROM user_invitations WHERE id = $1 LIMIT 1`,
+          [invitationId],
+        );
+        await sysClient.query('COMMIT');
+        const row = res.rows[0];
+        if (row === undefined) {
+          throw new NotFoundError(`Invitation not found: ${invitationId}`, {
+            details: { code: 'INVITATION_NOT_FOUND' },
+          });
+        }
+        if (row.accepted_at !== null) {
+          throw new ConflictError(
+            'This invitation has already been accepted and cannot be cancelled.',
+            { details: { code: 'INVITATION_ALREADY_ACCEPTED' } },
+          );
+        }
+        targetTenantId = row.tenant_id;
+      } catch (err) {
+        await sysClient.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        sysClient.release();
+      }
+
+      // Delegate to the cancelInvitation service (runs withTenant(targetTenantId)).
+      const result = await cancelInvitation(
+        targetTenantId,
+        invitationId,
+        session.userId,
+        reason,
+      );
+
+      logLifecycleEvent({
+        action: 'user.invitation_cancelled',
+        actor: { userId: session.userId, role: session.role },
+        target: { entityType: 'invitation', entityId: invitationId },
+        after: {
+          email: result.email,
+          reason: reason ?? null,
+          cascaded_pending_user: result.cascadedPendingUser,
+          cancelled_user_id: result.userId,
+          tenant_id: targetTenantId,
+        },
+      });
+
+      return reply.code(200).send({
+        invitationId,
+        email: result.email,
+        cascadedPendingUser: result.cascadedPendingUser,
+        cancelledUserId: result.userId,
+      });
+    },
+  );
+
+  // DELETE /api/admin/super/users/:userId — super-admin soft-delete
+  app.delete(
+    '/api/admin/super/users/:userId',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { userId } = req.params as { userId: string };
+      const { reason, confirm_last_admin } = parseSuperLifecycleBody(req.body);
+
+      const target = await resolveUserTenant(userId);
+      if (target === null) {
+        throw new NotFoundError(`User not found: ${userId}`);
+      }
+      const targetTenantId = target.tenantId;
+
+      await withTenant(targetTenantId, async (client) => {
+        // Last-admin invariant check (with optional override).
+        if (target.role === 'admin' && target.status === 'active' && target.deleted_at === null) {
+          const countRes = await client.query<{ count: string }>(
+            `SELECT count(*) FROM users
+              WHERE role = 'admin' AND status = 'active' AND deleted_at IS NULL
+                AND id <> $1`,
+            [userId],
+          );
+          const otherAdmins = parseInt(countRes.rows[0]?.count ?? '0', 10);
+          if (otherAdmins === 0) {
+            if (!confirm_last_admin || !reason) {
+              throw new ConflictError(
+                'This is the last active admin. Pass confirm_last_admin=true and a non-empty reason to override.',
+                { details: { code: 'LAST_ADMIN' } },
+              );
+            }
+          }
+        }
+
+        await client.query(
+          `UPDATE users SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`,
+          [userId],
+        );
+
+        // Cascade: delete pending invitations for this email.
+        await client.query(
+          `DELETE FROM user_invitations WHERE lower(email) = $1 AND accepted_at IS NULL`,
+          [target.email.toLowerCase()],
+        );
+
+        const isOverride = confirm_last_admin && !!reason;
+        await auditInTx(client, {
+          tenantId: targetTenantId,
+          actorKind: 'user',
+          actorUserId: session.userId,
+          action: 'user.soft_deleted',
+          entityType: 'user',
+          entityId: userId,
+          before: { status: target.status, deleted_at: null },
+          after: {
+            deleted: true,
+            reason: reason ?? null,
+            ...(isOverride ? { is_override: true } : {}),
+          },
+        });
+      });
+
+      // Sweep Redis sessions after commit.
+      await sweepUserSessions(userId);
+
+      const isOverride = confirm_last_admin && !!reason;
+      logLifecycleEvent({
+        action: 'user.soft_deleted',
+        actor: { userId: session.userId, role: session.role },
+        target: { entityType: 'user', entityId: userId },
+        after: { deleted: true, reason: reason ?? null },
+        isOverride,
+      });
+
+      return reply.code(200).send({ userId, deleted: true, isOverride });
+    },
+  );
+
+  // POST /api/admin/super/users/:userId/restore
+  app.post(
+    '/api/admin/super/users/:userId/restore',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { userId } = req.params as { userId: string };
+      const { reason } = parseSuperLifecycleBody(req.body);
+
+      const target = await resolveUserTenant(userId);
+      if (target === null) {
+        throw new NotFoundError(`User not found: ${userId}`);
+      }
+      const targetTenantId = target.tenantId;
+
+      const restored = await withTenant(targetTenantId, async (client) => {
+        const res = await client.query<{ id: string; status: string; deleted_at: Date | null }>(
+          `UPDATE users SET deleted_at = NULL, updated_at = now()
+           WHERE id = $1
+           RETURNING id, status, deleted_at`,
+          [userId],
+        );
+        const row = res.rows[0];
+        if (row === undefined) throw new NotFoundError(`User not found: ${userId}`);
+
+        await auditInTx(client, {
+          tenantId: targetTenantId,
+          actorKind: 'user',
+          actorUserId: session.userId,
+          action: 'user.restored',
+          entityType: 'user',
+          entityId: userId,
+          before: { deleted_at: 'non-null', status: target.status },
+          after: { deleted_at: null, status: row.status, reason: reason ?? null },
+        });
+
+        return row;
+      });
+
+      logLifecycleEvent({
+        action: 'user.restored',
+        actor: { userId: session.userId, role: session.role },
+        target: { entityType: 'user', entityId: userId },
+        before: { deleted_at: 'non-null' },
+        after: { deleted_at: null, reason: reason ?? null },
+      });
+
+      return reply.code(200).send({
+        userId: restored.id,
+        status: restored.status,
+        previousDeletedAt: target.deleted_at,
+      });
     },
   );
 
