@@ -141,6 +141,11 @@ export const ACTION_CATALOG = [
   // Distinct from user.invited (kind=reinvite written by inviteUser) so
   // super-admin activity is queryable separately from tenant-admin re-invites.
   'admin.invitation.resent',
+  // Super-admin lifecycle: archive / unarchive a tenant (hide from Platform
+  // list but retain all data including audit history). Distinct from a
+  // future 'tenant.suspended' which blocks logins; archive only hides.
+  'tenant.archived',
+  'tenant.unarchived',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];
