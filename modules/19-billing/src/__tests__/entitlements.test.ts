@@ -31,6 +31,7 @@ import { Client } from 'pg';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 
 import { setPoolForTesting, closePool } from '@assessiq/tenancy';
 import { ValidationError, NotFoundError } from '@assessiq/core';
@@ -59,7 +60,28 @@ const BILLING_MIGRATIONS_DIR = join(BILLING_MODULE_ROOT, 'migrations');
 
 let container: StartedTestContainer;
 let containerUrl: string;
-let dockerAvailable = true;
+
+// Synchronous Docker availability check — evaluated at module load time so
+// it.skipIf(!dockerAvailable) correctly skips tests before beforeAll runs.
+function isDockerAvailable(): boolean {
+  try {
+    execSync('docker info', { stdio: 'ignore', timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const dockerAvailable = isDockerAvailable();
+
+// CI fail-loud: throw at module load time so the suite is collected as FAILED
+// (not silently skipped) when Docker is unavailable in CI.
+if (!dockerAvailable && (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true')) {
+  throw new Error(
+    'Docker testcontainer required but unavailable in CI. ' +
+    'Ensure the CI runner has Docker installed, or remove the Docker ' +
+    'dependency from these tests.'
+  );
+}
 
 let TENANT_ID: string;
 let TENANT2_ID: string;
@@ -133,20 +155,19 @@ async function countAuditRows(tenantId: string, action: string): Promise<number>
 
 beforeAll(
   async () => {
-    try {
-      container = await new GenericContainer('postgres:16-alpine')
-        .withEnvironment({
-          POSTGRES_USER: 'test',
-          POSTGRES_PASSWORD: 'test',
-          POSTGRES_DB: 'testdb',
-        })
-        .withWaitStrategy(Wait.forListeningPorts())
-        .withExposedPorts(5432)
-        .start();
-    } catch {
-      dockerAvailable = false;
-      return;
-    }
+    // Docker availability is checked synchronously at module load time.
+    // If Docker is unavailable, tests are skipped via it.skipIf(!dockerAvailable).
+    if (!dockerAvailable) return;
+
+    container = await new GenericContainer('postgres:16-alpine')
+      .withEnvironment({
+        POSTGRES_USER: 'test',
+        POSTGRES_PASSWORD: 'test',
+        POSTGRES_DB: 'testdb',
+      })
+      .withWaitStrategy(Wait.forListeningPorts())
+      .withExposedPorts(5432)
+      .start();
 
     const host = container.getHost();
     const port = container.getMappedPort(5432);
@@ -201,9 +222,10 @@ beforeAll(
 );
 
 afterAll(async () => {
-  if (!dockerAvailable) return;
-  await closePool();
-  if (container) await container.stop();
+  if (dockerAvailable) {
+    await closePool();
+    if (container) await container.stop();
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -222,11 +244,9 @@ async function resetTenant(tenantId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe('grantEntitlement — (a) basic grant', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'inserts an active entitlement row and exactly one audit_log row with action tenant.entitlement_granted',
     async () => {
-      if (!dockerAvailable) return;
-
       await resetTenant(TENANT_ID);
 
       const result = await grantEntitlement(ACTOR_USER_ID, TENANT_ID, {
@@ -258,11 +278,9 @@ describe('grantEntitlement — (a) basic grant', () => {
 // ---------------------------------------------------------------------------
 
 describe('grantEntitlement — (b) idempotent double-grant', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'grants the same scope twice → exactly one row with status active',
     async () => {
-      if (!dockerAvailable) return;
-
       await resetTenant(TENANT_ID);
 
       await grantEntitlement(ACTOR_USER_ID, TENANT_ID, { scopeType: 'domain', scopeId: 'cloud' });
@@ -280,11 +298,9 @@ describe('grantEntitlement — (b) idempotent double-grant', () => {
 // ---------------------------------------------------------------------------
 
 describe('revokeEntitlement — (c) revoke active', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'sets status to revoked and writes exactly one audit_log row with action tenant.entitlement_revoked',
     async () => {
-      if (!dockerAvailable) return;
-
       await resetTenant(TENANT_ID);
       await grantEntitlement(ACTOR_USER_ID, TENANT_ID, { scopeType: 'domain', scopeId: 'network' });
       await withSuperClient(async (c) => c.query(`DELETE FROM audit_log WHERE tenant_id = $1`, [TENANT_ID]));
@@ -313,11 +329,9 @@ describe('revokeEntitlement — (c) revoke active', () => {
 // ---------------------------------------------------------------------------
 
 describe('revokeEntitlement — (d) revoke non-existent', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'throws NotFoundError ENTITLEMENT_NOT_FOUND, writes no audit row and makes no row change',
     async () => {
-      if (!dockerAvailable) return;
-
       await resetTenant(TENANT_ID);
       // Ensure no row exists for this scope
       const scopeBefore = await countEntitlementRows(TENANT_ID, 'domain', 'ghost-scope');
@@ -350,11 +364,9 @@ describe('revokeEntitlement — (d) revoke non-existent', () => {
 // ---------------------------------------------------------------------------
 
 describe('grantEntitlement — (e) re-grant revoked', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'reactivates a revoked entitlement row, still only one row total',
     async () => {
-      if (!dockerAvailable) return;
-
       await resetTenant(TENANT_ID);
 
       // Grant → revoke
@@ -382,11 +394,9 @@ describe('grantEntitlement — (e) re-grant revoked', () => {
 // ---------------------------------------------------------------------------
 
 describe('grantEntitlement — (f) invalid scopeType', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'throws ValidationError INVALID_SCOPE for unknown scope type',
     async () => {
-      if (!dockerAvailable) return;
-
       await expect(
         grantEntitlement(ACTOR_USER_ID, TENANT_ID, {
           scopeType: 'badtype' as 'domain',
@@ -400,11 +410,9 @@ describe('grantEntitlement — (f) invalid scopeType', () => {
     },
   );
 
-  it(
+  it.skipIf(!dockerAvailable)(
     'throws ValidationError INVALID_SCOPE for empty scopeId',
     async () => {
-      if (!dockerAvailable) return;
-
       await expect(
         grantEntitlement(ACTOR_USER_ID, TENANT_ID, {
           scopeType: 'domain',
@@ -424,11 +432,9 @@ describe('grantEntitlement — (f) invalid scopeType', () => {
 // ---------------------------------------------------------------------------
 
 describe('getCompanyEntitlements — (g) active-only, tenant-scoped', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'returns only active rows for the tenant (not revoked, not other tenant)',
     async () => {
-      if (!dockerAvailable) return;
-
       await resetTenant(TENANT_ID);
       await resetTenant(TENANT2_ID);
 
@@ -479,11 +485,9 @@ describe('getCompanyEntitlements — (g) active-only, tenant-scoped', () => {
 // For a deeper rollback test: manually BEGIN a tx, INSERT an entitlement,
 // then ROLLBACK and verify the row is gone.
 describe('atomicity — (h) rollback verification', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'a manually rolled-back transaction leaves no entitlement row',
     async () => {
-      if (!dockerAvailable) return;
-
       await resetTenant(TENANT_ID);
 
       // Manual BEGIN/INSERT/ROLLBACK to verify the table participates in txs

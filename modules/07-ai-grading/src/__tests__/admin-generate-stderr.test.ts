@@ -27,6 +27,7 @@ import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { execSync } from "node:child_process";
 
 // G3.D: mock @assessiq/audit-log (testcontainer omits audit-log migrations).
 vi.mock("@assessiq/audit-log", async () => {
@@ -149,7 +150,28 @@ let container: StartedTestContainer;
 let containerUrl: string;
 let TENANT_ID: string;
 let ADMIN_ID: string;
-let dockerAvailable = true;
+
+// Synchronous Docker availability check — evaluated at module load time so
+// it.skipIf(!dockerAvailable) correctly skips tests before beforeAll runs.
+function isDockerAvailable(): boolean {
+  try {
+    execSync("docker info", { stdio: "ignore", timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const dockerAvailable = isDockerAvailable();
+
+// CI fail-loud: throw at module load time so the suite is collected as FAILED
+// (not silently skipped) when Docker is unavailable in CI.
+if (!dockerAvailable && (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true")) {
+  throw new Error(
+    "Docker testcontainer required but unavailable in CI. " +
+    "Ensure the CI runner has Docker installed, or remove the Docker " +
+    "dependency from these tests."
+  );
+}
 
 // ---------------------------------------------------------------------------
 // DB helpers
@@ -227,20 +249,19 @@ async function readLastAttempt(packId: string, levelId: string): Promise<Attempt
 
 beforeAll(
   async () => {
-    try {
-      container = await new GenericContainer("postgres:16-alpine")
-        .withEnvironment({
-          POSTGRES_USER: "test",
-          POSTGRES_PASSWORD: "test",
-          POSTGRES_DB: "testdb",
-        })
-        .withWaitStrategy(Wait.forListeningPorts())
-        .withExposedPorts(5432)
-        .start();
-    } catch {
-      dockerAvailable = false;
-      return;
-    }
+    // Docker availability is checked synchronously at module load time.
+    // If Docker is unavailable, tests are skipped via it.skipIf(!dockerAvailable).
+    if (!dockerAvailable) return;
+
+    container = await new GenericContainer("postgres:16-alpine")
+      .withEnvironment({
+        POSTGRES_USER: "test",
+        POSTGRES_PASSWORD: "test",
+        POSTGRES_DB: "testdb",
+      })
+      .withWaitStrategy(Wait.forListeningPorts())
+      .withExposedPorts(5432)
+      .start();
 
     const host = container.getHost();
     const port = container.getMappedPort(5432);
@@ -276,9 +297,10 @@ beforeAll(
 );
 
 afterAll(async () => {
-  if (!dockerAvailable) return;
-  await closePool();
-  if (container) await container.stop();
+  if (dockerAvailable) {
+    await closePool();
+    if (container) await container.stop();
+  }
 });
 
 // ---------------------------------------------------------------------------

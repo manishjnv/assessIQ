@@ -30,6 +30,7 @@ import { Client } from 'pg';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
 import { AppError } from '@assessiq/core';
@@ -59,7 +60,28 @@ const BILLING_MIGRATIONS_DIR     = join(BILLING_MODULE_ROOT, 'migrations');
 
 let container: StartedTestContainer;
 let containerUrl: string;
-let dockerAvailable = true;
+
+// Synchronous Docker availability check — evaluated at module load time so
+// it.skipIf(!dockerAvailable) correctly skips tests before beforeAll runs.
+function isDockerAvailable(): boolean {
+  try {
+    execSync('docker info', { stdio: 'ignore', timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const dockerAvailable = isDockerAvailable();
+
+// CI fail-loud: throw at module load time so the suite is collected as FAILED
+// (not silently skipped) when Docker is unavailable in CI.
+if (!dockerAvailable && (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true')) {
+  throw new Error(
+    'Docker testcontainer required but unavailable in CI. ' +
+    'Ensure the CI runner has Docker installed, or remove the Docker ' +
+    'dependency from these tests.'
+  );
+}
 
 let TENANT_ID: string;
 let ACTOR_USER_ID: string;
@@ -139,20 +161,19 @@ async function insertEntitlement(
 
 beforeAll(
   async () => {
-    try {
-      container = await new GenericContainer('postgres:16-alpine')
-        .withEnvironment({
-          POSTGRES_USER: 'test',
-          POSTGRES_PASSWORD: 'test',
-          POSTGRES_DB: 'testdb',
-        })
-        .withWaitStrategy(Wait.forListeningPorts())
-        .withExposedPorts(5432)
-        .start();
-    } catch {
-      dockerAvailable = false;
-      return;
-    }
+    // Docker availability is checked synchronously at module load time.
+    // If Docker is unavailable, tests are skipped via it.skipIf(!dockerAvailable).
+    if (!dockerAvailable) return;
+
+    container = await new GenericContainer('postgres:16-alpine')
+      .withEnvironment({
+        POSTGRES_USER: 'test',
+        POSTGRES_PASSWORD: 'test',
+        POSTGRES_DB: 'testdb',
+      })
+      .withWaitStrategy(Wait.forListeningPorts())
+      .withExposedPorts(5432)
+      .start();
 
     const host = container.getHost();
     const port = container.getMappedPort(5432);
@@ -213,9 +234,10 @@ beforeAll(
 );
 
 afterAll(async () => {
-  if (!dockerAvailable) return;
-  await closePool();
-  if (container) await container.stop();
+  if (dockerAvailable) {
+    await closePool();
+    if (container) await container.stop();
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -234,9 +256,7 @@ async function runCheck(tenantId: string, packId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe('assertPublishEntitled — (a) domain entitlement resolves', () => {
-  it('resolves when an active domain-scope entitlement matches the pack domain', async () => {
-    if (!dockerAvailable) return;
-
+  it.skipIf(!dockerAvailable)('resolves when an active domain-scope entitlement matches the pack domain', async () => {
     await resetTenantEntitlements(TENANT_ID);
     await setTenantPlan(TENANT_ID, 'free', 25);
     await insertEntitlement(TENANT_ID, 'domain', PACK_DOMAIN);
@@ -250,9 +270,7 @@ describe('assertPublishEntitled — (a) domain entitlement resolves', () => {
 // ---------------------------------------------------------------------------
 
 describe('assertPublishEntitled — (b) pack_id entitlement resolves', () => {
-  it('resolves when an active pack-scope entitlement matches the pack_id (domain not entitled)', async () => {
-    if (!dockerAvailable) return;
-
+  it.skipIf(!dockerAvailable)('resolves when an active pack-scope entitlement matches the pack_id (domain not entitled)', async () => {
     await resetTenantEntitlements(TENANT_ID);
     await setTenantPlan(TENANT_ID, 'free', 25);
     // Only pack-scope — no domain entitlement
@@ -267,9 +285,7 @@ describe('assertPublishEntitled — (b) pack_id entitlement resolves', () => {
 // ---------------------------------------------------------------------------
 
 describe('assertPublishEntitled — (c) no entitlement throws 403', () => {
-  it('throws AppError with status 403 and code NOT_ENTITLED when no entitlement matches', async () => {
-    if (!dockerAvailable) return;
-
+  it.skipIf(!dockerAvailable)('throws AppError with status 403 and code NOT_ENTITLED when no entitlement matches', async () => {
     await resetTenantEntitlements(TENANT_ID);
     await setTenantPlan(TENANT_ID, 'free', 25);
     // No entitlements at all
@@ -293,9 +309,7 @@ describe('assertPublishEntitled — (c) no entitlement throws 403', () => {
 // ---------------------------------------------------------------------------
 
 describe('assertPublishEntitled — (d) internal tier bypasses', () => {
-  it('resolves for internal tier even with zero entitlements', async () => {
-    if (!dockerAvailable) return;
-
+  it.skipIf(!dockerAvailable)('resolves for internal tier even with zero entitlements', async () => {
     await resetTenantEntitlements(TENANT_ID);
     await setTenantPlan(TENANT_ID, 'internal', null);
     // No entitlements — internal bypass must fire before entitlement check
@@ -312,9 +326,7 @@ describe('assertPublishEntitled — (d) internal tier bypasses', () => {
 // ---------------------------------------------------------------------------
 
 describe('assertPublishEntitled — (e) revoked entitlement is not active', () => {
-  it('throws 403 when the only matching entitlement has status=revoked', async () => {
-    if (!dockerAvailable) return;
-
+  it.skipIf(!dockerAvailable)('throws 403 when the only matching entitlement has status=revoked', async () => {
     await resetTenantEntitlements(TENANT_ID);
     await setTenantPlan(TENANT_ID, 'free', 25);
     // Insert a revoked domain entitlement — must NOT count as entitled
@@ -337,9 +349,7 @@ describe('assertPublishEntitled — (e) revoked entitlement is not active', () =
 // ---------------------------------------------------------------------------
 
 describe('assertPublishEntitled — (f) missing plan is fail-closed', () => {
-  it('throws 403 when tenant has no plan row (missing plan does NOT bypass)', async () => {
-    if (!dockerAvailable) return;
-
+  it.skipIf(!dockerAvailable)('throws 403 when tenant has no plan row (missing plan does NOT bypass)', async () => {
     await resetTenantEntitlements(TENANT_ID);
     await deleteTenantPlan(TENANT_ID);
     // No plan row, no entitlements
@@ -364,9 +374,7 @@ describe('assertPublishEntitled — (f) missing plan is fail-closed', () => {
 // ---------------------------------------------------------------------------
 
 describe('assertPublishEntitled — (g) non-internal tier with valid domain grant resolves', () => {
-  it('resolves for free tier when domain entitlement is active', async () => {
-    if (!dockerAvailable) return;
-
+  it.skipIf(!dockerAvailable)('resolves for free tier when domain entitlement is active', async () => {
     await resetTenantEntitlements(TENANT_ID);
     await setTenantPlan(TENANT_ID, 'free', 25);
     await insertEntitlement(TENANT_ID, 'domain', PACK_DOMAIN);

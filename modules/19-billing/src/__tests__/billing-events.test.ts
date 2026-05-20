@@ -3,11 +3,10 @@
 // DB-backed integration tests for the billing module.
 //
 // Strategy: postgres:16-alpine testcontainer. If Docker is unavailable the
-// entire suite is skipped gracefully via the dockerAvailable flag pattern —
-// verbatim from modules/07-ai-grading/src/__tests__/admin-generate-citation.test.ts:
+// entire suite is skipped gracefully via the dockerAvailable flag pattern:
 //   - beforeAll catches the Docker error and sets dockerAvailable = false
-//   - each test checks `if (!dockerAvailable) return;` as its first statement
-//     (NOT it.skipIf — that evaluates at collection time before beforeAll runs)
+//   - each test uses it.skipIf(!dockerAvailable) for visible skip reporting
+//   - in CI (CI=true or GITHUB_ACTIONS=true), missing Docker throws loudly
 //
 // Migration apply order (FK chain):
 //   1. 02-tenancy ALL migrations  (tenants table + RLS setup)
@@ -30,6 +29,7 @@ import { Client } from 'pg';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 
 // Mocks — declared before SUT imports (Vitest hoists vi.mock).
 vi.mock('@assessiq/audit-log', async () => {
@@ -67,7 +67,28 @@ const BILLING_MIGRATIONS_DIR = join(BILLING_MODULE_ROOT, 'migrations');
 
 let container: StartedTestContainer;
 let containerUrl: string;
-let dockerAvailable = true;
+
+// Synchronous Docker availability check — evaluated at module load time so
+// it.skipIf(!dockerAvailable) correctly skips tests before beforeAll runs.
+function isDockerAvailable(): boolean {
+  try {
+    execSync('docker info', { stdio: 'ignore', timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const dockerAvailable = isDockerAvailable();
+
+// CI fail-loud: throw at module load time so the suite is collected as FAILED
+// (not silently skipped) when Docker is unavailable in CI.
+if (!dockerAvailable && (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true')) {
+  throw new Error(
+    'Docker testcontainer required but unavailable in CI. ' +
+    'Ensure the CI runner has Docker installed, or remove the Docker ' +
+    'dependency from these tests.'
+  );
+}
 
 let FREE_TENANT_ID: string;
 let INTERNAL_TENANT_ID: string;
@@ -167,23 +188,19 @@ async function seedAttempt(
 
 beforeAll(
   async () => {
-    // Detect Docker availability — if absent, mark flag and return.
-    // Tests check `if (!dockerAvailable) return;` rather than it.skipIf
-    // because skipIf evaluates at collection time (before beforeAll runs).
-    try {
-      container = await new GenericContainer('postgres:16-alpine')
-        .withEnvironment({
-          POSTGRES_USER: 'test',
-          POSTGRES_PASSWORD: 'test',
-          POSTGRES_DB: 'testdb',
-        })
-        .withWaitStrategy(Wait.forListeningPorts())
-        .withExposedPorts(5432)
-        .start();
-    } catch {
-      dockerAvailable = false;
-      return;
-    }
+    // Docker availability is checked synchronously at module load time.
+    // If Docker is unavailable, tests are skipped via it.skipIf(!dockerAvailable).
+    if (!dockerAvailable) return;
+
+    container = await new GenericContainer('postgres:16-alpine')
+      .withEnvironment({
+        POSTGRES_USER: 'test',
+        POSTGRES_PASSWORD: 'test',
+        POSTGRES_DB: 'testdb',
+      })
+      .withWaitStrategy(Wait.forListeningPorts())
+      .withExposedPorts(5432)
+      .start();
 
     const host = container.getHost();
     const port = container.getMappedPort(5432);
@@ -238,9 +255,10 @@ beforeAll(
 );
 
 afterAll(async () => {
-  if (!dockerAvailable) return;
-  await closePool();
-  if (container) await container.stop();
+  if (dockerAvailable) {
+    await closePool();
+    if (container) await container.stop();
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -248,11 +266,9 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe('recordGradedAttempt — idempotency', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'calling twice for the same (tenant, attempt) → exactly 1 billing_events row',
     async () => {
-      if (!dockerAvailable) return; // skip gracefully when Docker is absent
-
       await withSuperClient(async (superClient) => {
         const { packId, levelId } = await seedPackAndLevel(
           superClient, FREE_TENANT_ID, ADMIN_ID,
@@ -289,11 +305,9 @@ describe('recordGradedAttempt — idempotency', () => {
 // ---------------------------------------------------------------------------
 
 describe('recordGradedAttempt — same-tx rollback', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'billing event is rolled back when the enclosing transaction rolls back',
     async () => {
-      if (!dockerAvailable) return;
-
       await withSuperClient(async (superClient) => {
         const { packId, levelId } = await seedPackAndLevel(
           superClient, FREE_TENANT_ID, ADMIN_ID,
@@ -341,11 +355,9 @@ describe('recordGradedAttempt — same-tx rollback', () => {
 // ---------------------------------------------------------------------------
 
 describe('getUsage — free/25 tenant', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'correct remaining / overage / status for 20 graded events out of 25',
     async () => {
-      if (!dockerAvailable) return;
-
       // Use a fresh tenant so prior test events don't pollute the count
       const tenantId = randomUUID();
       const candidateId = randomUUID();
@@ -402,11 +414,9 @@ describe('getUsage — free/25 tenant', () => {
 // ---------------------------------------------------------------------------
 
 describe('getUsage — internal/unlimited tenant', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'returns status unlimited and remaining null for a NULL-credits plan',
     async () => {
-      if (!dockerAvailable) return;
-
       const usage = await getUsage(INTERNAL_TENANT_ID);
 
       expect(usage.tier).toBe('internal');
@@ -423,11 +433,9 @@ describe('getUsage — internal/unlimited tenant', () => {
 // ---------------------------------------------------------------------------
 
 describe('0080 backfill — idempotency', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'INSERT … ON CONFLICT DO NOTHING is safe to run twice without error or data change',
     async () => {
-      if (!dockerAvailable) return;
-
       const internalTenantId = randomUUID();
       const ordinaryTenantId = randomUUID();
       const internalSlug = `wipro-soc-test-${randomUUID().slice(0, 6)}`;

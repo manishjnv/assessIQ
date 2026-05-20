@@ -27,6 +27,7 @@ import { Client } from 'pg';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -66,7 +67,28 @@ const BACKFILL_SQL = `
 
 let container: StartedTestContainer;
 let containerUrl: string;
-let dockerAvailable = true;
+
+// Synchronous Docker availability check — evaluated at module load time so
+// it.skipIf(!dockerAvailable) correctly skips tests before beforeAll runs.
+function isDockerAvailable(): boolean {
+  try {
+    execSync('docker info', { stdio: 'ignore', timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const dockerAvailable = isDockerAvailable();
+
+// CI fail-loud: throw at module load time so the suite is collected as FAILED
+// (not silently skipped) when Docker is unavailable in CI.
+if (!dockerAvailable && (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true')) {
+  throw new Error(
+    'Docker testcontainer required but unavailable in CI. ' +
+    'Ensure the CI runner has Docker installed, or remove the Docker ' +
+    'dependency from these tests.'
+  );
+}
 
 // Tenant 1: has live question → should get entitlement
 let TENANT1_ID: string;
@@ -107,20 +129,19 @@ async function applyMigrationsFromDir(
 
 beforeAll(
   async () => {
-    try {
-      container = await new GenericContainer('postgres:16-alpine')
-        .withEnvironment({
-          POSTGRES_USER: 'test',
-          POSTGRES_PASSWORD: 'test',
-          POSTGRES_DB: 'testdb',
-        })
-        .withWaitStrategy(Wait.forListeningPorts())
-        .withExposedPorts(5432)
-        .start();
-    } catch {
-      dockerAvailable = false;
-      return;
-    }
+    // Docker availability is checked synchronously at module load time.
+    // If Docker is unavailable, tests are skipped via it.skipIf(!dockerAvailable).
+    if (!dockerAvailable) return;
+
+    container = await new GenericContainer('postgres:16-alpine')
+      .withEnvironment({
+        POSTGRES_USER: 'test',
+        POSTGRES_PASSWORD: 'test',
+        POSTGRES_DB: 'testdb',
+      })
+      .withWaitStrategy(Wait.forListeningPorts())
+      .withExposedPorts(5432)
+      .start();
 
     const host = container.getHost();
     const port = container.getMappedPort(5432);
@@ -221,8 +242,9 @@ beforeAll(
 );
 
 afterAll(async () => {
-  if (!dockerAvailable) return;
-  if (container) await container.stop();
+  if (dockerAvailable) {
+    if (container) await container.stop();
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -230,11 +252,9 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe('0082_entitlements_backfill — scenario A: tenant with live content', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'inserts a domain entitlement for the tenant that has an active question in a published pack',
     async () => {
-      if (!dockerAvailable) return;
-
       // Run the backfill
       await withSuperClient(async (c) => {
         await c.query('SET ROLE assessiq_system');
@@ -260,11 +280,9 @@ describe('0082_entitlements_backfill — scenario A: tenant with live content', 
 });
 
 describe('0082_entitlements_backfill — scenario B: tenant with only draft/archived content', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     'does NOT insert any entitlement for the tenant with only draft questions or archived packs',
     async () => {
-      if (!dockerAvailable) return;
-
       const rows = await withSuperClient(async (c) => {
         const { rows: r } = await c.query<{ id: string }>(
           `SELECT id FROM tenant_entitlements WHERE tenant_id = $1`,
@@ -279,11 +297,9 @@ describe('0082_entitlements_backfill — scenario B: tenant with only draft/arch
 });
 
 describe('0082_entitlements_backfill — idempotency', () => {
-  it(
+  it.skipIf(!dockerAvailable)(
     're-running the backfill INSERT does not create duplicate rows',
     async () => {
-      if (!dockerAvailable) return;
-
       // Run again (backfill already ran in scenario A)
       await withSuperClient(async (c) => {
         await c.query('SET ROLE assessiq_system');
