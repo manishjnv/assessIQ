@@ -13,9 +13,9 @@
 //  - Sidebar filter state in sessionStorage only (no localStorage).
 //  - No claude/anthropic imports.
 
-import React, { Fragment, useState } from "react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Sidebar, NavItem, SidebarSection } from "@assessiq/ui-system";
+import { Icon, Sidebar, NavItem, SidebarSection, useViewport } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";
 
@@ -131,6 +131,75 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       return false;
     }
   });
+
+  const viewport = useViewport();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
+
+  // Close drawer on route change.
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
+
+  // Drawer lifecycle: Escape, body scroll lock, focus capture+trap+restore.
+  // Spec § 5 #11 — modal overlays must trap focus.
+  useEffect(() => {
+    if (!drawerOpen) return;
+
+    // (a) Capture currently-focused element so we can restore it on close.
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
+
+    // (b) Move focus into the drawer's first focusable child.
+    // requestAnimationFrame ensures the drawer node is mounted + visible.
+    const focusFirst = () => {
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+      const focusable = drawer.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      focusable?.focus();
+    };
+    const raf = requestAnimationFrame(focusFirst);
+
+    // (c) Trap Tab/Shift-Tab inside the drawer.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDrawerOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+      const focusables = Array.from(
+        drawer.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("disabled"));
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        last.focus();
+        e.preventDefault();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        first.focus();
+        e.preventDefault();
+      }
+    };
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+      // (d) Restore focus to the element that opened the drawer.
+      lastFocusedRef.current?.focus?.();
+    };
+  }, [drawerOpen]);
 
   function dismissNudge() {
     setNudgeDismissed(true);
@@ -280,7 +349,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
   const content = (
     <div
-      className="aiq-screen"
+      className="aiq-screen aiq-admin-shell"
+      data-drawer-open={drawerOpen ? "true" : "false"}
       style={{
         display: "flex",
         height: "100vh",
@@ -288,47 +358,67 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
         background: "var(--aiq-color-bg-base)",
       }}
     >
-      {/* Sidebar */}
-      <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} footer={sidebarFooter}>
-        {(() => {
-          // Shared filter — adminOnly + superAdminOnly gates are identical
-          // across all sections; extracted to keep each section a one-liner.
-          const visible = (e: NavEntry): boolean =>
-            (!e.adminOnly || isAdmin) &&
-            (!e.superAdminOnly || session?.user.role === "super_admin");
-          const renderEntry = (e: NavEntry): JSX.Element => (
-            <NavItem
-              key={e.href}
-              label={e.label}
-              icon={e.icon}
-              href={e.href}
-              active={path === e.href || (e.href !== "/admin" && path.startsWith(e.href))}
-              collapsed={collapsed}
-            />
-          );
-          // Render a section header only if at least one of its entries is
-          // visible to the current role — avoids an empty "Admin" label for
-          // a reviewer who has no admin entries.
-          const renderSection = (label: string, entries: NavEntry[]): JSX.Element | null => {
-            const shown = entries.filter(visible);
-            if (shown.length === 0) return null;
-            return (
-              <Fragment key={label}>
-                <SidebarSection label={label} collapsed={collapsed} />
-                {shown.map(renderEntry)}
-              </Fragment>
+      {/* Drawer backdrop — mobile only, only when open. Click closes. */}
+      {drawerOpen && (
+        <div
+          data-testid="admin-drawer-backdrop"
+          onClick={() => setDrawerOpen(false)}
+          className="aiq-admin-drawer-backdrop"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar — wrapped in aiq-admin-sidebar-wrap so mobile CSS can
+          position it off-canvas without the primitive knowing.
+          drawerRef is consumed by the focus-trap effect when drawerOpen. */}
+      <div
+        ref={drawerRef}
+        className="aiq-admin-sidebar-wrap"
+        role={drawerOpen ? "dialog" : undefined}
+        aria-label={drawerOpen ? "Navigation" : undefined}
+        aria-modal={drawerOpen ? "true" : undefined}
+      >
+        <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} footer={sidebarFooter}>
+          {(() => {
+            // Shared filter — adminOnly + superAdminOnly gates are identical
+            // across all sections; extracted to keep each section a one-liner.
+            const visible = (e: NavEntry): boolean =>
+              (!e.adminOnly || isAdmin) &&
+              (!e.superAdminOnly || session?.user.role === "super_admin");
+            const renderEntry = (e: NavEntry): JSX.Element => (
+              <NavItem
+                key={e.href}
+                label={e.label}
+                icon={e.icon}
+                href={e.href}
+                active={path === e.href || (e.href !== "/admin" && path.startsWith(e.href))}
+                collapsed={collapsed}
+              />
             );
-          };
-          return (
-            <>
-              {renderSection("Workspace", workspaceEntries)}
-              {renderSection("Library", libraryEntries)}
-              {renderSection("Admin", adminEntries)}
-              {renderSection("Account", accountEntries)}
-            </>
-          );
-        })()}
-      </Sidebar>
+            // Render a section header only if at least one of its entries is
+            // visible to the current role — avoids an empty "Admin" label for
+            // a reviewer who has no admin entries.
+            const renderSection = (label: string, entries: NavEntry[]): JSX.Element | null => {
+              const shown = entries.filter(visible);
+              if (shown.length === 0) return null;
+              return (
+                <Fragment key={label}>
+                  <SidebarSection label={label} collapsed={collapsed} />
+                  {shown.map(renderEntry)}
+                </Fragment>
+              );
+            };
+            return (
+              <>
+                {renderSection("Workspace", workspaceEntries)}
+                {renderSection("Library", libraryEntries)}
+                {renderSection("Admin", adminEntries)}
+                {renderSection("Account", accountEntries)}
+              </>
+            );
+          })()}
+        </Sidebar>
+      </div>
 
       {/* Main */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -338,14 +428,42 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 var(--aiq-space-xl)",
-            height: 52,
+            padding: "0 var(--aiq-admin-shell-topbar-padding-x)",
+            height: "var(--aiq-admin-shell-topbar-h)",
             borderBottom: "1px solid var(--aiq-color-border)",
             flexShrink: 0,
             background: "var(--aiq-color-bg-raised)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+            {/* Hamburger — mobile-additive overlay (anti-pattern guard #1 carve-out).
+                Render gated by useViewport() hook so resize-driven viewport changes
+                trigger a re-render. Defense-in-depth: tokens.css also has
+                .aiq-admin-hamburger { display: none } on desktop. */}
+            {viewport === "mobile" && (
+              <button
+                type="button"
+                className="aiq-admin-hamburger"
+                onClick={() => setDrawerOpen(true)}
+                aria-label="Open navigation"
+                data-help-id="admin.shell.nav.mobile_menu"
+                style={{
+                  background: "none",
+                  border: "1px solid var(--aiq-color-border)",
+                  borderRadius: "var(--aiq-radius-pill)",
+                  width: 32,
+                  height: 32,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                <Icon name="drag" size={14} />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => navigate("/admin")}
@@ -366,7 +484,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
               AssessIQ
             </button>
             {session?.tenant.slug && (
-              <>
+              <span className="aiq-admin-shell-slug">
                 <span style={{ color: "var(--aiq-color-border-strong)" }}>/</span>
                 <button
                   type="button"
@@ -387,11 +505,12 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 >
                   {session.tenant.slug}
                 </button>
-              </>
+              </span>
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
             <span
+              className="aiq-admin-shell-email"
               style={{
                 fontFamily: "var(--aiq-font-sans)",
                 fontSize: "var(--aiq-text-sm)",
@@ -412,7 +531,9 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
         {/* MFA enrollment nudge — shown once per session for unenrolled admins/reviewers */}
         {session?.totpEnrolled === false && !nudgeDismissed && (
-          <MfaNudgeBanner onDismiss={dismissNudge} onSetup={() => navigate("/admin/mfa")} />
+          <div className="aiq-admin-mfa-nudge">
+            <MfaNudgeBanner onDismiss={dismissNudge} onSetup={() => navigate("/admin/mfa")} />
+          </div>
         )}
 
         {/* Breadcrumbs — last segment is current page (never clickable). Earlier
@@ -421,6 +542,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             backward compatibility with callers that pre-date the typed form. */}
         {breadcrumbs && breadcrumbs.length > 0 && (
           <div
+            className="aiq-admin-breadcrumbs"
             style={{
               padding: "var(--aiq-space-sm) var(--aiq-space-xl)",
               borderBottom: "1px solid var(--aiq-color-border)",

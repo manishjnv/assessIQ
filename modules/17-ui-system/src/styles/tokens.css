@@ -254,6 +254,96 @@
 .aiq-candidate-activity-stats { grid-template-columns: repeat(3, 1fr); }
 [data-viewport="mobile"] .aiq-candidate-activity-stats { grid-template-columns: 1fr; }
 
+/* ─────────────────────────────────────────────────────────────
+ * Admin Mobile Port — A1 AdminShell drawer + reflow.
+ * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 2.3
+ *
+ * Strategy: the existing Sidebar primitive is always rendered.
+ * On mobile, .aiq-admin-sidebar-wrap repositions it off-canvas
+ * (fixed, translateX(-100%)) and slides it back into view via
+ * the [data-drawer-open="true"] attribute on the screen root.
+ * Backdrop fades in concurrently. Body scroll lock + Escape
+ * handler + focus trap are JS (AdminShell.tsx) — CSS only
+ * handles geometry.
+ * ───────────────────────────────────────────────────────────── */
+
+.aiq-admin-shell .aiq-admin-hamburger { display: none; }
+.aiq-admin-shell .aiq-admin-drawer-backdrop { display: none; }
+.aiq-admin-shell .aiq-admin-sidebar-wrap { display: contents; }
+
+/* Hamburger — branding § 8.1 requires explicit focus ring on every button. */
+.aiq-admin-shell .aiq-admin-hamburger:focus-visible {
+  outline: 2px solid var(--aiq-color-accent);
+  outline-offset: 2px;
+}
+
+[data-viewport="mobile"] .aiq-admin-shell .aiq-admin-hamburger {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Top-bar button tap-target floor — branding/anti-pattern §5 #10.
+ * The AdminShell top bar currently renders Sign out as aiq-btn-sm (32px).
+ * On mobile, every interactive control must hit 44×44. This rule covers
+ * Sign out + any future btn-sm in the top bar without per-page edits. */
+[data-viewport="mobile"] .aiq-admin-shell .aiq-btn-sm {
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: var(--aiq-space-md);
+}
+
+/* Hide the tenant slug + the desktop email span on mobile to make room
+   for the hamburger. Sign-out stays visible (44px target). */
+[data-viewport="mobile"] .aiq-admin-shell .aiq-admin-shell-slug { display: none; }
+[data-viewport="mobile"] .aiq-admin-shell .aiq-admin-shell-email {
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mobile: sidebar becomes a fixed off-canvas drawer; ::backdrop overlays. */
+[data-viewport="mobile"] .aiq-admin-shell .aiq-admin-sidebar-wrap {
+  display: block;
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: var(--aiq-admin-drawer-width);
+  z-index: 50;
+  transform: translateX(-100%);
+  transition: transform var(--aiq-motion-duration-base) var(--aiq-motion-easing-out);
+}
+[data-viewport="mobile"] .aiq-admin-shell[data-drawer-open="true"] .aiq-admin-sidebar-wrap {
+  transform: translateX(0);
+  box-shadow: var(--aiq-shadow-lg);
+}
+[data-viewport="mobile"] .aiq-admin-shell[data-drawer-open="true"] .aiq-admin-drawer-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.45);
+  animation: aiq-fade-in 150ms ease-out;
+}
+
+/* Breadcrumbs allow wrapping on narrow viewports. */
+[data-viewport="mobile"] .aiq-admin-breadcrumbs { flex-wrap: wrap; }
+
+/* MFA nudge banner — copy + dismiss stack vertically on mobile.
+ * The .aiq-admin-mfa-nudge class is on an outer wrapper div; the actual
+ * flex container is the inner [role="alert"] inside MfaNudgeBanner.
+ * Descendant selector targets the inner flex container. */
+[data-viewport="mobile"] .aiq-admin-mfa-nudge > [role="alert"] {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--aiq-space-sm);
+}
+
+@keyframes aiq-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;
