@@ -133,7 +133,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `preheader` | string ≤ 90 chars | yes | Hidden preview-line text. Composes via `{{> email-preheader }}`. |
-| `body` | content slot (`{{{body}}}` or nested partials) | yes | The rendered card contents. |
+| *block content* | template HTML (rendered via `{{> @partial-block}}`) | yes | The card contents — passed as a Handlebars **block partial** call (see §3 composition pattern). |
 
 **HTML:**
 
@@ -154,7 +154,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
     <tr>
       <td align="center" style="padding:32px 24px 40px">
         <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#ffffff;border:1px solid #e4e4e7;border-radius:14px;overflow:hidden">
-          {{{body}}}
+          {{> @partial-block}}
         </table>
       </td>
     </tr>
@@ -164,6 +164,8 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 ```
 
 **Why.** Outer 100 % table = client width; inner fixed-640 table = card. `role="presentation"` tells screen-readers it's layout. `meta` tags suppress Outlook-Mobile reformatting and lock the email to light mode (we have not designed dark variants yet — see §4 open question).
+
+**Composition mechanism — block partials, not subexpressions.** `email-shell` is invoked as a Handlebars **block partial** (`{{#> email-shell preheader=...}}...{{/email-shell}}`). The block content is exposed inside the partial as `{{> @partial-block}}` — this is built-in Handlebars syntax requiring no custom helper. See §3 for the canonical composition shape. Do NOT attempt to pass body content via a `{{{body}}}` slot var or a `(partial 'name')` subexpression — both require either pre-rendering or a custom helper, both more fragile than the built-in block-partial pattern.
 
 ### A2 — `{{> email-preheader }}`
 
@@ -219,46 +221,67 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 **Kit equivalent:** `EmailBody` (kit:69-73).
 
-**Inputs:** `pad` (CSS shorthand, default `36px 40px`), `content` slot.
+**Inputs:**
+
+| Name | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `pad` | CSS shorthand (e.g. `36px 40px`) | no | Pre-resolved by the per-template Zod schema with `.default('36px 40px')` — partial reads `{{pad}}` unconditionally. |
+| *block content* | template HTML (`{{> @partial-block}}`) | yes | Inner body content. Invoke as a block partial: `{{#> email-body}}…{{/email-body}}`. |
 
 **HTML:**
 
 ```html
 <!-- A4 email-body — generous side padding -->
 <tr>
-  <td style="padding:{{#if pad}}{{pad}}{{else}}36px 40px{{/if}};background:#ffffff">
-    {{{content}}}
+  <td style="padding:{{pad}};background:#ffffff">
+    {{> @partial-block}}
   </td>
 </tr>
 ```
 
-### A5 — `{{> email-lede }}`
+**Note.** `pad` defaults via Zod (`.default('36px 40px')`) so the partial doesn't carry an `{{#if}}` branch. Templates that need custom padding pass `pad="28px 32px"` etc. on the block-partial invocation.
+
+### A5 — `{{> email-lede }}` (two partials — editorial / short)
 
 **Kit equivalent:** `EmailLede` (kit:76-97).
 
-**Inputs:**
+**Inputs (both variants):**
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `eyebrow` | string | no | Mono uppercase, accent color. |
 | `title` | string | yes | Serif H1. |
 | `body` | string | no | Muted paragraph. |
-| `size` | `editorial` (default) \| `short` | no | `editorial` → 30 px H1; `short` → 22 px H1. |
 
-**HTML:**
+**Variant selection.** Editorial (30 px H1) is the default for Result, Newsletter, Invite. Short (22 px H1) is for OTP-code, magic-link, Submitted. Pick by partial name (`{{> email-lede-editorial …}}` vs `{{> email-lede-short …}}`) — not by a `size` input — so no Handlebars helper is needed. The two partials are 95 % identical; the only delta is the H1 font-size.
+
+**HTML — `email-lede-editorial` (30 px H1):**
 
 ```html
-<!-- A5 email-lede -->
+<!-- A5 email-lede-editorial -->
 {{#if eyebrow}}
 <p style="margin:0 0 14px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:11px;font-weight:500;color:#1a73e8;text-transform:uppercase;letter-spacing:0.08em">{{eyebrow}}</p>
 {{/if}}
-<h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:{{#ifEquals size 'short'}}22px{{else}}30px{{/ifEquals}};font-weight:500;color:#0a0a0b;letter-spacing:-0.02em;line-height:1.15">{{title}}</h1>
+<h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:500;color:#0a0a0b;letter-spacing:-0.02em;line-height:1.15">{{title}}</h1>
 {{#if body}}
 <p style="margin:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:17px;color:#3f3f46;line-height:1.55">{{body}}</p>
 {{/if}}
 ```
 
-**Note.** `{{#ifEquals}}` is a Handlebars helper E1 must register (~5 lines in `render.ts`). It is the only new helper this port needs. If we want to avoid the helper, split into two partials (`email-lede-editorial` + `email-lede-short`) — defer to E1 review.
+**HTML — `email-lede-short` (22 px H1):**
+
+```html
+<!-- A5 email-lede-short -->
+{{#if eyebrow}}
+<p style="margin:0 0 14px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:11px;font-weight:500;color:#1a73e8;text-transform:uppercase;letter-spacing:0.08em">{{eyebrow}}</p>
+{{/if}}
+<h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:500;color:#0a0a0b;letter-spacing:-0.02em;line-height:1.15">{{title}}</h1>
+{{#if body}}
+<p style="margin:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:17px;color:#3f3f46;line-height:1.55">{{body}}</p>
+{{/if}}
+```
+
+**Note.** Two partial files instead of one + an `ifEquals` helper. Net: +1 file, -1 runtime helper, zero template-engine surface area added. If a third H1 size emerges later (it shouldn't), revisit then.
 
 ### A6 — `{{> email-cta }}` (pill button + MSO/VML wrap)
 
@@ -325,7 +348,48 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 **Why.** `border-collapse:separate` is required for the outer `border-radius` to render in WebKit clients (otherwise the inner `<td>` borders punch through). `@first` / `@last` are Handlebars built-ins; no helper needed.
 
-**Why `{{{v}}}` (triple-stash exception).** The value cell may contain inline emphasis (`<strong>`) or a short link. Per anti-pattern guard #9 in the plan, triple-stash is normally forbidden — but `v` is authored at the *template* level (e.g. `{ k: "Score", v: '<strong>Distinguished</strong>' }`), never substituted from candidate-supplied data. E2 must NEVER pass user-controlled strings through `v` without sanitization. This is the single allowed exception; document it in the per-template comment.
+**Why `{{{v}}}` (triple-stash exception).** The value cell may contain inline emphasis (`<strong>`) or a short link. Triple-stash is otherwise forbidden — this is the **sole allowed exception**, reconciled with [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) anti-pattern guard #9 (amended to document this exception). `v` is authored at the *template* level (e.g. `{ k: "Score", v: '<strong>Distinguished</strong>' }`), never substituted from candidate-supplied data.
+
+**Enforcement (mandatory in E1):**
+
+1. **Per-template comment.** Every template that builds a `meta_rows` array must carry a comment immediately above the row construction:
+
+   ```ts
+   // SAFETY: meta_rows[*].v is rendered via {{{v}}} (triple-stash, HTML-unescaped).
+   // Every v MUST be a literal or a server-controlled value — NEVER a user / tenant /
+   // candidate string. See docs/13-email-system.md §2 A7.
+   const meta_rows = [
+     { k: "Assessment", v: `<strong>${escape(assessmentName)}</strong>` },
+     ...
+   ];
+   ```
+
+2. **Render-time invariant — `assertSafeMetaRows()`.** E1 adds a helper in `render.ts` invoked by every template that consumes `email-meta-card`:
+
+   ```ts
+   function assertSafeMetaRows(rows: Array<{ k: string; v: string }>): void {
+     for (const row of rows) {
+       // v must be either: (a) plain text with no '<' / '>', OR
+       //                   (b) HTML containing ONLY allow-listed tags from a fixed set.
+       if (!isSafeMetaValue(row.v)) {
+         throw new Error(`unsafe meta_rows.v: ${row.v.slice(0, 60)}`);
+       }
+     }
+   }
+   ```
+
+   Allow-list (initial): `<strong>`, `</strong>`, `<em>`, `</em>`, `<br>`, and `<a href="…">…</a>` with `href` matching `^https://[a-z0-9.-]+/` (no `javascript:`, no relative). Anything else → throw. The exception is enforced as a runtime invariant — failing loudly during local rendering is cheaper than a Litmus surprise or a candidate-name-injection report.
+
+3. **CI lint.** E1 adds an AST-level scan in `modules/13-notifications/test/lint-meta-rows.test.ts` that grep-walks every `templates/*.html` consumer file and flags any `meta_rows` literal whose `v:` value contains a Handlebars var reference not preceded by `escape(`. Patterns to bounce:
+
+   ```ts
+   v: `...${candidateName}...`       // raw candidate name → reject
+   v: `...${tenant.name}...`         // raw tenant name → reject
+   v: `...${user.email}...`          // raw user input → reject
+   v: someUntypedVar                 // unknown provenance → reject
+   ```
+
+Together, the per-template comment, the runtime assert, and the CI lint mean every triple-stash use is intentional, documented, and prevented from silently widening over time.
 
 ### A8 — `{{> email-rule }}` (divider)
 
@@ -453,38 +517,45 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 
 ## §3 Composition example
 
-A full template (`invitation_candidate` after E2a) composes from the atoms:
+Templates compose atoms via **Handlebars block partials** (`{{#> name args}}body{{/name}}`). The block content is rendered inside the partial via `{{> @partial-block}}` (a Handlebars built-in — no custom helper needed). This is the only composition pattern E1 must support.
+
+A full template (`invitation_candidate` after E2a) reads:
 
 ```handlebars
-{{> email-shell preheader=preheader body=(partial 'invitation_candidate_body')}}
+{{#> email-shell preheader=preheader}}
+
+  {{> email-header eyebrow="INVITATION"}}
+
+  {{#> email-body}}
+
+    {{> email-lede-editorial
+      eyebrow="ASSESSMENT INVITE"
+      title=(concat "You've been invited to " assessmentName ".")
+      body="Take the assessment at your own pace. You'll be asked to complete it before the expiry date below."}}
+
+    {{> email-meta-card rows=meta_rows}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
+      <tr><td>{{> email-cta label=_t_cta href=invitationLink width_px=200}}</td></tr>
+    </table>
+
+    <p style="margin:32px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
+      This invitation expires on <strong style="color:#3f3f46">{{expiresAt}}</strong>. If you did not expect this email, you can safely ignore it.
+    </p>
+
+  {{/email-body}}
+
+  {{> email-footer-commercial reason=reason unsubscribe_href=unsubscribe_href}}
+
+{{/email-shell}}
 ```
 
-…where `invitation_candidate_body` (defined in the same template file) is:
+**Why block partials, not slot vars or subexpression partials.** Two patterns were considered and rejected:
 
-```handlebars
-{{> email-header eyebrow="INVITATION"}}
-{{> email-body content=(partial 'invitation_candidate_content')}}
-{{> email-footer-commercial reason=reason unsubscribe_href=unsubscribe_href}}
-```
+- `{{> email-shell body=(partial 'foo')}}` (subexpression): `(partial 'name')` is **not built-in Handlebars** — it requires a custom helper to look up `Handlebars.partials[name]`, compile-if-string, render with context, and mark the output as safe. Surface area + failure modes E1 doesn't need.
+- `{{> email-shell body=preRenderedHtml}}` (pre-rendered string in context): forces every template to pre-render its body string in `render.ts` before calling the shell — pushes composition logic out of templates into TS code and breaks the "partials compose; render.ts is content-agnostic" boundary.
 
-…and `invitation_candidate_content` is:
-
-```handlebars
-{{> email-lede
-  eyebrow="ASSESSMENT INVITE"
-  title=(concat "You've been invited to " assessmentName ".")
-  body="Take the assessment at your own pace. You'll be asked to complete it before the expiry date below."}}
-
-{{> email-meta-card rows=meta_rows}}
-
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
-  <tr><td>{{> email-cta label=_t_cta href=invitationLink width_px=200}}</td></tr>
-</table>
-
-<p style="margin:32px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
-  This invitation expires on <strong style="color:#3f3f46">{{expiresAt}}</strong>. If you did not expect this email, you can safely ignore it.
-</p>
-```
+Block partials (`{{#> name}}…{{/name}}` + `{{> @partial-block}}`) ship with Handlebars 4.x. Zero helper code, composition stays in templates.
 
 Where `meta_rows` is built in the Zod-validated context (E2a):
 
@@ -560,7 +631,8 @@ partials/
 ├── email-preheader.html
 ├── email-header.html
 ├── email-body.html
-├── email-lede.html
+├── email-lede-editorial.html
+├── email-lede-short.html
 ├── email-cta.html
 ├── email-meta-card.html
 ├── email-rule.html
@@ -571,9 +643,25 @@ partials/
 
 `render.ts` registers each partial at module init via `Handlebars.registerPartial`. Module-load failure if any partial is missing (fail-loud at boot, not on first send).
 
-The 9 existing templates in `modules/13-notifications/src/email/templates/` are refactored to compose against the partials. **Bit-for-bit visual parity with the pre-E1 production templates is the E1 acceptance test** — visual changes land in E2.
+The 9 existing templates in `modules/13-notifications/src/email/templates/` are refactored to compose against the partials via the **block-partial composition pattern** documented in §3 (`{{#> name}}…{{/name}}` + `{{> @partial-block}}` inside the partial). **Structural-equivalence parity with the pre-E1 production templates is the E1 acceptance test** — visual changes land in E2. Parity is asserted via a DOM-tree comparison, not raw-string snapshot equality (see plan E1 testing notes for the comparator shape).
 
-Helpers E1 must register: `ifEquals`, `concat`, `partial`. Each is ~5 lines; none touch sensitive logic.
+Helpers E1 must register: `concat` (~5 lines, string join for serif H1 composition in templates). **No `partial` helper** — block partials are built-in Handlebars and need no helper. **No `ifEquals` helper** either — A5's `size` variant is implemented by splitting `email-lede` into two partials (see §6.1) instead of a runtime conditional.
+
+### §6.1 i18n keys E1 must add before partials register
+
+A1, A3, A9a, A9b reference i18n keys that do not exist in [`modules/13-notifications/src/email/strings/en.json`](../modules/13-notifications/src/email/strings/en.json) today. E1 must add them as part of the same commit that registers the partials, or the first render will produce empty interpolations:
+
+| Key | Used by | Suggested `en` value |
+| --- | --- | --- |
+| `page_title` | A1 `<title>` | (per-template — falls back to `subject` if not set) |
+| `brand_wordmark` | A3 header | `AssessIQ` |
+| `legal_entity` | A9a, A9b footer | (resolved via open decision #5) |
+| `legal_address` | A9a, A9b footer | (resolved via open decision #5) |
+| `unsubscribe` | A9b footer | `Unsubscribe` |
+| `preferences` | A9b footer | `Preferences` |
+| `help` | A9b footer | `Help` |
+| `privacy` | A9b footer | `Privacy` |
+| `cta` | per-template overrides | (per-template — `Sign in`, `View results`, etc.) |
 
 ---
 
@@ -591,10 +679,14 @@ Helpers E1 must register: `ifEquals`, `concat`, `partial`. Each is ~5 lines; non
 ## §8 Acceptance — E0 is DONE when
 
 - [x] Resolved token table covers every property kit-or-production touched (§1).
-- [x] 10 atoms designed as inline-styled table HTML with documented inputs (§2 A1–A10).
+- [x] 11 atoms designed as inline-styled table HTML with documented inputs (§2 A1–A10, A5 split into editorial + short).
 - [x] Kit-vs-production divergences catalogued with rationale (§4).
 - [x] Open decisions explicitly listed; defaults vs unresolved separated (§5).
 - [x] Cross-references to plan, kit, templates, render pipeline, module skill (§7).
+- [x] **Blocker 1 (composition syntax):** §3 rewritten against built-in Handlebars block partials (`{{#> name}}…{{> @partial-block}}…{{/name}}`); slot-var + subexpression-partial patterns explicitly rejected with rationale. A1 + A4 atoms updated.
+- [x] **Blocker 2 (triple-stash policy):** [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) anti-pattern guard #9 amended to document A7's sole exception; A7 strengthened with three enforcement layers (per-template SAFETY comment, runtime `assertSafeMetaRows()` invariant, CI lint against candidate/tenant/user var-name patterns).
+- [x] **Blocker 3 (snapshot strategy):** [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) E1 "Render unit tests" rewritten — frozen `.pre-e1.html` fixtures + `node-html-parser` DOM-tree canonical-form comparison, NOT raw-string snapshots. Pre-E1 fixture-capture commit lands first, on its own.
+- [x] **i18n prerequisite (§6.1):** 9 new `en` keys listed as E1 prerequisite so first render doesn't produce empty interpolations.
 - [ ] User has resolved open decision #5 (physical address) — **blocks E1**.
 
 E1 cannot start until decision #5 is resolved (the footer partial needs the literal address baked in). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.

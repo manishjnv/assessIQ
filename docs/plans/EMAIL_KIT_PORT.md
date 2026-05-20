@@ -100,7 +100,11 @@ These are bounce conditions for every diff. Cite the source when a Phase 3 criti
 6. **MSO/VML wrap on every pill CTA button.** Outlook 2007–2019 (still ~15% of B2B inboxes) renders `border-radius: 999px` as a sharp rectangle unless wrapped in conditional `<!--[if mso]><v:roundrect>...<![endif]-->`. Each kit `EmailCTA` becomes a HTML+VML pair at port time.
 7. **Preheader on every template.** The hidden white-on-white text immediately after `<body>` becomes the email-client preview line. Today's templates don't have this. E2a + E2b will add one preheader per template — the copy is authored as part of the per-template port.
 8. **i18n preserved.** Existing `{{_t_*}}` variables stay intact across the port. New variables added during the port must have a corresponding `i18n.ts` entry; never inline literal strings in HTML when they're shown to candidates.
-9. **HTML escaping mandatory.** All `{{var}}` substitutions use double-stash (HTML-escape on). NO `{{{triple-stash}}}` allowed — Handlebars is configured at the compile step with `noEscape: false` in [`render.ts`](../../modules/13-notifications/src/email/render.ts); the port must not introduce triple-stash.
+9. **HTML escaping mandatory — one narrow exception.** All `{{var}}` substitutions use double-stash (HTML-escape on). Triple-stash `{{{var}}}` is forbidden by default — Handlebars is configured at the compile step with `noEscape: false` in [`render.ts`](../../modules/13-notifications/src/email/render.ts).
+
+    **Sole allowed exception:** the `v` cell value in `{{> email-meta-card rows=…}}` (atom A7, [`docs/13-email-system.md`](../13-email-system.md) §2 A7) renders via `{{{v}}}` so per-template-authored emphasis (`<strong>…</strong>`, inline accent links) survives. This is safe ONLY because `v` is template-author-controlled, never substituted from candidate-supplied data. **Bounce condition:** any diff that pipes a candidate / user / tenant-name / external-input string through `rows[*].v` without server-side allowlisting is a Phase 3 reject. The lint guard in E1 must scan every E2/E2b template for `meta_rows: [...].v = <expr involving a Handlebars var name>` and flag it for human review.
+
+    No other atom may introduce triple-stash. Block partials (`{{#> name}}…{{/name}}` + `{{> @partial-block}}`) handle template composition without triple-stash — see [`docs/13-email-system.md`](../13-email-system.md) §3.
 10. **HTML + TXT parity.** Every template ships both a `.html` and a `.txt` variant. The TXT first line is `Subject: <subject>` followed by a blank line then the plain-text body (the render pipeline parses this convention). Both variants must render the same SEMANTIC content — text variant is for screen-readers, accessibility, and clients that prefer plain text.
 11. **Audit log invariant unchanged.** `email_log` row is inserted with `status='queued'` BEFORE BullMQ enqueue, transitioned to `sending` → `sent` (or `failed`) by the worker job. No port change touches this — templates are content, not pipeline.
 12. **Document deliberate kit divergence in a per-template header comment** — `<!-- Diverges from kit/emails/templates-1.jsx <Name> because: <reason> -->`. Future readers can grep for these to find drift between kit and production.
@@ -205,7 +209,58 @@ E0 designs (no implementation yet — that's E1) the email-safe table-based equi
 2. **Partial registration.** Extend [`render.ts`](../../modules/13-notifications/src/email/render.ts) to register every partial at module init (before any `Handlebars.compile` call). Module-load failure if any partial is missing — fail-loud at boot, not on first send.
 3. **Refactor existing 9 templates.** Each template's top-of-table boilerplate (logo header, footer two-liner) becomes `{{> email-header}}` + `{{> email-footer}}`. The body content stays inline. **Bit-for-bit visual parity with the pre-E1 templates is the acceptance test** — there's no excuse for a candidate to see a different email after E1 lands.
 4. **Per-template Zod var schemas extended** if and only if needed — most schemas stay unchanged; a few may add an optional `preheader` field (used by E2 but supplied with `null` default in E1).
-5. **Render unit tests.** For each of the 9 templates, snapshot the rendered HTML pre-E1 and assert post-E1 HTML is structurally equivalent. Snapshots live in `modules/13-notifications/src/email/__snapshots__/` (or wherever the existing test pattern dictates).
+5. **Render unit tests — structural equivalence, NOT raw-string snapshot.** For each of the 9 templates, capture the rendered HTML pre-E1 (committed as a frozen fixture in `modules/13-notifications/test/fixtures/<template>.pre-e1.html`) and assert post-E1 HTML is **structurally equivalent**, NOT byte-identical. Handlebars partial expansion changes whitespace, attribute ordering, and inter-tag indentation in ways that don't render visually but **will** fail a string-equality snapshot. The acceptance test is:
+
+   ```ts
+   // modules/13-notifications/test/render-parity.test.ts
+   import { parse as parseHTML } from 'node-html-parser';
+   import { renderTemplate } from '../src/email/render.js';
+
+   function canonicalize(html: string): string {
+     const root = parseHTML(html, { lowerCaseTagName: true });
+     return normalizeTree(root);
+   }
+
+   function normalizeTree(node: HTMLElement): string {
+     // 1. Collapse all whitespace runs to single space; trim around tag boundaries.
+     // 2. Sort attributes alphabetically on every element.
+     // 3. Drop attribute-value differences that don't change rendering
+     //    (e.g. `cellpadding="0"` vs `cellpadding=0`).
+     // 4. Drop HTML-comment nodes EXCEPT MSO conditional comments
+     //    (`<!--[if mso]>…<![endif]-->` — those DO affect Outlook rendering).
+     // 5. Recurse into children in document order.
+     // Returns a canonical string the test can string-compare.
+   }
+
+   for (const tpl of ALL_9_TEMPLATES) {
+     it(`${tpl} renders structurally identical pre→post E1`, () => {
+       const pre  = readFileSync(`test/fixtures/${tpl}.pre-e1.html`, 'utf-8');
+       const post = renderTemplate(tpl, FIXTURE_VARS[tpl]).html;
+       expect(canonicalize(post)).toBe(canonicalize(pre));
+     });
+   }
+   ```
+
+   **Why `node-html-parser` (not `jsdom`).** jsdom validates HTML and emits warnings on MSO conditional comments + VML namespaces — both intentional in our output. `node-html-parser` is permissive and 50× lighter; it preserves comments verbatim, which is what we need to assert the `<!--[if mso]>…<![endif]-->` blocks survive the partial-isation.
+
+   **What this catches.** Tag tree shape (missing partial, wrong nesting, dropped element), attribute set per element, MSO conditional presence, text content. **What this deliberately misses.** Whitespace inside tags, attribute ordering, attribute value-quote style (`"0"` vs `0`). Those don't change rendering and we don't want a snapshot CI churn loop on them.
+
+   **Pre-E1 fixture capture procedure.** On a clean `main` (BEFORE any E1 partial work):
+
+   ```bash
+   for tpl in invitation_admin invitation_candidate candidate_login_link \
+              admin_email_otp totp_enrolled attempt_submitted_candidate \
+              attempt_graded_candidate attempt_ready_for_review_admin \
+              weekly_digest_admin; do
+     pnpm --filter @assessiq/notifications exec tsx \
+       scripts/render-fixture.ts "$tpl" \
+       > test/fixtures/${tpl}.pre-e1.html
+   done
+   git add test/fixtures/*.pre-e1.html
+   git commit -m "test(notifications): freeze pre-E1 render fixtures"
+   ```
+
+   That commit lands FIRST, on its own. Then E1 partial work begins; the parity test must stay green through every E1 commit.
 
 ### Anti-pattern guards (this phase)
 
@@ -220,11 +275,13 @@ E0 designs (no implementation yet — that's E1) the email-safe table-based equi
 
 ### Estimated diff
 
-- 8 new partial files: ~50 lines each.
+- 12 new partial files: ~50 lines each (shell, preheader, header, body, lede-editorial, lede-short, cta, meta-card, rule, footer-transactional, footer-commercial, ghost-link — see [`docs/13-email-system.md`](../13-email-system.md) §6).
 - 9 template files modified: ~30 lines net removed per file (header + footer extracted; body content stays).
-- `render.ts`: ~30 lines added for partial registration.
-- Tests: 9 snapshot tests + their snapshots.
-- Total: ~700 lines.
+- `render.ts`: ~30 lines added for partial registration + `concat` helper + `assertSafeMetaRows()` (per amended guard #9).
+- i18n strings: ~9 new `en` keys (`page_title`, `brand_wordmark`, `legal_entity`, `legal_address`, `unsubscribe`, `preferences`, `help`, `privacy`, `cta`) — see [`docs/13-email-system.md`](../13-email-system.md) §6.1.
+- Pre-E1 fixtures: 9 frozen `.pre-e1.html` files (committed FIRST, on their own commit, before partial work begins).
+- Tests: 1 parity test file (`render-parity.test.ts`) with 9 cases using `node-html-parser` DOM-tree canonicalization. NOT raw-string snapshots.
+- Total: ~750 lines.
 
 ---
 
