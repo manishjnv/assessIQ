@@ -855,12 +855,14 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
 
-  // Phase C toggles — session-scoped (no localStorage).
-  // In super-admin context default ON so that a freshly-disabled/removed user
-  // is immediately visible (parent always fetches with includeDisabled +
-  // includeDeleted). In tenant-admin context default OFF for a cleaner list.
-  const [showDisabled, setShowDisabled] = useState(isSuperContext);
-  const [showRemoved, setShowRemoved] = useState(isSuperContext);
+  // Phase C view modes — mutually exclusive, session-scoped (no localStorage).
+  //   showDisabled=false + showRemoved=false → active + pending (default)
+  //   showDisabled=true                       → disabled only
+  //   showRemoved=true                        → removed only
+  // After a lifecycle action handleLifecycleConfirm flips the relevant toggle
+  // so the just-changed row stays visible to the operator.
+  const [showDisabled, setShowDisabled] = useState(false);
+  const [showRemoved, setShowRemoved] = useState(false);
 
   // Phase C page-level feedback
   const [actionToast, setActionToast] = useState<string | null>(null);
@@ -958,19 +960,27 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
           const confirmLastAdmin = isSuperContext && !!lifecycleExtraWarning && activeAdminCount <= 1;
           await lifecycleHandlers.disable(user.id, reason, confirmLastAdmin || undefined);
           setActionToast(`${displayName} disabled.`);
-          // Auto-reveal so the now-disabled row stays visible to the operator.
+          // Switch to the disabled-only view so the row remains visible.
           setShowDisabled(true);
+          setShowRemoved(false);
         } else if (action === "reenable") {
           await lifecycleHandlers.reenable(user.id, reason);
           setActionToast(`${displayName} re-enabled.`);
+          // Switch to the default (active + pending) view.
+          setShowDisabled(false);
+          setShowRemoved(false);
         } else if (action === "softDelete") {
           await lifecycleHandlers.softDelete(user.id, reason);
           setActionToast(`${displayName} removed.`);
-          // Auto-reveal so the now-removed row stays visible to the operator.
           setShowRemoved(true);
+          setShowDisabled(false);
         } else if (action === "restore") {
           await lifecycleHandlers.restore(user.id, reason);
           setActionToast(`${displayName} restored.`);
+          // Restored users land back in their prior status — typically
+          // disabled; surface the disabled view so the row stays visible.
+          setShowRemoved(false);
+          setShowDisabled(true);
         }
       }
       setLifecycleTarget(null);
@@ -1116,15 +1126,25 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
             ))}
             <FilterChip
               active={showDisabled}
-              onClick={() => { setShowDisabled(!showDisabled); setPage(1); }}
+              onClick={() => {
+                const next = !showDisabled;
+                setShowDisabled(next);
+                if (next) setShowRemoved(false); // mutually exclusive views
+                setPage(1);
+              }}
             >
-              {showDisabled ? "Showing disabled" : "Show disabled users"}
+              {showDisabled ? "Showing disabled only" : "Show disabled users"}
             </FilterChip>
             <FilterChip
               active={showRemoved}
-              onClick={() => { setShowRemoved(!showRemoved); setPage(1); }}
+              onClick={() => {
+                const next = !showRemoved;
+                setShowRemoved(next);
+                if (next) setShowDisabled(false);
+                setPage(1);
+              }}
             >
-              {showRemoved ? "Showing removed" : "Show removed users"}
+              {showRemoved ? "Showing removed only" : "Show removed users"}
             </FilterChip>
           </div>
         </div>
@@ -1217,12 +1237,16 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
               <span></span>
             </div>
 
-            {/* User rows */}
+            {/* User rows.
+                Filter modes are mutually exclusive:
+                  showRemoved → only soft-deleted rows
+                  showDisabled → only disabled rows (not removed)
+                  default → active + pending (no disabled, no removed) */}
             {resolvedUsers
               .filter((u) => {
-                if (u.deleted_at && !showRemoved) return false;
-                if (u.status === "disabled" && !u.deleted_at && !showDisabled) return false;
-                return true;
+                if (showRemoved) return !!u.deleted_at;
+                if (showDisabled) return u.status === "disabled" && !u.deleted_at;
+                return !u.deleted_at && u.status !== "disabled";
               })
               .map((u, i) => {
                 const isDeleted = !!u.deleted_at;
@@ -1235,6 +1259,11 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                   : (STATUS_VARIANT[u.status] ?? "default");
                 const statusLabel = isDeleted ? "Removed" : u.status;
 
+                // NOTE: do NOT use row-level `opacity` for dimming — it
+                // creates a stacking context that traps the Manage dropdown's
+                // z-index inside the row, letting later rows paint on top
+                // when the dropdown opens. Use muted text colour instead.
+                const isDimmed = isDeleted || isDisabled;
                 return (
                   <div
                     key={u.id}
@@ -1246,7 +1275,6 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                       alignItems: "center",
                       borderTop: i === 0 ? "none" : "1px solid var(--aiq-color-border)",
                       background: i % 2 === 1 ? "var(--aiq-color-bg-raised)" : "transparent",
-                      opacity: isDeleted ? 0.6 : isDisabled ? 0.75 : 1,
                     }}
                   >
                     <span
@@ -1263,7 +1291,9 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                         style={{
                           fontSize: 14,
                           fontWeight: 500,
-                          color: "var(--aiq-color-fg-primary)",
+                          color: isDimmed
+                            ? "var(--aiq-color-fg-muted)"
+                            : "var(--aiq-color-fg-primary)",
                           textDecoration: isDeleted ? "line-through" : "none",
                         }}
                       >
@@ -1272,7 +1302,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                       <div
                         style={{
                           fontSize: 12,
-                          color: "var(--aiq-color-fg-secondary)",
+                          color: "var(--aiq-color-fg-muted)",
                           textDecoration: isDeleted ? "line-through" : "none",
                         }}
                       >
