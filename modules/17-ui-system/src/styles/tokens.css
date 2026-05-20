@@ -399,6 +399,29 @@
   z-index: 1;
 }
 
+/* ─────────────────────────────────────────────────────────────
+ * Admin Mobile Port — A3 detail recipes (R4 two-col stack + textarea).
+ * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (R4)
+ *
+ * R4 — Two-column detail (1fr Nfr or 1fr Npx) → single-column stack
+ * on mobile. Pages keep their inline desktop grid-template-columns;
+ * the mobile rule uses !important to override (sanctioned because
+ * inline styles are the only way to set the desktop ratio per-page
+ * and we can't relocate them without touching every consumer).
+ * ───────────────────────────────────────────────────────────── */
+[data-viewport="mobile"] .aiq-admin-detail-two-col {
+  grid-template-columns: 1fr !important;
+  gap: var(--aiq-space-lg) !important;
+}
+
+/* Long-form text inputs (override reason, justification, anchor evidence).
+ * 16px+ defeats iOS Safari auto-zoom-on-focus; 120px min-height keeps a
+ * 200-word response composable with the on-screen keyboard up. */
+[data-viewport="mobile"] .aiq-admin-longform-textarea {
+  min-height: 120px;
+  font-size: max(16px, var(--aiq-input-size-base, 14px)) !important;
+}
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;

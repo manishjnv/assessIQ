@@ -167,7 +167,7 @@ export function AdminHelpContent(): React.ReactElement {
             {filtered.map((entry) => (
               <div
                 key={entry.id}
-                className="aiq-card"
+                className="aiq-card aiq-admin-detail-two-col"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr auto",

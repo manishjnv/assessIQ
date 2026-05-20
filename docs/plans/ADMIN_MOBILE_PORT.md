@@ -7,7 +7,7 @@
 > | A0 — Foundation tokens | SHIPPED 2026-05-21 |
 > | A1 — AdminShell drawer + reflow | SHIPPED 2026-05-21 |
 > | A2 — List / table pages | SHIPPED 2026-05-21 |
-> | A3 — Detail / report pages | NOT YET STARTED |
+> | A3 — Detail / report pages | SHIPPED 2026-05-21 |
 > | A4 — Settings / help pages | NOT YET STARTED |
 > | A5 — Editor pages | NOT YET STARTED |
 > | A6 — ViewportLock removal + docs | NOT YET STARTED |
