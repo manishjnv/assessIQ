@@ -140,7 +140,7 @@ export function AdminAttempts(): React.ReactElement {
         </div>
 
         {/* Status filter tabs */}
-        <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+        <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -160,12 +160,14 @@ export function AdminAttempts(): React.ReactElement {
         )}
 
         <div className="aiq-card" style={{ padding: 0, overflow: "hidden" }}>
-          <Table<AttemptListItem>
-            data={items}
-            columns={columns}
-            loading={loading}
-            emptyMessage="No attempts found."
-          />
+          <div className="aiq-admin-table-scroll">
+            <Table<AttemptListItem>
+              data={items}
+              columns={columns}
+              loading={loading}
+              emptyMessage="No attempts found."
+            />
+          </div>
         </div>
       </div>
     </AdminShell>

@@ -26,6 +26,7 @@ import {
   ActivityHeatmap,
   StackedBarChart,
   LeaderboardList,
+  useViewport,
 } from "@assessiq/ui-system";
 import type {
   StatCardBreakdownItem,
@@ -214,6 +215,7 @@ const PERIOD_LABELS: Record<LeaderboardPeriod, string> = {
 };
 
 export function AdminActivity(): React.ReactElement {
+  const viewport = useViewport();
   const [period, setPeriod] = useState<LeaderboardPeriod>('week');
 
   const [stats,          setStats]          = useState<ActivityStatsResponse | null>(null);
@@ -365,7 +367,7 @@ export function AdminActivity(): React.ReactElement {
               Assessment completions and engagement across your tenant.
             </p>
           </div>
-          <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
+          <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
             {(["week", "month", "quarter"] as LeaderboardPeriod[]).map((p) => (
               <button
                 key={p}
@@ -398,6 +400,7 @@ export function AdminActivity(): React.ReactElement {
         )}
         {!statsLoading && !statsError && (
           <div
+            className="aiq-candidate-activity-stats"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(3, 1fr)",
@@ -508,13 +511,15 @@ export function AdminActivity(): React.ReactElement {
           )}
           {!heatmapLoading && !heatmapError && (
             <div data-help-id="admin.activity.heatmap.legend">
-              <ActivityHeatmap
-                data={heatmapData}
-                weeks={52}
-                monthLabels={monthLabels}
-                {...(streakSummary !== undefined ? { streakSummary } : {})}
-                aria-label="52-week activity heatmap"
-              />
+              <div className="aiq-candidate-activity-heatmap-scroll" style={{ overflowX: "auto" }}>
+                <ActivityHeatmap
+                  data={heatmapData}
+                  weeks={52}
+                  monthLabels={monthLabels}
+                  {...(streakSummary !== undefined ? { streakSummary } : {})}
+                  aria-label="52-week activity heatmap"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -614,7 +619,7 @@ export function AdminActivity(): React.ReactElement {
             <div data-help-id="admin.activity.leaderboard.delta">
               <LeaderboardList
                 items={leaderboardItems}
-                columns={2}
+                columns={viewport === 'mobile' ? 1 : 2}
               />
             </div>
           )}

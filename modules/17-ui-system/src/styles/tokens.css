@@ -344,6 +344,61 @@
   to   { opacity: 1; }
 }
 
+/* ─────────────────────────────────────────────────────────────
+ * Admin Mobile Port — A2 list recipes (R1 filter strip + R2 table scroll).
+ * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4
+ *
+ * IMPORTANT — AssessIQ's <Table> renders <div role="row|cell|columnheader">
+ * with CSS Grid layout, NOT <table>/<tr>/<td>. Selectors target the role
+ * attribute, not element names.
+ * ───────────────────────────────────────────────────────────── */
+
+/* R1 — filter / tab strip → horizontally-scrollable pill row.
+ * Desktop default explicit (flex-wrap: wrap) — must match today's behaviour.
+ * Mobile flips to nowrap + horizontal scroll with snap. */
+.aiq-admin-filter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--aiq-space-xs);
+}
+[data-viewport="mobile"] .aiq-admin-filter-strip {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  margin-inline: calc(-1 * var(--aiq-page-padding-x));
+  padding-inline: var(--aiq-page-padding-x);
+  scrollbar-width: none;
+}
+[data-viewport="mobile"] .aiq-admin-filter-strip::-webkit-scrollbar { display: none; }
+[data-viewport="mobile"] .aiq-admin-filter-strip > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* R2 — dense table → horizontal-scroll wrapper with sticky first column.
+ * Targets div-role markup: [role="row"] is the flex/grid container per row,
+ * its first child is the identity column (candidate email / user name). */
+[data-viewport="mobile"] .aiq-admin-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-inline: calc(-1 * var(--aiq-page-padding-x));
+  padding-inline: var(--aiq-page-padding-x);
+}
+[data-viewport="mobile"] .aiq-admin-table-scroll > div {
+  /* The Table's outer div (data-test-id="...") must allow its grid
+   * children to expand beyond viewport width. */
+  min-width: 640px;
+}
+[data-viewport="mobile"] .aiq-admin-table-scroll [role="row"] > :first-child,
+[data-viewport="mobile"] .aiq-admin-table-scroll [role="rowgroup"]:first-child > div > :first-child {
+  position: sticky;
+  left: 0;
+  background: var(--aiq-color-bg-base);
+  box-shadow: 1px 0 0 var(--aiq-color-border);
+  z-index: 1;
+}
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;

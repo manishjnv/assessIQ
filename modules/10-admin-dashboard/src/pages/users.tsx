@@ -1130,6 +1130,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
 
         {/* Filter strip */}
         <div
+          className="aiq-admin-filter-strip"
           style={{
             display: "flex",
             alignItems: "center",
@@ -1243,6 +1244,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
             )}
           </div>
         ) : (
+          <div className="aiq-admin-table-scroll">
           <div
             style={{
               border: "1px solid var(--aiq-color-border)",
@@ -1461,6 +1463,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                 </div>
               );
             })}
+          </div>
           </div>
         )}
 
