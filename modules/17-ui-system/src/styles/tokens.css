@@ -77,6 +77,13 @@
   --aiq-card-padding:   24px;
   --aiq-h1-size:        var(--aiq-text-3xl);  /* desktop h1: 36px */
 
+  /* Admin shell layout tokens — A0 of Admin Mobile Port.
+   * Mobile overrides in the [data-viewport="mobile"] block below.
+   * --aiq-admin-drawer-width is mobile-only (desktop sidebar is in-flow,
+   * not off-canvas), so it has no desktop default here. */
+  --aiq-admin-shell-topbar-padding-x: var(--aiq-space-xl);
+  --aiq-admin-shell-topbar-h:         52px;
+
   /* Typography — editorial trio */
   --aiq-font-serif: "Newsreader", "Source Serif Pro", Georgia, serif;
   --aiq-font-sans:  "Geist", -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -133,6 +140,12 @@
   --aiq-page-padding-y: 20px;
   --aiq-card-padding:   18px;
   --aiq-h1-size:        30px;  /* between mobile 28-34px range per kit README */
+
+  /* Admin shell mobile overrides — A0 of Admin Mobile Port.
+   * docs/plans/ADMIN_MOBILE_PORT.md § 2.2 */
+  --aiq-admin-shell-topbar-padding-x: var(--aiq-space-md);
+  --aiq-admin-shell-topbar-h:         48px;
+  --aiq-admin-drawer-width:           min(280px, 85vw);
 }
 
 /* Take-flow magic-link two-pane mobile reflow — M1 phase of MOBILE_KIT_PORT.
