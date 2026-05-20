@@ -5,7 +5,6 @@ import { AdminLogin } from './pages/admin/login';
 import { AdminSelectIdentity } from './pages/admin/select-identity';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
 import { RequireSession } from './lib/RequireSession';
-import { ViewportLock } from './lib/ViewportLock';
 import { Expired, ErrorPage as TakeError, TakeRoot } from './pages/take';
 
 // Lazy-loaded so the admin-dashboard chunk is not downloaded on unauthenticated
@@ -67,12 +66,9 @@ export function App(): JSX.Element {
         {...(tenant?.branding ? { branding: tenant.branding } : {})}
       >
         <Suspense fallback={null}>
-          {/* M5 — ViewportLock wraps Routes so it can read useLocation() to
-              decide whether to render the "Admin tools work best on desktop"
-              interstitial. Pass-through for non-admin paths, desktop viewport,
-              excluded routes (login/MFA), embed mode, or when the per-session
-              override is set. See apps/web/src/lib/ViewportLock.tsx. */}
-          <ViewportLock>
+          {/* Admin Mobile Port (A6, 2026-05-21) deleted the M5 ViewportLock
+              wrapper that intercepted /admin/* on mobile. Admin pages are
+              now mobile-responsive (see docs/plans/ADMIN_MOBILE_PORT.md). */}
           <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -163,7 +159,6 @@ export function App(): JSX.Element {
 
           <Route path="*" element={<NotFound />} />
           </Routes>
-          </ViewportLock>
         </Suspense>
       </ThemeProvider>
     </BrowserRouter>
