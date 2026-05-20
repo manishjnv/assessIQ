@@ -27,7 +27,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
-import { Button, Card, Chip, Icon, Logo, Spinner } from '@assessiq/ui-system';
+import { Button, Card, Chip, Drawer, Icon, Logo, Spinner } from '@assessiq/ui-system';
 import {
   AttemptTimer,
   AutosaveIndicator,
@@ -124,8 +124,7 @@ const TOP_BAR: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 'var(--aiq-space-md)',
-  height: 64,
-  padding: '0 var(--aiq-space-2xl)',
+  // height + padding moved to .aiq-attempt-top class — viewport-aware (M2a).
   borderBottom: '1px solid var(--aiq-color-border)',
   background: 'var(--aiq-color-bg-base)',
   flexShrink: 0,
@@ -134,8 +133,7 @@ const TOP_BAR: CSSProperties = {
 const BOTTOM_BAR: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  height: 64,
-  padding: '0 var(--aiq-space-2xl)',
+  // height + padding moved to .aiq-attempt-bottom class — viewport-aware (M2a).
   borderTop: '1px solid var(--aiq-color-border)',
   background: 'var(--aiq-color-bg-base)',
   flexShrink: 0,
@@ -144,7 +142,9 @@ const BOTTOM_BAR: CSSProperties = {
 
 const QUESTION_TEXT: CSSProperties = {
   fontFamily: 'var(--aiq-font-serif)',
-  fontSize: 'var(--aiq-text-2xl)', // 30px — guideline § 2.3 "question text"
+  // font-size moved to .aiq-attempt-q-text class — viewport-aware (M2a).
+  // Desktop 30px (var(--aiq-text-2xl)) / mobile 22px via the scoped
+  // --aiq-attempt-q-size CSS var defined on .aiq-attempt-shell.
   fontWeight: 400,
   lineHeight: 1.5,
   color: 'var(--aiq-color-fg-primary)',
@@ -808,6 +808,10 @@ export function AttemptPage(): JSX.Element {
   const [flags, setFlags] = useState<Map<string, boolean>>(new Map());
   const [locked, setLocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // M2a: drawer open state for the mobile bottom-sheet question navigator.
+  // Desktop never opens it (the aside is always visible); mobile toggles via
+  // the .aiq-attempt-nav-toggle header button. Closes on item-select.
+  const [navOpen, setNavOpen] = useState(false);
 
   // Stable ref so callbacks can read the latest currentQuestionId without
   // re-creating and breaking memo/effect deps.
@@ -1088,6 +1092,57 @@ export function AttemptPage(): JSX.Element {
     return { questionId: qid, position: q.position, status };
   });
 
+  // ── Navigator body (shared between desktop aside and mobile <Drawer>) ─────
+  // Same JSX rendered in both surfaces — same items, same onSelect, same per-
+  // cell states. The aside is hidden under [data-viewport="mobile"] (M2a CSS
+  // in tokens.css); the Drawer mounts lazily only when navOpen is true.
+  const navigatorBody = (
+    <>
+      <QuestionNavigator
+        items={navigatorItems}
+        onSelect={(qid) => {
+          setCurrentQuestionId(qid);
+          setNavOpen(false); // close mobile drawer after pick; no-op on desktop
+          // Navigator click does NOT flush; debounced autosave handles it.
+        }}
+      />
+      {/* Legend */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--aiq-space-xs)',
+          marginTop: 'var(--aiq-space-md)',
+          paddingLeft: 'var(--aiq-space-md)',
+        }}
+      >
+        {[
+          { color: 'var(--aiq-color-accent)', label: 'Current' },
+          { color: 'var(--aiq-color-success-soft)', border: 'var(--aiq-color-success)', label: 'Answered' },
+          { color: 'var(--aiq-color-warning-soft)', border: 'var(--aiq-color-warning)', label: 'Flagged' },
+          { color: 'var(--aiq-color-bg-base)', border: 'var(--aiq-color-border)', label: 'Unseen' },
+        ].map(({ color, border, label }) => (
+          <span
+            key={label}
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--aiq-space-sm)', fontSize: 11, color: 'var(--aiq-color-fg-secondary)', fontFamily: 'var(--aiq-font-sans)' }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 3,
+                background: color,
+                border: border ? `1px solid ${border}` : undefined,
+                flexShrink: 0,
+              }}
+            />
+            {label}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+
   // ── Locked banner ─────────────────────────────────────────────────────────
   const lockedBanner = locked ? (
     <div
@@ -1108,7 +1163,7 @@ export function AttemptPage(): JSX.Element {
   // ── Outer grid ────────────────────────────────────────────────────────────
   return (
     <div
-      className="aiq-screen"
+      className="aiq-screen aiq-attempt-shell"
       style={{
         display: 'grid',
         gridTemplateRows: 'auto auto 1fr auto',
@@ -1117,7 +1172,7 @@ export function AttemptPage(): JSX.Element {
       }}
     >
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
-      <header style={TOP_BAR}>
+      <header className="aiq-attempt-top" style={TOP_BAR}>
         <Logo />
 
         {topicLabel && (
@@ -1144,6 +1199,30 @@ export function AttemptPage(): JSX.Element {
           retryCount={autosave.retryCount}
         />
 
+        {/* M2a — mobile-only: open the bottom-sheet question navigator.
+            Hidden on desktop (the right-side aside is always visible there). */}
+        <button
+          type="button"
+          className="aiq-attempt-nav-toggle"
+          onClick={() => setNavOpen(true)}
+          aria-label="Open question navigator"
+          data-help-id="candidate.attempt.navigator.toggle"
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--aiq-color-border-strong)',
+            borderRadius: 'var(--aiq-radius-pill)',
+            width: 36,
+            height: 36,
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: 0,
+            color: 'var(--aiq-color-fg-primary)',
+          }}
+        >
+          <Icon name="grid" size={14} />
+        </button>
+
         <CandidateHelp />
       </header>
 
@@ -1164,11 +1243,9 @@ export function AttemptPage(): JSX.Element {
 
       {/* ── MIDDLE ROW (main pane + side panel) ─────────────────────────── */}
       <div
+        className="aiq-attempt-middle"
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 320px',
-          gap: 'var(--aiq-space-xl)',
-          padding: 'var(--aiq-space-lg) var(--aiq-space-2xl)',
           overflow: 'auto',
         }}
       >
@@ -1197,7 +1274,7 @@ export function AttemptPage(): JSX.Element {
                     : (typeof c.question === 'string' ? c.question : null);
                 if (text === null) return null;
                 return (
-                  <p className="aiq-serif" style={QUESTION_TEXT}>
+                  <p className="aiq-serif aiq-attempt-q-text" style={QUESTION_TEXT}>
                     {text}
                   </p>
                 );
@@ -1219,8 +1296,10 @@ export function AttemptPage(): JSX.Element {
           )}
         </main>
 
-        {/* Side panel */}
+        {/* Side panel — hidden on mobile via .aiq-attempt-aside CSS rule;
+            the same {navigatorBody} also renders inside the Drawer below. */}
         <aside
+          className="aiq-attempt-aside"
           style={{
             borderLeft: '1px solid var(--aiq-color-border)',
             paddingLeft: 'var(--aiq-space-md)',
@@ -1243,56 +1322,17 @@ export function AttemptPage(): JSX.Element {
           >
             Navigator
           </div>
-          <QuestionNavigator
-            items={navigatorItems}
-            onSelect={(qid) => {
-              setCurrentQuestionId(qid);
-              // Navigator click does NOT flush; debounced autosave handles it.
-            }}
-          />
-          {/* Legend */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--aiq-space-xs)',
-              marginTop: 'var(--aiq-space-md)',
-              paddingLeft: 'var(--aiq-space-md)',
-            }}
-          >
-            {[
-              { color: 'var(--aiq-color-accent)', label: 'Current' },
-              { color: 'var(--aiq-color-success-soft)', border: 'var(--aiq-color-success)', label: 'Answered' },
-              { color: 'var(--aiq-color-warning-soft)', border: 'var(--aiq-color-warning)', label: 'Flagged' },
-              { color: 'var(--aiq-color-bg-base)', border: 'var(--aiq-color-border)', label: 'Unseen' },
-            ].map(({ color, border, label }) => (
-              <span
-                key={label}
-                style={{ display: 'flex', alignItems: 'center', gap: 'var(--aiq-space-sm)', fontSize: 11, color: 'var(--aiq-color-fg-secondary)', fontFamily: 'var(--aiq-font-sans)' }}
-              >
-                <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 3,
-                    background: color,
-                    border: border ? `1px solid ${border}` : undefined,
-                    flexShrink: 0,
-                  }}
-                />
-                {label}
-              </span>
-            ))}
-          </div>
+          {navigatorBody}
         </aside>
       </div>
 
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
-      <footer style={BOTTOM_BAR}>
+      <footer className="aiq-attempt-bottom" style={BOTTOM_BAR}>
         {/* Flag toggle */}
         <Button
           variant="ghost"
           size="sm"
+          className="aiq-attempt-flag-btn"
           onClick={handleFlagToggle}
           disabled={locked || currentQuestion === null}
           data-help-id="candidate.attempt.flag"
@@ -1309,13 +1349,14 @@ export function AttemptPage(): JSX.Element {
             : 'Flag'}
         </Button>
 
-        {/* Spacer */}
-        <span style={{ flex: 1 }} />
+        {/* Spacer — hidden on mobile via .aiq-attempt-spacer CSS rule */}
+        <span className="aiq-attempt-spacer" style={{ flex: 1 }} />
 
         {/* Prev */}
         <Button
           variant="outline"
           size="sm"
+          className="aiq-attempt-prev-btn"
           disabled={isFirst || locked}
           onClick={() => {
             const prev = sorted[safeIdx - 1];
@@ -1333,6 +1374,7 @@ export function AttemptPage(): JSX.Element {
           <Button
             variant="outline"
             size="sm"
+            className="aiq-attempt-next-btn"
             disabled={locked}
             onClick={() => {
               const next = sorted[safeIdx + 1];
@@ -1351,6 +1393,7 @@ export function AttemptPage(): JSX.Element {
         <Button
           variant="primary"
           size="sm"
+          className="aiq-attempt-submit-btn"
           disabled={locked || submitting}
           data-help-id="candidate.attempt.submit.confirm"
           onClick={() => void handleSubmit()}
@@ -1358,6 +1401,19 @@ export function AttemptPage(): JSX.Element {
           {submitting ? 'Submitting…' : 'Submit'}
         </Button>
       </footer>
+
+      {/* ── MOBILE NAVIGATOR DRAWER ───────────────────────────────────────
+          Renders only when navOpen=true (Drawer returns null otherwise).
+          The toggle button (in the header) is itself display:none on
+          desktop, so navOpen will only flip on mobile. Same items, same
+          onSelect, same backend semantics as the desktop aside. */}
+      <Drawer
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+        title="Navigator"
+      >
+        {navigatorBody}
+      </Drawer>
 
     </div>
   );

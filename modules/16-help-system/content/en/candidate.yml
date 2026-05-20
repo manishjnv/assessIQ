@@ -151,6 +151,30 @@ candidate.attempt.disconnect:
     and contact your administrator. They can grant a one-time extension
     before final submission, but cannot extend after auto-submit fires.
 
+candidate.attempt.navigator.toggle:
+  audience: candidate
+  short_text: "Open the question navigator. Jump to any question, see which are answered, flagged, or unseen."
+  long_md: |
+    ## Question navigator
+
+    On a phone, the question navigator is hidden behind a small grid button
+    in the top bar. Tap it to open a bottom-sheet panel that shows every
+    question in the assessment as a numbered cell.
+
+    Cell colors mean:
+
+    - **Filled accent** — the question you are on right now.
+    - **Soft green** — you have entered an answer.
+    - **Soft amber outline** — you have flagged the question to revisit.
+    - **Plain outline** — you have not yet visited the question.
+
+    Tap any cell to jump straight to that question. The bottom-sheet
+    closes automatically after you pick. Your in-progress answer on the
+    current question is saved before the jump — you will not lose typing.
+
+    On a laptop the navigator is always visible on the right side of the
+    page and this button is hidden.
+
 candidate.attempt.submit.confirm:
   audience: candidate
   short_text: "Once submitted, you cannot reopen the attempt. Verify your flagged questions first."

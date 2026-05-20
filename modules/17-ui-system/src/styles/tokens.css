@@ -160,6 +160,36 @@
 [data-viewport="mobile"] .aiq-take-twopane > aside { display: none; }
 [data-viewport="mobile"] .aiq-take-main { padding: 24px 22px; }
 
+/* AttemptPage chrome mobile reflow — M2a phase of MOBILE_KIT_PORT.
+ * Page: apps/web/src/pages/take/Attempt.tsx. Same DOM both viewports;
+ * mobile-only CSS overrides reshape the header, hide the navigator aside
+ * (a Drawer mounts lazily in its place), restack the footer nav, and
+ * shrink the question serif. Integrity-hook surface, timer math,
+ * autosave debounce, and submit semantics are byte-identical to desktop. */
+.aiq-attempt-shell  { --aiq-attempt-q-size: var(--aiq-text-2xl); }
+.aiq-attempt-top    { padding: 0 var(--aiq-space-2xl); height: 64px; }
+.aiq-attempt-middle { padding: var(--aiq-space-lg) var(--aiq-space-2xl); grid-template-columns: 1fr 320px; gap: var(--aiq-space-xl); }
+.aiq-attempt-bottom { padding: 0 var(--aiq-space-2xl); height: 64px; }
+.aiq-attempt-q-text { font-size: var(--aiq-attempt-q-size); }
+.aiq-attempt-nav-toggle { display: none; }
+
+[data-viewport="mobile"] .aiq-attempt-shell { --aiq-attempt-q-size: 22px; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-top    { padding: 0 var(--aiq-space-md); gap: var(--aiq-space-sm); }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-middle { grid-template-columns: 1fr; padding: var(--aiq-space-md); gap: 0; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-aside  { display: none; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-nav-toggle { display: inline-flex; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-bottom {
+  flex-wrap: wrap;
+  height: auto;
+  padding: var(--aiq-space-sm) var(--aiq-space-md);
+  gap: var(--aiq-space-xs);
+}
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-bottom .aiq-attempt-spacer { display: none; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-flag-btn   { order: 1; flex: 0 0 auto; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-prev-btn   { order: 2; flex: 1 1 auto; justify-content: center; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-next-btn   { order: 3; flex: 1 1 auto; justify-content: center; }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-submit-btn { order: 4; flex: 1 0 100%; justify-content: center; }
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;
