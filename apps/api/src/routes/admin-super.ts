@@ -20,7 +20,7 @@
 //   GET  /api/admin/super/tenants    — list all tenants (system-role, visibility only)
 
 import type { FastifyInstance } from 'fastify';
-import { ValidationError, streamLogger } from '@assessiq/core';
+import { ValidationError, NotFoundError, ConflictError, streamLogger } from '@assessiq/core';
 import { updateAiGenerateMode, createTenant, activateTenant, getPool } from '@assessiq/tenancy';
 import { inviteUser } from '@assessiq/users';
 import { audit } from '@assessiq/audit-log';
@@ -275,6 +275,128 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   );
 
   // ──────────────────────────────────────────────────────────────────────────
+  // POST /api/admin/super/tenants/:tenantId/invitations/resend
+  //
+  // Re-issue a pending admin invitation for an existing tenant.
+  //
+  // Gate: super_admin + fresh MFA (15-minute window) — same as POST /companies
+  // because this is a privilege-granting action (re-sends a credential-bearing
+  // magic link). A stale TOTP session must not be able to blast invite emails.
+  //
+  // Lookup: earliest-created users row with role='admin' in this tenant
+  // (same LATERAL pattern as GET /tenants). Query runs under assessiq_system
+  // (BYPASSRLS) to avoid requiring app.current_tenant on the super-admin's
+  // session. tenantId is taken from the URL param, never from session.tenantId.
+  //
+  // Cases:
+  //   No admin row          → 404 NO_PENDING_ADMIN
+  //   admin.status=active   → 409 ADMIN_ALREADY_ACCEPTED
+  //   admin disabled/deleted→ 409 ADMIN_DISABLED_OR_DELETED
+  //   admin.status=pending  → inviteUser() → 200 { invitation }
+  //
+  // Audit: admin.invitation.resent is written AFTER inviteUser() succeeds.
+  // inviteUser() also writes user.invited (kind=reinvite) inside its own tx —
+  // both records are intentional and serve different query surfaces.
+  //
+  // Response 200: { invitation: { id, email, role, expires_at } }
+  // Response 404: NO_PENDING_ADMIN
+  // Response 409: ADMIN_ALREADY_ACCEPTED | ADMIN_DISABLED_OR_DELETED
+  // Response 403: not super_admin / MFA too old
+  // ──────────────────────────────────────────────────────────────────────────
+  app.post(
+    '/api/admin/super/tenants/:tenantId/invitations/resend',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { tenantId } = req.params as { tenantId: string };
+
+      // Resolve the tenant's first admin under assessiq_system (BYPASSRLS).
+      // Scoped to tenantId from the URL — never crosses to another tenant.
+      const pool = getPool();
+      const client = await pool.connect();
+      let admin: { id: string; email: string; status: string; deleted_at: Date | null } | null = null;
+      try {
+        await client.query('BEGIN');
+        await client.query('SET LOCAL ROLE assessiq_system');
+        const res = await client.query<{
+          id: string;
+          email: string;
+          status: string;
+          deleted_at: Date | null;
+        }>(
+          `SELECT u.id, u.email, u.status, u.deleted_at
+           FROM users u
+           WHERE u.tenant_id = $1 AND u.role = 'admin'
+           ORDER BY u.created_at ASC
+           LIMIT 1`,
+          [tenantId],
+        );
+        await client.query('COMMIT');
+        admin = res.rows[0] ?? null;
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      if (admin === null) {
+        throw new NotFoundError('This tenant has no admin user to resend an invitation to.', {
+          details: { code: 'NO_PENDING_ADMIN' },
+        });
+      }
+
+      if (admin.status === 'active') {
+        throw new ConflictError('This admin has already accepted their invitation.', {
+          details: { code: 'ADMIN_ALREADY_ACCEPTED' },
+        });
+      }
+
+      if (admin.status === 'disabled' || admin.deleted_at !== null) {
+        throw new ConflictError('This admin is disabled or deleted; cannot resend invite.', {
+          details: { code: 'ADMIN_DISABLED_OR_DELETED' },
+        });
+      }
+
+      // admin.status === 'pending': re-issue invitation via the canonical path.
+      // inviteUser deletes old invitations, inserts a fresh one, sends email,
+      // and writes user.invited (kind=reinvite) in its own auditInTx.
+      const inviteResult = await inviteUser(tenantId, {
+        email: admin.email,
+        role: 'admin',
+        invited_by: session.userId,
+      });
+
+      if (inviteResult.invitation === null) {
+        // Defensive: inviteUser returns null only for active users; we already
+        // gated that case above. If this branch is reached, inviteUser semantics
+        // have drifted — surface immediately rather than silently succeeding.
+        throw new Error('inviteUser returned null invitation for a pending user — contract drift');
+      }
+
+      const { invitation } = inviteResult;
+
+      await audit({
+        tenantId: session.tenantId,
+        actorKind: 'user',
+        actorUserId: session.userId,
+        action: 'admin.invitation.resent',
+        entityType: 'user',
+        entityId: admin.id,
+        after: {
+          tenant_id: tenantId,
+          email: admin.email,
+          invitation_id: invitation.id,
+        },
+      });
+
+      log.info({ tenantId, adminId: admin.id, invitationId: invitation.id }, 'resendAdminInvitation: done');
+
+      return reply.code(200).send({ invitation });
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
   // GET /api/admin/super/tenants
   //
   // List all tenants (system-role read). Returns slug/name/status/created_at
@@ -317,11 +439,13 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
           admin_email: string | null;
           admin_name: string | null;
           admin_status: string | null;
+          admin_invitation_expires_at: Date | null;
         }>(
           `SELECT t.id, t.slug, t.name, t.status, t.created_at,
                   a.email  AS admin_email,
                   a.name   AS admin_name,
-                  a.status AS admin_status
+                  a.status AS admin_status,
+                  i.expires_at AS admin_invitation_expires_at
            FROM tenants t
            LEFT JOIN LATERAL (
              SELECT u.email, u.name, u.status
@@ -330,6 +454,15 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
              ORDER BY u.created_at ASC
              LIMIT 1
            ) a ON true
+           LEFT JOIN LATERAL (
+             SELECT ui.expires_at
+             FROM user_invitations ui
+             WHERE ui.tenant_id = t.id
+               AND lower(ui.email) = a.email
+               AND ui.accepted_at IS NULL
+             ORDER BY ui.created_at DESC
+             LIMIT 1
+           ) i ON true
            ORDER BY t.created_at ASC`,
         );
         await client.query('COMMIT');
