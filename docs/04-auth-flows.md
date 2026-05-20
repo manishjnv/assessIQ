@@ -668,6 +668,31 @@ The old bypass predicate required `session.totpVerified === true`, which was **n
 
 **Brute-force window regression:** old design — 10/min/IP on auth routes → ~35 days before lockout triggers at anon rate. New design — 30/min anon, 100/min verified admin → ~3.5 days at admin rate before lockout. Deliberate regression, accepted by user on 2026-05-15. Pinned in `modules/01-auth/src/__tests__/middleware.test.ts` test "admin gets 100/min/IP on TOTP verify (Path N — blacklist dropped per user decision 2026-05-15, brute-force window ~3.5 days)".
 
+### Production override — admin IP cap 100 → 500 (2026-05-20)
+
+**What changed:** `RATE_LIMIT_IP_ADMIN=500` set in `/srv/assessiq/.env` on the production VPS. Code default in `modules/00-core/src/config.ts` stays at 100 — dev/test/CI continue at the conservative default; only prod takes the higher cap.
+
+**Why:** operator-observed real 429s during normal admin navigation. Log analysis of the burning IP showed `/api/auth/whoami` re-fetched on every nav (50 calls / 10 min from a single user), plus dashboard `/api/admin/dashboard/queue` polling (~22/10 min), plus the natural Google SSO / MFA / logout cycles during testing. Combined, a single admin's session can sustain >100 req/min in 60s windows during legitimate use. 100/min was tuned for the *security-only* tradeoff; under real client-side traffic patterns it is over-tight.
+
+**Considered and rejected:**
+
+- *Stay at 100/min and fix the `whoami` spam.* Still the right structural fix (cuts ~40% of admin request volume), but it is its own session — separating it from this immediate UX unblock.
+- *Raise the code default to 500.* Rejected: it weakens dev/test/CI's ability to catch a client-side request storm early. Env override keeps the safety net in non-prod.
+- *Raise per-user (60/min) or per-tenant (600/min) instead.* Doesn't help — the bucket actually exhausting is the per-IP one (the most restrictive of the three for a single admin).
+
+**Not included:** ANON (30/min), USER/candidate (30/min), and APIKEY (600/min) tiers unchanged — none have shown legitimate-traffic 429s. Code defaults in `00-core` unchanged. `trustProxy:true` and origin-verify gate unchanged.
+
+**Security trade-off (accepted):**
+
+- Brute-force window per IP: ~3.5d → ~0.7d for a single TOTP (5× the rate).
+- **Primary TOTP defense is unchanged:** the 5-failures-in-15-min per-user lockout (counter `aiq:auth:totpfail:<userId>` + `aiq:auth:lockedout:<userId>` TTL 15m) keeps any one user's TOTP at ~2.85 years to brute-force *regardless of the IP limit*. The IP bucket is a *mass-scale* throttle (one IP probing many users), not the per-TOTP defense.
+- Origin-verify `enforce` is live (`3b2fe73`, 2026-05-19) — IP spoofing via direct-to-origin is blocked, so the 500/min only applies to verified Cloudflare traffic. An attacker can't trivially rotate IPs to evade.
+- Net: this loosens mass-scale single-IP throttling 5×, which is the right tradeoff because the per-user lockout already carries the primary defense.
+
+**Supersedes** the "100/min admin / ~3.5d brute-force window" sentence above **for production only**. Dev/test still sees 100/min. Reverse on prod by removing the `.env` line and `force-recreate assessiq-api`; timestamped `.env.bak.<TS>` backups exist on the VPS.
+
+**Downstream impact:** the `middleware.test.ts` test pinned at "admin gets 100/min/IP" still asserts code-default behavior (test runs without the prod env override) — no test change needed. Future tuning should revisit if (a) the per-user lockout decision #4 ever changes, or (b) origin-verify ever drops from `enforce`. Both invariants would need to be re-reasoned together.
+
 ### Redis key
 
 Old: `aiq:rl:auth:ip:<ip>` (applied to `/api/auth/*` only)
