@@ -22,6 +22,7 @@ import Fastify from "fastify";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { execSync } from "node:child_process";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { registerQuestionBankRoutes } from "../routes.js";
@@ -49,6 +50,29 @@ const AI_GRADING_MIGRATIONS_DIR = join(MODULES_ROOT, "07-ai-grading", "migration
 
 let container: StartedTestContainer;
 let containerUrl: string;
+
+// Synchronous Docker availability check — evaluated at module load time so
+// it.skipIf(!dockerAvailable) correctly skips tests before beforeAll runs.
+function isDockerAvailable(): boolean {
+  try {
+    execSync("docker info", { stdio: "ignore", timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const dockerAvailable = isDockerAvailable();
+
+// CI fail-loud: throw at module load time so the suite is collected as FAILED
+// (not silently skipped) when Docker is unavailable in CI.
+if (!dockerAvailable && (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true")) {
+  throw new Error(
+    "Docker testcontainer required but unavailable in CI. " +
+    "Ensure the CI runner has Docker installed, or remove the Docker " +
+    "dependency from these tests."
+  );
+}
+
 let tenantA: string;
 let tenantB: string;
 let adminA: string;
@@ -235,6 +259,10 @@ async function buildTestApp(sessionTenantId: string, sessionUserId: string) {
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
+  // Docker availability is checked synchronously at module load time.
+  // If Docker is unavailable, tests are skipped via it.skipIf(!dockerAvailable).
+  if (!dockerAvailable) return;
+
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({
       POSTGRES_USER: "test",
@@ -305,8 +333,10 @@ beforeAll(async () => {
 }, 90_000);
 
 afterAll(async () => {
-  await closePool();
-  if (container !== undefined) await container.stop();
+  if (dockerAvailable) {
+    await closePool();
+    if (container !== undefined) await container.stop();
+  }
 }, 30_000);
 
 // ===========================================================================
@@ -314,7 +344,7 @@ afterAll(async () => {
 // ===========================================================================
 
 describe("POST /api/admin/generation-attempts/:id/score — happy path", () => {
-  it("returns 200 with expected shape when the attempt exists and has questions", async () => {
+  it.skipIf(!dockerAvailable)("returns 200 with expected shape when the attempt exists and has questions", async () => {
     const app = await buildTestApp(tenantA, adminA);
     try {
       // Seed: insert attempt at a known time, then insert questions created after it.
@@ -406,7 +436,7 @@ describe("POST /api/admin/generation-attempts/:id/score — happy path", () => {
     }
   });
 
-  it("overall is 'pass' for a clean attempt with no baseline regressions and good chunk rate", async () => {
+  it.skipIf(!dockerAvailable)("overall is 'pass' for a clean attempt with no baseline regressions and good chunk rate", async () => {
     const app = await buildTestApp(tenantA, adminA);
     try {
       const startedAt = new Date(Date.now() - 200_000).toISOString();
@@ -454,7 +484,7 @@ describe("POST /api/admin/generation-attempts/:id/score — happy path", () => {
 });
 
 describe("POST /api/admin/generation-attempts/:id/score — 404 not found", () => {
-  it("returns 404 for a non-existent attempt id", async () => {
+  it.skipIf(!dockerAvailable)("returns 404 for a non-existent attempt id", async () => {
     const app = await buildTestApp(tenantA, adminA);
     try {
       const res = await app.inject({
@@ -469,7 +499,7 @@ describe("POST /api/admin/generation-attempts/:id/score — 404 not found", () =
 });
 
 describe("POST /api/admin/generation-attempts/:id/score — tenant isolation", () => {
-  it("returns 404 when adminB tries to score tenantA's attempt", async () => {
+  it.skipIf(!dockerAvailable)("returns 404 when adminB tries to score tenantA's attempt", async () => {
     // Seed an attempt for tenantA
     let attemptId: string;
     await withSuperClient(async (client) => {
