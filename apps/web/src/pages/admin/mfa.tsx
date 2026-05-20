@@ -82,8 +82,15 @@ export function AdminMfa(): JSX.Element {
   // (2026-05-17 RCA — "re-enrol MFA every login".)
   useEffect(() => {
     if (loading || session === null) return;
-    if (session.mfaStatus === 'verified') {
-      // Already MFA-verified — skip ahead to the dashboard.
+    // Only redirect away if the user has ACTUALLY completed TOTP enrolment AND
+    // satisfied the MFA gate. computeMfaStatus reports `'verified'` for tenant
+    // admins whenever MFA_REQUIRED=false — even when they have no TOTP at all
+    // — because the gate is opt-in for them. Without the totpEnrolled check,
+    // an unenrolled admin clicking the "Set up authenticator" nudge banner
+    // landed on /admin/mfa and was immediately bounced back to /admin, making
+    // opt-in enrolment via the banner impossible. (RCA 2026-05-21.)
+    if (session.mfaStatus === 'verified' && session.totpEnrolled === true) {
+      // Already enrolled AND gate satisfied — nothing to do here.
       // /admin is the canonical post-login landing (changed 2026-05-04;
       // MFA page intentionally does NOT use AdminShell — it is a
       // constrained-flow step that runs pre-verified-session; the
