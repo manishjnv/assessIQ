@@ -229,21 +229,218 @@ export async function activateTenant(tenantId: string): Promise<void> {
   log.info({ tenantId }, "activateTenant: tenant is now active");
 }
 
-export async function suspendTenant(tenantId: string, reason: string, actorUserId?: string): Promise<void> {
-  log.warn({ tenantId, reason }, "tenant suspended");
-  await withTenant(tenantId, async (client) => {
-    await repo.setTenantStatus(client, tenantId, "suspended");
-    // Audit INSERT in the SAME transaction (atomicity via auditInTx).
-    await auditInTx(client, {
+// ---------------------------------------------------------------------------
+// Super-admin-only: tenant lifecycle transitions (suspend / resume / archive / unarchive).
+// ---------------------------------------------------------------------------
+//
+// Design: all four functions share the same atomic pattern:
+//   1. withTenant(tenantId) — pins RLS to the TARGET tenant so the
+//      SELECT … FOR UPDATE + UPDATE execute under the correct scope.
+//   2. Read current status (FOR UPDATE to prevent TOCTOU race).
+//   3. No-op check: if already in target state, return early with noOp=true.
+//      No audit row, no session revocation.
+//   4. Wrong-direction check: throw ConflictError(INVALID_LIFECYCLE_TRANSITION)
+//      with the list of allowed source states so the API can return a clean 409.
+//   5. UPDATE tenants.status.
+//   6. auditInTx inside the SAME transaction — scoped to actorTenantId (the
+//      platform tenant). This is intentional: the actor is a super_admin whose
+//      audit context lives in the platform tenant. The target tenant's own
+//      audit trail does not include super-admin lifecycle gestures (only tenant-
+//      internal events). This matches the createCompany pattern at admin-super.ts:240.
+//   7. Commit (withTenant handles this).
+//   8. Return { tenantId, slug, previousStatus, newStatus, auditId, noOp }.
+//
+// The slug is fetched inside the same transaction (step 2 reads it alongside
+// status) so the caller can include it in the response without an extra query.
+//
+// Session revocation and logLifecycleEvent are intentionally NOT called here —
+// those side-effects belong in the API handler layer (admin-super.ts) so the
+// service layer remains pure DB + audit.
+
+export interface TenantLifecycleResult {
+  tenantId: string;
+  slug: string;
+  previousStatus: string;
+  newStatus: string;
+  auditId: string | null;
+  noOp: boolean;
+}
+
+interface TenantStatusSlugRow {
+  status: string;
+  slug: string;
+}
+
+async function performLifecycleTransition(
+  tenantId: string,
+  actorUserId: string,
+  actorTenantId: string,
+  reason: string | undefined,
+  action: "tenant.suspended" | "tenant.resumed" | "tenant.archived" | "tenant.unarchived",
+  targetStatus: "active" | "suspended" | "archived",
+  allowedSourceStatuses: ReadonlyArray<string>,
+  noOpStatus: string,
+): Promise<TenantLifecycleResult> {
+  return withTenant(tenantId, async (client) => {
+    // Read current status + slug, lock the row to prevent TOCTOU races.
+    const selectResult = await client.query<TenantStatusSlugRow>(
+      `SELECT status, slug FROM tenants WHERE id = $1 FOR UPDATE`,
+      [tenantId],
+    );
+    const row = selectResult.rows[0];
+    if (row === undefined) {
+      throw new NotFoundError(`tenant not found: ${tenantId}`, {
+        details: { code: "TENANT_NOT_FOUND", tenantId },
+      });
+    }
+
+    const previousStatus = row.status;
+    const slug = row.slug;
+
+    // Idempotent no-op: already at target state.
+    if (previousStatus === noOpStatus) {
+      return { tenantId, slug, previousStatus, newStatus: previousStatus, auditId: null, noOp: true };
+    }
+
+    // Wrong-direction: source state not in allowed set.
+    if (!allowedSourceStatuses.includes(previousStatus)) {
+      throw new ConflictError(
+        `tenant cannot transition from '${previousStatus}' to '${targetStatus}'`,
+        {
+          details: {
+            code: "INVALID_LIFECYCLE_TRANSITION",
+            currentStatus: previousStatus,
+            allowedStatuses: allowedSourceStatuses,
+          },
+        },
+      );
+    }
+
+    // Apply the status UPDATE.
+    await repo.setTenantStatus(client, tenantId, targetStatus);
+
+    // Audit row written inside the same transaction, scoped to the TARGET
+    // tenant. The audit_log INSERT policy (0050_audit_log.sql) requires
+    // `tenant_id = current_setting('app.current_tenant')`; since withTenant
+    // pinned the RLS context to the target, the audit row must live in the
+    // target's audit log. Cross-tenant super-admin investigations remain
+    // efficient via the existing actor_user_id index (no second row needed
+    // in the platform tenant). actorTenantId stays on the function signature
+    // for API stability and is preserved in the audit row's `after.actor_tenant`
+    // jsonb field for forensic clarity.
+    //
+    // This matches the updateAiGenerateMode auditInTx pattern (super-admin
+    // mutates a different tenant; audit goes to that target tenant).
+    const auditRow = await auditInTx(client, {
       tenantId,
-      actorKind: actorUserId ? "user" : "system",
-      ...(actorUserId !== undefined ? { actorUserId } : {}),
-      action: "tenant.suspended",
+      actorKind: "user",
+      actorUserId,
+      action,
       entityType: "tenant",
       entityId: tenantId,
-      after: { status: "suspended", reason },
+      before: { status: previousStatus },
+      after: {
+        status: targetStatus,
+        previous_status: previousStatus,
+        reason: reason ?? null,
+        actor_tenant: actorTenantId,
+      },
     });
+
+    return { tenantId, slug, previousStatus, newStatus: targetStatus, auditId: auditRow.id, noOp: false };
   });
+}
+
+/**
+ * Suspend a tenant: active → suspended.
+ * Idempotent if already suspended. Throws ConflictError on wrong-direction.
+ */
+export async function suspendTenant(
+  tenantId: string,
+  actorUserId: string,
+  actorTenantId: string,
+  reason?: string,
+): Promise<TenantLifecycleResult> {
+  log.info({ tenantId, actorUserId }, "suspendTenant: starting");
+  const result = await performLifecycleTransition(
+    tenantId, actorUserId, actorTenantId, reason,
+    "tenant.suspended", "suspended", ["active"], "suspended",
+  );
+  if (!result.noOp) {
+    log.warn({ tenantId, previousStatus: result.previousStatus, reason }, "suspendTenant: tenant suspended");
+  } else {
+    log.info({ tenantId }, "suspendTenant: no-op (already suspended)");
+  }
+  return result;
+}
+
+/**
+ * Resume a tenant: suspended → active.
+ * Idempotent if already active. Throws ConflictError on wrong-direction.
+ */
+export async function resumeTenant(
+  tenantId: string,
+  actorUserId: string,
+  actorTenantId: string,
+  reason?: string,
+): Promise<TenantLifecycleResult> {
+  log.info({ tenantId, actorUserId }, "resumeTenant: starting");
+  const result = await performLifecycleTransition(
+    tenantId, actorUserId, actorTenantId, reason,
+    "tenant.resumed", "active", ["suspended"], "active",
+  );
+  if (!result.noOp) {
+    log.info({ tenantId, previousStatus: result.previousStatus }, "resumeTenant: tenant resumed");
+  } else {
+    log.info({ tenantId }, "resumeTenant: no-op (already active)");
+  }
+  return result;
+}
+
+/**
+ * Archive a tenant: active|suspended → archived.
+ * Idempotent if already archived. Throws ConflictError on wrong-direction.
+ */
+export async function archiveTenant(
+  tenantId: string,
+  actorUserId: string,
+  actorTenantId: string,
+  reason?: string,
+): Promise<TenantLifecycleResult> {
+  log.info({ tenantId, actorUserId }, "archiveTenant: starting");
+  const result = await performLifecycleTransition(
+    tenantId, actorUserId, actorTenantId, reason,
+    "tenant.archived", "archived", ["active", "suspended"], "archived",
+  );
+  if (!result.noOp) {
+    log.warn({ tenantId, previousStatus: result.previousStatus, reason }, "archiveTenant: tenant archived");
+  } else {
+    log.info({ tenantId }, "archiveTenant: no-op (already archived)");
+  }
+  return result;
+}
+
+/**
+ * Unarchive a tenant: archived → active.
+ * Idempotent if already active. Throws ConflictError on wrong-direction.
+ */
+export async function unarchiveTenant(
+  tenantId: string,
+  actorUserId: string,
+  actorTenantId: string,
+  reason?: string,
+): Promise<TenantLifecycleResult> {
+  log.info({ tenantId, actorUserId }, "unarchiveTenant: starting");
+  const result = await performLifecycleTransition(
+    tenantId, actorUserId, actorTenantId, reason,
+    "tenant.unarchived", "active", ["archived"], "active",
+  );
+  if (!result.noOp) {
+    log.info({ tenantId, previousStatus: result.previousStatus }, "unarchiveTenant: tenant unarchived");
+  } else {
+    log.info({ tenantId }, "unarchiveTenant: no-op (already active)");
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------

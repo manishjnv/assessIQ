@@ -410,6 +410,13 @@ describe("02-tenancy G3.D audit writes — live integration (updateTenantSetting
 // ---------------------------------------------------------------------------
 
 describe("02-tenancy G3.D audit writes — live integration (suspendTenant)", () => {
+  // New suspendTenant signature: (tenantId, actorUserId, actorTenantId, reason?)
+  // The audit row is scoped to actorTenantId (the platform/actor tenant), not
+  // the target tenant. Use TENANT_ID as both target and actorTenantId here
+  // since we only have one tenant in the test container, and the audit row
+  // lookup uses TENANT_ID. A fixed actor UUID is used for actorUserId.
+  const ACTOR_USER_ID = "00000000-0000-0000-0000-000000000001";
+
   beforeEach(async () => {
     // Reset tenant to 'active' before each test
     await withSuperClient((c) =>
@@ -419,7 +426,7 @@ describe("02-tenancy G3.D audit writes — live integration (suspendTenant)", ()
   });
 
   it("happy-path: writes a tenant.suspended audit row and sets tenant.status = 'suspended'", async () => {
-    await suspendTenant(TENANT_ID, "billing arrears");
+    await suspendTenant(TENANT_ID, ACTOR_USER_ID, TENANT_ID, "billing arrears");
 
     const status = await readTenantStatus(TENANT_ID);
     expect(status).toBe("suspended");
@@ -427,8 +434,8 @@ describe("02-tenancy G3.D audit writes — live integration (suspendTenant)", ()
     const rows = await queryAudit(TENANT_ID, "tenant.suspended");
     expect(rows.length).toBeGreaterThan(0);
     const row = rows[0]!;
-    expect(row.actor_kind).toBe("system");
-    expect(row.actor_user_id).toBeNull();
+    expect(row.actor_kind).toBe("user");
+    expect(row.actor_user_id).toBe(ACTOR_USER_ID);
     expect(row.entity_type).toBe("tenant");
     expect(row.entity_id).toBe(TENANT_ID);
     expect((row.after as Record<string, unknown>).status).toBe("suspended");
@@ -443,7 +450,7 @@ describe("02-tenancy G3.D audit writes — live integration (suspendTenant)", ()
 
     try {
       await expect(
-        suspendTenant(TENANT_ID, "billing arrears"),
+        suspendTenant(TENANT_ID, ACTOR_USER_ID, TENANT_ID, "billing arrears"),
       ).rejects.toThrow(); // any DB error — constraint violation
 
       const status = await readTenantStatus(TENANT_ID);
