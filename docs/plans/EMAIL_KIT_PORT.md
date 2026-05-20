@@ -10,7 +10,7 @@
 
 **Phasing summary:** 6 phases, ~6–9 sessions of work. E0 (foundation: tokens reconciliation + email-safe atoms) and E1 (Handlebars partials + render refactor) deliver the biggest infrastructure win per byte. E2a (5 kit-mapped templates) and E2b (4 net-new derivations) are the actual port. E3 covers Litmus / in-app-webview testing before declaring done. E4 finalizes docs.
 
-**Progress:** ☐ E0 (foundation) · ☐ E1 (centralize) · ☐ E2a (5 kit-mapped templates) · ☐ E2b (4 net-new templates) · ☐ E3 (validation) · ☐ E4 (docs + handoff) — **0/6 complete**.
+**Progress:** ☑ E0 (foundation — [docs/13-email-system.md](../13-email-system.md), 2026-05-21) · ☐ E1 (centralize) · ☐ E2a (5 kit-mapped templates) · ☐ E2b (4 net-new templates) · ☐ E3 (validation) · ☐ E4 (docs + handoff) — **1/6 complete**. **E1 blocked on open-decision #5 (physical mailing address).**
 
 ---
 
