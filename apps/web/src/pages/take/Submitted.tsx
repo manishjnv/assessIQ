@@ -147,19 +147,20 @@ export function Submitted(): JSX.Element {
     >
       {/* Top bar — slim header */}
       <header
-        style={{ padding: '32px 48px', display: 'flex', alignItems: 'center' }}
+        className="aiq-submitted-header"
+        style={{ display: 'flex', alignItems: 'center' }}
       >
         <Logo />
       </header>
 
       {/* Main centered content */}
       <main
+        className="aiq-submitted-main"
         style={{
           flex: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '48px',
         }}
       >
         <div style={{ width: '100%', maxWidth: 560, textAlign: 'center' }}>
@@ -168,12 +169,11 @@ export function Submitted(): JSX.Element {
             <Chip variant="success">Submitted</Chip>
           </span>
 
-          {/* Big serif heading */}
+          {/* Big serif heading — fontSize + lineHeight via class for viewport-aware
+              sizing (M3); margin/fontWeight/letterSpacing remain inline. */}
           <h1
-            className="aiq-serif"
+            className="aiq-serif aiq-submitted-h1"
             style={{
-              fontSize: 52,
-              lineHeight: 1.05,
               margin: '0 0 16px',
               fontWeight: 400,
               letterSpacing: '-0.025em',
