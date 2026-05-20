@@ -585,6 +585,29 @@ Mechanism: outer container carries `.aiq-take-twopane` (or `.aiq-candidate-login
 - Same backend payloads on both viewports; same rate-limit error surfaces.
 - `CandidateLoginVerify` (centered spinner intermediary) needs no reflow — it is viewport-agnostic by construction (`placeItems: 'center'`).
 
+#### AttemptPage chrome → mobile reflow (M2a — 2026-05-20)
+
+Page: [`apps/web/src/pages/take/Attempt.tsx`](../apps/web/src/pages/take/Attempt.tsx). The take-flow runner. Mobile-only CSS overrides; same DOM both viewports.
+
+| Element | Desktop | Mobile |
+| --- | --- | --- |
+| Header padding | `0 var(--aiq-space-2xl)` (40px) | `0 var(--aiq-space-md)` (12px) |
+| Header gap | `var(--aiq-space-md)` (12px) | `var(--aiq-space-sm)` (8px) |
+| Navigator-toggle button (new) | `display: none` | `display: inline-flex` (grid icon, opens Drawer) |
+| Middle row grid | `1fr 320px` (main + navigator aside) | `1fr` (main fills, aside hidden) |
+| Middle row padding | `var(--aiq-space-lg) var(--aiq-space-2xl)` | `var(--aiq-space-md)` |
+| Question serif `<p>` | `var(--aiq-text-2xl)` (30px) | `22px` |
+| Footer | flex-row, `[Flag] — spacer — [Prev][Next][Submit]` | flex-wrap row; Submit takes `flex: 1 0 100%` (new row); `[Flag][Prev][Next]` share the row above; spacer hidden |
+
+Mechanism: outer attempt wrapper carries `.aiq-attempt-shell`, which scopes a `--aiq-attempt-q-size` CSS var used by `.aiq-attempt-q-text` (the question paragraph). The aside hides via `display: none` under `[data-viewport="mobile"]`; in its place the existing `<Drawer>` from `@assessiq/ui-system` mounts lazily (only when the navigator toggle is tapped) with `title="Navigator"` and the same `QuestionNavigator` + legend body that the desktop aside renders. Footer restack uses `flex-wrap` + per-button `order` + `flex: 1 0 100%` on Submit — no DOM restructure.
+
+**Anti-pattern guards (M2a-specific):**
+- Integrity-hook surface (blur / visibility / beacon) unchanged. Reflow ≠ behavior change.
+- Timer math (`AttemptTimer.endsAt`, `handleExpire`), autosave debounce (`useAutosave.queueSave/flushSave`), submit semantics (`window.confirm` + `submitAttempt`) all byte-identical to pre-M2a.
+- Drawer renders the SAME `<QuestionNavigator items={items} onSelect={fn} />` — same props, same backend semantics, same per-cell states (`current` / `answered` / `flagged` / `unanswered`).
+- A new `data-help-id="candidate.attempt.navigator.toggle"` exists for the new control with a same-PR entry in `modules/16-help-system/content/en/candidate.yml` (PROJECT_BRAIN § 9 same-PR rule).
+- Per-question-type tunings (KQL editor, subjective, log/scenario) are explicitly out of M2a — they belong in M2b and may need a "desktop-required" interstitial decision before any rendering changes.
+
 ### 15.4 Email-webview testing
 
 Magic-link candidates click email links from Gmail / Outlook / Apple Mail in-app browsers, not Safari/Chrome. Any page touched by the mobile port (especially M1 candidate-auth pages) must be smoke-tested in at least one in-app webview before claiming the phase done. Common gotchas: minimum 16px font-size on inputs (otherwise iOS auto-zooms), missing `gap` polyfills in older WebViews, and aggressive paragraph-truncation.

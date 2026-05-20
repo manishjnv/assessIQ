@@ -1,6 +1,8 @@
 # 06-attempt-engine — Taking the assessment
 
 > **Status (2026-05-02):** Phase 1 G1.C Session 4a — **candidate-side core LIVE.** Migrations 0030-0033, repository, service, candidate routes, testcontainer integration tests all shipped. **Deferred to Session 4b:** BullMQ runtime for `sweepStaleTimersForTenant` (apps/worker doesn't exist yet — pure logic ships now and is forward-callable from cron); magic-link `/take/:token` flow; embed routes; Redis-backed rate cap (in-process bucket today, multi-replica scale-out goal). `codex:rescue` adversarial sign-off mandated for Session 4b — embed JWT + magic-link surfaces are security-adjacent.
+>
+> **UI note (2026-05-20):** AttemptPage chrome is mobile-tuned via CSS only (M2a phase of MOBILE_KIT_PORT). Under `[data-viewport="mobile"]` the right navigator aside is hidden and is reachable via a `<Drawer>` opened by a new `aiq-attempt-nav-toggle` button in the header. **Integrity-hook surface, timer math, autosave debounce, and submit semantics are byte-identical to desktop** — the reflow is presentation only. Per-question-type mobile handling (KQL/subjective/log/scenario) is M2b, not yet shipped. See `docs/plans/MOBILE_KIT_PORT.md` and `docs/10-branding-guideline.md § 15.3`.
 
 ## Purpose
 Run the candidate's assessment session: render questions, autosave answers, enforce timer, capture behavioral signals, accept submission. Same engine serves standalone and embedded modes.
