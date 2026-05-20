@@ -542,6 +542,80 @@ Component: `modules/10-admin-dashboard/src/pages/platform.tsx` → `export funct
 
 ---
 
+## Admin list-page kit alignment + Table grid fix (2026-05-21)
+
+A design review of `/admin/attempts` and `/admin/question-bank` against [`docs/10-branding-guideline.md`](./10-branding-guideline.md) uncovered a load-bearing render bug in the shared `Table` primitive plus several drift points from the kit. Shipped in commit `8558750`.
+
+### `Table` width contract — **numbers are pixels, strings pass through**
+
+Source: [`modules/17-ui-system/src/components/Table.tsx`](../modules/17-ui-system/src/components/Table.tsx).
+
+**Root cause that motivated the fix:** the previous `String(c.width)` stringified a numeric column hint (e.g. `width: 80`) into a unitless CSS grid track length (`"80"`). Browsers reject that as invalid `grid-template-columns`, the declaration is discarded, and the body grid collapses to a single implicit column — every header + cell stacks vertically. The bug silently affected every page using the primitive (attempts, question-bank, assessments, dashboard, assessment-detail).
+
+**Contract now:**
+
+| `ColumnDef.width` value | Output track |
+| --- | --- |
+| `number` (e.g. `80`) | `"80px"` — bare numbers are pixel lengths |
+| `string` (e.g. `"1fr"`, `"minmax(120px, 1fr)"`, `"auto"`) | passed through verbatim |
+| `undefined` / `null` / `""` / `0` | `"1fr"` (default; share remaining space equally) |
+
+Callers should keep using `width: 80` for pixel hints — no migration needed. The fix is in the primitive.
+
+### Shared admin formatters (`modules/10-admin-dashboard/src/lib/`)
+
+Two small helpers consolidate display logic that was previously duplicated inline on each list page. New pages MUST use these instead of re-inventing per-page status switches or `toLocaleString()` calls.
+
+| Helper | Source | Purpose |
+| --- | --- | --- |
+| `attemptStatusDisplay(status)` | [`lib/status.ts`](../modules/10-admin-dashboard/src/lib/status.ts) | Maps attempt enum (`submitted`/`auto_submitted`/`pending_admin_grading`/`graded`/`released`) → `{ label, ChipVariant }`. Operators see "Pending grading", not `PENDING_ADMIN_GRADING`. |
+| `packStatusDisplay(status)` | [`lib/status.ts`](../modules/10-admin-dashboard/src/lib/status.ts) | Same shape for pack enum (`draft`/`published`/`archived`). |
+| `formatTimestamp(iso)` | [`lib/format.ts`](../modules/10-admin-dashboard/src/lib/format.ts) | `"21 May 2026 · 23:17"` — mid-dot separator, en-GB month, 24h (`hourCycle: "h23"`) so display is locale-stable across operators. Per branding §2.4. |
+| `formatDate(iso)` | [`lib/format.ts`](../modules/10-admin-dashboard/src/lib/format.ts) | `"21 May 2026"` — date-only variant for created-at columns. |
+
+Status rendering composes with the `Chip` primitive: `const s = attemptStatusDisplay(row.status); return <Chip variant={s.variant}>{s.label}</Chip>;`.
+
+### Row-overflow menu pattern (currently page-local)
+
+Question-Bank's destructive `Archive` action moved into a `⋯` row-level menu (`useRef` + click-outside listener + `Esc` to close) so destructive verbs don't crowd a list row. Implementation lives inline at [`modules/10-admin-dashboard/src/pages/question-bank.tsx`](../modules/10-admin-dashboard/src/pages/question-bank.tsx) as `RowOverflowMenu`. **Promote to `@assessiq/ui-system` when a second admin list needs it** (likely soon — assessments + users + certificates all have row-level destructive actions today).
+
+### Admin list-page chrome contract
+
+For every admin list page going forward, the chrome composes like this (matches the kit's library pattern in [`screens/library.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/library.jsx)):
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  [count chip]                                           │
+│  Page title.                            [primary CTA]   │
+│  Lede paragraph, sans 14px muted.                       │
+├─────────────────────────────────────────────────────────┤
+│ [tab] [tab] [tab]   [search…]              N RESULTS   │  ← .aiq-admin-filter-strip
+├─────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  data-density="compact"                          │   │  ← .aiq-card
+│  │  ┌ .aiq-admin-table-scroll ──────────────────┐  │   │
+│  │  │ HEADER  HEADER  HEADER  HEADER  HEADER    │  │   │
+│  │  │ cell    cell    cell    cell    [⋯][View →]│  │   │
+│  │  └────────────────────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+Specifics:
+
+- **Filter tabs** are ghost buttons (`aiq-btn aiq-btn-ghost aiq-btn-sm`), inactive `transparent + fg-secondary`, active `accent-soft bg + accent fg + weight 500`. Never use `aiq-btn-primary` blue fills on tabs — that's reserved for the single primary action per surface.
+- **Filter strip** carries the `.aiq-admin-filter-strip` class so the parallel mobile-port (A2) reflow rules can target it. New list pages MUST include this class on the filter row.
+- **Results counter** is right-aligned, mono uppercase tracked, fg-muted: `{N} {result|results}`. Hidden during loading / error.
+- **Table card** wraps in `<div className="aiq-card" data-density="compact">` so row padding tightens per branding §4. The inner `<div className="aiq-admin-table-scroll">` is from the mobile-port A2 wave and must stay (mobile horizontal-scroll behavior).
+- **Empty state** is editorial — serif H3 + sans muted lede + max-width 360px, filter-aware copy ("No attempts in this state." vs "No attempts yet."). Replaces the Table primitive's inline "No data." fallback when items array is empty and not loading.
+- **Row action** is ghost `View →` (per kit §8.1 tertiary affordance). Outline `Open` is the previous pattern and should not be reintroduced.
+
+### Migrating other admin list pages
+
+`assessments.tsx`, `dashboard.tsx`, `assessment-detail.tsx`, `users.tsx`, `certificates.tsx`, `generation-attempts.tsx` still use the older pre-2026-05-21 chrome (primary/outline filter tabs, inline `toLocaleString()` timestamps, inline status pill spans, `Open` outline buttons). They render correctly now that the Table width bug is fixed but do not yet match the chrome contract above. Treat the migration as ad-hoc polish — touch a page when you're already editing it for another reason; no big sweep PR planned.
+
+---
+
 ## Mobile (Mobile Kit Port M0–M6 SHIPPED — 2026-05-20)
 
 See [docs/10-branding-guideline.md § 15. Mobile](./10-branding-guideline.md#15-mobile) for the canonical visual contract + the full per-pattern reflow catalog (M1 magic-link landing, M2a AttemptPage chrome, M2b per-question-type sizing, M3 Submitted, M4 CandidateShell nav + Activity, M5 admin graceful-degrade). This section catalogs the API surface that lives in `@assessiq/ui-system` and `apps/web/src/lib/`.
