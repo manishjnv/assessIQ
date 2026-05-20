@@ -486,13 +486,13 @@ function runSelfTest(): void {
   const pkgWithCore: PackageJson = {
     dependencies: { "@assessiq/core": "workspace:*" },
   };
-  const pkgWithAuditLog: PackageJson = {
+  const _pkgWithAuditLog: PackageJson = {
     dependencies: { "@assessiq/audit-log": "workspace:*" },
   };
   const pkgDevOnly: PackageJson = {
     devDependencies: { "@assessiq/audit-log": "workspace:*" },
   };
-  const pkgWithBoth: PackageJson = {
+  const _pkgWithBoth: PackageJson = {
     dependencies: { "@assessiq/core": "workspace:*" },
     devDependencies: { "@assessiq/audit-log": "workspace:*" },
   };

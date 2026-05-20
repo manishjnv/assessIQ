@@ -24,7 +24,6 @@ import {
   requestCandidateLoginLink,
   requestCandidateLoginLinkSystem,
   verifyCandidateLoginToken,
-  verifyCandidateLoginTokenSystem,
   checkCandidateLinkRateLimit,
   CANDIDATE_LOGIN_TOKEN_TTL_SEC,
   CANDIDATE_SESSION_TTL_SEC,

@@ -29,11 +29,14 @@ import type { FastifyInstance } from 'fastify';
 vi.mock('@assessiq/auth', () => {
   const passthrough = (): unknown => async (_req: unknown, _reply: unknown) => undefined;
 
-  const sessionLoaderMiddleware = (_opts?: unknown) => async (req: any) => {
-    const t = req.headers['x-test-session-tenant'] as string | undefined;
-    const u = req.headers['x-test-session-user'] as string | undefined;
-    const r = req.headers['x-test-session-role'] as string | undefined;
-    const totp = req.headers['x-test-session-totp-verified'] as string | undefined;
+  type MockReq = { headers: Record<string, string | undefined>; session?: { id: string; tenantId: string; userId: string; role: string; totpVerified: boolean; expiresAt: string; lastTotpAt: string | null }; apiKey?: unknown };
+  type AuthOpts = { roles?: string[]; requireTotpVerified?: boolean; freshMfaWithinMinutes?: number };
+
+  const sessionLoaderMiddleware = (_opts?: unknown) => async (req: MockReq) => {
+    const t = req.headers['x-test-session-tenant'];
+    const u = req.headers['x-test-session-user'];
+    const r = req.headers['x-test-session-role'];
+    const totp = req.headers['x-test-session-totp-verified'];
     if (typeof t === 'string' && typeof u === 'string' && typeof r === 'string') {
       req.session = {
         id: 'test-session',
@@ -47,7 +50,7 @@ vi.mock('@assessiq/auth', () => {
     }
   };
 
-  const requireAuth = (opts: any = {}) => async (req: any) => {
+  const requireAuth = (opts: AuthOpts = {}) => async (req: MockReq) => {
     const { AuthnError, AuthzError } = await import('@assessiq/core');
     if (req.session === undefined && req.apiKey === undefined) {
       throw new AuthnError('authentication required');

@@ -11,7 +11,7 @@
 //
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 // ---------------------------------------------------------------------------
@@ -19,13 +19,16 @@ import type { FastifyInstance } from 'fastify';
 // ---------------------------------------------------------------------------
 
 vi.mock('@assessiq/auth', () => {
+  type MockReq = { headers: Record<string, string | undefined>; session?: { id: string; tenantId: string; userId: string; role: string; totpVerified: boolean; expiresAt: string; lastTotpAt: string | null }; apiKey?: unknown };
+  type AuthOpts = { roles?: string[] };
+
   const passthrough = (): unknown => async () => undefined;
 
-  const sessionLoaderMiddleware = (_opts?: unknown) => async (req: any) => {
-    const t = req.headers['x-test-session-tenant'] as string | undefined;
-    const u = req.headers['x-test-session-user'] as string | undefined;
-    const r = req.headers['x-test-session-role'] as string | undefined;
-    const totp = req.headers['x-test-session-totp-verified'] as string | undefined;
+  const sessionLoaderMiddleware = (_opts?: unknown) => async (req: MockReq) => {
+    const t = req.headers['x-test-session-tenant'];
+    const u = req.headers['x-test-session-user'];
+    const r = req.headers['x-test-session-role'];
+    const totp = req.headers['x-test-session-totp-verified'];
     if (typeof t === 'string' && typeof u === 'string' && typeof r === 'string') {
       req.session = {
         id: 'test-session',
@@ -39,7 +42,7 @@ vi.mock('@assessiq/auth', () => {
     }
   };
 
-  const requireAuth = (opts: any = {}) => async (req: any) => {
+  const requireAuth = (opts: AuthOpts = {}) => async (req: MockReq) => {
     const { AuthnError, AuthzError } = await import('@assessiq/core');
     if (req.session === undefined && req.apiKey === undefined) throw new AuthnError('required');
     if (req.session !== undefined) {
@@ -104,7 +107,7 @@ vi.mock('@assessiq/auth', () => {
 vi.mock('@assessiq/tenancy', () => {
   const mockGetPool = () => ({
     connect: vi.fn().mockResolvedValue({
-      query: vi.fn().mockImplementation(async (sql: string, params?: unknown[]) => {
+      query: vi.fn().mockImplementation(async (sql: string, _params?: unknown[]) => {
         // BEGIN / COMMIT / ROLLBACK
         if (typeof sql === 'string' && /^(BEGIN|COMMIT|ROLLBACK|SET LOCAL)/.test(sql)) {
           return { rows: [] };
@@ -125,7 +128,7 @@ vi.mock('@assessiq/tenancy', () => {
 
   return {
     getPool: mockGetPool,
-    withTenant: vi.fn().mockImplementation(async (_tenantId: string, fn: (c: any) => Promise<any>) => {
+    withTenant: vi.fn().mockImplementation(async (_tenantId: string, fn: (c: { query: ReturnType<typeof vi.fn> }) => Promise<unknown>) => {
       return fn({ query: vi.fn().mockResolvedValue({ rows: [] }) });
     }),
     tenantContextMiddleware: () => ({

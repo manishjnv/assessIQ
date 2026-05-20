@@ -192,7 +192,7 @@ function assertRubricGate(
 // generateDraft stub factory
 // ---------------------------------------------------------------------------
 
-function notImplemented(message: string, code: string): AppError {
+function _notImplemented(message: string, code: string): AppError {
   return new AppError(message, code, 501, { details: { code, httpStatus: 501 } });
 }
 

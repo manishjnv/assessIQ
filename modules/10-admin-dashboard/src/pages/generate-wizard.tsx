@@ -931,7 +931,7 @@ export function AdminGenerateWizard(): React.ReactElement {
                               checked={selectedDraftIds.has(draft.id)}
                               onChange={(e) => {
                                 const n = new Set(selectedDraftIds);
-                                e.target.checked ? n.add(draft.id) : n.delete(draft.id);
+                                if (e.target.checked) { n.add(draft.id); } else { n.delete(draft.id); }
                                 setSelectedDraftIds(n);
                               }}
                               style={{ marginTop: 3, flexShrink: 0, accentColor: "var(--aiq-color-accent)" }}
@@ -969,7 +969,7 @@ export function AdminGenerateWizard(): React.ReactElement {
                                   onClick={() => {
                                     setExpandedIds((prev) => {
                                       const next = new Set(prev);
-                                      next.has(draft.id) ? next.delete(draft.id) : next.add(draft.id);
+                                      if (next.has(draft.id)) { next.delete(draft.id); } else { next.add(draft.id); }
                                       return next;
                                     });
                                   }}

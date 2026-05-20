@@ -63,7 +63,7 @@ type PageState =
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function formatDuration(seconds: number): string {
+function _formatDuration(seconds: number): string {
   const minutes = Math.round(seconds / 60);
   return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
 }
@@ -76,7 +76,7 @@ function truncate(str: string, max: number): string {
 
 // ─── left-pane content per state ─────────────────────────────────────────────
 
-function LoadingContent(): JSX.Element {
+function _LoadingContent(): JSX.Element {
   return (
     <>
       <span style={{ display: 'inline-block', marginBottom: 24 }}>
@@ -311,7 +311,6 @@ export function TokenLanding(): JSX.Element {
 
   useEffect(() => {
     void runTakeStart();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Loading: spinner centered — Spinner primitive from Phase 3a.

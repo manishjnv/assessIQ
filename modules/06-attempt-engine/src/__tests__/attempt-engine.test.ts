@@ -20,7 +20,6 @@ import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
-import type { PoolClient } from "pg";
 
 // Module 06 surface
 import {

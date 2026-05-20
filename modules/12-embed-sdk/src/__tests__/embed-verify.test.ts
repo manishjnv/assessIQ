@@ -12,7 +12,7 @@
  * None of these tests require a running DB or Redis instance. They all trigger
  * AuthnError from the pre-DB claim/header validation block in verifyEmbedToken.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as jose from 'jose';
 import { randomUUID } from 'node:crypto';
 import { verifyEmbedToken } from '@assessiq/auth';
@@ -43,7 +43,7 @@ function hs256Key(b64u: string): Uint8Array {
 // ─── Shared minimal payload ───────────────────────────────────────────────────
 const TENANT_ID = '01jhz0000000test000000embed01'; // must exist in test DB (or use skip guard)
 
-function basePayload(overrides: Partial<{
+function _basePayload(overrides: Partial<{
   iat: number;
   exp: number;
   alg: string;

@@ -111,7 +111,7 @@ interface KqlContent {
 }
 
 // subjective: { question }
-interface SubjectiveContent {
+interface _SubjectiveContent {
   question: string;
 }
 
@@ -894,6 +894,7 @@ export function AttemptPage(): JSX.Element {
             0,
           );
           if (backup.clientRevision > maxServerRevision) {
+            // eslint-disable-next-line no-console
             console.warn(
               '[AssessIQ] Local backup revision is newer than server' +
                 ` (backup=${backup.clientRevision}, server=${maxServerRevision}).` +
@@ -915,7 +916,6 @@ export function AttemptPage(): JSX.Element {
       }
     })();
     // Intentionally runs once on mount — attemptId is stable for the page lifetime.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Hooks (always called — args safe when not yet ready) ──────────────────

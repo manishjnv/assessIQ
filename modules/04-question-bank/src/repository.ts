@@ -31,9 +31,6 @@
 
 import type { PoolClient } from "pg";
 import type {
-  AddLevelInput,
-  CreatePackInput,
-  CreateQuestionInput,
   KnowledgeBaseSource,
   Level,
   LevelRubricDefaults,

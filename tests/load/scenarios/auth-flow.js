@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * AssessIQ rate-limit boundary probe — anonymous IP bucket.
  *

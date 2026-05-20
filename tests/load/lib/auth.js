@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Shared session-acquisition helpers for AssessIQ load tests.
  *

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Regenerate brand-kit PNGs from their SVG masters.
  *

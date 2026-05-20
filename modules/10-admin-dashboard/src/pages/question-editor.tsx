@@ -42,7 +42,7 @@ interface QuestionDetail {
   level_label?: string;
 }
 
-function parseRubric(raw: unknown): RubricDraft {
+function _parseRubric(raw: unknown): RubricDraft {
   if (!raw || typeof raw !== "object") return { anchors: [], bands: [] };
   const r = raw as Record<string, unknown>;
   return {

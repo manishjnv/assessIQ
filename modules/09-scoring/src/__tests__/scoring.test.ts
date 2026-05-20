@@ -153,8 +153,8 @@ let tenantA: string;
 let tenantB: string;
 let adminA: string;
 let adminB: string;
-let assessmentA: string;
-let assessmentB: string;
+let _assessmentA: string;
+let _assessmentB: string;
 
 // ---------------------------------------------------------------------------
 // Seed helpers
@@ -371,7 +371,7 @@ describe("09-scoring", () => {
   describe("computeAttemptScore", () => {
     it("writes an attempt_scores row from gradings", async () => {
       const chain = await seedAssessmentChain(tenantA, adminA);
-      assessmentA = chain.assessmentId;
+      _assessmentA = chain.assessmentId;
 
       await insertGrading(tenantA, chain.attemptId, chain.questionId, adminA, {
         score_earned: 75,
@@ -892,7 +892,7 @@ describe("09-scoring", () => {
       // tenantB has a separate assessment — its leaderboard is empty
       const chain = await seedAssessmentChain(tenantA, adminA);
       const chainB = await seedAssessmentChain(tenantB, adminB);
-      assessmentB = chainB.assessmentId;
+      _assessmentB = chainB.assessmentId;
 
       await insertGrading(tenantA, chain.attemptId, chain.questionId, adminA);
       await computeAttemptScore(tenantA, chain.attemptId);

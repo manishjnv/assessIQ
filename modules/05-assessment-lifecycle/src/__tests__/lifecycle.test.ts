@@ -602,7 +602,7 @@ describe("createAssessment + lifecycle happy path", () => {
   it("createAssessment with cross-pack level → ValidationError(LEVEL_NOT_IN_PACK)", async () => {
     // packA already exists (packId / levelId from beforeAll).
     // Build packB (separate pack, no levels overlap).
-    const slugB = `cross-pack-b-${randomUUID().slice(0, 8)}`;
+    const _slugB = `cross-pack-b-${randomUUID().slice(0, 8)}`;
     const { packId: packBId } = await buildPublishedPack(tenantA, adminA, 1);
     // levelId belongs to packId (packA); pass packBId as pack_id — should fail.
     await expect(

@@ -9,16 +9,19 @@ import type { FastifyInstance } from 'fastify';
 // middleware factories with passthrough hooks. Tests then drive auth state
 // by setting headers (x-test-session-* family) read by the passthrough hooks.
 vi.mock('@assessiq/auth', () => {
+  type MockReq = { headers: Record<string, string | undefined>; session?: { id: string; tenantId: string; userId: string; role: string; totpVerified: boolean; expiresAt: string; lastTotpAt: string | null }; apiKey?: unknown };
+  type AuthOpts = { roles?: string[]; requireTotpVerified?: boolean; freshMfaWithinMinutes?: number };
+
   const passthrough = (): unknown => async (_req: unknown, _reply: unknown) => {
     // no-op
   };
 
-  const sessionLoaderMiddleware = (_opts?: unknown) => async (req: any) => {
+  const sessionLoaderMiddleware = (_opts?: unknown) => async (req: MockReq) => {
     // Test seam: read x-test-session-* headers and synthesize req.session.
-    const t = req.headers['x-test-session-tenant'] as string | undefined;
-    const u = req.headers['x-test-session-user'] as string | undefined;
-    const r = req.headers['x-test-session-role'] as string | undefined;
-    const totp = req.headers['x-test-session-totp-verified'] as string | undefined;
+    const t = req.headers['x-test-session-tenant'];
+    const u = req.headers['x-test-session-user'];
+    const r = req.headers['x-test-session-role'];
+    const totp = req.headers['x-test-session-totp-verified'];
     if (typeof t === 'string' && typeof u === 'string' && typeof r === 'string') {
       req.session = {
         id: 'test-session',
@@ -36,7 +39,7 @@ vi.mock('@assessiq/auth', () => {
     // Tests use cookies/session, not bearer tokens.
   };
 
-  const requireAuth = (opts: any = {}) => async (req: any) => {
+  const requireAuth = (opts: AuthOpts = {}) => async (req: MockReq) => {
     const { AuthnError, AuthzError } = await import('@assessiq/core');
     if (req.session === undefined && req.apiKey === undefined) {
       throw new AuthnError('authentication required');

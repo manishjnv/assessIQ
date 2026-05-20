@@ -57,12 +57,10 @@ import { setRedisForTesting, closeRedis } from "../redis.js";
 import {
   startGoogleSso,
   handleGoogleCallback,
-  normalizeEmail,
   _resetJwksForTesting,
 } from "../google-sso.js";
 import { sessions } from "../sessions.js";
 import { requireAuth } from "../middleware/require-auth.js";
-import { AuthnError, AuthzError } from "@assessiq/core";
 
 // ---------------------------------------------------------------------------
 // Paths

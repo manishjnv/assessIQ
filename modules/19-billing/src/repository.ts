@@ -9,7 +9,7 @@
 // modules/14-audit-log).
 
 import type { PoolClient } from 'pg';
-import type { TenantPlanRow, TenantUsageRow, BillingEventRow, TenantEntitlement, EntitlementScopeType } from './types.js';
+import type { TenantPlanRow, BillingEventRow, TenantEntitlement, EntitlementScopeType } from './types.js';
 
 /**
  * Record a graded-attempt billing event.

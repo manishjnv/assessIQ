@@ -8,6 +8,13 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/coverage/**",
       "**/AssessIQ_UI_Template/**",
+      // Storybook build output — bundled vendor JS, never linted as source.
+      "**/storybook-static/**",
+      // Past-session agent worktrees live under .claude/worktrees/ and shadow
+      // the real source paths; without this, ESLint lints every agent's
+      // sibling copy too and the error count explodes (~9K stale errors from
+      // worktrees of previous sessions).
+      ".claude/worktrees/**",
     ],
   },
 

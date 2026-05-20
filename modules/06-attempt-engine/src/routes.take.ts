@@ -50,7 +50,6 @@ import { mintCandidateSession } from "@assessiq/auth";
 import {
   resolveInvitationToken,
   markInvitationViewedByToken,
-  type ResolvedInvitation,
 } from "@assessiq/assessment-lifecycle";
 import { startAttempt } from "./service.js";
 

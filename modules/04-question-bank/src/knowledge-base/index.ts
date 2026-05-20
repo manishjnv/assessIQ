@@ -124,6 +124,7 @@ export const SOC_KB_FUNCTIONS: ReadonlyArray<KbSource["function"]> = [
 // ---------------------------------------------------------------------------
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))) {
+  /* eslint-disable no-console */
   console.log(`SOC KB loaded successfully.`);
   console.log(`  L1: ${l1.sources.length} entries`);
   console.log(`  L2: ${l2.sources.length} entries`);
@@ -131,4 +132,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "
   console.log(`  Total: ${SOC_KNOWLEDGE_BASE.length} entries`);
   console.log(`  Version: ${SOC_KB_VERSION}`);
   console.log(`  Functions: ${SOC_KB_FUNCTIONS.join(", ")}`);
+  /* eslint-enable no-console */
 }

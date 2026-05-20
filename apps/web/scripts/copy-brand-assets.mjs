@@ -25,5 +25,6 @@ for (const folder of folders) {
   for (const entry of entries) {
     await copyFile(resolve(src, folder, entry), resolve(dst, folder, entry));
   }
+  // eslint-disable-next-line no-console
   console.log(`mirrored ${entries.length.toString().padStart(2)} → public/brand/${folder}/`);
 }

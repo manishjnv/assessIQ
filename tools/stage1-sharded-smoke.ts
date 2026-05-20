@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // One-shot smoke runner for the sharded generation path.
 // Runs inside assessiq-api container via:
 //   docker exec assessiq-api pnpm exec tsx /app/tools/stage1-sharded-smoke.ts
@@ -141,6 +142,7 @@ async function main() {
       levelId: LEVEL_ID,
       count: COUNT,
       socLevel: SOC_LEVEL,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- smoke tool passes a partial sources shape for testing
       sources: sources as any,
       existingTopics: [],
       typeCounts: TYPE_COUNTS,

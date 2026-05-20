@@ -58,7 +58,7 @@ describe("StackedBarChart", () => {
 
   it("renders yAxisLabels in the DOM when provided", () => {
     const labels = ["28T", "21T", "14T", "7T", "0"];
-    const { getByText, queryByText } = render(
+    const { getByText, queryByText: _queryByText } = render(
       <StackedBarChart bars={defaultBars} yAxisLabels={labels} />,
     );
     expect(getByText("28T")).toBeInTheDocument();

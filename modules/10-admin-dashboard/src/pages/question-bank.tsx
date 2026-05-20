@@ -139,6 +139,7 @@ export function AdminQuestionBank(): React.ReactElement {
       await adminApi(`/admin/packs/${pack.id}/archive`, { method: "POST" });
       await fetchPacks(statusFilter, searchQuery);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.warn("archive-pack error:", err instanceof AdminApiError ? err.apiError.message : err);
     } finally {
       setArchivingPackId(null);

@@ -30,7 +30,6 @@ import { findByCredentialId, incrementCounter } from './repository.js';
 import {
   adminListCertificates,
   incrementShareCount,
-  issueCertificate,
   listForUser,
   reissue,
   revoke,

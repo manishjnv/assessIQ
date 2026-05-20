@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * tools/lint-mv-tenant-filter.ts
  *

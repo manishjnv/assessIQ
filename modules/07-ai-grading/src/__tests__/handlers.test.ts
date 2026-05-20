@@ -622,7 +622,7 @@ describe("handleAdminAccept", () => {
     // Need a third question for the third status; seed an additional subjective question.
     let qid3!: string;
     await withSuperClient(async (client) => {
-      const { packId, levelId, questionIds } = await seedPackWithSubjectiveQuestions(
+      const { packId: _packId, levelId: _levelId, questionIds } = await seedPackWithSubjectiveQuestions(
         client, TENANT_ID, ADMIN_ID, 1,
       );
       qid3 = questionIds[0]!;
@@ -1057,7 +1057,7 @@ describe("handleAdminBudget", () => {
     // timezone-shift mismatch between the literal we write and what
     // toISOString().slice(0,10) returns when Postgres hands back a Date object
     // whose UTC midnight differs from the local date.
-    let expectedPeriodStart: string;
+    let _expectedPeriodStart: string;
     await withSuperClient(async (client) => {
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE assessiq_app");
@@ -1071,7 +1071,7 @@ describe("handleAdminBudget", () => {
       );
       await client.query("COMMIT");
       // Capture the exact string Postgres stored so the assertion matches.
-      expectedPeriodStart = ins.rows[0]!.period_start;
+      _expectedPeriodStart = ins.rows[0]!.period_start;
     });
 
     const result = await handleAdminBudget({ tenantId: TENANT_ID });

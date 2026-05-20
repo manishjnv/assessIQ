@@ -33,7 +33,6 @@ import type {
   CostRow,
   AttemptExportRow,
   TopicHeatmapExportRow,
-  ReportFilter,
 } from './types.js';
 
 export const EXPORT_ROW_CAP = 10_000;

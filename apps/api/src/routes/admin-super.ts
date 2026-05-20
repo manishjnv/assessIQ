@@ -174,7 +174,7 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
         ? body.domain.trim()
         : undefined;
       const adminEmail = body.adminEmail.trim();
-      const adminName = typeof body.adminName === 'string' ? body.adminName.trim() : undefined;
+      const _adminName = typeof body.adminName === 'string' ? body.adminName.trim() : undefined;
 
       log.info({ slug, name, adminEmail }, 'createCompany: starting');
 

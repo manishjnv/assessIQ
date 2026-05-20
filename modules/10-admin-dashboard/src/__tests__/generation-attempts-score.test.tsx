@@ -13,7 +13,7 @@
 // Mock strategy: vi.mock("../api.js") — all API functions stubbed.
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import type { ScoreAttemptResponse } from "../api.js";
 

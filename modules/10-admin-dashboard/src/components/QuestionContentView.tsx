@@ -298,7 +298,7 @@ function KqlView({ c }: { c: Record<string, unknown> }): React.ReactElement {
 
 // ── Scenario ─────────────────────────────────────────────────────────────────
 
-interface ScenarioStep {
+interface _ScenarioStep {
   prompt?: unknown;
   expected?: unknown;
 }

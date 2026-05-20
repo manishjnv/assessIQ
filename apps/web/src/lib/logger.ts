@@ -1,3 +1,6 @@
+/* eslint-disable no-console */
+// console is intentional here — this IS the browser-side logger; it uses
+// console.warn as its own fallback output channel (all calls guarded by DEV).
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
 export type ClientLogLevel = 'info' | 'warn' | 'error';

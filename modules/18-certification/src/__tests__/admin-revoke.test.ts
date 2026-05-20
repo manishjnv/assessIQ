@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/admin-revoke.test.ts
 //
 // Phase 5 Session 5 — unit tests for revoke (POST /api/admin/certificates/:credentialId/revoke).

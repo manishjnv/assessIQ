@@ -599,6 +599,7 @@ export async function cleanupTestData(opts: {
 
   if (errors.length > 0) {
     // Warn but don't throw — cleanup failures must not hide real test failures.
+    // eslint-disable-next-line no-console
     console.warn('[factories] cleanup had non-fatal errors:', errors);
   }
 }
