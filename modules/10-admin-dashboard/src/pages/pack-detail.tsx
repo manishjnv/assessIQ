@@ -22,6 +22,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Chip } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, generateQuestionsApi, bulkUpdateQuestionStatus } from "../api.js";
+import { useAdminSession } from "../session.js";
 import { allocateByWeight, applyOverride } from "../auto-weight.js";
 import type { QuestionType } from "../auto-weight.js";
 
@@ -295,6 +296,14 @@ function GenerationAttemptLine({
 export function AdminPackDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  // Phase B1 entitlement model (2026-05-17/18): super_admin curates the
+  // shared library; tenant admins receive entitlements to specific packs
+  // but do not author/generate/curate content. Three per-level affordances
+  // (✦ Generate, + Add level, + Add question) are hidden for non-super_admin.
+  // See docs/04-auth-flows.md + obs #3180 / #3182 for the decision.
+  const { session } = useAdminSession();
+  const isSuperAdmin = session?.user.role === "super_admin";
 
   const [pack, setPack] = useState<Pack | null>(null);
   const [levels, setLevels] = useState<Level[]>([]);
@@ -866,16 +875,18 @@ export function AdminPackDetail(): React.ReactElement {
             >
               Levels.
             </h2>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-outline aiq-btn-sm"
-              onClick={() => {
-                setShowAddLevel((v) => !v);
-                setAddLevelError(null);
-              }}
-            >
-              {showAddLevel ? "Cancel" : "+ Add level"}
-            </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                onClick={() => {
+                  setShowAddLevel((v) => !v);
+                  setAddLevelError(null);
+                }}
+              >
+                {showAddLevel ? "Cancel" : "+ Add level"}
+              </button>
+            )}
           </div>
 
           {/* Add-level inline form */}
@@ -1107,22 +1118,26 @@ export function AdminPackDetail(): React.ReactElement {
                             {activatingLevel === level.id ? "Activating…" : "Activate all"}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          data-help-id="admin.questions.generate.draft"
-                          className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                          onClick={() => openGenerateDrawer(level.id)}
-                          title="Generate AI draft questions for this level"
-                        >
-                          ✦ Generate
-                        </button>
-                        <Link
-                          to={`/admin/question-bank/questions/new?pack_id=${pack.id}&level_id=${level.id}`}
-                          className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                          style={{ textDecoration: "none" }}
-                        >
-                          + Add question
-                        </Link>
+                        {isSuperAdmin && (
+                          <>
+                            <button
+                              type="button"
+                              data-help-id="admin.questions.generate.draft"
+                              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                              onClick={() => openGenerateDrawer(level.id)}
+                              title="Generate AI draft questions for this level"
+                            >
+                              ✦ Generate
+                            </button>
+                            <Link
+                              to={`/admin/question-bank/questions/new?pack_id=${pack.id}&level_id=${level.id}`}
+                              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                              style={{ textDecoration: "none" }}
+                            >
+                              + Add question
+                            </Link>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -1371,7 +1386,9 @@ export function AdminPackDetail(): React.ReactElement {
                           fontStyle: "italic",
                         }}
                       >
-                        No questions yet. Click ✦ Generate to add the first batch.
+                        {isSuperAdmin
+                          ? "No questions yet. Click ✦ Generate to add the first batch."
+                          : "No questions yet. The platform team curates this pack — questions will appear once added."}
                       </div>
                     ) : filteredQs.length === 0 ? (
                       <div
@@ -1401,7 +1418,7 @@ export function AdminPackDetail(): React.ReactElement {
                         >
                           Reset filters
                         </button>
-                        {" "}or click ✦ Generate above to add new ones.
+                        {isSuperAdmin ? " or click ✦ Generate above to add new ones." : "."}
                       </div>
                     ) : (
                       filteredQs.map((q, qi) => (
