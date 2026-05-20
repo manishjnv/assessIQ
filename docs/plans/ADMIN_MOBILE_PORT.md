@@ -9,7 +9,7 @@
 > | A2 — List / table pages | SHIPPED 2026-05-21 |
 > | A3 — Detail / report pages | SHIPPED 2026-05-21 |
 > | A4 — Settings / help pages | SHIPPED 2026-05-21 |
-> | A5 — Editor pages | NOT YET STARTED |
+> | A5 — Editor pages | SHIPPED 2026-05-21 |
 > | A6 — ViewportLock removal + docs | NOT YET STARTED |
 
 Sibling to [docs/plans/MOBILE_KIT_PORT.md](./MOBILE_KIT_PORT.md), which shipped the candidate-facing mobile port (M0–M6) on 2026-05-20. This plan extends the same playbook to the admin surface and ultimately removes the M5 graceful-degrade interstitial.

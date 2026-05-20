@@ -120,6 +120,7 @@ export function RubricEditor({
           {draft.anchors.map((anchor) => (
             <div
               key={anchor.anchor_id}
+              className="aiq-admin-detail-two-col"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr auto auto auto",
@@ -194,7 +195,7 @@ export function RubricEditor({
           {BAND_DEFAULTS.map(({ band }) => {
             const b = draft.bands.find((x) => x.band === band) ?? { band, label: "", description: "" };
             return (
-              <div key={band} style={{ display: "grid", gridTemplateColumns: "80px 160px 1fr", gap: "var(--aiq-space-sm)", alignItems: "start" }}>
+              <div key={band} className="aiq-admin-detail-two-col" style={{ display: "grid", gridTemplateColumns: "80px 160px 1fr", gap: "var(--aiq-space-sm)", alignItems: "start" }}>
                 <div style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-md)", color: "var(--aiq-color-fg-primary)", paddingTop: "var(--aiq-space-xs)" }}>
                   Band {band}<br />
                   <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>{BAND_PCT[band]}%</span>
