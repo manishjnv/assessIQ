@@ -89,13 +89,6 @@ export function Expired(): JSX.Element {
             </Link>
           </div>
         </div>
-
-        {/* Mono footer */}
-        <div style={{ ...META_LABEL, display: 'flex', gap: 16 }}>
-          <span>Phase 1 · 2026</span>
-          <span style={{ flex: 1 }} />
-          <span>Magic-link · candidate</span>
-        </div>
       </main>
 
       <TakeRightPane />
