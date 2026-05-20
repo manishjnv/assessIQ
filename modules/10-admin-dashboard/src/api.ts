@@ -765,3 +765,221 @@ export async function getTenantContentScopes(
     `/admin/super/tenants/${encodeURIComponent(tenantId)}/content-scopes`,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Typed helpers — user lifecycle (Phase C tenant-admin)
+// ---------------------------------------------------------------------------
+
+export interface UserLifecycleResponse {
+  userId: string;
+  status?: 'active' | 'disabled' | 'pending';
+  previousStatus?: string;
+  deleted?: boolean;
+}
+
+function userLifecycleBody(reason?: string): string {
+  return JSON.stringify(reason !== undefined ? { reason } : {});
+}
+
+/**
+ * POST /api/admin/users/:userId/disable
+ * Tenant-admin only. Signs the user out and prevents future logins.
+ * Error codes: CANNOT_DISABLE_SELF (400), LAST_ADMIN (409).
+ */
+export async function disableUserApi(
+  userId: string,
+  reason?: string,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/disable`,
+    { method: 'POST', body: userLifecycleBody(reason) },
+  );
+}
+
+/**
+ * POST /api/admin/users/:userId/reenable
+ * Tenant-admin only. Allows the user to sign in again.
+ */
+export async function reenableUserApi(
+  userId: string,
+  reason?: string,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/reenable`,
+    { method: 'POST', body: userLifecycleBody(reason) },
+  );
+}
+
+/**
+ * DELETE /api/admin/users/:userId
+ * Tenant-admin only. Soft-deletes the user (data preserved 6 months).
+ * Error codes: CANNOT_DELETE_SELF (400), LAST_ADMIN (409).
+ */
+export async function softDeleteUserApi(
+  userId: string,
+  reason?: string,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/users/${encodeURIComponent(userId)}`,
+    { method: 'DELETE', body: userLifecycleBody(reason) },
+  );
+}
+
+/**
+ * POST /api/admin/users/:userId/restore
+ * Tenant-admin only. Restores a soft-deleted user (re-enables separately).
+ */
+export async function restoreUserApi(
+  userId: string,
+  reason?: string,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/restore`,
+    { method: 'POST', body: userLifecycleBody(reason) },
+  );
+}
+
+/**
+ * DELETE /api/admin/users/invitations/:invitationId
+ * Tenant-admin only. Cancels a pending invitation and removes the pending user record.
+ * Error codes: INVITATION_ALREADY_ACCEPTED (409), INVITATION_NOT_FOUND (404).
+ */
+export async function cancelInvitationApi(
+  invitationId: string,
+  reason?: string,
+): Promise<{ invitationId: string; cancelled: true }> {
+  return adminApi<{ invitationId: string; cancelled: true }>(
+    `/admin/users/invitations/${encodeURIComponent(invitationId)}`,
+    { method: 'DELETE', body: userLifecycleBody(reason) },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Typed helpers — user lifecycle (Phase C super-admin overrides)
+// ---------------------------------------------------------------------------
+
+function superUserLifecycleBody(reason?: string, confirmLastAdmin?: boolean): string {
+  const body: { reason?: string; confirm_last_admin?: boolean } = {};
+  if (reason !== undefined) body.reason = reason;
+  if (confirmLastAdmin !== undefined) body.confirm_last_admin = confirmLastAdmin;
+  return JSON.stringify(body);
+}
+
+/**
+ * POST /api/admin/super/users/:userId/disable
+ * Super-admin override. audit row carries is_override:true when bypass fires.
+ * Pass confirmLastAdmin:true to intentionally orphan a tenant.
+ */
+export async function superDisableUserApi(
+  userId: string,
+  reason?: string,
+  confirmLastAdmin?: boolean,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/super/users/${encodeURIComponent(userId)}/disable`,
+    { method: 'POST', body: superUserLifecycleBody(reason, confirmLastAdmin) },
+  );
+}
+
+/**
+ * POST /api/admin/super/users/:userId/reenable
+ */
+export async function superReenableUserApi(
+  userId: string,
+  reason?: string,
+  confirmLastAdmin?: boolean,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/super/users/${encodeURIComponent(userId)}/reenable`,
+    { method: 'POST', body: superUserLifecycleBody(reason, confirmLastAdmin) },
+  );
+}
+
+/**
+ * DELETE /api/admin/super/users/:userId
+ */
+export async function superSoftDeleteUserApi(
+  userId: string,
+  reason?: string,
+  confirmLastAdmin?: boolean,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/super/users/${encodeURIComponent(userId)}`,
+    { method: 'DELETE', body: superUserLifecycleBody(reason, confirmLastAdmin) },
+  );
+}
+
+/**
+ * POST /api/admin/super/users/:userId/restore
+ */
+export async function superRestoreUserApi(
+  userId: string,
+  reason?: string,
+  confirmLastAdmin?: boolean,
+): Promise<UserLifecycleResponse> {
+  return adminApi<UserLifecycleResponse>(
+    `/admin/super/users/${encodeURIComponent(userId)}/restore`,
+    { method: 'POST', body: superUserLifecycleBody(reason, confirmLastAdmin) },
+  );
+}
+
+/**
+ * DELETE /api/admin/super/users/invitations/:invitationId
+ */
+export async function superCancelInvitationApi(
+  invitationId: string,
+  reason?: string,
+  confirmLastAdmin?: boolean,
+): Promise<{ invitationId: string; cancelled: true }> {
+  return adminApi<{ invitationId: string; cancelled: true }>(
+    `/admin/super/users/invitations/${encodeURIComponent(invitationId)}`,
+    { method: 'DELETE', body: superUserLifecycleBody(reason, confirmLastAdmin) },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Typed helpers — super-admin scoped user list (Phase C)
+// ---------------------------------------------------------------------------
+
+export interface SuperUserListItem {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SuperPendingInvitation {
+  id: string;
+  email: string;
+  role: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface SuperUserListResponse {
+  users: SuperUserListItem[];
+  pending_invitations: SuperPendingInvitation[];
+}
+
+/**
+ * GET /api/admin/super/tenants/:tenantId/users
+ *
+ * Super-admin only. Returns users + pending invitations for a tenant.
+ * Pass includeDisabled / includeDeleted to widen the result set.
+ */
+export async function listTenantUsersAsSuperApi(
+  tenantId: string,
+  opts?: { includeDisabled?: boolean; includeDeleted?: boolean },
+): Promise<SuperUserListResponse> {
+  const params = new URLSearchParams();
+  if (opts?.includeDisabled) params.set('include_disabled', 'true');
+  if (opts?.includeDeleted) params.set('include_deleted', 'true');
+  const qs = params.toString();
+  return adminApi<SuperUserListResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/users${qs ? `?${qs}` : ''}`,
+  );
+}

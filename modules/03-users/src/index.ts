@@ -9,6 +9,7 @@ export {
   softDelete,
   restore,
 } from './service.js';
-export { inviteUser, acceptInvitation } from './invitations.js';
+export { inviteUser, acceptInvitation, cancelInvitation } from './invitations.js';
+export type { CancelInvitationResult } from './invitations.js';
 export { bulkImport } from './import.js';
 export { sweepUserSessions } from './redis-sweep.js';
