@@ -91,6 +91,11 @@ const USERS_MIGRATIONS_DIR = join(MODULES_ROOT, "03-users", "migrations");
 const AUDIT_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
 const QB_MIGRATIONS_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
 const AL_MIGRATIONS_DIR = join(AL_MODULE_ROOT, "migrations");
+// publishAssessment / reopenAssessment now call assertPublishEntitled from
+// @assessiq/billing (monetization program A→C), which queries tenant_plans +
+// tenant_entitlements. Without these migrations the lifecycle suite throws
+// "relation \"tenant_plans\" does not exist" on every publish-path test.
+const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -217,12 +222,13 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
-  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles] = await Promise.all([
+  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles, billingFiles] = await Promise.all([
     readdir(TENANCY_MIGRATIONS_DIR),
     readdir(USERS_MIGRATIONS_DIR),
     readdir(AUDIT_MIGRATIONS_DIR),
     readdir(QB_MIGRATIONS_DIR),
     readdir(AL_MIGRATIONS_DIR),
+    readdir(BILLING_MIGRATIONS_DIR),
   ]);
 
   // All tenancy migrations (0001-0004, incl. smtp_config)
@@ -256,6 +262,13 @@ beforeAll(async () => {
     .sort()
     .map((f) => ({ dir: AL_MIGRATIONS_DIR, file: f }));
 
+  // All billing migrations (tenant_plans, tenant_entitlements, billing_events, …)
+  // — required by lifecycle's publishAssessment/reopenAssessment entitlement gate.
+  const billingSorted = billingFiles
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => ({ dir: BILLING_MIGRATIONS_DIR, file: f }));
+
   await withSuperClient(async (client) => {
     // App role required by audit_log RLS + GRANT setup (mirrors the QB
     // G3.D audit-write sweep test setup).
@@ -276,7 +289,7 @@ beforeAll(async () => {
     await client.query(`GRANT assessiq_app TO test`);
     await client.query(`GRANT assessiq_system TO test`);
 
-    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...auditSorted, ...qbSorted, ...alSorted]) {
+    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...auditSorted, ...qbSorted, ...alSorted, ...billingSorted]) {
       const sql = await readFile(join(dir, file), "utf-8");
       await client.query(sql);
     }
