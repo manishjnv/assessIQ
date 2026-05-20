@@ -161,19 +161,25 @@ export function CandidateLogin(): JSX.Element {
       }}
     >
       <style>{`
-        @media (max-width: 900px) {
-          .aiq-candidate-login {
-            grid-template-columns: 1fr;
-          }
-          .aiq-candidate-login > aside {
-            display: none;
-          }
+        /* M1 mobile reflow — anchored to data-viewport (set by M0
+           useViewportSync). Breakpoint is the M0 authoritative
+           (max-width: 719px) OR (pointer:coarse AND max-width: 1024px),
+           replacing the page-local 900px media query. */
+        .aiq-candidate-login-main { padding: 48px 64px; }
+        [data-viewport="mobile"] .aiq-candidate-login {
+          grid-template-columns: 1fr;
+        }
+        [data-viewport="mobile"] .aiq-candidate-login > aside {
+          display: none;
+        }
+        [data-viewport="mobile"] .aiq-candidate-login-main {
+          padding: 24px 22px;
         }
       `}</style>
       {/* ── Left pane — form ──────────────────────────────────────────── */}
       <main
+        className="aiq-candidate-login-main"
         style={{
-          padding: '48px 64px',
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -212,7 +218,7 @@ export function CandidateLogin(): JSX.Element {
             <h1
               className="aiq-serif"
               style={{
-                fontSize: 36,
+                fontSize: 'var(--aiq-h1-size)',
                 lineHeight: 1.1,
                 margin: '0 0 8px',
                 fontWeight: 500,

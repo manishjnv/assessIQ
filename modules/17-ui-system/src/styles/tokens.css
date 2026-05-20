@@ -135,6 +135,31 @@
   --aiq-h1-size:        30px;  /* between mobile 28-34px range per kit README */
 }
 
+/* Take-flow magic-link two-pane mobile reflow — M1 phase of MOBILE_KIT_PORT.
+ * Used by apps/web/src/pages/take/{TokenLanding,Expired,ErrorPage}.tsx
+ * (all three render <TakeRightPane> on the right). Visual-only port; no
+ * route, flow, copy, or anti-enumeration semantics change.
+ *
+ * Desktop: 2-col grid, 48px/64px main padding, 44px hero serif h1.
+ * Mobile:  1-col grid, 24px/22px main padding, 30px hero serif h1; aside hidden.
+ *
+ * CSS-var indirection lets SERIF_H1 stay an inline CSSProperties object;
+ * vars cascade from the .aiq-take-twopane outer div to all descendants. */
+.aiq-take-twopane {
+  --aiq-take-h1-size: 44px;
+  --aiq-take-h1-lh:   1.05;
+  grid-template-columns: 1fr 1fr;
+}
+.aiq-take-main { padding: 48px 64px; }
+
+[data-viewport="mobile"] .aiq-take-twopane {
+  --aiq-take-h1-size: 30px;
+  --aiq-take-h1-lh:   1.1;
+  grid-template-columns: 1fr;
+}
+[data-viewport="mobile"] .aiq-take-twopane > aside { display: none; }
+[data-viewport="mobile"] .aiq-take-main { padding: 24px 22px; }
+
 [data-theme="dark"] {
   --aiq-color-bg-base:       #0e0e10;
   --aiq-color-bg-raised:     #161618;
