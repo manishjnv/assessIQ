@@ -681,6 +681,42 @@ Mechanism:
 - Heatmap overflow-scroll does not change the underlying `ActivityHeatmap` props or the 15-analytics API contract.
 - Leaderboard `columns` prop is the only viewport-aware JS branch in M4 — all other deltas are CSS-only. This is acceptable per anti-pattern #5 because `columns` is a layout hint that doesn't change backend payloads or surfaced errors.
 
+#### Admin graceful-degrade interstitial (M5 — 2026-05-20)
+
+File: [`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx). The M0 stub became a real component in M5; first wrap point is around `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx).
+
+**Scope:** show a friendly "Admin tools work best on desktop" interstitial when ALL of these hold:
+- viewport is `mobile` (M0's `data-viewport` mechanism via `useViewport()`)
+- path starts with `/admin/`
+- path is NOT one of the excluded auth/MFA routes
+- no per-session override is set
+- not in embed mode (`?embed=true`)
+
+Otherwise pass-through children (desktop, candidate routes, take-flow, embed mode, 404 all unaffected).
+
+**Excluded routes** (admins legitimately use these on the go — e.g. resolving an MFA challenge from a phone):
+- `/admin/login`
+- `/admin/login/email`
+- `/admin/select-identity`
+- `/admin/mfa`
+
+| Element | Treatment |
+| --- | --- |
+| Chip | `variant="default"`, copy `Admin · desktop recommended` |
+| Hero `<h1>` | `Admin tools work best on desktop.` at `var(--aiq-h1-size)` (M0 viewport-aware token: 36px desktop / 30px mobile) |
+| Body `<p>` | Explains the rationale + directs candidates who hit the URL by mistake to `/candidate/login` |
+| Primary action | `<Button variant="primary" size="lg">` linking to `/candidate/login` — covers the case of a candidate who tapped an admin link by mistake |
+| Override (tiny ghost) | "Continue anyway →" — sets `sessionStorage.aiq_admin_mobile_override='1'` and reloads, with `data-help-id="admin.shell.mobile_continue_anyway"` + same-PR `admin.yml` entry |
+
+**Override storage mechanism.** The plan called for a "per-session" override using `localStorage`. Those two are contradictory — `localStorage` is persistent across tabs/sessions/reboots, `sessionStorage` is per-tab and clears on tab close. M5 uses `sessionStorage` to honor the plan's "per-session only, not persistent" intent. Failure case (storage blocked, e.g. private mode in a strict iframe context): `readOverride()` returns `false` so the interstitial keeps showing; the user can still tap "Continue anyway" but the reload will not actually unlock the page — they must open the link on desktop. This is acceptable because the failure path is rare and the desktop-path is the recommended one anyway.
+
+**Anti-pattern guards (M5-specific):**
+- No server-side state. The override is client-only, per-tab. Server has no awareness of any "admin mobile override" flag.
+- Security warnings (rate-limit errors, locked-account messages, MFA prompts) render exactly as on desktop when the override is on. The override relaxes the LAYOUT interstitial; it does not relax any security gate.
+- Embed mode (`?embed=true`) skips the interstitial — embed contexts (iframed admin views inside partner SaaS) have their own viewport contract and the host frame handles desktop-vs-mobile concerns.
+- Login + MFA routes always render normally (excluded). An admin who legitimately needs to complete an MFA challenge on their phone must not be blocked.
+- `ViewportLock` is path-aware via `useLocation()` — wraps `<Routes>` once at the top, not every individual admin route. Candidate / take / 404 routes pass through unaffected because their pathnames don't match `/admin/`.
+
 ### 15.4 Email-webview testing
 
 Magic-link candidates click email links from Gmail / Outlook / Apple Mail in-app browsers, not Safari/Chrome. Any page touched by the mobile port (especially M1 candidate-auth pages) must be smoke-tested in at least one in-app webview before claiming the phase done. Common gotchas: minimum 16px font-size on inputs (otherwise iOS auto-zooms), missing `gap` polyfills in older WebViews, and aggressive paragraph-truncation.

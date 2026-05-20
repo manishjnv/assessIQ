@@ -2099,3 +2099,35 @@ admin.webhooks.replay:
     - admin.webhooks
     - admin.webhooks.deliveries
 
+# ─── Mobile graceful-degrade (Mobile Kit Port Phase M5) ─────────────────────
+
+admin.shell.mobile_continue_anyway:
+  audience: admin
+  short_text: "Override the desktop-recommended interstitial for this session. Clears when you close the tab."
+  long_md: |
+    ## Continue anyway (mobile override)
+
+    On a phone, AssessIQ shows a friendly notice that the admin console is
+    built for desktop. The "Continue anyway" link sets a per-session
+    override and reloads the page, letting you reach the admin surface on
+    mobile if you need to action something urgently.
+
+    **Scope.** The override is stored in `sessionStorage` — it applies to
+    this tab only, and clears as soon as you close the tab. There is no
+    server-side state. Reopening the tab later means you see the
+    interstitial again.
+
+    **What stays the same.** Security warnings (rate-limit errors,
+    locked-account messages, MFA prompts) render exactly as on desktop.
+    The override only relaxes the layout interstitial; it does not relax
+    any security gate.
+
+    **When you should use it.** Rare. A push notification or email
+    landed you on `/admin/...` on your phone and you need to act before
+    you can reach a laptop.
+
+    **When not to use.** Routine admin work. The interstitial exists
+    because table-heavy admin pages are genuinely uncomfortable on a
+    phone — switch to a desktop browser instead of relying on the
+    override.
+
