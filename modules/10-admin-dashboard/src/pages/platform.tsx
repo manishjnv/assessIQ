@@ -20,6 +20,7 @@ import {
   adminApi,
   AdminApiError,
   createCompanyApi,
+  resendInvitationApi,
   listTenantsApi,
   verifyTotpApi,
   getTenantBillingDetail,
@@ -61,7 +62,7 @@ const META_LABEL: CSSProperties = {
   color: "var(--aiq-color-fg-muted)",
 };
 
-const ROW_GRID = "1fr 1.4fr 1.8fr 150px 110px 110px";
+const ROW_GRID = "1fr 1.2fr 2.1fr 150px 110px 110px";
 const ROW_GRID_GAP = 12;
 const ROW_PADDING = "16px 20px";
 
@@ -1228,6 +1229,9 @@ export function AdminPlatform(): React.ReactElement {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [drawerTenant, setDrawerTenant] = useState<TenantListItem | null>(null);
+  const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [resendToast, setResendToast] = useState<string | null>(null);
 
   const fetchTenants = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -1249,6 +1253,26 @@ export function AdminPlatform(): React.ReactElement {
   useEffect(() => {
     void fetchTenants();
   }, [fetchTenants]);
+
+  const handleResend = async (tenantId: string): Promise<void> => {
+    setResendingTenantId(tenantId);
+    setResendError(null);
+    setResendToast(null);
+    try {
+      const res = await resendInvitationApi(tenantId);
+      setResendToast(
+        `Resent invite to ${res.invitation.email} · expires ${formatDate(res.invitation.expires_at)}`,
+      );
+      setTimeout(() => setResendToast(null), 4000);
+      void fetchTenants();
+    } catch (err) {
+      setResendError(
+        err instanceof AdminApiError ? err.apiError.message : "Resend failed — please try again.",
+      );
+    } finally {
+      setResendingTenantId(null);
+    }
+  };
 
   return (
     <AdminShell breadcrumbs={["Platform"]} helpPage="admin.platform">
@@ -1310,6 +1334,16 @@ export function AdminPlatform(): React.ReactElement {
         {fetchError && (
           <div style={{ marginBottom: 16 }}>
             <Chip>{fetchError}</Chip>
+          </div>
+        )}
+        {resendError && (
+          <div style={{ marginBottom: 16 }}>
+            <Chip>{resendError}</Chip>
+          </div>
+        )}
+        {resendToast && (
+          <div style={{ marginBottom: 16 }}>
+            <Chip variant="success">{resendToast}</Chip>
           </div>
         )}
 
@@ -1378,7 +1412,7 @@ export function AdminPlatform(): React.ReactElement {
               <span>Name</span>
               <span>First admin</span>
               <span>Usage</span>
-              <span>Status</span>
+              <span>Tenant</span>
               <span>Created</span>
             </div>
             {tenants.map((t, i) => (
@@ -1445,21 +1479,61 @@ export function AdminPlatform(): React.ReactElement {
                       >
                         {t.admin_email}
                       </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "var(--aiq-color-fg-secondary)",
-                          marginTop: 2,
-                        }}
-                      >
-                        {t.admin_name && t.admin_name !== t.admin_email
-                          ? `${t.admin_name} · `
-                          : ""}
-                        {t.admin_status === "pending"
-                          ? "invite pending"
-                          : t.admin_status === "active"
-                            ? "accepted"
-                            : (t.admin_status ?? "")}
+                      <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                        {t.admin_status === "pending" ? (
+                          <>
+                            <Chip variant="warn" leftIcon="clock">Invite pending</Chip>
+                            {t.admin_invitation_expires_at !== null && (
+                              <span
+                                style={{
+                                  fontFamily: "var(--aiq-font-mono)",
+                                  fontSize: 10,
+                                  color: "var(--aiq-color-fg-muted)",
+                                }}
+                              >
+                                · expires {formatDate(t.admin_invitation_expires_at)}
+                              </span>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              loading={resendingTenantId === t.id}
+                              disabled={resendingTenantId !== null}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleResend(t.id);
+                              }}
+                            >
+                              {resendingTenantId === t.id ? "Resending…" : "Resend invite"}
+                            </Button>
+                          </>
+                        ) : t.admin_status === "active" ? (
+                          <>
+                            {t.admin_name && t.admin_name !== t.admin_email && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: "var(--aiq-color-fg-secondary)",
+                                }}
+                              >
+                                {t.admin_name}
+                              </span>
+                            )}
+                            <Chip variant="success" leftIcon="check">Accepted</Chip>
+                          </>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "var(--aiq-color-fg-secondary)",
+                            }}
+                          >
+                            {t.admin_name && t.admin_name !== t.admin_email
+                              ? `${t.admin_name} · `
+                              : ""}
+                            {t.admin_status ?? ""}
+                          </span>
+                        )}
                       </div>
                     </>
                   )}

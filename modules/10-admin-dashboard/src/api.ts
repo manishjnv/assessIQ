@@ -378,6 +378,7 @@ export interface TenantListItem {
   admin_email: string | null;
   admin_name: string | null;
   admin_status: string | null;
+  admin_invitation_expires_at: string | null;
   /** A2: billing usage for this tenant, or null if no plan row. */
   usage: TenantUsage | null;
 }
@@ -404,6 +405,24 @@ export async function createCompanyApi(
  */
 export async function listTenantsApi(): Promise<{ tenants: TenantListItem[] }> {
   return adminApi<{ tenants: TenantListItem[] }>("/admin/super/tenants");
+}
+
+export interface ResendInvitationResponse {
+  invitation: {
+    id: string;
+    email: string;
+    role: 'admin' | 'reviewer';
+    expires_at: string;
+  };
+}
+
+export async function resendInvitationApi(
+  tenantId: string,
+): Promise<ResendInvitationResponse> {
+  return adminApi<ResendInvitationResponse>(
+    `/admin/super/tenants/${tenantId}/invitations/resend`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
 }
 
 /**

@@ -137,6 +137,10 @@ export const ACTION_CATALOG = [
   // Fired inside grantEntitlement / revokeEntitlement via auditInTx (same tx).
   'tenant.entitlement_granted',
   'tenant.entitlement_revoked',
+  // Super-admin resend of a pending admin invitation (resend endpoint).
+  // Distinct from user.invited (kind=reinvite written by inviteUser) so
+  // super-admin activity is queryable separately from tenant-admin re-invites.
+  'admin.invitation.resent',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];
