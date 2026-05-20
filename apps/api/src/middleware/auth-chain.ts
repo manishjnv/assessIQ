@@ -62,14 +62,19 @@ const cast = <H>(hook: H): FastifyHook => hook as unknown as FastifyHook;
 // constructor itself throws if asked to skip in production.
 const skipUserStatusCheck = config.NODE_ENV !== 'production';
 
-// Single rate-limit middleware instance — role-aware IP bucket, no bypass.
+// Standard rate-limit middleware instance — role-aware IP bucket, no bypass.
 // IP bucket max is resolved per-request from req.session.role / req.apiKey.
 // Both instances share the same Redis connection (via getRedis() singleton).
 const _rateLimit = rateLimitMiddleware();
+// Credential-endpoint rate-limit instance — same as above but additionally
+// enforces a per-route per-IP credential cap (RATE_LIMIT_CREDENTIAL=20/min).
+// Always applies regardless of session tier to protect TOTP brute-force surface.
+const _rateLimitCredential = rateLimitMiddleware({ credentialEndpoint: true });
 const _sessionLoader = sessionLoaderMiddleware({ skipUserStatusCheck });
 const _extendOnPass = extendOnPassMiddleware(config.SESSION_COOKIE_NAME);
 
 const rateLimit: FastifyHook = cast(_rateLimit);
+const rateLimitCredential: FastifyHook = cast(_rateLimitCredential);
 const sessionLoader: FastifyHook = cast(_sessionLoader);
 const apiKeyAuth: FastifyHook = cast(apiKeyAuthMiddleware);
 const extendOnPass: FastifyHook = cast(_extendOnPass);
@@ -94,12 +99,18 @@ export interface AuthChainOpts {
   roles?: readonly Role[];
   freshMfaWithinMinutes?: number;
   requireTotpVerified?: boolean;
+  // When true, an additional per-route per-IP credential bucket is enforced at
+  // RATE_LIMIT_CREDENTIAL (default 20/min) regardless of session auth tier.
+  // Use on credential endpoints (TOTP verify, recovery, login email request/verify)
+  // to maintain brute-force protection even when the verified-admin IP cap is high.
+  credentialEndpoint?: boolean;
 }
 
 export function authChain(opts: AuthChainOpts = {}): FastifyHook[] {
   // Chain order: sessionLoader and apiKeyAuth BEFORE rateLimit so resolveIpBucketMax
   // can read both req.session.role and req.apiKey for IP tier selection. See header comment for full safety rationale.
-  const chain: FastifyHook[] = [sessionLoader, apiKeyAuth, rateLimit, syncCtx];
+  const rl = opts.credentialEndpoint === true ? rateLimitCredential : rateLimit;
+  const chain: FastifyHook[] = [sessionLoader, apiKeyAuth, rl, syncCtx];
   if (opts.requireSession === false) return chain;
 
   // Conditional spread to satisfy exactOptionalPropertyTypes — never pass
@@ -120,3 +131,14 @@ export function authChain(opts: AuthChainOpts = {}): FastifyHook[] {
 //   - GET  /embed?token=<JWT>      (token IS the credential)
 // Still runs rateLimit (role-aware IP bucket applies to ALL routes).
 export const publicAuthChain: FastifyHook[] = authChain({ requireSession: false });
+
+// Public credential chain: same as publicAuthChain but with credentialEndpoint:true.
+// Used by:
+//   - POST /api/auth/login/email/request  (email OTP request)
+//   - POST /api/auth/login/email/verify   (email OTP verify)
+// The credential bucket (20/min) applies regardless of session tier to maintain
+// brute-force protection on these credential-handling endpoints.
+export const publicCredentialAuthChain: FastifyHook[] = authChain({
+  requireSession: false,
+  credentialEndpoint: true,
+});

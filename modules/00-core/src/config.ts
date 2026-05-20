@@ -127,7 +127,7 @@ const ConfigSchema = z
     SUPER_ADMIN_EMAILS: z.string().default("manishjnvk@gmail.com"),
 
     // ── Role-aware IP rate-limit tiers (window fixed at 60s) ────────────────
-    // All four are optional with safe defaults — zero-config deploy works.
+    // All vars are optional with safe defaults — zero-config deploy works.
     // Override in .env to tune without a rebuild.
     // See modules/01-auth/src/middleware/rate-limit.ts § resolveIpBucketMax.
     //
@@ -139,6 +139,19 @@ const ConfigSchema = z
     RATE_LIMIT_IP_ANON: z.coerce.number().int().positive().default(30),
     // API-key-backed traffic: batch integrations, webhooks, server-to-server.
     RATE_LIMIT_IP_APIKEY: z.coerce.number().int().positive().default(600),
+    // Per-IP cap for (role∈{admin,reviewer,super_admin}) && totpVerified===true.
+    // This is a DoS ceiling only — per-user + per-tenant + per-route credential
+    // caps are the actual constraints for verified admins. Set high so legitimate
+    // admin navigation never hits this limit.
+    RATE_LIMIT_IP_VERIFIED_ADMIN: z.coerce.number().int().positive().default(5000),
+    // Per-user cap for verified-admin sessions (role∈{admin,reviewer,super_admin}
+    // && totpVerified===true). Pre-MFA admin / candidates stay at 60 (hardcoded).
+    RATE_LIMIT_USER_VERIFIED_ADMIN: z.coerce.number().int().positive().default(300),
+    // Per-route per-IP cap for credential endpoints (TOTP verify, recovery,
+    // enroll/confirm, login email request/verify). ALWAYS applies regardless of
+    // auth tier — even verified admins hit it. Use to maintain brute-force
+    // protection on credential paths while lifting the general IP cap for admins.
+    RATE_LIMIT_CREDENTIAL: z.coerce.number().int().positive().default(20),
 
     // ── Origin-verify anti-IP-spoof ─────────────────────────────────────────
     //

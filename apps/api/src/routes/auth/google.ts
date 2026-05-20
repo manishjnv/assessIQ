@@ -12,7 +12,7 @@ import {
   verifyEmailOtp,
   extractClientIp,
 } from '@assessiq/auth';
-import { authChain, publicAuthChain } from '../../middleware/auth-chain.js';
+import { authChain, publicAuthChain, publicCredentialAuthChain } from '../../middleware/auth-chain.js';
 
 // Google OIDC routes. Library handles RS256 JWKS verify, state+nonce CSRF,
 // cross-tenant identity resolution, pre-MFA session mint. Route layer wires
@@ -152,11 +152,16 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
   // GET /api/auth/login/identities
   // Read-only: validates the continuation cookie but does NOT consume it.
   // Returns the picker list for the frontend. 401 generic on invalid/expired.
+  //
+  // credentialEndpoint:true (adversarial finding 5, 2026-05-20) — the
+  // continuation token IS a credential; per-route 20/min cap maintains
+  // consistency with other token-consuming endpoints. IP-binding via
+  // peekLoginContinuation is the primary defense; this is defense-in-depth.
   app.get(
     '/api/auth/login/identities',
     {
       config: { skipAuth: true },
-      preHandler: publicAuthChain,
+      preHandler: publicCredentialAuthChain,
     },
     async (req, reply) => {
       const token = req.cookies?.[COOKIE_CONTINUATION_NAME];
@@ -195,11 +200,16 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
 
   // POST /api/auth/login/select
   // Consumes the continuation cookie, mints a session for the chosen identity.
+  //
+  // credentialEndpoint:true (adversarial finding 2, 2026-05-20) — this
+  // endpoint consumes a credential-shaped artifact (the continuation token).
+  // Per-route 20/min cap prevents brute-forcing the userId parameter at the
+  // 30/min anon IP cap. Same defense pattern as the email-OTP endpoints.
   app.post(
     '/api/auth/login/select',
     {
       config: { skipAuth: true },
-      preHandler: publicAuthChain,
+      preHandler: publicCredentialAuthChain,
     },
     async (req, reply) => {
       const token = req.cookies?.[COOKIE_CONTINUATION_NAME];
@@ -249,18 +259,21 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
   // POST /api/auth/login/email/request
   // Anti-enumeration: ALWAYS returns 200 { ok: true } regardless of whether
   // the email is eligible, rate-limited, unknown, or Redis is down.
-  // No session required (publicAuthChain). The code is proof-of-email-ownership
+  // No session required (publicCredentialAuthChain). The code is proof-of-email-ownership
   // and must be entered on the verify screen — it is NOT a clickable link
   // (avoids email-preview-crawler burnout; same rationale as candidate magic-link).
   //
   // CSRF note: this is a POST JSON endpoint with no session and no state-change
   // reachable without the OTP code. SameSite=lax on the continuation cookie is
   // unchanged from P1. No CSRF protection needed here — the code IS the CSRF token.
+  //
+  // credentialEndpoint: true — per-route per-IP cap (20/min) protects against
+  // email OTP request flooding regardless of session tier (tiered redesign 2026-05-20).
   app.post(
     '/api/auth/login/email/request',
     {
       config: { skipAuth: true },
-      preHandler: publicAuthChain,
+      preHandler: publicCredentialAuthChain,
     },
     async (req, reply) => {
       reply.header('Cache-Control', 'no-store');
@@ -297,11 +310,14 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
   //
   // HTTP 200-with-ok:false chosen for consistency with candidate verify-link (same module,
   // same anti-enumeration contract: the error is part of the protocol, not transport).
+  //
+  // credentialEndpoint: true — per-route per-IP cap (20/min) protects against
+  // email OTP verify flooding regardless of session tier (tiered redesign 2026-05-20).
   app.post(
     '/api/auth/login/email/verify',
     {
       config: { skipAuth: true },
-      preHandler: publicAuthChain,
+      preHandler: publicCredentialAuthChain,
     },
     async (req, reply) => {
       reply.header('Cache-Control', 'no-store');

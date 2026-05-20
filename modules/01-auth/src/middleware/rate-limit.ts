@@ -3,29 +3,33 @@ import { getRedis } from "../redis.js";
 import { isOriginVerified } from "../client-ip.js";
 import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 
-// Role-aware IP rate-limiting applied to ALL routes (not only /api/auth/*).
-// Three independent fixed-window counters evaluated in parallel per request.
+// Auth-tier-aware rate-limiting applied to ALL routes (not only /api/auth/*).
+// Up to four independent fixed-window counters evaluated in parallel per request.
 //
 // IP bucket key: aiq:rl:ip:<ip>
-//   Max is resolved per-request by resolveIpBucketMax() from the session role,
-//   API key presence, or anon status. Window is fixed at 60s.
+//   Max is resolved per-request by resolveIpBucketMax() based on auth tier.
+//   Window is fixed at 60s.
 //
-//   admin / reviewer  → config.RATE_LIMIT_IP_ADMIN  (default 100/min)
-//   candidate         → config.RATE_LIMIT_IP_USER   (default  30/min)
-//   anon (no session, no API key) → config.RATE_LIMIT_IP_ANON (default 30/min)
-//   API key           → config.RATE_LIMIT_IP_APIKEY (default 600/min)
+//   verified admin (role∈{admin,reviewer,super_admin} && totpVerified===true)
+//                   → config.RATE_LIMIT_IP_VERIFIED_ADMIN (default 5000/min)
+//                     DoS ceiling only; credential + per-user are the real limits.
+//   pre-MFA admin   → config.RATE_LIMIT_IP_ADMIN  (default 100/min) — UNCHANGED
+//   candidate       → config.RATE_LIMIT_IP_USER   (default  30/min)
+//   anon            → config.RATE_LIMIT_IP_ANON   (default  30/min)
+//   API key         → config.RATE_LIMIT_IP_APIKEY (default 600/min)
 //
-// User bucket:   aiq:rl:user:<userId>,     60/min, authenticated routes (unchanged)
-// Tenant bucket: aiq:rl:tenant:<tenantId>, 600/min, authenticated + API-key (unchanged)
+// Credential bucket key: aiq:rl:cred:<routePath>:<ip>
+//   Optional — only pushed when rateLimitMiddleware({ credentialEndpoint: true }).
+//   Max: config.RATE_LIMIT_CREDENTIAL (default 20/min).
+//   ALWAYS applies regardless of auth tier. Verified admins hit it too.
+//   Prevents the IP cap lift from weakening TOTP brute-force protection.
 //
-// Key namespace note: key prefix is aiq:rl:ip:<ip> (not aiq:rl:auth:ip:).
-// In-flight Redis buckets under the old key (aiq:rl:auth:ip:*) expire
-// naturally within the 60s window — no migration step needed.
+// User bucket key:   aiq:rl:user:<userId>,     max varies by tier:
+//   verified admin (totpVerified===true): config.RATE_LIMIT_USER_VERIFIED_ADMIN (300/min)
+//   pre-MFA admin / candidates: 60/min (hardcoded — original conservative cap)
+// Tenant bucket key: aiq:rl:tenant:<tenantId>, 600/min, authenticated + API-key (unchanged)
 //
-// Path N decision (2026-05-15, user-approved): TOTP/recovery/enroll/oauth-cb/
-// take-start are NOT special-cased. Admin gets 100/min/IP on TOTP verify.
-// Brute-force window drops ~35d → ~3.5d @ 50% probability. This is a
-// deliberate regression, documented in docs/04-auth-flows.md § Rate limit tiers.
+// Key namespace: aiq:rl:ip:<ip> (not aiq:rl:auth:ip:) — old keys expire naturally.
 //
 // IP source: req.headers['cf-connecting-ip'] (Caddy normalized from Cloudflare).
 // NEVER raw X-Forwarded-For (spoofable upstream of CF) and NEVER req.ip
@@ -36,7 +40,7 @@ interface Limit {
   key: string;
   max: number;
   windowSeconds: number;
-  scope: "ip" | "user" | "tenant";
+  scope: "ip" | "user" | "tenant" | "credential";
 }
 
 interface BucketResult {
@@ -111,12 +115,32 @@ function setHeaders(reply: AuthReply, max: number, remaining: number, ttlSeconds
 // (or API key / anon status). Session is already loaded by sessionLoader before
 // this middleware runs (auth-chain.ts order: sessionLoader → rateLimit).
 //
+// Tier logic (evaluated in order):
+//   verified admin  — role∈{admin,reviewer,super_admin} AND totpVerified===true
+//                     → RATE_LIMIT_IP_VERIFIED_ADMIN (default 5000/min)
+//                     This is a DoS ceiling only; the credential cap (20/min) and
+//                     the per-user cap (300/min) are the meaningful constraints.
+//   pre-MFA admin   — role∈{admin,reviewer,super_admin} AND totpVerified!==true
+//                     → RATE_LIMIT_IP_ADMIN (default 100/min) — UNCHANGED from today.
+//   candidate       — RATE_LIMIT_IP_USER (default 30/min)
+//   API key         — RATE_LIMIT_IP_APIKEY (default 600/min)
+//   anon            — RATE_LIMIT_IP_ANON (default 30/min)
+//
+// Note: super_admin is included in the admin-role set so platform admins get
+// the same tier as tenant admins after MFA verification.
+//
 // Fallback for unknown role strings is RATE_LIMIT_IP_USER (candidate tier) —
 // conservative rather than permissive.
 function resolveIpBucketMax(req: AuthRequest): number {
   if (req.session !== undefined) {
     const role = req.session.role;
-    if (role === "admin" || role === "reviewer") return config.RATE_LIMIT_IP_ADMIN;
+    if (role === "admin" || role === "reviewer" || role === "super_admin") {
+      // STRICT === equality: guards against undefined/null leaking through
+      // the totpVerified field (e.g. old sessions without the field set).
+      if (req.session.totpVerified === true) return config.RATE_LIMIT_IP_VERIFIED_ADMIN;
+      // Pre-MFA admin: byte-identical to the behaviour before this redesign.
+      return config.RATE_LIMIT_IP_ADMIN;
+    }
     if (role === "candidate") return config.RATE_LIMIT_IP_USER;
     return config.RATE_LIMIT_IP_USER; // defensive fallback for unknown role string
   }
@@ -124,13 +148,19 @@ function resolveIpBucketMax(req: AuthRequest): number {
   return config.RATE_LIMIT_IP_ANON;
 }
 
-// RateLimitOptions is intentionally empty — the bucket topology and thresholds
-// are fully driven by session/apiKey state and env config. The interface is
-// preserved so future per-route override capability can be added without
-// touching call sites.
-export interface RateLimitOptions {}
+export interface RateLimitOptions {
+  /**
+   * When true, an additional per-route per-IP bucket
+   * `aiq:rl:cred:<routePath>:<ip>` is enforced at config.RATE_LIMIT_CREDENTIAL
+   * (default 20/min). This bucket ALWAYS applies regardless of session auth
+   * tier — even verified admins hit it. Use on credential-handling endpoints
+   * (TOTP verify, recovery, login email request/verify) so the verified-admin
+   * IP lift does NOT weaken brute-force protection.
+   */
+  credentialEndpoint?: boolean;
+}
 
-export function rateLimitMiddleware(_opts: RateLimitOptions = {}): AuthHook {
+export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
   return async (req, reply) => {
     const ip = extractRateLimitClientIp(req);
 
@@ -153,10 +183,42 @@ export function rateLimitMiddleware(_opts: RateLimitOptions = {}): AuthHook {
       });
     }
 
+    // Credential-endpoint extra bucket: per-route per-IP cap at RATE_LIMIT_CREDENTIAL
+    // (default 20/min). Inserted AFTER the IP bucket but BEFORE user/tenant/apiKey
+    // so it appears alongside the general IP bucket in Promise.all. This bucket
+    // ALWAYS applies regardless of session auth tier — even a verified-admin session
+    // with the high IP cap (5000/min) still hits the 20/min credential cap.
+    if (opts.credentialEndpoint === true && ip !== null) {
+      // routeOptions.url is the Fastify-matched route pattern (e.g. /api/auth/totp/verify) —
+      // stable across all requests to the matched route.
+      //
+      // NO fallback to req.url (adversarial finding 3, 2026-05-20): req.url
+      // includes query params, so an attacker varying the query (?a=1, ?a=2…)
+      // would mint fresh per-query buckets and defeat the 20/min cap. If the
+      // matched pattern is absent (shouldn't happen on a registered route, but
+      // could on a wildcard/catch-all), all such requests share one "unknown"
+      // bucket — strictly safer than an attacker-controlled key shape.
+      const routePath = (req as { routeOptions?: { url?: string } }).routeOptions?.url ?? "unknown";
+      limits.push({
+        key: `aiq:rl:cred:${routePath}:${ip}`,
+        max: config.RATE_LIMIT_CREDENTIAL,
+        windowSeconds: 60,
+        scope: "credential",
+      });
+    }
+
     if (req.session !== undefined) {
+      // Per-user bucket: verified admins get a higher cap because they've passed MFA
+      // and the per-user limit is the meaningful constraint at that tier (not IP).
+      // Pre-MFA admin / candidates stay at 60 — the original conservative cap.
+      const role = req.session.role;
+      const isAdminRole = role === "admin" || role === "reviewer" || role === "super_admin";
+      const userMax = isAdminRole && req.session.totpVerified === true
+        ? config.RATE_LIMIT_USER_VERIFIED_ADMIN
+        : 60;
       limits.push({
         key: `aiq:rl:user:${req.session.userId}`,
-        max: 60,
+        max: userMax,
         windowSeconds: 60,
         scope: "user",
       });

@@ -691,7 +691,71 @@ The old bypass predicate required `session.totpVerified === true`, which was **n
 
 **Supersedes** the "100/min admin / ~3.5d brute-force window" sentence above **for production only**. Dev/test still sees 100/min. Reverse on prod by removing the `.env` line and `force-recreate assessiq-api`; timestamped `.env.bak.<TS>` backups exist on the VPS.
 
-**Downstream impact:** the `middleware.test.ts` test pinned at "admin gets 100/min/IP" still asserts code-default behavior (test runs without the prod env override) — no test change needed. Future tuning should revisit if (a) the per-user lockout decision #4 ever changes, or (b) origin-verify ever drops from `enforce`. Both invariants would need to be re-reasoned together.
+**Downstream impact:** the `middleware.test.ts` PathN test updated (2026-05-20) to use `totpVerified: false` explicitly; the credential bucket test was added as PathN-Credential. Future tuning should revisit if (a) the per-user lockout decision #4 ever changes, or (b) origin-verify ever drops from `enforce`. Both invariants would need to be re-reasoned together.
+
+### Tiered model by auth state (2026-05-20 redesign)
+
+**Status: LIVE 2026-05-20** — shifts the model from single-cap-by-role to a two-layer model: a per-IP cap that scales with MFA state, plus an immovable per-route credential cap that protects TOTP/OTP endpoints regardless of tier.
+
+#### What changed
+
+Three new env vars added to `modules/00-core/src/config.ts`, three new rate-limit buckets in `modules/01-auth/src/middleware/rate-limit.ts`:
+
+| Bucket | Key | Default | Applies to | Condition |
+|---|---|---|---|---|
+| IP — verified admin | `aiq:rl:ip:<ip>` | `RATE_LIMIT_IP_VERIFIED_ADMIN=5000/min` | All routes | role∈{admin,reviewer,super_admin} AND `totpVerified===true` |
+| Per-user — verified admin | `aiq:rl:user:<userId>` | `RATE_LIMIT_USER_VERIFIED_ADMIN=300/min` | Authenticated routes | Same condition |
+| Credential | `aiq:rl:cred:<routePath>:<ip>` | `RATE_LIMIT_CREDENTIAL=20/min` | 5 credential routes only | ALWAYS (regardless of session tier) |
+
+**Pre-MFA admin (`totpVerified !== true`) is byte-identical to before:** IP cap stays at `RATE_LIMIT_IP_ADMIN` (100/min code default, 500/min prod override), user cap stays at 60/min.
+
+Credential routes with `credentialEndpoint: true` (the 9 token/credential-consuming endpoints — expanded from the original 5 after the 2026-05-20 adversarial review surfaced 4 additional surfaces):
+
+- `POST /api/auth/totp/enroll/start` (`apps/api/src/routes/auth/totp.ts`) — generates fresh TOTP secret; defense-in-depth against rapid secret cycling (adversarial finding 1)
+- `POST /api/auth/totp/enroll/confirm` (`apps/api/src/routes/auth/totp.ts`)
+- `POST /api/auth/totp/verify` (`apps/api/src/routes/auth/totp.ts`)
+- `POST /api/auth/totp/recovery` (`apps/api/src/routes/auth/totp.ts`)
+- `POST /api/auth/login/email/request` (`apps/api/src/routes/auth/google.ts`)
+- `POST /api/auth/login/email/verify` (`apps/api/src/routes/auth/google.ts`)
+- `GET /api/auth/login/identities` (`apps/api/src/routes/auth/google.ts`) — reads continuation token, consistency with other token-consuming endpoints (adversarial finding 5)
+- `POST /api/auth/login/select` (`apps/api/src/routes/auth/google.ts`) — consumes continuation token + chooses identity (adversarial finding 2)
+- `POST /api/auth/candidate/verify-link` (`apps/api/src/routes/auth/candidate.ts`) — magic-link consume (adversarial finding 4)
+
+**super_admin tier inclusion (behaviour change for an already-rare role):** the pre-2026-05-20 code at `rate-limit.ts:106` listed only `admin || reviewer` for the admin tier — `super_admin` fell through to the conservative candidate-tier IP cap (30/min). The redesign explicitly adds `super_admin` to the admin role set (`role === "admin" || role === "reviewer" || role === "super_admin"`) so a verified super_admin gets the same 5000/min tier as a verified tenant admin. No practical regression: super_admin sessions were migration-blocked until 2026-05-17 (`obs 3106`), so this changes a previously-broken-then-30/min-throttled tier to the intended 5000/min for the platform-administration role.
+
+**Credential bucket key construction (adversarial finding 3):** the per-route bucket key is built from `req.routeOptions?.url ?? "unknown"`. The `req.url` fallback was REMOVED — `req.url` includes query params, which would let an attacker vary the query (`?nonce=1`, `?nonce=2`…) to mint fresh per-query buckets and defeat the 20/min cap. With the fix, an unmatched route falls into one shared `"unknown"` bucket — strictly safer than an attacker-controllable key.
+
+#### Why
+
+Operator-observed: verified admins (post-MFA) doing normal admin work were being throttled by the same 100/min cap as brute-force attackers. The redesign separates concerns:
+- **Verified admin** → relaxed IP cap (5000/min, DoS ceiling only); per-user (300/min) and credential (20/min) are the actual meaningful constraints.
+- **Brute-force surface (credential endpoints)** → IMPROVED from 100/min to 20/min. The IP lift for verified admins does not weaken TOTP protection because the credential bucket is unconditional.
+- **Everyone else** → unchanged.
+
+#### What was considered and rejected
+
+- *Apply the credential cap to ALL routes for all tiers.* Rejected — the goal is targeted protection for credential endpoints, not global tightening. Credential cap on non-credential routes would throttle legitimate admin workflows.
+- *Raise per-user from 60 to 300 for all admins (not just verified).* Rejected — pre-MFA sessions are lower-assurance; conservative 60/min is correct until TOTP is proven.
+- *Configurable per-route caps.* Rejected — scope creep. The credential cap is a security invariant, not a tuning knob. Making it per-route invites drift.
+- *Use the existing `RATE_LIMIT_IP_ADMIN` at a higher value.* Rejected — conflates pre-MFA and post-MFA admins into one bucket; the redesign preserves independent control.
+
+#### What is NOT included
+
+- Verified-admin bypass of the credential cap. The 20/min credential cap is unconditional by design — there is no `credentialEndpointBypass` option and none will be added.
+- Dynamic credential cap (auto-tighten on surge). Not included; account-lockout (decision #4) handles per-user surge.
+- Candidate-session differentiation from pre-MFA admin at the IP layer. Both stay at their existing tiers.
+
+#### Downstream impact
+
+- `modules/00-core/src/config.ts`: three new Zod env vars (`RATE_LIMIT_IP_VERIFIED_ADMIN`, `RATE_LIMIT_USER_VERIFIED_ADMIN`, `RATE_LIMIT_CREDENTIAL`).
+- `modules/01-auth/src/middleware/rate-limit.ts`: `resolveIpBucketMax` updated; `RateLimitOptions.credentialEndpoint` added; `Limit.scope` extended with `"credential"`; per-user bucket is tier-aware; `resolveIpBucketMax` exported (was already exported since 2026-05-15 redesign).
+- `apps/api/src/middleware/auth-chain.ts`: `credentialEndpoint` option added to `AuthChainOpts`; `_rateLimitCredential` instance + `publicCredentialAuthChain` export added.
+- `apps/api/src/routes/auth/totp.ts`: `credentialEndpoint: true` added to all three TOTP routes.
+- `apps/api/src/routes/auth/google.ts`: email-OTP routes switch from `publicAuthChain` to `publicCredentialAuthChain`.
+- `modules/01-auth/src/__tests__/rate-limit-tiered.test.ts`: NEW — Redis-free unit coverage for T1-T9 (IP tier, user tier, credential bucket composition).
+- `modules/01-auth/src/__tests__/middleware.test.ts`: PathN test updated; PathN-Credential added.
+- `modules/00-core/src/__tests__/config.test.ts`: three default tests + three override tests + three invalid tests added.
+- `.env.example`: three new vars with comments.
 
 ### Redis key
 
