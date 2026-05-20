@@ -258,16 +258,13 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
   ];
 
-  // Library — question-bank surface. Phase B1 (2026-05-17/18) re-gated the
-  // backend generation endpoints to super_admin only (Anthropic ToS — running
-  // gen under the platform's Max subscription on behalf of third-party
-  // tenants drifts toward reselling AI). On 2026-05-21 the FE caught up: the
-  // entire Question Bank surface (list, pack-detail, question-editor) is
-  // also super_admin-only. Tenant admins receive entitlements to specific
-  // domains/packs (see modules/19-billing tenant_entitlements) — they don't
-  // author or curate the shared library.
+  // Library — question-bank surface. Phase B1: generation history + generate
+  // wizard remain super_admin-only (FE defense-in-depth; backend Part 4 is
+  // authoritative). "AI generation history" renamed to "Generation history"
+  // for nav consistency (Activity is also a history; "AI" prefix is implied
+  // by living inside the Library section).
   const libraryEntries: NavEntry[] = [
-    { label: "Question Bank", href: "/admin/question-bank", icon: "grid", superAdminOnly: true },
+    { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
     { label: "Generate Questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
     { label: "Generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
   ];
