@@ -10,4 +10,5 @@ Accept your invitation:
 This link expires in {{expiresInDays}} days.
 If you did not expect this email, you can ignore it.
 
-— AssessIQ
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

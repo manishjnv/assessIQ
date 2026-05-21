@@ -1,69 +1,44 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{_t_page_title}}</title>
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e8e8">
-<!-- Header — white, editorial wordmark + week label -->
-<tr><td style="background:#ffffff;padding:24px 40px;border-bottom:1px solid #e8e8e8">
-  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">{{_t_brand_wordmark}}</p>
-  <!-- Week label — mono microcopy per brand guidelines -->
-  <p style="margin:4px 0 0;font-size:11px;font-family:'Courier New',Courier,'Lucida Console',monospace;color:#9aa0a6;letter-spacing:0.06em;text-transform:uppercase">
-    {{_t_weekly_digest_label_prefix}} &middot; {{weekEnding}}
-  </p>
-</td></tr>
-<!-- Body -->
-<tr><td style="padding:40px">
-  <!-- i18n: tenant heading not yet externalized -->
-  <p style="margin:0 0 24px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">{{tenantName}}</p>
-  <!-- Stats table -->
-  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8e8e8;border-radius:10px;overflow:hidden">
-  <!-- Table header row — mono uppercase per brand microcopy guidelines -->
-  <tr style="background:#fafafa">
-    <td style="padding:10px 16px;font-size:11px;font-family:'Courier New',Courier,'Lucida Console',monospace;color:#9aa0a6;letter-spacing:0.06em;text-transform:uppercase;border-bottom:1px solid #e8e8e8">{{_t_table_header_metric}}</td>
-    <td align="right" style="padding:10px 16px;font-size:11px;font-family:'Courier New',Courier,'Lucida Console',monospace;color:#9aa0a6;letter-spacing:0.06em;text-transform:uppercase;border-bottom:1px solid #e8e8e8">{{_t_table_header_count}}</td>
-  </tr>
-  <!-- Row 1: Total attempts -->
-  <tr>
-    <td style="padding:12px 16px;font-size:14px;color:#5f6368;border-bottom:1px solid #e8e8e8">{{_t_row_total_attempts}}</td>
-    <td align="right" style="padding:12px 16px;font-size:14px;font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;border-bottom:1px solid #e8e8e8">{{totalAttempts}}</td>
-  </tr>
-  <!-- Row 2: Completed -->
-  <tr style="background:#fafafa">
-    <td style="padding:12px 16px;font-size:14px;color:#5f6368;border-bottom:1px solid #e8e8e8">{{_t_row_completed}}</td>
-    <td align="right" style="padding:12px 16px;font-size:14px;font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;border-bottom:1px solid #e8e8e8">{{completedAttempts}}</td>
-  </tr>
-  <!-- Row 3: Graded this week -->
-  <tr>
-    <td style="padding:12px 16px;font-size:14px;color:#5f6368;border-bottom:1px solid #e8e8e8">{{_t_row_graded_this_week}}</td>
-    <td align="right" style="padding:12px 16px;font-size:14px;font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;border-bottom:1px solid #e8e8e8">{{gradedThisWeek}}</td>
-  </tr>
-  <!-- Row 4: Pending review — danger color #e64242 = oklch(0.62 0.20 25) -->
-  <tr style="background:#fafafa">
-    <td style="padding:12px 16px;font-size:14px;color:#5f6368">{{_t_row_pending_review}}</td>
-    <td align="right" style="padding:12px 16px;font-size:14px;font-family:Georgia,'Times New Roman',serif;color:#e64242">{{pendingReview}}</td>
-  </tr>
-  </table>
-  <!-- CTA — pill button, brand accent #1a73e8 = oklch(0.58 0.17 258) -->
-  <a href="{{dashboardLink}}"
-     style="display:inline-block;margin-top:32px;background:#1a73e8;color:#ffffff;padding:12px 28px;border-radius:999px;text-decoration:none;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:-0.005em">
-    {{_t_cta}}
-  </a>
-</td></tr>
-<!-- Footer -->
-<tr><td style="background:#f5f5f5;padding:20px 40px;border-top:1px solid #e8e8e8">
-  <!-- i18n: footer copy not yet externalized -->
-  <p style="margin:0;font-size:11px;color:#9aa0a6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
-    &copy; AssessIQ &middot; All rights reserved.
-  </p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>
+<!-- Composes kit partials (Email Kit Port E2a). Bespoke stats table (not email-meta-card) so the pending-review count keeps the brand danger color. Diverges from kit/emails/templates-1.jsx <Newsletter> per docs/13-email-system.md §4. -->
+{{#> email-shell preheader=(concat "Your weekly AssessIQ summary for " tenantName ".")}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-editorial
+      eyebrow="WEEKLY DIGEST"
+      title="Your weekly summary."
+      body=(concat "Here's the activity for " tenantName " for the week ending " weekEnding ".")}}
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border:1px solid #e4e4e7;border-radius:12px;border-collapse:separate">
+      <tr style="background:#fafafa">
+        <td style="padding:12px 20px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em">{{_t_table_header_metric}}</td>
+        <td align="right" style="padding:12px 20px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em">{{_t_table_header_count}}</td>
+      </tr>
+      <tr>
+        <td style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#3f3f46">{{_t_row_total_attempts}}</td>
+        <td align="right" style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:Georgia,'Times New Roman',serif;font-size:15px;color:#0a0a0b">{{totalAttempts}}</td>
+      </tr>
+      <tr>
+        <td style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#3f3f46">{{_t_row_completed}}</td>
+        <td align="right" style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:Georgia,'Times New Roman',serif;font-size:15px;color:#0a0a0b">{{completedAttempts}}</td>
+      </tr>
+      <tr>
+        <td style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#3f3f46">{{_t_row_graded_this_week}}</td>
+        <td align="right" style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:Georgia,'Times New Roman',serif;font-size:15px;color:#0a0a0b">{{gradedThisWeek}}</td>
+      </tr>
+      <tr>
+        <td style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#3f3f46">{{_t_row_pending_review}}</td>
+        <td align="right" style="padding:13px 20px;border-top:1px solid #e4e4e7;font-family:Georgia,'Times New Roman',serif;font-size:15px;color:#e64242">{{pendingReview}}</td>
+      </tr>
+    </table>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
+      <tr><td>{{> email-cta label=_t_cta href=dashboardLink width_px=180}}</td></tr>
+    </table>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional reason="You're receiving this weekly summary as an AssessIQ admin."}}
+
+{{/email-shell}}

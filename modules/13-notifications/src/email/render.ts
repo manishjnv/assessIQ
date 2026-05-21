@@ -206,7 +206,13 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
     case 'candidate_login_link':
     case 'admin_email_otp':
       return [{ k: 'Expires', v: `${escapeHtml(String(p.expires_minutes))} minutes` }];
-    case 'totp_enrolled':
+    case 'totp_enrolled': {
+      const rows: MetaRow[] = [{ k: 'Enabled on', v: escapeHtml(String(p.enrolledAt)) }];
+      if (typeof p.tenantName === 'string' && p.tenantName.length > 0) {
+        rows.unshift({ k: 'Account', v: escapeHtml(p.tenantName) });
+      }
+      return rows;
+    }
     default:
       return [];
   }

@@ -1,46 +1,29 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{_t_page_title}}</title>
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e8e8">
-<!-- Header — white, editorial wordmark -->
-<tr><td style="background:#ffffff;padding:24px 40px;border-bottom:1px solid #e8e8e8">
-  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">{{_t_brand_wordmark}}</p>
-</td></tr>
-<!-- Body -->
-<tr><td style="padding:40px">
-  <p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">{{_t_greeting}}</p>
-  <!-- i18n: body copy not yet externalized -->
-  <p style="margin:0 0 32px;font-size:15px;color:#5f6368;line-height:1.6">
-    Your results for <strong style="color:#1a1a1a">{{assessmentName}}</strong> on {{tenantName}} are available.
-  </p>
-  {{#if resultsLink}}
-  <!-- CTA — pill button, brand accent #1a73e8 = oklch(0.58 0.17 258) -->
-  <a href="{{resultsLink}}"
-     style="display:inline-block;background:#1a73e8;color:#ffffff;padding:12px 28px;border-radius:999px;text-decoration:none;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:-0.005em">
-    {{_t_cta}}
-  </a>
-  {{else}}
-  <p style="margin:0;font-size:15px;color:#5f6368;line-height:1.6">
-    {{_t_login_fallback}}
-  </p>
-  {{/if}}
-</td></tr>
-<!-- Footer -->
-<tr><td style="background:#f5f5f5;padding:20px 40px;border-top:1px solid #e8e8e8">
-  <!-- i18n: footer copy not yet externalized -->
-  <p style="margin:0;font-size:11px;color:#9aa0a6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
-    &copy; AssessIQ &middot; All rights reserved.
-  </p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>
+<!-- Composes kit partials (Email Kit Port E2a). Diverges from kit/emails/templates-2.jsx <Result> only where docs/13-email-system.md §4 records. -->
+{{#> email-shell preheader=(concat "Your AssessIQ results for " assessmentName " are ready.")}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-editorial
+      eyebrow="RESULT"
+      title="Your results are ready."
+      body=(concat "Hi " candidateName ", your AssessIQ results are ready to view.")}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
+      <tr><td>{{> email-meta-card rows=meta_rows}}</td></tr>
+    </table>
+
+    {{#if resultsLink}}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
+      <tr><td>{{> email-cta label=_t_cta href=resultsLink width_px=190}}</td></tr>
+    </table>
+    {{else}}
+    <p style="margin:32px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;color:#3f3f46;line-height:1.55">{{_t_login_fallback}}</p>
+    {{/if}}
+
+  {{/email-body}}
+
+  {{> email-footer-transactional reason="You're receiving this because you completed an AssessIQ assessment."}}
+
+{{/email-shell}}

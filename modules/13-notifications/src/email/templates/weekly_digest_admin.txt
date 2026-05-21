@@ -13,4 +13,5 @@ Pending review:        {{pendingReview}}
 View dashboard:
 {{dashboardLink}}
 
-— AssessIQ
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}
