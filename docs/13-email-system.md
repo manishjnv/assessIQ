@@ -641,24 +641,32 @@ Per anti-pattern guard #12 in the plan, every deliberate divergence from the kit
 
 ## §5 Open decisions still pending (must resolve before E1)
 
-E0 has applied the plan's default recommendations where the call is low-risk. The following remain unresolved and **must be answered before E1 implements the partials**:
+E0 applied the plan's default recommendations where the call was low-risk. **Decisions 1–7 are now resolved (operator call, 2026-05-21); only #11 (validation budget) remains, and it affects E3 only. E1 is unblocked.**
 
-| # | Decision | Default applied in E0 | Why still open |
-| --- | --- | --- | --- |
-| 5 | **Physical mailing address** for the footer (`{{_t_legal_address}}`). | None — placeholder `{{_t_legal_address}}` documented; not resolved. | CAN-SPAM-required on commercial templates and DPDP-recommended overall. Must be a real, monitored address — likely the AssessIQ legal entity address (or whatever appears on incorporation docs). Surface to user; no good default. |
-| 6 | **Unsubscribe + preferences endpoint.** Does `/unsubscribe?token=<jwt>` and `/account/preferences` exist? If not, ship the conditional collapse (A9b's `{{#if unsubscribe_href}}`) and track the endpoints as a follow-up. | Conditional collapse pattern adopted in A9b. | The collapse is correct regardless; the open question is *when* the endpoint lands and which scope owns it (`01-auth` for the token, `13-notifications` for the page, or a new module). |
-| 7 | **OTP code in preheader** for `admin_email_otp`. Leak the 6-digit code in the inbox preview line (matches iOS Mail / Gmail auto-fill UX) or hide it (security-strict). | None applied in E0 — affects E2b only. | Decision recommended in plan: leak it (same plaintext reaches the same destination either way, auto-fill UX is meaningful). Confirm with user before E2b. |
-| 11 | **Litmus / Email on Acid budget** for E3. | None applied in E0 — affects E3 only. | $80-$150/month paid SaaS for one-month flat-fee validation. Alternative is manual matrix testing from real accounts. Confirm with user before E3. |
+### Resolved 2026-05-21 (operator)
 
-Open decisions 1, 2, 3, 4, 8, 9, 10 from the plan are **resolved here** with their default recommendations:
+| # | Decision | Resolution |
+| --- | --- | --- |
+| 1 | Canvas color | Kit `#f1efea` (applied §1.1). |
+| 2 | Card width | Kit 640 px (applied §1.2). |
+| 3 | H1 size split | 30 px editorial / 22 px short-form (applied §1.3). |
+| 4 | Footer breadth | **All 9 templates use the transactional footer (A9a).** Operator chose transactional across the board — NO commercial unsubscribe/preferences row on any production template. A9b (commercial variant) stays in the catalog for reference but is **NOT wired to any template** in this port. |
+| 5 | Physical mailing address (`{{_t_legal_address}}`) | **"AssessIQ, Bangalore 560068, India"** — use verbatim in every template footer. |
+| 6 | Unsubscribe / preferences endpoint | **No page exists → omit the link entirely.** Pass `unsubscribe_href = null` so the A9 `{{#if}}` collapses the row. Never ship a link that 404s. The endpoint is a separate future proposal. (Consistent with #4 = transactional-only.) |
+| 7 | OTP code in preheader (`admin_email_otp`) | **Do NOT put the code in the preheader** — operator override of the plan's "leak it" default. The 6-digit code stays in the body only; the E2b preheader must be generic (e.g. "Your AssessIQ sign-in code is inside."). |
+| 8 | Pulse newsletter as new product | **OUT OF SCOPE** (port covers existing `weekly_digest_admin` only). |
+| 9 | `attempt_ready_for_review_admin` anonymization | **Keep candidate name** (existing prod behaviour); tenant-level flag tracked as a separate proposal. |
+| 10 | Locale matrix beyond `en` | **OUT OF SCOPE** (i18n machinery preserved; no new locales authored). |
 
-- #1 canvas color → kit `#f1efea` (applied in §1.1).
-- #2 card width → kit 640 px (applied in §1.2).
-- #3 H1 size split → 30 px editorial / 22 px short-form (applied in §1.3).
-- #4 footer breadth split → A9a transactional / A9b commercial (applied in §2 A9).
-- #8 Pulse newsletter as new product → **OUT OF SCOPE** (port covers existing `weekly_digest_admin` only).
-- #9 `attempt_ready_for_review_admin` anonymization → **keep candidate name** (existing prod behaviour); tenant-level flag tracked as a separate proposal.
-- #10 locale matrix beyond `en` → **OUT OF SCOPE** (i18n machinery preserved; no new locales authored).
+### Still open
+
+| # | Decision | Why still open |
+| --- | --- | --- |
+| 11 | **Litmus / Email on Acid budget** for E3. | $80-$150/month paid SaaS for one-month flat-fee validation, or manual matrix testing from real accounts. Affects E3 only — does NOT block E1/E2. Confirm with user before E3. |
+
+### Pre-port copy cleanup (shipped 2026-05-21, commit `c8efed3`)
+
+Independent of E1–E4, the 9 production subject lines + several body strings were rewritten into plain English (operator copy review): removed `"quotes"` around assessment names, `(parens)` around tenant names, the `(TOTP)`/"enrolled" jargon, the `Attempt:`→`Reference:` microcopy, and em-dash subject separators. Auth templates (sign-in link, sign-in code) and all `{{placeholders}}` were left intact; content-layer only (no pipeline/schema/trigger change). **E2a/E2b MUST preserve this plain-English copy when restyling — do not regress to the old subjects.** 107 notifications tests + the updated `invitation_candidate` subject snapshot are green. Final subjects: see `modules/13-notifications/src/email/templates/*.txt` line 1.
 
 ---
 

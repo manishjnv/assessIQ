@@ -10,7 +10,7 @@
 
 **Phasing summary:** 6 phases, ~6–9 sessions of work. E0 (foundation: tokens reconciliation + email-safe atoms) and E1 (Handlebars partials + render refactor) deliver the biggest infrastructure win per byte. E2a (5 kit-mapped templates) and E2b (4 net-new derivations) are the actual port. E3 covers Litmus / in-app-webview testing before declaring done. E4 finalizes docs.
 
-**Progress:** ☑ E0 (foundation — [docs/13-email-system.md](../13-email-system.md), 2026-05-21) · ☐ E1 (centralize) · ☐ E2a (5 kit-mapped templates) · ☐ E2b (4 net-new templates) · ☐ E3 (validation) · ☐ E4 (docs + handoff) — **1/6 complete**. **E1 blocked on open-decision #5 (physical mailing address).**
+**Progress:** ☑ E0 (foundation — [docs/13-email-system.md](../13-email-system.md), 2026-05-21) · ☐ E1 (centralize) · ☐ E2a (5 kit-mapped templates) · ☐ E2b (4 net-new templates) · ☐ E3 (validation) · ☐ E4 (docs + handoff) — **1/6 complete**. **E1 UNBLOCKED** — open decisions 1–7 resolved by operator 2026-05-21 (address = "AssessIQ, Bangalore 560068, India"; **all footers transactional**; **OTP code NOT in preheader**; unsubscribe link omitted). Separately, a pre-port plain-English copy cleanup of all 9 subjects + several bodies shipped + deployed 2026-05-21 (commit `c8efed3`) — E2 must preserve it.
 
 ---
 
@@ -426,7 +426,9 @@ Same shape as E2a — compose from atoms via partials, add preheader, add eyebro
 
 ## Open decisions to surface before E0 starts
 
-These need a user call before implementation.
+> **RESOLVED 2026-05-21 (operator).** Decisions 1–7 are answered — see the resolution table in [`docs/13-email-system.md` §5](../13-email-system.md). Summary: canvas/borders/width = kit; H1 30/22 split; **footers all transactional (no unsubscribe row on any template — A9b unused)**; physical address = **"AssessIQ, Bangalore 560068, India"**; **OTP code stays in the body, NOT the preheader** (override of the "leak it" default below); unsubscribe link omitted (no endpoint exists). #8–#10 are out of scope. **Only #11 (Litmus budget) remains, and it affects E3 only — E1 is unblocked.** The original analysis below is retained for context.
+
+These were the open calls before implementation:
 
 ### Tokens
 

@@ -1,3 +1,30 @@
+# Session — 2026-05-21 (Email subjects + body copy → plain English; E1 unblocked)
+
+**Headline:** Operator copy review of all 9 production email templates. Rewrote every subject line into plain English and stripped code-style punctuation from subjects + bodies — removed `"quotes"` around assessment names, `(parens)` around tenant names, the `(TOTP)`/"enrolled" jargon, the `Attempt:`→`Reference:` microcopy, and em-dash subject separators. Auth templates (sign-in link, sign-in code) and all `{{placeholders}}` left intact. Separately captured the operator's answers to Email-Kit-Port open decisions 1–7, which **unblocks E1**. **Shipped, deployed to VPS (api + worker), verified in the running containers.**
+
+**Commits (main):** `c8efed3` — fix(notifications): plain-English email subjects + strip code-style punctuation (11 files: en.json + 9 templates + 1 snapshot; +17/-17).
+
+**Tests:** `pnpm --filter @assessiq/notifications exec vitest run` → 107/107 pass; 1 snapshot updated (invitation_candidate subject lost its quotes). No other module touched.
+
+**Deploy:** Pushed `9848b34..c8efed3`. VPS pulled (git clone, ff-only), rebuilt `assessiq-api` + `assessiq-worker`, recreated with `up -d --no-deps --force-recreate`. Verified inside both running containers: totp subject = "Two-factor authentication is now on for your AssessIQ account", candidate-invite subject has no quotes, ready-for-review uses new phrasing, en.json label = "REFERENCE". api healthy. **Behavioral note:** content verified in-container (templates are read at runtime via `readFileSync`); a true end-to-end check would send one of each email and inspect the inbox — pending operator if desired.
+
+**Decisions captured (Email Kit Port — in docs/13-email-system.md §5 + plan):** #5 address = "AssessIQ, Bangalore 560068, India"; #6 unsubscribe omitted (no page); #7 OTP code NOT in preheader (operator override of "leak it"); #4 all footers transactional (A9b unused); #1/#2/#3 kit colors/width/H1-split confirmed. Only #11 (Litmus budget) open, affects E3 only.
+
+**Next:** E1 (centralize → Handlebars partials) is unblocked — start with the pre-E1 fixture-freeze commit, then build the 12 partials. E1 must preserve the plain-English copy shipped today.
+
+**Open questions:** (a) #11 Litmus/Email-on-Acid budget for E3 — paid SaaS vs manual matrix. (b) `weekly_digest_admin.txt` still uses an ASCII-table body layout (left as-is; legitimate plain-text, not flagged by operator).
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Phase-0 reads (plan + email-system doc + 9 templates + render.ts/i18n.ts/index.ts + tests + snapshot); authored all 15 copy edits inline (small, judgment-heavy, auth-placeholder-sensitive — self-execute beat delegation); ran tests, drove deploy + in-container verification, wrote all docs + this handoff. Routing telemetry: `Opus · copy review + edits + deploy + docs · reworked: N`.
+- **Sonnet:** n/a — tiny per-file copy across 11 content files; cold-start delegation not worth it. No load-bearing-path writes.
+- **Haiku:** n/a — file discovery was a handful of inline Grep/Glob/Read calls; no bulk sweep warranted.
+- **codex:rescue:** n/a — `modules/13-notifications` email templates are content, not in the load-bearing/security-adjacent set (01-auth/02-tenancy/07-ai-grading/14-audit-log/infra). Auth email *copy* changed, but no auth logic, links, or `{{code}}`/`{{link_url}}` placeholders touched. Adversarial sign-off not required.
+- **claude-mem:** read prior observations from hook context (email i18n history, template inventory, E0 completion, sender-leak audit). No durable memory written — work captured in docs/13-email-system.md §5 + plan + this handoff.
+
+---
+
 # Session — 2026-05-21 (Admin list-page kit alignment — Table grid fix + Attempts/QuestionBank chrome)
 
 **Headline:** Operator screenshotted `/admin/attempts` and `/admin/question-bank` rendering as broken single-column stacks; root cause was a silent bug in the shared `Table` primitive (`String(80)` produced a unitless CSS grid track length, invalidating `grid-template-columns`). One-line fix in `Table.tsx` restores horizontal layout for all five admin list pages. On top of that, both pages now match the kit's library pattern: Chip-based status normalization (no more raw `PENDING_ADMIN_GRADING` text), mid-dot 24h timestamps, ghost filter tabs with `N RESULTS` counter, compact-density card wrap, editorial empty states, and a row-overflow `⋯` menu for Question-Bank's destructive Archive action. **Shipped, deployed to VPS, verified in the live bundle.**
