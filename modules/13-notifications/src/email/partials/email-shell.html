@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="{{#if lang}}{{lang}}{{else}}en{{/if}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
+  <title>{{_t_page_title}}</title>
+</head>
+<body style="margin:0;padding:0;background:#f1efea;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0a0a0b;font-size:15px;line-height:1.55;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased">
+  {{> email-preheader text=preheader }}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1efea">
+    <tr>
+      <td align="center" style="padding:32px 24px 40px">
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#ffffff;border:1px solid #e4e4e7;border-radius:14px;overflow:hidden">
+          {{> @partial-block}}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

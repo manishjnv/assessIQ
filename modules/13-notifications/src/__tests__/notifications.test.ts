@@ -905,8 +905,8 @@ describe('brand color compliance (post-rebrand guard)', () => {
   const BRAND = {
     accent:      '#1a73e8',  // oklch(0.58 0.17 258) — per tokens.md annotation
     danger:      '#e64242',  // oklch(0.62 0.20 25)  — computed sRGB approximation
-    border:      '#e8e8e8',  // --aiq-color-border   — explicit hex in branding doc
-    bgSunken:    '#f5f5f5',  // --aiq-color-bg-sunken — explicit hex in branding doc
+    border:      '#e4e4e7',  // kit token (Email Kit Port E0 §1.1) — supersedes #e8e8e8
+    bgSunken:    '#fafafa',  // kit footer band (Email Kit Port E0 §1.1) — supersedes #f5f5f5
     fgPrimary:   '#1a1a1a',  // --aiq-color-fg-primary — explicit hex in branding doc
     fgSecondary: '#5f6368',  // --aiq-color-fg-secondary — explicit hex in branding doc
     fgMuted:     '#9aa0a6',  // --aiq-color-fg-muted — explicit hex in branding doc

@@ -1,0 +1,13 @@
+<!-- A7 email-meta-card — bordered key/value pair list -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e4e7;border-radius:12px;border-collapse:separate">
+  {{#each rows}}
+  <tr>
+    <td style="padding:14px 20px;{{#unless @first}}border-top:1px solid #e4e4e7;{{/unless}}font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
+      {{k}}
+    </td>
+    <td style="padding:14px 20px 14px 0;{{#unless @first}}border-top:1px solid #e4e4e7;{{/unless}}font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
+      {{{v}}}
+    </td>
+  </tr>
+  {{/each}}
+</table>

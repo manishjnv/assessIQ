@@ -1,4 +1,8 @@
 {
+  "_shared": {
+    "legal_entity": "AssessIQ",
+    "legal_address": "Bangalore 560068, India"
+  },
   "invitation_candidate": {
     "page_title": "Assessment invitation",
     "brand_wordmark": "AssessIQ",

@@ -100,12 +100,29 @@ export function buildVars(
   lang = 'en',
 ): Record<string, string> {
   const strings = loadStrings(lang);
-  const templateStrings = strings[template];
-  if (templateStrings === undefined) return {};
 
   const result: Record<string, string> = {};
-  for (const key of Object.keys(templateStrings)) {
-    result[key] = t(template, key, vars, lang);
+
+  // 1. Merge the cross-template `_shared` namespace first (footer legal entity,
+  //    address, etc.). Resolved with inline {{var}} substitution — these keys
+  //    do not live under any single template. Per-template keys win on collision.
+  const shared = strings['_shared'];
+  if (shared !== undefined) {
+    for (const [key, value] of Object.entries(shared)) {
+      result[key] = value.replace(/\{\{(\w+)\}\}/g, (match, varName: string) => {
+        const replacement = vars[varName];
+        return replacement !== undefined ? String(replacement) : match;
+      });
+    }
   }
+
+  // 2. Per-template keys (override any _shared collision).
+  const templateStrings = strings[template];
+  if (templateStrings !== undefined) {
+    for (const key of Object.keys(templateStrings)) {
+      result[key] = t(template, key, vars, lang);
+    }
+  }
+
   return result;
 }
