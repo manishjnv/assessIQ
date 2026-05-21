@@ -22,7 +22,7 @@ import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
-import { packStatusDisplay } from "../lib/status.js";
+import { useAdminSession } from "../session.js";
 import { formatDate } from "../lib/format.js";
 import { domainLabel } from "../lib/domains.js";
 
@@ -36,6 +36,8 @@ interface PackListItem {
   status: PackStatus;
   version: number;
   question_count: number;
+  /** Times candidates in this tenant finished an assessment built on this pack. */
+  completed_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -56,6 +58,33 @@ interface NewPackForm {
   name: string;
   domain: string;
   description: string;
+}
+
+type SortDir = "asc" | "desc";
+
+/**
+ * Client-side sort for the packs grid. The list is fetched whole (pageSize 100)
+ * so sorting happens in the browser — no extra API round-trip. `created_at`
+ * sorts as a date; numeric columns numerically; everything else as a
+ * case-insensitive string. domain sorts on the raw slug, not the display label.
+ */
+function sortPacks(rows: PackListItem[], key: string, dir: SortDir): PackListItem[] {
+  const sign = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    if (key === "created_at") {
+      return sign * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    }
+    const av = (a as unknown as Record<string, unknown>)[key];
+    const bv = (b as unknown as Record<string, unknown>)[key];
+    if (typeof av === "number" && typeof bv === "number") {
+      return sign * (av - bv);
+    }
+    const as = String(av ?? "").toLowerCase();
+    const bs = String(bv ?? "").toLowerCase();
+    if (as < bs) return -1 * sign;
+    if (as > bs) return 1 * sign;
+    return 0;
+  });
 }
 
 // Row-level overflow menu. Minimal self-contained popover so the destructive
@@ -144,9 +173,16 @@ function RowOverflowMenu({ busy, onArchive }: RowOverflowMenuProps): React.React
 
 export function AdminQuestionBank(): React.ReactElement {
   const navigate = useNavigate();
+  const { session } = useAdminSession();
+  const isSuperAdmin = session?.user.role === "super_admin";
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get("status") ?? "";
   const searchQuery = searchParams.get("search") ?? "";
+
+  // Sort state — client-side over the loaded page. Defaults to the server's
+  // own order (created_at desc) so first paint is unchanged.
+  const [sortBy, setSortBy] = useState<string>("created_at");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [items, setItems] = useState<PackListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,6 +285,7 @@ export function AdminQuestionBank(): React.ReactElement {
     {
       key: "name",
       label: "Name",
+      sortable: true,
       render: (row: PackListItem) => (
         <div>
           <span
@@ -276,6 +313,7 @@ export function AdminQuestionBank(): React.ReactElement {
     {
       key: "domain",
       label: "Domain",
+      sortable: true,
       render: (row: PackListItem) => (
         <span
           style={{
@@ -291,16 +329,9 @@ export function AdminQuestionBank(): React.ReactElement {
       ),
     },
     {
-      key: "status",
-      label: "Status",
-      render: (row: PackListItem) => {
-        const s = packStatusDisplay(row.status);
-        return <Chip variant={s.variant}>{s.label}</Chip>;
-      },
-    },
-    {
       key: "question_count",
       label: "Questions",
+      sortable: true,
       render: (row: PackListItem) => (
         <span
           className="num"
@@ -315,23 +346,26 @@ export function AdminQuestionBank(): React.ReactElement {
       ),
     },
     {
-      key: "version",
-      label: "Version",
+      key: "completed_count",
+      label: "Completed",
+      sortable: true,
       render: (row: PackListItem) => (
         <span
+          className="num"
           style={{
-            fontFamily: "var(--aiq-font-mono)",
-            fontSize: "var(--aiq-text-xs)",
-            color: "var(--aiq-color-fg-muted)",
+            fontFamily: "var(--aiq-font-serif)",
+            fontSize: "var(--aiq-text-sm)",
+            fontVariantNumeric: "lining-nums tabular-nums",
           }}
         >
-          v{row.version}
+          {row.completed_count}
         </span>
       ),
     },
     {
       key: "created_at",
       label: "Created",
+      sortable: true,
       render: (row: PackListItem) => (
         <span
           style={{
@@ -367,7 +401,7 @@ export function AdminQuestionBank(): React.ReactElement {
           >
             View →
           </button>
-          {row.status !== "archived" && (
+          {isSuperAdmin && row.status !== "archived" && (
             <RowOverflowMenu
               busy={archivingPackId === row.id}
               onArchive={() => void handleArchivePack(row)}
@@ -377,6 +411,11 @@ export function AdminQuestionBank(): React.ReactElement {
       ),
     },
   ];
+
+  const sortedItems = React.useMemo(
+    () => sortPacks(items, sortBy, sortDir),
+    [items, sortBy, sortDir],
+  );
 
   return (
     <AdminShell breadcrumbs={["Question Bank"]} helpPage="admin.question_bank.list">
@@ -410,16 +449,18 @@ export function AdminQuestionBank(): React.ReactElement {
                 Question packs organised by domain and difficulty level.
               </p>
             </div>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-primary"
-              onClick={() => {
-                setShowNewForm((v) => !v);
-                setCreateError(null);
-              }}
-            >
-              {showNewForm ? "Cancel" : "+ New Pack"}
-            </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary"
+                onClick={() => {
+                  setShowNewForm((v) => !v);
+                  setCreateError(null);
+                }}
+              >
+                {showNewForm ? "Cancel" : "+ New Pack"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -660,8 +701,14 @@ export function AdminQuestionBank(): React.ReactElement {
             ) : (
               <Table
                 columns={columns}
-                data={items}
+                data={sortedItems}
                 loading={loading}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={(key, dir) => {
+                  setSortBy(key);
+                  setSortDir(dir);
+                }}
                 emptyMessage="No question packs found."
               />
             )}

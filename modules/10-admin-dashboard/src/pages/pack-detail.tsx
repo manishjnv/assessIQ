@@ -759,7 +759,7 @@ export function AdminPackDetail(): React.ReactElement {
             >
               ← Back
             </button>
-            {pack.status !== "archived" && (
+            {isSuperAdmin && pack.status !== "archived" && (
               <button
                 type="button"
                 className="aiq-btn aiq-btn-ghost aiq-btn-sm"
@@ -770,7 +770,7 @@ export function AdminPackDetail(): React.ReactElement {
                 {archivingPack ? "Archiving…" : "Archive pack"}
               </button>
             )}
-            {pack.status === "draft" && (
+            {isSuperAdmin && pack.status === "draft" && (
               <button
                 type="button"
                 className="aiq-btn aiq-btn-primary"
@@ -1108,7 +1108,7 @@ export function AdminPackDetail(): React.ReactElement {
                         >
                           {levelQs.length} question{levelQs.length !== 1 ? "s" : ""}
                         </span>
-                        {pack.status === "published" && (
+                        {isSuperAdmin && pack.status === "published" && (
                           <button
                             type="button"
                             className="aiq-btn aiq-btn-outline aiq-btn-sm"
@@ -1215,8 +1215,8 @@ export function AdminPackDetail(): React.ReactElement {
                             );
                           })}
                         </div>
-                        {/* Master select-all for bulk actions */}
-                        {filteredQs.length > 0 && (
+                        {/* Master select-all for bulk actions — super_admin only */}
+                        {isSuperAdmin && filteredQs.length > 0 && (
                           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", paddingTop: "2px" }}>
                             <input
                               type="checkbox"
@@ -1439,19 +1439,21 @@ export function AdminPackDetail(): React.ReactElement {
                             borderLeft: q.status === "ai_draft" ? "2px solid #d97706" : "2px solid transparent",
                           }}
                         >
-                          {/* Row checkbox */}
-                          <input
-                            type="checkbox"
-                            checked={selection.has(q.id)}
-                            onChange={() => toggleQuestion(q.id)}
-                            style={{
-                              flexShrink: 0,
-                              marginRight: "var(--aiq-space-sm)",
-                              marginTop: 3,
-                              accentColor: "var(--aiq-color-accent)",
-                              cursor: "pointer",
-                            }}
-                          />
+                          {/* Row checkbox — super_admin only (curation); tenant admins are view-only */}
+                          {isSuperAdmin && (
+                            <input
+                              type="checkbox"
+                              checked={selection.has(q.id)}
+                              onChange={() => toggleQuestion(q.id)}
+                              style={{
+                                flexShrink: 0,
+                                marginRight: "var(--aiq-space-sm)",
+                                marginTop: 3,
+                                accentColor: "var(--aiq-color-accent)",
+                                cursor: "pointer",
+                              }}
+                            />
+                          )}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             {/* Primary line: topic → prompt → "Untitled" */}
                             <span
@@ -1529,7 +1531,7 @@ export function AdminPackDetail(): React.ReactElement {
                               alignItems: "center",
                             }}
                           >
-                            {q.status !== "archived" && (
+                            {isSuperAdmin && q.status !== "archived" && (
                               <button
                                 type="button"
                                 className="aiq-btn aiq-btn-ghost aiq-btn-sm"
@@ -1547,7 +1549,7 @@ export function AdminPackDetail(): React.ReactElement {
                                 navigate(`/admin/question-bank/questions/${q.id}`)
                               }
                             >
-                              Edit
+                              {isSuperAdmin ? "Edit" : "View"}
                             </button>
                           </div>
                         </div>

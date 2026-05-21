@@ -76,6 +76,27 @@ interface UsersResponse {
   items: UserItem[];
 }
 
+type SortDir = "asc" | "desc";
+
+/** Client-side row sort. Keys ending in `_at` sort as dates; numeric columns
+ *  numerically; everything else case-insensitively. */
+function sortRows<T>(rows: T[], key: string, dir: SortDir): T[] {
+  const sign = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = (a as unknown as Record<string, unknown>)[key];
+    const bv = (b as unknown as Record<string, unknown>)[key];
+    if (key.endsWith("_at")) {
+      const at = av ? new Date(av as string).getTime() : 0;
+      const bt = bv ? new Date(bv as string).getTime() : 0;
+      return sign * (at - bt);
+    }
+    if (typeof av === "number" && typeof bv === "number") return sign * (av - bv);
+    const as = String(av ?? "").toLowerCase();
+    const bs = String(bv ?? "").toLowerCase();
+    return as < bs ? -1 * sign : as > bs ? 1 * sign : 0;
+  });
+}
+
 function assessmentStatusColor(s: string): { bg: string; color: string } {
   switch (s) {
     case "active":
@@ -119,6 +140,9 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   // B2 — entitlement hint state (FE convenience; server is authoritative).
   // null = not yet loaded; [] = loaded but empty; populated = entitlements fetched.
@@ -220,6 +244,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
     {
       key: "user_email",
       label: "Candidate",
+      sortable: true,
       render: (row: Invitation) => (
         <span
           style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}
@@ -231,6 +256,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
     {
       key: "status",
       label: "Status",
+      sortable: true,
       render: (row: Invitation) => {
         const c = invitationStatusColor(row.status);
         return (
@@ -254,6 +280,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
     {
       key: "created_at",
       label: "Invited",
+      sortable: true,
       render: (row: Invitation) => (
         <span
           style={{
@@ -269,6 +296,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
     {
       key: "expires_at",
       label: "Expires",
+      sortable: true,
       render: (row: Invitation) => (
         <span
           style={{
@@ -317,6 +345,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
   }
 
   const sc = assessmentStatusColor(assessment.status);
+
+  const sortedInvitations = React.useMemo(() => (sortBy ? sortRows(invitations, sortBy, sortDir) : invitations), [invitations, sortBy, sortDir]);
 
   return (
     <AdminShell
@@ -667,7 +697,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
               </p>
             </div>
           ) : (
-            <Table columns={invitationColumns} data={invitations} />
+            <Table columns={invitationColumns} data={sortedInvitations} {...(sortBy ? { sortBy } : {})} sortDir={sortDir} onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }} />
           )}
         </div>
       </div>
