@@ -1,3 +1,28 @@
+# Session — 2026-05-21 (Email Kit Port E1 foundation + invitation_candidate redesigned; sample-send password-leak fixed)
+
+**Headline:** Built the Email Kit Port foundation (E1) and redesigned the first template (E2a, 1/5). New `email/partials/` library of 11 inline-styled, table-based, Outlook-safe kit atoms; `render.ts` registers them + a `concat` helper and derives the kit visual context (`meta_rows`, `copyright_year`) via `augmentContext()` so the per-template Zod schemas are UNCHANGED — **no `sendEmail()` call site touched** (critical: this path carries OTP + magic-link auth emails). `invitation_candidate` rewired to compose the partials (kit canvas, 640px card, editorial lede, meta-card, MSO pill CTA, compliance footer with the Bangalore address) and sample-sent for design review. Also fixed a credential-leak bug in `send-sample-emails.ts` (RCA logged) — **operator must still rotate the exposed Gmail app password.** **Shipped, deployed (api+worker), verified in-container, sampled.**
+
+**Commits (main):** `c8efed3` plain-English subjects/bodies · `b630a94` decisions+plan docs · `4a5def4` send-sample redaction fix + RCA · `db7d931` E1 foundation (11 partials + render/i18n wiring) + invitation_candidate redesign + brand-token migration.
+
+**Tests:** `@assessiq/notifications` 107/107 pass; module typecheck clean. Snapshots updated for invitation_candidate.
+
+**Deploy:** All four commits pushed; VPS pulled, rebuilt `assessiq-api`+`assessiq-worker`, recreated. Verified 11 partials present in-container; new invitation_candidate copy live; api healthy. Sample of redesigned invitation_candidate sent to manishjnvk@gmail.com (FROM still personal Gmail — see functional follow-up).
+
+**Next:** Operator compares the new `invitation_candidate` sample vs the old ones and signs off the kit look. On approval, roll the same composition to the remaining 8 templates (E2a: invitation_admin, attempt_graded_candidate, attempt_ready_for_review_admin, weekly_digest_admin; E2b: candidate_login_link, admin_email_otp, totp_enrolled, attempt_submitted_candidate) — fan out to parallel Sonnet against the proven contract, Opus reviews. Preserve: totp danger-color security warning (#e64242), the big OTP code block, magic-link `link_url`, all placeholders. Then E3 validation (free/manual) + E4 docs.
+
+**Open questions:** (a) **Rotate the leaked Gmail app password** (RCA 2026-05-21). (b) Top functional follow-up: move off personal Gmail SMTP → branded `noreply@assessiq.in` (removes ~500/day cap + personal-email leak). (c) E3 budget: free/manual (default) vs paid Litmus. (d) `resolveFromAddress()` dead code — wire per-tenant FROM or delete.
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Read the full E0 spec (atom catalog + token table + composition); authored the 11 partials, the `render.ts` integration (partial registration, `concat`, `augmentContext`, `assertSafeMetaRows`), the `_shared` i18n merge, the `invitation_candidate` rewire, and the brand-token test migration; ran tests/typecheck; drove deploy + in-container verification + sample-send; wrote docs + handoff. Chose to merge E1+E2 (rewrite once) and ship one verified template as a design checkpoint rather than big-bang all 9 auth-critical emails. Telemetry: `Opus · E1 foundation + 1 template + deploy + docs · reworked: N`.
+- **Sonnet:** n/a this increment — pattern-establishment + auth-adjacent integration kept on Opus. Remaining 8 templates are queued for parallel Sonnet fan-out against the now-proven contract.
+- **Haiku:** n/a — discovery was targeted inline Grep/Read.
+- **codex:rescue:** n/a — `13-notifications` content/compile layer; Zod schemas unchanged (no auth-flow change); `assertSafeMetaRows()` *adds* an anti-XSS guard. Not in the load-bearing/security-adjacent set. Will re-evaluate if auth-template (OTP/magic-link) markup changes land.
+- **claude-mem:** read prior observations (E0 completion 3674/3787, email i18n history, sender-leak 3690, dead resolveFromAddress 3688, template inventory). No durable memory written.
+
+---
+
 # Session — 2026-05-21 (Email subjects + body copy → plain English; E1 unblocked)
 
 **Headline:** Operator copy review of all 9 production email templates. Rewrote every subject line into plain English and stripped code-style punctuation from subjects + bodies — removed `"quotes"` around assessment names, `(parens)` around tenant names, the `(TOTP)`/"enrolled" jargon, the `Attempt:`→`Reference:` microcopy, and em-dash subject separators. Auth templates (sign-in link, sign-in code) and all `{{placeholders}}` left intact. Separately captured the operator's answers to Email-Kit-Port open decisions 1–7, which **unblocks E1**. **Shipped, deployed to VPS (api + worker), verified in the running containers.**

@@ -10,7 +10,7 @@
 
 **Phasing summary:** 6 phases, ~6–9 sessions of work. E0 (foundation: tokens reconciliation + email-safe atoms) and E1 (Handlebars partials + render refactor) deliver the biggest infrastructure win per byte. E2a (5 kit-mapped templates) and E2b (4 net-new derivations) are the actual port. E3 covers Litmus / in-app-webview testing before declaring done. E4 finalizes docs.
 
-**Progress:** ☑ E0 (foundation — [docs/13-email-system.md](../13-email-system.md), 2026-05-21) · ☐ E1 (centralize) · ☐ E2a (5 kit-mapped templates) · ☐ E2b (4 net-new templates) · ☐ E3 (validation) · ☐ E4 (docs + handoff) — **1/6 complete**. **E1 UNBLOCKED** — open decisions 1–7 resolved by operator 2026-05-21 (address = "AssessIQ, Bangalore 560068, India"; **all footers transactional**; **OTP code NOT in preheader**; unsubscribe link omitted). Separately, a pre-port plain-English copy cleanup of all 9 subjects + several bodies shipped + deployed 2026-05-21 (commit `c8efed3`) — E2 must preserve it.
+**Progress:** ☑ E0 (foundation) · ☑ E1 (centralize — 11 kit partials + render.ts wiring, `db7d931`, 2026-05-21) · ◐ E2a (1/5 templates — `invitation_candidate` redesigned + live, `db7d931`) · ☐ E2b (4 net-new) · ☐ E3 (validation) · ☐ E4 (docs) — **E0+E1 complete; E2a in progress (1/5), pending operator design sign-off before the remaining 8**. **E1 UNBLOCKED** — open decisions 1–7 resolved by operator 2026-05-21 (address = "AssessIQ, Bangalore 560068, India"; **all footers transactional**; **OTP code NOT in preheader**; unsubscribe link omitted). Separately, a pre-port plain-English copy cleanup of all 9 subjects + several bodies shipped + deployed 2026-05-21 (commit `c8efed3`) — E2 must preserve it.
 
 ---
 

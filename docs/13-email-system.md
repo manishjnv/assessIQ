@@ -672,6 +672,8 @@ Independent of E1–E4, the 9 production subject lines + several body strings we
 
 ## §6 What E1 implements (the contract)
 
+> **Implementation status (2026-05-21, `db7d931`):** E1 SHIPPED. The 11 atoms below are live as `modules/13-notifications/src/email/partials/*.html` (A9b/commercial footer omitted — operator chose all-transactional, decision #4). `render.ts` registers them + the `concat` helper at init and derives `meta_rows` / `copyright_year` via `augmentContext()` (Zod schemas unchanged → no `sendEmail()` call-site changes); `assertSafeMetaRows()` enforces the §2 A7 allow-list. `i18n.ts` `buildVars()` merges the `_shared` namespace (`en.json._shared.legal_address = "Bangalore 560068, India"`). E2a started: `invitation_candidate` is redesigned, deployed, and sample-sent. Remaining 8 templates pending.
+
 E1 takes the 10 atom designs in §2 and materializes them as Handlebars partials in `modules/13-notifications/src/email/partials/`:
 
 ```text
