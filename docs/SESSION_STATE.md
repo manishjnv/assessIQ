@@ -1,3 +1,28 @@
+# Session — 2026-05-21 (Email Kit Port E2a+E2b COMPLETE — all 9 templates redesigned to kit look)
+
+**Headline:** With the look approved on `invitation_candidate`, rewired the remaining 8 production email templates to compose the kit partials — completing E2a (invitation_admin, attempt_graded_candidate, attempt_ready_for_review_admin, weekly_digest_admin) and E2b (candidate_login_link, admin_email_otp, totp_enrolled, attempt_submitted_candidate). All 9 now share the kit contract: warm canvas, 640px card, editorial/short lede, meta-cards, MSO-safe pill CTAs, compliance footer with the Bangalore address. Auth-critical bits preserved — OTP code in a large mono block (never in preheader, decision #7), magic-link `link_url`, totp security warning + weekly-digest pending-review both in brand danger `#e64242`. Per-template Zod schemas UNCHANGED → no `sendEmail()` call site touched. **Shipped, deployed (api+worker), full sample set sent to manishjnvk@gmail.com.**
+
+**Commits (main):** `ed8252f` — E2a/E2b: 8 templates redesigned + render.ts totp meta-rows + TXT compliance footers (17 files, +244/-387). (Sits on top of concurrent-session admin-table commits `7500abb`…`8232051` — unrelated, already on main.)
+
+**Tests:** `@assessiq/notifications` 107/107 pass; module typecheck clean. No new snapshot churn (only invitation_candidate is snapshotted, unchanged this round). All brand/voice/parity assertions preserved on first pass.
+
+**Deploy:** `ed8252f` pushed; VPS pulled (carried the concurrent admin commits too), rebuilt `assessiq-api`+`assessiq-worker`, recreated. All 9 redesigned samples sent (9/9 OK).
+
+**Next:** **E3** — operator reviews the 9 samples in Gmail and signs off (free/manual path; cross-client Outlook/Apple-Mail = paid Litmus, deferred per decision #11). Then **E4** — consolidate the per-template catalog in docs/13-email-system.md, flip the plan to SHIPPED, PROJECT_BRAIN decision-log row. Functional follow-ups unchanged: rotate the leaked Gmail app password; migrate off personal Gmail SMTP → `noreply@assessiq.in`.
+
+**Open questions:** (a) E3 cross-client validation depth (free manual vs paid Litmus). (b) `resolveFromAddress()` dead code — wire per-tenant FROM or delete. (c) the bespoke weekly-digest stats table is intentionally not the meta-card (color constraint) — documented.
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Mapped all brand/voice/parity test constraints from notifications.test.ts before writing (avoided rework); authored all 8 template rewrites + TXT footers + the totp meta-row tweak; ran tests/typecheck; deployed; sent samples; wrote docs + handoff. Self-authored rather than fanning out to Sonnet because the per-template constraints (auth placeholders, exact danger-color assertions, content-parity) were intricate and the templates were short variations of the proven pattern — review overhead of delegation exceeded the authoring cost. Telemetry: `Opus · 8 templates E2a/E2b + deploy + docs · reworked: N (107 green first pass)`.
+- **Sonnet:** n/a — considered for the 8-template fan-out but the auth-adjacent + test-assertion density made self-authoring with full context safer; no rework incurred, so the call held.
+- **Haiku:** n/a — targeted inline reads of the test file + the one unread template.
+- **codex:rescue:** n/a — content/compile layer; Zod schemas unchanged (no auth-flow change); `assertSafeMetaRows()` adds an XSS guard. No auth *logic* touched (only auth-email *markup*, placeholders preserved). Not in load-bearing/security-adjacent set.
+- **claude-mem:** read template-history + test-coverage observations from hook context; nothing new durable.
+
+---
+
 # Session — 2026-05-21 (Email Kit Port E1 foundation + invitation_candidate redesigned; sample-send password-leak fixed)
 
 **Headline:** Built the Email Kit Port foundation (E1) and redesigned the first template (E2a, 1/5). New `email/partials/` library of 11 inline-styled, table-based, Outlook-safe kit atoms; `render.ts` registers them + a `concat` helper and derives the kit visual context (`meta_rows`, `copyright_year`) via `augmentContext()` so the per-template Zod schemas are UNCHANGED — **no `sendEmail()` call site touched** (critical: this path carries OTP + magic-link auth emails). `invitation_candidate` rewired to compose the partials (kit canvas, 640px card, editorial lede, meta-card, MSO pill CTA, compliance footer with the Bangalore address) and sample-sent for design review. Also fixed a credential-leak bug in `send-sample-emails.ts` (RCA logged) — **operator must still rotate the exposed Gmail app password.** **Shipped, deployed (api+worker), verified in-container, sampled.**
