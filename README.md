@@ -130,6 +130,6 @@ Then Phase 1 (author + take), then Phase 2 (grade + report), as laid out in `PRO
 ## What's next from the user
 
 - Provide the **UI template**. Drop it under `modules/17-ui-system/templates/<vendor-name>/` and follow the integration plan in `docs/08-ui-system.md`.
-- Provision the **VPS subdomain DNS** for `assessiq.automateedge.cloud` (A record to VPS IP).
+- Provision the **DNS** for `assessiq.in` in Cloudflare (proxied A record to VPS IP; zone-level Authenticated Origin Pulls ON). Canonical host as of 2026-05-22 — see `docs/06-deployment.md` § "Domain switch to assessiq.in".
 - Create a **Google Cloud OAuth client** and capture client_id + client_secret for `.env`.
 - Get an **Anthropic API key** for production AI grading (separate from your Max subscription).

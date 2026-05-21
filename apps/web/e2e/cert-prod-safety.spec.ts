@@ -11,8 +11,8 @@
 // won't trip in docker-compose CI where the minter is intentionally enabled.
 //
 // Run against prod or a prod-like staging deployment:
-//   PLAYWRIGHT_BASE_URL=https://assessiq.automateedge.cloud \
-//   E2E_API_BASE_URL=https://assessiq.automateedge.cloud \
+//   PLAYWRIGHT_BASE_URL=https://assessiq.in \
+//   E2E_API_BASE_URL=https://assessiq.in \
 //   pnpm --filter @assessiq/web exec playwright test cert-prod-safety
 
 import { test, expect } from '@playwright/test';

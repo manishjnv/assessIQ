@@ -9,7 +9,7 @@
 A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platform** for technical teams. SOC pack ships first; every other domain (DevOps, Cloud Architects, Identity, IR, etc.) plugs in as additional question packs against the same engine.
 
 **Three product surfaces:**
-1. **Standalone web app** — `https://assessiq.automateedge.cloud`
+1. **Standalone web app** — `https://assessiq.in`
 2. **Embeddable widget** — iframe with signed JWT, drops into any host application
 3. **REST API + webhooks** — for back-end integrations (Workday, ServiceNow, custom HRMS)
 
@@ -36,7 +36,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | Auth (admin) | Google SSO (OIDC) + TOTP MFA mandatory; `super_admin` role for cross-tenant ops (`d59ade4`) | Phase 1 |
 | Auth (extensible) | OIDC, SAML, magic-link, email+password | Phase 2, admin-toggleable per tenant |
 | Hosting | Hostinger VPS, Docker Compose, nginx + Let's Encrypt | Reuses your IntelWatch infra playbook |
-| Domain | `assessiq.automateedge.cloud` | Existing site, subdomain |
+| Domain | `assessiq.in` (canonical since 2026-05-22; `assessiq.automateedge.cloud` 301-redirects) | Brand domain |
 
 ## Module map
 
@@ -82,6 +82,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | 2026-04-29 | **Phase 1 grading uses Claude Code CLI on VPS under admin's Max subscription** (sync-on-click, single-admin-in-the-loop, no Agent SDK, no `ANTHROPIC_API_KEY`). Phase 2 swap to paid Anthropic API stays designed but deferred. | $0 budget for AI APIs. Anthropic ToS forbids Max-auth in *products* but allows the subscriber to script their *own* use; admin-in-the-loop preserves that line. Supersedes the earlier "Agent SDK + API key" plan from the same date. See `docs/05-ai-pipeline.md`. |
 | 2026-04-29 | Hostinger VPS + Docker Compose | Reuses IntelWatch ETIP playbook; AWS migration deferred until traffic warrants it |
 | 2026-04-29 | Subdomain on automateedge.cloud | Existing infra; white-label capability via tenant-level domain mapping in v2 |
+| 2026-05-22 | **Canonical host switched to `assessiq.in`**; `assessiq.automateedge.cloud` 301-redirects to it (host-only cookies + no shared parent rule out a logged-in alias; redirect preserves in-flight magic-link/invite tokens). New domain inherits the AOP origin-lock + `x-origin-verify` defenses. `EMAIL_FROM` move to `noreply@assessiq.in` deliberately deferred (separate SPF/DKIM/DMARC workstream). | Brand domain over stop-gap subdomain. See `docs/06-deployment.md` § "Domain switch to assessiq.in (2026-05-22)". |
 | 2026-04-29 | Help system as separate module | First-class concern, not bolt-on; centralized authoring + i18n-ready |
 | 2026-04-30 | UI template at `modules/17-ui-system/AssessIQ_UI_Template/` adopted as the brand base; canonical guideline distilled to `docs/10-branding-guideline.md` | Reuse over redesign; the editorial typography (Newsreader serif + Geist sans + JetBrains Mono), OKLCH palette around hue 258, density-via-`--u` mechanic, and pill-button + editorial-card idioms are intentional and reusable. Future pages inherit from this guideline. Folder renamed from `AccessIQ_UI_Template` to `AssessIQ_UI_Template` 2026-05-13 when the v1.1 kit dropped. Rename commit: `9c03797`. |
 | 2026-05-01 | **Phase 1 `attempt.status` enum confirmed:** `draft → in_progress → submitted → pending_admin_grading → graded → released`; `auto_submitted` and `cancelled` are terminals. Value `grading` is reserved for Phase 2 async worker. | Resolves ambiguity between data-model.md:368 and ai-pipeline.md. Supersedes api-contract.md:217 which erroneously had `status:'grading'` for Phase 1. See PHASE_1_KICKOFF.md D2-D3. |

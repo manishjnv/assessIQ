@@ -4,7 +4,7 @@
 // Admin and candidate pages behind auth are covered separately (see
 // Phase 14 open items: auth-seeded axe pass deferred to Phase 15).
 //
-// Run:  PLAYWRIGHT_BASE_URL=https://assessiq.automateedge.cloud pnpm e2e --grep a11y
+// Run:  PLAYWRIGHT_BASE_URL=https://assessiq.in pnpm e2e --grep a11y
 // Or locally (Vite dev server auto-starts):  pnpm e2e --grep a11y
 
 import { test, expect } from "@playwright/test";

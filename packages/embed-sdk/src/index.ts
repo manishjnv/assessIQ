@@ -27,7 +27,7 @@
  *   The token is single-use and expires in ≤ 600 seconds.
  *
  * Alternative (CDN):
- *   <script src="https://assessiq.automateedge.cloud/embed/sdk.js"></script>
+ *   <script src="https://assessiq.in/embed/sdk.js"></script>
  *   window.AssessIQ.mount('#container', opts);
  *
  * Security:

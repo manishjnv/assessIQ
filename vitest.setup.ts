@@ -25,4 +25,4 @@ process.env.SESSION_SECRET ??= BASE64_32_BYTES;
 // Google endpoints mock fetch() and are not affected by these values.
 process.env.GOOGLE_CLIENT_ID ??= "test-client-id";
 process.env.GOOGLE_CLIENT_SECRET ??= "test-client-secret";
-process.env.GOOGLE_OAUTH_REDIRECT ??= "https://assessiq.automateedge.cloud/api/auth/google/cb";
+process.env.GOOGLE_OAUTH_REDIRECT ??= "https://assessiq.in/api/auth/google/cb";

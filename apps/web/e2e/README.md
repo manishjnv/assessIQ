@@ -18,7 +18,7 @@
 
 **Invariant:** `ENABLE_E2E_TEST_MINTER` must be absent (or `"false"`) in the production `.env` at `/srv/assessiq/.env`. The endpoint simply does not exist in production; it returns 404 — not 401/403. Verify with:
 ```bash
-curl -I https://assessiq.automateedge.cloud/api/dev/mint-session
+curl -I https://assessiq.in/api/dev/mint-session
 # Expected: 404 Not Found
 ```
 
@@ -68,7 +68,7 @@ E2E_API_BASE_URL=https://staging.assessiq.example.com \
 
 **For the existing deployment smoke tests only:**
 ```
-PLAYWRIGHT_BASE_URL=https://assessiq.automateedge.cloud pnpm --filter @assessiq/web e2e -- take-error-pages
+PLAYWRIGHT_BASE_URL=https://assessiq.in pnpm --filter @assessiq/web e2e -- take-error-pages
 ```
 
 ## Running in CI

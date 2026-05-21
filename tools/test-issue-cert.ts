@@ -75,9 +75,9 @@ async function main(): Promise<void> {
   console.log(`[test-cert]     tier=${cert.tier} signed_hash=${cert.signed_hash.slice(0, 16)}...`);
   console.log(`[test-cert]     issued_at=${cert.issued_at}`);
   console.log(`[test-cert] smoke URLs (run from your shell):`);
-  console.log(`  curl -sI https://assessiq.automateedge.cloud/verify/${cert.credential_id}`);
-  console.log(`  curl -sI https://assessiq.automateedge.cloud/verify/${cert.credential_id}/og.svg`);
-  console.log(`  curl -sI https://assessiq.automateedge.cloud/verify/${cert.credential_id}/og.png`);
+  console.log(`  curl -sI https://assessiq.in/verify/${cert.credential_id}`);
+  console.log(`  curl -sI https://assessiq.in/verify/${cert.credential_id}/og.svg`);
+  console.log(`  curl -sI https://assessiq.in/verify/${cert.credential_id}/og.png`);
 }
 
 main().catch((err) => {

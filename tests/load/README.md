@@ -148,7 +148,7 @@ assertDevOnly(TARGET_URL);
 ```
 
 Patterns that cause an immediate abort:
-- `assessiq.automateedge.cloud`
+- `assessiq.in`
 - `.automateedge.` (catches all automateedge subdomains)
 - Any `https://` URL that isn't `localhost` or `127.0.0.1`
 
