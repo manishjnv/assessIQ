@@ -31,6 +31,27 @@ interface QueueResponse {
   items: QueueRow[];
 }
 
+type SortDir = "asc" | "desc";
+
+/** Client-side row sort. Keys ending in `_at` sort as dates; numeric columns
+ *  numerically; everything else case-insensitively. */
+function sortRows<T>(rows: T[], key: string, dir: SortDir): T[] {
+  const sign = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = (a as unknown as Record<string, unknown>)[key];
+    const bv = (b as unknown as Record<string, unknown>)[key];
+    if (key.endsWith("_at")) {
+      const at = av ? new Date(av as string).getTime() : 0;
+      const bt = bv ? new Date(bv as string).getTime() : 0;
+      return sign * (at - bt);
+    }
+    if (typeof av === "number" && typeof bv === "number") return sign * (av - bv);
+    const as = String(av ?? "").toLowerCase();
+    const bs = String(bv ?? "").toLowerCase();
+    return as < bs ? -1 * sign : as > bs ? 1 * sign : 0;
+  });
+}
+
 function greetingPhrase(): string {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -54,6 +75,8 @@ export function AdminDashboard(): React.ReactElement {
   const [queueItems, setQueueItems] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
@@ -86,17 +109,19 @@ export function AdminDashboard(): React.ReactElement {
     {
       key: "candidate_email",
       label: "Candidate",
+      sortable: true,
       render: (row: QueueRow) => (
         <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
           {row.candidate_email}
         </span>
       ),
     },
-    { key: "assessment_name", label: "Assessment" },
-    { key: "level_label", label: "Level" },
+    { key: "assessment_name", label: "Assessment", sortable: true },
+    { key: "level_label", label: "Level", sortable: true },
     {
       key: "submitted_at",
       label: "Submitted",
+      sortable: true,
       render: (row: QueueRow) => (
         <span
           style={{
@@ -112,6 +137,7 @@ export function AdminDashboard(): React.ReactElement {
     {
       key: "status",
       label: "Status",
+      sortable: true,
       render: (row: QueueRow) => (
         <span
           style={{
@@ -150,6 +176,11 @@ export function AdminDashboard(): React.ReactElement {
       ),
     },
   ];
+
+  const sortedRows = React.useMemo(
+    () => (sortBy ? sortRows(queueItems, sortBy, sortDir) : queueItems),
+    [queueItems, sortBy, sortDir],
+  );
 
   return (
     <AdminShell breadcrumbs={["Dashboard"]} helpPage="admin.dashboard.home">
@@ -263,9 +294,12 @@ export function AdminDashboard(): React.ReactElement {
           <div className="aiq-card" style={{ padding: 0, overflow: "hidden" }}>
             <div className="aiq-admin-table-scroll">
               <Table<QueueRow>
-                data={queueItems}
+                data={sortedRows}
                 columns={columns}
                 loading={loading}
+                {...(sortBy ? { sortBy } : {})}
+                sortDir={sortDir}
+                onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }}
                 emptyMessage="No attempts awaiting grading."
               />
             </div>

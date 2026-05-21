@@ -19,6 +19,7 @@ import { RubricEditor } from "../components/RubricEditor.js";
 import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
 import { QuestionContentView } from "../components/QuestionContentView.js";
 import { adminApi, AdminApiError } from "../api.js";
+import { useAdminSession } from "../session.js";
 
 const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis"] as const;
 type QuestionType = typeof QUESTION_TYPES[number];
@@ -135,6 +136,87 @@ function RubricSkeleton(): React.ReactElement {
         ))}
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Read-only rubric view — tenant admins (Phase B1 view-only; super_admin
+// curates). RubricEditor has no read-only mode, so render a plain summary of
+// the anchors + reasoning bands with no editing affordances.
+// ---------------------------------------------------------------------------
+
+function ReadOnlyRubric({
+  rubricDraft,
+  supportsRubric,
+  questionType,
+  reasoningWeight,
+}: {
+  rubricDraft: RubricDraft | null;
+  supportsRubric: boolean;
+  questionType: string;
+  reasoningWeight: number;
+}): React.ReactElement {
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "var(--aiq-font-mono)",
+    fontSize: "var(--aiq-text-xs)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: "var(--aiq-color-fg-muted)",
+    marginBottom: "var(--aiq-space-sm)",
+  };
+  const listStyle: React.CSSProperties = {
+    margin: 0,
+    paddingLeft: "1.2em",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  };
+  if (!rubricDraft) {
+    return (
+      <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-muted)" }}>
+        {supportsRubric
+          ? "No rubric defined for this question yet."
+          : `Rubric not applicable for question type “${questionType}”.`}
+      </p>
+    );
+  }
+  const anchorTotal = Math.round(rubricDraft.anchors.reduce((s, a) => s + a.weight * 100, 0));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
+      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+        Anchor {anchorTotal} + Reasoning {reasoningWeight} = {anchorTotal + reasoningWeight}/100
+      </span>
+      <div>
+        <div style={labelStyle}>Anchors</div>
+        {rubricDraft.anchors.length === 0 ? (
+          <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>None.</p>
+        ) : (
+          <ul style={listStyle}>
+            {rubricDraft.anchors.map((a) => (
+              <li key={a.anchor_id} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+                {a.phrase}{" "}
+                <span style={{ fontFamily: "var(--aiq-font-mono)", color: "var(--aiq-color-fg-muted)" }}>
+                  ({Math.round(a.weight * 100)})
+                </span>
+                {a.synonyms.length > 0 && (
+                  <span style={{ color: "var(--aiq-color-fg-muted)" }}> — {a.synonyms.join(", ")}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <div style={labelStyle}>Reasoning bands</div>
+        <ul style={listStyle}>
+          {rubricDraft.bands.map((b) => (
+            <li key={b.band} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+              <strong>Band {b.band}:</strong> {b.description || "—"}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 
@@ -281,18 +363,32 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
 export function AdminQuestionEditor(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
+  const { session } = useAdminSession();
+  const isSuperAdmin = session?.user.role === "super_admin";
 
   // Route: /admin/question-bank/questions/new?pack_id=...&level_id=...
+  // Authoring is super_admin-only (Phase B1). The "+ Add question" link is
+  // hidden for tenant admins; if one reaches this route directly, show a notice
+  // rather than a create form that would 403 at submit.
   if (id === "new") {
+    if (!isSuperAdmin) {
+      return (
+        <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "New question"]} helpPage="admin.question.editor">
+          <div style={{ color: "var(--aiq-color-fg-muted)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", padding: "var(--aiq-space-xl) 0" }}>
+            Question authoring is managed by the platform team. You have view-only access to this pack.
+          </div>
+        </AdminShell>
+      );
+    }
     const packId = searchParams.get("pack_id") ?? "";
     const levelId = searchParams.get("level_id") ?? "";
     return <CreateQuestionForm packId={packId} levelId={levelId} />;
   }
 
-  return <AdminQuestionEditorInner id={id ?? ""} />;
+  return <AdminQuestionEditorInner id={id ?? ""} isSuperAdmin={isSuperAdmin} />;
 }
 
-function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
+function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdmin: boolean }): React.ReactElement {
   const navigate = useNavigate();
   const [question, setQuestion] = useState<QuestionDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -459,7 +555,7 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-xs)" }}>
               <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-                Edit rubric.</h1>
+                {isSuperAdmin ? "Edit rubric." : "View rubric."}</h1>
               <span
                 style={{
                   padding: "1px 8px",
@@ -514,8 +610,8 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
           <QuestionContentView type={question.type} content={question.content} />
         </div>
 
-        {/* Approve / archive — visible only for ai_draft */}
-        {question.status === "ai_draft" && (
+        {/* Approve / archive — super_admin only (curation); visible only for ai_draft */}
+        {isSuperAdmin && question.status === "ai_draft" && (
           <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
               Review actions
@@ -540,8 +636,8 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
           </div>
         )}
 
-        {/* Archive — for active/draft questions that are not yet archived */}
-        {question.status !== "ai_draft" && question.status !== "archived" && (
+        {/* Archive — super_admin only; for active/draft questions not yet archived */}
+        {isSuperAdmin && question.status !== "ai_draft" && question.status !== "archived" && (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               type="button"
@@ -564,6 +660,8 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
             Rubric
           </h2>
 
+          {isSuperAdmin ? (
+          <>
           {/* State A: no rubric yet */}
           {supportsRubric && !rubricDraft && !showManual && (
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
@@ -686,6 +784,15 @@ function AdminQuestionEditorInner({ id }: { id: string }): React.ReactElement {
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-muted)" }}>
               Rubric not applicable for question type &ldquo;{question.type}&rdquo;.
             </p>
+          )}
+          </>
+          ) : (
+            <ReadOnlyRubric
+              rubricDraft={rubricDraft}
+              supportsRubric={supportsRubric}
+              questionType={question.type}
+              reasoningWeight={reasoningWeight}
+            />
           )}
         </div>
       </div>

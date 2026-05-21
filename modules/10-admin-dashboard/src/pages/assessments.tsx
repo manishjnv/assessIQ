@@ -100,6 +100,31 @@ interface BlueprintPreviewResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Sort helper
+// ---------------------------------------------------------------------------
+
+type SortDir = "asc" | "desc";
+
+/** Client-side row sort. Keys ending in `_at` sort as dates; numeric columns
+ *  numerically; everything else case-insensitively. */
+function sortRows<T>(rows: T[], key: string, dir: SortDir): T[] {
+  const sign = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = (a as unknown as Record<string, unknown>)[key];
+    const bv = (b as unknown as Record<string, unknown>)[key];
+    if (key.endsWith("_at")) {
+      const at = av ? new Date(av as string).getTime() : 0;
+      const bt = bv ? new Date(bv as string).getTime() : 0;
+      return sign * (at - bt);
+    }
+    if (typeof av === "number" && typeof bv === "number") return sign * (av - bv);
+    const as = String(av ?? "").toLowerCase();
+    const bs = String(bv ?? "").toLowerCase();
+    return as < bs ? -1 * sign : as > bs ? 1 * sign : 0;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -647,6 +672,10 @@ export function AdminAssessments(): React.ReactElement {
   // Created assessment ID for preview adequacy display
   const [createdAssessmentId, setCreatedAssessmentId] = useState<string | null>(null);
 
+  // Client-side sort state
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
   const fetchAssessments = useCallback(async (status: string) => {
     setLoading(true);
     setError(null);
@@ -773,6 +802,7 @@ export function AdminAssessments(): React.ReactElement {
     {
       key: "name",
       label: "Name",
+      sortable: true,
       render: (row: AssessmentListItem) => (
         <span
           style={{
@@ -788,6 +818,7 @@ export function AdminAssessments(): React.ReactElement {
     {
       key: "status",
       label: "Status",
+      sortable: true,
       render: (row: AssessmentListItem) => {
         const c = assessmentStatusColor(row.status);
         return (
@@ -809,6 +840,8 @@ export function AdminAssessments(): React.ReactElement {
       },
     },
     {
+      // Not sortable: value is a composite { total, … } object the generic
+      // client-side comparator can't order meaningfully.
       key: "invitations",
       label: "Invited",
       render: (row: AssessmentListItem) => {
@@ -849,6 +882,7 @@ export function AdminAssessments(): React.ReactElement {
     {
       key: "opens_at",
       label: "Opens",
+      sortable: true,
       render: (row: AssessmentListItem) => (
         <span
           style={{
@@ -864,6 +898,7 @@ export function AdminAssessments(): React.ReactElement {
     {
       key: "closes_at",
       label: "Closes",
+      sortable: true,
       render: (row: AssessmentListItem) => (
         <span
           style={{
@@ -879,6 +914,7 @@ export function AdminAssessments(): React.ReactElement {
     {
       key: "created_at",
       label: "Created",
+      sortable: true,
       render: (row: AssessmentListItem) => (
         <span
           style={{
@@ -909,6 +945,11 @@ export function AdminAssessments(): React.ReactElement {
       ),
     },
   ];
+
+  const sortedRows = React.useMemo(
+    () => (sortBy ? sortRows(items, sortBy, sortDir) : items),
+    [items, sortBy, sortDir],
+  );
 
   return (
     <AdminShell breadcrumbs={["Assessments"]} helpPage="admin.assessments.list">
@@ -1237,8 +1278,11 @@ export function AdminAssessments(): React.ReactElement {
           <div className="aiq-admin-table-scroll">
             <Table
               columns={columns}
-              data={items}
+              data={sortedRows}
               emptyMessage="No assessments found."
+              {...(sortBy ? { sortBy } : {})}
+              sortDir={sortDir}
+              onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }}
             />
           </div>
         )}
