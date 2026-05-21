@@ -562,6 +562,17 @@ Source: [`modules/17-ui-system/src/components/Table.tsx`](../modules/17-ui-syste
 
 Callers should keep using `width: 80` for pixel hints — no migration needed. The fix is in the primitive.
 
+### Click-to-sort columns (2026-05-21)
+
+The shared `Table` already supports sorting via the `sortable` (per-column), `sortBy`, `sortDir`, and `onSort` props — but it only **emits** the sort event in `onSort`; it does not reorder `data` itself. Admin list pages full-fetch their rows (`pageSize 100`), so they sort **client-side** over the loaded page rather than re-fetching. The shipped pattern (commit `ef9d2d8`) is identical across pages:
+
+- A module-level `sortRows<T>(rows, key, dir)` helper: keys ending in `_at` compare as dates, numeric columns numerically, everything else case-insensitive string. Keep it page-local (a duplicated ~15-line helper) rather than a shared lib import — a prior shared-lib extraction on this module caused a parallel-agent file race.
+- `sortBy` defaults to `""` (no active column) so first paint matches the server's fetch order; `const sortedRows = useMemo(() => sortBy ? sortRows(items, sortBy, sortDir) : items, …)`.
+- Wire `data={sortedRows}` `sortDir={sortDir}` `onSort={(k,d)=>{setSortBy(k);setSortDir(d);}}`, and pass `sortBy` via the spread `{...(sortBy ? { sortBy } : {})}` — passing `sortBy={undefined}` is a type error under `exactOptionalPropertyTypes`.
+- Mark `sortable: true` on every data column **except** action/empty-label columns and columns whose value is a composite object the generic comparator can't order (e.g. assessments' "Invited" `{ total, … }`).
+
+Live on: Question Bank, Attempts, Assessments, Dashboard grading queue, and Assessment-detail invitations.
+
 ### Shared admin formatters (`modules/10-admin-dashboard/src/lib/`)
 
 Two small helpers consolidate display logic that was previously duplicated inline on each list page. New pages MUST use these instead of re-inventing per-page status switches or `toLocaleString()` calls.

@@ -171,7 +171,7 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/admin/packs`                       | List question packs (paginated; filter by `domain`, `status`) |
+| `GET`  | `/admin/packs`                       | List question packs (paginated; filter by `domain`, `status`). Each item carries `question_count` (all questions in the pack) and `completed_count` (tenant attempts that finished — status ∈ `submitted`/`auto_submitted`/`pending_admin_grading`/`graded`/`released`), both RLS-scoped. **2026-05-21** |
 | `POST` | `/admin/packs`                       | Create pack (returns 201). `slug` is **optional** — auto-generated from `name` (NFKD lowercase, hyphens, 64-char cap) when omitted. Collision appends `-2` … `-10` suffix. Explicit slug still validated against `/^[a-z0-9-]{3,80}$/`. **fix 2026-05-04** |
 | `GET`  | `/admin/packs/:id`                   | Pack with levels (`{ pack, levels }`) |
 | `PATCH`| `/admin/packs/:id`                   | Update pack metadata (name, domain, description) |
@@ -1132,7 +1132,7 @@ GET /api/auth/whoami
 
 # 2. List published packs
 GET /api/admin/packs?status=published
-→ 200 { "items": [ { "id":"pack_soc_2026q2", "name":"SOC Skills 2026 Q2", "domain":"soc", "levels": [...] } ], ... }
+→ 200 { "items": [ { "id":"pack_soc_2026q2", "name":"SOC Skills 2026 Q2", "domain":"soc", "status":"published", "version":2, "question_count":24, "completed_count":137 } ], "page":1, "pageSize":20, "total":1 }
 
 # 3. Create assessment from L1 level
 POST /api/admin/assessments
@@ -1991,7 +1991,7 @@ Updates a tenant's billing tier and/or credit allowance. Both fields are optiona
 
 > **Status: LIVE — 2026-05-18 (commits `2ba822d` + `9f073a5`).** Follows Phase A2.
 
-Previously `roles:['admin']`, now `roles:['super_admin']` for the following 7 paths. Tenant admins receive `403 AUTHZ_FAILED`. Nav links and SPA routes for these features are also restricted to super_admin as defence-in-depth — the backend auth gate is authoritative. All other question-bank routes (CRUD, import, publish, assemble, bulk-status) remain on `roles:['admin']` unchanged. `modules/07-ai-grading` grading routes (grade, accept, release, override, etc.) are also unchanged on `roles:['admin']`.
+Previously `roles:['admin']`, now `roles:['super_admin']` for the following 7 paths. Tenant admins receive `403 AUTHZ_FAILED`. Nav links and SPA routes for these features are also restricted to super_admin as defence-in-depth — the backend auth gate is authoritative. The remaining question-bank **authoring** routes (pack/level/question CRUD, import, publish, archive, activate-questions, save-rubric, bulk-status) were subsequently re-gated to `super_admin` as well — see the next subsection (2026-05-21). `modules/07-ai-grading` grading routes (grade, accept, release, override, etc.) remain unchanged on `roles:['admin']`.
 
 | Path | Previous auth | Phase B1 auth |
 |---|---|---|
@@ -2003,6 +2003,34 @@ Previously `roles:['admin']`, now `roles:['super_admin']` for the following 7 pa
 | `POST /api/admin/generation-attempts/:id/score` | `roles:['admin']` | `roles:['super_admin']` |
 
 **Source:** `modules/04-question-bank/src/routes.ts` — `superAdminOnly` chain swapped in for `adminOnly` on the 6 generation/history routes; per-route auth documented inline in § Admin — Rubric generation & generation attempts above.
+
+---
+
+## Phase B1 (cont.) — question-bank authoring re-gated to super_admin
+
+> **Status: LIVE — 2026-05-21 (backend `7500abb`, frontend `ef9d2d8`).** Completes the Phase B1 model on every QB mutation, not just generation.
+
+The Phase B1 model — super_admin curates the shared question-pack library; tenant admins consume entitled packs read-only — is now enforced on **every** question-bank mutation. The 13 routes below moved `roles:['admin']` → `roles:['super_admin']`; tenant admins get `403 AUTHZ_FAILED`. All `GET` reads (list/get pack, list/get question, list versions) deliberately stay `roles:['admin']` so tenant admins keep a read-only view.
+
+| Path | Previous | Now |
+|---|---|---|
+| `POST /api/admin/packs` | admin | super_admin |
+| `PATCH /api/admin/packs/:id` | admin | super_admin |
+| `POST /api/admin/packs/:id/publish` | admin | super_admin |
+| `POST /api/admin/packs/:id/archive` | admin | super_admin |
+| `POST /api/admin/packs/:id/activate-questions` | admin | super_admin |
+| `POST /api/admin/packs/:id/levels` | admin | super_admin |
+| `PATCH /api/admin/levels/:id` | admin | super_admin |
+| `POST /api/admin/questions` | admin | super_admin |
+| `POST /api/admin/questions/import` | admin | super_admin |
+| `PATCH /api/admin/questions/:id` | admin | super_admin |
+| `POST /api/admin/questions/:id/restore` | admin | super_admin |
+| `POST /api/admin/questions/:id/save-rubric` | admin | super_admin |
+| `POST /api/admin/questions/bulk-update-status` | admin | super_admin |
+
+**Not re-gated (deliberately):** `POST /api/admin/domains` and `POST /api/admin/categories` stay `admin` — they are per-tenant generation taxonomy, not shared-library content. **SPA gating (defence-in-depth, authoritative gate is the backend):** the Question Bank list hides "+ New Pack" and the per-row archive from non-super_admin; pack-detail hides Publish / Archive pack / Activate all / per-question Archive / bulk select+approve+archive and renders per-question **Edit → View**; the question editor is read-only for tenant admins (no approve/archive/generate/save; read-only rubric summary; create form blocked). Adversarial review (Sonnet takeover; codex companion was hung) returned VERDICT=accept — no cross-tenant leak, no authz gaps, const-only SQL interpolation, fail-closed counts.
+
+**Source:** `modules/04-question-bank/src/routes.ts`.
 
 ---
 

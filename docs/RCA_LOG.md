@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-21 — Question Bank "Questions" column rendered blank (list API never returned a count)
+
+**Symptom:** The admin Question Bank grid's "Questions" column was empty for every pack. The frontend `PackListItem` type declared `question_count: number`, but the cell rendered nothing.
+
+**Cause:** `GET /api/admin/packs` → `listPacks` → `repo.listPackRows` selected only the bare `question_packs` columns (`PACK_COLUMNS`) and mapped them with `mapPackRow`, which has no `question_count`. The count was never computed server-side, so the JSON omitted the field and React rendered `undefined` as empty. The typed FE interface gave false confidence — a declared field is not a returned field. (`modules/04-question-bank/src/repository.ts` `listPackRows`, pre-`7500abb`.)
+
+**Fix:** `listPackRows` now returns `question_count` via a correlated subquery on `questions`, plus a new `completed_count` (tenant attempts that reached a finished state, via attempts→assessments), both RLS-scoped, typed as `PackListItem[]`. `completed_count` is guarded by `attemptCompletionsQueryable()` (a `to_regclass` check on `attempts`+`assessments`) so a question-bank-only test schema degrades to `0` rather than throwing "relation does not exist". (`repository.ts` `listPackRows` + `types.ts` `PackListItem`; commit `7500abb`.) Considered and rejected: a single mega-query with both counts as correlated subqueries — split out `completed_count` into a guarded grouped query so QB-only test DBs (no lifecycle/attempt tables) keep passing. Excluded: per-pack entitlement filtering of the list (separate concern).
+
+**Prevention:** When a frontend list type declares a field, confirm the list endpoint actually populates it on the wire — TS interfaces don't validate the payload. Recurring theme with the 2026-05-21 mfa.tsx entry: verify the real artifact, not a proxy. Manual discipline; a contract test asserting `/admin/packs` items carry `question_count`/`completed_count` would catch regressions.
+
 ## 2026-05-21 — Gmail app password leaked to logs by send-sample-emails redaction bug
 
 **Symptom:** Running `modules/13-notifications/scripts/send-sample-emails.ts` (to send the 9 sample emails to manishjnvk@gmail.com for content review) printed the line `[CONFIG] SMTP host = smtps:REDACTED@gmail.com:<password>@smtp.gmail.com:465` — exposing the production Gmail **app password in cleartext** in the command output / session transcript.

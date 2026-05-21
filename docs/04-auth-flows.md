@@ -37,6 +37,8 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 
 (`apps/api/src/routes/admin-super.ts:25,41`, `apps/api/src/server.ts:225,229`)
 
+**Question-bank authoring is super_admin-only (Phase B1, 2026-05-21).** Beyond the cross-tenant `/super/*` routes above, all question-bank **mutation** routes — pack/level/question CRUD, publish, archive, activate-questions, import, save-rubric, bulk-status (13 paths in `modules/04-question-bank/src/routes.ts`) — are gated `roles:['super_admin']`; tenant admins retain `GET` read access only and get `403 AUTHZ_FAILED` on writes. This extends the earlier generation-route re-gate so the whole shared-library authoring surface is operator-only. Per-tenant taxonomy (`POST /admin/domains`, `/admin/categories`) stays `admin`. Full table + SPA gating: `docs/03-api-contract.md` § "Phase B1 (cont.) — question-bank authoring re-gated to super_admin".
+
 > **DB note (resolved 2026-05-17):** the earlier "`011_sessions.sql` lacks `super_admin`" caveat is **closed**. Slice-1 migration `modules/01-auth/migrations/016_super_admin.sql` (Steps 1a/1b) drops+re-adds `sessions_role_check` and `users_role_check` to include `'super_admin'`, and seeds the platform tenant (`00000000-0000-7000-0000-000000000001`, slug `platform`) + the bootstrap super_admin user (`…0002`, manishjnvk@gmail.com). Applied surgically to prod and confirmed (the platform Google-SSO branch is reachable end-to-end).
 
 ## P1 — Tenant-less login + cross-tenant identity resolution (2026-05-19, commit `62c2558`)
