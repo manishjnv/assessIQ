@@ -349,8 +349,24 @@ export interface UpdateQuestionPatch {
   tags?: string[];
 }
 
+/**
+ * A pack as returned by the list endpoint — the base pack row plus two derived
+ * counts the admin Question Bank grid renders as sortable columns.
+ */
+export interface PackListItem extends QuestionPack {
+  /** Number of questions in this pack, all statuses. */
+  question_count: number;
+  /**
+   * Times a candidate in the current tenant finished an assessment built on
+   * this pack. Counts attempts in a completed state: submitted, auto_submitted,
+   * pending_admin_grading, graded, or released. Excludes draft/in_progress/
+   * cancelled. RLS scopes the count to the current tenant.
+   */
+  completed_count: number;
+}
+
 export interface PaginatedPacks {
-  items: QuestionPack[];
+  items: PackListItem[];
   page: number;
   pageSize: number;
   total: number;
