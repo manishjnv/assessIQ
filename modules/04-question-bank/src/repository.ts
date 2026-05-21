@@ -36,6 +36,7 @@ import type {
   LevelRubricDefaults,
   ListPacksInput,
   ListQuestionsInput,
+  PackListItem,
   PackStatus,
   Question,
   QuestionPack,
@@ -77,6 +78,26 @@ interface PackRow {
   created_at: Date;
   updated_at: Date;
 }
+
+/** PackRow plus the question_count derived column from the list query. */
+interface PackListRow extends PackRow {
+  question_count: number;
+}
+
+/**
+ * Attempt statuses that count as "the candidate finished" for the
+ * completed-attempts column on the Question Bank grid. Mirrors the terminal /
+ * post-submission states in the attempts CHECK constraint
+ * (modules/06-attempt-engine/migrations/0030_attempts.sql); excludes draft,
+ * in_progress, and cancelled.
+ */
+const COMPLETED_ATTEMPT_STATUSES = [
+  "submitted",
+  "auto_submitted",
+  "pending_admin_grading",
+  "graded",
+  "released",
+] as const;
 
 interface LevelRow {
   id: string;
@@ -237,10 +258,27 @@ export async function findPackBySlug(
   return row !== undefined ? mapPackRow(row) : null;
 }
 
+/**
+ * True when both the attempts (module 06) and assessments (module 05) tables
+ * exist — required before the completed-attempts join in listPackRows. Mirrors
+ * the defensive pattern of hasAssessmentsTable so a question-bank-only test
+ * schema (no lifecycle/attempt migrations) degrades to completed_count = 0
+ * instead of throwing a "relation does not exist" error.
+ */
+export async function attemptCompletionsQueryable(
+  client: PoolClient,
+): Promise<boolean> {
+  const result = await client.query<{ ok: boolean }>(
+    `SELECT to_regclass('public.attempts') IS NOT NULL
+        AND to_regclass('public.assessments') IS NOT NULL AS ok`,
+  );
+  return result.rows[0]?.ok ?? false;
+}
+
 export async function listPackRows(
   client: PoolClient,
   filters: ListPacksInput,
-): Promise<{ items: QuestionPack[]; total: number }> {
+): Promise<{ items: PackListItem[]; total: number }> {
   const conditions: string[] = [];
   const values: unknown[] = [];
   let i = 1;
@@ -270,14 +308,51 @@ export async function listPackRows(
   const pageSize = filters.pageSize ?? 20;
   const offset = (page - 1) * pageSize;
 
-  const dataResult = await client.query<PackRow>(
-    `SELECT ${PACK_COLUMNS} FROM question_packs ${where}
+  // question_count is a correlated subquery against `questions`, an own-module
+  // table that always exists wherever this query runs. RLS scopes both the
+  // outer packs and the inner questions to the current tenant — no explicit
+  // tenant_id filter (see the file header's RLS-only rule).
+  const dataResult = await client.query<PackListRow>(
+    `SELECT ${PACK_COLUMNS},
+       (SELECT count(*)::int FROM questions q WHERE q.pack_id = question_packs.id) AS question_count
+     FROM question_packs ${where}
      ORDER BY created_at DESC, id DESC
      LIMIT $${i} OFFSET $${i + 1}`,
     [...values, pageSize, offset],
   );
 
-  return { items: dataResult.rows.map(mapPackRow), total };
+  const packs = dataResult.rows;
+  const packIds = packs.map((p) => p.id);
+
+  // completed_count = candidate attempts that reached a finished state, for any
+  // assessment built on this pack. attempts/assessments are owned by modules
+  // 06/05; guard the join behind a table-existence check exactly like
+  // countAssessmentsReferencingPack. RLS on attempts AND assessments scopes the
+  // counts to the current tenant, so cross-tenant completions never leak.
+  const completedByPack = new Map<string, number>();
+  if (packIds.length > 0 && (await attemptCompletionsQueryable(client))) {
+    const statusList = COMPLETED_ATTEMPT_STATUSES.map((s) => `'${s}'`).join(", ");
+    const completedResult = await client.query<{ pack_id: string; count: number }>(
+      `SELECT asm.pack_id, count(*)::int AS count
+         FROM attempts a
+         JOIN assessments asm ON asm.id = a.assessment_id
+        WHERE asm.pack_id = ANY($1::uuid[])
+          AND a.status IN (${statusList})
+        GROUP BY asm.pack_id`,
+      [packIds],
+    );
+    for (const row of completedResult.rows) {
+      completedByPack.set(row.pack_id, row.count);
+    }
+  }
+
+  const items: PackListItem[] = packs.map((row) => ({
+    ...mapPackRow(row),
+    question_count: row.question_count,
+    completed_count: completedByPack.get(row.id) ?? 0,
+  }));
+
+  return { items, total };
 }
 
 export async function insertPack(

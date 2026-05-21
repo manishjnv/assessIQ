@@ -493,7 +493,9 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/packs
   app.post(
     "/api/admin/packs",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly. Super_admin curates
+    // the shared library; tenant admins consume entitled packs, not author them.
+    { preHandler: superAdminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -517,7 +519,8 @@ export async function registerQuestionBankRoutes(
   // PATCH /api/admin/packs/:id
   app.patch(
     "/api/admin/packs/:id",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -529,7 +532,8 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/packs/:id/publish
   app.post(
     "/api/admin/packs/:id/publish",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -541,7 +545,8 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/packs/:id/archive  — extension (service has it, contract gets it in this PR)
   app.post(
     "/api/admin/packs/:id/archive",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -556,7 +561,8 @@ export async function registerQuestionBankRoutes(
   // pool can see them. Closes the workflow gap RCA'd 2026-05-02.
   app.post(
     "/api/admin/packs/:id/activate-questions",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -572,7 +578,8 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/packs/:id/levels
   app.post(
     "/api/admin/packs/:id/levels",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -585,7 +592,8 @@ export async function registerQuestionBankRoutes(
   // PATCH /api/admin/levels/:id  — extension
   app.patch(
     "/api/admin/levels/:id",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
@@ -606,7 +614,8 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/questions/import  — JSON-only Phase 1 (decision #4)
   app.post(
     "/api/admin/questions/import",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -647,7 +656,8 @@ export async function registerQuestionBankRoutes(
   app.post(
     "/api/admin/questions",
     {
-      preHandler: adminOnly,
+      // super_admin only (Phase B1 lockdown) — was adminOnly.
+      preHandler: superAdminOnly,
       schema: {
         body: {
           type: "object",
@@ -689,7 +699,8 @@ export async function registerQuestionBankRoutes(
   // PATCH /api/admin/questions/:id  — implicit new version on content/rubric change
   app.patch(
     "/api/admin/questions/:id",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -713,7 +724,8 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/questions/:id/restore  — extension (body: { version: number })
   app.post(
     "/api/admin/questions/:id/restore",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -741,7 +753,8 @@ export async function registerQuestionBankRoutes(
   // for the success/AppError paths.
   app.post(
     "/api/admin/questions/bulk-update-status",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly.
+    { preHandler: superAdminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
@@ -837,7 +850,9 @@ export async function registerQuestionBankRoutes(
   // Persists the rubric as a new version. Separate from generate.
   app.post(
     "/api/admin/questions/:id/save-rubric",
-    { preHandler: adminOnly },
+    // super_admin only (Phase B1 lockdown) — was adminOnly. Persists a rubric
+    // version; part of question editing, which tenant admins no longer perform.
+    { preHandler: superAdminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
