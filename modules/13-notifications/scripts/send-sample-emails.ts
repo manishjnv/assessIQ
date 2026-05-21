@@ -149,7 +149,12 @@ async function main(): Promise<void> {
 
   console.log(`[CONFIG] FROM = ${EMAIL_FROM}`);
   console.log(`[CONFIG] TO   = ${RECIPIENT}`);
-  console.log(`[CONFIG] SMTP host = ${SMTP_URL.replace(/:[^@]+@/, ':REDACTED@')}`);
+  // Print ONLY the host:port (everything after the last '@'). The previous
+  // ':[^@]+@' redaction leaked the password when the SMTP username is itself an
+  // email containing '@' (e.g. smtps://user@gmail.com:PASS@smtp.gmail.com) — the
+  // regex matched '//user@' and left PASS in cleartext. Never reconstruct the
+  // credential portion for logging.
+  console.log(`[CONFIG] SMTP host = ${SMTP_URL.replace(/^.*@/, '')}`);
   console.log('');
 
   const transport = nodemailer.createTransport(SMTP_URL);

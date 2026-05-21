@@ -4,7 +4,15 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
-## 2026-05-21 — Opt-in MFA enrolment unreachable from the nudge banner (mfa.tsx self-redirect)
+## 2026-05-21 — Gmail app password leaked to logs by send-sample-emails redaction bug
+
+**Symptom:** Running `modules/13-notifications/scripts/send-sample-emails.ts` (to send the 9 sample emails to manishjnvk@gmail.com for content review) printed the line `[CONFIG] SMTP host = smtps:REDACTED@gmail.com:<password>@smtp.gmail.com:465` — exposing the production Gmail **app password in cleartext** in the command output / session transcript.
+
+**Cause:** `send-sample-emails.ts:152` redacted the SMTP URL with `SMTP_URL.replace(/:[^@]+@/, ':REDACTED@')`. That regex assumes the credential is the first `:…@` segment. But the production `SMTP_URL` is `smtps://manishjnvk@gmail.com:<app_pw>@smtp.gmail.com:465` — the **username is itself an email containing `@`**, so the regex matched `//manishjnvk@` (the username) and replaced *that*, leaving the password (`<app_pw>@smtp.gmail.com`) untouched in the output. A redaction that only handles the canonical `user:pass@host` shape fails for email-as-username SMTP URLs.
+
+**Fix:** `send-sample-emails.ts:152` now prints only the host:port via `SMTP_URL.replace(/^.*@/, '')` (everything after the LAST `@`) — it never reconstructs or partially-prints the credential portion. **Operational remediation (operator action required):** the leaked Gmail app password must be revoked in Google Account → Security → App passwords and a fresh one issued; `SMTP_URL` in `/srv/assessiq/.env` updated; api + worker recreated.
+
+**Prevention:** (a) Never log a secret-bearing URL by "redacting" the credential — print only the non-secret remainder (host/port). Whitelist what's safe to show, don't blacklist what's secret. (b) Underlying functional issue surfaced by this incident: production sends all mail through **personal Gmail SMTP** with `EMAIL_FROM=AssessIQ <manishjnvk@gmail.com>` — a branded-domain mail service (Resend/SES with assessiq.in SPF/DKIM) is the real fix; tracked as the top email-layer functional follow-up (see SESSION_STATE 2026-05-21). (c) Manual discipline; consider a repo-wide lint that flags `replace(/...@/, ...REDACTED...)` patterns on env-derived URL strings.
 
 **Symptom:** A tenant admin clicks the yellow "Secure your account · Set up authenticator →" banner on `/admin`. URL flickers to `/admin/mfa` and then returns to `/admin`. No enrolment form ever appears. The link looks "not functional" from the user's perspective. Reproduced by manishjnvk@gmail.com against wipro-soc admin.
 
