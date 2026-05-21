@@ -35,7 +35,7 @@
     "page_title": "Attempt ready for review",
     "brand_wordmark": "AssessIQ",
     "heading": "Attempt ready for review.",
-    "attempt_label_prefix": "ATTEMPT",
+    "attempt_label_prefix": "REFERENCE",
     "cta": "Review attempt"
   },
   "totp_enrolled": {

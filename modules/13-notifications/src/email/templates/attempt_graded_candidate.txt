@@ -1,8 +1,8 @@
-Subject: Your assessment results are ready — {{assessmentName}}
+Subject: Your results for {{assessmentName}} are ready
 
 Hi {{candidateName}},
 
-Your results for "{{assessmentName}}" on {{tenantName}} are available.
+Your results for {{assessmentName}} on {{tenantName}} are available.
 
 {{#if resultsLink}}Review your results:
 {{resultsLink}}{{else}}Log in to AssessIQ to view your results.{{/if}}

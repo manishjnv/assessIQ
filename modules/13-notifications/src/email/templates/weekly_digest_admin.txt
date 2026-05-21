@@ -1,4 +1,4 @@
-Subject: Weekly digest — {{tenantName}} — week ending {{weekEnding}}
+Subject: Your weekly AssessIQ summary for {{tenantName}}, week ending {{weekEnding}}
 
 Weekly summary for {{tenantName}}
 Week ending: {{weekEnding}}

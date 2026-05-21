@@ -1,8 +1,8 @@
-Subject: Two-factor authentication enrolled — AssessIQ
+Subject: Two-factor authentication is now on for your AssessIQ account
 
 Hi {{recipientName}},
 
-Two-factor authentication (TOTP) was enrolled on your AssessIQ account{{#if tenantName}} ({{tenantName}}){{/if}} on {{enrolledAt}}.
+Two-factor authentication was turned on for your AssessIQ account{{#if tenantName}} at {{tenantName}}{{/if}} on {{enrolledAt}}.
 
 If you did not perform this action, contact your administrator immediately and change your password.
 
