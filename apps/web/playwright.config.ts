@@ -4,7 +4,7 @@
 // Vite dev server automatically (port 5173) before running tests.
 //
 // AGAINST VPS — set the env var to target the deployed SPA, e.g.:
-//   PLAYWRIGHT_BASE_URL=https://assessiq.automateedge.cloud pnpm e2e
+//   PLAYWRIGHT_BASE_URL=https://assessiq.in pnpm e2e
 //
 // NOTE on skipped tests: the magic-link backend (POST /api/take/start) is a
 // Session 4b deliverable that returns 404 today. Any happy-path test that

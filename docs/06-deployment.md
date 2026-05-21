@@ -223,6 +223,28 @@ fi
 - **Caddy admin API**: `docker exec ti-platform-caddy-1 wget -qO- http://127.0.0.1:2019/config/` returns the currently-loaded JSON config — use to verify `client_auth`/`trusted_ca_cert` keys are actually present after reload (don't assume from the Caddyfile diff alone).
 - **Caddy deprecation warning** logged on reload: `'trusted_ca_cert_file' field is deprecated. Use the 'trust_pool' field instead.` — Caddy v2.11.1. Non-breaking; tracked as Caddyfile hygiene follow-up.
 
+## Domain switch to assessiq.in (2026-05-22)
+
+**What changed.** The canonical public host moved from `assessiq.automateedge.cloud` to **`assessiq.in`**. `assessiq.in` now serves the app; `assessiq.automateedge.cloud` 301-redirects to it. Repo-side config changed: `ASSESSIQ_BASE_URL` and `GOOGLE_OAUTH_REDIRECT` (`.env.example`, prod `.env`, `vitest.setup.ts` default), the Caddy site blocks (`infra/caddyfile/assessiq.snippet`), candidate-facing footer strings (`CandidateLogin.tsx`, `TakeRightPane.tsx`), the embed-SDK CDN doc comment, and assorted test/tooling references.
+
+**Why.** `assessiq.in` is the brand domain; `assessiq.automateedge.cloud` was always a stop-gap subdomain on existing infra (PROJECT_BRAIN decision 2026-04-29). Single canonical host keeps email links, the session-cookie scope, and SSO callbacks on one origin.
+
+**Why a redirect, not a hard cutover.** Cookies are host-only (no `domain=` attribute) and the two hosts share no common parent, so a session cannot span both — there is no "alias" option that keeps you logged in across both. A 301 from the old host preserves already-sent magic-link / invitation tokens (the token rides through in the path/query) and live bookmarks. Chosen over killing the old host (which would 404 in-flight candidate emails).
+
+**Prerequisites (dashboards — operator-only, must be done BEFORE the env flip):**
+
+1. **Cloudflare (assessiq.in zone — already exists):** proxied A record `assessiq.in` → `72.61.227.64` (and `www` if used); SSL/TLS mode **Full (Strict)**.
+2. **Cloudflare AOP (REQUIRED):** Zone → SSL/TLS → Origin Server → **Authenticated Origin Pulls → ON**. Without this, CF won't present the Origin-Pull client cert and Caddy's `client_auth { mode require_and_verify }` rejects every assessiq.in handshake. The CA file on the box (`cf-origin-pull-ca.pem`) is CF's shared Origin-Pull CA — reused as-is, no new CA.
+3. **Cloudflare Transform Rule (REQUIRED if app-layer origin-verify enforces):** replicate the `x-origin-verify` header-injection rule from the automateedge zone onto the assessiq.in zone. The app's `x-origin-verify` check (docs/04-auth-flows.md § Origin-verify header) fails closed — un-injected assessiq.in traffic would be rejected at the app layer.
+4. **Origin Certificate:** issue a CF Origin Cert covering `assessiq.in` (+ `www.assessiq.in`, or `*.assessiq.in`), place at `/etc/caddy/ssl/assessiq.in.{pem,key}`, `chmod 0600` the key.
+5. **Google OAuth console:** add `https://assessiq.in/api/auth/google/cb` to the OAuth client's Authorized redirect URIs (keep the old one until the redirect is live). Mismatch = SSO fails closed.
+
+**Staged rollout (order matters — see `infra/caddyfile/assessiq.snippet` header):** Phase 1 add the `assessiq.in` Caddy block alongside the still-serving old block (zero impact); Phase 2 flip the two env vars + redeploy api/worker/frontend; Phase 3 swap the old block to the `redir … permanent` form. Each phase has a smoke gate; the snippet's 4-probe curl set includes the AOP direct-origin-spoof check (must NOT return 200).
+
+**Explicitly NOT included.** (a) `EMAIL_FROM` stays `noreply@automateedge.cloud` — the mail-sender domain move to `noreply@assessiq.in` is a separate workstream (needs SPF/DKIM/DMARC DNS on assessiq.in) and bundling it would risk deliverability. (b) No per-tenant custom-domain mapping (still a v2 item). (c) Historical references in PROJECT_BRAIN's decision log and prior session docs are left as-is (record of what was true then).
+
+**Downstream impact.** Embed customers using the CDN `<script src>` must update to `assessiq.in` (embed JWT `allowedOrigins` are tenant-configured separately and unaffected). Any external monitor / uptime check pointed at the old host keeps working via the 301. The `tests/load` PROD_PATTERNS guard now lists `assessiq.in` so load tests stay blocked against the new prod host.
+
 ## Reverse-proxy plan — additive Caddyfile block
 
 The ti-platform Caddyfile (at `/opt/ti-platform/caddy/Caddyfile`) already has Cloudflare IPs in `trusted_proxies` and uses bridge-gateway upstreams (`172.17.0.1:<port>`) to reach apps on other Docker networks (this is the pattern roadmap and accessbridge use today). Match that pattern — no edits to ti-platform's `docker-compose.yml`, no `extra_hosts`, no shared-network coupling.
@@ -582,8 +604,8 @@ services:
 ## .env template — `/srv/assessiq/.env`
 
 ```ini
-# Domain
-ASSESSIQ_BASE_URL=https://assessiq.automateedge.cloud
+# Domain (canonical host — switched from assessiq.automateedge.cloud on 2026-05-22)
+ASSESSIQ_BASE_URL=https://assessiq.in
 NODE_ENV=production
 
 # Postgres
@@ -602,7 +624,7 @@ SESSION_COOKIE_NAME=aiq_sess
 # Google OIDC (admin login)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_OAUTH_REDIRECT=https://assessiq.automateedge.cloud/api/auth/google/cb
+GOOGLE_OAUTH_REDIRECT=https://assessiq.in/api/auth/google/cb
 
 # Email (SMTP — live Phase 3, 2026-05-03)
 # SMTP_URL format: smtps://apikey:<RESEND_API_KEY>@smtp.resend.com:465
@@ -635,6 +657,71 @@ AI_PIPELINE_MODE=claude-code-vps
 ```
 
 **Local development:** the same keys live in `.env.local` at the repo root (gitignored — `.gitignore` covers `.env.*` with `!.env.example` allowlist). Never commit values; only `.env.example` is in the repo.
+
+## Email sender (Resend cutover)
+
+Production should send mail through Resend, not a personal Gmail. As of 2026-05-21 the live `.env` was still set to `smtps://manishjnvk@gmail.com:<app-password>@smtp.gmail.com:465` — this leaks the operator's personal Gmail in the From: header AND fails DMARC against `assessiq.automateedge.cloud`, pushing transactional mail toward spam.
+
+**Sender identity (zero-budget):** `AssessIQ <noreply@automateedge.cloud>` — root domain is already owned (it's the parent of `assessiq.automateedge.cloud`). No new domain registration. If/when `assessiq.in` is later registered, the same Resend account verifies it as a second domain in 5 minutes; only the `EMAIL_FROM` env var needs to change.
+
+**Why Resend:** free tier covers 3,000 emails/month and 100/day; uses standard SMTP so `modules/13-notifications/src/email/transport.ts` works unchanged; deliverability backed by Resend's IPs + DKIM signing on our domain.
+
+### One-time setup (off-platform)
+
+1. **Sign up** at `resend.com` with `manishjnvk@gmail.com`. Free tier — no card.
+2. **Add domain** → enter `automateedge.cloud`. Resend lists 4 DNS records to add: 1 × MX (return-path), 1 × TXT-SPF, 2 × TXT-DKIM. (Or use the subdomain `assessiq.automateedge.cloud` for reputation isolation from neighbor apps on the shared VPS — see `CLAUDE.md` rule #8. Subdomain choice does NOT require changing the Zod default in `modules/00-core/src/config.ts` immediately; the env var override is sufficient.)
+3. **Add the DNS records** at the registrar for `automateedge.cloud` (Hostinger DNS — log in to `hpanel.hostinger.com` → Domains → `automateedge.cloud` → DNS). Copy the Host / Type / Value fields verbatim from Resend. Wait ~10 min for propagation, click **Verify** in Resend until all 4 records turn green.
+4. **(Recommended) Add a DMARC record** — TXT at `_dmarc.automateedge.cloud`:
+
+   ```text
+   v=DMARC1; p=none; rua=mailto:manishjnvk@gmail.com; pct=100; adkim=s; aspf=s
+   ```
+
+   `p=none` = report-only; nothing gets bounced. Tighten to `p=quarantine` later once volumes settle.
+5. **Generate SMTP credentials** in Resend dashboard → SMTP tab → create new credential. Resend returns a connection string of the form `smtps://resend:re_XXXXXXXX@smtp.resend.com:465`. Store the API key in a password manager.
+
+### Cutover on the VPS
+
+```bash
+ssh assessiq-vps
+cd /srv/assessiq
+
+# Verify which env file docker-compose reads — should be /srv/assessiq/.env
+docker compose -f infra/docker-compose.yml config | grep -E "SMTP_URL|EMAIL_FROM"
+
+# Edit /srv/assessiq/.env. Replace:
+#   SMTP_URL=smtps://manishjnvk@gmail.com:<app-password>@smtp.gmail.com:465
+#   EMAIL_FROM="AssessIQ <manishjnvk@gmail.com>"
+# With:
+#   SMTP_URL=smtps://resend:re_XXXXXXXX@smtp.resend.com:465
+#   EMAIL_FROM="AssessIQ <noreply@automateedge.cloud>"
+
+# Restart only the services that read SMTP — assessiq-api (for synchronous sends if any)
+# and assessiq-worker (for the BullMQ email queue). Additive-only; no shared infra touched.
+docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-api assessiq-worker
+```
+
+### Verification after cutover
+
+1. **Smoke test.** From AssessIQ admin UI, invite a sandbox email address to a sandbox assessment.
+2. **From: header.** Open the received mail in Gmail → "Show original" → confirm `SPF: PASS`, `DKIM: PASS`, `DMARC: PASS`, and `From: AssessIQ <noreply@automateedge.cloud>`.
+3. **Resend dashboard.** The send appears in **Emails** with status `delivered`.
+4. **Log grep on the VPS.** `docker logs assessiq-worker --since 5m | grep -i "from:"` shows no `manishjnvk@gmail.com` references.
+5. **Per-tenant override unaffected.** `select id, smtp_config from tenants where smtp_config is not null;` — any tenant-level overrides still take priority via `resolveFromAddress()` in `modules/13-notifications/src/email/transport.ts`.
+
+### Post-cutover security hygiene
+
+**Revoke the leaked Gmail app-password.** The Gmail app-password used pre-cutover was committed to `.env.local` (gitignored, but present in the live VPS file and any local working copies). After the Resend swap is verified:
+
+1. `myaccount.google.com` → Security → 2-Step Verification → App passwords.
+2. Find the entry matching the AssessIQ relay; click the trash icon.
+3. The old credential stops working immediately; any forgotten copies in dev environments stop being a risk.
+
+### Limits & follow-ups
+
+- **Resend free tier daily cap = 100 emails.** Cohort blasts >100/day will bounce the 101st. Monitor in the Resend Emails tab; bump to the $20/mo tier (50K/mo, 1K/day) the first time it bites.
+- **In-flight queue.** Emails enqueued in BullMQ *before* the env swap still carry the old From:. Drain the queue (or accept a few minutes of mixed senders) before declaring the cutover complete.
+- **DNS records — record them here.** Once the 4 Resend records + DMARC are live, append a row per record to the DNS table below for future operator reference.
 
 ## DNS — Cloudflare
 

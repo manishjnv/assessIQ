@@ -82,7 +82,7 @@ function mintAssessIQEmbedToken({ tenantId, user, assessmentId }) {
 
 ```bash
 # Mint token via Node snippet above, then verify round-trip:
-curl -v "https://assessiq.automateedge.cloud/embed?token=${TOKEN}"
+curl -v "https://assessiq.in/embed?token=${TOKEN}"
 # Expect: HTTP 302 → /take/a/<attemptId>?embed=true
 # Expect: Set-Cookie: aiq_embed_sess=…; SameSite=None; Secure; HttpOnly; Path=/
 # Expect: Content-Security-Policy: frame-ancestors https://yourapp.com
@@ -160,7 +160,7 @@ Host app                              AssessIQ
 | `aiq.error` | `code: "SESSION_EXPIRED"\|"ATTEMPT_NOT_FOUND"\|"NETWORK_ERROR"\|"UNKNOWN"`, `message: string` | User-actionable error in iframe | SKILL.md D3 |
 | `aiq.close-blocked` | `reason: "attempt_in_progress"` | Response to host `aiq.close-request` when attempt is live | SKILL.md D3 |
 
-**Host → AssessIQ** (send with `iframe.contentWindow.postMessage(msg, "https://assessiq.automateedge.cloud")`):
+**Host → AssessIQ** (send with `iframe.contentWindow.postMessage(msg, "https://assessiq.in")`):
 
 | `type` | Additional fields | Effect |
 |---|---|---|
@@ -171,7 +171,7 @@ Host app                              AssessIQ
 **Minimal postMessage handler:**
 
 ```js
-const aiqOrigin = "https://assessiq.automateedge.cloud";
+const aiqOrigin = "https://assessiq.in";
 
 window.addEventListener("message", (e) => {
   if (e.origin !== aiqOrigin) return;         // always verify origin
@@ -219,7 +219,7 @@ const embed = AssessIQEmbed.mount("#assessment-container", {
 **CDN / no-build alternative:**
 
 ```html
-<script src="https://assessiq.automateedge.cloud/embed/sdk.js"></script>
+<script src="https://assessiq.in/embed/sdk.js"></script>
 <script>
   window.AssessIQ.mount("#container", { token: "..." });
 </script>
@@ -394,7 +394,7 @@ When `?embed=true` is detected in the URL (appended automatically by the `/embed
 | Host origin not in `embed_origins` | Browser silently blocks iframe; DevTools console shows `frame-ancestors` CSP violation | `POST /api/admin/embed-origins { "origin": "https://yourapp.com" }` |
 | Missing `iframe allow` attribute | Assessment may not enter fullscreen | Add `allow="fullscreen"` (`packages/embed-sdk/src/index.ts:119`) |
 | Third-party cookie blocked by browser | Iframe loads but every attempt autosave → 401; candidate loses progress | Host domain must be HTTPS. `SameSite=None; Secure` cookies are blocked over plain `http://` except `localhost` |
-| Host CSP blocks the iframe | `Refused to frame … because an ancestor violates Content Security Policy` | Add `frame-src https://assessiq.automateedge.cloud` to your page's CSP |
+| Host CSP blocks the iframe | `Refused to frame … because an ancestor violates Content Security Policy` | Add `frame-src https://assessiq.in` to your page's CSP |
 | `X-Frame-Options: DENY` from host | Same CSP-style block | Remove `X-Frame-Options` from your page's response headers |
 | Algorithm not specified in `jsonwebtoken` | Library defaults to HS256 (safe), but passing `{ algorithm: "RS256" }` → 401 | Pass `{ algorithm: "HS256" }` explicitly or rely on the library default |
 | Multiple `AssessIQEmbed.mount()` calls on one page | Multiple independent sessions; memory leak if not destroyed | Call `embed.destroy()` before re-mounting; embed one assessment per page |
@@ -408,7 +408,7 @@ When `?embed=true` is detected in the URL (appended automatically by the `/embed
 **Step 1 — load the embed URL directly in a browser tab:**
 
 ```
-https://assessiq.automateedge.cloud/embed?token=<YOUR_TOKEN>
+https://assessiq.in/embed?token=<YOUR_TOKEN>
 ```
 
 - `302` redirect → working; proceed to iframe step
@@ -420,7 +420,7 @@ https://assessiq.automateedge.cloud/embed?token=<YOUR_TOKEN>
 **Step 2 — health probe:**
 
 ```bash
-curl https://assessiq.automateedge.cloud/embed/health
+curl https://assessiq.in/embed/health
 # → 200 {"status":"ok"}
 ```
 
@@ -475,8 +475,8 @@ Open an issue via the AssessIQ admin portal. Include: tenant ID (not the embed s
 - [ ] `exp ≤ iat + 600` (10 minutes max)
 - [ ] Fresh `jti: randomUUID()` on every mint
 - [ ] Token minted close to page-load time, not at session-start
-- [ ] Host CSP includes `frame-src https://assessiq.automateedge.cloud` on embed pages only
-- [ ] `iframe.contentWindow.postMessage` origin pinned to `"https://assessiq.automateedge.cloud"` — never `"*"`
-- [ ] `e.origin === "https://assessiq.automateedge.cloud"` checked on every inbound postMessage
+- [ ] Host CSP includes `frame-src https://assessiq.in` on embed pages only
+- [ ] `iframe.contentWindow.postMessage` origin pinned to `"https://assessiq.in"` — never `"*"`
+- [ ] `e.origin === "https://assessiq.in"` checked on every inbound postMessage
 - [ ] Rotate embed secret every 90 days; revoke immediately on compromise
 - [ ] Restrict AssessIQ API key scopes to the minimum your integration requires

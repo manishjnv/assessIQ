@@ -12,7 +12,7 @@
 import http from 'k6/http';
 
 const PROD_PATTERNS = [
-  'assessiq.automateedge.cloud',
+  'assessiq.in',
   '.automateedge.',
 ];
 

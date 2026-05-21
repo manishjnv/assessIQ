@@ -123,7 +123,7 @@ The strict path. Every admin must clear both factors.
      ├──────────────────────────────────────────────────────────▶ │
      │     User authenticates with Google                         │
      │◀────────────────────────────────────────────────────────── │
-     │     302 → assessiq.automateedge.cloud/api/auth/google/cb?code&state │
+     │     302 → assessiq.in/api/auth/google/cb?code&state │
      │                            │                               │
      │ GET /api/auth/google/cb    │                               │
      ├───────────────────────────▶│                               │
@@ -230,7 +230,7 @@ Same Google SSO flow as admin, but:
    → POST /api/admin/invitations { email, assessment_id }
    → token = randomBytes(32).toString('base64url')
    → store token_hash (sha256), expires_at = now + 72h
-   → email candidate: https://assessiq.automateedge.cloud/take/<token>
+   → email candidate: https://assessiq.in/take/<token>
 
 2. Candidate clicks link
    → GET /take/<token>
@@ -280,7 +280,7 @@ Host app backend builds JWT:
 }
 Sign with HS256 using tenant's embed secret.
 
-Host renders: <iframe src="https://assessiq.automateedge.cloud/embed?token=<JWT>">
+Host renders: <iframe src="https://assessiq.in/embed?token=<JWT>">
 
 AssessIQ /embed handler (Phase 4 implementation — LIVE):
 1. Decode JWT header → reject if alg != 'HS256' (D5: alg=none and RS256 rejected)

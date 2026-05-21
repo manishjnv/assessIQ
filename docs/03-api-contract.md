@@ -1,6 +1,6 @@
 # 03 — API Contract
 
-> Base URL: `https://assessiq.automateedge.cloud/api`
+> Base URL: `https://assessiq.in/api`
 > All requests are JSON. All authenticated requests carry either a session cookie (`aiq_sess`) or `Authorization: Bearer aiq_live_<key>`. Tenant context is derived from the session/key — never passed in URL or body.
 
 ## Convention
@@ -1217,7 +1217,7 @@ X-AssessIQ-Timestamp: 2026-04-29T11:32:14Z
   "submitted_at": "2026-04-29T11:30:00Z",
   "graded_at": "2026-04-29T11:31:50Z",
   "links": {
-    "result": "https://assessiq.automateedge.cloud/api/admin/attempts/att_..."
+    "result": "https://assessiq.in/api/admin/attempts/att_..."
   }
 }
 ```
@@ -1251,7 +1251,7 @@ function buildAssessIQEmbedUrl(tenantId, user, assessmentId) {
     jti: crypto.randomUUID()
   };
   const token = jwt.sign(payload, process.env.ASSESSIQ_EMBED_SECRET, { algorithm: "HS256" });
-  return `https://assessiq.automateedge.cloud/embed?token=${encodeURIComponent(token)}`;
+  return `https://assessiq.in/embed?token=${encodeURIComponent(token)}`;
 }
 ```
 

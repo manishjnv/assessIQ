@@ -61,7 +61,7 @@ export function TakeRightPane(): JSX.Element {
             color: 'var(--aiq-color-fg-secondary)',
           }}
         >
-          assessiq.automateedge.cloud
+          assessiq.in
         </footer>
       </blockquote>
     </aside>

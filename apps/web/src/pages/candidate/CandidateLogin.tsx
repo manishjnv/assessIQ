@@ -105,7 +105,7 @@ function RightPane(): JSX.Element {
             color: 'var(--aiq-color-fg-secondary)',
           }}
         >
-          assessiq.automateedge.cloud
+          assessiq.in
         </footer>
       </blockquote>
     </aside>
