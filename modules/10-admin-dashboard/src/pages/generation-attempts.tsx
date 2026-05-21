@@ -577,6 +577,10 @@ export function AdminGenerationAttempts(): React.ReactElement {
   const [packFilter, setPackFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange>("all");
 
+  // Sort state
+  const [sortBy, setSortBy] = useState<string>("started_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
   // Pack list for name resolution (fetched once on mount)
   const [packs, setPacks] = useState<PackItem[]>([]);
 
@@ -641,6 +645,8 @@ export function AdminGenerationAttempts(): React.ReactElement {
         if (packFilter !== "all") params.set("pack_id", packFilter);
         const since = dateRangeToSince(dateRange);
         if (since) params.set("since", since);
+        params.set("sort", sortBy);
+        params.set("dir", sortDir);
 
         const data = await adminApi<GenerationAttemptsResponse>(
           `/admin/generation-attempts?${params.toString()}`,
@@ -659,7 +665,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
         setLoading(false);
       }
     },
-    [statusFilter, packFilter, dateRange],
+    [statusFilter, packFilter, dateRange, sortBy, sortDir],
   );
 
   // Reset and re-fetch when filters change
@@ -842,23 +848,51 @@ export function AdminGenerationAttempts(): React.ReactElement {
                   textAlign: "left",
                 }}
               >
-                {["Started", "Pack / Level", "Status", "Counts", "Duration", "Model", "Chunks", ""].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                      fontFamily: "var(--aiq-font-sans)",
-                      fontSize: "var(--aiq-text-xs)",
-                      fontWeight: 600,
-                      color: "var(--aiq-color-fg-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
+                {(() => {
+                  const SORT_KEYS: Record<string, string> = { "Started": "started_at", "Status": "status", "Duration": "duration_ms", "Model": "model" };
+                  return ["Started", "Pack / Level", "Status", "Counts", "Duration", "Model", "Chunks", ""].map((h) => {
+                    const key = SORT_KEYS[h];
+                    if (key !== undefined) {
+                      return (
+                        <th
+                          key={h}
+                          onClick={() => { const nextDir = sortBy === key && sortDir === "asc" ? "desc" : "asc"; setSortBy(key); setSortDir(nextDir); }}
+                          style={{
+                            padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                            fontFamily: "var(--aiq-font-sans)",
+                            fontSize: "var(--aiq-text-xs)",
+                            fontWeight: 600,
+                            color: "var(--aiq-color-fg-muted)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            whiteSpace: "nowrap",
+                            cursor: "pointer",
+                            userSelect: "none",
+                          }}
+                        >
+                          {h}{sortBy === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                        </th>
+                      );
+                    }
+                    return (
+                      <th
+                        key={h}
+                        style={{
+                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                          fontFamily: "var(--aiq-font-sans)",
+                          fontSize: "var(--aiq-text-xs)",
+                          fontWeight: 600,
+                          color: "var(--aiq-color-fg-muted)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    );
+                  });
+                })()}
               </tr>
             </thead>
             <tbody>

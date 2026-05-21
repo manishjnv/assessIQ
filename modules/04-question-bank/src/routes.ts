@@ -915,6 +915,18 @@ export async function registerQuestionBankRoutes(
       const limitVal = !isNaN(rawLimit) && rawLimit >= 1 && rawLimit <= 100 ? rawLimit : 50;
       const offsetVal = !isNaN(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
 
+      // ORDER BY allowlist — map a sort key to a fixed column literal (ORDER BY
+      // cannot be a bound parameter); dir → literal ASC/DESC. No raw query input
+      // ever reaches the ORDER BY clause.
+      const GA_SORT_COLUMNS: Record<string, string> = {
+        started_at: "started_at",
+        status: "status",
+        duration_ms: "duration_ms",
+        model: "model",
+      };
+      const sortCol = GA_SORT_COLUMNS[q["sort"] ?? ""] ?? "started_at";
+      const sortDirSql = q["dir"] === "asc" ? "ASC" : "DESC";
+
       const validStatuses = ["success", "partial", "failed", "running"];
       const statusVal = rawStatus && validStatuses.includes(rawStatus) ? rawStatus : null;
 
@@ -991,7 +1003,7 @@ export async function registerQuestionBankRoutes(
                   duration_ms, started_at, finished_at, pack_id, level_id, user_id
            FROM generation_attempts
            ${where}
-           ORDER BY started_at DESC
+           ORDER BY ${sortCol} ${sortDirSql}, id
            LIMIT $${limitParam} OFFSET $${offsetParam}`,
           params,
         );
