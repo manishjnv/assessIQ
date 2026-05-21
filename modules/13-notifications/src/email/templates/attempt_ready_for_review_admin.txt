@@ -1,10 +1,10 @@
-Subject: Attempt ready for review — {{candidateName}} on {{assessmentName}}
+Subject: {{candidateName}} completed {{assessmentName}} and is ready for review
 
 Hello,
 
-{{candidateName}} completed {{assessmentName}} ({{tenantName}}).
+{{candidateName}} completed {{assessmentName}} at {{tenantName}}.
 
-Attempt: {{attemptId}}
+Reference: {{attemptId}}
 
 Review the attempt:
 {{reviewLink}}

@@ -1,8 +1,8 @@
-Subject: We received your assessment submission — {{assessmentName}}
+Subject: We received your submission for {{assessmentName}}
 
 Hi {{candidateName}},
 
-Your submission for "{{assessmentName}}" on {{tenantName}} was received at {{submittedAt}}.
+Your submission for {{assessmentName}} on {{tenantName}} was received at {{submittedAt}}.
 
 You will receive another email when grading is complete.
 

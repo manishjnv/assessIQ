@@ -1,4 +1,4 @@
-Subject: You've been invited to take "{{assessmentName}}" on AssessIQ
+Subject: You've been invited to take {{assessmentName}} on AssessIQ
 
 Hi {{candidateName}},
 
