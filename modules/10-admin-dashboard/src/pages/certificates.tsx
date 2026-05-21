@@ -144,6 +144,10 @@ export function AdminCertificates(): React.ReactElement {
   const [tierFilter, setTierFilter]     = useState<CertTier | "all">("all");
   const [statusFilter, setStatusFilter] = useState<CertStatus | "all">("all");
 
+  // Sort state
+  const [sortBy, setSortBy]   = useState<string>("issued_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
   // Revoke modal state
   const [revokeModalId, setRevokeModalId]   = useState<string | null>(null); // credential_id
   const [revokeReason, setRevokeReason]     = useState("");
@@ -164,6 +168,15 @@ export function AdminCertificates(): React.ReactElement {
 
   const LIMIT = 50;
 
+  const SORT_KEYS: Record<string, string> = {
+    "Credential ID": "credential_id",
+    "Email":         "user_email",
+    "Tier":          "tier",
+    "Course":        "course_title",
+    "Issued":        "issued_at",
+    "Status":        "status",
+  };
+
   // ---------------------------------------------------------------------------
   // Fetch
   // ---------------------------------------------------------------------------
@@ -177,6 +190,8 @@ export function AdminCertificates(): React.ReactElement {
       params.set("offset", String(currentOffset));
       if (tierFilter !== "all") params.set("tier", tierFilter);
       if (statusFilter !== "all") params.set("revoked", statusFilter === "revoked" ? "true" : "false");
+      params.set("sort", sortBy);
+      params.set("dir", sortDir);
 
       const data = await adminApi<CertListResponse>(
         `/admin/certificates?${params.toString()}`,
@@ -194,7 +209,7 @@ export function AdminCertificates(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [tierFilter, statusFilter]);
+  }, [tierFilter, statusFilter, sortBy, sortDir]);
 
   // Reset and re-fetch when filters change
   useEffect(() => {
@@ -484,23 +499,52 @@ export function AdminCertificates(): React.ReactElement {
                   "Revoke reason",
                   ...(isSuperAdmin ? ["Tenant"] : []),
                   "Actions",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                      fontFamily: "var(--aiq-font-sans)",
-                      fontSize: "var(--aiq-text-xs)",
-                      fontWeight: 600,
-                      color: "var(--aiq-color-fg-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
+                ].map((h) => {
+                  const key = SORT_KEYS[h];
+                  if (key !== undefined) {
+                    return (
+                      <th
+                        key={h}
+                        onClick={() => {
+                          const nextDir = sortBy === key && sortDir === "asc" ? "desc" : "asc";
+                          setSortBy(key);
+                          setSortDir(nextDir);
+                        }}
+                        style={{
+                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                          fontFamily: "var(--aiq-font-sans)",
+                          fontSize: "var(--aiq-text-xs)",
+                          fontWeight: 600,
+                          color: "var(--aiq-color-fg-muted)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          whiteSpace: "nowrap",
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        {h}{sortBy === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                      </th>
+                    );
+                  }
+                  return (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: "var(--aiq-text-xs)",
+                        fontWeight: 600,
+                        color: "var(--aiq-color-fg-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>

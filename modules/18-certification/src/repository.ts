@@ -487,6 +487,23 @@ export async function listCertificatesAdmin(
   params.push(query.offset);
   const offsetParam = `$${params.length}`;
 
+  // ORDER BY allowlist — `query.sort` is already a Zod enum, but we map it to a
+  // fixed column literal here too (defense-in-depth; ORDER BY cannot be a bound
+  // parameter). `dir` becomes a literal ASC/DESC. No raw input reaches the SQL.
+  const SORT_COLUMNS: Record<string, string> = {
+    credential_id: 'c.credential_id',
+    user_email: 'u.email',
+    tier: 'c.tier',
+    course_title: 'c.course_title',
+    issued_at: 'c.issued_at',
+    // status = active vs revoked: order by a derived 0/1 flag (not the raw
+    // nullable revoked_at timestamp) so asc=active-first / desc=revoked-first
+    // is meaningful rather than NULL-ordered. Still a fixed literal — no input.
+    status: 'CASE WHEN c.revoked_at IS NULL THEN 0 ELSE 1 END',
+  };
+  const sortCol = (query.sort && SORT_COLUMNS[query.sort]) || 'c.issued_at';
+  const sortDir = query.dir === 'asc' ? 'ASC' : 'DESC';
+
   const result = await client.query<Certificate & { user_email: string | null }>(
     `SELECT
        c.id::text,
@@ -514,7 +531,7 @@ export async function listCertificatesAdmin(
      FROM certificates c
      LEFT JOIN users u ON u.id = c.candidate_id
      ${whereClause}
-     ORDER BY c.issued_at DESC
+     ORDER BY ${sortCol} ${sortDir}, c.id
      LIMIT ${limitParam} OFFSET ${offsetParam}`,
     params,
   );

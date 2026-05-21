@@ -183,6 +183,11 @@ export const ListCertificatesQuerySchema = z.object({
   revoked: z.enum(['true', 'false']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
+  // Server-side sort. `sort` is an enum allowlist (the repository maps each key
+  // to a fixed column literal — ORDER BY can't be parameterized); `dir` maps to
+  // a literal ASC/DESC. No raw user input ever reaches the ORDER BY clause.
+  sort: z.enum(['credential_id', 'user_email', 'tier', 'course_title', 'issued_at', 'status']).optional(),
+  dir: z.enum(['asc', 'desc']).optional(),
 });
 
 export type ListCertificatesQuery = z.infer<typeof ListCertificatesQuerySchema>;
