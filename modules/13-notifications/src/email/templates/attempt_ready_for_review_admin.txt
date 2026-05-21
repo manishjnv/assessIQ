@@ -9,4 +9,5 @@ Reference: {{attemptId}}
 Review the attempt:
 {{reviewLink}}
 
-— AssessIQ
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

@@ -12,3 +12,4 @@ If you didn't ask for this link, you can ignore this email. Nobody can sign in t
 
 Thanks,
 The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

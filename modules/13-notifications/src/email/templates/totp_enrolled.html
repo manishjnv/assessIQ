@@ -1,40 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{_t_page_title}}</title>
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e8e8">
-<!-- Header — white, editorial wordmark -->
-<tr><td style="background:#ffffff;padding:24px 40px;border-bottom:1px solid #e8e8e8">
-  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">{{_t_brand_wordmark}}</p>
-</td></tr>
-<!-- Body -->
-<tr><td style="padding:40px">
-  <p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em">{{_t_greeting}}</p>
-  <!-- i18n: body copy not yet externalized -->
-  <p style="margin:0 0 24px;font-size:15px;color:#5f6368;line-height:1.6">
-    Two-factor authentication was turned on for your AssessIQ account{{#if tenantName}} at <strong style="color:#1a1a1a">{{tenantName}}</strong>{{/if}}
-    on <strong style="color:#1a1a1a">{{enrolledAt}}</strong>.
-  </p>
-  <!-- Security warning — brand danger color #e64242 = oklch(0.62 0.20 25) -->
-  <p style="margin:0;font-size:14px;color:#e64242;line-height:1.6">
-    {{_t_security_warning}}
-  </p>
-</td></tr>
-<!-- Footer -->
-<tr><td style="background:#f5f5f5;padding:20px 40px;border-top:1px solid #e8e8e8">
-  <!-- i18n: footer copy not yet externalized -->
-  <p style="margin:0;font-size:11px;color:#9aa0a6;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
-    &copy; AssessIQ &middot; All rights reserved.
-  </p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>
+<!-- Composes kit partials (Email Kit Port E2b — derived, no kit screen). Security warning keeps brand danger #e64242. -->
+{{#> email-shell preheader="Two-factor authentication is now on for your AssessIQ account."}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-short
+      eyebrow="SECURITY"
+      title="Two-factor authentication is on."
+      body=(concat "Hi " recipientName ", two-factor authentication is now switched on for your AssessIQ account.")}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
+      <tr><td>{{> email-meta-card rows=meta_rows}}</td></tr>
+    </table>
+
+    <p style="margin:24px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#e64242;line-height:1.55">{{_t_security_warning}}</p>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional}}
+
+{{/email-shell}}

@@ -6,4 +6,5 @@ Your submission for {{assessmentName}} on {{tenantName}} was received at {{submi
 
 You will receive another email when grading is complete.
 
-— AssessIQ
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

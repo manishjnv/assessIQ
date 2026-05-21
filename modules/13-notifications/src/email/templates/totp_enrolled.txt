@@ -6,4 +6,5 @@ Two-factor authentication was turned on for your AssessIQ account{{#if tenantNam
 
 If you did not perform this action, contact your administrator immediately and change your password.
 
-— AssessIQ
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}
