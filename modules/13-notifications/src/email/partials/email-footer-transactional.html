@@ -1,0 +1,23 @@
+<!-- A9a email-footer-transactional — brand mark + reason + address + © -->
+<tr>
+  <td style="padding:28px 40px 32px;background:#fafafa;border-top:1px solid #e4e4e7">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td style="padding-bottom:14px;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:500;color:#0a0a0b;letter-spacing:-0.01em">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1a73e8;vertical-align:middle;margin-right:10px"></span>
+          {{_t_brand_wordmark}}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding-bottom:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#3f3f46;line-height:1.55;max-width:460px">
+          {{#if reason}}{{reason}}{{else}}You're receiving this because you have an active AssessIQ account. This is a transactional message and does not include marketing.{{/if}}
+        </td>
+      </tr>
+      <tr>
+        <td style="border-top:1px solid #e4e4e7;padding-top:16px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em">
+          {{_t_legal_entity}} &middot; {{_t_legal_address}} &middot; &copy; {{copyright_year}}
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
