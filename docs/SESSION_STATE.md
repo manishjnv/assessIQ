@@ -1,3 +1,26 @@
+# Session — 2026-05-22 (Canonical host switched to assessiq.in — LIVE)
+
+**Headline:** Switched the canonical web host from `assessiq.automateedge.cloud` to **`assessiq.in`** (live, end-to-end verified): assessiq.in serves with the AOP origin-lock, `www`→apex, old host 301s to it (path+query preserved, still AOP-locked), `.env` base-URL+OIDC flipped, frontend rebuilt. Mid-cutover hit `429 "missing client IP"` on the new domain — root-caused to the Cloudflare `x-origin-verify` rule being created as a **Response** (not **Request**) header on the assessiq.in zone; recreated it as a Request rule, then **rotated the exposed `ORIGIN_VERIFY_SECRET`** (the Response rule had been broadcasting it to visitors).
+
+**Commits (main):** `2025163` — feat(infra): switch canonical host to assessiq.in (Caddy snippet, env, OIDC, footers, embed doc, current-facing docs). Plus this docs commit — docs(deploy,rca): mark switch LIVE + RCA 2026-05-22 (Request/Response Transform Rule + secret rotation).
+
+**Tests:** Live end-to-end sweep GREEN — assessiq.in health/SPA/admin 200; `POST /take/start` 404 (not 429); SSO 302 → `redirect_uri=assessiq.in`; AOP direct-origin spoof **rejected (000)** on assessiq.in AND legacy host; `www` 301→apex; legacy 301 preserves `?token=`; neighbors accessbridge 200 / intelwatch 307 (pre-existing, untouched — first 105 Caddyfile lines byte-identical to backup); HSTS/CSP/XFO/nosniff present; all containers healthy. Frontend bundle: `assessiq.in`×2, old host ×0. No unit tests touched (infra/config/docs only).
+
+**Next:** Operator confirms the Chrome "Dangerous site" warning is cleared (transparency report already shows `assessiq.in` CLEAN — hard-refresh/incognito; it was a new-domain real-time heuristic, not a blocklist hit). Optional follow-ups: remove the old `…automateedge.cloud/api/auth/google/cb` redirect URI from the Google console after a grace period; `EMAIL_FROM` → `noreply@assessiq.in` remains a separate SPF/DKIM/DMARC workstream.
+
+**Open questions:** (a) `ssh assessiq-vps` from the operator's MINGW64 shell read a different `/tmp` than the orchestrator's ssh (the secret temp file was invisible to the operator) — alias/host/namespace mismatch, non-blocking but worth a look. (b) Optional re-rotate of `ORIGIN_VERIFY_SECRET` via a VPS-file-only handoff if a fully-clean-transcript secret is wanted (the current one was shown once in chat; AOP makes it low-risk).
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Drove the whole cutover — plan, all live Caddyfile edits (additive append for assessiq.in/www; legacy→301 via boundary-reconstruct truncate-write, backup + validate-or-restore), `.env` flips, origin-verify root-cause from api logs + `rate-limit.ts`/`client-ip.ts`, zero-downtime secret rotation (log-mode bridge), full live test sweep, all docs. Telemetry: `Opus · domain-switch deploy + RCA diagnosis + docs · reworked: N`.
+- **Sonnet:** 3 subagents — (1) test/tooling domain-string swaps (7 files); (2) current-facing doc URL swaps (3 files / 16 refs, 5 historical left); (3) adversarial security review of the switch diff → verdict **REVISE**, 3 fixes applied (keep AOP on legacy through cutover; Transform Rule unconditionally required; www + legacy spoof smoke probes). `Sonnet · 2 mechanical swaps + 1 adversarial review · reworked: N`.
+- **Haiku:** n/a — live prod verification (curl grids, AOP probes) run inline via ssh; the ssh + `dangerouslyDisableSandbox` + alias coupling made subagent delegation fragile.
+- **codex:rescue:** n/a — Sonnet takeover for the security-adjacent infra/auth diff (per feedback-adversarial-reviewer-routing). Verdict REVISE → accepted after fixes; codex companion not invoked.
+- **claude-mem:** read prior observations from hook context (rate-limit redesign, AOP/CF-origin-cert history, deploy runbook). No durable memory written — the Request-vs-Response Transform Rule lesson lives in RCA 2026-05-22 + `docs/06-deployment.md` prerequisite #3.
+
+---
+
 # Session — 2026-05-21 (Email Kit Port E2a+E2b COMPLETE — all 9 templates redesigned to kit look)
 
 **Headline:** With the look approved on `invitation_candidate`, rewired the remaining 8 production email templates to compose the kit partials — completing E2a (invitation_admin, attempt_graded_candidate, attempt_ready_for_review_admin, weekly_digest_admin) and E2b (candidate_login_link, admin_email_otp, totp_enrolled, attempt_submitted_candidate). All 9 now share the kit contract: warm canvas, 640px card, editorial/short lede, meta-cards, MSO-safe pill CTAs, compliance footer with the Bangalore address. Auth-critical bits preserved — OTP code in a large mono block (never in preheader, decision #7), magic-link `link_url`, totp security warning + weekly-digest pending-review both in brand danger `#e64242`. Per-template Zod schemas UNCHANGED → no `sendEmail()` call site touched. **Shipped, deployed (api+worker), full sample set sent to manishjnvk@gmail.com.**
