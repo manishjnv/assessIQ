@@ -1,3 +1,23 @@
+# Session — 2026-05-22 (Anon rate-limit cap raised — fixes 429 on the admin login screen)
+
+**Headline:** A legit admin was getting `RATE_LIMITED (scope=ip)` **on the live login screen**. Root cause: the pre-auth login bootstrap is anonymous, every protected-route load fires a `whoami` probe, and the **anon IP tier was 30/min** — the 5000/min "never-locks-out" cap only applies *after* MFA, so it can't reach the login screen. Raised `RATE_LIMIT_IP_ANON` 30→120 (DoS knob only; credential brute-force is the separate 20/min bucket). **Deployed + behaviorally verified live** (`x-ratelimit-limit: 120`, 35-req anon burst = 35×401 / 0×429).
+**Commits (main):** `ad88f72` — fix(auth): raise anonymous IP rate-limit cap 30→120 (00-core) [+ `.env.example`].
+**Tests:** 00-core config 32/32 ✓, 01-auth rate-limit-tiered 15/15 ✓. (01-auth middleware suite needs a Redis testcontainer — Docker not local; non-container tests pass.) Adversarial Sonnet review = ACCEPT.
+**Deploy:** LIVE. VPS ff-pull → `b9d3c57`→`ad88f72`; `assessiq-api` image rebuilt + `--force-recreate` (`--no-deps`; frontend/worker/neighbors untouched). `RATE_LIMIT_IP_ANON` not pinned in prod `.env` → code default (120) applies. Healthy; `assessiq-api listening`.
+**Next:** Decide the **frontend half**: `apps/web/src/lib/session.ts` now also backs off `whoami` on 429 (clamped retry, no re-fire storm) — DONE in code, reviewed-accept, type-clean, but **uncommitted** because it shares `session.ts` with the prior session's in-flight **Phase D login-banner WIP**. Ship it with the Phase D commit, or commit/deploy `assessiq-frontend` standalone on request.
+**Open questions:** (a) 120/min/IP assumes a modest shared-NAT; if a large corporate NAT still trips it, raise further or special-case the read-only `whoami` probe (it's not a credential surface). (b) Frontend backoff is unverified live (not deployed yet).
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Whole task — systematic-debugging Phase 1 root-cause (traced 429 → anon tier → whoami probe via RequireSession; ruled out loop + `/api/_log`), pinned env/auth-state via AskUserQuestion (login screen / live), verified credential-bucket independence in code, wrote both fixes + clamp, isolated backend commit (left Phase D + frontend WIP uncommitted), deploy + live behavioral verification, RCA + this handoff. Telemetry: `Opus · anon-cap diagnose+fix+deploy · reworked: N`.
+- **Sonnet:** 1 adversarial security review of the diff (anon-cap loosening + frontend backoff) → VERDICT accept, 2 advisory residuals (one moot, one closed via the [1,300]s clamp). `Sonnet · adversarial rate-limit review · reworked: N`.
+- **Haiku:** n/a — live deploy/verify run inline via `ssh assessiq-vps` (coupled to the alias; subagent delegation fragile per prior sessions).
+- **codex:rescue:** n/a — security-adjacent but small (one config default + client backoff); proportionate gate met by the Sonnet adversarial pass per the routing-memory ("scale rigor to magnitude").
+- **claude-mem:** read prior observations from hook context (rate-limit redesign 2755/3478, client-ip origin-verify 3861, finding-5 app-wide IP-bind). No durable memory written.
+
+---
+
 # Session — 2026-05-22 (Super-admin generate screen now shows the 9 default domains)
 
 **Headline:** The super-admin question-generation screen listed only 1 domain instead of the 9 defaults, because the super admin lives in the hand-bootstrapped **"platform" tenant** which migration 0019 never seeded (0019 fans out over `SELECT FROM tenants`, but the platform tenant is created by hand AFTER migrations run). Added + deployed `0083_seed_platform_tenant_taxonomy.sql` (slug-matched, idempotent, post-0020 `supported_types` baked in); the platform tenant is now the canonical **master question library**. Live-verified 1→9 domains, 56 categories, company tenants untouched.
