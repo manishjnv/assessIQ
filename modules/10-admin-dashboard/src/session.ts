@@ -40,6 +40,25 @@ export async function fetchAdminWhoami(
     return s;
   } catch (err) {
     if (err instanceof AdminApiError && err.status === 401) {
+      // Phase D: stash details.scope so the login page can render state-aware
+      // copy when a tenant suspend / user disable kicks the session out.
+      // Mirrors apps/web/src/lib/session.ts. Single-shot — login page clears.
+      const details = err.apiError.details;
+      const scope = details?.["scope"];
+      const reason = details?.["reason"];
+      if (typeof scope === "string") {
+        try {
+          sessionStorage.setItem(
+            "aiq.lastAuthScope",
+            JSON.stringify({
+              scope,
+              reason: typeof reason === "string" ? reason : undefined,
+            }),
+          );
+        } catch {
+          // sessionStorage may throw in private/incognito modes — ignore.
+        }
+      }
       cached = null;
       notify(null);
       return null;

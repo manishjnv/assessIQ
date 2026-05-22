@@ -24,7 +24,7 @@
 //    --accent → --aiq-color-accent, --shadow-lg → --aiq-shadow-lg, etc.) per
 //    docs/10-branding-guideline.md § 0 step 4.
 
-import { type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
 
@@ -33,6 +33,11 @@ import { Button, Chip, Logo } from '@assessiq/ui-system';
 // that email across tenants. If there is exactly one match, the user is
 // admitted immediately (same as before). If there are multiple matches, the
 // user is redirected to /admin/select-identity to choose.
+//
+// Phase D — on mount, read the single-shot `aiq.lastAuthScope` sessionStorage
+// key written by lib/session.ts when whoami responded 401 with details.scope.
+// Render a state-aware banner so a user kicked out by a tenant suspend / user
+// disable sees coherent copy instead of the generic "session expired" feel.
 
 const SERIF_H1: CSSProperties = {
   fontSize: 44,
@@ -42,8 +47,43 @@ const SERIF_H1: CSSProperties = {
   letterSpacing: '-0.025em',
 };
 
+interface AuthScopeBanner {
+  title: string;
+  body: string;
+}
+
+function readAuthScopeBanner(): AuthScopeBanner | null {
+  try {
+    const raw = sessionStorage.getItem('aiq.lastAuthScope');
+    if (raw === null) return null;
+    sessionStorage.removeItem('aiq.lastAuthScope'); // single-shot
+    const parsed = JSON.parse(raw) as { scope?: unknown };
+    const scope = typeof parsed.scope === 'string' ? parsed.scope : null;
+    if (scope === 'tenant') {
+      return {
+        title: "Your organisation's access is paused.",
+        body: 'An administrator has suspended or archived your company workspace. Please contact your administrator to restore access.',
+      };
+    }
+    if (scope === 'user') {
+      return {
+        title: 'Your account has been disabled.',
+        body: 'An administrator has disabled or removed your account. Please contact your administrator if you believe this is a mistake.',
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function AdminLogin(): JSX.Element {
   const navigate = useNavigate();
+  const [banner, setBanner] = useState<AuthScopeBanner | null>(null);
+
+  useEffect(() => {
+    setBanner(readAuthScopeBanner());
+  }, []);
 
   const startGoogleSso = (): void => {
     window.location.href = '/api/auth/google/start';
@@ -65,6 +105,41 @@ export function AdminLogin(): JSX.Element {
     >
       <main style={{ width: '100%', maxWidth: 420, padding: '48px 24px' }}>
         <Logo />
+
+        {banner !== null && (
+          <div
+            role="status"
+            style={{
+              marginTop: 32,
+              padding: '14px 16px',
+              border: '1px solid var(--aiq-color-border)',
+              borderLeft: '3px solid var(--aiq-color-warning, #d97706)',
+              borderRadius: 'var(--aiq-radius-md)',
+              background: 'var(--aiq-color-bg-sunken)',
+              fontFamily: 'var(--aiq-font-sans)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 500,
+                color: 'var(--aiq-color-fg-primary)',
+                marginBottom: 4,
+              }}
+            >
+              {banner.title}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: 'var(--aiq-color-fg-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
+              {banner.body}
+            </div>
+          </div>
+        )}
 
         <span style={{ display: 'inline-block', margin: '32px 0 24px' }}>
           <Chip variant="success">Welcome</Chip>
