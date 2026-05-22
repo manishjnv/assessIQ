@@ -247,6 +247,63 @@ fi
 
 **Downstream impact.** Embed customers using the CDN `<script src>` must update to `assessiq.in` (embed JWT `allowedOrigins` are tenant-configured separately and unaffected). Any external monitor / uptime check pointed at the old host keeps working via the 301. The `tests/load` PROD_PATTERNS guard now lists `assessiq.in` so load tests stay blocked against the new prod host.
 
+## SEO marketing site — `assessiq-marketing` container (Phase 0, 2026-05-22)
+
+**Status: container LIVE on the VPS at host port 9093 (healthy); NOT yet public.**
+The shared Caddyfile default route still points at the SPA (9091), so
+`assessiq.in` is byte-for-byte unchanged. Flipping the default route to 9093 is
+the one remaining, deferred step (see "PENDING — Caddy flip" below). Deferred
+because a concurrent session was deploying on the box; do it on a quiet window.
+
+**What it is.** `apps/marketing/` — a standalone Astro static site, the public
+SEO surface (home / about / contact + `robots.txt` + sitemap, full §3.5 head
+contract + Organization/WebSite/SoftwareApplication JSON-LD). Built per
+`docs/design/seo-marketing-site-architecture.md` and `docs/design/SEO_Strategy.md`
+§17. The React SPA stays the gated app and remains `noindex`.
+
+**Container.** `assessiq-marketing` in `infra/docker-compose.yml`: `nginx:alpine`
+serving Astro `dist/`, host port **9093:80** (9091=frontend, 9092=api). Dockerfile
+at `infra/docker/assessiq-marketing/Dockerfile` (multi-stage; **pnpm pinned to
+9.15.0** via `packageManager` — node:22-alpine corepack defaults to pnpm 11 whose
+`minimumReleaseAge` policy breaks the frozen install of a 9.x lockfile). Standalone:
+`apps/marketing` is EXCLUDED from the pnpm workspace (`pnpm-workspace.yaml`
+`!apps/marketing`); own lockfile, installed `--ignore-workspace`.
+
+**Deploy (steady-state):**
+```bash
+cd /srv/assessiq && git pull --ff-only
+docker compose -f infra/docker-compose.yml build assessiq-marketing
+docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-marketing
+```
+Verified 2026-05-22 on :9093 — `/`, `/about`, `/contact`, `/robots.txt`,
+`/sitemap-index.xml`, `/favicon.svg`, `/og-default.png` → 200; `/nonexistent` →
+**real 404** (Astro `build.format:'file'` + nginx `try_files $uri $uri.html
+$uri/index.html =404`, no `$uri/` branch → no soft-404, no trailing-slash 301);
+home serves all 3 JSON-LD blocks. Live `assessiq.in` + `accessbridge.space`
+confirmed unaffected.
+
+**Asset routing (no collision with the SPA).** The SPA owns `/assets/*` (Vite
+chunks) + `/brand/*` (favicons/og). Marketing uses `/_astro/*` + ROOT favicons
+(`/favicon.svg` etc.) + `/og-default.png` — deliberately NOT `/assets` or
+`/brand`. This is why the `@app` matcher below carries `/assets/* /brand/*`.
+
+**PENDING — Caddy flip (do on a quiet box; `codex:rescue` verdict ACCEPT already
+on file).** Apply the THREE-WAY split from `infra/caddyfile/assessiq.snippet` to
+the `assessiq.in` block in `/opt/ti-platform/caddy/Caddyfile`:
+```caddy
+@api  path /api/* /embed* /help/* /take/start /verify/*                 # -> 9092 (unchanged)
+@app  path /admin /admin/* /candidate /candidate/* /take /take/* /assets/* /brand/*   # -> 9091 (SPA)
+handle { reverse_proxy 172.17.0.1:9093 ... }                            # default -> 9093 (marketing)
+```
+⚠️ **Read the LIVE `assessiq.in` block IN FULL first** — it has drifted from the
+repo snippet (older comments, possibly missing `/take/start` / `/verify/*` / the
+AOP comment). Reconcile against the live file, then apply via the documented
+**backup → truncate-write (NEVER `mv`/`sed -i` — inode trap) → `caddy validate`
+→ `caddy reload` → 5-probe smoke** (incl. AOP direct-origin spoof MUST NOT 200,
+neighbor MUST 200). **Keep the `tls { client_auth ... }` AOP block intact.** After
+the flip: `assessiq.in/` serves marketing; `/admin` `/take` `/candidate` serve
+the SPA; verify a Googlebot-UA `curl` of `robots.txt` + sitemap through Cloudflare.
+
 ## Reverse-proxy plan — additive Caddyfile block
 
 The ti-platform Caddyfile (at `/opt/ti-platform/caddy/Caddyfile`) already has Cloudflare IPs in `trusted_proxies` and uses bridge-gateway upstreams (`172.17.0.1:<port>`) to reach apps on other Docker networks (this is the pattern roadmap and accessbridge use today). Match that pattern — no edits to ti-platform's `docker-compose.yml`, no `extra_hosts`, no shared-network coupling.
