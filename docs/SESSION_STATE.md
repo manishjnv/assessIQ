@@ -1,3 +1,24 @@
+# Session — 2026-05-22 (Phase D shipped — state-aware login banner + frontend whoami 429-backoff LIVE)
+
+**Headline:** Finished + deployed Phase D (the prior session's uncommitted login-banner WIP): on a tenant-suspend / user-disable 401, the admin login page now renders state-aware copy ("Your organisation's access is paused." / "Your account has been disabled.") instead of a generic session-expired feel. The same commit also ships the frontend half of the login-screen rate-limit fix (whoami backs off on 429, clamped [1,300]s), resolving the entanglement noted in the block below.
+**Commits (main):** `60d4d23` — feat(web): Phase D state-aware login banner (+ whoami 429-backoff). 3 files; deliberately excluded the separate web test-infra WIP (`vitest.config.ts`, `mfa.test.tsx` — still needs `@testing-library/react`).
+**Tests:** local `vite build` OK (389 modules); the frontend Dockerfile builds via `vite build` (skips `tsc -b`, so pre-existing `AdminShell.tsx:183/186` + the unpushed `mfa.test.tsx` don't block the deploy). No banner unit test yet (web test-infra incomplete — see Next).
+**Deploy:** LIVE. VPS ff-pull `ad88f72`→`60d4d23`; `assessiq-frontend` rebuilt + `--force-recreate` (`--no-deps`; api/worker/neighbors untouched). Healthy; `assessiq.in/` → 200; banner copy + `aiq.lastAuthScope` key confirmed in served bundle `index-BzaAetyx.js`.
+**Docs:** `docs/04-auth-flows.md` — new "Session-revocation UX (Phase D)" section + anon-cap 30→120 addendum (fixes the now-stale tier table). `help_id` intentionally omitted (transient pre-auth status notice, not a help-targeted control).
+**Next:** Behavioral *render* of the banner is **pending operator** — it needs a real suspend/disable (not manufactured on prod) OR a unit test. To enable the test: finish the web test-infra (add `@testing-library/react` → `vitest.config.ts` + `mfa.test.tsx` go green) and add a `login.test.tsx` banner case.
+**Open questions:** (a) Candidate login (`/candidate/login`) has no equivalent banner — extend if candidate suspend-UX is wanted. (b) Web unit-test infra is half-built (separate WIP) — decide whether to finish it.
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Finished + shipped Phase D — assessed feature completeness (verified every banner design token exists in `tokens.css`; `login.tsx` type-clean), scoped OUT the separate test-infra WIP, pre-flight `vite build`, isolated 3-file commit + push, frontend deploy + served-bundle verification, docs (04-auth-flows Phase D section + anon-cap addendum) + this handoff. `Opus · finish+ship Phase D · reworked: N`.
+- **Sonnet:** n/a — Phase D is non-load-bearing presentational UI (server-side scope enforcement shipped + reviewed in Phase A); no new adversarial surface. (Sonnet reviewed the anon-cap change earlier this session — see block below.)
+- **Haiku:** n/a — frontend build/deploy/verify run inline via `ssh assessiq-vps`.
+- **codex:rescue:** n/a — no auth/RLS/classifier logic; presentational frontend only.
+- **claude-mem:** read prior Phase D context from hook (obs 3916 Phase D uncommitted, 3606 lifecycle A→C, 2731 mfa.test.tsx). No durable memory written.
+
+---
+
 # Session — 2026-05-22 (Anon rate-limit cap raised — fixes 429 on the admin login screen)
 
 **Headline:** A legit admin was getting `RATE_LIMITED (scope=ip)` **on the live login screen**. Root cause: the pre-auth login bootstrap is anonymous, every protected-route load fires a `whoami` probe, and the **anon IP tier was 30/min** — the 5000/min "never-locks-out" cap only applies *after* MFA, so it can't reach the login screen. Raised `RATE_LIMIT_IP_ANON` 30→120 (DoS knob only; credential brute-force is the separate 20/min bucket). **Deployed + behaviorally verified live** (`x-ratelimit-limit: 120`, 35-req anon burst = 35×401 / 0×429).

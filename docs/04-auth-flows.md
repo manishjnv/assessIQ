@@ -878,6 +878,10 @@ Operator-observed: verified admins (post-MFA) doing normal admin work were being
 - `modules/00-core/src/__tests__/config.test.ts`: three default tests + three override tests + three invalid tests added.
 - `.env.example`: three new vars with comments.
 
+#### 2026-05-22 — anon IP cap raised 30 → 120 (login-screen 429 fix)
+
+`RATE_LIMIT_IP_ANON` default raised 30 → **120/min** (`modules/00-core/src/config.ts`, commit `ad88f72`). The anonymous tier gates the ENTIRE pre-auth surface — every load/return to a protected `/admin/*` route fires a `GET /api/auth/whoami` probe (`RequireSession`), and the login/MFA flow is anonymous until the cookie is set. At 30/min a single admin reloading the live login page (or several users behind one NAT) exhausted it and got `RATE_LIMITED (scope=ip)` **on the login screen** — before they could reach MFA and the 5000/min verified-admin tier. 120/min is a DoS knob only; credential brute-force stays on the unconditional 20/min credential bucket above, unaffected. Not pinned in prod `.env`, so the code default applies. The frontend pairs this with the Phase D `whoami` 429-backoff (commit `60d4d23`; honours `retryAfterSeconds`, no re-fire storm). Full RCA: `docs/RCA_LOG.md` 2026-05-22 "429 on the admin login screen". NB: the "What changed vs 2026-05-04" comparison table below still reads "100/30/30/600 per tier" for the historical redesign — **anon is now 120**.
+
 ### Redis key
 
 Old: `aiq:rl:auth:ip:<ip>` (applied to `/api/auth/*` only)
@@ -920,6 +924,24 @@ Old keys expire naturally within 60 seconds — no migration script required.
 - [ ] Force re-auth on email change, role change, password reset
 - [ ] HSTS header at edge with preload-eligible config
 - [ ] CSP header tight enough to prevent inline-script execution in admin UI
+
+---
+
+## Session-revocation UX — state-aware login banner (Phase D, 2026-05-22, LIVE)
+
+**What:** When a session is destroyed mid-use because the operator suspended/archived the tenant or disabled/deleted the user, `session-loader` (`modules/01-auth/src/middleware/session-loader.ts`) throws a 401 carrying `details.scope` (`"tenant"` | `"user"`) and `details.reason`. The SPA captures that scope on the failing `whoami` (`apps/web/src/lib/session.ts` + the admin-dashboard mirror `modules/10-admin-dashboard/src/session.ts`), stores it single-shot in `sessionStorage` under `aiq.lastAuthScope`, and the admin login page (`apps/web/src/pages/admin/login.tsx`) reads + clears it on mount to render a state-aware notice:
+
+- `scope: "tenant"` → **"Your organisation's access is paused."** (suspend / archive)
+- `scope: "user"` → **"Your account has been disabled."** (disable / delete)
+- any unknown / absent scope → no banner (silent fallthrough)
+
+**Why:** Before this, a revoked session bounced to a generic "session expired" feel that misrepresented a suspend/disable — the user had no idea their org or account was the cause. The error `code` and raw message are deliberately NOT surfaced; the scope alone drives the copy, so a cookie-holding attacker cannot distinguish "my account was disabled" from "my company was suspended" via the error string (matches the session-loader error-hygiene note).
+
+**Considered & rejected:** Surfacing `details.reason` text directly (rejected — leaks state granularity, and the two-bucket scope copy is sufficient). A toast instead of a login-page banner (rejected — the user has already been redirected to /login by the time the SPA reacts; the banner must live there).
+
+**Excluded:** No banner on the candidate login (`/candidate/login`) yet — Phase D is scoped to the admin surface (follow-up if candidate suspend-UX is wanted). No `help_id` (CLAUDE.md rule #5) — the banner is a transient pre-auth status notice, not a help-targeted interactive control, and the help system is not active pre-session.
+
+**Impact:** Frontend-only; server-side scope enforcement (Phase A, tenant/user status checks in `session-loader`) was already live. Built from design-system tokens (`--aiq-color-warning` accent, `--aiq-color-bg-sunken`, `--aiq-radius-md`); `role="status"`. Commit `60d4d23`, deployed to `assessiq-frontend`. Behavioral render is pending an operator-triggered suspend/disable (or a unit test once the web test-infra lands); banner copy + the `aiq.lastAuthScope` stash key are confirmed present in the served bundle (`index-BzaAetyx.js`).
 
 ---
 
