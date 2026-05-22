@@ -258,8 +258,14 @@ rejected (000); neighbor `accessbridge.space` → 200; legacy host → 301 → a
 `robots.txt` + `sitemap-index.xml` served to a Googlebot UA through Cloudflare.
 
 **What it is.** `apps/marketing/` — a standalone Astro static site, the public
-SEO surface (home / about / contact + `robots.txt` + sitemap, full §3.5 head
-contract + Organization/WebSite/SoftwareApplication JSON-LD). Built per
+SEO surface. **Phase 1 (live 2026-05-23):** home, about, contact, `/pricing`,
+`/security`, 4 India-first solution pages (`/solutions/{it-hiring,campus-recruitment,
+educational-institutions,team-skill-gap}`), `public/llms.txt`, `robots.txt`, a
+9-URL sitemap, Header (Solutions dropdown + Pricing) + grouped Footer. Full §3.5
+head contract; per-page JSON-LD (Organization/WebSite/SoftwareApplication on home;
+Service+FAQPage+BreadcrumbList on solutions; BreadcrumbList+FAQPage on pricing).
+No fabricated prices/Offer, no unearned SOC2/ISO certs, no ratings. New marketing
+pages need NO Caddy change (they fall to the default→9093 route). Built per
 `docs/design/seo-marketing-site-architecture.md` and `docs/design/SEO_Strategy.md`
 §17. The React SPA stays the gated app and remains `noindex`.
 

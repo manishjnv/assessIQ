@@ -1,3 +1,23 @@
+# Session — 2026-05-23 (SEO Phase 0 + Phase 1 — marketing site LIVE & PUBLIC at assessiq.in)
+
+**Headline:** Built, deployed, and made public a standalone **Astro SEO marketing site** at `assessiq.in`. **Phase 0** = infra (new `apps/marketing/` site decoupled from the SPA; `assessiq-marketing` container on :9093; Caddy three-way split flipped so the apex serves marketing while the SPA keeps `/admin` `/candidate` `/take` + `/assets` `/brand`, API keeps `/api` etc.). **Phase 1** = content (4 India-first solution pages, `/pricing`, `/security`, `llms.txt`, nav + 9-URL sitemap). The React app is unchanged and `noindex`.
+**Commits (main):** `20db1a8` strategy · `3e8f97c` architecture · `c2fd170` site+infra · `becea71` pnpm pin · `f5624dc` slash-fix · `a28882c` home-fix · `6e5bcea`+`f30d194` deploy docs · `6113a7a` Phase 1 content.
+**Tests/verify:** `astro build` green (10 pages); fabrication scan clean (no fake prices/Offer, no unearned SOC2/ISO certs, no ratings/testimonials/logos); live probes — all pages 200, sitemap 9 URLs, solution schema (Service/FAQPage/BreadcrumbList) served; SPA + API intact (`/admin/login`, `/api/health`, SPA bundle `/assets/*.js` 200); AOP direct-origin spoof rejected (000); neighbor + legacy 301 intact; Googlebot-UA robots/sitemap OK.
+**Deploy:** LIVE & PUBLIC. `assessiq.in` serves marketing (Caddy default→9093). Flip applied via backup → `docker cp` validate (Caddyfile is a single-file bind mount) → inode-safe truncate-write → reload → smoke gate w/ auto-revert. Backup `Caddyfile.bak.20260522T182634Z`. Marketing container rebuilt for Phase 1 (additive, no Caddy change). codex:rescue ACCEPT on the routing.
+**Next:** (1) **Submit `assessiq.in` to GSC + Bing** (ASMT-00 — starts the indexing clock). (2) Phase 2 = comparison/alternative pages (Mettl/HackerEarth/iMocha/HackerRank/AMCAT — best ROI). (3) Fill real prices on `/pricing`; claim G2/Capterra/Crunchbase/LinkedIn entity profiles (operator).
+**Open questions:** (a) Cloudflare injects its Managed-robots block above ours (`search=yes,ai-train=no`) — expected, beneficial. (b) New SPA top-level routes must be added to `@app` or they 404 at marketing (allowlist discipline — SEO §3.9/§16.4). (c) Real pricing numbers + entity-profile URLs are operator tasks.
+
+---
+
+## Agent utilization
+- **Opus 4.7:** orchestration; all load-bearing infra (Dockerfile/nginx/compose/Caddy three-way split + the shared-edge flip w/ validate+canary+auto-revert); caught+fixed the SPA asset-routing collision + 3 deploy bugs (pnpm 11 vs 9.15 lockfile, trailing-slash 301, home-route 404); fabrication review of Phase 1; full live verification; docs + this handoff. `Opus · SEO P0+P1 infra+flip+review · reworked: N`.
+- **Sonnet:** 3 subagent builds — Astro scaffold (P0), 4 solution pages, pricing/security/llms.txt/nav/sitemap (P1). `Sonnet · marketing page builds · reworked: partial (Opus did asset-namespace + favicon-path + logo integration on the scaffold)`.
+- **Haiku:** n/a — VPS build/deploy/verify run inline via `ssh assessiq-vps`.
+- **codex:rescue:** ACCEPT — adversarial review of the shared-edge Caddy routing (path-leakage, SPA-asset routing, `/take` split, AOP). Held up in production.
+- **claude-mem:** read prior infra context from hooks (Caddyfile/frontend-Dockerfile/branding obs). No durable memory written.
+
+---
+
 # Session — 2026-05-22 (Phase D follow-ups — candidate-login banner + web unit-test infra LIVE)
 
 **Headline:** Shipped both Phase D follow-ups. (1) Extended the revocation banner to the **candidate login** (`/candidate/login`) with calmer assessment-facing copy, via a new shared `apps/web/src/lib/authScope.ts` helper (single-shot read + audience-tuned copy); the admin login was refactored onto it (behaviour-identical). (2) Stood up the **apps/web jsdom unit-test infra** (mirrors `modules/10-admin-dashboard`), which unblocked the prior session's `mfa.test.tsx` and proves the banners with tests — so the banner is no longer "pending operator". Deployed + live-verified.
