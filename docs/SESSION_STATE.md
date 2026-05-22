@@ -1,3 +1,28 @@
+# Session — 2026-05-23 (Step 2 — question-set sharing BACKEND live: standing license + clone-on-use)
+
+**Headline:** Shipped + deployed the **backend** for sharing super-admin-curated question sets with companies, using the **standing-license + clone-on-use** model (chosen over eager clone-at-grant and over a cross-tenant reference read). A license (domain or pack entitlement) is pure permission — a **domain license covers all current AND future** sets in that domain; the actual set is **cloned into the company tenant on first use** (when they build an assessment from it), idempotently, with the publish-gate recognising the clone via lineage. UI is NOT built yet (Phase 5).
+
+**Commits (main, all pushed via the parallel SEO session's push of the shared branch):** `c303fa0` Phase 1 schema (`0084` provenance cols + `tenant.pack_cloned` audit) · `79b1d6c` model-pivot doc · `13ba2f7` Phase 2 clone engine (`clonePackToTenant`) · `d7c3b95` Phase 3 (`assertPublishEntitled` source_pack_id lineage + `Available-sets` catalog) · `26583c7` Phase 4 (`createAssessmentFromSet` + `POST /assessments/from-set` + `assertLicensedForSourcePack` + `materializeSetForTenant`) · `6a9b2a6` review fixes (`0085` unique index + advisory lock + tenant-pinned taxonomy lookups).
+
+**Tests/verify:** typecheck clean (question-bank, billing, assessment-lifecycle). DEPLOYED + LIVE: `0085` applied+recorded (unique index `question_packs_tenant_source_uniq`); `assessiq-api`/`worker` rebuilt+recreated (additive, `--no-deps`); `/api/health` 200; `GET /api/billing/available-sets` → 401 (wired); `POST /api/admin/assessments/from-set` → 401 (wired); worker ready + cron succeeding; `assessiq-marketing`/`frontend` untouched.
+
+**Adversarial review:** Sonnet takeover (GLM-5.1 second opinion **blocked by the harness data-egress classifier** — external source send). Verdict **REVISE** → both findings fixed before deploy: (HIGH, resource-abuse not cross-tenant) duplicate-clone race → `0085` partial unique index + `pg_advisory_xact_lock(tenant, source)`; (LOW) system-role taxonomy lookups pinned to platform tenant. All cross-tenant-leak / authz-bypass vectors BLOCKED/by-design.
+
+**Next (in order):** (1) **Same-PR docs still owed**: `docs/02-data-model.md` (provenance cols + 0084/0085 indexes), `docs/03-api-contract.md` (the 2 new routes), and update the plan doc's phase status. (2) **Phase 5 UI**: SA "Grant license to company" button on a published pack (pure `grantEntitlement`, no clone; pack- or domain-scope) → reuse `grantTenantEntitlement`; company "Available sets" picker (`getAvailableSets()` → `POST /assessments/from-set`) in the assessment-create flow; move ✦Generate / +Add level / +Add question OFF `pack-detail.tsx` onto the Generate page (create-vs-catalog separation). (3) Behavioral end-to-end: SA grants a company a domain → company sees the set → builds+publishes an assessment → candidate draws cloned questions. (4) DEFERRED follow-ups: re-sync of an updated source (catalog already returns `update_available`); clone-archival on revoke (publish gate already blocks revoked licenses).
+
+**Open questions:** (a) A PARALLEL session worked SEO/marketing on the same branch+VPS this session — my Step-2 commits got pushed by their push; coordinate to avoid double-deploy collisions. (b) Plan doc: `docs/design/question-set-sharing-clone-on-grant.md` (model-revision block is current; per-phase prose still describes eager-clone in places — reconcile in the docs pass).
+
+---
+
+## Agent utilization
+- **Opus 4.7:** design pivot (standing license + clone-on-use); wrote the clone engine, lineage, catalog, clone-on-use orchestration, and hardening; reconciled the adversarial verdict + applied fixes; backend deploy (migrate + rebuild + recreate + smoke). `Opus · Step2 backend + deploy · reworked: Y (1 review round — duplicate-clone race)`.
+- **Sonnet:** 3 fact-gathering subagents (signatures/line-numbers for clone+entitlement+assessment) + 1 adversarial security review (verdict REVISE, 2 findings). `Sonnet · fact-gather ×3 + adversarial review · reworked: N`.
+- **Haiku:** n/a — VPS deploy/smoke run inline via ssh.
+- **codex:rescue:** n/a — companion not used; Sonnet takeover was the adversarial gate (per feedback-adversarial-reviewer-routing); GLM-5.1 second opinion blocked by the data-egress classifier.
+- **claude-mem:** read prior observations (entitlement two-role tx, blueprint pack resolution, migration runner, schema_migrations tracking gap) from hook context; no durable write.
+
+---
+
 # Session — 2026-05-23 (SEO Phase 0 + Phase 1 — marketing site LIVE & PUBLIC at assessiq.in)
 
 **Headline:** Built, deployed, and made public a standalone **Astro SEO marketing site** at `assessiq.in`. **Phase 0** = infra (new `apps/marketing/` site decoupled from the SPA; `assessiq-marketing` container on :9093; Caddy three-way split flipped so the apex serves marketing while the SPA keeps `/admin` `/candidate` `/take` + `/assets` `/brand`, API keeps `/api` etc.). **Phase 1** = content (4 India-first solution pages, `/pricing`, `/security`, `llms.txt`, nav + 9-URL sitemap). The React app is unchanged and `noindex`.

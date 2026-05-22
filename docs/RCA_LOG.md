@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-23 — Duplicate question-set clones possible under concurrent clone-on-use (caught pre-deploy)
+
+**Symptom:** Caught in the Step-2 adversarial review (Sonnet), NOT in production. Concurrent `POST /api/admin/assessments/from-set` for the same `(tenant, source platform pack)` could each create a separate cloned pack in the company tenant — duplicating the set. Blast radius is the tenant's OWN data (no cross-tenant leak / no authz bypass), but it's a correctness/accounting defect.
+
+**Cause:** `materializeSetForTenant` (`modules/04-question-bank/src/clone.ts`) did a "does a clone of source S exist for this tenant?" idempotency `SELECT` then `INSERT`, with no serializing lock and no DB uniqueness constraint on `question_packs(tenant_id, source_pack_id)`. Two concurrent transactions both observe "no clone" and both insert — the classic check-then-act race.
+
+**Fix:** (commit `6a9b2a6`, before the backend deployed) (1) migration `0085_pack_clone_uniqueness.sql` — partial `UNIQUE INDEX question_packs_tenant_source_uniq ON question_packs (tenant_id, source_pack_id) WHERE source_pack_id IS NOT NULL` (replaces the non-unique `question_packs_source_idx` from `0084`); (2) `pg_advisory_xact_lock(hashtext(tenant), hashtext(source))` at the top of the clone transaction in `materializeSetForTenant`, so the second caller waits for the first to commit, then its idempotency `SELECT` finds the clone and returns early. The unique index is the structural backstop for any unlocked path.
+
+**Prevention:** Any "find-or-create then insert" under concurrency needs a serializing lock AND/OR a unique constraint — not the `SELECT` alone. Adversarial review of every cross-tenant *write* path before deploy is the guardrail that caught this. Test owed (Phase 6): parallel `from-set` for one `(tenant, source)` must yield exactly one clone.
+
 ## 2026-05-22 — Super-admin generate screen showed almost no domains (platform tenant never seeded)
 
 **Symptom:** After question generation moved to super-admin-only scope (Phase B1), the SA generate screen (`generate-wizard`) listed only **1** domain ("SOC") instead of the 9 defaults every company tenant shows. User reported "nothing shows."
