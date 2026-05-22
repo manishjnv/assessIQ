@@ -35,6 +35,7 @@ import { ValidationError } from "@assessiq/core";
 import {
   listAssessments,
   createAssessment,
+  createAssessmentFromSet,
   getAssessment,
   updateAssessment,
   publishAssessment,
@@ -51,6 +52,7 @@ import type {
   AssessmentSettings,
   InvitationStatus,
   CreateAssessmentInput,
+  CreateAssessmentFromSetInput,
   UpdateAssessmentPatch,
 } from "./types.js";
 
@@ -187,6 +189,59 @@ export async function registerAssessmentLifecycleRoutes(
       }
 
       const assessment = await createAssessment(tenantId, input, userId);
+      return reply.code(201).send(assessment);
+    },
+  );
+
+  // POST /api/admin/assessments/from-set
+  // Step 2 — clone-on-use: create an assessment from a licensed PLATFORM-library
+  // set. The source set is license-checked, cloned into this tenant (idempotent),
+  // and the assessment is created from the clone. Static segment — registered
+  // before the parametric :id routes below.
+  // Body: { source_pack_id, level_position, name, question_count, opens_at,
+  //         closes_at?, randomize?, description?, settings? }
+  app.post(
+    "/api/admin/assessments/from-set",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const raw = req.body as Record<string, unknown>;
+
+      if (typeof raw["source_pack_id"] !== "string" || raw["source_pack_id"].trim() === "") {
+        throw new ValidationError("source_pack_id is required", {
+          details: { code: "INVALID_PARAM", param: "source_pack_id" },
+        });
+      }
+      const levelPosition = Number(raw["level_position"]);
+      if (!Number.isInteger(levelPosition) || levelPosition < 1) {
+        throw new ValidationError("level_position must be a positive integer", {
+          details: { code: "INVALID_PARAM", param: "level_position" },
+        });
+      }
+
+      const input: CreateAssessmentFromSetInput = {
+        source_pack_id: (raw["source_pack_id"] as string).trim(),
+        level_position: levelPosition,
+        name: raw["name"] as string,
+        question_count: raw["question_count"] as number,
+      };
+      if (raw["description"] !== undefined) input.description = raw["description"] as string;
+      if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
+      if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
+
+      if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
+        input.opens_at = parseDate(raw["opens_at"], "opens_at");
+      } else if (raw["opens_at"] === null) {
+        input.opens_at = null;
+      }
+      if (raw["closes_at"] !== undefined && raw["closes_at"] !== null) {
+        input.closes_at = parseDate(raw["closes_at"], "closes_at");
+      } else if (raw["closes_at"] === null) {
+        input.closes_at = null;
+      }
+
+      const assessment = await createAssessmentFromSet(tenantId, input, userId);
       return reply.code(201).send(assessment);
     },
   );

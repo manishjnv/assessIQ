@@ -553,6 +553,50 @@ export async function assertPublishEntitled(
 }
 
 /**
+ * Step 2 — assert a tenant is licensed for a SOURCE platform-library pack
+ * BEFORE clone-on-use materialises it.
+ *
+ * Distinct from assertPublishEntitled: that gate checks the company's OWN
+ * (cloned) pack at publish time; THIS check runs at assessment-creation time
+ * against the platform SOURCE pack, before any clone exists. Runs under
+ * assessiq_system (BYPASSRLS) because it reads the platform tenant's pack while
+ * resolving the calling tenant's licenses.
+ *
+ * Licensed iff tier='internal' (bypass) OR an active entitlement matches the
+ * source pack id (scope_type='pack') OR the source pack's domain
+ * (scope_type='domain'). This is a UX/early gate; the AUTHORITATIVE control
+ * remains assertPublishEntitled at publish time (so a license revoked between
+ * clone-on-use and publish still blocks the assessment from going live).
+ *
+ * THROWS AppError('NOT_LICENSED', 403) when not licensed.
+ */
+export async function assertLicensedForSourcePack(
+  tenantId: string,
+  sourcePackId: string,
+): Promise<void> {
+  await withSystemTx(async (client) => {
+    const tier = await getTenantTier(client, tenantId);
+    if (tier === 'internal') return;
+
+    const { domain } = await getPackEntitlementInfo(client, sourcePackId);
+    const ents = await listEntitlements(client, tenantId, { activeOnly: true });
+    const licensed = ents.some(
+      (e) =>
+        (e.scope_type === 'pack' && e.scope_id === sourcePackId) ||
+        (e.scope_type === 'domain' && domain !== null && e.scope_id === domain),
+    );
+    if (!licensed) {
+      throw new AppError(
+        `Your tenant is not licensed for this question set. Contact your platform operator to enable it.`,
+        'NOT_LICENSED',
+        403,
+        { details: { code: 'NOT_LICENSED', source_pack_id: sourcePackId, domain } },
+      );
+    }
+  });
+}
+
+/**
  * List active entitlements for the authenticated tenant's own context
  * (company-admin path).
  *

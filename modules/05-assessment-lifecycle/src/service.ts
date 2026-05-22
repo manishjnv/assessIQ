@@ -37,7 +37,7 @@ import {
 } from "@assessiq/core";
 import { withTenant, getPool } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import { assertPublishEntitled } from "@assessiq/billing";
+import { assertPublishEntitled, assertLicensedForSourcePack } from "@assessiq/billing";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import { hashInvitationToken } from "./tokens.js";
 import type { PoolClient } from "pg";
@@ -49,6 +49,9 @@ import * as repo from "./repository.js";
 // in 04's package.json `exports` map gated to internal workspace consumers.
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import { findOrCreatePackForDomain } from "../../04-question-bank/src/service.js";
+// Step 2 — clone-on-use: materialise a licensed platform set into this tenant.
+// Relative import mirrors the qbRepo / findOrCreatePackForDomain pattern above.
+import { materializeSetForTenant } from "../../04-question-bank/src/clone.js";
 import {
   assertCanTransition,
   assertValidWindow,
@@ -64,6 +67,7 @@ import type {
   AssessmentSettings,
   AssessmentStatus,
   CreateAssessmentInput,
+  CreateAssessmentFromSetInput,
   InvitationStatus,
   ListAssessmentsInput,
   ListInvitationsInput,
@@ -534,6 +538,57 @@ export async function createAssessment(
 
     return assessment;
   });
+}
+
+// ---------------------------------------------------------------------------
+// createAssessmentFromSet — Step 2 clone-on-use
+// ---------------------------------------------------------------------------
+//
+// Company-admin path: build an assessment from a licensed PLATFORM-library set.
+// Flow: license re-check against the SOURCE set → materialise (clone-on-use,
+// idempotent) into this tenant → resolve the chosen level within the clone →
+// delegate to createAssessment (non-blueprint; the clone is status='published'
+// so the published-pack guard passes). Publish-time entitlement is enforced
+// separately by assertPublishEntitled (now clone-lineage-aware).
+//
+// Transaction note: the three steps are independent transactions (license read,
+// clone tx, create tx). A clone with no assessment (if step 3 fails) is benign
+// and reused on retry. The authoritative entitlement control is the publish
+// gate, so even a TOCTOU license-revoke between clone and publish is safe.
+export async function createAssessmentFromSet(
+  tenantId: string,
+  input: CreateAssessmentFromSetInput,
+  createdByUserId: string,
+): Promise<Assessment> {
+  // 1. License re-check against the SOURCE platform set (throws 403 NOT_LICENSED).
+  await assertLicensedForSourcePack(tenantId, input.source_pack_id);
+
+  // 2. Materialise (clone-on-use, idempotent + audited) the set into this tenant.
+  const mat = await materializeSetForTenant(input.source_pack_id, tenantId, createdByUserId);
+
+  // 3. Resolve the chosen level within the cloned pack (1-based position).
+  const level = mat.levels.find((l) => l.position === input.level_position);
+  if (level === undefined) {
+    throw new ValidationError(
+      `Level position ${input.level_position} not found in the selected set`,
+      { details: { code: AL_ERROR_CODES.LEVEL_NOT_FOUND, level_position: input.level_position } },
+    );
+  }
+
+  // 4. Delegate to the standard create path with the cloned pack + resolved level.
+  const createInput: CreateAssessmentInput = {
+    pack_id: mat.clonedPackId,
+    level_id: level.id,
+    name: input.name,
+    question_count: input.question_count,
+  };
+  if (input.description !== undefined) createInput.description = input.description;
+  if (input.randomize !== undefined) createInput.randomize = input.randomize;
+  if (input.settings !== undefined) createInput.settings = input.settings;
+  if (input.opens_at !== undefined) createInput.opens_at = input.opens_at;
+  if (input.closes_at !== undefined) createInput.closes_at = input.closes_at;
+
+  return createAssessment(tenantId, createInput, createdByUserId);
 }
 
 // ---------------------------------------------------------------------------

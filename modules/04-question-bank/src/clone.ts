@@ -33,6 +33,8 @@
 
 import { type PoolClient } from "pg";
 import { uuidv7, NotFoundError, ValidationError, ConflictError } from "@assessiq/core";
+import { getPool } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import type { QuestionType, QuestionStatus, LevelRubricDefaults, KnowledgeBaseSource } from "./types.js";
 
 const MAX_SLUG_RETRIES = 10;
@@ -426,4 +428,84 @@ export async function clonePackToTenant(
     skippedCount,
     reusedExisting: false,
   };
+}
+
+export interface MaterializeSetResult {
+  clonedPackId: string;
+  clonedSlug: string;
+  reusedExisting: boolean;
+  questionCount: number;
+  skippedCount: number;
+  /** The cloned pack's levels (id + position + label) — for level selection. */
+  levels: Array<{ id: string; position: number; label: string }>;
+}
+
+/**
+ * Transaction-owning wrapper for clone-on-use: opens its OWN connection, runs
+ * `clonePackToTenant` under the `assessiq_system` role, audits the clone under
+ * the app role (two-phase, only when a NEW clone was made), and returns the
+ * cloned pack id + its levels so the caller can resolve a level selection.
+ *
+ * Idempotent: a second call for the same (source, target) reuses the existing
+ * clone and writes no audit row. Called by 05-assessment-lifecycle
+ * `createAssessmentFromSet` when a company assesses from a licensed platform set.
+ * The CALLER is responsible for the license check (billing
+ * `assertLicensedForSourcePack`) before invoking this.
+ */
+export async function materializeSetForTenant(
+  sourcePackId: string,
+  tenantId: string,
+  actorUserId: string,
+): Promise<MaterializeSetResult> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE assessiq_system");
+
+    const result = await clonePackToTenant(client, sourcePackId, tenantId, actorUserId);
+
+    const levels = (
+      await client.query<{ id: string; position: number; label: string }>(
+        `SELECT id, position, label FROM levels WHERE pack_id = $1 ORDER BY position ASC`,
+        [result.clonedPackId],
+      )
+    ).rows;
+
+    // Phase B — audit under the app role + tenant GUC (auditInTx's required
+    // context), only when a NEW clone was materialised (reuse changes nothing).
+    if (!result.reusedExisting) {
+      await client.query("SET LOCAL ROLE assessiq_app");
+      await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId,
+        action: "tenant.pack_cloned",
+        entityType: "question_pack",
+        entityId: result.clonedPackId,
+        after: {
+          source_pack_id: sourcePackId,
+          source_version: result.sourceVersion,
+          question_count: result.questionCount,
+          skipped_count: result.skippedCount,
+        },
+      });
+    }
+
+    await client.query("COMMIT");
+    return {
+      clonedPackId: result.clonedPackId,
+      clonedSlug: result.clonedSlug,
+      reusedExisting: result.reusedExisting,
+      questionCount: result.questionCount,
+      skippedCount: result.skippedCount,
+      levels,
+    };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }

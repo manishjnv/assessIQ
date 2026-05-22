@@ -141,5 +141,5 @@ export { seedTenantTaxonomy } from "./seed.js";
 // MUST be called with a PoolClient already in the assessiq_system role, inside
 // the grant transaction. See docs/design/question-set-sharing-clone-on-grant.md.
 
-export { clonePackToTenant } from "./clone.js";
-export type { ClonePackResult } from "./clone.js";
+export { clonePackToTenant, materializeSetForTenant } from "./clone.js";
+export type { ClonePackResult, MaterializeSetResult } from "./clone.js";
