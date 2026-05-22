@@ -1,0 +1,114 @@
+---
+// BaseLayout.astro — implements the full §3.5 <head> contract from SEO_Strategy.md
+// Accepts per-page props; emits title, description, canonical, OG, Twitter, robots, theme-color.
+// Fonts: Newsreader (serif) + Geist (sans) + JetBrains Mono (mono) — the AssessIQ editorial trio.
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  /** Page title — will get " — AssessIQ" suffix appended. Keep the prefix ≤ 45 chars so total ≤ 60. */
+  title: string;
+  /** Meta description — 150–160 chars, compelling summary with query intent. */
+  description: string;
+  /** Canonical path, e.g. "/" or "/about". Absolute URL is constructed from site origin. */
+  canonicalPath: string;
+  /** og:type — "website" (default) or "article" for blog posts. */
+  ogType?: 'website' | 'article';
+  /** Set true for gated/thin pages. Default: false (index, follow). */
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonicalPath,
+  ogType = 'website',
+  noindex = false,
+} = Astro.props;
+
+const site = 'https://assessiq.in';
+const canonicalUrl = `${site}${canonicalPath}`;
+const fullTitle = `${title} — AssessIQ`;
+// Static OG image — dynamic renderer is ASMT-08 (Phase 1, deferred)
+const ogImage = `${site}/og-default.png`;
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- §3.5 head contract — title ≤ 60 chars, primary keyword front-loaded -->
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="robots" content={noindex ? 'noindex,nofollow' : 'index,follow'} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content="AssessIQ" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- Brand / discovery -->
+    <!-- Theme color = canonical accent #3177dc (oklch(0.58 0.17 258) per branding §13.b) -->
+    <meta name="theme-color" content="#3177dc" />
+
+    <!-- Favicon set at ROOT (not /brand/*) — the SPA owns /brand/* on the same
+         host (assessiq.in), so the marketing site must not use that namespace.
+         See docs/design/seo-marketing-site-architecture.md § asset routing. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png" />
+
+    <!-- Fonts — preconnect before @import to reduce connection latency (§4 CWV) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Newsreader: serif display/headlines (opsz 6–72, weights 300/400/500)
+      Geist: sans body/UI — loaded from Google Fonts approximation
+      JetBrains Mono: mono microcopy
+    -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <!--
+      Geist isn't on Google Fonts — fall through to system sans stack:
+      -apple-system, Helvetica Neue, Arial (defined in tailwind.config.mjs font-sans)
+    -->
+  </head>
+
+  <body class="bg-aiq-bg-base text-aiq-fg-primary font-sans antialiased">
+    <!-- Skip link — a11y: keyboard users jump past nav (branding guideline §10 item 6) -->
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100]
+             focus:px-4 focus:py-2 focus:bg-aiq-accent focus:text-white focus:rounded-aiq-pill
+             focus:text-aiq-sm focus:font-medium focus:no-underline"
+    >
+      Skip to main content
+    </a>
+
+    <Header />
+
+    <main id="main-content">
+      <slot />
+    </main>
+
+    <Footer />
+  </body>
+</html>

@@ -1,0 +1,61 @@
+---
+// Header.astro — site-wide navigation
+// Logo mark: CSS-driven dot + halo (per branding guideline §6 "In-product Logo component — Path 1 decision")
+// Wordmark: serif "AssessIQ" per branding guideline §6 (not "AccessIQ" — vendor-side typo)
+const currentPath = Astro.url.pathname;
+const navLinks = [
+  { href: '/',        label: 'Home' },
+  { href: '/about',   label: 'About' },
+  { href: '/contact', label: 'Contact' },
+];
+---
+
+<header class="border-b border-aiq-border bg-aiq-bg-base sticky top-0 z-50">
+  <div class="max-w-6xl mx-auto px-aiq-xl flex items-center justify-between h-14">
+
+    <!-- Logo / Wordmark -->
+    <a href="/" class="flex items-center gap-2 no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2 rounded-aiq-sm" aria-label="AssessIQ — home">
+      <!-- CSS mark: filled accent dot + 1px halo at -4px inset, per branding §6 -->
+      <span class="relative inline-block w-[10px] h-[10px] flex-shrink-0" aria-hidden="true">
+        <span class="absolute inset-0 rounded-full bg-aiq-accent"></span>
+        <span class="absolute rounded-full border border-aiq-accent/30" style="inset: -4px;"></span>
+      </span>
+      <!-- Serif wordmark: 18px weight-500 tracking -0.02em per branding guideline §6 -->
+      <span class="font-serif text-[18px] font-medium tracking-aiq-tight text-aiq-fg-primary leading-none select-none">AssessIQ</span>
+    </a>
+
+    <!-- Primary nav -->
+    <nav aria-label="Main navigation">
+      <ul class="flex items-center gap-1 list-none m-0 p-0">
+        {navLinks.map(link => (
+          <li>
+            <a
+              href={link.href}
+              aria-current={currentPath === link.href ? 'page' : undefined}
+              class={[
+                'font-sans text-aiq-sm font-medium px-3 py-1.5 rounded-aiq-pill transition-colors duration-150',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-1',
+                currentPath === link.href
+                  ? 'bg-aiq-bg-sunken text-aiq-fg-primary'
+                  : 'text-aiq-fg-secondary hover:text-aiq-fg-primary hover:bg-aiq-bg-raised',
+              ].join(' ')}
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <!-- CTA -->
+    <a
+      href="https://assessiq.in/admin/login"
+      class="font-sans text-aiq-sm font-medium px-4 py-1.5 rounded-aiq-pill bg-aiq-accent text-white
+             hover:bg-aiq-accent-hover transition-colors duration-150
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+    >
+      Sign in
+    </a>
+
+  </div>
+</header>

@@ -201,3 +201,24 @@ services:
       interval: 30s
       retries: 3
       start_period: 5s
+
+  assessiq-marketing:
+    <<: *svc-defaults
+    image: assessiq/marketing:${IMAGE_TAG:-latest}
+    container_name: assessiq-marketing
+    build:
+      context: ..
+      dockerfile: ./infra/docker/assessiq-marketing/Dockerfile
+    networks: [assessiq-net]
+    # Public SEO marketing site (Astro static). Caddy's DEFAULT route reaches
+    # this via the bridge gateway at 172.17.0.1:9093 (9091=frontend SPA,
+    # 9092=api are taken). Fully independent of api/postgres/redis — pure
+    # static nginx, so no depends_on and no env_file. See
+    # docs/06-deployment.md § Reverse-proxy plan + docs/design/seo-marketing-site-architecture.md.
+    ports:
+      - "9093:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      retries: 3
+      start_period: 5s

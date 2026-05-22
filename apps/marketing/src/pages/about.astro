@@ -1,0 +1,169 @@
+---
+// about.astro — Company/mission/approach page (E-E-A-T signal)
+// JSON-LD: BreadcrumbList (Home › About) per SEO §3.6 / §15 template
+// Last item (current page) has no `item` URL per §15 spec
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "About"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="About AssessIQ"
+  description="AssessIQ is a candidate and team assessment platform headquartered in India. Learn about our mission, our approach to evidence-based assessment, and the team building it."
+  canonicalPath="/about"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            About
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl max-w-3xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">About</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Built to make assessment honest.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0">
+        AssessIQ is a B2B candidate and team assessment platform designed for the Indian hiring market.
+        We help IT companies, campus recruitment teams, and educational institutions move from resume screening
+        to evidence-based selection — using structured tests, proctored exams, and skill-gap analytics.
+      </p>
+    </div>
+  </section>
+
+  <!-- Mission -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="mission-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Mission</p>
+        <h2 id="mission-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Replace the gut check with a fair test.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          Hiring and teaching decisions that rely on interviews alone are subject to bias, inconsistency,
+          and recall error. A structured assessment forces the same question, the same rubric, and the same
+          evidence for every candidate — whether you're screening ten engineers or ten thousand freshers.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          That is the problem AssessIQ is built to solve — for companies that need to hire at scale,
+          and for institutions that need to prove their graduates can do the work.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Approach -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="approach-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Our approach</p>
+      <h2 id="approach-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Assessment that explains itself.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Anchor-based scoring.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Every rubric defines explicit anchors — the observable behaviours or knowledge points that
+            signal competence at each band. Scores carry rationale, not just a number.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Proctoring with integrity.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Browser lockdown, webcam monitoring, and flagged anomalies. Every attempt is logged and auditable.
+            Proctoring data is stored within India and is never shared without authorisation.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Multi-tenant, role-separated.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Each company or institution operates in a fully isolated tenant. Admins, reviewers, and candidates
+            each see only what they should — no cross-organisation data exposure.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            India-first data residency.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            All candidate data and assessment results are stored on India-region infrastructure.
+            Designed to align with India's Digital Personal Data Protection Act (DPDP) requirements.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Want to know more?
+        </h2>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Contact us
+          </a>
+          <a
+            href="https://assessiq.in/admin/login"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Try the platform
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

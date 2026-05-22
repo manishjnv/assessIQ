@@ -1,0 +1,258 @@
+---
+// index.astro — AssessIQ home page
+// JSON-LD: THREE separate blocks (per SEO §3.6) — Organization, WebSite, SoftwareApplication
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 / hard rules)
+// India-first positioning per SEO §17: IT hiring + campus + educational institutions
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Organization JSON-LD (§15 template)
+const orgSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "AssessIQ",
+  "url": `${site}/`,
+  "logo": `${site}/favicon.svg`,
+  // TODO: real data — add LinkedIn, Twitter, G2, Crunchbase URLs when profiles are live
+  "sameAs": [],
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "contactType": "sales",
+    "email": "hello@assessiq.in"
+  }
+};
+
+// WebSite JSON-LD (§15 — enables Sitelinks search box in branded SERPs when /search exists)
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "AssessIQ",
+  "url": `${site}/`
+};
+
+// SoftwareApplication JSON-LD (§15 / §3.6 — applicationCategory: BusinessApplication)
+// NOTE: aggregateRating is intentionally OMITTED — no real reviews yet (SEO §13 hard rule: never fabricate)
+const softwareSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "AssessIQ",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": `${site}/`,
+  "description": "Skills-based candidate and team assessment platform for IT companies and educational institutions in India — proctored tests, coding assessments, aptitude, and skill-gap analytics.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "INR",
+    "category": "Free trial"
+  }
+};
+
+// Who-it's-for cards (no fabricated stats)
+const audiences = [
+  {
+    label: "IT & Tech Companies",
+    heading: "Screen developers before the interview.",
+    body: "Role-specific coding tests, aptitude batteries, and proctored assessments. See who can actually do the work, not just talk about it.",
+  },
+  {
+    label: "Campus Recruitment",
+    heading: "Scale fresher hiring without scaling headcount.",
+    body: "Run bulk pre-placement tests for hundreds of candidates simultaneously. Structured, fair, and auditable from day one.",
+  },
+  {
+    label: "Educational Institutions",
+    heading: "Certify skills with integrity.",
+    body: "Proctored online exams, team skill-gap analysis, and shareable credentials your students can take to their next employer.",
+  },
+];
+
+// What it does — product capability pillars
+const capabilities = [
+  { label: "Skills Tests", body: "Assess Python, Java, SQL, React, .NET, aptitude, logical reasoning, English, and more." },
+  { label: "Coding Assessment", body: "Live coding environment with test cases. Evaluates real programming ability, not just theory." },
+  { label: "Proctored Exams", body: "Browser lockdown, webcam monitoring, and AI-flagged anomalies so you can trust every score." },
+  { label: "Team Skill-Gap", body: "Map your current team's competencies. Find where training is needed before it becomes attrition." },
+  { label: "Certification", body: "Issue tamper-evident digital credentials candidates can share on LinkedIn and their CV." },
+  { label: "Analytics & Reporting", body: "Per-candidate and cohort-level reports. Export to your ATS or view in the admin dashboard." },
+];
+---
+
+<BaseLayout
+  title="Candidate & Team Assessment Platform for India"
+  description="AssessIQ is a skills-based assessment platform for IT companies, campus recruitment, and educational institutions in India. Proctored tests, coding assessments, and team skill-gap analytics. Graded on evidence."
+  canonicalPath="/"
+>
+  <!-- JSON-LD: Organization (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(orgSchema)} />
+  <!-- JSON-LD: WebSite (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
+  <!-- JSON-LD: SoftwareApplication (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(softwareSchema)} />
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <!-- Mono eyebrow chip — brand voice: uppercase mono label above serif H1 -->
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Assessment Platform &middot; India
+      </p>
+
+      <!-- H1 — serif, ends with period (brand voice per branding §2.4) -->
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Hire on skill. Teach with data. Graded on evidence.
+      </h1>
+
+      <!-- Value prop — clear positioning for India IT hiring + campus + institutions -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AssessIQ is a candidate and team assessment platform built for Indian IT companies,
+        campus recruitment teams, and educational institutions. Skills tests, coding assessments,
+        proctored exams, and team skill-gap analytics — all in one place.
+      </p>
+
+      <!-- CTA row — one primary action per surface (branding §8.1) -->
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+      <!-- Competitive context — honest, no fabricated claims -->
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-aiq-2xl mb-0">
+        An alternative to Mercer Mettl &middot; HackerEarth &middot; iMocha &middot; HackerRank &middot; AMCAT
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── WHAT IT DOES ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="capabilities-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">What AssessIQ does</p>
+      <h2 id="capabilities-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Every assessment format. One platform.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {capabilities.map(cap => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {cap.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {cap.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHO IT'S FOR ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="audiences-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who it's for</p>
+      <h2 id="audiences-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Built for every side of the hiring and learning equation.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {audiences.map(aud => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">
+              {aud.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug">
+              {aud.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {aud.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHY ASSESSIQ ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="why-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Why AssessIQ</p>
+      <h2 id="why-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0 max-w-2xl">
+        Graded on evidence, not gut feel.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl max-w-4xl">
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Structured, not gamified.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Every assessment follows a defined rubric. Anchors, bands, and rationale — not a black-box score. You see exactly why a candidate placed where they did.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            India-first, globally ready.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Calibrated for the Indian hiring market — campus batch sizes, IT-sector role stacks, vernacular-neutral question design, and local data residency.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Auditable by design.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Full attempt logs, proctoring flags, and per-answer evidence. Every decision is traceable — whether for internal review or regulatory compliance.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Built for the admin, not just the candidate.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Dashboard-driven workflows, bulk invite, real-time monitoring, and one-click result reports. You spend time on decisions, not on spreadsheets.
+          </p>
+        </div>
+      </div>
+
+      <!-- Final CTA -->
+      <div class="mt-aiq-3xl pt-aiq-3xl border-t border-aiq-border">
+        <p class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Ready to assess with confidence?
+        </p>
+        <a
+          href="https://assessiq.in/admin/login"
+          class="inline-flex font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Start your free trial
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+</BaseLayout>

@@ -79,13 +79,19 @@
 # ─────────────────────────────────────────────────────────────────────────
 
 # ═══ AssessIQ — assessiq.in (canonical) ═══
-# /api/* + /embed* + /help/* + /take/start + /verify/* → assessiq-api on 9092.
-# /help/* is the anonymous embed-friendly help endpoint (modules/16-help-system
-# registerHelpPublicRoutes mounts /help/:key without the /api prefix so embed
-# contexts can use a short public URL — matches the /embed* convention).
-# /verify/* is the public certificate verify page + OG SVG/PNG endpoints
-# (modules/18-certification routes-public.ts). Default route → assessiq-frontend
-# on host port 9091. See docs/06-deployment.md § Reverse-proxy plan.
+# THREE-WAY split (SEO Phase 0, 2026-05-22 — see
+# docs/design/seo-marketing-site-architecture.md):
+#   @api  → assessiq-api      on 9092  (/api/* /embed* /help/* /take/start /verify/*)
+#   @app  → assessiq-frontend on 9091  (gated SPA: /admin* /candidate* /take/*)
+#   else  → assessiq-marketing on 9093 (public Astro SEO site: /, /about, /contact, …)
+# Matcher ORDER matters — handle blocks are evaluated top-to-bottom, first match
+# wins. @api MUST stay first so /take/start (api magic-link POST) and /verify/*
+# (public cert pages) reach the api, NOT the SPA. /take/<token> GET is NOT in
+# @api, so it falls to @app (the SPA's TokenLanding). Previously the default
+# route went to the SPA (9091); it now goes to the marketing site (9093), and a
+# new @app matcher carries the app routes that used to rely on that default.
+# /help/* is the anonymous embed-friendly help endpoint (modules/16-help-system).
+# /verify/* is the public certificate verify page (modules/18-certification).
 assessiq.in {
     # Origin Cert (server cert Caddy presents to Cloudflare) + AOP client-cert
     # lock (origin rejects any handshake not presenting CF's Origin-Pull cert).
@@ -98,7 +104,7 @@ assessiq.in {
     import security-headers
     encode zstd gzip
 
-    # API + embed + public-help + public-verify routes → assessiq-api on 9092.
+    # 1. API + embed + public-help + public-verify routes → assessiq-api on 9092.
     @api path /api/* /embed* /help/* /take/start /verify/*
     handle @api {
         reverse_proxy 172.17.0.1:9092 {
@@ -106,9 +112,29 @@ assessiq.in {
         }
     }
 
-    # Default route — assessiq-frontend container on host port 9091.
-    handle {
+    # 2. Gated app (SPA) + its STATIC ASSET NAMESPACES → assessiq-frontend on 9091.
+    #    Bare /admin + /candidate are real SPA routes, so list both the bare path
+    #    and the /* prefix. /take/start is already claimed by @api above.
+    #    /assets/* = Vite-hashed JS/CSS chunks; /brand/* = favicons + og + brand
+    #    images (apps/web/index.html refs /brand/favicon/* and /brand/social/*).
+    #    These MUST route to the SPA or the app fails to load its bundle. The
+    #    marketing site deliberately AVOIDS /assets and /brand (it uses /_astro/*
+    #    for hashed assets and root-level favicons), so there is no overlap.
+    @app path /admin /admin/* /candidate /candidate/* /take /take/* /assets/* /brand/*
+    handle @app {
         reverse_proxy 172.17.0.1:9091 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # 3. Default route — assessiq-marketing (Astro static public SEO site) on 9093.
+    #    Owns the apex root and ALL public marketing/content paths (/, /about,
+    #    /contact, /pricing, /compare/*, /tests/*, /glossary/*, /resources/*,
+    #    /robots.txt, /sitemap*). ⚠️ NEW PUBLIC APP/API ROUTES MUST be added to
+    #    @api or @app above, or they fall through here and hit marketing's 404
+    #    ("new-route-needs-allowlist" rule — see SEO_Strategy §3.9 / §16.4).
+    handle {
+        reverse_proxy 172.17.0.1:9093 {
             header_up X-Forwarded-Proto https
         }
     }
