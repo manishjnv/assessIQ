@@ -253,7 +253,16 @@ async function seedDomain(
  *
  * Cross-tenant safety: MUST be called with the new company's tenantId, never
  * with the platform tenantId. The route (C4) is responsible for passing the
- * correct tenantId.
+ * correct tenantId. This runtime guard still holds — per-company onboarding
+ * must not touch the platform tenant.
+ *
+ * NOTE (platform tenant exception): the platform tenant IS seeded with this
+ * same taxonomy, but via the one-time migration
+ * 0083_seed_platform_tenant_taxonomy.sql — NOT through this function. Post
+ * Phase-B1 the platform tenant is the super-admin's master question library
+ * (the source the SA curates and grants to companies via billing
+ * entitlements). The migration is the sanctioned platform-seed path; this
+ * runtime function remains per-company only. The two are not in conflict.
  *
  * Values are extracted verbatim from:
  *   0019_seed_domains_categories.sql (domains + categories baseline)
