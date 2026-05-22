@@ -133,3 +133,13 @@ export type { RegisterQuestionBankRoutesOptions } from "./routes.js";
 // ---------------------------------------------------------------------------
 
 export { seedTenantTaxonomy } from "./seed.js";
+
+// ---------------------------------------------------------------------------
+// 5. Clone-on-grant engine (Step 2 — question-set sharing)
+// ---------------------------------------------------------------------------
+// Cross-tenant copy of a published platform-library pack into a company tenant.
+// MUST be called with a PoolClient already in the assessiq_system role, inside
+// the grant transaction. See docs/design/question-set-sharing-clone-on-grant.md.
+
+export { clonePackToTenant } from "./clone.js";
+export type { ClonePackResult } from "./clone.js";
