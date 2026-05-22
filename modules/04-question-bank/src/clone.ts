@@ -239,8 +239,10 @@ export async function clonePackToTenant(
   if (srcDomainIds.length > 0) {
     for (const row of (
       await client.query<{ id: string; slug: string }>(
-        `SELECT id, slug FROM domains WHERE id = ANY($1::uuid[])`,
-        [srcDomainIds],
+        // tenant_id filter is the ONLY isolation control here (system role
+        // bypasses RLS) — pin the lookup to the platform tenant (review #4).
+        `SELECT id, slug FROM domains WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
+        [srcDomainIds, platformTenantId],
       )
     ).rows) {
       srcDomainSlugById.set(row.id, row.slug);
@@ -251,8 +253,10 @@ export async function clonePackToTenant(
   if (srcCatIds.length > 0) {
     for (const row of (
       await client.query<{ id: string; slug: string; domain_id: string }>(
-        `SELECT id, slug, domain_id FROM categories WHERE id = ANY($1::uuid[])`,
-        [srcCatIds],
+        // Pin to the platform tenant — the only isolation control under the
+        // system role (review #4).
+        `SELECT id, slug, domain_id FROM categories WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
+        [srcCatIds, platformTenantId],
       )
     ).rows) {
       srcCatById.set(row.id, { slug: row.slug, domainId: row.domain_id });
@@ -462,6 +466,17 @@ export async function materializeSetForTenant(
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL ROLE assessiq_system");
+
+    // Serialize concurrent clone-on-use for the SAME (tenant, source): a burst of
+    // POST /assessments/from-set could otherwise have two txns both observe "no
+    // clone" and both INSERT (review #10). The xact advisory lock makes the
+    // second caller wait until the first commits, then its idempotency SELECT
+    // finds the clone and returns early. The 0085 partial UNIQUE index is the
+    // structural backstop for any unlocked path.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
+      tenantId,
+      sourcePackId,
+    ]);
 
     const result = await clonePackToTenant(client, sourcePackId, tenantId, actorUserId);
 
