@@ -1,3 +1,28 @@
+# Session — 2026-05-22 (Super-admin generate screen now shows the 9 default domains)
+
+**Headline:** The super-admin question-generation screen listed only 1 domain instead of the 9 defaults, because the super admin lives in the hand-bootstrapped **"platform" tenant** which migration 0019 never seeded (0019 fans out over `SELECT FROM tenants`, but the platform tenant is created by hand AFTER migrations run). Added + deployed `0083_seed_platform_tenant_taxonomy.sql` (slug-matched, idempotent, post-0020 `supported_types` baked in); the platform tenant is now the canonical **master question library**. Live-verified 1→9 domains, 56 categories, company tenants untouched.
+
+**Commits (main):** `b9d3c57` — fix(question-bank): seed default taxonomy into platform tenant (master library). [migration + `seed.ts` guard comment + `docs/02-data-model.md` § Question bank].
+
+**Tests:** No unit tests (data-seed migration). Live DB verification GREEN: platform tenant domains **1→9** (display_order 1–9); categories 9/7/6/6/6/6/6/5/5 = 56; `supported_types` exact parity with the 0020 map; company tenants unchanged (9/9/9/11); apply = 64 inserts + 1 skip (pre-existing `soc`); `schema_migrations` records `0083…` (sha256 `ac65047f…`). Migration-drift gate now passes.
+
+**Deploy:** LIVE, data-only (no image rebuild — `seed.ts` change is comment-only). `git pull` on VPS → `psql -U assessiq` apply (superuser bypasses RLS `WITH CHECK`) → recorded in `schema_migrations`. `assessiq-*` containers untouched; neighbors unaffected.
+
+**Next:** Operator (manishjnvk@gmail.com, super_admin) opens `/admin/generate-wizard` and confirms all 9 domains + their categories now populate the pickers — DB-verified, click-through behavioral confirm **pending operator** (no super-admin session in-tool). Then **Step 2**: wire entitlement-based question SHARING — today a grant shares a *permission flag*, not the *questions*; a freshly generated platform set still can't reach a company's candidates. Start with brainstorm + `codex:rescue` (load-bearing: tenancy/RLS + question-selection + entitlement authz).
+
+**Open questions:** (a) On a FRESH DB the platform tenant is hand-bootstrapped after migrations, so 0083 no-ops there — the manual bootstrap must also seed the platform taxonomy (or add a startup assertion). (b) Step 2 design fork: does a `domain` grant imply all platform packs in that domain become readable cross-tenant? That changes RLS on `question_packs`/`questions`, the `pack_id`-scoped selection in `05-assessment-lifecycle/src/service.ts`, and `validateBlueprintFKs` (today all hard-scoped to the consuming tenant).
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Whole task — 5 parallel **Explore** subagents to map the feature (generate flow, taxonomy model, question-bank/entitlements, tenant-context/RLS hypothesis, end-to-end trace), then read-only `psql` forensics to PROVE the root cause (platform tenant had 1 domain vs 9; 0 packs; questions selected by `pack_id` within the consuming tenant → entitlement is a flag, not a content pipe). Hand-wrote the 470-line migration against the hot 0019/0020 cache, `seed.ts` comment, `02-data-model.md` note, Phase-3 self-review, isolated 3-file commit + push (left unrelated WIP), additive `psql` deploy + `schema_migrations` record, live verification, RCA + this handoff. Telemetry: `Opus · platform-tenant taxonomy seed + deploy + docs · reworked: N`.
+- **Sonnet:** 5 Explore subagents (read-only codebase mapping during planning); no *implementation* delegated — the single mechanical SQL file was best authored against the hot source cache, where subagent cold-start + transcription drift outweighed the token savings (global "don't delegate when self-executing is faster"). `Sonnet · 5 Explore mapping subagents · reworked: N`.
+- **Haiku:** n/a — live DB diagnostics + deploy run inline via `ssh`/`psql` (coupled to the `assessiq-vps` alias; subagent delegation fragile, per prior sessions).
+- **codex:rescue:** n/a — data-only seed migration; no auth/RLS-policy/classifier logic; multi-tenancy bounce conditions all N/A (no new table, scoped to one tenant, no `domain===` branch, no band change). Adversarial gate deferred to **Step 2** (entitlement sharing) per the user-approved plan. Opus self-review done.
+- **claude-mem:** read prior observations from hook context (platform-tenant-no-seed 3910, master-library decision 3931, new-tenant-taxonomy-gap 3063, two-phase plan). No durable memory written this step.
+
+---
+
 # Session — 2026-05-22 (Admin attempt-detail no longer renders raw JSON)
 
 **Headline:** `/admin/attempts/:id` stopped dumping every question and candidate answer as raw `{ "correct": 0, "options": [...] }` JSON. The question now renders via the shared type-aware `QuestionContentView`; the candidate answer via a new read-only `AttemptAnswerView` (mcq selected letter+option+✓/✗ vs key; subjective/kql/log_analysis/scenario each typed; unknown → readable message, never braces). Committed, deployed LIVE to assessiq.in, documented. This closes the cosmetic half deferred from the 2026-05-16 answer-key-leak RCA (the candidate leak itself was fixed server-side then).
