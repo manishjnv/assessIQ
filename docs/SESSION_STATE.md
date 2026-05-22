@@ -1,3 +1,28 @@
+# Session — 2026-05-22 (Admin attempt-detail no longer renders raw JSON)
+
+**Headline:** `/admin/attempts/:id` stopped dumping every question and candidate answer as raw `{ "correct": 0, "options": [...] }` JSON. The question now renders via the shared type-aware `QuestionContentView`; the candidate answer via a new read-only `AttemptAnswerView` (mcq selected letter+option+✓/✗ vs key; subjective/kql/log_analysis/scenario each typed; unknown → readable message, never braces). Committed, deployed LIVE to assessiq.in, documented. This closes the cosmetic half deferred from the 2026-05-16 answer-key-leak RCA (the candidate leak itself was fixed server-side then).
+
+**Commits (main):** `c62bc50` — fix(admin): render attempt-detail question + answer human-readable, not raw JSON (sits between `346821a` and the concurrent-session `20bd415`).
+
+**Tests:** `@assessiq/admin-dashboard` 53/53 vitest pass (incl. `attempt-detail-error › renders question content`). `vite build` OK (389 modules). NB: `tsc -b`/`pnpm typecheck` fail on `main` but ONLY from pre-existing `AdminShell.tsx:183/186` (`noUncheckedIndexedAccess`) + untracked MFA-WIP `mfa.test.tsx` (missing `@testing-library/react`) — neither is mine; the VPS frontend build runs `vite build` (skips `tsc -b` by design) so the deploy is unaffected.
+
+**Deploy:** LIVE. VPS history `346821a → c62bc50 → 20bd415`; `assessiq-frontend` rebuilt + `--force-recreate`d (additive, `--no-deps`; neighbors roadmap/accessbridge/ti-platform untouched). Container healthy; new bundle `index-BEn9hQqt.js` contains the fix; `assessiq.in/api/health` → 200.
+
+**Next:** Operator with admin SSO+MFA logs into `/admin`, opens an attempt (e.g. `019e0dd8`), and eyeball-confirms the MCQ/subjective render as prose + labelled options (no braces) and the candidate answer shows readable text. Code/build/served-bundle verified; click-through behavioral verification is **pending an operator** (no admin creds in-session).
+
+**Open questions:** (a) Pre-existing `AdminShell.tsx:183/186` tsc errors fail `pnpm typecheck`/`tsc -b` on `main` (not deploy-blocking because the VPS build skips `tsc -b`) — a 2-line guard fix worth folding into a future admin touch. (b) `generate-wizard.tsx` (super_admin) still `JSON.stringify`s non-string nested values as a defensive fallback — acceptable graceful degradation, left as-is.
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Whole task — systematic-debugging investigation (root cause: the type-aware `QuestionContentView` already existed and was used by the question editor, but attempt-detail used a local `JSON.stringify(content, null, 2)` helper instead; the candidate take-flow + server sanitizer were already safe), wrote the fix (QuestionContentView wire-in + new `AttemptAnswerView`), self-review of the diff, build+test verify, isolated 3-file commit (left all MFA/email-kit/session WIP untouched), additive enumerate-first VPS deploy, docs (RCA_LOG + 08-ui-system) + memory update + this handoff. Telemetry: `Opus · attempt-detail raw-JSON fix + deploy + docs · reworked: N`.
+- **Sonnet:** n/a — ~150 lines in one non-load-bearing file (`modules/10-admin-dashboard`) already in Opus hot cache; self-execute beat subagent cold-start (global "don't delegate when self-executing is faster").
+- **Haiku:** n/a — frontend greps/sweeps + VPS verification run inline via ssh.
+- **codex:rescue:** n/a — presentation-only, admin-only route, no auth/classifier/server change; not in the load-bearing/security-adjacent set. The security half (candidate answer-key leak) was already closed server-side 2026-05-16 (`sanitizeContentForCandidate`).
+- **claude-mem:** read the `ui-question-payload-raw-json` memory + RCA lineage from hook/memory context; updated that durable memory to mark BOTH halves FIXED. No new corpus write.
+
+---
+
 # Session — 2026-05-22 (Canonical host switched to assessiq.in — LIVE)
 
 **Headline:** Switched the canonical web host from `assessiq.automateedge.cloud` to **`assessiq.in`** (live, end-to-end verified): assessiq.in serves with the AOP origin-lock, `www`→apex, old host 301s to it (path+query preserved, still AOP-locked), `.env` base-URL+OIDC flipped, frontend rebuilt. Mid-cutover hit `429 "missing client IP"` on the new domain — root-caused to the Cloudflare `x-origin-verify` rule being created as a **Response** (not **Request**) header on the assessiq.in zone; recreated it as a Request rule, then **rotated the exposed `ORIGIN_VERIFY_SECRET`** (the Response rule had been broadcasting it to visitors).
