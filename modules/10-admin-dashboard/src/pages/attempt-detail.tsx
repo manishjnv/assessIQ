@@ -30,6 +30,7 @@ import { GradingProposalCard } from "../components/GradingProposalCard.js";
 import { EscalationDiff } from "../components/EscalationDiff.js";
 import { ScoreDetail } from "../components/ScoreDetail.js";
 import { BandPicker } from "../components/BandPicker.js";
+import { QuestionContentView } from "../components/QuestionContentView.js";
 import { adminApi, AdminApiError } from "../api.js";
 import type { GradingProposal, GradingsRow } from "@assessiq/ai-grading";
 
@@ -74,23 +75,175 @@ interface OverrideFormState {
   reason: string;
 }
 
-function QuestionContent({ content }: { content: unknown }): React.ReactElement {
-  // Render question content as pre-wrapped plain text — no dangerouslySetInnerHTML.
-  const text = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+// ---------------------------------------------------------------------------
+// Candidate-answer renderer
+//
+// Maps each canonical answer shape (mirrors the take-flow shapes in
+// modules/11-candidate-ui Attempt.tsx) to a human-readable layout. It must
+// NEVER dump raw JSON to the admin — unrecognised shapes fall back to a plain
+// "no preview" message rather than brace-and-quote text. The question content
+// itself is rendered by the shared <QuestionContentView>, which already
+// strips JSON-escape + markdown noise and shows the correct option / rationale.
+// ---------------------------------------------------------------------------
+
+const ANSWER_TEXT_STYLE: React.CSSProperties = {
+  margin: 0,
+  fontFamily: "var(--aiq-font-sans)",
+  fontSize: "var(--aiq-text-md)",
+  lineHeight: 1.6,
+  whiteSpace: "pre-wrap",
+  color: "var(--aiq-color-fg-secondary)",
+  borderLeft: "2px solid var(--aiq-color-border)",
+  paddingLeft: "var(--aiq-space-md)",
+};
+
+const ANSWER_SUBLABEL_STYLE: React.CSSProperties = {
+  fontFamily: "var(--aiq-font-mono)",
+  fontSize: "var(--aiq-text-xs)",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "var(--aiq-color-fg-muted)",
+  marginBottom: "var(--aiq-space-2xs)",
+};
+
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
+
+function asAnswerObj(v: unknown): Record<string, unknown> | null {
+  return v !== null && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
+function NoAnswer({ label }: { label: string }): React.ReactElement {
   return (
-    <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap", color: "var(--aiq-color-fg-primary)" }}>
-      {text}
+    <p style={{ ...ANSWER_TEXT_STYLE, fontStyle: "italic", color: "var(--aiq-color-fg-muted)" }}>
+      {label}
     </p>
   );
 }
 
-function AnswerContent({ answer }: { answer: unknown }): React.ReactElement {
-  const text = typeof answer === "string" ? answer : JSON.stringify(answer, null, 2);
-  return (
-    <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap", color: "var(--aiq-color-fg-secondary)", borderLeft: "2px solid var(--aiq-color-border)", paddingLeft: "var(--aiq-space-md)" }}>
-      {text}
-    </p>
-  );
+function AttemptAnswerView({ type, content, answer }: { type: string; content: unknown; answer: unknown }): React.ReactElement {
+  // Legacy / plain-string answers render directly.
+  if (typeof answer === "string") {
+    return answer.trim() === "" ? <NoAnswer label="No answer submitted." /> : <p style={ANSWER_TEXT_STYLE}>{answer}</p>;
+  }
+
+  const a = asAnswerObj(answer);
+  const isEmpty = answer === null || answer === undefined || (a !== null && Object.keys(a).length === 0);
+  if (isEmpty && !(type === "mcq" && typeof answer === "number")) {
+    return <NoAnswer label="No answer submitted." />;
+  }
+
+  switch (type) {
+    case "mcq": {
+      // canonical: { selected: number }; tolerate a bare numeric index too.
+      const selected =
+        typeof a?.selected === "number" ? a.selected :
+        typeof answer === "number" ? answer : null;
+      if (selected === null) break;
+      const c = asAnswerObj(content);
+      const options = Array.isArray(c?.options) ? (c!.options as unknown[]) : [];
+      const correct = typeof c?.correct === "number" ? c!.correct : null;
+      const optText = typeof options[selected] === "string" ? (options[selected] as string) : "";
+      const isCorrect = correct === null ? null : selected === correct;
+      const mark = isCorrect === true ? " ✓" : isCorrect === false ? " ✗" : "";
+      const markColor = isCorrect === true ? "var(--aiq-color-success, #065f46)" : isCorrect === false ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-muted)";
+      return (
+        <p style={ANSWER_TEXT_STYLE}>
+          <span style={{ fontFamily: "var(--aiq-font-mono)", fontWeight: 700, marginRight: "var(--aiq-space-sm)", color: markColor }}>
+            {OPTION_LETTERS[selected] ?? selected}{mark}
+          </span>
+          {optText}
+        </p>
+      );
+    }
+
+    case "subjective": {
+      const text = typeof a?.response === "string" ? a.response : null;
+      if (text === null) break;
+      return text.trim() === "" ? <NoAnswer label="No answer submitted." /> : <p style={ANSWER_TEXT_STYLE}>{text}</p>;
+    }
+
+    case "kql": {
+      const query = typeof a?.query === "string" ? a.query : null;
+      if (query === null) break;
+      if (query.trim() === "") return <NoAnswer label="No query submitted." />;
+      return (
+        <pre
+          style={{
+            margin: 0,
+            padding: "var(--aiq-space-sm)",
+            background: "var(--aiq-color-bg-secondary, #f8f8f8)",
+            borderRadius: 4,
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: "var(--aiq-text-xs)",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            color: "var(--aiq-color-fg-primary)",
+            border: "1px solid var(--aiq-color-border, #e5e7eb)",
+          }}
+        >
+          {query}
+        </pre>
+      );
+    }
+
+    case "log_analysis": {
+      const findings = Array.isArray(a?.findings)
+        ? (a!.findings as unknown[]).filter((f): f is string => typeof f === "string" && f.trim() !== "")
+        : [];
+      const explanation = typeof a?.explanation === "string" ? a.explanation : "";
+      if (findings.length === 0 && explanation.trim() === "") break;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+          {findings.length > 0 && (
+            <div>
+              <div style={ANSWER_SUBLABEL_STYLE}>Findings</div>
+              <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-2xs)" }}>
+                {findings.map((f, i) => (
+                  <li key={i} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", lineHeight: 1.5, whiteSpace: "pre-wrap", color: "var(--aiq-color-fg-secondary)" }}>
+                    {f}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {explanation.trim() !== "" && (
+            <div>
+              <div style={ANSWER_SUBLABEL_STYLE}>Explanation</div>
+              <p style={ANSWER_TEXT_STYLE}>{explanation}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case "scenario": {
+      const steps = Array.isArray(a?.steps) ? (a!.steps as unknown[]) : [];
+      const rows = steps
+        .map((s, i) => {
+          const so = asAnswerObj(s);
+          const resp = typeof so?.response === "string" ? so.response : "";
+          const idx = typeof so?.stepIndex === "number" ? so.stepIndex : i;
+          return { idx, resp };
+        })
+        .filter((r) => r.resp.trim() !== "");
+      if (rows.length === 0) break;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+          {rows.map((r, i) => (
+            <div key={i}>
+              <div style={ANSWER_SUBLABEL_STYLE}>Step {r.idx + 1}</div>
+              <p style={ANSWER_TEXT_STYLE}>{r.resp}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+  }
+
+  // Unrecognised / malformed shape — readable message, never raw JSON.
+  return <NoAnswer label="Answer recorded — no readable preview available." />;
 }
 
 export function AdminAttemptDetail(): React.ReactElement {
@@ -327,13 +480,13 @@ export function AdminAttemptDetail(): React.ReactElement {
                 <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
                   {q.type} · {q.points} pts
                 </div>
-                <QuestionContent content={q.content} />
+                <QuestionContentView type={q.type} content={q.content} />
                 {answer && (
                   <>
                     <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
                       Candidate answer
                     </div>
-                    <AnswerContent answer={answer.answer} />
+                    <AttemptAnswerView type={q.type} content={q.content} answer={answer.answer} />
                   </>
                 )}
               </div>
