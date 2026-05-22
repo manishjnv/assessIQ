@@ -31,10 +31,11 @@
 // ?error=invalid_link — set by CandidateLoginVerify when the verify
 // endpoint does not 302 in time (stale / already-used magic link).
 
-import { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, Chip, Field, Logo } from '@assessiq/ui-system';
 import { api, ApiCallError } from '../../lib/api';
+import { readAuthScopeOnce, authScopeCopy, type AuthScopeBannerCopy } from '../../lib/authScope';
 
 // ─── shared style constants (mirrors TokenLanding.tsx) ───────────────────────
 
@@ -121,6 +122,15 @@ export function CandidateLogin(): JSX.Element {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'rate_limited'>('idle');
 
+  // Phase D — state-aware banner when a candidate's session was revoked by a
+  // tenant suspend / user disable (RequireSession redirects here on the
+  // 401-with-scope; lib/session.ts stashed the scope). Single-shot read on mount.
+  const [authBanner, setAuthBanner] = useState<AuthScopeBannerCopy | null>(null);
+  useEffect(() => {
+    const scope = readAuthScopeOnce();
+    setAuthBanner(scope === null ? null : authScopeCopy(scope, 'candidate'));
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (status === 'sending' || status === 'sent') return;
@@ -194,6 +204,33 @@ export function CandidateLogin(): JSX.Element {
           }}
         >
           <div style={{ width: '100%', maxWidth: 380 }}>
+            {/* Phase D — session-revocation banner (tenant suspend / user
+                disable). Shown once on mount when redirected here with a
+                stashed scope; calmer candidate-facing copy. */}
+            {authBanner !== null && (
+              <div
+                role="status"
+                style={{
+                  marginBottom: 24,
+                  padding: '12px 16px',
+                  borderRadius: 'var(--aiq-radius-sm)',
+                  background: 'var(--aiq-color-warning-soft)',
+                  border: '1px solid var(--aiq-color-warning)',
+                  color: 'var(--aiq-color-fg-primary)',
+                  fontFamily: 'var(--aiq-font-sans)',
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+                  {authBanner.title}
+                </div>
+                <div
+                  style={{ fontSize: 13, color: 'var(--aiq-color-fg-secondary)', lineHeight: 1.5 }}
+                >
+                  {authBanner.body}
+                </div>
+              </div>
+            )}
+
             {/* Stale / already-used magic link error — shown only when
                 redirected here from CandidateLoginVerify with
                 ?error=invalid_link. */}
