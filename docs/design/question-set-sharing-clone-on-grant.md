@@ -18,6 +18,22 @@ Question generation is super-admin-only; the super admin curates a master librar
 
 ---
 
+## MODEL REVISION (2026-05-22) — standing license + clone-on-use
+
+The grant is split into **license** (permission) and **delivery** (content), and delivery is **lazy**. This supersedes "eager clone at grant time" wherever the phases below say so. The Phase-1 schema and the Phase-2 `clonePackToTenant` engine are unchanged — only the **trigger** moves.
+
+- **License = the entitlement row (permission only; no clone at grant).**
+  - **Domain license** (`scope_type='domain'`, `scope_id=<domain slug>`) = a *standing* license to that whole domain: **all current AND future** published platform sets in it. Future sets are covered automatically — the publish-entitlement check matches by domain, not a frozen list.
+  - **Pack license** (`scope_type='pack'`, `scope_id=<SOURCE platform pack id>`) = license to one specific set.
+  - Reuses the existing `grantEntitlement` (no clone). Revoke reuses `revokeEntitlement`.
+- **Catalog = "Available question sets"** — a read-only listing of published **platform** sets a tenant is licensed for (`pack.domain ∈ domain-licenses` OR `pack.id ∈ pack-licenses`). Metadata only (name, domain, level/question counts, version). New sets the super admin publishes **appear here automatically**. This is a narrow, license-gated cross-tenant **metadata READ** — NOT a runtime cross-tenant read of question content.
+- **Delivery = clone-on-use.** When the company builds an assessment **from a licensed platform set**, that set is cloned into the company tenant **at that moment** (idempotent via `source_pack_id`), and the assessment is created from the clone. Candidates draw from the company's own stable copy.
+- **Publish gate reconciliation:** `assertPublishEntitled` must accept a cloned pack via its lineage — extend the `pack`-scope match to `scope_id === pack.id OR scope_id === pack.source_pack_id` (domain-scope match is unchanged and already works because the clone preserves `domain`).
+
+**Net effect on the phases:** Phase 1 ✓ unchanged. Phase 2 ✓ engine unchanged (called at use-time). Phase 3 → becomes the **catalog + publish-gate lineage extension** (not a grant+clone tx). Phase 4 → **clone-on-use at assessment creation** + re-sync/revoke. Phase 5 → SA "Grant license to company" button (pure entitlement, no clone) + company "Available sets" picker that triggers clone-on-use. The security-critical cross-tenant **write** now lives in the clone-on-use path (still gated by a server-side license re-check; still needs `codex:rescue`).
+
+---
+
 ## Phase 0 — Documentation discovery (verified facts; "Allowed APIs")
 
 All facts below are read verbatim from source this session (file:line). Build against these — do **not** invent signatures.
