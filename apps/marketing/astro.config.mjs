@@ -13,9 +13,15 @@ function inlineSitemap() {
   const SITE = 'https://assessiq.in';
   const today = new Date().toISOString().slice(0, 10);
   const pages = [
-    { loc: `${SITE}/`,        lastmod: today },
-    { loc: `${SITE}/about`,   lastmod: today },
-    { loc: `${SITE}/contact`, lastmod: today },
+    { loc: `${SITE}/`,                                      lastmod: today },
+    { loc: `${SITE}/about`,                                 lastmod: today },
+    { loc: `${SITE}/contact`,                               lastmod: today },
+    { loc: `${SITE}/pricing`,                               lastmod: today },
+    { loc: `${SITE}/security`,                              lastmod: today },
+    { loc: `${SITE}/solutions/it-hiring`,                   lastmod: today },
+    { loc: `${SITE}/solutions/campus-recruitment`,          lastmod: today },
+    { loc: `${SITE}/solutions/educational-institutions`,    lastmod: today },
+    { loc: `${SITE}/solutions/team-skill-gap`,              lastmod: today },
   ];
 
   function urlsetXml(urls) {

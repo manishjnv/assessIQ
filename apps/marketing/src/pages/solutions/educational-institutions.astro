@@ -1,0 +1,467 @@
+---
+// solutions/educational-institutions.astro — Educational Institutions solution page
+// JSON-LD: THREE separate blocks — Service, FAQPage, BreadcrumbList (per SEO §3.6 / §15 template)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// India-first positioning per SEO §17: colleges/universities — proctored exams, skill certification
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Service JSON-LD (§15 template)
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "Online proctored examination and skill assessment for educational institutions",
+  "provider": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Online proctored exam platform for colleges and universities in India. Run end-semester exams, skill certification tests, and outcome assessments — with browser lockdown, webcam monitoring, and tamper-evident digital credentials.",
+  "url": `${site}/solutions/educational-institutions`
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Can AssessIQ be used for end-semester and university examinations?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ supports timed, proctored online examinations with question-type flexibility (MCQ, short answer, coding, essay prompts). Institutions can configure multi-section papers, per-section time limits, and individual or batch scheduling. Every attempt produces a full audit log suitable for institutional review."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What proctoring controls are available for online exams?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ's proctoring layer includes browser lockdown (full-screen enforcement, tab-switch detection), webcam monitoring with AI-flagged anomalies, copy-paste restriction, and a timestamped event log for every session. Institutions can review flagged events alongside the submitted answers in the admin dashboard."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ handle skill certification for students?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ can issue tamper-evident digital credentials for skills assessed on the platform. Each credential is linked to the underlying assessment attempt and scoring rubric — so an employer or institution receiving the credential can verify both the score and the evidence behind it. Credential sharing is candidate-controlled."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can we use AssessIQ for outcome assessment and accreditation reporting?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ produces cohort-level reports showing score distributions, pass rates, and per-competency breakdowns. These exports are designed to support programme-level outcome analysis — useful for NAAC, NBA, and similar accreditation frameworks that require evidence of learning outcomes. The platform does not generate accreditation reports automatically; institutions use the data exports in their own reporting workflows."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is candidate data stored in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. All candidate data, assessment results, and proctoring records are stored on India-region infrastructure. AssessIQ is designed to align with India's Digital Personal Data Protection Act (DPDP) requirements. Institutions retain control over their data and can request exports or deletion in compliance with their own data governance obligations."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does AssessIQ require candidates to install any software?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. AssessIQ is entirely browser-based. Students need a modern browser (Chrome or Edge recommended for full proctoring support) and a webcam for monitored sessions. No desktop client, plugin, or app installation is required — which makes BYOD exam setups and remote examination straightforward to administer."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Solutions",
+      "item": `${site}/solutions/educational-institutions`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Educational Institutions"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Capability cards
+const capabilities = [
+  {
+    label: "Online Proctored Exams",
+    body: "Browser lockdown, webcam monitoring, tab-switch detection, and a timestamped event log. Run examinations with confidence in the result integrity."
+  },
+  {
+    label: "Flexible Question Types",
+    body: "MCQ, short answer, coding problems, essay prompts. Build multi-section papers with per-section time limits and question-pool randomisation."
+  },
+  {
+    label: "Skill Certification",
+    body: "Issue tamper-evident digital credentials linked to the assessment rubric and attempt record. Students share them; employers can verify them."
+  },
+  {
+    label: "Outcome Assessment Reports",
+    body: "Score distributions, pass rates, and per-competency breakdowns at cohort level. Export data for NAAC, NBA, or internal programme review."
+  },
+  {
+    label: "Batch Scheduling",
+    body: "Create multiple exam windows for different student groups. Admins manage scheduling, invites, and access from a single dashboard — no per-exam manual coordination."
+  },
+  {
+    label: "India Data Residency",
+    body: "All data stored in India. Aligned with DPDP requirements. Institutions control their data and can request exports or deletion on demand."
+  }
+];
+
+// Who this page is for
+const useCases = [
+  {
+    label: "Academic Institutions",
+    heading: "Run exams online without compromising integrity.",
+    body: "Replace in-hall paper exams with a proctored online alternative — or supplement them with skill assessments that measure what graduates can actually do, not just what they memorise."
+  },
+  {
+    label: "Examination Departments",
+    heading: "An audit trail for every attempt.",
+    body: "Proctoring flags, timestamped events, and per-answer scoring rationale are available for every submitted paper. If a result is disputed, the evidence is there."
+  },
+  {
+    label: "Placement & Career Cells",
+    heading: "Certify skills, not just grades.",
+    body: "Issue skill credentials tied to assessed competencies — Python, data analysis, communication, logical reasoning — that students can take to recruiters alongside their transcript."
+  }
+];
+---
+
+<BaseLayout
+  title="Online Proctored Exams for Educational Institutions"
+  description="AssessIQ provides online proctored exam and skill certification tools for colleges and universities in India. Browser lockdown, webcam monitoring, digital credentials, and outcome assessment reports for NAAC/NBA."
+  canonicalPath="/solutions/educational-institutions"
+>
+  <!-- JSON-LD: Service (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">Solutions</span>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Educational Institutions
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Solution &middot; Educational Institutions
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Online examinations your institution can stand behind.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AssessIQ is an online proctored exam and skill certification platform for colleges and universities in India. It runs timed, supervised assessments with browser lockdown, webcam monitoring, and tamper-evident digital credentials — so results are defensible and meaningful.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-aiq-2xl mb-0">
+        For engineering colleges &middot; universities &middot; professional institutes &middot; autonomous boards
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── THE PROBLEM ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="problem-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">The problem</p>
+        <h2 id="problem-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Moving exams online without losing integrity is the hard part.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Degrees without demonstrated competency.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Marks from traditional examinations often measure memory under time pressure. Employers increasingly want evidence that graduates can apply skills — which requires a different type of assessment, not just a different medium for the same paper.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Remote exams that can't be trusted.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Online exams without proctoring are trivially circumvented. But proctoring that is intrusive or technically unreliable creates a different problem — student grievances, disputed results, and institutional liability. The right level of monitoring is auditable, not adversarial.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Credentials that employers can't verify.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A PDF certificate issued by a college says nothing about what was assessed, at what standard, or whether the result is genuine. A digital credential linked to an auditable attempt and a structured rubric says all three.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Outcome data in the wrong format for accreditation.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              NAAC and NBA frameworks require evidence of programme learning outcomes. Most institutions produce that evidence from aggregated marks, not from competency-mapped assessments. A platform that maps each question to an outcome makes that reporting straightforward.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CAPABILITIES ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="capabilities-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">What AssessIQ does</p>
+      <h2 id="capabilities-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Everything educational institutions need to assess with confidence.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {capabilities.map(cap => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {cap.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {cap.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHO IT'S FOR ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="usecases-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who it's for</p>
+      <h2 id="usecases-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Built for institutions that take assessment seriously.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {useCases.map(uc => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">
+              {uc.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug">
+              {uc.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {uc.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions from educational institutions.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Can AssessIQ be used for end-semester and university examinations?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. AssessIQ supports timed, proctored online examinations with question-type flexibility (MCQ, short answer, coding, essay prompts). Institutions can configure multi-section papers, per-section time limits, and individual or batch scheduling. Every attempt produces a full audit log suitable for institutional review.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            What proctoring controls are available for online exams?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ's proctoring layer includes browser lockdown (full-screen enforcement, tab-switch detection), webcam monitoring with AI-flagged anomalies, copy-paste restriction, and a timestamped event log for every session. Institutions can review flagged events alongside the submitted answers in the admin dashboard.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How does AssessIQ handle skill certification for students?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ can issue tamper-evident digital credentials for skills assessed on the platform. Each credential is linked to the underlying assessment attempt and scoring rubric — so an employer or institution receiving the credential can verify both the score and the evidence behind it. Credential sharing is candidate-controlled.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Can we use AssessIQ for outcome assessment and accreditation reporting?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ produces cohort-level reports showing score distributions, pass rates, and per-competency breakdowns. These exports are designed to support programme-level outcome analysis — useful for NAAC, NBA, and similar accreditation frameworks that require evidence of learning outcomes. The platform does not generate accreditation reports automatically; institutions use the data exports in their own reporting workflows.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Is candidate data stored in India?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. All candidate data, assessment results, and proctoring records are stored on India-region infrastructure. AssessIQ is designed to align with India's Digital Personal Data Protection Act (DPDP) requirements. Institutions retain control over their data and can request exports or deletion in compliance with their own data governance obligations.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Does AssessIQ require candidates to install any software?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            No. AssessIQ is entirely browser-based. Students need a modern browser (Chrome or Edge recommended for full proctoring support) and a webcam for monitored sessions. No desktop client, plugin, or app installation is required — which makes BYOD exam setups and remote examination straightforward to administer.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EXPLORE OTHER SOLUTIONS + CTA ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <!-- CTA -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to bring your institution's assessments online?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            Questions about data residency or DPDP compliance? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+          </p>
+        </div>
+
+        <!-- Other solutions -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Other solutions</p>
+          <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+            AssessIQ across every assessment context.
+          </h2>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                IT &amp; Technical Hiring
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, technical screening, and proctored developer assessments for IT companies.</p>
+            </li>
+            <li>
+              <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Campus &amp; Fresher Recruitment
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, coding, and English at bulk scale for campus placement drives.</p>
+            </li>
+            <li>
+              <a href="/solutions/team-skill-gap" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Team Skill-Gap Analysis
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Map your existing team's competencies and identify upskilling priorities.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

@@ -1,0 +1,469 @@
+---
+// solutions/team-skill-gap.astro — Team Skill-Gap Analysis solution page
+// JSON-LD: THREE separate blocks — Service, FAQPage, BreadcrumbList (per SEO §3.6 / §15 template)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// India-first positioning per SEO §17: L&D / internal mobility — skill-gap, upskilling, benchmarking
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Service JSON-LD (§15 template)
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "Team skill-gap analysis and internal workforce assessment",
+  "provider": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Skill-gap assessment platform for L&D and HR teams in India. Map your existing team's competencies, identify upskilling needs, and benchmark individuals against role requirements — with structured scoring and cohort-level analytics.",
+  "url": `${site}/solutions/team-skill-gap`
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is a team skill-gap assessment and how does AssessIQ run one?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A skill-gap assessment measures where your team's current competencies fall short of what a role or project requires. In AssessIQ, you define the target competency profile for a role, invite team members to complete a structured assessment, and receive individual and cohort-level reports showing where gaps exist. The results feed directly into training plans or internal mobility decisions."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which skills can AssessIQ assess for an existing team?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ covers technical skills (Python, Java, SQL, React, .NET, data analysis, cloud fundamentals), aptitude (quantitative, logical reasoning), and domain knowledge packs. For L&D use cases, assessments are typically less timed and less proctored than hiring screens — the goal is an honest competency map, not a high-stakes gatekeeping event."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How are team assessment results reported?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ produces individual scorecards and cohort-level reports. The cohort view shows score distributions by band (for example, what percentage of the team meets a 'proficient' threshold on Python), per-competency breakdowns, and exportable data for HR systems or training-provider briefings. No individual's data is shared without their awareness."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can AssessIQ be used for internal mobility and promotion decisions?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ's structured rubrics and scoring bands make assessment results usable for internal benchmarking — not just as a number, but as a documented competency profile. For promotion or role-change decisions, the audit trail ensures the decision is backed by consistent evidence, not just a manager's impression."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does a skill-gap assessment differ from a hiring assessment on AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The platform is the same, but the configuration differs. For internal skill-gap work: proctoring is typically lighter or off (employees are not anonymous candidates), time pressure is reduced, and the output is a development profile rather than a pass/fail shortlist. Admins control all three parameters per assessment."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can we benchmark our team against an external standard or role definition?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ lets you define a target competency profile for a role — the skills, levels, and bands that constitute 'ready for this role.' Each team member's assessment is then scored against that profile, producing a gap view: who is ready, who needs development in which area, and how much. External benchmarking against industry standards is on the roadmap; today the comparison is against the organisation's own defined role profiles."
+        // TODO: real data — update when external benchmark library is live
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Solutions",
+      "item": `${site}/solutions/team-skill-gap`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Team Skill-Gap Analysis"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Capability cards
+const capabilities = [
+  {
+    label: "Competency Mapping",
+    body: "Define the target skill profile for any role. Assess your team against it and see exactly where individuals and cohorts fall relative to that bar."
+  },
+  {
+    label: "Technical Skill Assessments",
+    body: "Python, Java, SQL, React, .NET, data analysis, cloud fundamentals — the skills that matter most for Indian IT and tech teams. Configured for internal development, not high-stakes gatekeeping."
+  },
+  {
+    label: "Cohort-Level Analytics",
+    body: "Score distributions by band, per-competency breakdowns, and team-wide gap views. Export data for L&D planning, training-provider briefings, or HR systems."
+  },
+  {
+    label: "Individual Scorecards",
+    body: "Each team member gets a structured report: their score, the scoring band, and the rationale behind it. Not a number — a development profile."
+  },
+  {
+    label: "Internal Mobility Support",
+    body: "Structured evidence for promotion and role-change decisions. Consistent rubrics mean every candidate for an internal move is assessed against the same bar."
+  },
+  {
+    label: "Configurable Proctoring",
+    body: "Internal assessments don't need the same controls as candidate screening. Admins configure proctoring per assessment — full controls for high-stakes certifications, lighter touch for development surveys."
+  }
+];
+
+// Who this page is for
+const useCases = [
+  {
+    label: "Learning & Development",
+    heading: "Spend training budget where it matters.",
+    body: "A baseline skill assessment tells you exactly which competencies need development — before training begins, not six months into a programme that missed the mark."
+  },
+  {
+    label: "HR & People Teams",
+    heading: "Internal mobility with a paper trail.",
+    body: "Structured scoring and audit logs make promotion and role-change decisions defensible. Every candidate assessed against the same rubric, every decision backed by the same evidence."
+  },
+  {
+    label: "Engineering & Tech Leads",
+    heading: "Know what your team can actually build.",
+    body: "Before a new project or technology migration, run a quick skills assessment. Find out whether the team is ready, where the gaps are, and whether you need to hire or just train."
+  }
+];
+---
+
+<BaseLayout
+  title="Team Skill-Gap Analysis & Upskilling Assessment"
+  description="AssessIQ maps your team's current competencies against role requirements, identifies upskilling gaps, and supports internal mobility decisions in India. Cohort analytics, individual scorecards, structured scoring."
+  canonicalPath="/solutions/team-skill-gap"
+>
+  <!-- JSON-LD: Service (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">Solutions</span>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Team Skill-Gap
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Solution &middot; Team Skill-Gap Analysis
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Know what your team can do before you plan what to build.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AssessIQ is a team skill-gap assessment platform for L&D and HR teams in India. It maps your workforce's current competencies against role requirements, identifies upskilling needs, and produces cohort-level analytics to guide training investment and internal mobility decisions.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-aiq-2xl mb-0">
+        For L&amp;D teams &middot; HR &middot; Engineering leads &middot; Internal mobility programmes
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── THE PROBLEM ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="problem-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">The problem</p>
+        <h2 id="problem-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Most teams don't know what they're missing until a project shows them.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Training budgets spent on assumption.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Without a baseline assessment, L&D planning is driven by what managers think the team needs, or what a training vendor has to sell. A structured skill assessment tells you which gaps are real — and which are assumed — before the budget is committed.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Internal mobility without evidence.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Promotion and role-change decisions based on tenure and manager impression rather than demonstrated competency create two problems: they can be unfair, and they can put people in roles they're not ready for. Structured assessment gives both the employee and the organisation something to work with.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Technology migrations that reveal hidden gaps.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Moving to a new stack, cloud platform, or toolchain requires knowing where the team already has the foundations and where they don't. Finding out mid-migration is expensive. Finding out before planning begins changes the plan.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              No common language for skill levels across teams.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              "He's a senior Java developer" means different things to different hiring managers. A structured rubric with explicit anchors and bands gives the whole organisation a shared, calibrated language for what "proficient" actually means at each level.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CAPABILITIES ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="capabilities-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">What AssessIQ does</p>
+      <h2 id="capabilities-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Everything L&D and people teams need to assess with clarity.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {capabilities.map(cap => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {cap.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {cap.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHO IT'S FOR ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="usecases-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who it's for</p>
+      <h2 id="usecases-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Built for teams that want to close the gap, not just identify it.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {useCases.map(uc => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">
+              {uc.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug">
+              {uc.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {uc.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about team skill-gap assessments.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            What is a team skill-gap assessment and how does AssessIQ run one?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            A skill-gap assessment measures where your team's current competencies fall short of what a role or project requires. In AssessIQ, you define the target competency profile for a role, invite team members to complete a structured assessment, and receive individual and cohort-level reports showing where gaps exist. The results feed directly into training plans or internal mobility decisions.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Which skills can AssessIQ assess for an existing team?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ covers technical skills (Python, Java, SQL, React, .NET, data analysis, cloud fundamentals), aptitude (quantitative, logical reasoning), and domain knowledge packs. For L&D use cases, assessments are typically less timed and less proctored than hiring screens — the goal is an honest competency map, not a high-stakes gatekeeping event.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How are team assessment results reported?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ produces individual scorecards and cohort-level reports. The cohort view shows score distributions by band (for example, what percentage of the team meets a "proficient" threshold on Python), per-competency breakdowns, and exportable data for HR systems or training-provider briefings. No individual's data is shared without their awareness.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Can AssessIQ be used for internal mobility and promotion decisions?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. AssessIQ's structured rubrics and scoring bands make assessment results usable for internal benchmarking — not just as a number, but as a documented competency profile. For promotion or role-change decisions, the audit trail ensures the decision is backed by consistent evidence, not just a manager's impression.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How does a skill-gap assessment differ from a hiring assessment on AssessIQ?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            The platform is the same, but the configuration differs. For internal skill-gap work: proctoring is typically lighter or off (employees are not anonymous candidates), time pressure is reduced, and the output is a development profile rather than a pass/fail shortlist. Admins control all three parameters per assessment.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Can we benchmark our team against an external standard or role definition?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ lets you define a target competency profile for a role — the skills, levels, and bands that constitute "ready for this role." Each team member's assessment is then scored against that profile, producing a gap view: who is ready, who needs development in which area, and how much. External benchmarking against industry standards is on the roadmap; today the comparison is against the organisation's own defined role profiles.
+            {/* TODO: real data — update when external benchmark library is live */}
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EXPLORE OTHER SOLUTIONS + CTA ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <!-- CTA -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to map your team's skills before planning your next quarter?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            See <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a> or review our <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security and data residency</a> practices.
+          </p>
+        </div>
+
+        <!-- Other solutions -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Other solutions</p>
+          <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+            AssessIQ across every assessment context.
+          </h2>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                IT &amp; Technical Hiring
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, technical screening, and proctored developer assessments for IT companies.</p>
+            </li>
+            <li>
+              <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Campus &amp; Fresher Recruitment
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, coding, and English at bulk scale for campus placement drives.</p>
+            </li>
+            <li>
+              <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Educational Institutions
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Online proctored exams and skill certification for colleges and universities.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
