@@ -249,11 +249,13 @@ fi
 
 ## SEO marketing site — `assessiq-marketing` container (Phase 0, 2026-05-22)
 
-**Status: container LIVE on the VPS at host port 9093 (healthy); NOT yet public.**
-The shared Caddyfile default route still points at the SPA (9091), so
-`assessiq.in` is byte-for-byte unchanged. Flipping the default route to 9093 is
-the one remaining, deferred step (see "PENDING — Caddy flip" below). Deferred
-because a concurrent session was deploying on the box; do it on a quiet window.
+**Status: LIVE & PUBLIC (2026-05-22).** `assessiq.in` now serves the Astro
+marketing site (Caddy default route → 9093). The SPA serves `/admin` `/candidate`
+`/take` + `/assets/*` `/brand/*` via `@app` (→9091); the API serves `/api/*` etc.
+via `@api` (→9092). Verified live: home title = the marketing title; `/admin/login`
++ SPA bundle `/assets/*.js` → 200; `/api/health` → 200; AOP direct-origin spoof →
+rejected (000); neighbor `accessbridge.space` → 200; legacy host → 301 → assessiq.in;
+`robots.txt` + `sitemap-index.xml` served to a Googlebot UA through Cloudflare.
 
 **What it is.** `apps/marketing/` — a standalone Astro static site, the public
 SEO surface (home / about / contact + `robots.txt` + sitemap, full §3.5 head
@@ -287,22 +289,27 @@ chunks) + `/brand/*` (favicons/og). Marketing uses `/_astro/*` + ROOT favicons
 (`/favicon.svg` etc.) + `/og-default.png` — deliberately NOT `/assets` or
 `/brand`. This is why the `@app` matcher below carries `/assets/* /brand/*`.
 
-**PENDING — Caddy flip (do on a quiet box; `codex:rescue` verdict ACCEPT already
-on file).** Apply the THREE-WAY split from `infra/caddyfile/assessiq.snippet` to
-the `assessiq.in` block in `/opt/ti-platform/caddy/Caddyfile`:
+**DONE — Caddy flip (live 2026-05-22; `codex:rescue` ACCEPT).** The THREE-WAY split
+from `infra/caddyfile/assessiq.snippet` was applied to the `assessiq.in` block in
+`/opt/ti-platform/caddy/Caddyfile`:
 ```caddy
 @api  path /api/* /embed* /help/* /take/start /verify/*                 # -> 9092 (unchanged)
 @app  path /admin /admin/* /candidate /candidate/* /take /take/* /assets/* /brand/*   # -> 9091 (SPA)
 handle { reverse_proxy 172.17.0.1:9093 ... }                            # default -> 9093 (marketing)
 ```
-⚠️ **Read the LIVE `assessiq.in` block IN FULL first** — it has drifted from the
-repo snippet (older comments, possibly missing `/take/start` / `/verify/*` / the
-AOP comment). Reconcile against the live file, then apply via the documented
-**backup → truncate-write (NEVER `mv`/`sed -i` — inode trap) → `caddy validate`
-→ `caddy reload` → 5-probe smoke** (incl. AOP direct-origin spoof MUST NOT 200,
-neighbor MUST 200). **Keep the `tls { client_auth ... }` AOP block intact.** After
-the flip: `assessiq.in/` serves marketing; `/admin` `/take` `/candidate` serve
-the SPA; verify a Googlebot-UA `curl` of `robots.txt` + sitemap through Cloudflare.
+The live block's directives were already current (only its comments had drifted).
+Applied via: backup → **validate** (`docker cp` the candidate file INTO the
+container then `caddy validate` — the Caddyfile is bind-mounted as a SINGLE FILE,
+so sibling files in `/opt/ti-platform/caddy/` are NOT visible at `/etc/caddy/`)
+→ inode-safe truncate-write (`cat new | tee Caddyfile`, NEVER `mv`/`sed -i`)
+→ `caddy reload` → smoke gate with auto-revert. Backup:
+`Caddyfile.bak.20260522T182634Z`. AOP `client_auth` block left intact.
+**Cloudflare injects a Managed-robots block** ahead of our `/robots.txt`
+(Content-Signal `search=yes, ai-train=no` + AI-bot Disallows) — expected per
+SEO_Strategy §3.1; our app-path Disallows + `Sitemap:` directive are intact below
+it. **Rollback:** `cat /opt/ti-platform/caddy/Caddyfile.bak.20260522T182634Z |
+tee /opt/ti-platform/caddy/Caddyfile >/dev/null && docker exec ti-platform-caddy-1
+caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
 
 ## Reverse-proxy plan — additive Caddyfile block
 
