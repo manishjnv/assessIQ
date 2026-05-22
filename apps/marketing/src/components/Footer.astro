@@ -1,0 +1,44 @@
+---
+// Footer.astro — site-wide footer (per SEO §3.8 — footer carries canonical hubs sitewide)
+const year = new Date().getFullYear();
+const footerLinks = [
+  { href: '/',        label: 'Home' },
+  { href: '/about',   label: 'About' },
+  { href: '/contact', label: 'Contact' },
+];
+---
+
+<footer class="border-t border-aiq-border bg-aiq-bg-raised mt-aiq-4xl">
+  <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-aiq-lg">
+
+    <!-- Brand line + tagline -->
+    <div class="flex flex-col gap-1">
+      <span class="font-serif text-[18px] font-medium tracking-aiq-tight text-aiq-fg-primary leading-none">AssessIQ</span>
+      <!-- Canonical tagline per branding guideline §13.b — "Graded on evidence." -->
+      <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">Graded on evidence.</span>
+    </div>
+
+    <!-- Nav links — site-wide internal links to hubs per SEO §3.8 -->
+    <nav aria-label="Footer navigation">
+      <ul class="flex flex-wrap items-center gap-x-aiq-xl gap-y-aiq-sm list-none m-0 p-0">
+        {footerLinks.map(link => (
+          <li>
+            <a
+              href={link.href}
+              class="font-sans text-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
+                     focus:outline-none focus-visible:underline"
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <!-- Copyright -->
+    <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+      &copy; {year} AssessIQ
+    </p>
+
+  </div>
+</footer>

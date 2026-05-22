@@ -2,3 +2,9 @@ packages:
   - "packages/*"
   - "modules/*"
   - "apps/*"
+  # apps/marketing is a STANDALONE Astro site, deliberately excluded from the
+  # workspace: it carries its own lockfile and installs via --ignore-workspace
+  # (built in its own Docker image). Keeping its large, unrelated dep tree out
+  # of the root lockfile avoids polluting the app closure and breaking frozen
+  # installs. See docs/design/seo-marketing-site-architecture.md.
+  - "!apps/marketing"

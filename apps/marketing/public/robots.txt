@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /admin
+Disallow: /api
+Disallow: /candidate
+Disallow: /take
+Disallow: /embed
+Disallow: /help
+Allow: /
+
+Sitemap: https://assessiq.in/sitemap-index.xml

@@ -1,0 +1,51 @@
+---
+// 404.astro — branded 404 page (builds to /404.html)
+// noindex: true — thin, non-content page
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Page not found"
+  description="The page you were looking for doesn't exist on AssessIQ. Return to the home page."
+  canonicalPath="/404"
+  noindex={true}
+>
+  <section class="bg-aiq-bg-base min-h-[60vh] flex items-center">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl w-full">
+
+      <!-- Mono error code — brand voice: microcopy uppercase mono -->
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Error &middot; 404
+      </p>
+
+      <!-- Serif headline ending with period — brand voice per branding §2.4 -->
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        This page doesn't exist.
+      </h1>
+
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-lg m-0">
+        The URL you followed may be outdated, mistyped, or the page may have moved. Try heading back to the home page.
+      </p>
+
+      <div class="flex flex-wrap gap-aiq-md">
+        <a
+          href="/"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Go to home
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Contact us
+        </a>
+      </div>
+
+    </div>
+  </section>
+</BaseLayout>
