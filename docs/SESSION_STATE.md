@@ -1,3 +1,24 @@
+# Session — 2026-05-22 (Phase D follow-ups — candidate-login banner + web unit-test infra LIVE)
+
+**Headline:** Shipped both Phase D follow-ups. (1) Extended the revocation banner to the **candidate login** (`/candidate/login`) with calmer assessment-facing copy, via a new shared `apps/web/src/lib/authScope.ts` helper (single-shot read + audience-tuned copy); the admin login was refactored onto it (behaviour-identical). (2) Stood up the **apps/web jsdom unit-test infra** (mirrors `modules/10-admin-dashboard`), which unblocked the prior session's `mfa.test.tsx` and proves the banners with tests — so the banner is no longer "pending operator". Deployed + live-verified.
+**Commits (main):** `7eb8604` — feat(web): extend Phase D banner to candidate login + stand up web unit-test infra (10 files; excludes the concurrent session's `apps/marketing` WIP).
+**Tests:** `pnpm --filter @assessiq/web test` → **22 pass** (`authScope.test.ts` 9, `login.test.tsx` 5, `CandidateLogin.test.tsx` 3, unblocked `mfa.test.tsx` 5). `vite build` OK; `pnpm install --frozen-lockfile --filter @assessiq/web...` passes (deploy gate).
+**Deploy:** LIVE. VPS ff-pull → `7eb8604`; `assessiq-frontend` rebuilt + `--force-recreate` (`--no-deps`; api/worker/neighbors untouched). Healthy; `assessiq.in/` → 200; candidate copy ("assessment workspace has been suspended", "Your access has been removed") confirmed in served bundle `index-BjN2y_aQ.js`.
+**Lockfile note:** my first `pnpm install` pulled in the concurrent session's `apps/marketing` deps; re-ran install with their `!apps/marketing` workspace exclusion → clean lockfile (apps/web dev-deps only). Committed lockfile is consistent with the VPS workspace (no `apps/marketing` dir/exclusion present there yet) — frozen install verified green.
+**Next:** Optional — wire apps/web (and the other UI packages) component tests into the root `pnpm test` so they run in CI (today they only run per-package via `pnpm --filter`). Not blocking.
+**Open questions:** (a) Root `pnpm test` still only includes node `.test.ts` (`modules/**`,`packages/**`) — apps/web + the 3 UI packages' `.test.tsx` run only via `pnpm --filter`; a `vitest.workspace.ts` would unify them but touches all packages (deferred). (b) Concurrent `apps/marketing` workstream owns `pnpm-workspace.yaml`/lockfile for marketing — coordinate before any further root `pnpm install`.
+
+---
+
+## Agent utilization
+- **Opus 4.7:** Both follow-ups end-to-end — mirrored the canonical admin-dashboard jsdom test setup, designed the shared `authScope.ts` (DRY single-shot + audience copy) to de-risk refactoring the just-shipped admin banner, wrote 4 test files (22 cases), navigated the concurrent-session lockfile pollution (re-install to drop `apps/marketing`, validated frozen install), isolated 10-file commit, frontend deploy + served-bundle verification, docs (04-auth-flows Phase D rewrite) + this handoff. `Opus · candidate banner + web test-infra · reworked: N`.
+- **Sonnet:** n/a — non-load-bearing presentational UI + dev test-infra; no new adversarial surface (server-side enforcement unchanged).
+- **Haiku:** n/a — build/deploy/verify run inline via `ssh assessiq-vps`.
+- **codex:rescue:** n/a — no auth/RLS/classifier logic.
+- **claude-mem:** read prior Phase D + UI-test context from hooks (obs 2731 mfa.test.tsx, 3916 Phase D, branding-template memories). No durable memory written.
+
+---
+
 # Session — 2026-05-22 (Phase D shipped — state-aware login banner + frontend whoami 429-backoff LIVE)
 
 **Headline:** Finished + deployed Phase D (the prior session's uncommitted login-banner WIP): on a tenant-suspend / user-disable 401, the admin login page now renders state-aware copy ("Your organisation's access is paused." / "Your account has been disabled.") instead of a generic session-expired feel. The same commit also ships the frontend half of the login-screen rate-limit fix (whoami backs off on 429, clamped [1,300]s), resolving the entanglement noted in the block below.
