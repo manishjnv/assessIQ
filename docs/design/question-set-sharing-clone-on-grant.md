@@ -127,6 +127,11 @@ Steps (all within the one system-role tx):
 
 ## Phase 5 — Admin UI
 
+**UI principle — create vs. catalog (clarified 2026-05-22):** the two surfaces have separate jobs.
+- **Generate Questions page** (`generate-wizard.tsx`) = the place to **create**: ✦ Generate (AI), + Add level, + Add question, review/tune. All authoring affordances live here.
+- **Question Bank page** (`question-bank.tsx` / `pack-detail.tsx`) = the **catalog**: browse/search, view a set, manage status (publish/archive), and **grant** a published set to a company. It manages and distributes; it does **not** create.
+- **Cleanup required:** today `pack-detail.tsx` carries "✦ Generate / + Add level / + Add question" buttons (`pack-detail.tsx` header + level/question sections). Move these authoring actions onto the Generate page; leave the bank with view + status + grant only. Granting is distribution (a catalog action), so the "Grant to company…" button correctly stays on the bank.
+
 **What to implement (copy the existing action-bar + drawer shapes):**
 - "Grant to company…" button on `pack-detail.tsx:754-784` (beside Publish, `isSuperAdmin && status!=='archived'`) and optionally `question-bank.tsx:384-412` per-row. Opens a modal: pick company (reuse `listTenantsApi`), choose scope (this pack / its whole domain), confirm → `grantPackToCompany`.
 - Keep `platform.tsx` billing drawer as the **audit + revoke** view; extend it to also list `scope_type='pack'` grants (today it hardcodes `'domain'` at `:740` — add a read-only render for pack-scope rows + their "Re-sync available" badge).
