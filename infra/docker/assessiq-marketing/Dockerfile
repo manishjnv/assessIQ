@@ -18,6 +18,13 @@ ARG NGINX_VERSION=1.27-alpine
 
 # ─── Stage 1: builder — astro build → /app/dist ──────────────────────────────
 FROM node:${NODE_VERSION} AS builder
+# Non-interactive corepack download (no TTY in CI/VPS build). pnpm version is
+# pinned via the "packageManager" field in apps/marketing/package.json
+# (pnpm@9.15.0 — matches the lockfile generator). node:22-alpine's corepack
+# defaults to pnpm 11, whose minimumReleaseAge supply-chain policy rejects the
+# freshest browserslist transitive deps and breaks a frozen install of a
+# 9.x-generated lockfile; the pin keeps Docker on the same pnpm as the lockfile.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /app
 
