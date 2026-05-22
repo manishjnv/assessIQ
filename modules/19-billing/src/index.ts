@@ -40,7 +40,12 @@ export {
   listTenantContentScopes,
   // B2 exports
   assertPublishEntitled,
+  // Step 2 — clone-on-use exports
+  assertLicensedForSourcePack,
+  listAvailableSetsForTenant,
 } from './service.js';
+
+export type { AvailableSet } from './types.js';
 
 export {
   registerBillingRoutes,

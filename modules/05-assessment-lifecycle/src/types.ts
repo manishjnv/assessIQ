@@ -168,6 +168,24 @@ export interface CreateAssessmentInput {
   settings?: AssessmentSettings;
 }
 
+/**
+ * Step 2 — input for createAssessmentFromSet (clone-on-use): build an
+ * assessment from a licensed PLATFORM-library set. `source_pack_id` is the
+ * platform pack id; `level_position` selects a level within it (1-based,
+ * resolved against the cloned pack after materialisation).
+ */
+export interface CreateAssessmentFromSetInput {
+  source_pack_id: string;
+  level_position: number;
+  name: string;
+  description?: string;
+  question_count: number;
+  randomize?: boolean;
+  opens_at?: Date | null;
+  closes_at?: Date | null;
+  settings?: AssessmentSettings;
+}
+
 export interface UpdateAssessmentPatch {
   // Only mutable in 'draft' state; service rejects with INVALID_STATE_TRANSITION
   // if status !== 'draft'.

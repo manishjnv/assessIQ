@@ -24,6 +24,7 @@ export {
   listAssessments,
   getAssessment,
   createAssessment,
+  createAssessmentFromSet,
   updateAssessment,
   publishAssessment,
   closeAssessment,
@@ -80,6 +81,7 @@ export type {
   // service-input types
   ListAssessmentsInput,
   CreateAssessmentInput,
+  CreateAssessmentFromSetInput,
   UpdateAssessmentPatch,
   PaginatedAssessments,
   ListInvitationsInput,
