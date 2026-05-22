@@ -573,6 +573,8 @@ The shared `Table` already supports sorting via the `sortable` (per-column), `so
 
 Live on: Question Bank, Attempts, Assessments, Dashboard grading queue, and Assessment-detail invitations.
 
+**Server-paginated tables sort server-side instead.** `certificates.tsx` and `generation-attempts.tsx` use native `<table>` markup with `limit`/`offset` + "Load more", so client-side sort would only reorder the loaded page. They send `sort`/`dir` query params to the API (which maps the key through a fixed `ORDER BY` allowlist — `ORDER BY` can't be parameterized) and **refetch from `offset 0`** on header click. Clickable `<th>`s carry the same `▲`/`▼` affordance. See `docs/03-api-contract.md` for the per-endpoint sort allowlists. Rule of thumb: full-fetch list → client-side `sortRows`; paginated list → server-side allowlisted sort.
+
 ### Shared admin formatters (`modules/10-admin-dashboard/src/lib/`)
 
 Two small helpers consolidate display logic that was previously duplicated inline on each list page. New pages MUST use these instead of re-inventing per-page status switches or `toLocaleString()` calls.
@@ -585,6 +587,17 @@ Two small helpers consolidate display logic that was previously duplicated inlin
 | `formatDate(iso)` | [`lib/format.ts`](../modules/10-admin-dashboard/src/lib/format.ts) | `"21 May 2026"` — date-only variant for created-at columns. |
 
 Status rendering composes with the `Chip` primitive: `const s = attemptStatusDisplay(row.status); return <Chip variant={s.variant}>{s.label}</Chip>;`.
+
+### Question & answer content renderers (never raw JSON)
+
+Any admin surface that displays a frozen question or a candidate's submitted answer MUST render a typed, human-readable layout — **never** `JSON.stringify` the stored payload into a `<pre>`/text node. Two renderers own this:
+
+| Renderer | Source | Renders |
+| --- | --- | --- |
+| `QuestionContentView` | [`components/QuestionContentView.tsx`](../modules/10-admin-dashboard/src/components/QuestionContentView.tsx) | A frozen question's `content`, switched by type (`mcq`/`subjective`/`kql`/`scenario`/`log_analysis`). Strips JSON-escape + markdown noise via `cleanText()`; for MCQ highlights the correct option (✓) and shows the rationale. Genuinely malformed/unknown content degrades to a styled JSON fallback (debug aid, not the normal path). |
+| `AttemptAnswerView` | [`pages/attempt-detail.tsx`](../modules/10-admin-dashboard/src/pages/attempt-detail.tsx) | A candidate's submitted answer, switched by question type (mcq → selected letter + option text + ✓/✗ vs the key; subjective → response prose; kql → query in a mono block; log_analysis → findings list + explanation; scenario → per-step responses). Empty answers show "No answer submitted."; unrecognised shapes show a readable message, never braces. |
+
+**History (2026-05-22):** until this date the attempt-detail page used a local `QuestionContent`/`AnswerContent` pair that did `typeof x === "string" ? x : JSON.stringify(x, null, 2)`. Question `content` and every answer shape are objects, so the JSON branch always fired — every question and answer rendered as a raw `{ "correct": 0, "options": [...] }` blob (the reported bug). The page now delegates the question to the shared `QuestionContentView` and the answer to `AttemptAnswerView`. The candidate take-flow was never affected (it renders field-by-field) and answer-key fields are stripped server-side before reaching candidates (`sanitizeContentForCandidate`, see `docs/RCA_LOG.md` 2026-05-16). The correct-option/rationale display in `QuestionContentView` is therefore **admin-only and intentional** — do not reuse it on a candidate-facing surface without re-gating those fields.
 
 ### Row-overflow menu pattern (currently page-local)
 
