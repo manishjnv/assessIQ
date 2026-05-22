@@ -61,6 +61,11 @@ function inlineSitemap() {
 export default defineConfig({
   site: 'https://assessiq.in',
   trailingSlash: 'never',
+  // format:'file' emits /about.html (not /about/index.html), so nginx serves
+  // /about WITHOUT a trailing-slash 301 — matching trailingSlash:'never' and the
+  // no-slash canonical. Directory format would 301 /about → /about/ (redirect
+  // chain + canonical mismatch). See infra/docker/assessiq-marketing/nginx.conf.
+  build: { format: 'file' },
   integrations: [
     tailwind(),
     inlineSitemap(),
