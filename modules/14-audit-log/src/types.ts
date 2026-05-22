@@ -137,6 +137,12 @@ export const ACTION_CATALOG = [
   // Fired inside grantEntitlement / revokeEntitlement via auditInTx (same tx).
   'tenant.entitlement_granted',
   'tenant.entitlement_revoked',
+  // Step 2 question-set sharing — clone-on-grant. Fired when a super-admin grant
+  // copies a published platform-library pack + its questions into a company
+  // tenant (provenance: source_pack_id/source_version). Written in the same
+  // system-role tx as the entitlement grant. See
+  // docs/design/question-set-sharing-clone-on-grant.md.
+  'tenant.pack_cloned',
   // Super-admin resend of a pending admin invitation (resend endpoint).
   // Distinct from user.invited (kind=reinvite written by inviteUser) so
   // super-admin activity is queryable separately from tenant-admin re-invites.
