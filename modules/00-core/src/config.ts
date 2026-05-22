@@ -135,8 +135,18 @@ const ConfigSchema = z
     RATE_LIMIT_IP_ADMIN: z.coerce.number().int().positive().default(100),
     // Candidates (session role='candidate') and unknown session roles.
     RATE_LIMIT_IP_USER: z.coerce.number().int().positive().default(30),
-    // Anonymous requests: no session cookie, no API key.
-    RATE_LIMIT_IP_ANON: z.coerce.number().int().positive().default(30),
+    // Anonymous requests: no session cookie, no API key. Covers the pre-auth
+    // login bootstrap — every load/return to a protected /admin/* route fires a
+    // GET /api/auth/whoami probe (RequireSession), and the login/MFA flow itself
+    // is anonymous until the cookie is set. 30/min was too tight: a single admin
+    // reloading or several users behind one NAT could exhaust it and get a 429
+    // ON THE LOGIN SCREEN — the worst place to lock a legitimate user out, since
+    // they cannot reach the MFA step that would lift them to the 5000/min
+    // verified-admin tier. Raised to 120. This is purely a DoS knob; credential
+    // brute-force protection is the SEPARATE RATE_LIMIT_CREDENTIAL bucket (20/min,
+    // credentialEndpoint:true) which is unaffected by this value. See RCA
+    // 2026-05-22 "429 on the admin login screen".
+    RATE_LIMIT_IP_ANON: z.coerce.number().int().positive().default(120),
     // API-key-backed traffic: batch integrations, webhooks, server-to-server.
     RATE_LIMIT_IP_APIKEY: z.coerce.number().int().positive().default(600),
     // Per-IP cap for (role∈{admin,reviewer,super_admin}) && totpVerified===true.
