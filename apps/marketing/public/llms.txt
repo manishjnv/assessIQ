@@ -1,0 +1,15 @@
+# AssessIQ
+
+India-first B2B assessment platform for IT hiring, campus recruitment, and educational institutions — skills tests, coding assessments, proctored exams, and team skill-gap analytics.
+
+## Pages
+
+- [Home](https://assessiq.in/) — Overview of the AssessIQ platform: what it does, who it's for, and why evidence-based assessment matters for Indian hiring and education.
+- [IT & Tech Hiring](https://assessiq.in/solutions/it-hiring) — How AssessIQ helps IT companies screen developers and technical candidates with role-specific coding tests and proctored assessments.
+- [Campus Recruitment](https://assessiq.in/solutions/campus-recruitment) — Bulk pre-placement assessment for fresher hiring: run structured, auditable tests for hundreds of candidates simultaneously.
+- [Educational Institutions](https://assessiq.in/solutions/educational-institutions) — Proctored online exams, skill certification, and team skill-gap analytics for colleges and universities.
+- [Team Skill-Gap](https://assessiq.in/solutions/team-skill-gap) — Map your current team's competencies, identify training needs, and track progress with structured internal assessments.
+- [Pricing](https://assessiq.in/pricing) — AssessIQ pricing by capability tier (Starter, Growth, Enterprise). All pricing is custom — contact for a quote.
+- [Security & Trust](https://assessiq.in/security) — How AssessIQ handles data protection, India DPDP Act alignment, data residency, encryption, multi-tenant isolation, audit logging, and assessment integrity.
+- [About](https://assessiq.in/about) — Mission, approach, and the principles behind AssessIQ's evidence-based assessment model.
+- [Contact](https://assessiq.in/contact) — Get in touch for demos, pricing enquiries, campus assessment setup, or partnership questions.

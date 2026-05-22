@@ -1,0 +1,431 @@
+---
+// pricing.astro — AssessIQ pricing page
+// JSON-LD: BreadcrumbList (Home › Pricing) + FAQPage (mirrors visible FAQ section)
+// NO Offer schema with fabricated numbers — prices are custom/on-request only
+// Hard rule: DO NOT invent prices. Use "Custom" / "Talk to us" per spec.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// BreadcrumbList JSON-LD (§15 template — no "item" on current/last breadcrumb)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Pricing"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section below exactly
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Does AssessIQ charge per assessment or per seat?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Pricing is structured around your usage volume and the features you need — not a rigid per-seat fee. We discuss your actual hiring or assessment cadence and propose accordingly. Contact us to start that conversation."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is there a free trial?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. You can access the platform and run a limited set of assessments before committing. Sign in at assessiq.in/admin/login to explore. For a guided walkthrough of your specific use case, reach out to hello@assessiq.in."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is included in the Enterprise tier?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Enterprise customers get full proctoring (webcam + browser lockdown), custom question packs, ATS/HRMS integrations, SSO, dedicated support, and SLA-backed uptime. Volume and pricing are agreed on contract."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do you charge separately for proctoring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Proctoring (webcam monitoring, browser lockdown, anomaly flagging) is a capability tier, not a per-attempt add-on. It is included from the Growth tier upward. Starter plans use honour-mode only."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can educational institutions get a different rate?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Colleges and universities that run high-volume placement or certification exams are assessed differently from corporate hiring clients. Contact us with your institution type and estimated candidate volumes."
+      }
+    }
+  ]
+};
+
+// Pricing tiers — differentiated by capability, NOT fabricated prices
+// {/* TODO: real prices — replace "Custom" with actual INR/USD figures once set */}
+const tiers = [
+  {
+    name: "Starter",
+    audience: "Small teams & pilots",
+    description: "Everything you need to run your first structured assessments and see what evidence-based hiring feels like.",
+    price: "Custom",
+    priceNote: "Talk to us",
+    features: [
+      "Skills tests (MCQ, short-answer)",
+      "Coding assessment environment",
+      "Honour-mode only (no proctoring)",
+      "Up to 5 active question packs",
+      "Admin dashboard + attempt logs",
+      "CSV result export",
+      "Email support",
+    ],
+    notIncluded: [
+      "Webcam / browser-lockdown proctoring",
+      "Custom question pack authoring",
+      "ATS / HRMS integrations",
+      "SSO",
+    ],
+    cta: "Talk to us",
+    ctaHref: "/contact",
+    highlight: false,
+  },
+  {
+    name: "Growth",
+    audience: "IT companies & campus teams",
+    description: "Full proctoring, larger candidate volumes, and the reporting depth your HR team actually needs.",
+    price: "Custom",
+    priceNote: "Talk to us",
+    features: [
+      "Everything in Starter",
+      "Webcam monitoring + browser lockdown",
+      "AI-flagged anomaly review",
+      "Unlimited question packs",
+      "Bulk candidate invite",
+      "Cohort & skill-gap analytics",
+      "ATS webhook integration",
+      "Priority email + chat support",
+    ],
+    notIncluded: [
+      "Custom SSO / SAML",
+      "Dedicated account manager",
+      "SLA-backed uptime",
+    ],
+    cta: "Request a quote",
+    ctaHref: "/contact",
+    highlight: true,
+  },
+  {
+    name: "Enterprise",
+    audience: "Large organisations & institutions",
+    description: "Custom contracts, integrations, and SLA-backed uptime for high-volume, high-stakes assessment programmes.",
+    price: "Custom",
+    priceNote: "On contract",
+    features: [
+      "Everything in Growth",
+      "Custom question pack authoring support",
+      "SSO / SAML integration",
+      "HRMS / LMS integrations",
+      "Dedicated account manager",
+      "SLA-backed uptime",
+      "Audit log export",
+      "Data residency confirmation (India region)",
+      "Custom branding on candidate-facing screens",
+    ],
+    notIncluded: [],
+    cta: "Contact sales",
+    ctaHref: "/contact",
+    highlight: false,
+  },
+];
+
+// FAQ items (visible section — must match faqSchema above)
+const faqs = [
+  {
+    q: "Does AssessIQ charge per assessment or per seat?",
+    a: "Pricing is structured around your usage volume and the features you need — not a rigid per-seat fee. We discuss your actual hiring or assessment cadence and propose accordingly. Contact us to start that conversation.",
+  },
+  {
+    q: "Is there a free trial?",
+    a: "Yes. You can access the platform and run a limited set of assessments before committing. Sign in at assessiq.in to explore. For a guided walkthrough of your specific use case, reach out to hello@assessiq.in.",
+  },
+  {
+    q: "What is included in the Enterprise tier?",
+    a: "Enterprise customers get full proctoring (webcam + browser lockdown), custom question packs, ATS/HRMS integrations, SSO, dedicated support, and SLA-backed uptime. Volume and pricing are agreed on contract.",
+  },
+  {
+    q: "Do you charge separately for proctoring?",
+    a: "Proctoring (webcam monitoring, browser lockdown, anomaly flagging) is a capability tier, not a per-attempt add-on. It is included from the Growth tier upward. Starter plans use honour-mode only.",
+  },
+  {
+    q: "Can educational institutions get a different rate?",
+    a: "Yes. Colleges and universities that run high-volume placement or certification exams are assessed differently from corporate hiring clients. Contact us with your institution type and estimated candidate volumes.",
+  },
+];
+---
+
+<BaseLayout
+  title="Pricing — AssessIQ"
+  description="AssessIQ pricing is structured by capability — Starter, Growth, and Enterprise tiers for IT hiring, campus recruitment, and educational institutions. All pricing is custom. Contact us for a quote."
+  canonicalPath="/pricing"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Pricing
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Pricing</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Priced by what you need, not by a price list.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        AssessIQ is a B2B platform. Pricing depends on your hiring volume, the assessment types you need,
+        and whether proctoring and integrations are in scope. The tiers below describe what each level
+        includes — reach out and we'll put together the right proposal.
+      </p>
+    </div>
+  </section>
+
+  <!-- Pricing tiers -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="tiers-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Plans</p>
+      <h2 id="tiers-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Three tiers, one honest conversation.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg items-start">
+        {tiers.map(tier => (
+          <div class={[
+            'rounded-aiq-lg border p-aiq-2xl flex flex-col gap-aiq-xl',
+            tier.highlight
+              ? 'bg-aiq-bg-base border-aiq-accent shadow-aiq-md'
+              : 'bg-aiq-bg-base border-aiq-border',
+          ].join(' ')}>
+
+            {tier.highlight && (
+              <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">
+                Most popular
+              </p>
+            )}
+
+            <div>
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm m-0">
+                {tier.audience}
+              </p>
+              <h3 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+                {tier.name}
+              </h3>
+              <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+                {tier.description}
+              </p>
+            </div>
+
+            <!-- Price display — always Custom/Talk to us, no fabricated numbers -->
+            <div class="border-t border-aiq-border pt-aiq-xl">
+              <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-0 mt-0 leading-none">
+                {tier.price}
+              </p>
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-aiq-xs mb-0">
+                {tier.priceNote}
+                {/* TODO: real prices — replace with actual INR figures once confirmed with product owner */}
+              </p>
+            </div>
+
+            <!-- CTA -->
+            <a
+              href={tier.ctaHref}
+              class={[
+                'font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill text-center transition-colors duration-150',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2',
+                tier.highlight
+                  ? 'bg-aiq-accent text-white hover:bg-aiq-accent-hover'
+                  : 'border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent',
+              ].join(' ')}
+            >
+              {tier.cta}
+            </a>
+
+            <!-- Included features -->
+            <ul class="flex flex-col gap-aiq-sm list-none m-0 p-0">
+              {tier.features.map(f => (
+                <li class="flex items-start gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+                  <span class="text-aiq-accent mt-0.5 flex-shrink-0" aria-hidden="true">&#10003;</span>
+                  {f}
+                </li>
+              ))}
+              {tier.notIncluded.map(f => (
+                <li class="flex items-start gap-aiq-sm font-sans text-aiq-md text-aiq-fg-muted leading-relaxed">
+                  <span class="mt-0.5 flex-shrink-0" aria-hidden="true">&#8211;</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- What drives the price — honest explainer -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="how-pricing-works-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How pricing works</p>
+      <h2 id="how-pricing-works-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0 max-w-2xl">
+        What we factor in when we propose a price.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-aiq-lg">
+        {[
+          {
+            label: "Assessment volume",
+            body: "How many candidates or employees you assess per month or per drive. Occasional use looks different from ongoing hiring pipelines.",
+          },
+          {
+            label: "Proctoring level",
+            body: "Honour-mode, browser lockdown only, or full webcam + AI-flagged monitoring. Proctoring infrastructure is the biggest cost driver.",
+          },
+          {
+            label: "Integrations",
+            body: "Whether you need ATS webhooks, HRMS sync, SSO/SAML, or LMS connectors changes the setup scope.",
+          },
+          {
+            label: "Support level",
+            body: "Self-serve email support versus dedicated account management and SLA-backed uptime are tiered separately.",
+          },
+        ].map(item => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {item.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {item.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Related solutions -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="solutions-pricing-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Use cases</p>
+      <h2 id="solutions-pricing-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-2xl mt-0">
+        See how AssessIQ fits your context.
+      </h2>
+      <div class="flex flex-wrap gap-aiq-md">
+        {[
+          { href: '/solutions/it-hiring',                  label: 'IT & Tech Hiring' },
+          { href: '/solutions/campus-recruitment',         label: 'Campus Recruitment' },
+          { href: '/solutions/educational-institutions',   label: 'Educational Institutions' },
+          { href: '/solutions/team-skill-gap',             label: 'Team Skill-Gap' },
+        ].map(link => (
+          <a
+            href={link.href}
+            class="font-sans text-aiq-sm font-medium px-4 py-2 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-secondary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            {link.label}
+          </a>
+        ))}
+        <a
+          href="/security"
+          class="font-sans text-aiq-sm font-medium px-4 py-2 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-secondary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Security & trust
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ — visible section; must mirror faqSchema above exactly -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about pricing.
+      </h2>
+
+      <div class="flex flex-col gap-0 max-w-3xl divide-y divide-aiq-border">
+        {faqs.map((item, i) => (
+          <div class="py-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+              {item.q}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {item.a}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Ready to talk about what you need?
+        </h2>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Contact sales
+          </a>
+          <a
+            href="https://assessiq.in/admin/login"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Try the platform
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

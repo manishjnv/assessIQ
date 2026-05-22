@@ -1,0 +1,283 @@
+---
+// security.astro — AssessIQ trust, security & data-protection page
+// JSON-LD: BreadcrumbList (Home › Security) per SEO §3.6 / §15 template
+//
+// HARD RULE (per spec): AssessIQ is NOT SOC 2 / ISO 27001 certified.
+// This page describes PRACTICES and POSTURE only — never "certified"/"compliant with X standard".
+// Any future certification claim requires explicit product-owner sign-off AND removal of this notice.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Security"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Security practice pillars — honest, no unearned certification claims
+const pillars = [
+  {
+    label: "Data protection & DPDP Act awareness",
+    heading: "Designed with India's data protection law in mind.",
+    body: "India's Digital Personal Data Protection (DPDP) Act 2023 places obligations on how personal data is collected, processed, and stored. AssessIQ is built to support those obligations: candidate data is collected only for the purpose of assessment, processing is scoped to that purpose, and we aim to give data principals — candidates — meaningful control over their data. We continue to monitor DPDP rulemaking as it matures.",
+  },
+  {
+    label: "Data residency",
+    heading: "Candidate data stays in India.",
+    body: "All assessment data, candidate records, proctoring footage, and attempt logs are stored on India-region infrastructure. We do not route personal data through overseas servers for routine processing. This matters for institutions and employers who need to demonstrate that candidate information remains within Indian jurisdiction.",
+  },
+  {
+    label: "Encryption in transit and at rest",
+    heading: "TLS everywhere. Data encrypted at rest.",
+    body: "All traffic between candidates, administrators, and AssessIQ is encrypted in transit using TLS 1.2+. Sensitive data — including candidate PII and assessment responses — is encrypted at rest in the underlying database. Access credentials are never stored in plaintext.",
+  },
+  {
+    label: "Multi-tenant isolation",
+    heading: "Your data is never visible to another organisation.",
+    body: "AssessIQ is a multi-tenant platform. Each company or institution operates in a fully isolated tenant context enforced at the database layer through row-level security policies. Admins from one organisation cannot see, search, or export data belonging to another. Candidate data is scoped to the organisation that ran the assessment.",
+  },
+  {
+    label: "Audit logging",
+    heading: "Every action is logged and auditable.",
+    body: "AssessIQ maintains append-only audit logs for all administrative actions: assessment creation and publication, candidate invitations, result access, and configuration changes. Logs are timestamped and cannot be modified or deleted by administrators. Enterprise customers can export full audit trails for internal compliance review.",
+  },
+  {
+    label: "Access controls",
+    heading: "Role-separated access across the platform.",
+    body: "The platform enforces strict role separation: super-admins, company administrators, reviewers, and candidates each see only what their role permits. Reviewer access to candidate answers is scoped by assignment — a reviewer can see only the assessments they are assigned to. Admin credentials require email-based multi-factor authentication.",
+  },
+];
+
+// Assessment integrity practices
+const integrityPractices = [
+  {
+    label: "Proctoring",
+    body: "Full proctoring (Growth and Enterprise tiers) combines browser lockdown — candidates cannot switch tabs or open other applications — with webcam monitoring. Suspicious events are flagged automatically and surfaced to administrators for review. Every flag is accompanied by a timestamp and a screenshot or recording clip.",
+  },
+  {
+    label: "Anti-cheat measures",
+    body: "Question packs support randomisation of question order and, for MCQ, answer option order. Time limits are enforced server-side, not only in the browser. Copy-paste is restricted in the coding environment. These measures reduce the value of answer-sharing between candidates in the same drive.",
+  },
+  {
+    label: "Fairness & bias mitigation",
+    body: "AssessIQ uses anchor-based, rubric-driven scoring rather than subjective judgment. Every assessment outcome carries rationale — what the candidate demonstrated, and at which band. This makes the basis for a score inspectable and challenges to it addressable. Question packs can be reviewed for language neutrality before deployment.",
+  },
+  {
+    label: "Answer-key protection",
+    body: "Correct answers and scoring rationale are never exposed to candidates — not in the assessment UI, not in share links, and not in any API response that a candidate can reach. Access to correct answers is gated to administrator and reviewer roles only.",
+  },
+];
+---
+
+<BaseLayout
+  title="Security & Data Protection — AssessIQ"
+  description="How AssessIQ handles data protection, India DPDP Act alignment, data residency, encryption, multi-tenant isolation, audit logging, access controls, and assessment integrity."
+  canonicalPath="/security"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Security
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Security & Trust</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Assessment data handled with the seriousness it deserves.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        Candidate data is sensitive — it determines careers. This page describes how AssessIQ protects that
+        data, how we approach India's evolving data protection landscape, and what controls we apply to
+        keep assessments fair and results trustworthy.
+      </p>
+    </div>
+  </section>
+
+  <!-- Honest posture callout — no unearned certifications -->
+  <section class="bg-aiq-accent-soft border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-xl">
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 max-w-3xl">
+        <strong class="font-medium text-aiq-fg-primary">A note on certifications:</strong> AssessIQ describes security
+        practices and design intent — not third-party certification status. We do not hold SOC 2, ISO 27001,
+        or equivalent certifications at this time. We will update this page if and when that changes. Buyers
+        who require a specific certification as a procurement condition should ask us directly about our roadmap.
+      </p>
+    </div>
+  </section>
+
+  <!-- Data protection pillars -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="data-protection-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Data protection</p>
+      <h2 id="data-protection-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        How candidate data is protected.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+        {pillars.map(pillar => (
+          <div>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {pillar.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug">
+              {pillar.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {pillar.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Assessment integrity -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="integrity-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Assessment integrity</p>
+      <h2 id="integrity-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Fair tests. Trustworthy results.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-aiq-lg">
+        {integrityPractices.map(p => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {p.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {p.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Infrastructure posture -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="infra-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Infrastructure</p>
+        <h2 id="infra-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          How the platform is built.
+        </h2>
+        <div class="flex flex-col gap-aiq-xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Traffic through Cloudflare.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              All inbound traffic to AssessIQ is routed through Cloudflare before it reaches the origin server. This provides DDoS mitigation, TLS termination, and an additional layer between the open internet and candidate data. Direct-origin access is blocked at the network layer.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Containerised, isolated services.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The platform runs as a set of containerised services. The candidate-facing application, the admin application, the API layer, and the database run in separate containers with scoped network access. A vulnerability in the candidate UI does not give access to the admin API.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Dependency management.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              AssessIQ's technology stack is maintained with security updates as a routine part of development — not an afterthought. Dependencies are kept current; known critical CVEs are resolved before they reach production.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA row -->
+  <section class="bg-aiq-bg-base">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+          Questions about our security posture?
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          If you have specific data-protection or compliance requirements — DPDP obligations, internal audit
+          questions, or procurement checklists — reach out. We'll give you a straight answer, including
+          where our current posture does and does not meet your bar.
+        </p>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Contact us
+          </a>
+          <a
+            href="/about"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            About AssessIQ
+          </a>
+        </div>
+
+        <!-- Solution links -->
+        <div class="mt-aiq-2xl pt-aiq-2xl border-t border-aiq-border">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">See how it applies to your context</p>
+          <div class="flex flex-wrap gap-aiq-sm">
+            {[
+              { href: '/solutions/it-hiring',                label: 'IT & Tech Hiring' },
+              { href: '/solutions/campus-recruitment',       label: 'Campus Recruitment' },
+              { href: '/solutions/educational-institutions', label: 'Educational Institutions' },
+              { href: '/solutions/team-skill-gap',           label: 'Team Skill-Gap' },
+            ].map(link => (
+              <a
+                href={link.href}
+                class="font-sans text-aiq-sm font-medium px-4 py-2 rounded-aiq-pill border border-aiq-border
+                       text-aiq-fg-muted hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

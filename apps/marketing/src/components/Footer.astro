@@ -1,44 +1,106 @@
 ---
 // Footer.astro — site-wide footer (per SEO §3.8 — footer carries canonical hubs sitewide)
+// Grouped: Solutions (4 pages) | Company (About, Contact, Security) | Product (Pricing)
 const year = new Date().getFullYear();
-const footerLinks = [
-  { href: '/',        label: 'Home' },
-  { href: '/about',   label: 'About' },
-  { href: '/contact', label: 'Contact' },
+
+const solutionLinks = [
+  { href: '/solutions/it-hiring',                label: 'IT & Tech Hiring' },
+  { href: '/solutions/campus-recruitment',       label: 'Campus Recruitment' },
+  { href: '/solutions/educational-institutions', label: 'Educational Institutions' },
+  { href: '/solutions/team-skill-gap',           label: 'Team Skill-Gap' },
+];
+
+const companyLinks = [
+  { href: '/about',    label: 'About' },
+  { href: '/contact',  label: 'Contact' },
+  { href: '/security', label: 'Security' },
+];
+
+const productLinks = [
+  { href: '/pricing', label: 'Pricing' },
 ];
 ---
 
 <footer class="border-t border-aiq-border bg-aiq-bg-raised mt-aiq-4xl">
-  <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-aiq-lg">
+  <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-3xl">
 
-    <!-- Brand line + tagline -->
-    <div class="flex flex-col gap-1">
-      <span class="font-serif text-[18px] font-medium tracking-aiq-tight text-aiq-fg-primary leading-none">AssessIQ</span>
-      <!-- Canonical tagline per branding guideline §13.b — "Graded on evidence." -->
-      <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">Graded on evidence.</span>
+    <!-- Top row: brand + link groups -->
+    <div class="flex flex-col md:flex-row md:items-start gap-aiq-3xl md:gap-aiq-4xl">
+
+      <!-- Brand -->
+      <div class="flex flex-col gap-1 flex-shrink-0">
+        <span class="font-serif text-[18px] font-medium tracking-aiq-tight text-aiq-fg-primary leading-none">AssessIQ</span>
+        <!-- Canonical tagline per branding guideline §13.b -->
+        <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">Graded on evidence.</span>
+      </div>
+
+      <!-- Link columns — per SEO §3.8: footer carries canonical hubs sitewide -->
+      <nav aria-label="Footer navigation" class="flex flex-wrap gap-x-aiq-3xl gap-y-aiq-2xl flex-1">
+
+        <!-- Solutions -->
+        <div class="flex flex-col gap-aiq-sm min-w-[160px]">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0 mb-aiq-xs">Solutions</p>
+          <ul class="flex flex-col gap-aiq-sm list-none m-0 p-0">
+            {solutionLinks.map(link => (
+              <li>
+                <a
+                  href={link.href}
+                  class="font-sans text-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
+                         focus:outline-none focus-visible:underline"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <!-- Company -->
+        <div class="flex flex-col gap-aiq-sm min-w-[120px]">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0 mb-aiq-xs">Company</p>
+          <ul class="flex flex-col gap-aiq-sm list-none m-0 p-0">
+            {companyLinks.map(link => (
+              <li>
+                <a
+                  href={link.href}
+                  class="font-sans text-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
+                         focus:outline-none focus-visible:underline"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <!-- Product -->
+        <div class="flex flex-col gap-aiq-sm min-w-[100px]">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0 mb-aiq-xs">Product</p>
+          <ul class="flex flex-col gap-aiq-sm list-none m-0 p-0">
+            {productLinks.map(link => (
+              <li>
+                <a
+                  href={link.href}
+                  class="font-sans text-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
+                         focus:outline-none focus-visible:underline"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+      </nav>
+
     </div>
 
-    <!-- Nav links — site-wide internal links to hubs per SEO §3.8 -->
-    <nav aria-label="Footer navigation">
-      <ul class="flex flex-wrap items-center gap-x-aiq-xl gap-y-aiq-sm list-none m-0 p-0">
-        {footerLinks.map(link => (
-          <li>
-            <a
-              href={link.href}
-              class="font-sans text-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
-                     focus:outline-none focus-visible:underline"
-            >
-              {link.label}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </nav>
-
-    <!-- Copyright -->
-    <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
-      &copy; {year} AssessIQ
-    </p>
+    <!-- Bottom row: copyright -->
+    <div class="mt-aiq-3xl pt-aiq-xl border-t border-aiq-border">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+        &copy; {year} AssessIQ
+      </p>
+    </div>
 
   </div>
 </footer>

@@ -2,12 +2,25 @@
 // Header.astro — site-wide navigation
 // Logo mark: CSS-driven dot + halo (per branding guideline §6 "In-product Logo component — Path 1 decision")
 // Wordmark: serif "AssessIQ" per branding guideline §6 (not "AccessIQ" — vendor-side typo)
+// Nav: Home, Solutions (dropdown → 4 solution pages), Pricing, About, Contact + Sign in CTA
 const currentPath = Astro.url.pathname;
+
 const navLinks = [
   { href: '/',        label: 'Home' },
   { href: '/about',   label: 'About' },
+  { href: '/pricing', label: 'Pricing' },
   { href: '/contact', label: 'Contact' },
 ];
+
+const solutionLinks = [
+  { href: '/solutions/it-hiring',                label: 'IT & Tech Hiring' },
+  { href: '/solutions/campus-recruitment',       label: 'Campus Recruitment' },
+  { href: '/solutions/educational-institutions', label: 'Educational Institutions' },
+  { href: '/solutions/team-skill-gap',           label: 'Team Skill-Gap' },
+];
+
+// Treat any /solutions/* path as "Solutions" active
+const isSolutionsActive = currentPath.startsWith('/solutions');
 ---
 
 <header class="border-b border-aiq-border bg-aiq-bg-base sticky top-0 z-50">
@@ -27,6 +40,59 @@ const navLinks = [
     <!-- Primary nav -->
     <nav aria-label="Main navigation">
       <ul class="flex items-center gap-1 list-none m-0 p-0">
+
+        <!-- Solutions — simple dropdown (CSS :focus-within, no JS) -->
+        <li class="relative group">
+          <button
+            type="button"
+            aria-haspopup="true"
+            aria-expanded="false"
+            class={[
+              'font-sans text-aiq-sm font-medium px-3 py-1.5 rounded-aiq-pill transition-colors duration-150',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-1',
+              'flex items-center gap-1 cursor-pointer border-0 bg-transparent',
+              isSolutionsActive
+                ? 'bg-aiq-bg-sunken text-aiq-fg-primary'
+                : 'text-aiq-fg-secondary hover:text-aiq-fg-primary hover:bg-aiq-bg-raised',
+            ].join(' ')}
+          >
+            Solutions
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true" class="mt-0.5 opacity-60">
+              <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <!-- Dropdown panel — shown on group-hover / group-focus-within -->
+          <ul
+            class="absolute left-0 top-full mt-1 min-w-[220px] bg-aiq-bg-base border border-aiq-border rounded-aiq-lg
+                   shadow-aiq-md py-aiq-sm list-none m-0 p-aiq-sm
+                   opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto
+                   group-focus-within:opacity-100 group-focus-within:pointer-events-auto
+                   transition-opacity duration-150 z-10"
+            role="menu"
+          >
+            {solutionLinks.map(link => (
+              <li role="none">
+                <a
+                  href={link.href}
+                  role="menuitem"
+                  aria-current={currentPath === link.href ? 'page' : undefined}
+                  class={[
+                    'block font-sans text-aiq-sm font-medium px-3 py-2 rounded-aiq-md transition-colors duration-150',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-1',
+                    currentPath === link.href
+                      ? 'bg-aiq-bg-sunken text-aiq-fg-primary'
+                      : 'text-aiq-fg-secondary hover:text-aiq-fg-primary hover:bg-aiq-bg-raised',
+                  ].join(' ')}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </li>
+
+        <!-- Standard nav links: Home, About, Pricing, Contact -->
         {navLinks.map(link => (
           <li>
             <a

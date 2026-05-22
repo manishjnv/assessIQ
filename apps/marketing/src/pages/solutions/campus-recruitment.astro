@@ -1,0 +1,467 @@
+---
+// solutions/campus-recruitment.astro — Campus & Fresher Recruitment solution page
+// JSON-LD: THREE separate blocks — Service, FAQPage, BreadcrumbList (per SEO §3.6 / §15 template)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// India-first positioning per SEO §17: bulk/fresher & campus placement hiring
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Service JSON-LD (§15 template)
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "Campus recruitment and bulk fresher assessment",
+  "provider": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Online assessment platform for campus placement drives and bulk fresher hiring in India. Aptitude tests, coding screens, English proficiency, and logical reasoning — administered to hundreds of candidates simultaneously with full proctoring.",
+  "url": `${site}/solutions/campus-recruitment`
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What types of tests does AssessIQ offer for campus recruitment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ supports aptitude (quantitative, verbal, logical reasoning), coding tests, English proficiency, domain knowledge, and personality batteries. These can be combined into a single multi-section campus assessment or run as separate screening rounds, each with individual time limits and pass thresholds."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How many candidates can take an AssessIQ test at the same time?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ handles concurrent sessions at bulk scale — there is no hard per-event cap on simultaneous candidates. Admins can send mass invites via CSV upload or a shareable link, monitor live attempt counts in real time, and view per-candidate progress from the admin dashboard during the event."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can AssessIQ run campus drives across multiple colleges at once?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. You can set up a single test link distributed across multiple campuses, or create separate test instances per institution to compare cohorts. Results from all venues land in the same admin dashboard, with exportable reports broken down by candidate, campus, or score band."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How is question integrity maintained across a large batch?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ supports randomised question ordering and question-pool randomisation — each candidate in a batch receives questions drawn from the same pool but in a different order, reducing answer-sharing. Proctoring controls (tab-switch detection, full-screen enforcement, webcam monitoring) are available for all campus sessions."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does AssessIQ support on-campus drives where candidates use their own devices?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ is a browser-based platform — candidates need only a modern browser and a stable internet connection. No software installation is required. This makes BYOD campus drives straightforward: distribute the test link, set the window, and monitor live from the admin dashboard."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ compare with AMCAT or CoCubes for campus hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AMCAT and CoCubes are multi-company shared-pool services — candidates take a common test and scores are sold to multiple employers. AssessIQ is a private B2B platform: your question packs, your data, visible only to your team. This means you control the test design, the pass threshold, and the scoring rubric — and candidate data never leaves your account."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Solutions",
+      "item": `${site}/solutions/campus-recruitment`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Campus Recruitment"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Capability cards
+const capabilities = [
+  {
+    label: "Aptitude & Reasoning",
+    body: "Quantitative aptitude, verbal ability, logical reasoning, and data interpretation — the core of every Indian campus pre-placement test."
+  },
+  {
+    label: "Coding Screens",
+    body: "Entry-level coding problems with automated test-case evaluation. Surface candidates who can actually write working code, not just describe algorithms."
+  },
+  {
+    label: "English Proficiency",
+    body: "Reading comprehension, grammar, vocabulary, and written communication tests calibrated for IT and BFSI campus hiring."
+  },
+  {
+    label: "Randomised Question Pools",
+    body: "Each candidate draws from the same question bank but in a different order. Reduces answer-sharing across a large concurrent batch."
+  },
+  {
+    label: "Bulk Invite & Live Monitoring",
+    body: "CSV upload, shareable test links, timed access windows. Watch live attempt counts and flag anomalies from the admin dashboard during the drive."
+  },
+  {
+    label: "Cohort Reports & Export",
+    body: "Per-candidate scorecards, score-band distributions, and full cohort exports to CSV or PDF. Compare across campuses in one view."
+  }
+];
+
+// Who this page is for
+const useCases = [
+  {
+    label: "Campus Recruitment Teams",
+    heading: "Run a placement drive, not a spreadsheet exercise.",
+    body: "Invite hundreds of candidates from a single link, set a time window, and let the platform handle the rest. Shortlist by score band before you've finished your morning coffee."
+  },
+  {
+    label: "HR Operations",
+    heading: "Consistent standards across every college.",
+    body: "The same test, the same rubric, the same threshold — whether you're visiting IIT, NIT, or a tier-2 engineering college. Every shortlist is defended by the same evidence."
+  },
+  {
+    label: "L&D / Early Careers",
+    heading: "Know what your new hires actually know.",
+    body: "Run a baseline skill assessment at the start of induction. Map gaps before training begins, not six months into the role."
+  }
+];
+---
+
+<BaseLayout
+  title="Campus Recruitment Assessment Platform for India"
+  description="AssessIQ runs aptitude, coding, English, and logical reasoning tests for campus placement drives in India. Bulk invite, live proctoring, concurrent sessions at scale. Structured scoring for fresher hiring."
+  canonicalPath="/solutions/campus-recruitment"
+>
+  <!-- JSON-LD: Service (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">Solutions</span>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Campus Recruitment
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Solution &middot; Campus Recruitment
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Scale fresher hiring without scaling headcount.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AssessIQ is a campus recruitment assessment platform for Indian companies and placement teams. Run aptitude, coding, English proficiency, and logical reasoning tests across hundreds of candidates simultaneously — with proctoring, randomised questions, and structured scoring built in.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-aiq-2xl mb-0">
+        Alternative to AMCAT &middot; CoCubes &middot; Mercer Mettl &middot; HackerEarth &middot; iMocha
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── THE PROBLEM ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="problem-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">The problem</p>
+        <h2 id="problem-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Campus hiring at volume is hard. Doing it consistently is harder.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Hundreds of applications, hours to process.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A single campus placement drive generates applicant volumes that overwhelm manual shortlisting. Without a structured pre-placement test, the shortlist is driven by which CVs someone happened to read — not by any signal of actual capability.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Different standards at different campuses.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              When a team visits five colleges with five different paper tests or ad-hoc online quizzes, the results aren't comparable. A centralised assessment with a fixed rubric makes every cohort comparable — and the shortlist defensible.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Answer-sharing in large groups.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              When 200 candidates sit the same test in a hall, or share a link with classmates, identical questions mean identical answers get shared. Randomised question ordering and proctoring controls close most of that gap.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              No baseline on what your new hires actually know.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Most campus processes stop at "hired." A skill assessment at induction tells you where the gaps are before the first sprint — so training budget goes where it matters, not where it's assumed to matter.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CAPABILITIES ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="capabilities-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">What AssessIQ does</p>
+      <h2 id="capabilities-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Every assessment type campus hiring needs.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {capabilities.map(cap => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {cap.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {cap.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHO IT'S FOR ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="usecases-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who it's for</p>
+      <h2 id="usecases-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Built for everyone who runs campus hiring.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {useCases.map(uc => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">
+              {uc.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug">
+              {uc.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {uc.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about campus recruitment assessments.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            What types of tests does AssessIQ offer for campus recruitment?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ supports aptitude (quantitative, verbal, logical reasoning), coding tests, English proficiency, domain knowledge, and personality batteries. These can be combined into a single multi-section campus assessment or run as separate screening rounds, each with individual time limits and pass thresholds.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How many candidates can take an AssessIQ test at the same time?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ handles concurrent sessions at bulk scale — there is no hard per-event cap on simultaneous candidates. Admins can send mass invites via CSV upload or a shareable link, monitor live attempt counts in real time, and view per-candidate progress from the admin dashboard during the event.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Can AssessIQ run campus drives across multiple colleges at once?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. You can set up a single test link distributed across multiple campuses, or create separate test instances per institution to compare cohorts. Results from all venues land in the same admin dashboard, with exportable reports broken down by candidate, campus, or score band.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How is question integrity maintained across a large batch?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ supports randomised question ordering and question-pool randomisation — each candidate in a batch receives questions drawn from the same pool but in a different order, reducing answer-sharing. Proctoring controls (tab-switch detection, full-screen enforcement, webcam monitoring) are available for all campus sessions.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Does AssessIQ support on-campus drives where candidates use their own devices?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. AssessIQ is a browser-based platform — candidates need only a modern browser and a stable internet connection. No software installation is required. This makes BYOD campus drives straightforward: distribute the test link, set the window, and monitor live from the admin dashboard.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How does AssessIQ compare with AMCAT or CoCubes for campus hiring?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AMCAT and CoCubes are multi-company shared-pool services — candidates take a common test and scores are sold to multiple employers. AssessIQ is a private B2B platform: your question packs, your data, visible only to your team. This means you control the test design, the pass threshold, and the scoring rubric — and candidate data never leaves your account.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EXPLORE OTHER SOLUTIONS + CTA ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <!-- CTA -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to run your next campus drive with AssessIQ?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            See <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a> or review our <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security and data residency</a> page.
+          </p>
+        </div>
+
+        <!-- Other solutions -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Other solutions</p>
+          <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+            AssessIQ across every hiring context.
+          </h2>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                IT &amp; Technical Hiring
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, technical screening, and proctored developer assessments.</p>
+            </li>
+            <li>
+              <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Educational Institutions
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Online proctored exams and skill certification for colleges and universities.</p>
+            </li>
+            <li>
+              <a href="/solutions/team-skill-gap" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Team Skill-Gap Analysis
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Map your existing team's competencies and identify upskilling priorities.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

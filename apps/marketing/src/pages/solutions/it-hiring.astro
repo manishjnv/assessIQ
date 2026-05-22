@@ -1,0 +1,467 @@
+---
+// solutions/it-hiring.astro — IT & Technical Hiring solution page
+// JSON-LD: THREE separate blocks — Service, FAQPage, BreadcrumbList (per SEO §3.6 / §15 template)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// India-first positioning per SEO §17: IT companies screening developers
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Service JSON-LD (§15 template)
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "Technical pre-employment assessment",
+  "provider": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Coding tests, technical skills assessments, and proctored developer screening for IT companies in India. Evaluate Python, Java, SQL, React, .NET, and more — with anti-cheat controls and structured scoring.",
+  "url": `${site}/solutions/it-hiring`
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What kinds of technical assessments does AssessIQ support?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ supports coding tests with live execution and test-case evaluation, multi-skill screening batteries (Python, Java, SQL, React, .NET, data structures, algorithms), aptitude and logical reasoning, and role-specific assessment packs. Tests can be used standalone or combined into a single timed session."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ prevent cheating in online coding tests?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, and copy-paste restriction on question text. Every attempt produces a timestamped event log that admins can review. Scores and flags are visible side by side in the admin dashboard."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I screen for a specific programming language or tech stack?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ lets you build role-specific packs targeting a single language (e.g. Python, Java, JavaScript) or a full-stack combination. Question packs can mix coding problems, multiple-choice theory, and output-prediction questions in a single timed test."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How are coding submissions scored?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Coding submissions run against hidden test cases and return a pass/fail count. The admin view shows the submitted code, test-case results, and execution time. For subjective questions, AssessIQ uses structured rubrics — anchors and scoring bands — so reviewers apply a consistent standard."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is AssessIQ suitable for bulk technical hiring campaigns?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ supports bulk candidate invite via CSV, shareable test links, and concurrent session handling. Admins can monitor live attempt counts, export results to CSV or PDF, and set per-test time limits and attempt windows. There is no per-seat cap on simultaneous candidates."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ compare with HackerRank or HackerEarth for Indian IT hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes. Unlike HackerRank and HackerEarth, AssessIQ is a B2B platform — no public leaderboards, no gamification — focused on structured, auditable selection for companies that need defensible hiring decisions."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Solutions",
+      "item": `${site}/solutions/it-hiring`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "IT & Technical Hiring"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Capability cards — honest descriptions, no fabricated stats
+const capabilities = [
+  {
+    label: "Live Coding Tests",
+    body: "Browser-based coding environment with test-case execution. Candidates write real code; you see pass rates, not just answers."
+  },
+  {
+    label: "Multi-Skill Batteries",
+    body: "Combine Python, Java, SQL, React, aptitude, and logical reasoning into a single timed session — or run them as separate screening stages."
+  },
+  {
+    label: "Proctoring & Anti-Cheat",
+    body: "Tab-switch detection, webcam monitoring, full-screen enforcement, and a timestamped anomaly log for every attempt."
+  },
+  {
+    label: "Structured Scoring",
+    body: "Anchor-based rubrics and scoring bands on every question. Reviewers apply the same standard to every candidate — the score explains itself."
+  },
+  {
+    label: "Bulk Invite & Scheduling",
+    body: "CSV import, shareable test links, and timed access windows. Run hundreds of concurrent sessions without per-seat friction."
+  },
+  {
+    label: "Admin Dashboard",
+    body: "Real-time attempt monitoring, per-candidate and cohort-level reports, and one-click export to CSV or PDF."
+  }
+];
+
+// Who this page is for
+const useCases = [
+  {
+    label: "Product & Engineering Teams",
+    heading: "Screen before the interview.",
+    body: "Replace first-round calls with a structured coding test. See who can actually solve the problem before you spend an engineer's time on a phone screen."
+  },
+  {
+    label: "Talent Acquisition",
+    heading: "Handle volume without sacrificing quality.",
+    body: "Bulk-invite applicants, set a passing threshold, and shortlist in hours — not days. Every decision is backed by the same evidence."
+  },
+  {
+    label: "HR & Compliance",
+    heading: "An audit trail for every hire.",
+    body: "Full attempt logs, proctoring flags, and per-answer scoring rationale. If a decision is ever questioned, the evidence is there."
+  }
+];
+---
+
+<BaseLayout
+  title="IT & Technical Hiring Assessment Platform"
+  description="AssessIQ helps IT companies in India screen developers with coding tests, technical skills assessments, and proctored online exams. Structured scoring, anti-cheat controls, bulk invite."
+  canonicalPath="/solutions/it-hiring"
+>
+  <!-- JSON-LD: Service (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">Solutions</span>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            IT &amp; Technical Hiring
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Solution &middot; IT &amp; Technical Hiring
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Hire developers on what they can do, not what they say.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AssessIQ is a technical assessment platform for IT companies in India. It lets you run coding tests, multi-skill screening batteries, and proctored developer exams — with structured scoring and anti-cheat controls — so every hiring decision rests on the same evidence.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-aiq-2xl mb-0">
+        Alternative to HackerRank &middot; HackerEarth &middot; Mercer Mettl &middot; iMocha &middot; Codility
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── THE PROBLEM ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="problem-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">The problem</p>
+        <h2 id="problem-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Resumes tell you what candidates claim. Tests tell you what they can do.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Volume without signal.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Indian IT hiring funnels move fast. A job post for a senior developer role gets hundreds of applications — many from candidates who list the right technologies but haven't used them in anger. Resume screening alone can't separate them.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Interviews that don't scale.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              First-round phone screens cost engineer time. When the shortlist is inconsistent — driven by who on the team happened to take a call — the downstream interview becomes unpredictable. A structured pre-screen changes that.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Online tests that are easy to game.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Many platforms let candidates look up answers in another tab, share screens, or use AI code completion during a "live" coding test. Proctoring that surfaces anomalies without being punitive is a harder engineering problem than most platforms solve.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Scores without rationale.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A number out of 100 doesn't help the interviewer know what to probe next, or help the hiring manager defend a decline. A score that explains itself — anchors, band, rationale — does.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CAPABILITIES ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="capabilities-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">What AssessIQ does</p>
+      <h2 id="capabilities-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Every assessment format IT hiring needs.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {capabilities.map(cap => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {cap.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {cap.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHO IT'S FOR ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="usecases-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who it's for</p>
+      <h2 id="usecases-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Built for every side of technical hiring.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {useCases.map(uc => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">
+              {uc.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug">
+              {uc.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {uc.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about technical hiring assessments.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            What kinds of technical assessments does AssessIQ support?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ supports coding tests with live execution and test-case evaluation, multi-skill screening batteries (Python, Java, SQL, React, .NET, data structures, algorithms), aptitude and logical reasoning, and role-specific assessment packs. Tests can be used standalone or combined into a single timed session.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How does AssessIQ prevent cheating in online coding tests?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, and copy-paste restriction on question text. Every attempt produces a timestamped event log that admins can review. Scores and flags are visible side by side in the admin dashboard.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Can I screen for a specific programming language or tech stack?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. AssessIQ lets you build role-specific packs targeting a single language (e.g. Python, Java, JavaScript) or a full-stack combination. Question packs can mix coding problems, multiple-choice theory, and output-prediction questions in a single timed test.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How are coding submissions scored?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Coding submissions run against hidden test cases and return a pass/fail count. The admin view shows the submitted code, test-case results, and execution time. For subjective questions, AssessIQ uses structured rubrics — anchors and scoring bands — so reviewers apply a consistent standard.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Is AssessIQ suitable for bulk technical hiring campaigns?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. AssessIQ supports bulk candidate invite via CSV, shareable test links, and concurrent session handling. Admins can monitor live attempt counts, export results to CSV or PDF, and set per-test time limits and attempt windows. There is no per-seat cap on simultaneous candidates.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            How does AssessIQ compare with HackerRank or HackerEarth for Indian IT hiring?
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes. Unlike HackerRank and HackerEarth, AssessIQ is a B2B platform — no public leaderboards, no gamification — focused on structured, auditable selection for companies that need defensible hiring decisions.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EXPLORE OTHER SOLUTIONS + CTA ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <!-- CTA -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to assess technical candidates with confidence?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            Questions about data residency or security controls? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+          </p>
+        </div>
+
+        <!-- Other solutions -->
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Other solutions</p>
+          <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+            AssessIQ across every hiring context.
+          </h2>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Campus &amp; Fresher Recruitment
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, coding, and English at bulk scale for campus placement drives.</p>
+            </li>
+            <li>
+              <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Educational Institutions
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Online proctored exams and skill certification for colleges and universities.</p>
+            </li>
+            <li>
+              <a href="/solutions/team-skill-gap" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Team Skill-Gap Analysis
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Map your existing team's competencies and identify upskilling priorities.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
