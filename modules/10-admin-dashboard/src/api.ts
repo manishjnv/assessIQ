@@ -737,6 +737,35 @@ export async function getCompanyEntitlements(): Promise<{ entitlements: TenantEn
 }
 
 // ---------------------------------------------------------------------------
+// Typed helpers — Step 2 "Available sets" catalog (company-admin)
+// ---------------------------------------------------------------------------
+
+/** A licensed platform-library set the company can assess from (metadata only). */
+export interface AvailableSet {
+  source_pack_id: string;     // platform pack id
+  name: string;
+  domain: string;
+  source_version: number;
+  question_count: number;
+  level_count: number;
+  cloned: boolean;
+  cloned_pack_id: string | null;
+  update_available: boolean;
+}
+
+/**
+ * GET /api/billing/available-sets
+ *
+ * Company-admin endpoint (Step 2). Returns the published platform-library sets
+ * this tenant is licensed for (domain or pack scope). Metadata only — the set is
+ * materialised into the tenant via clone-on-use when an assessment is created
+ * from it. A domain license surfaces all current AND future sets in that domain.
+ */
+export async function getAvailableSets(): Promise<{ sets: AvailableSet[] }> {
+  return adminApi<{ sets: AvailableSet[] }>('/billing/available-sets');
+}
+
+// ---------------------------------------------------------------------------
 // Typed helpers — D1 content-scopes (super-admin billing drawer)
 // ---------------------------------------------------------------------------
 

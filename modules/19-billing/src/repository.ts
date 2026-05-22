@@ -369,6 +369,32 @@ export async function getPackDomain(
 }
 
 /**
+ * Fetch the entitlement-relevant fields for a pack: its domain TEXT and its
+ * source_pack_id (set only on clones, Step 2). Used by assertPublishEntitled
+ * so a pack license granted on the SOURCE platform pack also covers the CLONE
+ * a company materialised via clone-on-use (the clone carries source_pack_id =
+ * the licensed source). Both null when the pack row isn't visible.
+ *
+ * SECURITY: source_pack_id can only be written by the system-role clone engine
+ * (modules/04-question-bank/src/clone.ts) — there is NO company-accessible API
+ * that sets it (createPack/updatePack never touch it), so it cannot be forged
+ * to bypass the pack-scope license check.
+ *
+ * Runs under the caller's withTenant tx (RLS scopes to own packs).
+ */
+export async function getPackEntitlementInfo(
+  client: PoolClient,
+  packId: string,
+): Promise<{ domain: string | null; source_pack_id: string | null }> {
+  const result = await client.query<{ domain: string; source_pack_id: string | null }>(
+    `SELECT domain, source_pack_id FROM question_packs WHERE id = $1`,
+    [packId],
+  );
+  const row = result.rows[0];
+  return { domain: row?.domain ?? null, source_pack_id: row?.source_pack_id ?? null };
+}
+
+/**
  * List active entitlements for a tenant.
  *
  * Returns scope_type + scope_id for every status='active' row. The explicit
@@ -460,4 +486,74 @@ export async function updateTenantPlanRow(
     throw new Error(`updateTenantPlanRow: no row returned for tenant ${tenantId}`);
   }
   return row;
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — "Available sets" catalog (system-role, cross-tenant METADATA read)
+// All three run inside withSystemTx (assessiq_system / BYPASSRLS) so they can
+// read the platform tenant's published packs while resolving the calling
+// tenant's licenses. They return METADATA ONLY (names/counts/version) — never
+// question content. The license filter (domain slug OR pack id) is applied in
+// SQL, so an unlicensed platform set is never returned.
+// ---------------------------------------------------------------------------
+
+/** Resolve the platform (master-library) tenant id by its well-known slug. */
+export async function getPlatformTenantId(client: PoolClient): Promise<string | null> {
+  const result = await client.query<{ id: string }>(
+    `SELECT id FROM tenants WHERE slug = 'platform' LIMIT 1`,
+  );
+  return result.rows[0]?.id ?? null;
+}
+
+/**
+ * List the PUBLISHED platform-library packs a tenant is licensed for, by
+ * domain slug (domain license) OR pack id (pack license). Metadata only:
+ * active-question count + level count + version. Empty arrays match nothing
+ * (an empty `slug = ANY('{}')` is FALSE), so an unlicensed tenant gets [].
+ */
+export async function listAvailablePlatformSets(
+  client: PoolClient,
+  platformTenantId: string,
+  domainSlugs: string[],
+  packIds: string[],
+): Promise<Array<{ id: string; name: string; domain: string; version: number; question_count: number; level_count: number }>> {
+  const result = await client.query<{
+    id: string;
+    name: string;
+    domain: string;
+    version: number;
+    question_count: number;
+    level_count: number;
+  }>(
+    `SELECT p.id, p.name, p.domain, p.version,
+            (SELECT count(*)::int FROM questions q WHERE q.pack_id = p.id AND q.status = 'active') AS question_count,
+            (SELECT count(*)::int FROM levels l WHERE l.pack_id = p.id) AS level_count
+       FROM question_packs p
+      WHERE p.tenant_id = $1
+        AND p.status = 'published'
+        AND (p.domain = ANY($2::text[]) OR p.id::text = ANY($3::text[]))
+      ORDER BY p.domain, p.name`,
+    [platformTenantId, domainSlugs, packIds],
+  );
+  return result.rows;
+}
+
+/**
+ * For a tenant, find existing clones of the given source platform packs.
+ * Returns the clone's id + recorded source_version so the catalog can flag
+ * "already added" and "update available" (clone.source_version < source.version).
+ */
+export async function findClonesBySource(
+  client: PoolClient,
+  tenantId: string,
+  sourcePackIds: string[],
+): Promise<Array<{ id: string; source_pack_id: string; source_version: number | null }>> {
+  if (sourcePackIds.length === 0) return [];
+  const result = await client.query<{ id: string; source_pack_id: string; source_version: number | null }>(
+    `SELECT id, source_pack_id, source_version
+       FROM question_packs
+      WHERE tenant_id = $1 AND source_pack_id::text = ANY($2::text[])`,
+    [tenantId, sourcePackIds],
+  );
+  return result.rows;
 }

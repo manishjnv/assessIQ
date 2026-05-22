@@ -107,3 +107,25 @@ export interface GrantEntitlementInput {
   scopeType: EntitlementScopeType;
   scopeId: string;
 }
+
+// ---------------------------------------------------------------------------
+// Step 2 types — "Available sets" catalog (standing license + clone-on-use)
+// ---------------------------------------------------------------------------
+
+/**
+ * One published platform-library set a tenant is licensed for (by domain or
+ * pack scope). Metadata only — no question content. `source_pack_id` is the
+ * PLATFORM pack id; clone-on-use materialises it into the company tenant on
+ * first use.
+ */
+export interface AvailableSet {
+  source_pack_id: string;     // platform pack id
+  name: string;
+  domain: string;
+  source_version: number;     // current platform pack version
+  question_count: number;     // active questions in the platform set
+  level_count: number;
+  cloned: boolean;            // already materialised into this tenant?
+  cloned_pack_id: string | null;
+  update_available: boolean;  // cloned AND a newer source version exists
+}

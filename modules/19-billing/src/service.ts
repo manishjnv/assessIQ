@@ -22,9 +22,12 @@ import {
   revokeEntitlement as revokeEntitlementRow,
   listEntitlements,
   getTenantTier,
-  getPackDomain,
+  getPackEntitlementInfo,
   listActiveEntitlements,
   getTenantContentScopes,
+  getPlatformTenantId,
+  listAvailablePlatformSets,
+  findClonesBySource,
 } from './repository.js';
 import type {
   BillingUsage,
@@ -37,6 +40,7 @@ import type {
   TenantEntitlement,
   EntitlementScopeType,
   GrantEntitlementInput,
+  AvailableSet,
 } from './types.js';
 
 const log = streamLogger('billing');
@@ -516,19 +520,25 @@ export async function assertPublishEntitled(
     return;
   }
 
-  // Step 2 — look up the pack's domain (may be null if pack not found or
-  // not visible under RLS). A null domain means "no domain match possible"
-  // but does NOT fail the check on its own — the pack_id scope may still match.
-  const domain = await getPackDomain(client, packId);
+  // Step 2 — look up the pack's domain + clone lineage (both may be null if the
+  // pack row isn't visible under RLS). A null domain just means "no domain match
+  // possible"; a pack_id / source_pack_id scope may still match.
+  const { domain, source_pack_id: sourcePackId } = await getPackEntitlementInfo(client, packId);
 
   // Step 3 — fetch all active entitlements for the tenant.
   const ents = await listActiveEntitlements(client, tenantId);
 
-  // Step 4 — OR rule: entitled if ANY active entitlement matches pack_id
-  // (scope_type='pack') OR matches domain (scope_type='domain', domain non-null).
+  // Step 4 — OR rule: entitled if ANY active entitlement matches
+  //   - scope_type='pack' on this pack id OR its source_pack_id — the clone-on-use
+  //     lineage: a pack license granted on the SOURCE platform pack covers the
+  //     clone the company materialised from it (clone.source_pack_id = source).
+  //     source_pack_id is only ever written by the system-role clone engine, so
+  //     it cannot be forged by a tenant to bypass this gate; OR
+  //   - scope_type='domain' on the pack's domain (non-null).
   const entitled = ents.some(
     (e) =>
-      (e.scope_type === 'pack' && e.scope_id === packId) ||
+      (e.scope_type === 'pack' &&
+        (e.scope_id === packId || (sourcePackId !== null && e.scope_id === sourcePackId))) ||
       (e.scope_type === 'domain' && domain !== null && e.scope_id === domain),
   );
 
@@ -553,6 +563,60 @@ export async function assertPublishEntitled(
  */
 export async function getCompanyEntitlements(tenantId: string): Promise<TenantEntitlement[]> {
   return withTenant(tenantId, (c) => listEntitlements(c, tenantId, { activeOnly: true }));
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — "Available sets" catalog (standing license + clone-on-use)
+// ---------------------------------------------------------------------------
+
+/**
+ * List the published platform-library sets a tenant is licensed for — the
+ * "Available sets" catalog the company picks from when authoring an assessment.
+ *
+ * A domain license surfaces ALL current AND future published sets in that
+ * domain (the catalog reflects the live library); a pack license surfaces one
+ * set. Metadata only — no question content is read here. Each entry flags
+ * whether it has already been materialised into this tenant (clone-on-use) and
+ * whether a newer source version is available (re-sync hint).
+ *
+ * Runs under assessiq_system (BYPASSRLS) so it can resolve the platform tenant's
+ * packs while reading THIS tenant's licenses + clones. The license filter is in
+ * SQL (listAvailablePlatformSets), so an unlicensed set is never returned.
+ */
+export async function listAvailableSetsForTenant(tenantId: string): Promise<AvailableSet[]> {
+  return withSystemTx(async (client) => {
+    const platformTenantId = await getPlatformTenantId(client);
+    // No platform library, or the caller IS the platform tenant (it owns the
+    // library — it has no "available sets" to consume): nothing to list.
+    if (platformTenantId === null || platformTenantId === tenantId) return [];
+
+    const ents = await listEntitlements(client, tenantId, { activeOnly: true });
+    const domainSlugs = ents.filter((e) => e.scope_type === 'domain').map((e) => e.scope_id);
+    const packIds = ents.filter((e) => e.scope_type === 'pack').map((e) => e.scope_id);
+    if (domainSlugs.length === 0 && packIds.length === 0) return [];
+
+    const sets = await listAvailablePlatformSets(client, platformTenantId, domainSlugs, packIds);
+    if (sets.length === 0) return [];
+
+    const clones = await findClonesBySource(client, tenantId, sets.map((s) => s.id));
+    const cloneBySource = new Map(clones.map((c) => [c.source_pack_id, c]));
+
+    return sets.map((s) => {
+      const clone = cloneBySource.get(s.id);
+      return {
+        source_pack_id: s.id,
+        name: s.name,
+        domain: s.domain,
+        source_version: s.version,
+        question_count: s.question_count,
+        level_count: s.level_count,
+        cloned: clone !== undefined,
+        cloned_pack_id: clone?.id ?? null,
+        update_available:
+          clone !== undefined && clone.source_version !== null && clone.source_version < s.version,
+      };
+    });
+  });
 }
 
 const VALID_TIERS: ReadonlySet<string> = new Set(['free', 'pro', 'enterprise', 'internal']);

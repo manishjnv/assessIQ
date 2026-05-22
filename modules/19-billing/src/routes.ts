@@ -13,7 +13,7 @@
 // session's tenantId. Cross-tenant reads are impossible at the DB layer.
 
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
-import { getUsage, getCompanyEntitlements } from './service.js';
+import { getUsage, getCompanyEntitlements, listAvailableSetsForTenant } from './service.js';
 
 // ---------------------------------------------------------------------------
 // DI shape — mirrors the RegisterAssessmentLifecycleRoutesOptions pattern
@@ -62,6 +62,21 @@ export async function registerBillingRoutes(
       const tenantId = req.session!.tenantId;
       const entitlements = await getCompanyEntitlements(tenantId);
       return { entitlements };
+    },
+  );
+
+  // GET /api/billing/available-sets
+  // Step 2 — the "Available sets" catalog: published platform-library sets this
+  // tenant is licensed for (domain or pack scope). Metadata only; no question
+  // content. Drives the company-admin "assess from a set" picker (clone-on-use).
+  // Response 200: { sets: AvailableSet[] }
+  app.get(
+    '/api/billing/available-sets',
+    { preHandler: companyAdmin },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const sets = await listAvailableSetsForTenant(tenantId);
+      return { sets };
     },
   );
 }
