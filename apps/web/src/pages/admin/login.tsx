@@ -27,6 +27,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
+import { readAuthScopeOnce, authScopeCopy, type AuthScopeBannerCopy } from '../../lib/authScope';
 
 // P1 — Tenant field removed. Identity resolution is now cross-tenant: Google
 // verifies the email, then the backend resolves all eligible identities for
@@ -47,42 +48,13 @@ const SERIF_H1: CSSProperties = {
   letterSpacing: '-0.025em',
 };
 
-interface AuthScopeBanner {
-  title: string;
-  body: string;
-}
-
-function readAuthScopeBanner(): AuthScopeBanner | null {
-  try {
-    const raw = sessionStorage.getItem('aiq.lastAuthScope');
-    if (raw === null) return null;
-    sessionStorage.removeItem('aiq.lastAuthScope'); // single-shot
-    const parsed = JSON.parse(raw) as { scope?: unknown };
-    const scope = typeof parsed.scope === 'string' ? parsed.scope : null;
-    if (scope === 'tenant') {
-      return {
-        title: "Your organisation's access is paused.",
-        body: 'An administrator has suspended or archived your company workspace. Please contact your administrator to restore access.',
-      };
-    }
-    if (scope === 'user') {
-      return {
-        title: 'Your account has been disabled.',
-        body: 'An administrator has disabled or removed your account. Please contact your administrator if you believe this is a mistake.',
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export function AdminLogin(): JSX.Element {
   const navigate = useNavigate();
-  const [banner, setBanner] = useState<AuthScopeBanner | null>(null);
+  const [banner, setBanner] = useState<AuthScopeBannerCopy | null>(null);
 
   useEffect(() => {
-    setBanner(readAuthScopeBanner());
+    const scope = readAuthScopeOnce();
+    setBanner(scope === null ? null : authScopeCopy(scope, 'admin'));
   }, []);
 
   const startGoogleSso = (): void => {
