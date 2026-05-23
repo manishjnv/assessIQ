@@ -673,7 +673,8 @@ CREATE TABLE tenant_grading_budgets (
 
 ```sql
 -- modules/07-ai-grading/migrations/0042_generation_attempts.sql +
---   0043_generation_attempts_citation_dropped.sql
+--   0043_generation_attempts_citation_dropped.sql +
+--   0087_generation_attempts_difficulty_dropped.sql
 CREATE TABLE generation_attempts (
   id               UUID        NOT NULL PRIMARY KEY,  -- UUIDv7, generated app-side
   tenant_id        UUID        NOT NULL REFERENCES tenants(id),
@@ -694,6 +695,7 @@ CREATE TABLE generation_attempts (
   chunks_failed    INT,          -- NULL until Option B parallel fanout ships
   dedupe_dropped   INT,          -- NULL until Option B parallel fanout ships
   citation_dropped INT,          -- 0043: questions dropped for hallucinated KB citation IDs; NULL if filter not applied
+  difficulty_dropped INT,        -- 0087: questions dropped by the structural difficulty gate (Phase A3, difficulty-spec.ts); NULL if not applied
   duration_ms      INT,
   started_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   finished_at      TIMESTAMPTZ

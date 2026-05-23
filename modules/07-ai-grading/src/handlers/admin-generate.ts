@@ -111,6 +111,26 @@ export interface HandleAdminGenerateInput {
    * Both domainId and categoryId must be provided together or both omitted.
    */
   categoryId?: string | undefined;
+  /**
+   * Difficulty injection (Phase A3). Built by the caller (04 service.ts) which
+   * owns difficulty-spec.ts; passed as in-process data + bound closures to
+   * preserve the ai-grading → question-bank no-import boundary (04 depends on
+   * 07, never the reverse — see service.ts dynamic import). Optional for
+   * back-compat: when absent, the structural difficulty gate and difficulty
+   * tagging are no-ops.
+   */
+  difficulty?: {
+    /** Per-type target vector for THIS level; serializable, fed to the skill input + stamped as difficulty_params. */
+    byType: Record<string, unknown>;
+    /** Structural gate bound to this level (authoritative — lives in difficulty-spec.ts). */
+    validate: (
+      type: QuestionType,
+      content: unknown,
+      rubric: unknown,
+    ) => { ok: true } | { ok: false; reason: string };
+    /** KbSource.function → NICE work-role. */
+    niceForFunction: (fn: string) => string;
+  };
 }
 
 export interface HandleAdminGenerateOutput {
@@ -159,6 +179,43 @@ function filterByCitation<T extends { knowledge_base_source_ids?: string[] }>(
 }
 
 // ---------------------------------------------------------------------------
+// Structural difficulty gate helper (Phase A3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Drop any question that fails the structural difficulty gate for its
+ * (type, level) — e.g. an L1 MCQ without exactly 4 options, an L3 scenario
+ * with too many steps. The gate logic is authoritative in difficulty-spec.ts
+ * (04-question-bank) and injected here as `validate` to avoid a cross-module
+ * import (04 depends on 07, never the reverse). No-op when `validate` is
+ * absent (back-compat). Runs AFTER filterByCitation in every generation path
+ * so the two post-generation quality filters compose uniformly.
+ */
+function filterByDifficulty(
+  questions: GeneratedQuestionDraft[],
+  validate:
+    | ((
+        type: QuestionType,
+        content: unknown,
+        rubric: unknown,
+      ) => { ok: true } | { ok: false; reason: string })
+    | undefined,
+  onDrop: (q: GeneratedQuestionDraft, reason: string) => void,
+): GeneratedQuestionDraft[] {
+  if (!validate) return questions;
+  const kept: GeneratedQuestionDraft[] = [];
+  for (const q of questions) {
+    const verdict = validate(q.type, q.content, q.rubric);
+    if (verdict.ok) {
+      kept.push(q);
+    } else {
+      onDrop(q, verdict.reason);
+    }
+  }
+  return kept;
+}
+
+// ---------------------------------------------------------------------------
 // DB helpers — insertDrafts
 // ---------------------------------------------------------------------------
 
@@ -181,12 +238,35 @@ async function insertDrafts(
       // domain_id / category_id: nullable UUID columns added in migration 0018.
       // They are set only when the service layer has already cross-tenant
       // validated the FK pair (FK validation bypasses RLS — see service.ts guard).
+      //
+      // Difficulty tags (Phase A3, migration 0086): stamped deterministically
+      // from the injected per-(type,level) target. cognitive_level = the target's
+      // primary Bloom level; difficulty_params = the full target vector;
+      // nice_task_id = NICE work-role mapped from the primary cited source's
+      // function. attack_technique is left NULL (Phase B). All NULL when the
+      // caller did not inject difficulty (back-compat).
+      const diffTarget =
+        input.difficulty !== undefined
+          ? (input.difficulty.byType[q.type] as
+              | { cognitiveLevel?: string[] }
+              | undefined)
+          : undefined;
+      const cognitiveLevel = diffTarget?.cognitiveLevel?.[0] ?? null;
+      const difficultyParams =
+        diffTarget !== undefined ? JSON.stringify(diffTarget) : null;
+      const niceTaskId =
+        input.difficulty !== undefined
+          ? input.difficulty.niceForFunction(
+              q.knowledgeBaseSources[0]?.function ?? "",
+            )
+          : null;
       await client.query(
         `INSERT INTO questions
            (id, pack_id, level_id, type, topic, points, status, content, rubric,
-            knowledge_base_sources, created_by, domain_id, category_id)
+            knowledge_base_sources, created_by, domain_id, category_id,
+            cognitive_level, nice_task_id, difficulty_params)
          VALUES ($1, $2, $3, $4, $5, $6, 'ai_draft', $7::jsonb, $8::jsonb, $9::jsonb, $10,
-                 $11::uuid, $12::uuid)`,
+                 $11::uuid, $12::uuid, $13, $14, $15::jsonb)`,
         [
           id,
           input.packId,
@@ -202,6 +282,9 @@ async function insertDrafts(
           input.userId,
           input.domainId ?? null,
           input.categoryId ?? null,
+          cognitiveLevel,
+          niceTaskId,
+          difficultyParams,
         ],
       );
       ids.push(id);
@@ -241,6 +324,8 @@ interface AttemptFinalizeFields {
   dedupeDropped?: number | null;
   /** Questions dropped because knowledge_base_source_ids contained IDs not in input.sources. */
   citationDropped?: number | null;
+  /** Questions dropped by the structural difficulty gate (Phase A3). */
+  difficultyDropped?: number | null;
   durationMs?: number | null;
 }
 
@@ -270,6 +355,7 @@ async function tryFinalizeAttempt(
              dedupe_dropped  = $11,
              citation_dropped = $12,
              duration_ms     = $13,
+             difficulty_dropped = $14,
              finished_at     = now()
          WHERE id = $1`,
         [
@@ -286,6 +372,7 @@ async function tryFinalizeAttempt(
           fields.dedupeDropped ?? null,
           fields.citationDropped ?? null,
           fields.durationMs ?? null,
+          fields.difficultyDropped ?? null,
         ],
       );
     });
@@ -380,6 +467,7 @@ export async function handleAdminGenerate(
   let chunksFailed: number | undefined;
   let dedupeDroppedCount: number | undefined;
   let citationDroppedCount: number | undefined;
+  let difficultyDroppedCount: number | undefined;
   let capturedOutput: HandleAdminGenerateOutput | undefined;
   let capturedErr: unknown;
   // Aggregated per-chunk stderr from the sharded path.  Null on omnibus paths
@@ -436,6 +524,7 @@ export async function handleAdminGenerate(
           sources: input.sources,
           packId: input.packId,
           levelId: input.levelId,
+          difficulty: input.difficulty?.byType[type] ?? null,
         }));
 
         // 2-concurrent semaphore fan-out
@@ -584,8 +673,26 @@ export async function handleAdminGenerate(
         const skillShas = fulfilled.map((o) => o.skillSha).join(",").slice(0, 200);
         const model = "claude-sonnet-4-6";
 
+        // ── Structural difficulty gate (Phase A3) ─────────────────────────
+        // Runs after citation + dedupe. Drops questions failing the per-(type,
+        // level) structural bounds (e.g. L1 mcq without 4 options). No-op when
+        // difficulty was not injected.
+        let shardedDifficultyDropped = 0;
+        const shardedGated = filterByDifficulty(
+          mergedQuestions,
+          input.difficulty?.validate,
+          (q, reason) => {
+            shardedDifficultyDropped++;
+            log.warn(
+              { attemptId, type: q.type, topic: q.topic, reason },
+              "generation.sharded.difficulty.dropped",
+            );
+          },
+        );
+        difficultyDroppedCount = shardedDifficultyDropped;
+
         const mergedOutput: GenerateQuestionsOutput = {
-          questions: mergedQuestions,
+          questions: shardedGated,
           skillSha: skillShas,
           model,
         };
@@ -650,6 +757,7 @@ export async function handleAdminGenerate(
           sources: input.sources,
           packId: input.packId,
           levelId: input.levelId,
+          difficulty: input.difficulty?.byType ?? null,
         };
 
         const output = await generateQuestions(genInput);
@@ -680,9 +788,24 @@ export async function handleAdminGenerate(
           "generation.omnibus.citation.summary",
         );
 
+        // ── Structural difficulty gate (Phase A3) ─────────────────────────
+        let singleDifficultyDropped = 0;
+        const singleGated = filterByDifficulty(
+          filteredSingleQuestions,
+          input.difficulty?.validate,
+          (q, reason) => {
+            singleDifficultyDropped++;
+            log.warn(
+              { attemptId, type: q.type, topic: q.topic, reason },
+              "generation.omnibus.difficulty.dropped",
+            );
+          },
+        );
+        difficultyDroppedCount = singleDifficultyDropped;
+
         const filteredSingleOutput: GenerateQuestionsOutput = {
           ...output,
-          questions: filteredSingleQuestions,
+          questions: singleGated,
         };
 
         const ids = await insertDrafts(client, input, filteredSingleOutput, attemptId);
@@ -753,6 +876,7 @@ export async function handleAdminGenerate(
         sources: input.sources,
         packId: input.packId,
         levelId: input.levelId,
+        difficulty: input.difficulty?.byType ?? null,
       }));
 
       const settled = await Promise.allSettled(
@@ -846,8 +970,23 @@ export async function handleAdminGenerate(
       const skillSha = fulfilled[0]!.skillSha;
       const model = fulfilled[0]!.model;
 
+      // ── Structural difficulty gate (Phase A3) ───────────────────────────
+      let chunkedDifficultyDropped = 0;
+      const chunkedGated = filterByDifficulty(
+        mergedQuestions,
+        input.difficulty?.validate,
+        (q, reason) => {
+          chunkedDifficultyDropped++;
+          log.warn(
+            { attemptId, type: q.type, topic: q.topic, reason },
+            "generation.chunked.difficulty.dropped",
+          );
+        },
+      );
+      difficultyDroppedCount = chunkedDifficultyDropped;
+
       const mergedOutput: GenerateQuestionsOutput = {
-        questions: mergedQuestions,
+        questions: chunkedGated,
         skillSha,
         ...(model !== undefined ? { model } : {}),
       };
@@ -937,6 +1076,7 @@ export async function handleAdminGenerate(
           chunksFailed: chunksFailed ?? null,
           dedupeDropped: dedupeDroppedCount ?? null,
           citationDropped: citationDroppedCount ?? null,
+          difficultyDropped: difficultyDroppedCount ?? null,
           durationMs,
           stderrTail: aggregatedStderrTail,
         });

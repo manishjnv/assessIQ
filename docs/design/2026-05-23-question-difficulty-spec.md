@@ -1,7 +1,7 @@
 # Question Difficulty Spec — per-type intrinsic difficulty parameters (L1/L2/L3)
 
 **Date:** 2026-05-23
-**Status:** DRAFT — design decisions resolved (§9); awaiting approval to implement Phase A (§8)
+**Status:** Phase A IMPLEMENTING — A1 (spec module) + A2 (migration 0086) committed; A3 (generation wiring) implemented on branch `feat/question-difficulty`, pending adversarial gate + DB apply. See §10.
 **Prerequisite reading:** `docs/05-ai-pipeline.md`, `docs/design/2026-05-09-type-sharded-generation.md`, `prompts/skills/generate-*/SKILL.md`
 
 ---
@@ -268,3 +268,42 @@ loop (§6) compares it against *measured* difficulty.
 All design decisions closed. Implementation of Phase A is the next gate (schema
 migration + `difficulty-spec.ts` + structural validator + `docs/02-data-model.md`
 update in the same PR).
+
+---
+
+## 10. Implementation status (Phase A)
+
+- **A1 (committed `667286a`).** `modules/04-question-bank/src/difficulty-spec.ts` — single
+  source of truth: `BLOOM_LEVELS`, `DIFFICULTY_SPEC` (5 types × L1/L2/L3 targets from §4),
+  `resolveDifficulty`, `functionToNice` (KbSource.function → NICE work-role), and
+  `validateStructuralDifficulty` (§5 hard gates: mcq exactly-4 options; kql/scenario/subjective
+  count bounds; D-3 conditional subjective rule; scenario `step_dependency` validated against the
+  real Zod enum `linear|parallel`). 62 unit tests.
+- **A2 (committed `fc61718`).** Migration `0086` adds nullable `cognitive_level` (TEXT+CHECK Bloom),
+  `nice_task_id`, `difficulty_params` (jsonb), `attack_technique` (text[]) to `questions` +
+  `question_versions`; forward-only, no RLS change. `docs/02-data-model.md` updated.
+- **A3 (branch `feat/question-difficulty`).** Generation wiring:
+  - **What:** `04 service.ts:generateQuestions` resolves this level's per-type targets and injects
+    `{ byType, validate, niceForFunction }` into `handleAdminGenerate`. `07` feeds `byType[type]`
+    into each skill's `promptVars.difficulty`, runs `filterByDifficulty` (the injected `validate`)
+    after `filterByCitation` in all three generation paths, stamps
+    `cognitive_level`/`difficulty_params`/`nice_task_id` in `insertDrafts`, and records
+    `difficulty_dropped` on `generation_attempts` (migration `0087`).
+  - **Why handler-stamped, not model-emitted:** the intended target is fully known from the spec at
+    generation time, so stamping deterministically avoids changing the `SubmitQuestionsInputSchema`
+    model-output contract (lower risk, forward-only). The model is *told* the targets (skill input)
+    and the gate *enforces* structure.
+  - **Why injection-via-closures:** `04` depends on `07` (package.json), so `07` importing `04`
+    would be a circular package dep. The validator + NICE mapper (authoritative in difficulty-spec.ts)
+    are passed as in-process closures on the input object — no import, no logic duplication, no value
+    drift. No new `claude` spawn site → `lint-no-ambient-claude` unaffected.
+  - **NOT included in A3:** the SKILL.md prompt edits instructing the model to actively target the
+    parameters (deferred — the model already receives the targets in `promptVars` and existing
+    per-level prose still guides; a SKILL.md prompt change is a deploy event per CLAUDE.md #6, better
+    done with eval attention); `attack_technique` population + warn-level embedding checks (Phase B);
+    empirical drift report (Phase C).
+  - **Downstream impact:** generated `ai_draft` rows now carry difficulty tags; structurally
+    non-conforming questions are dropped (visible as `generation_attempts.difficulty_dropped`).
+    Back-compat: when `difficulty` is not injected, the gate and stamping are no-ops.
+  - **Verification:** both modules typecheck clean; all locally-runnable tests pass (DB-backed insert
+    tests skip without Docker — they validate the new columns in CI). Adversarial gate pending before push.
