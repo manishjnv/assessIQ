@@ -1,0 +1,134 @@
+---
+// glossary/cut-score.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Cut Score",
+  "description": "The minimum score on an assessment that a test-taker must achieve to pass, advance to the next selection stage, or meet a competency standard. Cut scores can be set using norm-referenced methods (e.g. top 30% of applicants) or criterion-referenced methods (e.g. the minimum score associated with acceptable job performance), with the latter being more defensible in legal and regulatory contexts.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/cut-score`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Cut Score" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Cut Score"
+  description="A cut score is the minimum test score required to pass or advance. Learn how cut scores are set using norm-referenced and criterion-referenced methods, why defensible cut-score setting matters for fair hiring, and common standard-setting procedures."
+  canonicalPath="/glossary/cut-score"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Cut Score</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Cut Score
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        A cut score is the minimum score a test-taker must achieve to pass an assessment, advance to the next selection stage, or meet a defined competency standard. It transforms a continuous score distribution into a binary outcome — pass or fail, advance or screen out — and is one of the most consequential, and most frequently arbitrary, decisions in a selection process.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The cut score is where abstract psychometrics meets concrete human outcomes. Set it too high, and qualified candidates are rejected; too low, and the test provides no useful screen. Set it arbitrarily — by rounding to 60&nbsp;%, or because "that felt right," or because an HR manager wanted a specific shortlist size — and it is both indefensible under challenge and likely to produce adverse impact patterns that were never intended.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          There are two broad categories of cut-score setting:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>Norm-referenced cut scores:</strong> "Pass the top 30&nbsp;% of applicants." The threshold floats with the quality of the applicant pool. Practical for competitive selection when you need a shortlist of a fixed size. Problematic when pool quality varies across hiring cohorts — a low-quality pool in a slow market means weaker candidates advance at the same "percentile" threshold.</li>
+          <li><strong>Criterion-referenced cut scores:</strong> "Pass all candidates whose score corresponds to a predicted performance rating above a defined standard." Requires criterion validity data — the correlation between scores and performance outcomes — to ground the threshold in something real. Methods include the Angoff method (subject matter experts estimate the probability that a "minimally competent" worker answers each item correctly), the Bookmark method, and contrasting-groups analysis. These are more work to establish but far more defensible under legal or regulatory challenge.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The measurement error around a cut score — quantified by the standard error of measurement derived from the test's reliability coefficient — means that candidates near the threshold cannot be confidently classified. A defensible process acknowledges this uncertainty with a "borderline band" and may apply additional review for candidates in that zone rather than treating the cut as a hard binary.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          Cut-score decisions should be documented at the time they are made, with the rationale recorded, before any candidates are assessed. Post-hoc cut-score adjustment to achieve a desired pass rate or shortlist size — even if it looks innocuous — is a significant legal risk.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A company uses an Angoff standard-setting panel of five experienced Java developers to set the cut score for a Java assessment. Each panellist estimates the probability that a minimally competent developer — someone they would hire but not consider a star performer — would answer each of the 40 items correctly. The mean of all panellist estimates across all items is 0.62, giving a cut score of 0.62 &times; 40 = 24.8, rounded to 25. Candidates scoring 25 or above advance. This score is documented, tied to a subject-matter-expert judgement of job-relevant minimum competency, and can be defended if challenged.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/criterion-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Criterion Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Criterion validity evidence allows cut scores to be anchored to predicted performance levels rather than arbitrary round numbers.</p>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Adverse Impact</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">The cut score level directly determines pass rates and therefore affects whether disparate impact thresholds are triggered for protected groups.</p>
+          </li>
+          <li>
+            <a href="/glossary/reliability-coefficient" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Reliability Coefficient</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">The standard error of measurement derived from the reliability coefficient determines the uncertainty band around the cut score — low reliability means more candidates are misclassified near the threshold.</p>
+          </li>
+          <li>
+            <a href="/glossary/norm-referenced-scoring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Norm-Referenced Scoring</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">One approach to cut-score setting uses the norm distribution to define a percentile threshold — contrasted with criterion-referenced methods that anchor to job performance.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

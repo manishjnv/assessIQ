@@ -1,7 +1,12 @@
 ---
 // Footer.astro — site-wide footer (per SEO §3.8 — footer carries canonical hubs sitewide)
-// Grouped: Solutions (4 pages) | Company (About, Contact, Security) | Product (Pricing)
+// Grouped: Solutions (4 pages) | Company (About, Contact, Security) | Product (Pricing) | Resources (Skill Tests, Glossary)
 const year = new Date().getFullYear();
+
+const resourceLinks = [
+  { href: '/tests',    label: 'Skill Tests' },
+  { href: '/glossary', label: 'Glossary' },
+];
 
 const solutionLinks = [
   { href: '/solutions',                          label: 'All Solutions' },
@@ -81,6 +86,24 @@ const productLinks = [
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0 mb-aiq-xs">Product</p>
           <ul class="flex flex-col gap-aiq-sm list-none m-0 p-0">
             {productLinks.map(link => (
+              <li>
+                <a
+                  href={link.href}
+                  class="font-sans text-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
+                         focus:outline-none focus-visible:underline"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <!-- Resources -->
+        <div class="flex flex-col gap-aiq-sm min-w-[100px]">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0 mb-aiq-xs">Resources</p>
+          <ul class="flex flex-col gap-aiq-sm list-none m-0 p-0">
+            {resourceLinks.map(link => (
               <li>
                 <a
                   href={link.href}

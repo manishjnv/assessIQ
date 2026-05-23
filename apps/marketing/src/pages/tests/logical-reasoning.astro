@@ -1,0 +1,268 @@
+---
+// tests/logical-reasoning.astro — Logical Reasoning Online Test skill page (/tests/logical-reasoning)
+// JSON-LD: Service + FAQPage + BreadcrumbList (separate blocks per SEO §3.6 / §15)
+// NO aggregateRating, NO fabricated stats
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "Logical reasoning skills assessment",
+  "provider": { "@type": "Organization", "name": "AssessIQ" },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Online logical reasoning test for pre-employment screening and campus hiring in India. Covers syllogisms, pattern series, critical thinking, statement-assumption, and deductive reasoning. Structured scoring, anti-cheat proctoring.",
+  "url": `${site}/tests/logical-reasoning`
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How long is a logical reasoning test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A logical reasoning screening test on AssessIQ typically runs 20–30 minutes for a focused 15–20 question set, or 30–45 minutes when combined with verbal reasoning questions. Duration is configurable by the admin."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the logical reasoning test free on AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The free tier allows you to run logical reasoning tests and review results. Higher candidate volumes, bulk invite, and advanced proctoring are part of paid plans. See the pricing page."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the difference between logical reasoning and aptitude tests?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Aptitude tests focus on quantitative ability — numerical reasoning, percentages, data interpretation. Logical reasoning tests focus on deductive and inductive thinking — syllogisms, pattern recognition, statement-conclusion, and critical-argument evaluation. Both are used in Indian campus hiring; the strongest screening batteries combine them."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What score is considered good on a logical reasoning test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "For management-trainee or analyst roles, a score in the top 30–35% of the candidate cohort is a strong shortlisting signal. AssessIQ shows the cohort distribution per test run, so you can set thresholds relative to your actual applicant pool rather than using arbitrary fixed marks."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I combine logical reasoning with aptitude in a single test session?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Combining logical reasoning and aptitude questions in a single timed session is a standard campus hiring pattern. AssessIQ lets admins mix question packs from different areas within one test, including adding English or a coding section for engineering drives."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the logical reasoning test suitable for management trainee hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Critical thinking, statement-assumption, and argument-evaluation questions are specifically predictive of performance in analysis-heavy management roles. These question types are designed to assess structured reasoning, not general knowledge or domain expertise."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Skill Tests", "item": `${site}/tests` },
+    { "@type": "ListItem", "position": 3, "name": "Logical Reasoning Test" }
+  ]
+};
+
+const topics = [
+  { name: "Syllogisms", detail: "All/Some/No statement types, Venn diagram method, valid vs invalid conclusions, and the two-step deduction chain that traps candidates who reason by intuition rather than logic." },
+  { name: "Statement and assumption", detail: "Identifying implicit assumptions in a given statement, distinguishing between a reasonable assumption and an opinion, and evaluating whether an assumption is implicit or explicit." },
+  { name: "Pattern series", detail: "Alphabet series, number series with mixed rules (alternating, squared, prime-gap), letter-position coding, and mixed letter-number series that require decomposing two interleaved patterns simultaneously." },
+  { name: "Critical argument evaluation", detail: "Identifying strong vs weak arguments, distinguishing fact from inference from assumption, and evaluating whether a conclusion follows from given premises — the reasoning pattern used in case analysis and structured problem-solving." },
+  { name: "Direction and arrangement", detail: "Blood-relation chains, seating arrangement deductions (linear and circular), direction-distance problems, and coded-relationship questions. Tests structured working-memory and spatial reasoning." },
+  { name: "Statement and conclusion", detail: "Whether a conclusion is definitely true, probably true, definitely false, or cannot be determined from the given information — a critical distinction that separates careful reasoners from confident guessers." },
+];
+---
+
+<BaseLayout
+  title="Logical Reasoning Online Test for Hiring & Assessment"
+  description="Run a logical reasoning online test for campus and management hiring in India. Covers syllogisms, pattern series, critical thinking, and statement-assumption. Structured scoring, anti-cheat proctoring."
+  canonicalPath="/tests/logical-reasoning"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Logical Reasoning Test</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Skill Test &middot; Logical Reasoning</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Logical Reasoning Online Test for Hiring &amp; Assessment
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        A logical reasoning test measures a candidate's ability to draw valid conclusions from structured information — syllogisms, pattern recognition, critical argument evaluation, and deductive inference. Unlike domain-knowledge tests, logical reasoning assesses thinking structure, making it equally predictive for engineering, analyst, and management-trainee roles in India.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Get started free</a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="topics-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Topic breakdown</p>
+      <h2 id="topics-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">What the logical reasoning test covers</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {topics.map(t => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample question</p>
+      <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">The kind of question candidates answer</h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Statement and conclusion — mid level</p>
+          <div class="mb-aiq-lg">
+            <p class="font-sans text-aiq-md text-aiq-fg-primary leading-relaxed font-medium mb-aiq-md">Statements:</p>
+            <ul class="list-none m-0 p-0 flex flex-col gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary pl-aiq-lg">
+              <li>All managers are decision-makers.</li>
+              <li>Some decision-makers are analysts.</li>
+            </ul>
+            <p class="font-sans text-aiq-md text-aiq-fg-primary leading-relaxed font-medium mb-aiq-sm mt-aiq-lg">Which conclusion follows?</p>
+            <ul class="list-none m-0 p-0 flex flex-col gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary">
+              <li>I. Some managers are analysts.</li>
+              <li>II. All analysts are managers.</li>
+            </ul>
+          </div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Options</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary">
+            <li>A. Only conclusion I follows</li>
+            <li>B. Only conclusion II follows</li>
+            <li>C. Both conclusions follow</li>
+            <li class="text-aiq-accent font-medium">D. Neither conclusion follows &#10003; Correct</li>
+          </ul>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">What this question tests</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            From "All managers are decision-makers" and "Some decision-makers are analysts," we cannot conclude that any manager is an analyst (the "some analysts" could be entirely within the non-manager portion of decision-makers). Conclusion II reverses an all-relationship without justification. Candidates who reason by intuition rather than structural logic will pick A. This is the core distinction the test is designed to capture.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="roles-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who should take it</p>
+      <h2 id="roles-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Roles this test screens for</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg max-w-4xl">
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Management Trainee</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Critical thinking and structured reasoning are directly predictive of MT performance. Pair with the <a href="/tests/aptitude" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">aptitude test</a> for a complete reasoning battery.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Campus Fresher Hiring</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Standard first-filter for engineering and non-engineering campus drives in India. Add an <a href="/tests/english" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">English test</a> for communication roles or a coding section for technical roles.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Business / Systems Analyst</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Argument-evaluation and statement-conclusion questions mirror the structured thinking analysts use when translating ambiguous requirements into decisions. Domain knowledge can be trained; reasoning structure is harder to teach.</p>
+        </div>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">Relevant for <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">campus recruitment</a> and <a href="/solutions/educational-institutions" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">educational institutions</a> in India.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="format-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Format &amp; difficulty</p>
+      <h2 id="format-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Duration, format, and difficulty levels</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Duration</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">20–45 min</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Configurable per test</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Format</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">MCQ</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Single-correct, timed per question</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Levels</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Foundation — Advanced</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Simple deduction to multi-step inference</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Common questions about the logical reasoning online test</h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long is a logical reasoning test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A focused 15–20 question set typically runs 20–30 minutes. Combined with verbal reasoning it runs 30–45 minutes. Duration is configurable.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the logical reasoning test free on AssessIQ?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The free tier lets you run tests and review results. Higher volumes and advanced proctoring are in paid plans. See the <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing page</a>.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is the difference between logical reasoning and aptitude tests?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Aptitude tests focus on quantitative ability (numbers, data interpretation). Logical reasoning tests focus on deductive and inductive thinking (syllogisms, pattern recognition, argument evaluation). The strongest campus screening batteries combine both.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What score is considered good on a logical reasoning test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">For management-trainee or analyst roles, a score in the top 30–35% of the cohort is a strong shortlisting signal. AssessIQ shows the cohort distribution so you can set percentile thresholds rather than fixed marks.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can I combine logical reasoning with aptitude in a single test session?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. Combining logical reasoning and aptitude in a single timed session is standard campus hiring practice. AssessIQ lets admins mix question packs within one test.</p></div>
+        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the logical reasoning test suitable for management trainee hiring?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. Critical thinking and argument-evaluation questions are specifically predictive of performance in analysis-heavy management roles. They assess thinking structure, not domain knowledge.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Ready to screen for logical reasoning?</h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Start free</a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Pricing</a>
+          </div>
+        </div>
+        <div>
+          <p id="related-heading" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related tests</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/aptitude" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Aptitude Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Pair with logical reasoning for a complete reasoning battery.</p></li>
+            <li><a href="/tests/english" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">English Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Communication and comprehension for campus and MT hiring.</p></li>
+            <li><a href="/tests/java" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Java Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Add a technical screen for engineering campus drives.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

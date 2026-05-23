@@ -1,0 +1,132 @@
+---
+// glossary/reliability-coefficient.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Reliability Coefficient",
+  "description": "A numerical index ranging from 0 to 1 that quantifies how consistently a test measures the same thing across repeated administrations, different raters, or parallel test forms. Higher values indicate less measurement error. In personnel assessment, reliability above 0.80 is generally considered acceptable for high-stakes selection decisions.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/reliability-coefficient`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Reliability Coefficient" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Reliability Coefficient"
+  description="A reliability coefficient (0–1) quantifies how consistently a test produces the same results. Learn the main types — test-retest, internal consistency, inter-rater — why 0.80 is the common threshold for hiring decisions, and how reliability limits validity."
+  canonicalPath="/glossary/reliability-coefficient"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Reliability Coefficient</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Reliability Coefficient
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        A reliability coefficient is a number between 0 and 1 that expresses how consistently a test measures the same thing — across repeated administrations, equivalent test forms, or multiple raters. A coefficient of 1.0 would mean perfect consistency with zero measurement error; 0 would mean pure noise. In high-stakes hiring, a coefficient above 0.80 is the widely cited minimum standard.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Reliability is a precondition for validity. A test that gives different results each time a candidate takes it — not because the candidate changed, but because of random measurement error — cannot validly predict anything. Statistically, the maximum possible correlation between a test and a criterion (validity) is limited by the square root of the test's reliability coefficient. A test with reliability of 0.64 can achieve a maximum validity of 0.80 — and real-world values are almost always lower due to criterion unreliability too.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          There are three main types of reliability, each measured differently:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>Test-retest reliability:</strong> The same candidates take the test twice; the correlation of the two sets of scores is the coefficient. Sensitive to practice effects and the time interval chosen.</li>
+          <li class="mb-aiq-sm"><strong>Internal consistency (e.g. Cronbach&#39;s alpha):</strong> Measures whether all items in a test correlate with one another — useful for ability and knowledge tests. Does not require two administrations. Can be artificially inflated by a very large number of items or by item redundancy.</li>
+          <li><strong>Inter-rater reliability:</strong> The degree to which two or more scorers independently assign the same scores to the same responses — critical for structured interviews, coding exercises evaluated by humans, or essay-based questions. Cohen&#39;s kappa and intra-class correlation (ICC) are common metrics.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          For automated, objectively scored assessments (MCQ, coding test-case scoring), internal consistency reliability is usually high and reproducible. For subjectively scored responses — structured interview ratings, written answers, open-ended coding rubrics — inter-rater reliability requires explicit anchor design and rater calibration to stay above the defensible threshold.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          An aptitude test vendor reports Cronbach&#39;s alpha = 0.87 for their numerical reasoning battery. This means approximately 87&nbsp;% of score variance reflects the underlying construct (numerical reasoning), and 13&nbsp;% is measurement error. A candidate who scored 72 on this test would, in theory, score between 65 and 79 on repeated equivalent-form testing — the standard error of measurement quantifies this band. At 0.87, the test meets the common 0.80 threshold, and a validity ceiling of &radic;0.87 &#8776; 0.93 gives ample room for meaningful criterion prediction.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/criterion-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Criterion Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">The observed criterion validity coefficient is limited by the reliability of both the test and the criterion measure — a fundamental psychometric constraint.</p>
+          </li>
+          <li>
+            <a href="/glossary/construct-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Construct Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Reliability is necessary but not sufficient for construct validity — a reliable test can consistently measure the wrong thing.</p>
+          </li>
+          <li>
+            <a href="/glossary/item-response-theory" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Item Response Theory</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">IRT provides item-level reliability information (information functions) rather than a single global coefficient, enabling adaptive tests to target measurement precision where it matters most.</p>
+          </li>
+          <li>
+            <a href="/glossary/cut-score" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Cut Score</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">The reliability coefficient determines the width of the standard error of measurement band around a cut score — low reliability means more candidates near the cut could legitimately be above or below it.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

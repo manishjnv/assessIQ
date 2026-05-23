@@ -1,0 +1,133 @@
+---
+// glossary/construct-validity.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Construct Validity",
+  "description": "Evidence that a test actually measures the psychological construct or trait it is designed to measure — such as verbal reasoning, numerical ability, or problem-solving — rather than something else, such as test-format familiarity or reading speed. Established through a combination of content, convergent, discriminant, and criterion evidence.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/construct-validity`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Construct Validity" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Construct Validity"
+  description="Construct validity is evidence that a test measures what it claims to measure — not test-taking skill or irrelevant traits. Learn the types of construct validity evidence, how they are gathered, and why they matter for fair, defensible assessment."
+  canonicalPath="/glossary/construct-validity"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Construct Validity</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Construct Validity
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        Construct validity is the body of evidence that a test measures the specific psychological trait or ability it is designed to measure — such as logical reasoning, numerical ability, or coding proficiency — rather than a confounding factor like test-format familiarity or reading speed. It is not a single number but a cumulative case built from multiple evidence sources.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          A test can be well-designed, psychometrically reliable, and commercially popular while still failing to measure what it claims to measure. For example, a verbal reasoning test administered in a second language may be measuring language proficiency more than reasoning ability. A coding challenge delivered under extreme time pressure may be measuring anxiety tolerance as much as technical skill. Construct validity evidence surfaces these problems before they corrupt the selection process.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In modern psychometrics — following the unified validity framework in the Standards for Educational and Psychological Testing — construct validity is the overarching category. It encompasses four main sources of evidence:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>Content evidence:</strong> Do the items representatively sample the domain? A Python test that covers only list comprehensions and ignores error handling lacks content coverage.</li>
+          <li class="mb-aiq-sm"><strong>Convergent evidence:</strong> Do scores correlate with other tests of the same construct? A logical reasoning test should correlate with established reasoning measures.</li>
+          <li class="mb-aiq-sm"><strong>Discriminant evidence:</strong> Do scores NOT correlate with conceptually unrelated constructs? If a coding test correlates strongly with a personality extraversion scale, something is wrong.</li>
+          <li><strong>Criterion-related evidence:</strong> Do scores predict outcomes that the construct should predict? High logical-reasoning scores should predict training success in analytical roles.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          For buyers of off-the-shelf assessments, asking vendors for their construct validity documentation — not just face validity ("it looks relevant") — is one of the most important due-diligence questions in a procurement decision.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A company wants to assess "problem-solving ability" for a data analyst role. It uses a test with abstract pattern-completion items. Construct validity evidence would include: a content review confirming the items represent the domain (convergent), a correlation with an established spatial reasoning test (convergent), no significant correlation with a verbal memory test (discriminant), and a demonstrated relationship with analyst performance ratings after six months (criterion). Each piece of evidence strengthens or weakens the case that the test measures what it claims.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/criterion-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Criterion Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">One key source of construct validity evidence — whether scores predict real-world performance outcomes.</p>
+          </li>
+          <li>
+            <a href="/glossary/reliability-coefficient" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Reliability Coefficient</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">A test cannot demonstrate strong construct validity if it is unreliable — inconsistent scores cannot represent a stable underlying trait.</p>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Adverse Impact</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Construct invalidity (measuring the wrong thing) is a common root cause of unexpected adverse impact — the test filters on an irrelevant trait that differs by group.</p>
+          </li>
+          <li>
+            <a href="/glossary/item-response-theory" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Item Response Theory</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">IRT models provide item-level statistics that support construct validity investigation, including differential item functioning (DIF) analysis.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

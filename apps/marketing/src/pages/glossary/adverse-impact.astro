@@ -1,0 +1,128 @@
+---
+// glossary/adverse-impact.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Adverse Impact",
+  "description": "A substantially different selection rate for members of a protected group (by race, sex, age, or other characteristic) compared with the highest-scoring group, typically identified by the four-fifths rule: a selection rate below 80% of the top group's rate signals potential adverse impact.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/adverse-impact`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Adverse Impact" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Adverse Impact"
+  description="Adverse impact occurs when a selection tool produces a substantially different pass rate for a protected group. Learn the four-fifths rule, how to detect it, and what to do when a hiring test shows disparate outcomes."
+  canonicalPath="/glossary/adverse-impact"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Adverse Impact</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Adverse Impact
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        Adverse impact occurs when a selection procedure — a test, interview, or other hurdle — produces a substantially different selection rate for members of a protected group compared with the highest-passing group. In US employment law, the threshold is the <em>four-fifths rule</em>: a selection rate below 80&nbsp;% of the top group's rate signals potential adverse impact.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Adverse impact is both a legal concept and an ethical one. Under the US Uniform Guidelines on Employee Selection Procedures (1978), employers must monitor their selection tools for adverse impact and be able to demonstrate business necessity and job-relatedness if disparate rates appear. In India, while there is no single equivalent regulation, equal-opportunity commitments and regulatory scrutiny of large employers make the concept directly applicable to structured hiring.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For assessment practitioners, adverse impact analysis is a validity check as much as a compliance check. If a coding test, aptitude battery, or situational judgement test eliminates candidates from a particular group at a disproportionate rate, that disparity may signal that the test is measuring something other than job-relevant ability — for example, test-taking familiarity, language exposure, or socioeconomic background. Identifying this early allows you to revise the test, adjust the cut score, or provide practice materials before the disparity becomes a pattern.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          Organisations that track adverse impact proactively are better positioned to defend their selection tools if challenged, and tend to build more diverse, higher-performing teams over time — because they catch irrelevant test elements before they filter out qualified candidates.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          An IT company uses an English-language verbal reasoning test to screen all software developer applicants. Of 100 candidates from Group A, 60 pass (60&nbsp;%). Of 80 candidates from Group B, 30 pass (37.5&nbsp;%). The selection rate for Group B is 37.5 &#247; 60 = 62.5&nbsp;% of Group A's rate — well below the four-fifths (80&nbsp;%) threshold. This triggers an adverse impact flag. The company should examine whether verbal reasoning is genuinely job-relevant for the developer role, and consider whether the test can be redesigned or whether a job-relevant alternative (a coding test) would produce fairer outcomes.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/criterion-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Criterion Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Demonstrating that a test predicts actual job performance — the business-necessity evidence required when adverse impact is found.</p>
+          </li>
+          <li>
+            <a href="/glossary/cut-score" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Cut Score</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">The passing threshold that determines who advances — adjusting the cut score is one lever for managing adverse impact rates.</p>
+          </li>
+          <li>
+            <a href="/glossary/construct-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Construct Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Evidence that the test measures what it claims to measure — necessary for establishing that a disparate-impact tool is genuinely job-relevant.</p>
+          </li>
+          <li>
+            <a href="/glossary/norm-referenced-scoring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Norm-Referenced Scoring</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Scoring relative to a reference population — the composition of the norm group affects whether adverse impact analysis reflects the actual applicant pool.</p>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Back link -->
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

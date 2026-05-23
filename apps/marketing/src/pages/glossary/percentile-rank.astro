@@ -1,0 +1,128 @@
+---
+// glossary/percentile-rank.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Percentile Rank",
+  "description": "The percentage of scores in a defined reference group that fall at or below a given score. A percentile rank of 80 means the test-taker scored as well as or better than 80% of the reference population. Percentile ranks are a norm-referenced interpretation of raw scores, making them interpretable without prior knowledge of the score scale.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/percentile-rank`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Percentile Rank" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Percentile Rank"
+  description="A percentile rank shows what percentage of a reference group scored at or below a given result. Learn how percentile ranks are calculated, why the reference population matters, and how to use them correctly in candidate comparison and cut-score setting."
+  canonicalPath="/glossary/percentile-rank"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Percentile Rank</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Percentile Rank
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        A percentile rank is the percentage of scores in a defined reference group that fall at or below a given score. A candidate with a percentile rank of 75 scored as well as or better than 75&nbsp;% of the reference population. It converts a raw or scaled score into a comparative statement that is interpretable without knowing anything about the underlying scale.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Percentile ranks are the most common way to communicate norm-referenced test results to hiring managers and candidates because they require no prior knowledge of the score scale. "72 out of 100" means nothing without context; "72nd percentile among software developer applicants in the past year" is immediately actionable.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Three things are critical to interpret percentile ranks correctly:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>The reference group determines everything.</strong> A 90th-percentile score among all test-takers on a platform is meaningless if the platform's users are predominantly junior students. A 65th-percentile score against verified senior engineers may be exactly the right threshold. Always ask: who is in the norm group, when was it collected, and is it comparable to your applicant pool?</li>
+          <li class="mb-aiq-sm"><strong>Percentile ranks are ordinal, not interval.</strong> The score difference between the 50th and 60th percentile is not necessarily the same underlying ability difference as between the 85th and 95th percentile. Averaging percentile ranks across multiple tests or domains is statistically inappropriate — composite scores should be computed on raw or scaled scores first, then converted to percentile ranks.</li>
+          <li><strong>Percentile ranks do not convey absolute competence.</strong> A candidate at the 70th percentile may still be below the minimum competency level for a role if the norm group is a general population rather than a qualified applicant pool. Percentile rank and criterion-referenced adequacy (whether someone can do the job) are different questions.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          Platforms that report only percentile ranks without disclosing the norm group composition are making the most important piece of interpretive information invisible. Request it before using the score to make decisions.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A candidate scores 68 on a 100-item SQL knowledge test. The platform reports a percentile rank of 82 against its norm group of 4,200 SQL developer applicants from the past 12 months. This means 82&nbsp;% of that reference group scored 68 or below, and the candidate performed better than 82&nbsp;% of comparable test-takers. If the company's cut score is the 75th percentile, the candidate clears it. If the norm group were senior SQL engineers rather than all applicants, the same raw score might correspond to a much lower percentile rank.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/norm-referenced-scoring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Norm-Referenced Scoring</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Percentile rank is the most common output of norm-referenced scoring — it locates a score within a reference distribution.</p>
+          </li>
+          <li>
+            <a href="/glossary/cut-score" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Cut Score</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Cut scores are sometimes expressed as percentile thresholds (e.g. "top 30%") but must be grounded in criterion data to be defensible, not set arbitrarily on the norm distribution.</p>
+          </li>
+          <li>
+            <a href="/glossary/computer-adaptive-testing" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Computer-Adaptive Testing</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Adaptive tests report ability estimates on an IRT scale; these are typically converted to percentile ranks against a norm group for reporting to non-technical stakeholders.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>
