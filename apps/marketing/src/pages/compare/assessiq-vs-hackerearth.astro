@@ -1,0 +1,447 @@
+---
+// compare/assessiq-vs-hackerearth.astro — /compare/assessiq-vs-hackerearth
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList (per SEO §3.6 / §5.3 / §15)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// NO specific price claims for either platform (anti-fabrication rule)
+// Competitor facts sourced from publicly verifiable information (2025-2026)
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Article JSON-LD (§15 template — comparison pages use Article)
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "AssessIQ vs HackerEarth: Complete 2026 Comparison",
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "url": `${site}/`
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}/compare/assessiq-vs-hackerearth`,
+  "description": "An honest, side-by-side comparison of AssessIQ and HackerEarth across India focus, coding challenge library, proctoring, hackathons, structured B2B hiring, and ideal customer — updated May 2026."
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is HackerEarth?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerEarth is a Bengaluru-founded technical assessment and developer community platform. It serves 3,000+ companies globally and hosts a developer network of 10 million+ users. It is known for its large coding challenge library (40,000+ problems across 1,000+ skills), hackathon hosting, and AI-powered interview tooling."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ differ from HackerEarth for structured B2B hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerEarth combines a public developer community with its enterprise hiring tools — meaning it benefits companies that want to tap community talent or run high-profile hackathons. AssessIQ is a pure B2B platform with no public leaderboards or developer profiles. Its focus is structured, auditable selection: anchor-based rubrics, scoring bands, per-answer rationale, and full attempt logs. For companies that need defensible hiring decisions with a clear scoring rationale, AssessIQ's structured approach is purpose-built for that use case."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does HackerEarth support proctoring for assessments?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt that admins can review. Both platforms address proctoring; the depth and auditability of proctoring logs differs — evaluate against your compliance requirements."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is HackerEarth good for hackathon-based hiring in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerEarth is a strong choice if hackathon-based talent discovery is a priority — it hosts a global developer community and supports virtual, in-person, and hybrid hackathons with full logistics management. AssessIQ is not a hackathon platform; it is designed for structured pre-employment screening and institutional exams, not community-driven events."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which platform has a larger coding challenge library?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerEarth publicly states a library of 40,000+ coding problems across 1,000+ skills and 40+ programming languages. AssessIQ's coding question packs are curated specifically for Indian IT hiring role stacks — focused on Python, Java, SQL, React, .NET, and related technologies — with calibration for Indian candidate pools. If breadth of coding problems across many languages is the priority, HackerEarth has more volume. If curated packs calibrated for Indian IT hiring are the priority, AssessIQ is built for that."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I try AssessIQ for free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This lets you evaluate AssessIQ against your real hiring workflow before deciding."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Compare",
+      "item": `${site}/compare`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "AssessIQ vs HackerEarth"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Comparison table rows — neutral criteria, honest entries, no absolute "lacks X" claims
+const tableRows = [
+  {
+    criterion: "India focus",
+    assessiq: "Built India-first — calibrated question packs for Indian IT role stacks, local data residency, pricing for Indian team sizes",
+    hackerearth: "Founded in Bengaluru; global platform serving 3,000+ companies; strong Indian enterprise and developer community presence"
+  },
+  {
+    criterion: "Proctoring",
+    assessiq: "Tab-switch detection, full-screen enforcement, webcam monitoring, copy-paste restriction, timestamped event log per attempt",
+    hackerearth: "Smart Browser, copy/paste detection, AI-generated code tracking; anti-cheat controls built into the assessment layer"
+  },
+  {
+    criterion: "Question types",
+    assessiq: "Coding (live execution + test cases), MCQ, output prediction, aptitude, logical reasoning — curated for Indian IT hiring",
+    hackerearth: "40,000+ coding problems across 1,000+ skills and 40+ programming languages; AI-powered question engine; real-world project simulations"
+  },
+  {
+    criterion: "Code evaluation",
+    assessiq: "Browser-based environment; submissions run against hidden test cases; pass/fail count + execution time visible to admin",
+    hackerearth: "Real-time code evaluation; AI-powered scoring; automated leaderboards with candidate performance analytics"
+  },
+  {
+    criterion: "Structured scoring",
+    assessiq: "Anchor-based rubrics and scoring bands per question; per-answer rationale visible to reviewer",
+    hackerearth: "Automated scoring with detailed candidate reports and analytics; AI Interviewer for behavioral + technical evaluation"
+  },
+  {
+    criterion: "Hackathons",
+    assessiq: "Not a hackathon platform — focused on structured pre-employment screening and institutional exams",
+    hackerearth: "Full hackathon hosting (virtual, in-person, hybrid); access to 10M+ developer community for talent discovery"
+  },
+  {
+    criterion: "Developer community",
+    assessiq: "B2B only — no public developer profiles, no leaderboards, no gamification",
+    hackerearth: "10M+ developer community; public challenges and leaderboards; employer branding via community presence"
+  },
+  {
+    criterion: "Integrations",
+    assessiq: "Admin dashboard, CSV export, PDF reports; ATS integrations — varies by plan (check current docs)",
+    hackerearth: "Integrations with major ATS and HR platforms; enterprise integration catalog"
+  },
+  {
+    criterion: "Ideal customer",
+    assessiq: "Indian IT companies, campus teams, and educational institutions needing structured, auditable assessment with scoring rationale",
+    hackerearth: "Companies wanting a large coding-challenge library, developer community engagement, or hackathon-based hiring at scale"
+  },
+  {
+    criterion: "Company background",
+    assessiq: "India-focused B2B assessment platform; structured hiring and institutional exams",
+    hackerearth: "Founded 2012, Bengaluru; serves 3,000+ companies globally including Fortune 500; community + enterprise combined"
+  }
+];
+
+const faqs = [
+  {
+    q: "What is HackerEarth?",
+    a: "HackerEarth is a Bengaluru-founded technical assessment and developer community platform. It serves 3,000+ companies globally and hosts a developer network of 10 million+ users. It is known for its large coding challenge library (40,000+ problems across 1,000+ skills), hackathon hosting, and AI-powered interview tooling."
+  },
+  {
+    q: "How does AssessIQ differ from HackerEarth for structured B2B hiring?",
+    a: "HackerEarth combines a public developer community with its enterprise hiring tools — meaning it benefits companies that want to tap community talent or run high-profile hackathons. AssessIQ is a pure B2B platform with no public leaderboards or developer profiles. Its focus is structured, auditable selection: anchor-based rubrics, scoring bands, per-answer rationale, and full attempt logs. For companies that need defensible hiring decisions with a clear scoring rationale, AssessIQ's structured approach is purpose-built for that use case."
+  },
+  {
+    q: "Does HackerEarth support proctoring for assessments?",
+    a: "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt that admins can review. Both platforms address proctoring; the depth and auditability of proctoring logs differs — evaluate against your compliance requirements."
+  },
+  {
+    q: "Is HackerEarth good for hackathon-based hiring in India?",
+    a: "HackerEarth is a strong choice if hackathon-based talent discovery is a priority — it hosts a global developer community and supports virtual, in-person, and hybrid hackathons with full logistics management. AssessIQ is not a hackathon platform; it is designed for structured pre-employment screening and institutional exams, not community-driven events."
+  },
+  {
+    q: "Which platform has a larger coding challenge library?",
+    a: "HackerEarth publicly states a library of 40,000+ coding problems across 1,000+ skills and 40+ programming languages. AssessIQ's coding question packs are curated specifically for Indian IT hiring role stacks — focused on Python, Java, SQL, React, .NET, and related technologies — with calibration for Indian candidate pools. If breadth of coding problems across many languages is the priority, HackerEarth has more volume. If curated packs calibrated for Indian IT hiring are the priority, AssessIQ is built for that."
+  },
+  {
+    q: "Can I try AssessIQ for free?",
+    a: "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This lets you evaluate AssessIQ against your real hiring workflow before deciding."
+  }
+];
+---
+
+<BaseLayout
+  title="AssessIQ vs HackerEarth: 2026 Comparison"
+  description="AssessIQ vs HackerEarth: 2026 comparison — India focus, coding library, proctoring, hackathons, structured B2B hiring, and which platform fits your hiring needs."
+  canonicalPath="/compare/assessiq-vs-hackerearth"
+  ogType="article"
+>
+  <!-- JSON-LD: Article (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/compare" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Compare
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            AssessIQ vs HackerEarth
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Compare &middot; Updated May 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        AssessIQ vs HackerEarth: Complete 2026 Comparison
+      </h1>
+
+      <!-- 50-word TL;DR — snippet target per §5.3 -->
+      <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-2xl max-w-2xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">TL;DR</p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          HackerEarth is a strong fit for companies wanting a large coding-challenge library, hackathon-based hiring, and a developer community to draw from. AssessIQ is purpose-built for structured B2B screening — rubric-based scoring, audit trails, and a focused admin workflow for Indian IT hiring. Different tools for different hiring strategies.
+        </p>
+      </div>
+
+      <!-- Internal links row -->
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+        Also compare: <a href="/compare/assessiq-vs-mettl" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ vs Mercer Mettl</a> &middot; <a href="/compare/assessiq-vs-imocha" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ vs iMocha</a> &middot; <a href="/alternatives/hackerearth" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">HackerEarth alternatives</a>
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── SIDE-BY-SIDE TABLE ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="table-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Side-by-side</p>
+      <h2 id="table-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Feature-by-feature comparison.
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left">
+          <thead>
+            <tr class="border-b-2 border-aiq-border-strong">
+              <th class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase pb-aiq-md pr-aiq-xl w-1/4">Criterion</th>
+              <th class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase pb-aiq-md pr-aiq-xl w-[37.5%]">AssessIQ</th>
+              <th class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase pb-aiq-md w-[37.5%]">HackerEarth</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.map((row, i) => (
+              <tr class={`border-b border-aiq-border ${i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised'}`}>
+                <td class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase py-aiq-lg pr-aiq-xl align-top font-medium">
+                  {row.criterion}
+                </td>
+                <td class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed py-aiq-lg pr-aiq-xl align-top">
+                  {row.assessiq}
+                </td>
+                <td class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed py-aiq-lg align-top">
+                  {row.hackerearth}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-xl mb-0">
+        Table entries reflect publicly available information as of May 2026. Verify current capabilities and pricing directly with each vendor before making a purchase decision.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── WHICH SHOULD YOU CHOOSE ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="choose-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Decision guide</p>
+      <h2 id="choose-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Which should you choose?
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-lg">
+
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">Choose AssessIQ if…</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You need structured, auditable pre-interview screening — where scoring rationale, per-answer evidence, and a consistent rubric matter more than raw coding challenge volume.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You want a B2B-only platform with no public leaderboards, no gamification, and no candidate-facing community — just a clean admin workflow for your hiring team.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You are running campus or institutional drives with bulk invite, CSV import, and concurrent sessions for Indian candidate pools.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You want to get started without a procurement process — free account, no credit card.
+            </li>
+          </ul>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">Choose HackerEarth if…</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You want to run hackathons — virtual, in-person, or hybrid — and tap HackerEarth's 10 million+ developer community to surface talent organically.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You need a very large coding challenge library spanning 40,000+ problems across 40+ programming languages, including emerging technologies like GenAI.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              Your employer brand benefits from community visibility — public challenges and leaderboards that candidates discover and share.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You need an AI-powered end-to-end interviewing workflow that combines technical assessment with behavioral evaluation in a single candidate session.
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about AssessIQ vs HackerEarth.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        {faqs.map((faq, i) => (
+          <div class={i < faqs.length - 1 ? 'border-b border-aiq-border pb-aiq-xl' : ''}>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              {faq.q}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {faq.a}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CTA + RELATED ── -->
+  <section class="bg-aiq-bg-base" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Try AssessIQ on your own hiring workflow.
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            See also: <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Pricing</a> &middot; <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Security</a> &middot; <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; Technical Hiring</a>
+          </p>
+        </div>
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">More comparisons</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/compare/assessiq-vs-mettl" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs Mercer Mettl
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Compare on enterprise proctoring, question library breadth, and global reach.</p>
+            </li>
+            <li>
+              <a href="/compare/assessiq-vs-imocha" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs iMocha
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Compare on skills intelligence, workforce analytics, and enterprise hiring workflows.</p>
+            </li>
+            <li>
+              <a href="/alternatives/hackerearth" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                HackerEarth alternatives
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Looking for a HackerEarth alternative for Indian IT hiring?</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

@@ -1,0 +1,430 @@
+---
+// alternatives/amcat.astro — "/alternatives/amcat"
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList (per SEO §3.6 / §5.3)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// Fairness rule: AMCAT's genuine strengths acknowledged; no disparagement (SEO §6.3)
+// Research basis: myamcat.com, shl.com/about/news-and-events/aspiring-minds-is-now-shl/,
+//   practicetestgeeks.com/amcat — verified May 2026.
+// AMCAT: Aspiring Minds acquired by SHL (2019); operates as myamcat.com;
+//   3,000+ companies in India; standardised employability test for fresh graduates
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const slug = '/alternatives/amcat';
+const datePublished = '2026-05-23';
+const dateModified  = '2026-05-23';
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Best AMCAT Alternatives in 2026",
+  "datePublished": datePublished,
+  "dateModified": dateModified,
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}${slug}`,
+  "description": "Looking for an AMCAT alternative? See how AssessIQ compares for India campus and fresher hiring — custom branded assessments, structured scoring, and full control of your hiring process."
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is AMCAT?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AMCAT (Aspiring Minds Computer Adaptive Test) is a standardised online employability assessment originally developed by Aspiring Minds for fresh graduates in India. Aspiring Minds was acquired by SHL in 2019, and AMCAT continues to operate through myamcat.com. Over 3,000 companies across India use AMCAT scores in their fresher and campus hiring process — including large IT services companies. Candidates can self-take the AMCAT and share scores with employers, making it part assessment platform, part candidate job board."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ differ from AMCAT?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AMCAT is a standardised, shared-score assessment — candidates self-take it and share results with multiple employers. AssessIQ is a private, branded assessment platform that companies administer entirely under their own control. There is no shared candidate pool and no external score. AssessIQ also supports coding tests with live execution, proctored exams, and structured rubric scoring — capabilities suited to technical hiring beyond employability screening."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is AMCAT useful for lateral or experienced-hire recruitment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AMCAT is primarily positioned for fresh graduates and entry-level hiring. For lateral (experienced) hiring, most companies use a different assessment workflow. AssessIQ supports both fresh and experienced hire assessments — with role-specific question packs and coding tests designed for lateral technical screening."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does AMCAT include proctoring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AMCAT includes invigilation controls for its administered tests. For detailed, current proctoring specifications, check myamcat.com or the employer interface at employer.aspiringminds.com. AssessIQ's proctoring layer includes tab-switch detection, webcam monitoring with anomaly flagging, full-screen enforcement, and a timestamped event log — visible to the company admin alongside candidate scores."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can companies create custom assessments on AMCAT?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AMCAT's employer interface allows companies to set score filters and access the candidate pool. The core AMCAT test is standardised and not fully customisable per employer. AssessIQ gives companies complete control to build custom, branded assessments — mixing question types, setting their own rubrics, and running the assessment under their own brand without sharing results with other employers."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "When should I choose AssessIQ over AMCAT?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ is the better fit if: (a) you want a custom, branded assessment process rather than a shared score platform; (b) you need coding tests with live execution alongside aptitude and logical reasoning; (c) structured rubric scoring with per-answer rationale matters for your review process; or (d) you are hiring for technical roles where a general employability score is not specific enough."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Alternatives",
+      "item": `${site}/alternatives`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "AMCAT"
+    }
+  ]
+};
+
+const criteria = [
+  { criterion: "Primary category",       amcat: "Standardised employability test (fresher)",    assessiq: "Custom structured hiring assessment" },
+  { criterion: "India focus",            amcat: "Yes — India primary market",                    assessiq: "Yes — India-headquartered" },
+  { criterion: "Assessment type",        amcat: "Shared, standardised score",                    assessiq: "Private, branded, per-company" },
+  { criterion: "Candidate sourcing",     amcat: "Yes — candidate job board + pool",              assessiq: "Invite-only — your pipeline" },
+  { criterion: "Coding tests",           amcat: "Varies — check vendor",                         assessiq: "Yes — live execution, test-case scoring" },
+  { criterion: "Customisation",          amcat: "Limited — standardised format",                 assessiq: "Full control — question mix, rubrics, branding" },
+  { criterion: "Proctoring",            amcat: "Invigilation controls — check vendor",           assessiq: "Webcam, tab-switch, full-screen, event log" },
+  { criterion: "Scoring model",         amcat: "Standardised score + percentile",                assessiq: "Anchor-based rubrics + scoring bands" },
+  { criterion: "Target hire level",     amcat: "Primarily fresh graduates",                      assessiq: "Fresher, lateral, and campus hiring" },
+  { criterion: "Parent company",        amcat: "SHL (acquired Aspiring Minds 2019)",             assessiq: "Independent — India-built" },
+];
+---
+
+<BaseLayout
+  title="Best AMCAT Alternatives in 2026"
+  description="Looking for an AMCAT alternative? See how AssessIQ compares for India campus & fresher hiring — custom branded assessments, structured scoring, full control of your process."
+  canonicalPath="/alternatives/amcat"
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/alternatives" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Alternatives</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">AMCAT</span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Alternatives &middot; AMCAT &middot; 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Best AMCAT alternatives in 2026.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 words -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AMCAT (now part of SHL) is India's dominant standardised employability test for fresh graduates — used by 3,000+ companies for campus hiring with a shared candidate pool. If you want a fully custom, branded assessment under your control — with coding tests, structured rubric scoring, and no shared pool — AssessIQ is built for that.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Try AssessIQ free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── ABOUT AMCAT ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="about-amcat-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">About AMCAT</p>
+        <h2 id="about-amcat-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          What AMCAT is known for.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">India's dominant fresher test.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              AMCAT was developed by Aspiring Minds specifically for Indian fresh graduates. Over 3,000 companies — including large IT services firms — use AMCAT scores in campus and entry-level hiring. It is deeply embedded in the India fresher recruitment ecosystem.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Candidate sourcing + job board.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Beyond the test, myamcat.com operates as a candidate job board. Candidates share their AMCAT score with multiple employers, and companies post hiring requirements with score cutoffs. This dual role — assessment tool and sourcing channel — is a genuine differentiator for fresher hiring.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Backed by SHL's global infrastructure.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Since the SHL acquisition in 2019, AMCAT benefits from SHL's global research, validation infrastructure, and enterprise relationships. For large companies that already use SHL's global talent assessment portfolio, AMCAT offers a natural India extension.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Established trust with Indian employers.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Companies like TCS, Infosys, Wipro, HCL Technologies, Amazon, and Accenture have used AMCAT scores in their hiring processes. Its longevity in the India market means many HR teams already understand what AMCAT scores represent.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── COMPARISON TABLE ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="compare-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Side by side</p>
+      <h2 id="compare-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        AssessIQ vs AMCAT — neutral criteria.
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse font-sans text-aiq-md">
+          <thead>
+            <tr class="border-b border-aiq-border">
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium w-1/3">Criterion</th>
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium w-1/3">AMCAT</th>
+              <th class="text-left py-aiq-md font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase font-medium w-1/3">AssessIQ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {criteria.map((row, i) => (
+              <tr class={`border-b border-aiq-border ${i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised'}`}>
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-primary font-medium">{row.criterion}</td>
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-secondary">{row.amcat}</td>
+                <td class="py-aiq-md text-aiq-fg-secondary">{row.assessiq}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-lg m-0">
+        Table entries reflect publicly available information as of May 2026. Verify with each vendor before shortlisting.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── HOW TO CHOOSE ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="choose-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How to choose</p>
+        <h2 id="choose-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          When AMCAT fits better. When AssessIQ does.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">AMCAT may suit you if…</p>
+            <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>Your primary hiring need is fresh graduates at campus scale, and tapping a pre-screened, self-assessed candidate pool is valuable to you.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>A standardised, widely recognised employability score is sufficient for your filtering needs — and your HR team already understands AMCAT percentiles.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You also want a sourcing channel (the myamcat.com job board) alongside the assessment.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You already use SHL's broader assessment portfolio globally and want a consistent India extension.</span></li>
+            </ul>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">AssessIQ may suit you if…</p>
+            <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want complete control of your hiring assessment — custom branding, your own questions, your own rubrics — without a shared score or shared candidate pool.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You hire both fresh graduates and experienced lateral candidates and need a single platform for both.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>Coding tests with live execution, structured rubric scoring, and per-attempt audit trails are required for your hiring decisions.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want proctored assessments where the admin sees a full anomaly event log alongside the score.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about AssessIQ vs AMCAT.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is AMCAT?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AMCAT (Aspiring Minds Computer Adaptive Test) is a standardised online employability assessment originally developed by Aspiring Minds for fresh graduates in India. Aspiring Minds was acquired by SHL in 2019, and AMCAT continues to operate through myamcat.com. Over 3,000 companies across India use AMCAT scores in their fresher and campus hiring process. Candidates can self-take the AMCAT and share scores with employers, making it part assessment platform, part candidate job board.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How does AssessIQ differ from AMCAT?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AMCAT is a standardised, shared-score assessment — candidates self-take it and share results with multiple employers. AssessIQ is a private, branded assessment platform that companies administer entirely under their own control. There is no shared candidate pool and no external score. AssessIQ also supports coding tests with live execution, proctored exams, and structured rubric scoring — capabilities suited to technical hiring beyond employability screening.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is AMCAT useful for lateral or experienced-hire recruitment?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AMCAT is primarily positioned for fresh graduates and entry-level hiring. For lateral (experienced) hiring, most companies use a different assessment workflow. AssessIQ supports both fresh and experienced hire assessments — with role-specific question packs and coding tests designed for lateral technical screening.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does AMCAT include proctoring?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AMCAT includes invigilation controls for its administered tests. For detailed, current proctoring specifications, check myamcat.com or the employer interface at employer.aspiringminds.com. AssessIQ's proctoring layer includes tab-switch detection, webcam monitoring with anomaly flagging, full-screen enforcement, and a timestamped event log — visible to the company admin alongside candidate scores.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can companies create custom assessments on AMCAT?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AMCAT's employer interface allows companies to set score filters and access the candidate pool. The core AMCAT test is standardised and not fully customisable per employer. AssessIQ gives companies complete control to build custom, branded assessments — mixing question types, setting their own rubrics, and running the assessment under their own brand without sharing results with other employers.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">When should I choose AssessIQ over AMCAT?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ is the better fit if: (a) you want a custom, branded assessment process rather than a shared score platform; (b) you need coding tests with live execution alongside aptitude and logical reasoning; (c) structured rubric scoring with per-answer rationale matters for your review process; or (d) you are hiring for technical roles where a general employability score is not specific enough.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA + RELATED ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to try an AMCAT alternative?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            Questions about security or data residency? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+          </p>
+        </div>
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Also compare</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/alternatives/mettl" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs Mercer Mettl
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Enterprise exam and proctoring platform vs structured hiring assessment.</p>
+            </li>
+            <li>
+              <a href="/alternatives/hackerrank" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs HackerRank
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Global developer assessment leader vs India-first structured hiring.</p>
+            </li>
+            <li>
+              <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Campus &amp; Fresher Recruitment with AssessIQ
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Bulk-invite, aptitude, coding, and proctoring for campus placement drives.</p>
+            </li>
+            <li>
+              <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                IT &amp; Technical Hiring with AssessIQ
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, structured scoring, and audit trails for IT teams.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

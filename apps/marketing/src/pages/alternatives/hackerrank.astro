@@ -1,0 +1,427 @@
+---
+// alternatives/hackerrank.astro — "/alternatives/hackerrank"
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList (per SEO §3.6 / §5.3)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// Fairness rule: HackerRank's genuine strengths acknowledged; no disparagement (SEO §6.3)
+// Research basis: hackerrank.com, Capterra 2026, G2 2026, HackerRank About Us — verified May 2026
+// HackerRank: Santa Clara CA HQ, 26M+ dev community, 2,500+ customers, developer-skills category leader
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const slug = '/alternatives/hackerrank';
+const datePublished = '2026-05-23';
+const dateModified  = '2026-05-23';
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Best HackerRank Alternatives in 2026",
+  "datePublished": datePublished,
+  "dateModified": dateModified,
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}${slug}`,
+  "description": "Looking for a HackerRank alternative? See how AssessIQ compares for India-first technical hiring — structured scoring, proctoring, and India-calibrated pricing."
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is HackerRank used for?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerRank is a developer skills assessment platform headquartered in Santa Clara, California. It is widely used for technical hiring — coding tests, skills assessments, and structured technical interviews — and has a community of 26M+ registered developers. It serves 2,500+ enterprise customers globally and is active in India with in-person events in Bangalore, Chennai, Hyderabad, and Delhi."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ differ from HackerRank?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerRank is a US-headquartered, global-scale developer skills platform with a large developer community, deep coding IDE, and AI-assisted interview products. AssessIQ is India-first — built for Indian IT hiring volumes, with calibrated question packs for Indian role stacks, local data residency, and pricing designed for Indian team budgets. AssessIQ adds structured rubric scoring with per-answer rationale; HackerRank's strength is developer-community depth and global enterprise breadth."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is HackerRank used in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. HackerRank has active India operations and runs campus and enterprise events in major Indian cities. Many large Indian IT companies and MNCs with India tech centres use HackerRank for developer screening. AssessIQ is India-headquartered and specifically calibrated for the Indian hiring market — including campus drives, SME IT teams, and local data residency requirements."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does HackerRank have better coding assessment features than AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerRank's coding environment is one of the most mature available — supporting dozens of languages, AI-assisted IDE, and collaborative interview tooling. AssessIQ supports live coding tests with test-case execution and result display in the admin dashboard, paired with structured rubric scoring for the overall assessment. If your primary need is a rich coding-IDE experience with pair-programming interviews, HackerRank's tooling is deeper. If structured per-answer rationale and a hiring-stage workflow matter more, AssessIQ's approach is different."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does HackerRank offer proctoring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HackerRank includes proctoring features such as webcam monitoring, object detection in webcam feeds, deleted-code analysis, and tab-switch alerts — particularly strengthened in its Desktop App for campus hiring. AssessIQ's proctoring covers tab-switch detection, webcam monitoring with anomaly flagging, full-screen enforcement, and a timestamped event log viewable alongside candidate scores in the admin dashboard."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "When should I choose AssessIQ over HackerRank?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ is likely the better fit if: (a) India-first pricing and local data residency are requirements; (b) you need structured rubric scoring with per-answer rationale and audit trails rather than a score-only output; (c) you are an Indian SME or mid-market team that doesn't need the full breadth of a global developer-community platform; or (d) you want a private B2B assessment with no developer public community attached."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Alternatives",
+      "item": `${site}/alternatives`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "HackerRank"
+    }
+  ]
+};
+
+const criteria = [
+  { criterion: "Primary category",       hackerrank: "Developer skills assessment (global)",    assessiq: "Structured hiring assessment (India-first)" },
+  { criterion: "Headquarters",           hackerrank: "Santa Clara, CA, USA",                    assessiq: "India" },
+  { criterion: "Developer community",    hackerrank: "26M+ registered developers",               assessiq: "B2B only — no public community" },
+  { criterion: "Coding environment",     hackerrank: "Advanced AI-assisted IDE, 40+ languages",  assessiq: "Live coding with test-case execution" },
+  { criterion: "Live interviews",        hackerrank: "Yes — collaborative + AI Interviewer",     assessiq: "Not applicable — async assessment focus" },
+  { criterion: "Proctoring",            hackerrank: "Webcam, object detection, deleted-code",    assessiq: "Webcam, tab-switch, full-screen, event log" },
+  { criterion: "Scoring model",         hackerrank: "Test-case pass/fail + structured scoring",  assessiq: "Anchor-based rubrics + scoring bands" },
+  { criterion: "Pricing model",         hackerrank: "Contact-based / enterprise",                assessiq: "See /pricing" },
+  { criterion: "India data residency",  hackerrank: "Check vendor — US-headquartered",          assessiq: "Yes — India-local" },
+];
+---
+
+<BaseLayout
+  title="Best HackerRank Alternatives in 2026"
+  description="Looking for a HackerRank alternative? See how AssessIQ compares for India-first technical hiring — structured scoring, proctored assessments, and India-calibrated pricing."
+  canonicalPath="/alternatives/hackerrank"
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/alternatives" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Alternatives</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">HackerRank</span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Alternatives &middot; HackerRank &middot; 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Best HackerRank alternatives in 2026.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 words -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        HackerRank is the globally recognised developer skills assessment platform — deep coding IDE, AI-assisted interviews, and a community of 26M+ developers. If you are an Indian IT company looking for structured, rubric-based hiring assessments with India-first pricing and local data residency, AssessIQ is built for that.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Try AssessIQ free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── ABOUT HACKERRANK ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="about-hr-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">About HackerRank</p>
+        <h2 id="about-hr-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          What HackerRank is known for.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Category leader in developer assessment.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Founded in 2012 and headquartered in Santa Clara, HackerRank is the most cited developer skills platform globally. It serves 2,500+ enterprise customers across industries, with a developer community exceeding 26 million registered users.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Advanced coding IDE and live interviews.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              HackerRank offers one of the most mature technical interview environments — AI-assisted IDE, real-time collaborative coding, and an AI Interviewer product for first-round interviews. It assesses how candidates write specs and work with AI-generated code — reflecting modern engineering realities.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Active India presence.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              HackerRank runs hiring events with Indian companies and top technology teams in Bangalore, Chennai, Hyderabad, and Delhi. Its campus hiring product includes strengthened proctoring features designed for the India campus recruitment context.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Skills-based hiring ecosystem.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Beyond coding tests, HackerRank offers customisable skills assessments, structured screening workflows, and integrations with major ATS platforms — positioning it as a full technical hiring workflow, not just a test tool.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── COMPARISON TABLE ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="compare-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Side by side</p>
+      <h2 id="compare-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        AssessIQ vs HackerRank — neutral criteria.
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse font-sans text-aiq-md">
+          <thead>
+            <tr class="border-b border-aiq-border">
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium w-1/3">Criterion</th>
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium w-1/3">HackerRank</th>
+              <th class="text-left py-aiq-md font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase font-medium w-1/3">AssessIQ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {criteria.map((row, i) => (
+              <tr class={`border-b border-aiq-border ${i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised'}`}>
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-primary font-medium">{row.criterion}</td>
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-secondary">{row.hackerrank}</td>
+                <td class="py-aiq-md text-aiq-fg-secondary">{row.assessiq}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-lg m-0">
+        Table entries reflect publicly available information as of May 2026. Verify with each vendor before shortlisting.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── HOW TO CHOOSE ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="choose-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How to choose</p>
+        <h2 id="choose-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          When HackerRank fits better. When AssessIQ does.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">HackerRank may suit you if…</p>
+            <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You are a large multinational or US-headquartered company that needs a globally recognised, well-integrated developer assessment platform.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>Real-time collaborative coding interviews and an AI Interviewer for first-round technical interviews are part of your hiring workflow.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You want access to a large pre-existing developer community for sourcing alongside screening.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>ATS integrations (Greenhouse, Lever, Workday) are a hard requirement out of the box.</span></li>
+            </ul>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">AssessIQ may suit you if…</p>
+            <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>India-first pricing, local data residency, and question packs calibrated for Indian IT role stacks are requirements.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You need structured rubric scoring — per-answer anchors, band rationale, and an audit trail — alongside coding test results.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You are an Indian SME or mid-market team that wants a focused, private assessment workflow without enterprise-scale pricing.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>Bulk invite, live monitoring, and CSV export for high-volume campus or lateral hiring drives are your primary admin needs.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about AssessIQ vs HackerRank.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is HackerRank used for?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            HackerRank is a developer skills assessment platform headquartered in Santa Clara, California. It is widely used for technical hiring — coding tests, skills assessments, and structured technical interviews — and has a community of 26M+ registered developers. It serves 2,500+ enterprise customers globally and is active in India with in-person events in Bangalore, Chennai, Hyderabad, and Delhi.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How does AssessIQ differ from HackerRank?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            HackerRank is a US-headquartered, global-scale developer skills platform with a large developer community, deep coding IDE, and AI-assisted interview products. AssessIQ is India-first — built for Indian IT hiring volumes, with calibrated question packs for Indian role stacks, local data residency, and pricing designed for Indian team budgets. AssessIQ adds structured rubric scoring with per-answer rationale; HackerRank's strength is developer-community depth and global enterprise breadth.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is HackerRank used in India?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. HackerRank has active India operations and runs campus and enterprise events in major Indian cities. Many large Indian IT companies and MNCs with India tech centres use HackerRank for developer screening. AssessIQ is India-headquartered and specifically calibrated for the Indian hiring market.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does HackerRank have better coding assessment features than AssessIQ?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            HackerRank's coding environment is one of the most mature available — supporting dozens of languages, AI-assisted IDE, and collaborative interview tooling. AssessIQ supports live coding tests with test-case execution and result display in the admin dashboard, paired with structured rubric scoring for the overall assessment. If your primary need is a rich coding-IDE experience with pair-programming interviews, HackerRank's tooling is deeper.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does HackerRank offer proctoring?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            HackerRank includes proctoring features such as webcam monitoring, object detection in webcam feeds, deleted-code analysis, and tab-switch alerts — particularly strengthened in its Desktop App for campus hiring. AssessIQ's proctoring covers tab-switch detection, webcam monitoring with anomaly flagging, full-screen enforcement, and a timestamped event log viewable alongside candidate scores in the admin dashboard.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">When should I choose AssessIQ over HackerRank?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ is likely the better fit if: (a) India-first pricing and local data residency are requirements; (b) you need structured rubric scoring with per-answer rationale and audit trails; (c) you are an Indian SME or mid-market team that doesn't need the full breadth of a global developer-community platform; or (d) you want a private B2B assessment without a public developer community attached.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA + RELATED ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to try a HackerRank alternative?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            Questions about security or data residency? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+          </p>
+        </div>
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Also compare</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/alternatives/hackerearth" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs HackerEarth
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Community-driven hiring challenges vs private B2B assessments.</p>
+            </li>
+            <li>
+              <a href="/alternatives/mettl" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs Mercer Mettl
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Enterprise exam platform vs structured hiring assessment.</p>
+            </li>
+            <li>
+              <a href="/alternatives/amcat" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs AMCAT
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">India's fresher employability test vs custom branded assessment.</p>
+            </li>
+            <li>
+              <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                IT &amp; Technical Hiring with AssessIQ
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, structured scoring, and audit trails for IT teams.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

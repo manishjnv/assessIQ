@@ -1,0 +1,310 @@
+---
+// alternatives.astro — "/alternatives" hub page
+// JSON-LD: TWO separate blocks — ItemList + BreadcrumbList (per SEO §3.6 / §15 template)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// Fairness rule: each competitor is framed honestly; no disparagement (SEO §6.3)
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// ItemList JSON-LD — lists the 5 alternatives pages
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "AssessIQ Alternatives to Leading Assessment Platforms",
+  "description": "Honest comparisons of AssessIQ with leading candidate and team assessment platforms used in India — Mercer Mettl, HackerEarth, iMocha, HackerRank, and AMCAT.",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "AssessIQ as a Mercer Mettl alternative",
+      "url": `${site}/alternatives/mettl`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "AssessIQ as a HackerEarth alternative",
+      "url": `${site}/alternatives/hackerearth`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "AssessIQ as an iMocha alternative",
+      "url": `${site}/alternatives/imocha`
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "name": "AssessIQ as a HackerRank alternative",
+      "url": `${site}/alternatives/hackerrank`
+    },
+    {
+      "@type": "ListItem",
+      "position": 5,
+      "name": "AssessIQ as an AMCAT alternative",
+      "url": `${site}/alternatives/amcat`
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Alternatives"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+const alternatives = [
+  {
+    slug: "mettl",
+    name: "Mercer Mettl",
+    tagline: "Enterprise exam & proctoring platform, now part of Mercer.",
+    description: "Mercer Mettl is a large-scale online examination and proctoring platform with deep enterprise reach, 26+ question formats, and strong remote-invigilation capabilities across 90+ countries.",
+    fit: "If your organization needs a specialized enterprise exam platform for certification or campus exams at very large scale, Mettl is an established choice. AssessIQ may be a better fit for structured, rubric-based hiring assessments with a lighter admin overhead."
+  },
+  {
+    slug: "hackerearth",
+    name: "HackerEarth",
+    tagline: "Developer-community-driven technical assessment & hackathon platform.",
+    description: "HackerEarth combines a large developer community (10M+ registered developers) with technical assessments, hiring challenges, and hackathons — making it popular for developer sourcing alongside screening.",
+    fit: "If running public hackathons or tapping a developer community is part of your sourcing strategy, HackerEarth's community layer adds value. AssessIQ focuses on private, structured B2B assessments without a public leaderboard or gamification layer."
+  },
+  {
+    slug: "imocha",
+    name: "iMocha",
+    tagline: "Skills intelligence cloud for workforce & talent acquisition.",
+    description: "iMocha positions itself as a skills intelligence platform — offering 3,000+ assessments, workforce skill taxonomy, and talent-intelligence dashboards that extend beyond hiring into L&D and workforce planning.",
+    fit: "If you need deep workforce skill-mapping and talent intelligence beyond hiring-stage screening, iMocha's skills intelligence cloud has strong breadth. AssessIQ is optimised for the hiring-stage assessment workflow: invite, assess, score, decide."
+  },
+  {
+    slug: "hackerrank",
+    name: "HackerRank",
+    tagline: "Category leader in developer skills assessment, US-headquartered.",
+    description: "HackerRank is the most widely cited developer skills assessment platform globally, with 26M+ registered developers, deep coding IDE tooling, AI-assisted interview capabilities, and an extensive question library.",
+    fit: "If you're a large multinational or US-headquartered company with a significant global tech hiring budget, HackerRank is a proven, well-integrated choice. AssessIQ is built India-first — calibrated for Indian IT hiring volumes, local data residency, and pricing suited to Indian team sizes."
+  },
+  {
+    slug: "amcat",
+    name: "AMCAT (SHL)",
+    tagline: "India's dominant fresher & campus employability assessment, now part of SHL.",
+    description: "AMCAT (now under SHL) is the leading standardised employability test for fresh graduates in India, used by 3,000+ companies for campus and fresher hiring. It functions both as an assessment and as a candidate job board.",
+    fit: "If hiring fresh graduates at scale is your primary use case and you want to tap a pool of pre-screened candidates who self-took the AMCAT, it offers a unique sourcing angle. AssessIQ provides custom branded assessments entirely under your control — no shared candidate pool, no external score dependencies."
+  }
+];
+---
+
+<BaseLayout
+  title="AssessIQ Alternatives to Assessment Platforms"
+  description="How does AssessIQ compare with Mercer Mettl, HackerEarth, iMocha, HackerRank, and AMCAT? Honest, side-by-side comparisons for India-first hiring teams."
+  canonicalPath="/alternatives"
+>
+  <!-- JSON-LD: ItemList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Alternatives
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Comparisons &middot; 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        AssessIQ alternatives — honest comparisons.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        Choosing a candidate assessment platform for India? This hub compares AssessIQ with the five most-evaluated alternatives — Mercer Mettl, HackerEarth, iMocha, HackerRank, and AMCAT — on the criteria that matter for structured, auditable hiring.
+      </p>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-0 mb-0">
+        India-first &middot; Proctored &middot; Structured scoring &middot; Auditable
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── HOW TO USE THIS SECTION ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="how-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How to use these comparisons</p>
+        <h2 id="how-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Every platform has genuine strengths. Find yours.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg m-0">
+          Each comparison page below is written to help you make a good decision — not to sell you AssessIQ by default. If another platform serves your needs better, we say so. What we compare: India relevance, proctoring approach, question types, scoring model, pricing structure, and ideal fit.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          AssessIQ is built India-first — calibrated question packs for Indian IT and campus hiring, local data residency, structured rubric scoring, and pricing designed for Indian team sizes. If those attributes match your search, one of the pages below will help you verify.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ALTERNATIVES LIST ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="list-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Comparison pages</p>
+      <h2 id="list-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Pick the comparison that fits your search.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-lg">
+        {alternatives.map((alt, i) => (
+          <a
+            href={`/alternatives/${alt.slug}`}
+            class="group block bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150 no-underline"
+          >
+            <div class="flex items-start justify-between gap-aiq-xl">
+              <div class="flex-1">
+                <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+                  {String(i + 1).padStart(2, '0')} &middot; {alt.name}
+                </p>
+                <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-0 mb-aiq-sm">{alt.tagline}</p>
+                <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug group-hover:text-aiq-accent transition-colors">
+                  AssessIQ vs {alt.name}
+                </h3>
+                <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+                  {alt.description}
+                </p>
+                <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-sm mb-0 italic">
+                  {alt.fit}
+                </p>
+              </div>
+              <div class="flex-shrink-0 mt-aiq-xs">
+                <span class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono group-hover:translate-x-1 inline-block transition-transform duration-150">
+                  &rarr;
+                </span>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHY ASSESSIQ ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="why-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Why AssessIQ</p>
+      <h2 id="why-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What makes AssessIQ different.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">India-first</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Calibrated for Indian IT role stacks, campus batch sizes, and vernacular-neutral question design. Local data residency. Pricing in rupees for Indian team sizes.
+          </p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Structured scoring</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Anchor-based rubrics and scoring bands on every question — not a black-box number. Reviewers see why a candidate scored where they did.
+          </p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Proctored</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Tab-switch detection, webcam monitoring, full-screen enforcement, and a timestamped anomaly log — so every score is defensible.
+          </p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Auditable</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Full attempt logs, per-answer evidence, and proctoring flags. Every decision is traceable — for internal review or regulatory compliance.
+          </p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">B2B only</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            No public leaderboards, no gamification, no candidate community. A private, structured platform focused on your hiring process.
+          </p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Bulk ready</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            CSV bulk invite, shareable test links, concurrent session handling. No per-seat cap on simultaneous candidates.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="bg-aiq-bg-base" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="max-w-2xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+        <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Ready to see AssessIQ for yourself?
+        </h2>
+        <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+          <a
+            href="https://assessiq.in/admin/login"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Start free
+          </a>
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Talk to us
+          </a>
+        </div>
+        <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+          Questions about security or data residency? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+</BaseLayout>

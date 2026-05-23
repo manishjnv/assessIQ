@@ -1,0 +1,447 @@
+---
+// compare/assessiq-vs-imocha.astro — /compare/assessiq-vs-imocha
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList (per SEO §3.6 / §5.3 / §15)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// NO specific price claims for either platform (anti-fabrication rule)
+// Competitor facts sourced from publicly verifiable information (2025-2026)
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Article JSON-LD (§15 template — comparison pages use Article)
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "AssessIQ vs iMocha: Complete 2026 Comparison",
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "url": `${site}/`
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}/compare/assessiq-vs-imocha`,
+  "description": "An honest, side-by-side comparison of AssessIQ and iMocha across India focus, skills intelligence, pre-employment screening, proctoring, enterprise workforce analytics, and ideal customer — updated May 2026."
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is iMocha?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "iMocha is a skills assessment and Skills Intelligence Cloud platform that serves enterprise customers globally. It offers 3,000+ ready-to-use skill assessments, AI-powered proctoring, and a workforce analytics layer that maps skills across the employee lifecycle — from pre-employment screening to upskilling and internal mobility. iMocha is recognized as a major player in the IDC MarketScape for Worldwide Talent Intelligence (2026)."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ differ from iMocha?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "iMocha's strength is its Skills Intelligence Cloud — AI-powered workforce analytics that map skills gaps across an organization's existing talent pool, not just candidate screening. AssessIQ is focused on the hiring and institutional assessment use case: structured coding tests, rubric-based scoring, proctoring with per-attempt audit logs, and a simple admin workflow for Indian IT companies and educational institutions. If your primary need is workforce skills mapping and talent intelligence at enterprise scale, iMocha is purpose-built for that. If your primary need is structured pre-interview screening with scoring rationale, AssessIQ is the more focused option."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does iMocha support coding assessments?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "iMocha includes coding and project-based assessments as part of its 3,000+ assessment library. AssessIQ's coding environment runs submissions against hidden test cases with real-time pass/fail results and execution time visible to the admin. Both platforms support coding evaluation; the depth and focus of the coding experience differs — iMocha is part of a broader skill assessment and intelligence platform, while AssessIQ centers the coding test experience as a core hiring workflow."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is iMocha designed for Indian companies?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "iMocha operates across India/APAC, North America, and UK/EMEA — it serves 500+ enterprise customers across three continents. AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes and hiring volumes. Both serve Indian customers; AssessIQ's entire design is oriented around the India B2B hiring context."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the iMocha Skills Intelligence Cloud?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "iMocha's Skills Intelligence Cloud is an enterprise workforce analytics layer that provides AI-powered visibility into an organization's skill inventory — mapping 30,000+ skills across roles, inferring skills gaps, matching talent to open positions, and tracking upskilling progress. It extends beyond candidate screening into the full employee lifecycle: L&D, internal mobility, and workforce planning. AssessIQ does not offer this workforce intelligence layer — it focuses on structured pre-employment assessment and institutional exam delivery."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I try AssessIQ for free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This makes it straightforward to evaluate the platform against your real hiring workflow before committing."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Compare",
+      "item": `${site}/compare`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "AssessIQ vs iMocha"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Comparison table rows — neutral criteria, honest entries, no absolute "lacks X" claims
+const tableRows = [
+  {
+    criterion: "India focus",
+    assessiq: "Built India-first — calibrated question packs for Indian IT role stacks, local data residency, pricing designed for Indian teams",
+    imocha: "Operates across India/APAC, NA, and UK/EMEA; serves enterprise customers globally across 70+ countries"
+  },
+  {
+    criterion: "Proctoring",
+    assessiq: "Tab-switch detection, full-screen enforcement, webcam monitoring, copy-paste restriction, timestamped event log per attempt",
+    imocha: "AI-enabled proctoring tools included; secure remote assessment delivery across enterprise exam programs"
+  },
+  {
+    criterion: "Question / assessment types",
+    assessiq: "Coding (live execution + test cases), MCQ, output prediction, aptitude, logical reasoning — curated for Indian IT hiring",
+    imocha: "3,000+ ready-to-use assessments including coding, cognitive, situational, and project-based; 10,000+ assessments per some published figures"
+  },
+  {
+    criterion: "Code evaluation",
+    assessiq: "Browser-based coding environment; submissions run against hidden test cases; pass/fail count + execution time visible to admin",
+    imocha: "Coding assessments and project-based assessments available; real-world challenge evaluation as part of broader skills platform"
+  },
+  {
+    criterion: "Skills intelligence",
+    assessiq: "Structured scoring per role/test; admin dashboard for cohort analytics; focused on pre-employment assessment output",
+    imocha: "Skills Intelligence Cloud — AI maps 30,000+ skills across roles, infers gaps, supports internal mobility and workforce planning at enterprise scale"
+  },
+  {
+    criterion: "Workforce analytics",
+    assessiq: "Per-candidate and cohort-level reports; CSV/PDF export; focused on hiring decision support",
+    imocha: "Enterprise workforce analytics across the full talent lifecycle — hiring, L&D, upskilling, internal mobility, workforce planning"
+  },
+  {
+    criterion: "Structured scoring",
+    assessiq: "Anchor-based rubrics and scoring bands per question; per-answer rationale visible to reviewer",
+    imocha: "Scoring across varied assessment types; analytics dashboard; industry benchmarking — check vendor for rubric-level detail"
+  },
+  {
+    criterion: "Integrations",
+    assessiq: "Admin dashboard, CSV export, PDF reports; ATS integrations — varies by plan (check current docs)",
+    imocha: "SAP and major HRMS/ATS integrations; enterprise integration catalog; Skills Intelligence Cloud connects to existing HR infrastructure"
+  },
+  {
+    criterion: "Deployment / scale",
+    assessiq: "Cloud SaaS; bulk invite via CSV or shareable link; no per-seat cap on concurrent sessions",
+    imocha: "Cloud SaaS; enterprise-scale deployment across 500+ customers in 70+ countries; purpose-built for large organizations"
+  },
+  {
+    criterion: "Ideal customer",
+    assessiq: "Indian IT companies, campus teams, and educational institutions needing structured, auditable pre-employment assessment with transparent scoring",
+    imocha: "Enterprises requiring skills intelligence across the full talent lifecycle — pre-employment through L&D and workforce planning — especially at Fortune 500 scale"
+  }
+];
+
+const faqs = [
+  {
+    q: "What is iMocha?",
+    a: "iMocha is a skills assessment and Skills Intelligence Cloud platform that serves enterprise customers globally. It offers 3,000+ ready-to-use skill assessments, AI-powered proctoring, and a workforce analytics layer that maps skills across the employee lifecycle — from pre-employment screening to upskilling and internal mobility. iMocha is recognized as a major player in the IDC MarketScape for Worldwide Talent Intelligence (2026)."
+  },
+  {
+    q: "How does AssessIQ differ from iMocha?",
+    a: "iMocha's strength is its Skills Intelligence Cloud — AI-powered workforce analytics that map skills gaps across an organization's existing talent pool, not just candidate screening. AssessIQ is focused on the hiring and institutional assessment use case: structured coding tests, rubric-based scoring, proctoring with per-attempt audit logs, and a simple admin workflow for Indian IT companies and educational institutions. If your primary need is workforce skills mapping and talent intelligence at enterprise scale, iMocha is purpose-built for that. If your primary need is structured pre-interview screening with scoring rationale, AssessIQ is the more focused option."
+  },
+  {
+    q: "Does iMocha support coding assessments?",
+    a: "iMocha includes coding and project-based assessments as part of its 3,000+ assessment library. AssessIQ's coding environment runs submissions against hidden test cases with real-time pass/fail results and execution time visible to the admin. Both platforms support coding evaluation; the depth and focus of the coding experience differs — iMocha is part of a broader skill assessment and intelligence platform, while AssessIQ centers the coding test experience as a core hiring workflow."
+  },
+  {
+    q: "Is iMocha designed for Indian companies?",
+    a: "iMocha operates across India/APAC, North America, and UK/EMEA — it serves 500+ enterprise customers across three continents. AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes and hiring volumes. Both serve Indian customers; AssessIQ's entire design is oriented around the India B2B hiring context."
+  },
+  {
+    q: "What is the iMocha Skills Intelligence Cloud?",
+    a: "iMocha's Skills Intelligence Cloud is an enterprise workforce analytics layer that provides AI-powered visibility into an organization's skill inventory — mapping 30,000+ skills across roles, inferring skills gaps, matching talent to open positions, and tracking upskilling progress. It extends beyond candidate screening into the full employee lifecycle: L&D, internal mobility, and workforce planning. AssessIQ does not offer this workforce intelligence layer — it focuses on structured pre-employment assessment and institutional exam delivery."
+  },
+  {
+    q: "Can I try AssessIQ for free?",
+    a: "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This makes it straightforward to evaluate the platform against your real hiring workflow before committing."
+  }
+];
+---
+
+<BaseLayout
+  title="AssessIQ vs iMocha: 2026 Comparison"
+  description="AssessIQ vs iMocha: 2026 comparison — India focus, skills intelligence, coding assessments, proctoring, workforce analytics, and which platform fits your needs."
+  canonicalPath="/compare/assessiq-vs-imocha"
+  ogType="article"
+>
+  <!-- JSON-LD: Article (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/compare" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Compare
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            AssessIQ vs iMocha
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Compare &middot; Updated May 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        AssessIQ vs iMocha: Complete 2026 Comparison
+      </h1>
+
+      <!-- 50-word TL;DR — snippet target per §5.3 -->
+      <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-2xl max-w-2xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">TL;DR</p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          iMocha's Skills Intelligence Cloud maps skills gaps across your entire workforce — from hiring through L&D and internal mobility — at enterprise scale. AssessIQ focuses on structured pre-employment screening for Indian IT companies: coding tests, rubric scoring, and a straightforward admin workflow. Different scopes for different organizational needs.
+        </p>
+      </div>
+
+      <!-- Internal links row -->
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+        Also compare: <a href="/compare/assessiq-vs-mettl" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ vs Mercer Mettl</a> &middot; <a href="/compare/assessiq-vs-hackerearth" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ vs HackerEarth</a> &middot; <a href="/alternatives/imocha" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">iMocha alternatives</a>
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── SIDE-BY-SIDE TABLE ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="table-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Side-by-side</p>
+      <h2 id="table-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Feature-by-feature comparison.
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left">
+          <thead>
+            <tr class="border-b-2 border-aiq-border-strong">
+              <th class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase pb-aiq-md pr-aiq-xl w-1/4">Criterion</th>
+              <th class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase pb-aiq-md pr-aiq-xl w-[37.5%]">AssessIQ</th>
+              <th class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase pb-aiq-md w-[37.5%]">iMocha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.map((row, i) => (
+              <tr class={`border-b border-aiq-border ${i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised'}`}>
+                <td class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase py-aiq-lg pr-aiq-xl align-top font-medium">
+                  {row.criterion}
+                </td>
+                <td class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed py-aiq-lg pr-aiq-xl align-top">
+                  {row.assessiq}
+                </td>
+                <td class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed py-aiq-lg align-top">
+                  {row.imocha}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-xl mb-0">
+        Table entries reflect publicly available information as of May 2026. Verify current capabilities and pricing directly with each vendor before making a purchase decision.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── WHICH SHOULD YOU CHOOSE ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="choose-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Decision guide</p>
+      <h2 id="choose-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Which should you choose?
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-lg">
+
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">Choose AssessIQ if…</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              Your primary need is structured pre-interview screening — coding tests, skills batteries, and proctored sessions with scoring that explains itself, built for Indian IT hiring workflows.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You want audit-trail-level transparency: timestamped attempt logs, per-answer evidence, and anchor-based rubrics your team can use to defend every hiring decision.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You are a campus team or educational institution running bulk invite drives with no per-seat concurrency friction.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You want to start quickly — free account, no credit card, no enterprise procurement cycle.
+            </li>
+          </ul>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">Choose iMocha if…</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You need a Skills Intelligence Cloud — AI-powered mapping of your organization's current skill inventory, gap analysis, and workforce planning across 30,000+ skills.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              Your use case extends beyond hiring into L&D, internal mobility, and upskilling — and you need a single platform to connect those workflows.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You are a Fortune 500 or large enterprise that needs deep HRMS/ATS integration, industry benchmarking, and recognition from analyst bodies like IDC.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You operate across multiple geographies and need a globally deployed platform with a 70+ country customer footprint.
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about AssessIQ vs iMocha.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        {faqs.map((faq, i) => (
+          <div class={i < faqs.length - 1 ? 'border-b border-aiq-border pb-aiq-xl' : ''}>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              {faq.q}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {faq.a}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CTA + RELATED ── -->
+  <section class="bg-aiq-bg-base" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Try AssessIQ on your own hiring workflow.
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            See also: <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Pricing</a> &middot; <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Security</a> &middot; <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; Technical Hiring</a>
+          </p>
+        </div>
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">More comparisons</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/compare/assessiq-vs-mettl" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs Mercer Mettl
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Compare on enterprise proctoring, question library breadth, and global reach.</p>
+            </li>
+            <li>
+              <a href="/compare/assessiq-vs-hackerearth" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs HackerEarth
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Compare on developer community, coding challenge library, and hackathons.</p>
+            </li>
+            <li>
+              <a href="/alternatives/imocha" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                iMocha alternatives
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Looking for an iMocha alternative for structured Indian IT hiring?</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
