@@ -29,6 +29,7 @@ import {
   tenantBillingCsvUrl,
   getTenantEntitlements,
   getTenantContentScopes,
+  listPlatformPublishedPacks,
   grantTenantEntitlement,
   revokeTenantEntitlement,
   suspendTenantApi,
@@ -40,6 +41,7 @@ import {
   type TenantBillingDetail,
   type TenantEntitlement,
   type TenantContentScopes,
+  type PlatformPackOption,
   type LifecycleResponse,
 } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
@@ -737,7 +739,9 @@ function BillingDrawer({
   const [entitlements, setEntitlements] = useState<TenantEntitlement[]>([]);
   const [entitlementsLoading, setEntitlementsLoading] = useState(true);
   const [entitlementsError, setEntitlementsError] = useState<string | null>(null);
-  const grantScopeType = 'domain' as const;
+  // 5a — scope type is now selectable (domain | pack). Domain = standing license
+  // to all current+future packs in the domain; pack = one specific platform set.
+  const [grantScopeType, setGrantScopeType] = useState<'domain' | 'pack'>('domain');
   const [grantScopeId, setGrantScopeId] = useState('');
   const [grantSaving, setGrantSaving] = useState(false);
   const [grantError, setGrantError] = useState<string | null>(null);
@@ -760,6 +764,11 @@ function BillingDrawer({
   // Content-scopes state (D1/D2) — for dropdown grant form
   const [contentScopes, setContentScopes] = useState<TenantContentScopes | null>(null);
   const [contentScopesError, setContentScopesError] = useState<string | null>(null);
+
+  // Platform published packs (5a) — source for pack-scope grants. The SA session
+  // operates inside the platform tenant, so this lists the master library.
+  const [platformPacks, setPlatformPacks] = useState<PlatformPackOption[] | null>(null);
+  const [platformPacksError, setPlatformPacksError] = useState<string | null>(null);
 
   const fetchEntitlements = (): void => {
     setEntitlementsLoading(true);
@@ -807,6 +816,18 @@ function BillingDrawer({
         setContentScopesError(err instanceof AdminApiError ? err.apiError.message : "couldn't load list — type manually");
       });
   }, [tenant.id]);
+
+  // 5a — load platform published packs once for the pack-scope grant dropdown.
+  // The master library is the SA's platform tenant, independent of the company
+  // whose drawer is open, so this is mount-only.
+  useEffect(() => {
+    setPlatformPacksError(null);
+    void listPlatformPublishedPacks()
+      .then((r) => setPlatformPacks(r.packs))
+      .catch((err) => {
+        setPlatformPacksError(err instanceof AdminApiError ? err.apiError.message : "couldn't load packs — type the pack id manually");
+      });
+  }, []);
 
   const isInternalTier = editTier === "internal";
 
@@ -1287,7 +1308,9 @@ function BillingDrawer({
                                 }}
                                 title={ent.scope_id}
                               >
-                                {ent.scope_id}
+                                {ent.scope_type === 'pack'
+                                  ? (platformPacks?.find((p) => p.id === ent.scope_id)?.name ?? ent.scope_id)
+                                  : ent.scope_id}
                               </span>
                               <button
                                 type="button"
@@ -1311,47 +1334,38 @@ function BillingDrawer({
                   </p>
                 )}
 
-                {/* Grant form — domain by default; pack behind Advanced disclosure */}
+                {/* Grant form — scope-type toggle (domain | single set), then scope picker (5a) */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
 
-                  {/* Domain scope (default, always visible) */}
+                  {/* 5a — scope-type toggle */}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {(["domain", "pack"] as const).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        className={`aiq-btn aiq-btn-sm ${grantScopeType === st ? "aiq-btn-primary" : "aiq-btn-outline"}`}
+                        disabled={grantSaving || isReadOnly}
+                        onClick={() => { setGrantScopeType(st); setGrantScopeId(""); setGrantError(null); }}
+                      >
+                        {st === "domain" ? "Domain" : "Single set"}
+                      </button>
+                    ))}
+                  </div>
+
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                       <label
                         style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
                       >
-                        Domain
+                        {grantScopeType === "domain" ? "Domain" : "Question set"}
                       </label>
-                      {/* D2: dropdown from content-scopes when available; fallback to free-text */}
-                      {contentScopes !== null && !contentScopesError ? (
-                        <select
-                          value={grantScopeId}
-                          onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
-                          disabled={grantSaving}
-                          style={{
-                            fontFamily: "var(--aiq-font-mono)",
-                            fontSize: 12,
-                            padding: "5px 8px",
-                            borderRadius: "var(--aiq-radius-md)",
-                            border: "1px solid var(--aiq-color-border)",
-                            background: "var(--aiq-color-bg-raised)",
-                            color: "var(--aiq-color-fg-primary)",
-                            width: "100%",
-                          }}
-                        >
-                          <option value="">— Select domain —</option>
-                          {contentScopes.domains
-                            .filter((d) => !entitlements.some((e) => e.status === 'active' && e.scope_type === 'domain' && e.scope_id === d))
-                            .map((d) => <option key={d} value={d}>{d}</option>)
-                          }
-                        </select>
-                      ) : (
-                        <>
-                          <input
-                            type="text"
+
+                      {grantScopeType === "domain" ? (
+                        /* D2: dropdown from content-scopes when available; fallback to free-text */
+                        contentScopes !== null && !contentScopesError ? (
+                          <select
                             value={grantScopeId}
                             onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
-                            placeholder="e.g. soc"
                             disabled={grantSaving}
                             style={{
                               fontFamily: "var(--aiq-font-mono)",
@@ -1363,13 +1377,89 @@ function BillingDrawer({
                               color: "var(--aiq-color-fg-primary)",
                               width: "100%",
                             }}
-                          />
-                          {contentScopesError !== null && (
-                            <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, color: "var(--aiq-color-fg-muted)" }}>
-                              {contentScopesError}
-                            </span>
-                          )}
-                        </>
+                          >
+                            <option value="">— Select domain —</option>
+                            {contentScopes.domains
+                              .filter((d) => !entitlements.some((e) => e.status === 'active' && e.scope_type === 'domain' && e.scope_id === d))
+                              .map((d) => <option key={d} value={d}>{d}</option>)
+                            }
+                          </select>
+                        ) : (
+                          <>
+                            <input
+                              type="text"
+                              value={grantScopeId}
+                              onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
+                              placeholder="e.g. soc"
+                              disabled={grantSaving}
+                              style={{
+                                fontFamily: "var(--aiq-font-mono)",
+                                fontSize: 12,
+                                padding: "5px 8px",
+                                borderRadius: "var(--aiq-radius-md)",
+                                border: "1px solid var(--aiq-color-border)",
+                                background: "var(--aiq-color-bg-raised)",
+                                color: "var(--aiq-color-fg-primary)",
+                                width: "100%",
+                              }}
+                            />
+                            {contentScopesError !== null && (
+                              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, color: "var(--aiq-color-fg-muted)" }}>
+                                {contentScopesError}
+                              </span>
+                            )}
+                          </>
+                        )
+                      ) : (
+                        /* 5a — pack scope: platform published packs (scope_id = platform pack id) */
+                        platformPacks !== null && !platformPacksError ? (
+                          <select
+                            value={grantScopeId}
+                            onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
+                            disabled={grantSaving}
+                            style={{
+                              fontFamily: "var(--aiq-font-mono)",
+                              fontSize: 12,
+                              padding: "5px 8px",
+                              borderRadius: "var(--aiq-radius-md)",
+                              border: "1px solid var(--aiq-color-border)",
+                              background: "var(--aiq-color-bg-raised)",
+                              color: "var(--aiq-color-fg-primary)",
+                              width: "100%",
+                            }}
+                          >
+                            <option value="">— Select set —</option>
+                            {platformPacks
+                              .filter((p) => !entitlements.some((e) => e.status === 'active' && e.scope_type === 'pack' && e.scope_id === p.id))
+                              .map((p) => <option key={p.id} value={p.id}>{p.name} · {p.domain}</option>)
+                            }
+                          </select>
+                        ) : (
+                          <>
+                            <input
+                              type="text"
+                              value={grantScopeId}
+                              onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
+                              placeholder="platform pack id (UUID)"
+                              disabled={grantSaving}
+                              style={{
+                                fontFamily: "var(--aiq-font-mono)",
+                                fontSize: 12,
+                                padding: "5px 8px",
+                                borderRadius: "var(--aiq-radius-md)",
+                                border: "1px solid var(--aiq-color-border)",
+                                background: "var(--aiq-color-bg-raised)",
+                                color: "var(--aiq-color-fg-primary)",
+                                width: "100%",
+                              }}
+                            />
+                            {platformPacksError !== null && (
+                              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, color: "var(--aiq-color-fg-muted)" }}>
+                                {platformPacksError}
+                              </span>
+                            )}
+                          </>
+                        )
                       )}
                     </div>
                     <button
@@ -1383,7 +1473,9 @@ function BillingDrawer({
                     </button>
                   </div>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 11, color: "var(--aiq-color-fg-muted)", margin: 0 }}>
-                    Granting a subject domain lets this company use every question pack in it.
+                    {grantScopeType === "domain"
+                      ? "Granting a subject domain lets this company use every published set in it — current and future."
+                      : "Granting a single set licenses only that one published platform set. Use a domain grant to cover the whole subject."}
                   </p>
 
                   {grantError !== null && (
