@@ -1,0 +1,620 @@
+---
+// resources/remote-proctoring-integrity.astro
+// JSON-LD: THREE separate blocks — BlogPosting, FAQPage, BreadcrumbList (per SEO §3.6 / §15)
+// Author = Organization (no fabricated person/credentials per hard rule)
+// No fabricated statistics or invented study results
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const slug = 'remote-proctoring-integrity';
+const canonicalPath = `/resources/${slug}`;
+
+// BlogPosting JSON-LD
+const blogPostingSchema = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Remote Proctoring Integrity: What Actually Works (and What Doesn't)",
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "image": `${site}/og-default.png`,
+  "mainEntityOfPage": `${site}${canonicalPath}`,
+  "description": "A practical guide to remote proctoring controls for online assessments — what deters academic dishonesty effectively, what counts as security theatre, and the legal and ethical tradeoffs administrators need to understand."
+};
+
+// FAQPage JSON-LD
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What remote proctoring controls are most effective at deterring cheating?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The most effective controls combine deterrence with detection: browser tab-switch and window-focus detection, full-screen enforcement, and a timestamped event log that administrators review after the session. Webcam recording adds value when reviewers actually watch flagged segments. Question randomisation and per-candidate question variants reduce the value of answer-sharing. No single control is impenetrable — the practical goal is to make cheating effortful enough to deter opportunistic attempts and to create a record that surfaces anomalous patterns."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does webcam monitoring actually prevent cheating in online assessments?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Webcam monitoring is a deterrent, not a barrier. The presence of a camera changes candidate behaviour for most people. Automated AI flagging of webcam feeds generates false positives and should be treated as a signal for human review, not an automatic disqualifier. The value of webcam monitoring depends on whether someone actually reviews flagged segments — a recording that no administrator watches provides only the deterrence effect of the camera's presence."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the legal status of remote proctoring in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "India does not have a comprehensive data protection law that specifically addresses online proctoring, but the Digital Personal Data Protection Act 2023 (DPDPA) is the emerging framework. Webcam recording and biometric verification involve sensitive personal data under the DPDPA. Organisations should ensure candidates provide clear, informed consent for all data collected during proctoring, and that data is retained only as long as necessary. Legal advice specific to your context is recommended."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is security theatre in the context of online proctoring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Security theatre refers to proctoring controls that appear to increase integrity but provide little actual deterrence or detection capability. Examples include: AI plagiarism detection that cannot determine whether a candidate thought of a solution themselves or copied it, automated face-match verification that can be bypassed with basic measures, and room-scan requirements that do not prevent off-screen collaboration. These controls add candidate burden without proportionate integrity benefit."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How should proctoring flags be used in hiring decisions?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Proctoring flags should inform human review, not automatically disqualify candidates. A tab-switch event may reflect a candidate opening a dictionary, a system notification, or actually looking up an answer — the flag cannot distinguish these. Automated flags from webcam AI have significant false-positive rates. The appropriate use is: review flagged sessions where scores are high enough to matter, apply judgment, and document the reasoning. An automated disqualification based on a proctoring flag alone is both unfair and legally fragile."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does browser lockdown software prevent all forms of cheating?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Browser lockdown software prevents the most common opportunistic cheating methods: switching to another browser tab, googling answers, using copy-paste to extract question text. It does not prevent a candidate from using a second device, asking someone in the room, or having pre-prepared notes. It is an effective deterrent for opportunistic behaviour and significantly raises the effort required for more sophisticated cheating — but it is not a comprehensive solution on its own."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Resources",
+      "item": `${site}/resources`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Remote Proctoring Integrity"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="Remote Proctoring Integrity: What Works (and What Doesn't)"
+  description="What actually deters cheating in online assessments, what counts as security theatre, and the legal and ethical tradeoffs of remote proctoring — a practical guide for HR teams and assessment administrators."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <!-- JSON-LD: BlogPosting (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(blogPostingSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Proctoring Integrity
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── ARTICLE HEADER ── -->
+  <header class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Proctoring &middot; Integrity &middot; Assessment Design
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Remote Proctoring Integrity: What Actually Works (and What Doesn&#39;t)
+      </h1>
+
+      <!-- 40–60 word snippet-target intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        Online proctoring has proliferated rapidly, but not all controls deliver the integrity they imply. This guide separates evidence-backed deterrents from security theatre, explains the tradeoffs between candidate experience and monitoring intensity, and addresses the legal and ethical considerations administrators need to navigate in 2026.
+      </p>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+        Published 23 May 2026 &middot; AssessIQ Editorial
+      </p>
+    </div>
+  </header>
+
+  <!-- ── ARTICLE BODY ── -->
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <!-- Table of Contents -->
+      <nav aria-label="Table of contents" class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-4xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Contents</p>
+        <ol class="list-none m-0 p-0 flex flex-col gap-aiq-sm">
+          <li><a href="#the-proctoring-problem" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">1. The Proctoring Problem: Integrity vs. Trust</a></li>
+          <li><a href="#what-actually-works" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">2. What Actually Works: Evidence-Backed Controls</a></li>
+          <li><a href="#security-theatre" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">3. Security Theatre: Controls That Imply More Than They Deliver</a></li>
+          <li><a href="#webcam-monitoring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">4. Webcam Monitoring: Deterrence vs. Detection</a></li>
+          <li><a href="#browser-controls" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">5. Browser Controls and Lockdown: What They Prevent</a></li>
+          <li><a href="#event-logs" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">6. Event Logs and Review Workflows</a></li>
+          <li><a href="#candidate-experience" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">7. Candidate Experience and the Surveillance Tradeoff</a></li>
+          <li><a href="#legal-and-ethical" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">8. Legal and Ethical Considerations</a></li>
+          <li><a href="#designing-your-approach" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">9. Designing a Proportionate Proctoring Approach</a></li>
+          <li><a href="#faq" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">10. FAQ</a></li>
+        </ol>
+      </nav>
+
+      <!-- ── SECTION 1 ── -->
+      <section aria-labelledby="the-proctoring-problem" class="mb-aiq-4xl">
+        <h2 id="the-proctoring-problem" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          1. The Proctoring Problem: Integrity vs. Trust
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          <a href="/glossary/proctoring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Remote proctoring</a> — monitoring candidates during an online assessment to deter and detect dishonest behaviour — exists in permanent tension with candidate experience. More monitoring means higher integrity assurance; it also means more friction, more surveillance, and more potential for false accusations.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The practical question for an assessment administrator is not "can we eliminate all cheating?" — we cannot. It is "what level of proctoring is proportionate to the stakes of this assessment, and what controls provide genuine deterrence or detection value at that level?"
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          A pre-employment screening test for a software developer role has different integrity requirements than a high-stakes professional certification examination. A first-stage filter where candidates are subsequently invited to an in-person interview does not need the same controls as a final-round assessment that alone determines an offer. Proportionality matters — over-engineering proctoring for low-stakes screens wastes resources and creates candidate experience problems.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The framing throughout this guide: proctoring is a risk management exercise. The goal is to reduce the expected benefit of cheating (by increasing detection likelihood and effort required) to a level where most candidates conclude that honest performance is the rational choice. Perfect integrity is not achievable; adequate integrity at proportionate cost is.
+        </p>
+      </section>
+
+      <!-- ── SECTION 2 ── -->
+      <section aria-labelledby="what-actually-works" class="mb-aiq-4xl">
+        <h2 id="what-actually-works" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          2. What Actually Works: Evidence-Backed Controls
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The controls with the clearest deterrence and detection value in online assessment are:
+        </p>
+
+        <div class="flex flex-col gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Strongest deterrence</p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Question randomisation and per-candidate variants</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              If candidates sharing a question pool receive different questions, or the same question in a different order, the value of sharing answers drops dramatically. For coding assessments, small problem variations (different input ranges, different scenario framing) can produce structurally different problems that cannot be answered by copying. This is the highest-value integrity control for most screening contexts — it attacks the incentive to cheat rather than the mechanism.
+            </p>
+          </div>
+
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Strong detection</p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Timestamped event log</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A comprehensive, immutable log of candidate events during the assessment — tab switches, window focus loss, copy-paste attempts, full-screen exits, timing anomalies — is the foundation of any meaningful post-session review. The log does not prevent cheating; it makes the evidence available to a human reviewer who can apply judgment. An event log that is never reviewed provides only the deterrence of knowing it exists.
+            </p>
+          </div>
+
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Effective deterrence</p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Browser focus and tab-switch detection</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Detecting when a candidate leaves the assessment tab or window, and flagging or warning them, prevents the most common opportunistic behaviour: opening a search engine or another resource in a parallel tab. This control is effective against casual cheating and has low false-positive risk — a legitimate candidate has no reason to leave the assessment tab for an extended period.
+            </p>
+          </div>
+
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Effective deterrence</p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Full-screen enforcement</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Requiring the assessment to run in full-screen mode and detecting exits is a lightweight control that increases friction for candidates attempting to multitask across windows. Combined with tab-switch detection, it prevents most single-device browser-based cheating with minimal legitimate candidate impact.
+            </p>
+          </div>
+        </div>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          See <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's security page</a> for how these controls are implemented technically. The <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT hiring solution</a> includes all of the above in the standard assessment environment.
+        </p>
+      </section>
+
+      <!-- ── SECTION 3 ── -->
+      <section aria-labelledby="security-theatre" class="mb-aiq-4xl">
+        <h2 id="security-theatre" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          3. Security Theatre: Controls That Imply More Than They Deliver
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Security theatre in proctoring refers to controls that create the impression of comprehensive monitoring without delivering proportionate integrity benefit — and often at significant cost to candidate experience or legal risk.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              AI-automated webcam disqualification
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Automatically disqualifying candidates based on AI-flagged webcam anomalies (looking away from camera, presence of another person in frame) generates significant false positives — candidates adjusting their glasses, a family member walking by, variable lighting conditions. These flags should trigger human review, not automatic action.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Room scans
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Requiring candidates to scan their room before starting can confirm there are no obvious cheat sheets visible — but it cannot detect a candidate with a second device, a phone out of frame, or someone nearby who is not visible in the scan. It adds friction and creates privacy concerns, particularly in domestic settings, with limited integrity gain.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Keystroke dynamics analysis
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Analysing typing patterns to verify identity has a high false-positive rate due to normal variation in typing speed and style across devices, environments, and times of day. It is better suited to continuous authentication in high-stakes certification contexts than to employment screening.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              AI plagiarism detection for code
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              AI-based code plagiarism detection cannot determine whether two structurally similar solutions represent independent parallel thinking or copying. Common algorithmic patterns — especially for standard coding problems — produce similar code from candidates who have never seen each other's work. These signals require human review with specific context.
+            </p>
+          </div>
+        </div>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The problem with security theatre is not that these controls provide zero value — some provide marginal deterrence. The problem is that they are frequently presented to candidates and administrators as providing stronger integrity assurance than they actually deliver, and they add burden and risk that may not be proportionate to the benefit. Honesty about what each control actually prevents is a better foundation for assessment design.
+        </p>
+      </section>
+
+      <!-- ── SECTION 4 ── -->
+      <section aria-labelledby="webcam-monitoring" class="mb-aiq-4xl">
+        <h2 id="webcam-monitoring" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          4. Webcam Monitoring: Deterrence vs. Detection
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Webcam monitoring has two distinct functions that are often conflated: deterrence (the knowledge that a camera is watching changes behaviour) and detection (the recording provides evidence for later review).
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Deterrence is real and meaningful. Most opportunistic cheating relies on the belief that the behaviour will not be noticed. A webcam that is known to be recording reduces that confidence. This deterrent effect does not require sophisticated AI analysis — it is a function of the candidate's perception of surveillance.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Detection is more complex. A webcam recording provides useful evidence when a reviewer watches flagged segments and applies judgment. It is less useful when AI automated flagging is treated as the only review layer. Automated webcam AI has known limitations in accuracy across varied lighting, camera quality, and candidate demographics — limitations that should be disclosed and that affect how much weight administrators place on automated flags.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The practical takeaway: webcam monitoring adds real value as a deterrent, and adds detection value when paired with human review of flagged segments. It should not be used as an automated disqualification mechanism. See AssessIQ's <a href="/glossary/proctoring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">proctoring glossary entry</a> for how we describe these controls to candidates, and <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">our security page</a> for the technical implementation.
+        </p>
+      </section>
+
+      <!-- ── SECTION 5 ── -->
+      <section aria-labelledby="browser-controls" class="mb-aiq-4xl">
+        <h2 id="browser-controls" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          5. Browser Controls and Lockdown: What They Prevent
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Browser-based proctoring controls — tab-switch detection, full-screen enforcement, copy-paste restriction, window-focus monitoring — are effective within a defined scope. They prevent the most common forms of opportunistic, single-device browser-based cheating. They do not prevent:
+        </p>
+
+        <ul class="list-none m-0 p-0 mb-aiq-lg flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Using a second device (phone, tablet) to search for answers while the assessment runs on the primary device</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Asking another person in the room for help, or having a helper nearby off-camera</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Printed reference materials placed off-camera</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Sophisticated impersonation (having a different person take the test) without identity verification</p>
+          </li>
+        </ul>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          This is not a reason to abandon browser controls — it is a reason to understand what they actually prevent and calibrate expectations accordingly. For most pre-employment screening contexts, preventing browser-based opportunistic cheating significantly reduces the expected benefit of dishonest attempts, which is sufficient for a first-stage filter. Higher-stakes assessments may warrant additional controls. The <a href="/tests/python" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Python assessment</a> and <a href="/tests/sql" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">SQL assessment</a> pages describe how AssessIQ's browser controls work in practice.
+        </p>
+      </section>
+
+      <!-- ── SECTION 6 ── -->
+      <section aria-labelledby="event-logs" class="mb-aiq-4xl">
+        <h2 id="event-logs" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          6. Event Logs and Review Workflows
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          An event log is only as valuable as the review workflow attached to it. A comprehensive, timestamped record of candidate behaviour during an assessment provides the raw material for judgment — but it requires a human to look at it.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In practice, reviewing every event log for every candidate is not feasible in bulk hiring contexts. A proportionate approach:
+        </p>
+
+        <ul class="list-none m-0 p-0 mb-aiq-lg flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Review flagged sessions for candidates who advance.</strong> Rather than reviewing all sessions, review the event log for candidates whose scores are high enough to matter — those being considered for the next stage. A candidate with a low score and multiple anomalous flags is self-resolving; a candidate with a high score and anomalous flags warrants human review before advancing.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Treat flags as context, not verdicts.</strong> A tab-switch flag means a candidate left the assessment tab, not that they cheated. Review the timing, duration, and pattern — a single 2-second tab switch is different from five sustained exits throughout the assessment.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Document review decisions.</strong> If a candidate is disqualified based on proctoring evidence, the reasoning should be documented. This is both an internal governance requirement and a legal protection — a disqualification that cannot be explained in terms of specific observable evidence is a liability.</p>
+          </li>
+        </ul>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          AssessIQ's admin dashboard presents proctoring flags and scores side by side, so reviewers can see the full picture without switching between systems. See the <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT hiring solution page</a> for a full description of the admin review workflow. For bias considerations in how flags are applied, see the companion guide: <a href="/resources/reducing-bias-technical-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Reducing Bias in Technical Hiring</a>.
+        </p>
+      </section>
+
+      <!-- ── SECTION 7 ── -->
+      <section aria-labelledby="candidate-experience" class="mb-aiq-4xl">
+        <h2 id="candidate-experience" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          7. Candidate Experience and the Surveillance Tradeoff
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Proctoring affects candidate experience, and candidate experience affects who applies and who completes the assessment. For experienced developers who are already employed and have options, a screening process that feels disproportionately invasive is a dropout trigger.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The practical risk is adverse selection: intensive proctoring disproportionately deters confident, high-performing candidates who have other options, while motivated candidates who are willing to game any system they encounter are undeterred. The result can be a pool that is less capable than a lighter-touch process would produce.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The candidate communication around proctoring also matters. Candidates who understand why controls are in place — and who are informed clearly before the assessment about what will be monitored — are significantly more tolerant of those controls than candidates who encounter them as a surprise. Informed consent is both a legal requirement for some data collection and a candidate experience practice.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The principle that connects proctoring design to assessment validity research: a screening process should be designed to identify the right candidates, not to catch the wrong ones. Controls that are calibrated to the actual integrity risk of the assessment type, communicated clearly, and applied consistently produce better outcomes than maximum-surveillance approaches. See <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">adverse impact</a> for how heavy-handed proctoring can itself create selection inequities.
+        </p>
+      </section>
+
+      <!-- ── SECTION 8 ── -->
+      <section aria-labelledby="legal-and-ethical" class="mb-aiq-4xl">
+        <h2 id="legal-and-ethical" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          8. Legal and Ethical Considerations
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Remote proctoring involves the collection of personal data — video recordings, event logs, timing data — from candidates who are typically in private domestic settings. The legal and ethical obligations around this data vary by jurisdiction but share common principles.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          India: Digital Personal Data Protection Act 2023
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          India's Digital Personal Data Protection Act 2023 (DPDPA) is the primary data protection framework for organisations operating in India. It requires that personal data — which includes webcam recordings, biometric data, and identifiable event logs — be processed only for a specified, lawful purpose with the data principal's informed consent. Organisations conducting proctored assessments in India should ensure:
+        </p>
+
+        <ul class="list-none m-0 p-0 mb-aiq-lg flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Candidates receive clear notice of what data is collected, why, and how long it is retained, before the assessment begins</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Consent is obtained in a manner that is freely given, specific, informed, and unambiguous — consent embedded in terms and conditions that candidates cannot refuse if they want to take the assessment is a legal grey area</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Data is retained only as long as necessary for its stated purpose and securely deleted thereafter</p>
+          </li>
+        </ul>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Fairness obligations
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Proctoring controls should be applied consistently — every candidate for the same role receives the same monitoring — and flags should be reviewed and applied consistently. A process where proctoring flags are used to scrutinise some candidates but not others introduces the same fairness problems as inconsistent interviewing. Document the review criteria in advance, not after a flag is raised.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          This guide does not constitute legal advice. Consult qualified legal counsel for the specific data protection and employment law requirements applicable to your organisation and jurisdiction. See <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's security and compliance page</a> for how we handle candidate data in the context of our assessment platform.
+        </p>
+      </section>
+
+      <!-- ── SECTION 9 ── -->
+      <section aria-labelledby="designing-your-approach" class="mb-aiq-4xl">
+        <h2 id="designing-your-approach" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          9. Designing a Proportionate Proctoring Approach
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Matching proctoring intensity to assessment stakes is a practical design principle:
+        </p>
+
+        <div class="flex flex-col gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Low-stakes first-stage filter</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A screening assessment where candidates who pass will still go through a structured technical interview: browser controls (tab-switch, full-screen), question randomisation, copy-paste restriction. Event log reviewed only for high-scoring candidates with anomalous patterns. No webcam required. The interview stage provides a second layer of validation.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Medium-stakes standalone assessment</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              An assessment where scores carry significant weight in the hiring decision with limited subsequent validation: all browser controls, question randomisation, webcam recording reviewed for flagged sessions, event log review for candidates advancing to offer stage. Human review of all anomalies before disqualification.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">High-stakes certification or qualification</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A credential-granting examination where the assessment outcome determines a significant outcome (certification, qualification, licence): all browser controls, webcam with human live monitoring or comprehensive post-session review, identity verification, question pool security controls, and formal protocols for anomaly investigation. This level of proctoring is generally not warranted for pre-employment screening.
+            </p>
+          </div>
+        </div>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          For most technical hiring in India, the low-to-medium tier is appropriate. The goal is not maximum surveillance — it is a defensible, fair process that selects the right candidates. The <a href="/resources/technical-hiring-india-guide" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">structured hiring guide</a> covers how proctoring fits into the broader assessment stack. See <a href="/solutions/educational-institutions" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's educational institutions solution</a> for how higher-stakes certification assessment is handled.
+        </p>
+      </section>
+
+      <!-- ── FAQ ── -->
+      <section aria-labelledby="faq" class="mb-aiq-4xl">
+        <h2 id="faq" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+          10. FAQ
+        </h2>
+
+        <div class="flex flex-col gap-aiq-xl">
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What remote proctoring controls are most effective at deterring cheating?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The most effective controls combine deterrence with detection: browser tab-switch and window-focus detection, full-screen enforcement, and a timestamped event log for human review. Question randomisation reduces the value of answer-sharing. No single control is impenetrable — the practical goal is to make cheating effortful enough to deter opportunistic attempts and create a record that surfaces anomalous patterns.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Does webcam monitoring actually prevent cheating in online assessments?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Webcam monitoring is a deterrent, not a barrier. The presence of a camera changes candidate behaviour for most people. Automated AI flagging generates false positives and should be treated as a signal for human review, not an automatic disqualifier. The value of webcam monitoring depends on whether someone actually reviews flagged segments.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What is the legal status of remote proctoring in India?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              India's Digital Personal Data Protection Act 2023 (DPDPA) is the emerging framework. Webcam recording and biometric verification involve personal data that requires informed consent under the DPDPA. Organisations should ensure candidates provide clear, informed consent for all data collected during proctoring, and that data is retained only as long as necessary. Seek qualified legal advice for your specific context.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What is security theatre in the context of online proctoring?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Security theatre refers to proctoring controls that appear to increase integrity but provide little actual deterrence or detection value — while adding candidate burden or legal risk. Examples include automated webcam disqualification (high false-positive rate), room scans (cannot detect off-camera resources or second devices), and AI plagiarism detection for code (cannot distinguish independent parallel solutions from copying).
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              How should proctoring flags be used in hiring decisions?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Proctoring flags should inform human review, not automatically disqualify candidates. A tab-switch event may reflect a system notification, dictionary check, or actual answer-looking-up — the flag cannot distinguish these. The appropriate use is: review flagged sessions where scores are high enough to matter, apply judgment, and document the reasoning. Automated disqualification based on a proctoring flag alone is unfair and legally fragile.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Does browser lockdown software prevent all forms of cheating?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Browser lockdown prevents the most common opportunistic methods: switching tabs, googling answers, using copy-paste to extract question text. It does not prevent a second device, off-camera assistance, or printed notes. It is an effective deterrent for opportunistic behaviour and significantly raises the effort required for more sophisticated cheating — but it is not a comprehensive solution on its own.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── RELATED ── -->
+      <aside class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Related reading</p>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/resources/technical-hiring-india-guide" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              How to Screen Developers in India: A Structured Hiring Guide (2026)
+            </a>
+          </li>
+          <li>
+            <a href="/resources/reducing-bias-technical-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Reducing Bias in Technical Hiring: Validity, Fairness &amp; Adverse Impact
+            </a>
+          </li>
+          <li>
+            <a href="/glossary/proctoring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Glossary: Proctoring
+            </a>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Glossary: Adverse Impact
+            </a>
+          </li>
+          <li>
+            <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Educational Institutions Solution
+            </a>
+          </li>
+          <li>
+            <a href="/security" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Security &amp; Compliance
+            </a>
+          </li>
+        </ul>
+      </aside>
+
+    </div>
+  </article>
+
+</BaseLayout>

@@ -1,0 +1,259 @@
+---
+// resources.astro — Editorial hub for /resources
+// JSON-LD: THREE separate blocks — Blog (ItemList), BreadcrumbList (per SEO §3.6 / §15)
+// NO fabricated stats, no invented persons, no AggregateRating
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Blog / ItemList JSON-LD — hub over the three posts
+const blogSchema = {
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "AssessIQ Resources",
+  "description": "Evidence-based guides on technical hiring, assessment science, and proctoring integrity — written for HR teams, talent acquisition leaders, and assessment practitioners in India.",
+  "url": `${site}/resources`,
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "blogPost": [
+    {
+      "@type": "BlogPosting",
+      "headline": "How to Screen Developers in India: A Structured Hiring Guide (2026)",
+      "url": `${site}/resources/technical-hiring-india-guide`,
+      "datePublished": "2026-05-23",
+      "author": { "@type": "Organization", "name": "AssessIQ" }
+    },
+    {
+      "@type": "BlogPosting",
+      "headline": "Reducing Bias in Technical Hiring: Validity, Fairness & Adverse Impact",
+      "url": `${site}/resources/reducing-bias-technical-hiring`,
+      "datePublished": "2026-05-23",
+      "author": { "@type": "Organization", "name": "AssessIQ" }
+    },
+    {
+      "@type": "BlogPosting",
+      "headline": "Remote Proctoring Integrity: What Actually Works (and What Doesn't)",
+      "url": `${site}/resources/remote-proctoring-integrity`,
+      "datePublished": "2026-05-23",
+      "author": { "@type": "Organization", "name": "AssessIQ" }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Resources"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+const posts = [
+  {
+    slug: "technical-hiring-india-guide",
+    label: "Technical Hiring · India Guide",
+    heading: "How to Screen Developers in India: A Structured Hiring Guide (2026)",
+    intro: "Move beyond resume screening. This guide covers structured interviews, work-sample tests, scoring rubrics, and the India-specific context — campus vs. lateral, volume hiring, remote — that shapes developer assessment at scale.",
+    topics: ["Structured interviews", "Work-sample tests", "Bias & fairness", "Volume hiring"],
+  },
+  {
+    slug: "reducing-bias-technical-hiring",
+    label: "Assessment Science · Fairness",
+    heading: "Reducing Bias in Technical Hiring: Validity, Fairness & Adverse Impact",
+    intro: "Criterion validity, construct validity, and adverse impact are not abstract concepts — they determine whether your hiring process selects the right people and whether it can withstand legal or regulatory scrutiny.",
+    topics: ["Criterion validity", "Adverse impact", "EEOC guidelines", "Structured rubrics"],
+  },
+  {
+    slug: "remote-proctoring-integrity",
+    label: "Proctoring · Integrity",
+    heading: "Remote Proctoring Integrity: What Actually Works (and What Doesn't)",
+    intro: "Online proctoring has proliferated, but not all controls are equally effective. This guide separates evidence-backed deterrents from security theatre, and explains the tradeoffs for candidates, administrators, and legal risk.",
+    topics: ["Browser controls", "Webcam monitoring", "Identity verification", "Legal risk"],
+  }
+];
+---
+
+<BaseLayout
+  title="Resources — Assessment & Hiring Guides"
+  description="Evidence-based guides on technical hiring, assessment science, and remote proctoring integrity. Written for talent acquisition leaders, HR teams, and assessment practitioners in India."
+  canonicalPath="/resources"
+>
+  <!-- JSON-LD: Blog (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(blogSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Resources
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Resources &middot; Editorial
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Hiring and assessment, grounded in evidence.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-0 max-w-2xl">
+        The AssessIQ resource library covers technical hiring practice, assessment science, and proctoring integrity for HR teams and talent acquisition leaders in India. Guides are written to help you make defensible, fair hiring decisions — grounded in established research and professional standards, not vendor marketing.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── POST CARDS ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="posts-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Guides</p>
+      <h2 id="posts-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Start with the fundamentals.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {posts.map(post => (
+          <a
+            href={`/resources/${post.slug}`}
+            class="group bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150 flex flex-col no-underline"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {post.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0 leading-snug group-hover:text-aiq-accent transition-colors">
+              {post.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 flex-1">
+              {post.intro}
+            </p>
+            <ul class="list-none m-0 p-0 mt-aiq-lg flex flex-wrap gap-aiq-xs">
+              {post.topics.map(topic => (
+                <li class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase bg-aiq-bg-sunken px-aiq-sm py-aiq-2xs rounded-aiq-sm">
+                  {topic}
+                </li>
+              ))}
+            </ul>
+          </a>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── WHY THESE TOPICS ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="why-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Why we write about this</p>
+        <h2 id="why-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Assessment decisions affect careers. The bar for evidence is high.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Grounded in professional standards.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              These guides draw on the SIOP Principles, EEOC Uniform Guidelines, and the APA/AERA/NCME Standards for Educational and Psychological Testing — the bodies of work that define professional practice in employment assessment.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              No fabricated statistics.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              We do not invent percentages or cite studies we cannot verify. Where research supports a qualitative claim, we name the source. Where a number would require a specific study, we speak in terms of the established direction of evidence.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              India-specific context.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Much of the published research on hiring comes from US or European contexts. Where the Indian hiring market — campus drives, tier-2 and tier-3 college pipelines, lateral-hire volume, remote work norms — changes the picture, we say so.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Practical, not academic.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Each guide ends with concrete steps a talent team or HR manager can apply — not a literature review. The goal is a hiring process that is fairer, faster, and more defensible.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Ready to put structured assessment into practice?
+        </h2>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="https://assessiq.in/admin/login"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Try AssessIQ free
+          </a>
+          <a
+            href="/solutions/it-hiring"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            See IT Hiring solution
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

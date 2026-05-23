@@ -1,0 +1,475 @@
+---
+// methodology.astro — E-E-A-T "how assessments are designed and validated" page
+// JSON-LD: BreadcrumbList (Home › Methodology) per SEO §3.6 / §15 template
+//
+// HARD RULE (per spec + security.astro convention): AssessIQ does NOT hold
+// formal third-party validation certifications. This page describes PRINCIPLES
+// and PRACTICES only — never "validated by X" or "certified to Y standard."
+// Standards are cited BY NAME and accurately (SIOP, EEOC, APA/AERA/NCME).
+// Statistics are never invented. Update this notice if formal studies are run.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Methodology"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// How question packs are built — the authoring and review pipeline
+const authoringPractices = [
+  {
+    label: "Job-task analysis first",
+    heading: "Questions start from what the job actually requires.",
+    body: "Before a question pack is written, the relevant competency domain is defined: what does a candidate in this role need to know or be able to do? Questions are scoped to observable, job-relevant skills — not academic trivia or recall of syntax that any IDE would supply. This practice reflects the job-relatedness requirement at the centre of the EEOC Uniform Guidelines on Employee Selection Procedures (1978).",
+  },
+  {
+    label: "Item-writing principles",
+    heading: "Each question is written to a standard, not a feeling.",
+    body: "Items follow established item-writing guidelines: one defensible correct answer per MCQ; stems that are complete and unambiguous; distractors that are plausible but clearly distinguishable from the correct answer by someone with the target skill; and language that does not require specialised vocabulary unrelated to the competency being measured. Trick questions and double negatives are explicitly disallowed.",
+  },
+  {
+    label: "Internal review before deployment",
+    heading: "No question is deployed after a single author’s judgment.",
+    body: "Every question pack goes through a review pass before it is made available: the reviewer checks item quality, language neutrality, and whether the anchor descriptors (the rubric language) accurately describe what a response at each band would look like. This is a human-in-the-loop gate, not an automated approval. We do not claim this constitutes a formal psychometric validation study — it is a quality-control step.",
+  },
+  {
+    label: "Question-pack versioning",
+    heading: "Packs are versioned; scoring is tied to the version used.",
+    body: "When a question pack is updated, the prior version remains available for assessments already in progress. Every attempt record carries the pack version and question set used, so scoring and results are reproducible and auditable against the exact content the candidate saw.",
+  },
+];
+
+// The band-scoring model explained honestly
+const bandModel = [
+  {
+    band: "0",
+    label: "Not demonstrated",
+    description: "The response does not demonstrate the target competency. The answer is absent, fundamentally incorrect, or shows a misconception that would cause harm in a working context.",
+  },
+  {
+    band: "25",
+    label: "Partial / foundational",
+    description: "Some relevant knowledge or skill is visible, but with significant gaps. The candidate is aware of the concept but cannot apply it reliably or completely.",
+  },
+  {
+    band: "50",
+    label: "Functional",
+    description: "The target skill is demonstrated at a working level. The response is mostly correct with minor gaps or imprecision that would not block a reasonably supervised practitioner.",
+  },
+  {
+    band: "75",
+    label: "Proficient",
+    description: "The skill is demonstrated with confidence and accuracy. The response goes beyond the minimum — considering edge cases, trade-offs, or best practices — in ways that distinguish a proficient practitioner from a functional one.",
+  },
+  {
+    band: "100",
+    label: "Expert",
+    description: "The response reflects mastery: complete, precise, and showing the depth of understanding that would allow the candidate to teach or extend the concept, not merely apply it.",
+  },
+];
+
+// Reliability and validity — what we can and cannot claim
+const validityPoints = [
+  {
+    label: "Construct validity (design intent)",
+    body: "A test has construct validity when its scores actually reflect the underlying skill it claims to measure, not something else (test-taking ability, guessing, cultural familiarity with question style). AssessIQ aims for construct validity by grounding every question in observable job-task behaviours and by writing anchor rubrics that describe skill directly — not effort, confidence, or writing ability (except where those are the competency). We cannot claim formally established construct validity in the psychometric sense (which requires administration to a reference population and statistical analysis) — we can only claim that our design process is consistent with the construct-validity principle as described in the APA/AERA/NCME Standards for Educational and Psychological Testing.",
+  },
+  {
+    label: "Criterion-related validity (the honest limit)",
+    body: "Criterion-related validity — whether assessment scores predict actual job performance — requires longitudinal data: correlating scores with supervisor ratings or business outcomes after hire. AssessIQ does not have that data for your organisation. No pre-built assessment platform can provide criterion validity evidence for your specific role and context without running that study in your hiring pipeline. What we provide is a structured, consistent signal. Whether it predicts performance in your context is something you can test by tracking outcomes — and we encourage you to do so. See the /glossary/criterion-validity entry for more on what this means in practice.",
+  },
+  {
+    label: "Reliability (consistency)",
+    body: "A reliable assessment produces consistent results: a candidate who takes the same assessment on two occasions, or two candidates of identical ability, should score similarly. AssessIQ supports reliability through standardised question text, standardised rubrics with explicit band anchors, and time-limited conditions that are enforced server-side. The AI-assisted scoring layer is calibrated to the same rubric a human reviewer would apply. We do not publish an internal reliability coefficient for our question packs because we have not run the reference-population studies required to calculate one honestly. See /glossary/reliability-coefficient for what that calculation requires.",
+  },
+];
+
+// Fairness and adverse impact
+const fairnessPractices = [
+  {
+    label: "Language neutrality review",
+    body: "Question packs are reviewed for language that may disadvantage candidates based on regional dialect, cultural context, or educational background unrelated to the target skill. Items that test English fluency when the role does not require it, or that use idioms specific to one cultural context, are flagged and rewritten.",
+  },
+  {
+    label: "Job-relevance gate",
+    body: "The EEOC Uniform Guidelines on Employee Selection Procedures require that selection procedures be job-related. Every question in AssessIQ is scoped to a defined competency domain with an explicit job-relevance rationale. Questions that cannot be tied to a job task are excluded.",
+  },
+  {
+    label: "Band-score transparency",
+    body: "Every scored response carries a rationale: what the candidate demonstrated, and at which band. This makes the basis for a score inspectable — by administrators, by internal auditors, and if challenged, by the candidate. Opaque pass/fail scores with no explanation are a fairness and legal-exposure risk; AssessIQ is designed to avoid them.",
+  },
+  {
+    label: "Adverse-impact awareness",
+    body: "Adverse impact occurs when a selection procedure produces significantly different pass rates across demographic groups. AssessIQ does not collect candidate demographic data, so we cannot calculate adverse-impact ratios on your behalf. Organisations running large-volume hiring drives are encouraged to track pass rates by group independently and to review question content if group differences emerge. See /glossary/adverse-impact for the four-fifths rule and how to apply it.",
+  },
+];
+---
+
+<BaseLayout
+  title="Assessment Methodology — AssessIQ"
+  description="How AssessIQ assessment packs are designed, scored, and reviewed. Band scoring, validity and reliability principles, fairness practices, and proctoring integrity — honestly described."
+  canonicalPath="/methodology"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Methodology
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Assessment Methodology</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        How AssessIQ assessments are designed and scored.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        A hiring assessment is only useful if it measures what it claims to measure, consistently, and without
+        unfair disadvantage to any group of candidates. This page describes the principles and practices behind
+        AssessIQ question packs, the band-scoring model, and our approach to fairness and integrity.
+      </p>
+    </div>
+  </section>
+
+  <!-- Honest posture callout -->
+  <section class="bg-aiq-accent-soft border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-xl">
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 max-w-3xl">
+        <strong class="font-medium text-aiq-fg-primary">A note on formal validation:</strong> AssessIQ describes
+        design principles and internal quality-control practices — not the results of formal psychometric validation
+        studies. We do not hold I-O psychology certifications, nor have we published peer-reviewed validity or
+        reliability data for our question packs. We reference established standards (SIOP Principles, EEOC Uniform
+        Guidelines, APA/AERA/NCME Standards) to describe the principles our design process aims to follow, not to
+        claim compliance with those standards. Where we cannot honestly make a claim, we say so.
+      </p>
+    </div>
+  </section>
+
+  <!-- How question packs are built -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="authoring-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Question design</p>
+      <h2 id="authoring-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        How question packs are built.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+        {authoringPractices.map(p => (
+          <div>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {p.label}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug">
+              {p.heading}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {p.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Band scoring model -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="band-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Scoring model</p>
+      <h2 id="band-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+        The five-band scoring scale.
+      </h2>
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-3xl max-w-2xl">
+        AssessIQ scores every response on a five-point ordinal band: 0, 25, 50, 75, 100. These are not percentages
+        — they are discrete levels of demonstrated competence, each anchored to a description of what a response
+        at that level looks like. A score of 50 means &ldquo;functional, working-level skill demonstrated,&rdquo;
+        not &ldquo;half-correct.&rdquo; See <a href="/glossary/cut-score" class="text-aiq-accent hover:underline">cut-score</a> for
+        how organisations translate band scores into pass/fail thresholds.
+      </p>
+
+      <div class="flex flex-col gap-aiq-lg max-w-3xl">
+        {bandModel.map(b => (
+          <div class="flex gap-aiq-xl bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <div class="flex-shrink-0 w-12 text-center">
+              <span class="font-mono text-[28px] font-medium text-aiq-accent leading-none">{b.band}</span>
+            </div>
+            <div>
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0 font-medium">
+                {b.label}
+              </p>
+              <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+                {b.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Validity and reliability -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="validity-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Reliability &amp; validity</p>
+      <h2 id="validity-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+        What we can and cannot claim.
+      </h2>
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-3xl max-w-2xl">
+        The psychometric standards most relevant to employment assessment are the
+        <strong class="font-medium text-aiq-fg-primary">SIOP Principles for the Validation and Use of Personnel Selection Procedures</strong>,
+        the <strong class="font-medium text-aiq-fg-primary">EEOC Uniform Guidelines on Employee Selection Procedures</strong>,
+        and the <strong class="font-medium text-aiq-fg-primary">APA/AERA/NCME Standards for Educational and Psychological Testing</strong>.
+        We reference these to name the concepts our design aims to honour — not to assert formal compliance.
+      </p>
+
+      <div class="flex flex-col gap-aiq-2xl max-w-3xl">
+        {validityPoints.map(v => (
+          <div>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {v.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 whitespace-pre-line">
+              {v.body}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <!-- Glossary cross-links -->
+      <div class="mt-aiq-3xl pt-aiq-xl border-t border-aiq-border">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related glossary terms</p>
+        <div class="flex flex-wrap gap-aiq-sm">
+          {[
+            { href: '/glossary/criterion-validity',      label: 'Criterion validity' },
+            { href: '/glossary/construct-validity',      label: 'Construct validity' },
+            { href: '/glossary/reliability-coefficient', label: 'Reliability coefficient' },
+            { href: '/glossary/adverse-impact',          label: 'Adverse impact' },
+            { href: '/glossary/cut-score',               label: 'Cut score' },
+          ].map(link => (
+            <a
+              href={link.href}
+              class="font-sans text-aiq-sm font-medium px-4 py-2 rounded-aiq-pill border border-aiq-border
+                     text-aiq-fg-muted hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fairness and adverse impact -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="fairness-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Fairness</p>
+      <h2 id="fairness-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Reducing unfair disadvantage.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-aiq-lg">
+        {fairnessPractices.map(p => (
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {p.label}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {p.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Proctoring integrity -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="proctoring-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Proctoring integrity</p>
+        <h2 id="proctoring-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Conditions that make scores meaningful.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          A valid score requires a controlled test environment. AssessIQ&rsquo;s proctoring layer — available on
+          Growth and Enterprise tiers — combines browser lockdown (candidates cannot switch tabs or open other
+          applications) with webcam monitoring and server-side time enforcement. See
+          <a href="/glossary/proctoring" class="text-aiq-accent hover:underline">our proctoring glossary entry</a> and
+          the <a href="/security" class="text-aiq-accent hover:underline">security page</a> for how proctoring data is stored and protected.
+        </p>
+        <div class="flex flex-col gap-aiq-xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Human review of flagged attempts.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Proctoring flags — tab switches, webcam anomalies, activity breaks — are surfaced to administrators
+              for human review, not automatically invalidated. An automated system cannot distinguish a candidate
+              looking away from the screen from one consulting external material. The decision to invalidate an
+              attempt is a human judgment call, made by a person with the context to assess it.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Anti-cheat design in question packs.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Question packs support randomisation of question order and, for MCQ, answer option order. Time limits
+              are enforced server-side. Copy-paste is restricted in the coding environment. These measures reduce
+              the value of answer-sharing between candidates sitting the same assessment drive.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Answer-key protection.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Correct answers and scoring rationale are never exposed to candidates — not in the assessment UI,
+              not in share links, and not in any API response reachable by a candidate session. Access to answer
+              keys is gated to administrator and reviewer roles only. This is enforced at the server layer, not
+              by UI-level hiding.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Human-in-the-loop AI scoring -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="ai-scoring-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">AI-assisted scoring</p>
+        <h2 id="ai-scoring-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          How AI scoring works — and what it does not do.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          For open-response and coding questions, AssessIQ uses AI-assisted scoring calibrated to the same
+          rubric a human reviewer would apply. The scoring model is given the question, the rubric anchors for
+          each band, and the candidate response — and returns a band score plus a rationale explaining which
+          anchor the response matches and why.
+        </p>
+        <div class="flex flex-col gap-aiq-xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Scoring is triggered by an administrator, not automatically.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              AI scoring runs on administrator action — it does not fire automatically when a candidate submits.
+              This is a deliberate design constraint: the administrator decides when results are ready to review,
+              not an automated pipeline.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Every score carries a rationale.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The band score alone is not the deliverable. Every AI-scored response includes a rationale: what
+              the candidate demonstrated, which anchor it matched, and why the score is not higher or lower.
+              This makes the score reviewable by a human administrator and challengeable if a candidate disputes it.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Reviewers can override.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Administrators and assigned reviewers can inspect the AI-assigned score and rationale and override
+              it. The final score on a candidate record reflects human judgment if a reviewer has intervened.
+              AI scoring is an efficiency tool, not a black-box decision system.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA row -->
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+          Questions about assessment design?
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          If you have specific requirements — custom rubric design, fairness review of an existing pack,
+          or questions about how scoring works for your use case — reach out. We will give you a straight
+          answer about what AssessIQ can and cannot do for your context.
+        </p>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Contact us
+          </a>
+          <a
+            href="/security"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Security &amp; data protection
+          </a>
+        </div>
+
+        <!-- Solution cross-links -->
+        <div class="mt-aiq-2xl pt-aiq-2xl border-t border-aiq-border">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">See how it applies to your context</p>
+          <div class="flex flex-wrap gap-aiq-sm">
+            {[
+              { href: '/solutions/it-hiring',                label: 'IT & Tech Hiring' },
+              { href: '/solutions/campus-recruitment',       label: 'Campus Recruitment' },
+              { href: '/solutions/educational-institutions', label: 'Educational Institutions' },
+              { href: '/solutions/team-skill-gap',           label: 'Team Skill-Gap' },
+            ].map(link => (
+              <a
+                href={link.href}
+                class="font-sans text-aiq-sm font-medium px-4 py-2 rounded-aiq-pill border border-aiq-border
+                       text-aiq-fg-muted hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

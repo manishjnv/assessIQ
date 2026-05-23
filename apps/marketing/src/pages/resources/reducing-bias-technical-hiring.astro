@@ -1,0 +1,595 @@
+---
+// resources/reducing-bias-technical-hiring.astro
+// JSON-LD: THREE separate blocks — BlogPosting, FAQPage, BreadcrumbList (per SEO §3.6 / §15)
+// Author = Organization (no fabricated person/credentials per hard rule)
+// No fabricated statistics or invented study results
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const slug = 'reducing-bias-technical-hiring';
+const canonicalPath = `/resources/${slug}`;
+
+// BlogPosting JSON-LD
+const blogPostingSchema = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Reducing Bias in Technical Hiring: Validity, Fairness & Adverse Impact",
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "image": `${site}/og-default.png`,
+  "mainEntityOfPage": `${site}${canonicalPath}`,
+  "description": "How to audit technical hiring for criterion validity, fairness, and adverse impact — covering the SIOP Principles, EEOC Uniform Guidelines, and practical steps for HR teams and talent acquisition leaders."
+};
+
+// FAQPage JSON-LD
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is adverse impact in hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Adverse impact occurs when a selection procedure results in a substantially different selection rate for members of a protected group compared to the group with the highest selection rate. The EEOC Uniform Guidelines on Employee Selection Procedures define this as a selection rate for any group that is less than four-fifths (80%) of the rate for the group with the highest rate. This is a legal threshold in the US, and a reference standard for fair practice globally."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is criterion validity and why does it matter in hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Criterion validity is the degree to which scores on a selection procedure predict a relevant outcome — typically job performance, training success, or retention. A selection method with low criterion validity is poor at distinguishing candidates who will perform well from those who won't. It wastes everyone's time and is often unfair, because it filters on something other than job-relevant competence."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What professional standards govern employment assessment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The primary professional standards are: the SIOP Principles for the Validation and Use of Personnel Selection Procedures (Society for Industrial-Organizational Psychology), the EEOC Uniform Guidelines on Employee Selection Procedures, and the APA/AERA/NCME Standards for Educational and Psychological Testing. These documents define what constitutes a technically sound, legally defensible assessment practice."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does structured assessment reduce bias compared to unstructured interviews?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Structured interviews — consistent questions, anchored scoring criteria, documented rationale — reduce the role of interviewer subjectivity in the evaluation. This reduces susceptibility to affinity bias (favouring candidates who resemble the interviewer) and halo effects (generalising from one positive trait to overall strong performance). The research base on structured vs. unstructured interview validity is well-established in the industrial-organisational psychology literature."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do we check whether our hiring process has adverse impact?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The basic check is the four-fifths rule: compute the selection rate for each group at each stage of the process, and flag any stage where a group's rate falls below 80% of the highest group's rate. This requires collecting demographic data at each stage, which has its own legal and practical considerations. Where adverse impact is found, the next step is determining whether the procedure has demonstrated validity sufficient to justify its use, and whether there are alternative procedures with less impact."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is construct validity in the context of hiring assessments?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Construct validity is the degree to which an assessment actually measures the competency it claims to measure. A coding test that claims to measure 'Python proficiency' but primarily rewards familiarity with a specific library or framework may not be measuring general Python competency. Construct validity is established through careful test design, expert review, and ongoing analysis of how scores relate to other measures of the same construct."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Resources",
+      "item": `${site}/resources`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Reducing Bias in Technical Hiring"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="Reducing Bias in Technical Hiring: Validity & Fairness"
+  description="How to audit technical hiring for criterion validity, fairness, and adverse impact — covering the SIOP Principles, EEOC Uniform Guidelines, and practical steps HR teams can take to reduce bias and improve defensibility."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <!-- JSON-LD: BlogPosting (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(blogPostingSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Bias &amp; Fairness Guide
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── ARTICLE HEADER ── -->
+  <header class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Assessment Science &middot; Fairness &middot; Validity
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Reducing Bias in Technical Hiring: Validity, Fairness &amp; Adverse Impact
+      </h1>
+
+      <!-- 40–60 word snippet-target intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        Criterion validity, construct validity, and adverse impact determine whether your hiring process selects the right people and whether it can withstand legal or regulatory scrutiny. This guide explains the professional standards that govern fair employment assessment, and the practical steps technical hiring teams can take to build a defensible, less biased process.
+      </p>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+        Published 23 May 2026 &middot; AssessIQ Editorial
+      </p>
+    </div>
+  </header>
+
+  <!-- ── ARTICLE BODY ── -->
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <!-- Table of Contents -->
+      <nav aria-label="Table of contents" class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-4xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Contents</p>
+        <ol class="list-none m-0 p-0 flex flex-col gap-aiq-sm">
+          <li><a href="#why-bias-matters" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">1. Why Bias in Technical Hiring Matters</a></li>
+          <li><a href="#criterion-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">2. Criterion Validity: Does Your Assessment Predict Performance?</a></li>
+          <li><a href="#construct-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">3. Construct Validity: Are You Measuring What You Think?</a></li>
+          <li><a href="#adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">4. Adverse Impact: Definition, the Four-Fifths Rule, and What to Do</a></li>
+          <li><a href="#professional-standards" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">5. Professional Standards: SIOP, EEOC, APA/AERA/NCME</a></li>
+          <li><a href="#sources-of-bias" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">6. Common Sources of Bias in Technical Hiring</a></li>
+          <li><a href="#structured-assessment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">7. How Structured Assessment Reduces Bias</a></li>
+          <li><a href="#india-context" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">8. India-Specific Context: Protected Characteristics and Fair Practice</a></li>
+          <li><a href="#audit-checklist" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">9. A Practical Audit Checklist</a></li>
+          <li><a href="#faq" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">10. FAQ</a></li>
+        </ol>
+      </nav>
+
+      <!-- ── SECTION 1 ── -->
+      <section aria-labelledby="why-bias-matters" class="mb-aiq-4xl">
+        <h2 id="why-bias-matters" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          1. Why Bias in Technical Hiring Matters
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Bias in a hiring process is not primarily a moral concept — though there are real ethical stakes. It is a technical problem: a biased assessment is one that systematically over-selects or under-selects based on characteristics that are not relevant to job performance. This produces a workforce that is less competent than it should be (because the selection process rewarded proxies rather than ability) and creates legal and reputational risk (because systematic discrimination can be demonstrated and challenged).
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For technical hiring — specifically developer screening — the stakes are high. Engineering is already a field with significant demographic skews along gender and socioeconomic lines. A screening process that reinforces those skews without any validity justification is both wasteful and indefensible.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The assessment science framework provides the vocabulary for diagnosing and fixing these problems: criterion validity, construct validity, content validity, and adverse impact analysis. These concepts are not academic abstractions — they are the practical tools for building a hiring process that works.
+        </p>
+      </section>
+
+      <!-- ── SECTION 2 ── -->
+      <section aria-labelledby="criterion-validity" class="mb-aiq-4xl">
+        <h2 id="criterion-validity" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          2. Criterion Validity: Does Your Assessment Predict Performance?
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Criterion validity</a> is the fundamental validity question for any selection procedure: do scores on this assessment predict a relevant outcome? The criterion is typically job performance, training success, or supervisor ratings at some point after hire.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Predictive validity is the gold standard: you administer the assessment, hire a cohort, measure their performance after some period, and correlate assessment scores with performance outcomes. This requires a sufficiently large sample and a meaningful performance criterion — both of which most organisations lack, particularly for less-common roles. Concurrent validity (correlating assessment scores with performance of current employees who take the same assessment) is an alternative, though it has methodological limitations.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In practice, most technical hiring teams rely on content validity (the assessment covers content that is clearly relevant to the job) and construct validity, supplemented by the published validity literature on assessment methods generally. This is the approach the SIOP Principles explicitly address for organisations that cannot conduct their own validation studies.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The practical implication: if you cannot articulate why each element of your assessment is likely to predict job performance, it probably should not be in the assessment. A brain-teaser interview question with no job relevance has no criterion validity defence and creates <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">adverse impact</a> risk with no compensating benefit.
+        </p>
+      </section>
+
+      <!-- ── SECTION 3 ── -->
+      <section aria-labelledby="construct-validity" class="mb-aiq-4xl">
+        <h2 id="construct-validity" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          3. Construct Validity: Are You Measuring What You Think?
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Construct validity asks whether your assessment actually measures the competency it claims to measure. This is distinct from criterion validity — a test can correlate with job performance for reasons that have nothing to do with the competency it ostensibly targets.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For technical hiring, common construct validity failures include:
+        </p>
+
+        <ul class="list-none m-0 p-0 mb-aiq-lg flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Measuring familiarity, not skill.</strong> A question about a specific API or library tests whether the candidate has used that particular tool — not whether they can program. A candidate who has used a different, equally capable library will score lower despite being equally competent.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Measuring coaching, not ability.</strong> Questions that appear in widely-distributed interview preparation materials test whether the candidate has prepared for that specific question, not whether they can solve novel problems of that type.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Measuring anxiety, not competence.</strong> Highly time-pressured assessments under surveillance conditions measure how a candidate performs under those specific conditions. For most engineering roles, that is not the primary work environment.</p>
+          </li>
+        </ul>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The APA/AERA/NCME Standards for Educational and Psychological Testing address construct validity extensively. For practitioners without access to full validity studies, the practical check is: if a candidate scored high on this assessment, what exactly are they demonstrating? If the answer is not clearly job-relevant, the assessment has a construct validity problem.
+        </p>
+      </section>
+
+      <!-- ── SECTION 4 ── -->
+      <section aria-labelledby="adverse-impact" class="mb-aiq-4xl">
+        <h2 id="adverse-impact" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          4. Adverse Impact: Definition, the Four-Fifths Rule, and What to Do
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Adverse impact</a> occurs when a selection procedure produces a substantially different selection rate for a protected group relative to the most-favoured group. The EEOC Uniform Guidelines on Employee Selection Procedures define the threshold as the "four-fifths rule": if a group's selection rate is less than four-fifths (80%) of the highest group's rate, adverse impact is indicated.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The four-fifths rule is a practical trigger for investigation, not a legal bright line. Finding adverse impact at a particular stage does not automatically mean the selection procedure is illegal or must be abandoned — it means the organisation needs to either demonstrate validity sufficient to justify the procedure, or modify the procedure to reduce impact while maintaining validity.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          How to check for adverse impact in practice
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Checking requires demographic data at each stage of the selection process. For many organisations, this means adding voluntary demographic disclosure to candidate applications, then tracking selection rates at each filter (application to assessment, assessment to interview, interview to offer). The analysis is straightforward once the data is collected — the challenge is collection and legal compliance.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          Where adverse impact is found, the corrective path depends on whether the procedure has validity evidence. A procedure with strong criterion validity and unavoidable adverse impact may be legally defensible. A procedure with weak validity and adverse impact has neither a legal nor a practical defence. Reduce or eliminate it.
+        </p>
+      </section>
+
+      <!-- ── SECTION 5 ── -->
+      <section aria-labelledby="professional-standards" class="mb-aiq-4xl">
+        <h2 id="professional-standards" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          5. Professional Standards: SIOP, EEOC, APA/AERA/NCME
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Three bodies of work define the professional standard for employment assessment:
+        </p>
+
+        <div class="flex flex-col gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">SIOP Principles</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The Society for Industrial-Organizational Psychology's <em>Principles for the Validation and Use of Personnel Selection Procedures</em> is the primary professional reference for employment assessment practice. It covers validation frameworks, fairness, and the obligations of test users and developers. It is widely used as a reference in employment discrimination litigation and regulatory guidance.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">EEOC Uniform Guidelines</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The <em>Uniform Guidelines on Employee Selection Procedures</em>, issued by the US Equal Employment Opportunity Commission, define the regulatory framework for adverse impact and validity in employment selection. Although a US regulatory document, it is widely referenced internationally as a practical standard for fair assessment. It defines the four-fifths rule and the validity documentation requirements employers must meet if their procedures produce adverse impact.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">APA/AERA/NCME Standards</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The <em>Standards for Educational and Psychological Testing</em>, jointly published by the American Psychological Association, the American Educational Research Association, and the National Council on Measurement in Education, is the technical reference for test design, validation, scoring, and fairness. It applies to both educational and employment assessment. Chapters on fairness, validity, and reliability are directly relevant to technical hiring assessment design.
+            </p>
+          </div>
+        </div>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          These three documents are referenced in the <a href="/resources/technical-hiring-india-guide" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">structured developer screening guide</a> and form the foundation of how AssessIQ approaches assessment design. No claim in these guides is attributed to these documents beyond what they actually address — specific study results are not cited where we cannot verify them.
+        </p>
+      </section>
+
+      <!-- ── SECTION 6 ── -->
+      <section aria-labelledby="sources-of-bias" class="mb-aiq-4xl">
+        <h2 id="sources-of-bias" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          6. Common Sources of Bias in Technical Hiring
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Bias enters technical hiring processes at multiple points. The most common:
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              College prestige as proxy
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Filtering candidates by college rank is a proxy for ability, not a measure of it. It correlates with socioeconomic background and with historical access to coaching — both of which are not job-relevant. It produces adverse impact along class and regional lines.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Affinity bias in interviews
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Interviewers tend to rate candidates more positively when they share background, communication style, or cultural reference points. Unstructured interviews are particularly susceptible. Structured interviews with anchored criteria reduce (though do not eliminate) this effect.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              English language as filter
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              For many technical roles, English communication is a genuine requirement. For others, it is not — or it is required at a lower level than the assessment implies. Using English verbal assessments calibrated for native speakers to screen candidates for technical roles that require basic written English is a construct validity failure with adverse impact.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Halo and horn effects
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A strong first impression (halo) or a single negative signal (horn) can dominate an interviewer's overall rating, even when the candidate's performance across different competency areas is mixed. Anchored, dimension-by-dimension scoring counters this by requiring the interviewer to evaluate each competency independently.
+            </p>
+          </div>
+        </div>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          See <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">adverse impact</a> and <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">criterion validity</a> in our glossary for definitions of the underlying concepts. The <a href="/resources/technical-hiring-india-guide" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">developer screening guide</a> covers structured interview design and anchored scoring in practical detail.
+        </p>
+      </section>
+
+      <!-- ── SECTION 7 ── -->
+      <section aria-labelledby="structured-assessment" class="mb-aiq-4xl">
+        <h2 id="structured-assessment" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          7. How Structured Assessment Reduces Bias
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Structured assessment does not eliminate bias — no process does — but it significantly constrains where bias can enter the process and makes it easier to detect and correct.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The key mechanisms:
+        </p>
+
+        <ul class="list-none m-0 p-0 mb-aiq-lg flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Consistent stimulus.</strong> Every candidate answers the same questions and sees the same coding problems. This removes the variance introduced by different interviewers asking different questions of different candidates.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Anchored scoring criteria.</strong> Behavioural anchors specify what each score level looks like, reducing the latitude for subjective judgment and making scores more comparable across evaluators.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Documented rationale.</strong> Requiring evaluators to document their reasoning at each decision point creates an audit trail. Patterns in the documentation — consistently lower ratings for a particular group without corresponding performance differences — are detectable.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Objective scoring where possible.</strong> Test-case evaluation for coding problems, where the code either passes or fails a defined criterion, removes evaluator judgment from the scoring of code correctness. Rubrics handle the remaining dimensions.</p>
+          </li>
+        </ul>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          AssessIQ's <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">technical hiring platform</a> implements anchored rubrics, consistent question delivery, and documented scoring. The admin dashboard surfaces per-candidate and cohort-level evidence, making it possible to identify patterns across the hiring cycle. See also the <a href="/tests/python" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Python test</a> and <a href="/tests/sql" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">SQL test</a> pages for how question design is approached.
+        </p>
+      </section>
+
+      <!-- ── SECTION 8 ── -->
+      <section aria-labelledby="india-context" class="mb-aiq-4xl">
+        <h2 id="india-context" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          8. India-Specific Context: Protected Characteristics and Fair Practice
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          India's constitutional framework and employment law prohibit discrimination on grounds including religion, race, caste, sex, and place of birth. In hiring practice, these protections are less systematically enforced than in some other jurisdictions — but the ethical obligation and reputational risk are real, and the legal landscape is evolving.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In the Indian IT hiring context, the most practically significant bias vectors are:
+        </p>
+
+        <ul class="list-none m-0 p-0 mb-aiq-lg flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Caste-correlated educational access.</strong> Historical differences in access to quality engineering education mean that college-tier screening can act as a proxy for caste in ways that are difficult to disentangle. Assessment-based selection that is decoupled from educational pedigree reduces this correlation.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Gender and assessment context.</strong> Female candidates may face stereotype threat in assessment contexts — particularly in fields and organisations where they are underrepresented. Assessment design that minimises unnecessary performance pressure (appropriate time limits, neutral question framing) reduces this effect, though it cannot eliminate it.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Regional and linguistic diversity.</strong> India's linguistic diversity means that candidates from non-Hindi-belt states, or whose primary language is not English, may be disadvantaged by assessment elements that reward fluency in those languages beyond what the role requires.</p>
+          </li>
+        </ul>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The EEOC Uniform Guidelines, though a US document, provide a practical methodology for adverse impact analysis that can be adapted to any jurisdiction. The principle — check selection rates by group, require validity evidence for procedures that produce differential impact — translates directly. See <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">adverse impact</a> for the formal definition and <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">criterion validity</a> for the validity defence framework.
+        </p>
+      </section>
+
+      <!-- ── SECTION 9 ── -->
+      <section aria-labelledby="audit-checklist" class="mb-aiq-4xl">
+        <h2 id="audit-checklist" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          9. A Practical Audit Checklist
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Use this checklist to audit each stage of your current technical hiring process:
+        </p>
+
+        <div class="flex flex-col gap-aiq-md mb-aiq-xl">
+          {[
+            { label: "Job relevance", question: "Is every element of this stage clearly relevant to competencies required by the target role?" },
+            { label: "Consistency", question: "Does every candidate in the same role receive the same assessment stimulus, under the same conditions?" },
+            { label: "Scoring criteria", question: "Are scoring criteria defined in advance, in observable behavioural terms? Is there an anchor for each score level?" },
+            { label: "Construct coverage", question: "Do scores on this assessment reflect the competency it targets, or could they reflect other factors (coaching, language fluency, exam familiarity)?" },
+            { label: "Adverse impact monitoring", question: "Do we collect the data to check selection rates by demographic group at this stage? If yes, have we checked recently?" },
+            { label: "Validity evidence", question: "What is our validity basis for this assessment element? Content validity? Published research? Our own validation study?" },
+            { label: "Documentation", question: "Do evaluators document their reasoning? Is the documentation sufficient to explain the decision to a third party?" },
+          ].map((item) => (
+            <div class="flex gap-aiq-lg bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-lg">
+              <span class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mt-1 shrink-0 w-32">{item.label}</span>
+              <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{item.question}</p>
+            </div>
+          ))}
+        </div>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          If any stage fails more than two of these checks, it is a candidate for redesign or elimination. The goal is not a longer or more complex process — it is a process where every element earns its place. See <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's IT hiring solution</a> and <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">our security and compliance page</a> for how we approach assessment design and data governance.
+        </p>
+      </section>
+
+      <!-- ── FAQ ── -->
+      <section aria-labelledby="faq" class="mb-aiq-4xl">
+        <h2 id="faq" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+          10. FAQ
+        </h2>
+
+        <div class="flex flex-col gap-aiq-xl">
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What is adverse impact in hiring?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Adverse impact</a> occurs when a selection procedure results in a substantially different selection rate for members of a protected group compared to the group with the highest selection rate. The EEOC Uniform Guidelines define this as a selection rate less than four-fifths (80%) of the highest group's rate. This is a legal threshold in the US and a widely-used reference standard globally.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What is criterion validity and why does it matter in hiring?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Criterion validity</a> is the degree to which scores on a selection procedure predict a relevant outcome — typically job performance. A selection method with low criterion validity is poor at distinguishing candidates who will perform well from those who will not. It wastes time and is often unfair, because it filters on something other than job-relevant competence.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What professional standards govern employment assessment?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The primary professional standards are: the SIOP Principles for the Validation and Use of Personnel Selection Procedures, the EEOC Uniform Guidelines on Employee Selection Procedures, and the APA/AERA/NCME Standards for Educational and Psychological Testing. These documents define what constitutes a technically sound, legally defensible assessment practice.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Does structured assessment reduce bias compared to unstructured interviews?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Structured interviews reduce the role of interviewer subjectivity — reducing susceptibility to affinity bias and halo effects. The research base on structured vs. unstructured interview validity is well-established in the industrial-organisational psychology literature. Structured assessment does not eliminate bias, but it constrains where it can enter and makes it easier to detect.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              How do we check whether our hiring process has adverse impact?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Compute the selection rate for each demographic group at each stage, and flag any stage where a group's rate falls below 80% of the highest group's rate. This requires demographic data collection at each stage, which has its own legal and practical considerations. Where adverse impact is found, the next step is determining whether the procedure has sufficient validity to justify its use.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What is construct validity in the context of hiring assessments?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Construct validity is the degree to which an assessment actually measures the competency it claims to measure. A coding test that primarily rewards familiarity with a specific library rather than general programming ability has a construct validity problem. It is established through careful test design, expert review, and analysis of how scores relate to other measures of the same construct.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── RELATED ── -->
+      <aside class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Related reading</p>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/resources/technical-hiring-india-guide" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              How to Screen Developers in India: A Structured Hiring Guide (2026)
+            </a>
+          </li>
+          <li>
+            <a href="/resources/remote-proctoring-integrity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Remote Proctoring Integrity: What Actually Works (and What Doesn&#39;t)
+            </a>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Glossary: Adverse Impact
+            </a>
+          </li>
+          <li>
+            <a href="/glossary/criterion-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Glossary: Criterion Validity
+            </a>
+          </li>
+          <li>
+            <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              IT &amp; Technical Hiring Solution
+            </a>
+          </li>
+          <li>
+            <a href="/security" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Security &amp; Compliance
+            </a>
+          </li>
+        </ul>
+      </aside>
+
+    </div>
+  </article>
+
+</BaseLayout>
