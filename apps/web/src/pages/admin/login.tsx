@@ -118,7 +118,7 @@ export function AdminLogin(): JSX.Element {
         </span>
 
         <h1 className="aiq-serif" style={SERIF_H1}>
-          Sign in to continue.
+          Sign in to AssessIQ.
         </h1>
 
         <p
@@ -154,6 +154,31 @@ export function AdminLogin(): JSX.Element {
         >
           Email me a sign-in code
         </Button>
+
+        {/* Legal links — also a trust signal: a self-identified login page that
+            links its own Terms/Privacy is far less likely to be misclassified
+            as a deceptive / credential-phishing page by Safe Browsing.
+            Plain <a> (not <Link>) so it leaves the SPA and loads the marketing
+            pages served at the site root. */}
+        <p
+          style={{
+            marginTop: 24,
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: 'var(--aiq-color-fg-secondary)',
+            fontFamily: 'var(--aiq-font-sans)',
+          }}
+        >
+          By continuing you agree to AssessIQ's{' '}
+          <a href="/terms" style={{ color: 'var(--aiq-color-accent)', textDecoration: 'underline' }}>
+            Terms
+          </a>{' '}
+          and{' '}
+          <a href="/privacy" style={{ color: 'var(--aiq-color-accent)', textDecoration: 'underline' }}>
+            Privacy Policy
+          </a>
+          .
+        </p>
       </main>
     </div>
   );
