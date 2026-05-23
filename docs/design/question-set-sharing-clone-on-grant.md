@@ -1,8 +1,44 @@
 # Design / Plan — Question-set sharing via clone-on-grant (Step 2)
 
-> **Status:** PLAN (not yet implemented). Authored 2026-05-22.
+> **Status:** BACKEND LIVE (2026-05-23). Phases 1–4 + same-PR docs + frontend API wiring shipped & deployed. **Only Phase 5 UI rendering remains.**
 > **Predecessor:** Step 1 (platform-tenant master-library seed) shipped — migration `0083`, commit `b9d3c57`.
-> **Routing:** load-bearing **and** security-adjacent (tenancy + entitlements + question-bank). Every code phase needs Opus Phase-3 diff review; the grant/clone transaction needs a **`codex:rescue` adversarial sign-off before push**.
+> **Routing:** load-bearing **and** security-adjacent (tenancy + entitlements + question-bank). UI work MUST read `docs/10-branding-guideline.md` first; consult the kit (`modules/17-ui-system/AssessIQ_UI_Template/`) — but the admin dashboard has its OWN established pattern (AdminShell + CSS vars + Card/Chip/Icon), so reuse existing admin pages (`platform.tsx`, `pack-detail.tsx`, `assessments.tsx`), don't lift from the candidate kit.
+
+---
+
+## ⏩ CONTINUATION (2026-05-23) — read this first
+
+**Done & LIVE on `main` + production VPS (commits, in order):**
+`c303fa0` Phase 1 schema (`0084` provenance cols + `tenant.pack_cloned` audit) · `79b1d6c` model-pivot doc · `13ba2f7` Phase 2 clone engine · `d7c3b95` Phase 3 lineage + catalog · `26583c7` Phase 4 clone-on-use · `6a9b2a6` review fixes (`0085` unique index + advisory lock) · `b5e5fb2` docs 02/03 · `e68f78e` frontend API wiring.
+
+**Migrations applied to prod:** `0083`, `0084`, `0085` (recorded in `schema_migrations`). NOTE: prod has a long-standing `schema_migrations` *tracking gap* (most old migrations aren't recorded though their tables exist) — do NOT run the full `tools/migrate.ts` runner; apply any NEW migration manually via `psql` + record it (deploy doc § "Deploy procedure" step 2b). `assessiq-api`/`worker` already rebuilt with the backend.
+
+**Live, working backend (all wired, verified 401-unauth):**
+- `clonePackToTenant` / `materializeSetForTenant` — `modules/04-question-bank/src/clone.ts` (system-role clone; remap taxonomy by slug; idempotent via `source_pack_id`; advisory-lock serialized).
+- `assertLicensedForSourcePack`, `listAvailableSetsForTenant`, `assertPublishEntitled` (clone-lineage aware) — `modules/19-billing/src/service.ts`.
+- `createAssessmentFromSet` + `POST /api/admin/assessments/from-set` — `modules/05-assessment-lifecycle/src/{service,routes}.ts`.
+- `GET /api/billing/available-sets` — `modules/19-billing/src/routes.ts`.
+- **Frontend API helpers READY (not yet called by any UI):** `getAvailableSets()` and `createAssessmentFromSet(body)` + types `AvailableSet` / `CreateAssessmentFromSetRequest` — `modules/10-admin-dashboard/src/api.ts` (right after `getCompanyEntitlements`).
+
+**Key model facts (so you don't re-derive):**
+- A **domain license** (`scope_type='domain'`, `scope_id=<domain slug>`) covers ALL current + future platform sets in that domain. A **pack license** = one set (`scope_id=<platform pack id>`).
+- The SA domain-grant UI **already exists** — `platform.tsx` billing drawer, `handleGrantEntitlement` (`~:813`), but `grantScopeType` is **hardcoded `'domain'`** (`:740`). So domain-licensing a company works TODAY end-to-end except the company has no picker to USE the set (that's 5b).
+- Company assessments are **pack-based** here: the pool query filters by `pack_id` (`modules/05-assessment-lifecycle/src/service.ts:~184`); the blueprint path draws from a per-domain auto-pack, NOT arbitrary sets. So a granted set is consumed via the **from-set** path (clone → assessment from the clone), not the blueprint builder.
+
+**Phase 5 — UI rendering (all that's left), in priority order:**
+1. **5b (ESSENTIAL — unlocks the whole feature): company "Available sets" picker.** In `modules/10-admin-dashboard/src/pages/assessments.tsx` (large file; has a `BlueprintBuilder` ~`:194`+ and a create flow; it already calls `getCompanyEntitlements()` ~`:706` to filter domains). Add an "Assess from a set" mode: call `getAvailableSets()` → list licensed platform sets (name, domain, level_count, question_count, `update_available`) → user picks a set + a level (1-based `level_position`; the set has `level_count` levels) + name + opens_at (+ optional closes_at/question_count) → call `createAssessmentFromSet({source_pack_id, level_position, name, question_count, opens_at, ...})` → navigate to the created assessment. Handle `403 NOT_LICENSED`. This is company-admin facing.
+2. **5a (refinement): pack-scope grants in the SA UI.** `platform.tsx` — add a scope-type toggle (domain | pack) to the grant form (`grantScopeType` is hardcoded at `:740`). For pack scope the `scope_id` is a PLATFORM published-pack id — you'll need a "list platform published packs" source for the dropdown (the existing `getTenantContentScopes` returns the *tenant's own* packs, not the platform's, so add a small SA endpoint or reuse the catalog). Domain grants already work, so this is optional polish.
+3. **5c (cleanup): create-vs-catalog separation.** Move `✦ Generate` / `+ Add level` / `+ Add question` OFF `pack-detail.tsx` (header action bar `~:754-784`, plus the level/question section buttons) onto the Generate page (`modules/10-admin-dashboard/src/pages/generate-wizard.tsx`). The Question Bank should be view + status + (later) grant only.
+
+**Verification owed (Phase 6):**
+- `vite build` the admin-dashboard/frontend (the VPS build skips `tsc -b`, but a clean build is the gate; note pre-existing `AdminShell.tsx:183/186` `tsc` errors are NOT yours).
+- Deploy: rebuild + recreate `assessiq-frontend` only (additive; do NOT touch `assessiq-marketing`).
+- Behavioral end-to-end: SA grants a company the `soc` domain (platform billing drawer) → log in as that company admin → "Available sets" shows the platform SOC set → create an assessment from it → publish (passes `assertPublishEntitled` via domain match) → a candidate attempt draws the cloned questions.
+- Concurrency test (owed, RCA 2026-05-23): parallel `from-set` for one `(tenant, source)` yields exactly one clone.
+
+**Deferred follow-ups (NOT blocking; documented):** re-sync of an updated source (catalog already returns `update_available`); clone-archival on revoke (the publish gate already blocks revoked licenses for NEW assessments).
+
+**Hazards:** (a) a PARALLEL SEO/marketing session shares this branch + VPS — coordinate, and only ever touch `assessiq-api`/`worker`/`frontend`, never `assessiq-marketing`. (b) Email-privacy push pattern (noreply env-var override) is in `~/.claude/CLAUDE.md`. (c) The per-phase prose BELOW still says "eager clone-at-grant" in places — the `## MODEL REVISION` block governs (standing license + clone-on-use).
 
 ---
 
