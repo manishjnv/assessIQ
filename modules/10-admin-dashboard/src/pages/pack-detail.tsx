@@ -2,14 +2,14 @@
 //
 // /admin/question-bank/:id
 //
-// Shows: pack header (name, version, status), levels with per-level question
-// lists, "+ Add level" inline form, "+ Add question" link per level,
-// "Activate all" per level (published packs only), "Publish" CTA for drafts.
+// READ-ONLY CATALOG. Shows: pack header (name, version, status), levels with
+// per-level question lists, "Activate all" per level (published packs only),
+// "Publish" / "Archive pack" CTAs. Question creation lives on the dedicated
+// Generate Questions page (/admin/generate-wizard).
 //
 // Fetches:
 //   GET /admin/packs/:id             → { pack, levels }
 //   GET /admin/questions?pack_id=:id → paginated questions (grouped client-side)
-//   POST /admin/packs/:id/levels     → add level
 //   POST /admin/packs/:id/publish    → draft → published
 //   POST /admin/packs/:id/activate-questions → bulk-activate draft questions
 //
@@ -18,13 +18,11 @@
 //  - No hardcoded test data.
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Chip } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, generateQuestionsApi, bulkUpdateQuestionStatus } from "../api.js";
+import { adminApi, AdminApiError, bulkUpdateQuestionStatus } from "../api.js";
 import { useAdminSession } from "../session.js";
-import { allocateByWeight, applyOverride } from "../auto-weight.js";
-import type { QuestionType } from "../auto-weight.js";
 
 type PackStatus = "draft" | "published" | "archived";
 
@@ -92,51 +90,6 @@ function packStatusColor(s: string): { bg: string; color: string } {
     default:
       return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
   }
-}
-
-/** All SOC function categories present in the knowledge base. */
-const SOC_FUNCTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "triage",       label: "Triage"       },
-  { value: "detection",    label: "Detection"    },
-  { value: "analysis",     label: "Analysis"     },
-  { value: "response",     label: "Response"     },
-  { value: "forensics",    label: "Forensics"    },
-  { value: "hunting",      label: "Threat Hunt"  },
-  { value: "intelligence", label: "Intelligence" },
-  { value: "governance",   label: "Governance"   },
-  { value: "architecture", label: "Architecture" },
-];
-
-/** Ordered question types for the per-type breakdown table. */
-const TYPE_DISPLAY_ORDER: ReadonlyArray<{ key: QuestionType; label: string }> = [
-  { key: "mcq",          label: "MCQ"          },
-  { key: "log_analysis", label: "Log analysis" },
-  { key: "scenario",     label: "Scenario"     },
-  { key: "kql",          label: "KQL"          },
-  { key: "subjective",   label: "Subjective"   },
-];
-
-/** Default per-type allocation used when no override has been applied. */
-function makeDefaultTypeCounts(): Record<QuestionType, number> {
-  return { mcq: 0, log_analysis: 0, scenario: 0, kql: 0, subjective: 0 };
-}
-
-/**
- * Derive the SOC level string from a level label.
- * Mirrors the same logic in modules/04-question-bank/src/service.ts.
- */
-function deriveSocLevel(label: string | undefined): "L1" | "L2" | "L3" {
-  if (!label) return "L1";
-  const upper = label.toUpperCase();
-  if (
-    upper.includes("L3") || upper.includes("LEVEL 3") ||
-    upper.includes("SENIOR") || upper.includes("THREAT HUNT")
-  ) return "L3";
-  if (
-    upper.includes("L2") || upper.includes("LEVEL 2") ||
-    upper.includes("INTERMEDIATE") || upper.includes("ANALYST")
-  ) return "L2";
-  return "L1";
 }
 
 function questionPrompt(content: Record<string, unknown>): string {
@@ -299,8 +252,11 @@ export function AdminPackDetail(): React.ReactElement {
 
   // Phase B1 entitlement model (2026-05-17/18): super_admin curates the
   // shared library; tenant admins receive entitlements to specific packs
-  // but do not author/generate/curate content. Three per-level affordances
-  // (✦ Generate, + Add level, + Add question) are hidden for non-super_admin.
+  // but do not author/generate/curate content. Curation affordances
+  // (Publish/Archive pack, Activate questions, the "✦ Generate questions →"
+  // link to /admin/generate-wizard) are hidden for non-super_admin. Question
+  // CREATION lives entirely on the Generate Questions page (create-vs-catalog
+  // separation, Step 2 5c) — this page is now a read-only catalog.
   // See docs/04-auth-flows.md + obs #3180 / #3182 for the decision.
   const { session } = useAdminSession();
   const isSuperAdmin = session?.user.role === "super_admin";
@@ -311,11 +267,6 @@ export function AdminPackDetail(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
-
-  const [showAddLevel, setShowAddLevel] = useState(false);
-  const [levelLabel, setLevelLabel] = useState("");
-  const [addingLevel, setAddingLevel] = useState(false);
-  const [addLevelError, setAddLevelError] = useState<string | null>(null);
 
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -351,24 +302,6 @@ export function AdminPackDetail(): React.ReactElement {
   const [levelFilters, setLevelFilters] = useState<Record<string, { status: string; type: string }>>({});
   // Per-level poll counts for "running" generation attempts (gives up after 10 polls / 50s)
   const [runningPollCounts, setRunningPollCounts] = useState<Record<string, number>>({});
-
-  // Generate-questions drawer state
-  const [generateLevelId, setGenerateLevelId] = useState<string | null>(null);
-  const [genTotalCount, setGenTotalCount] = useState(5);
-  const [genTypeCounts, setGenTypeCounts] = useState<Record<QuestionType, number>>(makeDefaultTypeCounts);
-  const [genOverriddenSet, setGenOverriddenSet] = useState<Set<QuestionType>>(new Set());
-  const [genTopicFocus, setGenTopicFocus] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [genResult, setGenResult] = useState<{ generated: number; skillSha: string } | null>(null);
-  const [genError, setGenError] = useState<string | null>(null);
-
-  // Derived: SOC level inferred from the level label for the open drawer.
-  // useMemo so it only recomputes when generateLevelId or levels change.
-  const genSocLevel = React.useMemo((): "L1" | "L2" | "L3" => {
-    if (!generateLevelId) return "L1";
-    const label = levels.find((l) => l.id === generateLevelId)?.label;
-    return deriveSocLevel(label);
-  }, [generateLevelId, levels]);
 
   // Per-level last generation attempt (keyed by levelId)
   const [lastAttempts, setLastAttempts] = useState<Record<string, GenerationAttempt | null>>({});
@@ -459,31 +392,6 @@ export function AdminPackDetail(): React.ReactElement {
     return () => window.clearTimeout(timeoutId);
   }, [lastAttempts, id, refreshAttempt]);
 
-  async function handleAddLevel(e: React.FormEvent) {
-    e.preventDefault();
-    if (!id || !levelLabel.trim()) {
-      setAddLevelError("Level label is required.");
-      return;
-    }
-    setAddingLevel(true);
-    setAddLevelError(null);
-    try {
-      await adminApi(`/admin/packs/${id}/levels`, {
-        method: "POST",
-        body: JSON.stringify({ label: levelLabel.trim() }),
-      });
-      setLevelLabel("");
-      setShowAddLevel(false);
-      await fetchPack();
-    } catch (err) {
-      setAddLevelError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to add level.",
-      );
-    } finally {
-      setAddingLevel(false);
-    }
-  }
-
   async function handlePublish() {
     if (!id) return;
     setPublishing(true);
@@ -571,76 +479,6 @@ export function AdminPackDetail(): React.ReactElement {
     } finally {
       setBulkingLevel(null);
     }
-  }
-
-  async function handleGenerate(levelId: string) {
-    if (!id) return;
-    setGenerating(true);
-    setGenError(null);
-    setGenResult(null);
-    try {
-      const result = await generateQuestionsApi(id, levelId, {
-        count: genTotalCount,
-        ...(genTopicFocus ? { topic_focus: genTopicFocus } : {}),
-        type_counts: genTypeCounts,
-      });
-      setGenResult({ generated: result.generated, skillSha: result.skillSha });
-      // Refresh question list so drafts appear immediately
-      await fetchPack();
-    } catch (err) {
-      setGenError(
-        err instanceof AdminApiError ? err.apiError.message : "Generation failed. Try again.",
-      );
-    } finally {
-      setGenerating(false);
-      // Always refresh attempt status after generate, success or failure
-      void refreshAttempt(id, levelId);
-    }
-  }
-
-  function openGenerateDrawer(levelId: string) {
-    const label = levels.find((l) => l.id === levelId)?.label;
-    const socLevel = deriveSocLevel(label);
-    const base = allocateByWeight(socLevel, 5);
-    setGenerateLevelId(levelId);
-    setGenTotalCount(5);
-    setGenTypeCounts(base);
-    setGenOverriddenSet(new Set());
-    setGenTopicFocus(null);
-    setGenResult(null);
-    setGenError(null);
-  }
-
-  function closeGenerateDrawer() {
-    if (generating) return; // block close while in-flight
-    setGenerateLevelId(null);
-    setGenResult(null);
-    setGenError(null);
-  }
-
-  /** Called when the total-count slider moves. Rebalances non-overridden types. */
-  function handleTotalCountChange(n: number) {
-    const base = allocateByWeight(genSocLevel, n);
-    const overrides: Partial<Record<QuestionType, number>> = {};
-    genOverriddenSet.forEach((t) => { overrides[t] = genTypeCounts[t]; });
-    setGenTotalCount(n);
-    setGenTypeCounts(applyOverride(base, overrides));
-  }
-
-  /** Called when admin edits a specific type's count. */
-  function handleTypeCountChange(type: QuestionType, value: number) {
-    const newOverridden = new Set(genOverriddenSet).add(type);
-    const base = allocateByWeight(genSocLevel, genTotalCount);
-    const overrides: Partial<Record<QuestionType, number>> = {};
-    newOverridden.forEach((t) => { overrides[t] = t === type ? value : genTypeCounts[t]; });
-    setGenOverriddenSet(newOverridden);
-    setGenTypeCounts(applyOverride(base, overrides));
-  }
-
-  /** Reset all type counts to the auto-weighted values. */
-  function handleResetToAutoWeights() {
-    setGenOverriddenSet(new Set());
-    setGenTypeCounts(allocateByWeight(genSocLevel, genTotalCount));
   }
 
   if (loading) {
@@ -759,6 +597,15 @@ export function AdminPackDetail(): React.ReactElement {
             >
               ← Back
             </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                onClick={() => navigate("/admin/generate-wizard")}
+              >
+                ✦ Generate questions →
+              </button>
+            )}
             {isSuperAdmin && pack.status !== "archived" && (
               <button
                 type="button"
@@ -875,83 +722,7 @@ export function AdminPackDetail(): React.ReactElement {
             >
               Levels.
             </h2>
-            {isSuperAdmin && (
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                onClick={() => {
-                  setShowAddLevel((v) => !v);
-                  setAddLevelError(null);
-                }}
-              >
-                {showAddLevel ? "Cancel" : "+ Add level"}
-              </button>
-            )}
           </div>
-
-          {/* Add-level inline form */}
-          {showAddLevel && (
-            <div
-              style={{
-                border: "1px solid var(--aiq-color-border)",
-                borderRadius: "var(--aiq-radius-md)",
-                padding: "var(--aiq-space-md)",
-                marginBottom: "var(--aiq-space-md)",
-                background: "var(--aiq-color-bg-raised)",
-              }}
-            >
-              <form
-                onSubmit={(e) => void handleAddLevel(e)}
-                style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "flex-end" }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "var(--aiq-space-xs)",
-                  }}
-                >
-                  <label
-                    style={{
-                      fontFamily: "var(--aiq-font-sans)",
-                      fontSize: "var(--aiq-text-sm)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Level label *
-                  </label>
-                  <input
-                    className="aiq-input"
-                    type="text"
-                    placeholder="e.g. L1 — Foundations"
-                    value={levelLabel}
-                    onChange={(e) => setLevelLabel(e.target.value)}
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="aiq-btn aiq-btn-primary"
-                  disabled={addingLevel}
-                >
-                  {addingLevel ? "Adding…" : "Add level"}
-                </button>
-              </form>
-              {addLevelError && (
-                <div
-                  style={{
-                    color: "var(--aiq-color-danger)",
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                    marginTop: "var(--aiq-space-xs)",
-                  }}
-                >
-                  {addLevelError}
-                </div>
-              )}
-            </div>
-          )}
 
           {levels.length === 0 ? (
             <div
@@ -1117,26 +888,6 @@ export function AdminPackDetail(): React.ReactElement {
                           >
                             {activatingLevel === level.id ? "Activating…" : "Activate all"}
                           </button>
-                        )}
-                        {isSuperAdmin && (
-                          <>
-                            <button
-                              type="button"
-                              data-help-id="admin.questions.generate.draft"
-                              className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                              onClick={() => openGenerateDrawer(level.id)}
-                              title="Generate AI draft questions for this level"
-                            >
-                              ✦ Generate
-                            </button>
-                            <Link
-                              to={`/admin/question-bank/questions/new?pack_id=${pack.id}&level_id=${level.id}`}
-                              className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                              style={{ textDecoration: "none" }}
-                            >
-                              + Add question
-                            </Link>
-                          </>
                         )}
                       </div>
                     </div>
@@ -1387,7 +1138,7 @@ export function AdminPackDetail(): React.ReactElement {
                         }}
                       >
                         {isSuperAdmin
-                          ? "No questions yet. Click ✦ Generate to add the first batch."
+                          ? "No questions yet. Use the Generate Questions page to add the first batch."
                           : "No questions yet. The platform team curates this pack — questions will appear once added."}
                       </div>
                     ) : filteredQs.length === 0 ? (
@@ -1418,7 +1169,7 @@ export function AdminPackDetail(): React.ReactElement {
                         >
                           Reset filters
                         </button>
-                        {isSuperAdmin ? " or click ✦ Generate above to add new ones." : "."}
+                        {isSuperAdmin ? " or use the Generate Questions page to add new ones." : "."}
                       </div>
                     ) : (
                       filteredQs.map((q, qi) => (
@@ -1667,430 +1418,6 @@ export function AdminPackDetail(): React.ReactElement {
         </>
       )}
 
-      {/* Generate Questions Drawer */}
-      {generateLevelId !== null && (
-        <>
-          {/* Backdrop */}
-          <div
-            onClick={closeGenerateDrawer}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.35)",
-              zIndex: 100,
-            }}
-          />
-          {/* Drawer panel */}
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Generate AI draft questions"
-            data-help-id="admin.questions.generate.modal"
-            style={{
-              position: "fixed",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: "min(480px, 100vw)",
-              background: "var(--aiq-color-bg-base)",
-              borderLeft: "1px solid var(--aiq-color-border)",
-              zIndex: 101,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            {/* Drawer header */}
-            <div
-              style={{
-                padding: "var(--aiq-space-lg)",
-                borderBottom: "1px solid var(--aiq-color-border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexShrink: 0,
-              }}
-            >
-              <div>
-                <h3
-                  style={{
-                    fontFamily: "var(--aiq-font-serif)",
-                    fontSize: "var(--aiq-text-xl)",
-                    fontWeight: 400,
-                    margin: 0,
-                    letterSpacing: "-0.015em",
-                  }}
-                >
-                  Generate questions.
-                </h3>
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    color: "var(--aiq-color-fg-muted)",
-                    margin: "4px 0 0",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {levels.find((l) => l.id === generateLevelId)?.label ?? "Level"} · SOC grounded · ai_draft
-                </p>
-              </div>
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-                onClick={closeGenerateDrawer}
-                disabled={generating}
-                aria-label="Close drawer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Drawer body */}
-            <div
-              style={{
-                flex: 1,
-                overflow: "auto",
-                padding: "var(--aiq-space-lg)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--aiq-space-lg)",
-              }}
-            >
-              {/* Count */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-                <label
-                  htmlFor="gen-count"
-                  style={{
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                    fontWeight: 500,
-                  }}
-                >
-                  Number of questions
-                </label>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
-                  <input
-                    id="gen-count"
-                    type="range"
-                    min={1}
-                    max={30}
-                    value={genTotalCount}
-                    onChange={(e) => handleTotalCountChange(Number(e.target.value))}
-                    disabled={generating}
-                    style={{ flex: 1, accentColor: "var(--aiq-color-accent)" }}
-                  />
-                  <span
-                    style={{
-                      fontFamily: "var(--aiq-font-mono)",
-                      fontSize: "var(--aiq-text-sm)",
-                      minWidth: "2ch",
-                      textAlign: "right",
-                    }}
-                  >
-                    {genTotalCount}
-                  </span>
-                </div>
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    color: "var(--aiq-color-fg-muted)",
-                    margin: 0,
-                  }}
-                >
-                  {genTotalCount <= 10
-                    ? "Single call. Cold cache: ~30–90s per question."
-                    : genTotalCount <= 20
-                      ? "2 parallel calls (~3–4 min cold)."
-                      : "3 parallel calls (~3–5 min cold)."}
-                  {" "}When sharded mode is active, counts split per type; total wall-clock dominated by largest single type bucket.
-                </p>
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    color: "var(--aiq-color-fg-muted)",
-                    margin: 0,
-                  }}
-                >
-                  Tip: to build a larger bank, click Generate again within 5 minutes of the previous run. Cached context cuts the next call to ~30–60s.
-                </p>
-              </div>
-
-              {/* Per-type breakdown */}
-              {(() => {
-                const typeCountSum = (Object.values(genTypeCounts) as number[]).reduce((a, v) => a + v, 0);
-                const sumMatches = typeCountSum === genTotalCount;
-                return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
-                      <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500 }}>
-                        Per-type breakdown
-                        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", fontWeight: 400, color: "var(--aiq-color-fg-muted)", marginLeft: "6px" }}>
-                          (auto-weighted from {genSocLevel})
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        disabled={generating}
-                        onClick={handleResetToAutoWeights}
-                        style={{
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: "var(--aiq-color-accent)",
-                          background: "none",
-                          border: "none",
-                          cursor: generating ? "not-allowed" : "pointer",
-                          padding: 0,
-                          textDecoration: "underline",
-                        }}
-                      >
-                        Reset to auto-weights
-                      </button>
-                    </div>
-                    <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: 0, fontStyle: "italic" }}>
-                      Auto-weighted from the {genSocLevel} question mix. Edit individual counts to override; remaining types rebalance automatically.
-                    </p>
-                    <div
-                      style={{
-                        border: "1px solid var(--aiq-color-border)",
-                        borderRadius: "var(--aiq-radius-sm)",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {TYPE_DISPLAY_ORDER.map(({ key, label }, idx) => (
-                        <div
-                          key={key}
-                          {...(key === "subjective" ? { "data-help-id": "admin.questions.subjective" } : {})}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            padding: "6px 12px",
-                            borderBottom: idx < TYPE_DISPLAY_ORDER.length - 1
-                              ? "1px solid var(--aiq-color-border)"
-                              : "none",
-                            gap: "var(--aiq-space-sm)",
-                            background: genOverriddenSet.has(key) ? "var(--aiq-color-accent-soft)" : "transparent",
-                          }}
-                        >
-                          <span style={{ flex: 1, fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>
-                            {label}
-                            {key === "subjective" && (
-                              <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "10px", color: "var(--aiq-color-fg-muted)", marginLeft: "6px" }}>
-                                (folds into MCQ in sharded mode)
-                              </span>
-                            )}
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={30}
-                            step={1}
-                            value={genTypeCounts[key]}
-                            onChange={(e) => {
-                              const v = Math.max(0, Math.min(30, Math.floor(Number(e.target.value))));
-                              if (!Number.isNaN(v)) handleTypeCountChange(key, v);
-                            }}
-                            disabled={generating}
-                            style={{
-                              width: "56px",
-                              fontFamily: "var(--aiq-font-mono)",
-                              fontSize: "var(--aiq-text-sm)",
-                              textAlign: "right",
-                              padding: "2px 6px",
-                              border: "1px solid var(--aiq-color-border)",
-                              borderRadius: "var(--aiq-radius-sm)",
-                              background: "var(--aiq-color-bg-base)",
-                              color: "var(--aiq-color-fg-base)",
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "2px" }}>
-                      <span
-                        style={{
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: sumMatches ? "var(--aiq-color-success)" : "var(--aiq-color-danger)",
-                        }}
-                      >
-                        Total: {typeCountSum} / {genTotalCount}
-                        {!sumMatches && " — must equal total count to generate"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Topic focus chips */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-                <span
-                  style={{
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                    fontWeight: 500,
-                  }}
-                >
-                  Topic focus{" "}
-                  <span
-                    style={{
-                      fontFamily: "var(--aiq-font-mono)",
-                      fontSize: "var(--aiq-text-xs)",
-                      fontWeight: 400,
-                      color: "var(--aiq-color-fg-muted)",
-                    }}
-                  >
-                    (optional — select one)
-                  </span>
-                </span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {SOC_FUNCTIONS.map((fn) => {
-                    const active = genTopicFocus === fn.value;
-                    return (
-                      <button
-                        key={fn.value}
-                        type="button"
-                        disabled={generating}
-                        onClick={() =>
-                          setGenTopicFocus((prev) => (prev === fn.value ? null : fn.value))
-                        }
-                        style={{
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          padding: "4px 10px",
-                          borderRadius: "var(--aiq-radius-pill)",
-                          border: `1px solid ${active ? "var(--aiq-color-accent)" : "var(--aiq-color-border)"}`,
-                          background: active ? "var(--aiq-color-accent-soft)" : "transparent",
-                          color: active ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)",
-                          cursor: generating ? "not-allowed" : "pointer",
-                          letterSpacing: "0.02em",
-                        }}
-                      >
-                        {fn.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    color: "var(--aiq-color-fg-muted)",
-                    margin: 0,
-                  }}
-                >
-                  Narrows KB sources to the selected function. Falls back to full level if fewer than 3 sources match.
-                </p>
-              </div>
-
-              {/* Error */}
-              {genError && (
-                <div
-                  style={{
-                    padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                    borderRadius: "var(--aiq-radius-md)",
-                    background: "var(--aiq-color-danger-soft, rgba(220,38,38,0.06))",
-                    border: "1px solid var(--aiq-color-danger-border, var(--aiq-color-danger))",
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                    color: "var(--aiq-color-danger)",
-                  }}
-                >
-                  {genError}
-                </div>
-              )}
-
-              {/* Success */}
-              {genResult && (
-                <div
-                  style={{
-                    padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                    borderRadius: "var(--aiq-radius-md)",
-                    background: "var(--aiq-color-success-soft)",
-                    border: "1px solid var(--aiq-color-success-border, var(--aiq-color-success))",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: "var(--aiq-font-sans)",
-                      fontSize: "var(--aiq-text-sm)",
-                      fontWeight: 500,
-                      color: "var(--aiq-color-success)",
-                    }}
-                  >
-                    {genResult.generated} draft question{genResult.generated !== 1 ? "s" : ""} generated.
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "var(--aiq-font-mono)",
-                      fontSize: "var(--aiq-text-xs)",
-                      color: "var(--aiq-color-fg-muted)",
-                    }}
-                  >
-                    skill sha: {genResult.skillSha}
-                  </span>
-                </div>
-              )}
-
-              {/* In-flight progress */}
-              {generating && (
-                <div
-                  style={{
-                    padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                    borderRadius: "var(--aiq-radius-md)",
-                    background: "var(--aiq-color-accent-soft)",
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    color: "var(--aiq-color-accent)",
-                  }}
-                >
-                  Generating… this typically takes 30–90 s per question. Do not close this panel.
-                </div>
-              )}
-            </div>
-
-            {/* Drawer footer */}
-            <div
-              style={{
-                padding: "var(--aiq-space-md) var(--aiq-space-lg)",
-                borderTop: "1px solid var(--aiq-color-border)",
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "var(--aiq-space-sm)",
-                flexShrink: 0,
-              }}
-            >
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-outline"
-                onClick={closeGenerateDrawer}
-                disabled={generating}
-              >
-                {genResult ? "Close" : "Cancel"}
-              </button>
-              {!genResult && (
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-primary"
-                  onClick={() => void handleGenerate(generateLevelId)}
-                  disabled={
-                    generating ||
-                    (Object.values(genTypeCounts) as number[]).reduce((a, v) => a + v, 0) !== genTotalCount
-                  }
-                >
-                  {generating ? "Generating…" : `Generate ${genTotalCount} draft${genTotalCount !== 1 ? "s" : ""}`}
-                </button>
-              )}
-            </div>
-          </div>
-        </>
-      )}
     </AdminShell>
   );
 }
