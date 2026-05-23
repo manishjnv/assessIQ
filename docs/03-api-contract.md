@@ -213,6 +213,7 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 |---|---|---|
 | `GET`  | `/admin/assessments`              | List assessments (paginated; filter by `status`, `pack_id`) |
 | `POST` | `/admin/assessments`              | Create draft assessment (returns 201) |
+| `POST` | `/admin/assessments/from-set`     | **Step 2:** create a draft assessment from a licensed PLATFORM-library set. Body: `{ source_pack_id, level_position, name, question_count, opens_at, closes_at?, randomize?, description?, settings? }`. License-checked (`403 NOT_LICENSED`), cloned-on-use into the tenant (idempotent), then created from the clone (returns 201). |
 | `GET`  | `/admin/assessments/:id`          | Get assessment by id (extension) |
 | `PATCH`| `/admin/assessments/:id`          | Update — only allowed in `draft` status |
 | `POST` | `/admin/assessments/:id/publish`  | `draft → published` — runs pool-size pre-flight (count active questions ≥ `question_count` else 422 `POOL_TOO_SMALL`). **B2: 403 `NOT_ENTITLED` if pack is not entitled for the tenant's plan.** |
@@ -2177,6 +2178,34 @@ Active rows only — revoked rows are excluded. RLS-scoped to the session tenant
 **Errors:** `401 AUTHN_FAILED` — no session. `403 AUTHZ_FAILED` — caller is not a tenant admin.
 
 **Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/entitlements`.
+
+### `GET /api/billing/available-sets`
+
+**Step 2 (standing-license + clone-on-use).** Returns the published PLATFORM-library question sets the calling tenant is licensed for — a **domain** license surfaces ALL current AND future sets in that domain; a **pack** license surfaces one set. Metadata only (no question content); license filter is applied in SQL so an unlicensed set is never returned. Drives the company-admin "assess from a set" picker, which calls `POST /admin/assessments/from-set` (clone-on-use).
+
+**Auth:** Company tenant admin (`companyAdmin` chain). Runs under `assessiq_system` to read the platform library while resolving the caller's own licenses + existing clones.
+
+**Response 200:**
+```json
+{
+  "sets": [
+    {
+      "source_pack_id": "uuid",
+      "name": "SOC Analyst L1–L3",
+      "domain": "soc",
+      "source_version": 3,
+      "question_count": 42,
+      "level_count": 3,
+      "cloned": true,
+      "cloned_pack_id": "uuid-or-null",
+      "update_available": false
+    }
+  ]
+}
+```
+Empty `sets` when the tenant has no active licenses. `cloned`/`update_available` flag whether the set was already materialised into the tenant and whether a newer source version exists.
+
+**Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/available-sets` → `listAvailableSetsForTenant`.
 
 ---
 
