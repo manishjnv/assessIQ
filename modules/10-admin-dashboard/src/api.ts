@@ -765,6 +765,35 @@ export async function getAvailableSets(): Promise<{ sets: AvailableSet[] }> {
   return adminApi<{ sets: AvailableSet[] }>('/billing/available-sets');
 }
 
+/** Body for createAssessmentFromSet (clone-on-use). opens_at is ISO 8601. */
+export interface CreateAssessmentFromSetRequest {
+  source_pack_id: string;
+  level_position: number;
+  name: string;
+  question_count: number;
+  opens_at: string;
+  closes_at?: string | null;
+  randomize?: boolean;
+  description?: string;
+}
+
+/**
+ * POST /api/admin/assessments/from-set
+ *
+ * Company-admin: create a draft assessment from a licensed platform set. The
+ * server license-checks the source, clones it into this tenant on first use,
+ * and creates the assessment from the clone. Returns the created assessment
+ * (201). 403 NOT_LICENSED if the source set isn't licensed for the tenant.
+ */
+export async function createAssessmentFromSet(
+  body: CreateAssessmentFromSetRequest,
+): Promise<{ id: string; status: string; pack_id: string; level_id: string }> {
+  return adminApi<{ id: string; status: string; pack_id: string; level_id: string }>(
+    '/admin/assessments/from-set',
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Typed helpers — D1 content-scopes (super-admin billing drawer)
 // ---------------------------------------------------------------------------
