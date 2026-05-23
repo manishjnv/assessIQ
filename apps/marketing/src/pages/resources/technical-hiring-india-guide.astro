@@ -1,0 +1,583 @@
+---
+// resources/technical-hiring-india-guide.astro
+// JSON-LD: THREE separate blocks — BlogPosting, FAQPage, BreadcrumbList (per SEO §3.6 / §15)
+// Author = Organization (no fabricated person/credentials per hard rule)
+// No fabricated statistics or invented study results
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const slug = 'technical-hiring-india-guide';
+const canonicalPath = `/resources/${slug}`;
+
+// BlogPosting JSON-LD (§15 template — author is Organization, not invented person)
+const blogPostingSchema = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "How to Screen Developers in India: A Structured Hiring Guide (2026)",
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "image": `${site}/og-default.png`,
+  "mainEntityOfPage": `${site}${canonicalPath}`,
+  "description": "A practical, evidence-based guide to screening software developers in India — covering structured interviews, work-sample tests, bias reduction, and the India-specific hiring context for 2026."
+};
+
+// FAQPage JSON-LD — mirrors visible FAQ verbatim
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is the most predictively valid way to screen software developers?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Research in industrial-organizational psychology consistently shows that work-sample tests — tasks that require candidates to perform actual job-relevant work — have higher criterion validity than unstructured interviews or resume screening alone. For developers, this means coding exercises, debugging tasks, or architecture design challenges that reflect real work. Pairing work samples with a structured interview (consistent questions, anchored scoring) further improves predictive accuracy."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does campus hiring in India differ from lateral hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Campus hiring typically involves large cohorts from engineering colleges, often assessed through aptitude batteries, coding rounds, and group exercises in a single drive. Lateral hiring focuses on specific role competencies and often involves smaller candidate pools with existing work experience. The screening design, question difficulty calibration, and scoring norms differ significantly between the two. Campus drives also introduce volume management challenges that lateral hiring typically does not."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How many interview rounds are standard for developer screening in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "There is no single standard, but a common pattern for lateral hires is: an online technical assessment (screening stage), a technical interview (depth check), and an HR or culture-fit round. Adding more rounds increases time-to-hire without necessarily improving decision quality, particularly if later rounds repeat content already covered. The goal should be that each stage answers a distinct question about the candidate."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the role of aptitude testing in IT developer hiring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Aptitude tests — logical reasoning, quantitative ability, verbal ability — have documented validity for predicting training success and role adaptability, particularly for fresher hiring where candidates have limited work history. For experienced lateral hires, role-specific technical assessments typically carry more predictive weight than general aptitude. The appropriate balance depends on the role level and available pool."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How can we reduce time-to-hire without sacrificing hiring quality?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The largest time sinks in most developer hiring processes are resume screening volume, scheduling coordination, and redundant interview rounds. Structured automated assessments at the top of the funnel reduce the volume reaching human review. Standardised scoring rubrics reduce the time each reviewer spends deliberating. Consolidating redundant interview stages (e.g. two technical rounds that test the same skills) removes latency without removing signal."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does AssessIQ support remote developer assessment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ runs entirely online with browser-based coding environments, proctoring controls, and shareable test links. Candidates can complete assessments from any location, and administrators receive a full attempt log including timing, proctoring events, and per-question results. There is no desktop software to install on either side."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Resources",
+      "item": `${site}/resources`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "How to Screen Developers in India"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="How to Screen Developers in India (2026 Guide)"
+  description="A practical guide to screening software developers in India — structured interviews, work-sample tests, reducing time-to-hire, and the India-specific context for campus and lateral hiring in 2026."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <!-- JSON-LD: BlogPosting (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(blogPostingSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Developer Screening Guide
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── ARTICLE HEADER ── -->
+  <header class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Technical Hiring &middot; India Guide &middot; 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        How to Screen Developers in India: A Structured Hiring Guide (2026)
+      </h1>
+
+      <!-- 40–60 word snippet-target intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        Screening software developers effectively requires more than a coding test at the end of a resume filter. This guide covers structured interview design, work-sample test principles, bias reduction, and the India-specific context — campus drives, lateral hiring, and remote assessment — that shapes developer evaluation at scale.
+      </p>
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+        Published 23 May 2026 &middot; AssessIQ Editorial
+      </p>
+    </div>
+  </header>
+
+  <!-- ── ARTICLE BODY ── -->
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <!-- Table of Contents -->
+      <nav aria-label="Table of contents" class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-4xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Contents</p>
+        <ol class="list-none m-0 p-0 flex flex-col gap-aiq-sm">
+          <li><a href="#why-unstructured-screening-fails" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">1. Why Unstructured Screening Fails at Scale</a></li>
+          <li><a href="#structured-interview-principles" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">2. Structured Interview Principles</a></li>
+          <li><a href="#work-sample-tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">3. Work-Sample Tests: What They Are and Why They Work</a></li>
+          <li><a href="#scoring-rubrics" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">4. Scoring Rubrics and Anchored Evaluation</a></li>
+          <li><a href="#india-context-campus" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">5. India Context: Campus Hiring at Volume</a></li>
+          <li><a href="#india-context-lateral" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">6. India Context: Lateral Hiring and Remote Assessment</a></li>
+          <li><a href="#reducing-time-to-hire" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">7. Reducing Time-to-Hire Without Sacrificing Quality</a></li>
+          <li><a href="#fairness-and-bias" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">8. Fairness, Bias, and Adverse Impact</a></li>
+          <li><a href="#assessment-stack" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">9. Building a Practical Assessment Stack</a></li>
+          <li><a href="#faq" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">10. FAQ</a></li>
+        </ol>
+      </nav>
+
+      <!-- ── SECTION 1 ── -->
+      <section aria-labelledby="why-unstructured-screening-fails" class="mb-aiq-4xl">
+        <h2 id="why-unstructured-screening-fails" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          1. Why Unstructured Screening Fails at Scale
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The default developer screening process at most organisations looks roughly like this: a recruiter reads resumes, shortlists based on familiar company names or listed technologies, and passes a set of candidates to a senior engineer who conducts an ad hoc technical call. This process produces a shortlist, but not necessarily a good one.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The problem is not that the people involved are incompetent — it is that unstructured processes introduce systematic variation in what gets evaluated and how. When two engineers independently interview candidates for the same role, they often probe different skills, weight criteria differently, and apply different performance bars. The result is a decision that reflects interviewer preference as much as candidate competence.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The research base in <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">criterion validity</a> — the degree to which a selection method predicts actual job performance — consistently shows that unstructured interviews have modest predictive validity compared to structured alternatives. The SIOP Principles for the Validation and Use of Personnel Selection Procedures (the professional standard for employment assessment in industrial-organisational psychology) document this extensively. The takeaway is not that interviews are useless; it is that interviews without structure are substantially weaker predictors than structured ones.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For Indian IT organisations handling high application volumes, the unstructured approach also fails on operational grounds. A senior engineer spending an hour on a phone screen that eliminates a candidate who could have been filtered by a 30-minute online assessment is a direct cost. Multiplied across a hiring cycle, these costs are significant.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The solution is a structured assessment process — not a longer or more complicated one, but a deliberate one. Each stage should answer a distinct question about the candidate, use consistent evaluation criteria, and produce evidence that the next stage can build on.
+        </p>
+      </section>
+
+      <!-- ── SECTION 2 ── -->
+      <section aria-labelledby="structured-interview-principles" class="mb-aiq-4xl">
+        <h2 id="structured-interview-principles" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          2. Structured Interview Principles
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          A structured interview has three defining characteristics: a consistent question set asked of every candidate in the same role, anchored scoring criteria applied to each response, and documented rationale for each rating. All three are required — a standardised question set without anchored scoring is still substantially unstructured.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Situational vs. behavioural questions
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The two primary formats for structured interview questions are situational and behavioural. Situational questions present a hypothetical scenario and ask what the candidate would do ("If you inherited a codebase with no test coverage and you needed to add a major feature, how would you approach it?"). Behavioural questions ask about past experience ("Describe a time you had to refactor a significant piece of code under time pressure — what did you prioritise?").
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Both formats have evidence supporting their validity. Behavioural questions rely on the principle that past behaviour predicts future behaviour, which is well-established. Situational questions allow you to probe candidates who may not yet have had the relevant experience — useful for campus hiring where work history is limited. Many effective interview guides combine both.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Anchored rating scales
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Anchored rating scales attach specific behavioural descriptions to each point on a rating scale, so that a score of 3 means the same thing to every interviewer. A bare 1–5 scale where 3 means "average" is subjective by definition — different interviewers bring different reference points to "average." An anchored scale specifies what a 3 response actually looks like for each question.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          AssessIQ's <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">structured scoring system</a> uses anchor-based rubrics for this reason — the score is only as defensible as its anchor. See also: <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">criterion validity</a> and <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">adverse impact</a> in our glossary.
+        </p>
+      </section>
+
+      <!-- ── SECTION 3 ── -->
+      <section aria-labelledby="work-sample-tests" class="mb-aiq-4xl">
+        <h2 id="work-sample-tests" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          3. Work-Sample Tests: What They Are and Why They Work
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          A work-sample test asks candidates to perform a task drawn from the actual job. For a backend developer role, this might be: fixing a failing test suite, adding an endpoint to an existing API, or reviewing a code snippet and identifying the bug. The defining feature is that the task resembles real work, not an abstract puzzle.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The research on work-sample test validity — documented in meta-analyses in the industrial-organisational psychology literature and referenced in the SIOP Principles — consistently places work-sample tests among the stronger predictors of job performance. The intuition is straightforward: the best predictor of whether someone can do a job is direct evidence that they can do it.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Designing effective coding assessments
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          An effective coding assessment for a developer role should:
+        </p>
+
+        <ul class="list-none m-0 p-0 mb-aiq-lg flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Reflect the actual role.</strong> A backend engineer role should not be screened primarily on front-end DOM manipulation. The task should be a credible signal of the competencies the job requires.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Have objective scoring criteria.</strong> Hidden test cases that pass or fail based on correct output remove subjective judgment from the scoring of code-correctness questions. Rubrics cover the design and readability dimensions that test cases cannot capture.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Be time-bounded and scoped.</strong> A task that a senior engineer could complete in 2 hours should not be administered as a take-home with a 7-day window. Time constraints are part of the signal — but they should be calibrated to what the role actually requires, not used as a filter for candidates who can dedicate unlimited time.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Be consistent across candidates.</strong> Giving different candidates different tasks for the same role makes scoring and comparison impossible. Consistency is the foundation of a fair process.</p>
+          </li>
+        </ul>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          See the <a href="/tests/python" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Python assessment</a>, <a href="/tests/sql" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">SQL assessment</a>, and <a href="/tests" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">backend developer role pack</a> for examples of how AssessIQ structures role-specific coding tests.
+        </p>
+      </section>
+
+      <!-- ── SECTION 4 ── -->
+      <section aria-labelledby="scoring-rubrics" class="mb-aiq-4xl">
+        <h2 id="scoring-rubrics" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          4. Scoring Rubrics and Anchored Evaluation
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          A rubric translates the question "how good was this response?" into a set of observable, specific criteria. Without a rubric, two reviewers scoring the same candidate response will reach different conclusions — not because one is wrong, but because they are measuring different things.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For a coding task, rubric dimensions might include: correctness (does the code produce the expected output?), code quality (is the code readable and maintainable?), edge-case handling (does it handle error conditions?), and efficiency (is the algorithmic approach appropriate for the scale described?). Each dimension has its own anchor descriptions.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For a structured interview question, anchor descriptions specify what a weak, acceptable, and strong response looks like — not in vague terms ("showed good understanding") but in behavioural terms ("described a specific mechanism for handling concurrent writes, identified a tradeoff, and acknowledged a limitation of their approach").
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The APA/AERA/NCME Standards for Educational and Psychological Testing, which define professional standards for assessment, address the importance of clearly defined scoring criteria as a validity requirement. A score that cannot be explained in terms of observable performance criteria is not a defensible hiring decision. Learn more in our glossary under <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">criterion validity</a> and <a href="/methodology" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">scoring rubrics</a>.
+        </p>
+      </section>
+
+      <!-- ── SECTION 5 ── -->
+      <section aria-labelledby="india-context-campus" class="mb-aiq-4xl">
+        <h2 id="india-context-campus" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          5. India Context: Campus Hiring at Volume
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Campus recruitment in India operates at a scale and cadence that has no close equivalent in most other markets. Large IT services companies hire thousands of engineers annually from engineering colleges, often through structured placement drives that run within a single season. Product companies and mid-size IT firms participate at smaller scale but face the same structural challenge: evaluating a large cohort from a constrained pool of colleges in a short window.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          The tier-1 / tier-2 / tier-3 college dynamic
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Indian campus hiring has historically been segmented by college tier — IITs and NITs at one end, state engineering colleges at the other, with a large middle. This segmentation reflects historical correlation between college rank and candidate quality, but it is an imprecise proxy. A structured assessment process that evaluates candidates on demonstrated competence, rather than college brand alone, opens the pipeline to talent that college-tier filters exclude.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          This matters practically: as the demand for engineering talent in India has grown, restricting recruitment to a small set of colleges has become an operational constraint. Companies with assessment-based (rather than pedigree-based) screening have broader pipelines to draw from.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Assessment design for campus cohorts
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Campus assessment batteries typically include: an aptitude round (logical reasoning, quantitative ability, verbal ability), a coding round (1–3 problems of graduated difficulty), and a technical interview for shortlisted candidates. Each stage is a filter — the aptitude round reduces volume to a manageable shortlist for the coding round, which further filters for the interview.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          Calibrating question difficulty for a campus cohort is different from calibrating for experienced hires. Aptitude norms, expected coding problem difficulty, and time limits should reflect what a final-year engineering student can reasonably complete — not what a senior engineer would find challenging. See <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's campus recruitment solution</a> for how we handle bulk invite, concurrent session management, and drive-specific reporting.
+        </p>
+      </section>
+
+      <!-- ── SECTION 6 ── -->
+      <section aria-labelledby="india-context-lateral" class="mb-aiq-4xl">
+        <h2 id="india-context-lateral" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          6. India Context: Lateral Hiring and Remote Assessment
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Lateral hiring — bringing in developers with existing work experience into specific roles — operates differently from campus drives in almost every dimension: smaller candidate volumes, role-specific competency requirements, stronger candidate agency (experienced developers who are already employed have alternatives), and a more complex negotiation between assessment rigour and candidate experience.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Candidate experience in a competitive market
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In a market where senior developers receive multiple approaches, a screening process that demands excessive time investment without signalling respect for the candidate's time is a dropout risk. The practical implication is that lateral-hire assessments should be scoped tightly — a well-designed 60–90 minute coding and problem-solving assessment that is clearly relevant to the role is a better candidate experience than a multi-day take-home with no clear evaluation criteria.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Remote assessment for distributed hiring
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Post-pandemic, the geographic scope of developer hiring in India has expanded significantly. Companies that previously hired primarily from local talent pools now regularly assess candidates in different cities or states. Remote assessment — online coding tests with <a href="/resources/remote-proctoring-integrity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">proctoring controls</a> — enables this without requiring candidates to travel for early-stage screening.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          See <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's security and data residency page</a> for how candidate data is handled in remote assessment contexts. Remote proctoring integrity is covered in depth in a separate guide: <a href="/resources/remote-proctoring-integrity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Remote Proctoring Integrity: What Actually Works</a>.
+        </p>
+      </section>
+
+      <!-- ── SECTION 7 ── -->
+      <section aria-labelledby="reducing-time-to-hire" class="mb-aiq-4xl">
+        <h2 id="reducing-time-to-hire" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          7. Reducing Time-to-Hire Without Sacrificing Quality
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Time-to-hire is a real operational constraint, and the tension between speed and quality is genuine. The goal is not to minimise time regardless of quality — it is to remove latency from the process without removing signal.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          Where time is actually lost
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In most developer hiring processes, the largest sources of calendar latency are: resume screening volume (time spent reading resumes that could be filtered by a short assessment), scheduling coordination (back-and-forth to arrange interview slots), and redundant interview stages that cover the same ground as earlier stages. Structural assessment at the top of the funnel reduces volume reaching human stages. Standardised scoring reduces deliberation time within each stage. Eliminating redundant stages removes latency without removing evaluation coverage.
+        </p>
+
+        <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-aiq-2xl">
+          The cost of a slow process
+        </h3>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          A slow hiring process has costs beyond the internal time spent: candidates accept other offers, particularly in competitive segments of the market. A structured assessment process that gives candidates clear timelines and quick feedback is also a candidate experience investment. See <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's IT hiring solution</a> for how bulk invite, real-time monitoring, and one-click export address the operational side of this. For bias considerations in shortlisting, see the next section.
+        </p>
+      </section>
+
+      <!-- ── SECTION 8 ── -->
+      <section aria-labelledby="fairness-and-bias" class="mb-aiq-4xl">
+        <h2 id="fairness-and-bias" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          8. Fairness, Bias, and Adverse Impact
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          A screening process that is systematically less accurate — or less accessible — for particular groups of candidates is both an ethical and a legal concern. The EEOC Uniform Guidelines on Employee Selection Procedures (the US regulatory framework, influential as a reference standard globally) define <a href="/glossary/adverse-impact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">adverse impact</a> as a substantially different selection rate that disadvantages a protected group.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In Indian hiring contexts, protected characteristics under the Constitution and employment law include caste, religion, gender, and place of birth. Practically, hiring teams should be alert to selection processes that inadvertently filter on proxies for these characteristics rather than on job-relevant competency.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Common sources of bias in technical hiring include: over-reliance on college prestige as a proxy for ability, assessment questions that favour candidates with access to specific educational resources or coaching, and subjective interview scoring that is susceptible to affinity bias. Structured assessment addresses the last directly; the first two require deliberate question design and calibration.
+        </p>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          For a deeper treatment of validity, fairness, and adverse impact methodology, see the companion guide: <a href="/resources/reducing-bias-technical-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Reducing Bias in Technical Hiring: Validity, Fairness & Adverse Impact</a>.
+        </p>
+      </section>
+
+      <!-- ── SECTION 9 ── -->
+      <section aria-labelledby="assessment-stack" class="mb-aiq-4xl">
+        <h2 id="assessment-stack" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          9. Building a Practical Assessment Stack
+        </h2>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          A practical assessment stack for developer hiring has three stages, each answering a distinct question:
+        </p>
+
+        <div class="flex flex-col gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Stage 1 — Screen</p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Online technical assessment</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A timed online test covering the core technical competencies for the role. For most developer roles: a coding problem or two, possibly combined with a short set of language-specific or systems-design multiple-choice questions. Goal: reduce the volume reaching the interview stage to candidates who have demonstrated baseline competence. Duration: 30–90 minutes depending on role level.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Stage 2 — Evaluate</p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Structured technical interview</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              A structured interview using a consistent question set, anchored scoring rubrics, and documented rationale. This stage goes deeper than the online screen: it probes problem-solving approach, communication, and competencies that a multiple-choice or auto-scored coding test cannot capture. Interviewers see the Stage 1 results as context, not as a disqualifier on their own.
+            </p>
+          </div>
+          <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Stage 3 — Decide</p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Deliberation with evidence</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The hiring decision is made with structured evidence from both prior stages. What did the candidate score on the coding assessment? What were the anchored interview ratings? Where were the gaps? A decision that cannot be explained in terms of these criteria is a signal that the process needs improvement, not that the candidate is a bad fit.
+            </p>
+          </div>
+        </div>
+
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          AssessIQ supports all three stages: <a href="/tests/python" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">skill-specific tests</a> and <a href="/tests" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">role packs</a> for Stage 1, structured scoring rubrics for Stage 2, and a dashboard that surfaces per-candidate and cohort-level evidence for Stage 3. See the <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT hiring solution page</a> for a full capability overview.
+        </p>
+      </section>
+
+      <!-- ── FAQ ── -->
+      <section aria-labelledby="faq" class="mb-aiq-4xl">
+        <h2 id="faq" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+          10. FAQ
+        </h2>
+
+        <div class="flex flex-col gap-aiq-xl">
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What is the most predictively valid way to screen software developers?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Research in industrial-organisational psychology consistently shows that work-sample tests — tasks that require candidates to perform actual job-relevant work — have higher <a href="/glossary/criterion-validity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">criterion validity</a> than unstructured interviews or resume screening alone. For developers, this means coding exercises, debugging tasks, or architecture design challenges that reflect real work. Pairing work samples with a structured interview further improves predictive accuracy.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              How does campus hiring in India differ from lateral hiring?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Campus hiring typically involves large cohorts from engineering colleges, assessed through aptitude batteries, coding rounds, and group exercises in a single drive. Lateral hiring focuses on specific role competencies in smaller candidate pools with existing work experience. The screening design, question difficulty calibration, and scoring norms differ significantly. Campus drives also introduce volume management challenges that lateral hiring typically does not.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              How many interview rounds are standard for developer screening in India?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              There is no single standard, but a common pattern for lateral hires is: an online technical assessment (screening stage), a technical interview (depth check), and an HR round. Adding more rounds increases time-to-hire without necessarily improving decision quality, particularly if later rounds repeat content already covered. The goal should be that each stage answers a distinct question about the candidate.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              What is the role of aptitude testing in IT developer hiring?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Aptitude tests — logical reasoning, quantitative ability, verbal ability — have documented validity for predicting training success and role adaptability, particularly for fresher hiring where candidates have limited work history. For experienced lateral hires, role-specific technical assessments typically carry more predictive weight than general aptitude. The appropriate balance depends on the role level and available pool.
+            </p>
+          </div>
+
+          <div class="border-b border-aiq-border pb-aiq-xl">
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              How can we reduce time-to-hire without sacrificing hiring quality?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The largest time sinks are resume screening volume, scheduling coordination, and redundant interview rounds. Structured automated assessments at the top of the funnel reduce volume reaching human review. Standardised scoring rubrics reduce deliberation time. Consolidating redundant interview stages removes latency without removing signal.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Does AssessIQ support remote developer assessment?
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Yes. AssessIQ runs entirely online with browser-based coding environments, <a href="/resources/remote-proctoring-integrity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">proctoring controls</a>, and shareable test links. Candidates complete assessments from any location; administrators receive a full attempt log including timing, proctoring events, and per-question results.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── RELATED ── -->
+      <aside class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Related reading</p>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/resources/reducing-bias-technical-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Reducing Bias in Technical Hiring: Validity, Fairness &amp; Adverse Impact
+            </a>
+          </li>
+          <li>
+            <a href="/resources/remote-proctoring-integrity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Remote Proctoring Integrity: What Actually Works (and What Doesn&#39;t)
+            </a>
+          </li>
+          <li>
+            <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Campus &amp; Fresher Recruitment Solution
+            </a>
+          </li>
+          <li>
+            <a href="/glossary/criterion-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Glossary: Criterion Validity
+            </a>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+              Glossary: Adverse Impact
+            </a>
+          </li>
+        </ul>
+      </aside>
+
+    </div>
+  </article>
+
+</BaseLayout>

@@ -21,15 +21,20 @@ const solutionLinks = [
 ];
 
 const resourceLinks = [
-  { href: '/glossary', label: 'Glossary' },
+  { href: '/glossary',     label: 'Glossary' },
+  { href: '/resources',    label: 'Blog / Articles' },
+  { href: '/methodology',  label: 'Methodology' },
 ];
 
 // Treat any /solutions/* path as "Solutions" active
 const isSolutionsActive = currentPath.startsWith('/solutions');
 // Treat any /tests/* path as "Skill Tests" active
 const isTestsActive = currentPath === '/tests' || currentPath.startsWith('/tests/');
-// Treat any /glossary/* path as "Resources" active
-const isResourcesActive = currentPath === '/glossary' || currentPath.startsWith('/glossary/');
+// Treat any /glossary/*, /resources/*, or /methodology path as "Resources" active
+const isResourcesActive =
+  currentPath === '/glossary'     || currentPath.startsWith('/glossary/') ||
+  currentPath === '/resources'    || currentPath.startsWith('/resources/') ||
+  currentPath === '/methodology';
 ---
 
 <header class="border-b border-aiq-border bg-aiq-bg-base sticky top-0 z-50">

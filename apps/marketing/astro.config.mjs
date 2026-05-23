@@ -53,6 +53,11 @@ function inlineSitemap() {
     { loc: `${SITE}/tests/aptitude`,                       lastmod: today },
     { loc: `${SITE}/tests/logical-reasoning`,              lastmod: today },
     { loc: `${SITE}/tests/english`,                        lastmod: today },
+    { loc: `${SITE}/methodology`,                          lastmod: today },
+    { loc: `${SITE}/resources`,                            lastmod: today },
+    { loc: `${SITE}/resources/technical-hiring-india-guide`,       lastmod: today },
+    { loc: `${SITE}/resources/reducing-bias-technical-hiring`,     lastmod: today },
+    { loc: `${SITE}/resources/remote-proctoring-integrity`,        lastmod: today },
   ];
 
   function urlsetXml(urls) {
