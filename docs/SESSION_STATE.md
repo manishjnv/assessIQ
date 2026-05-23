@@ -1,3 +1,22 @@
+# Session — 2026-05-23 (Step 2 question-set sharing — Phase 5 UI SHIPPED + DEPLOYED)
+
+**Headline:** Built + deployed the **Phase 5 admin UI** for question-set sharing (clone-on-use), completing the feature whose backend shipped earlier today. Three pieces, one commit each: **5b** company "Assess from a set" picker, **5a** SA pack|domain grant-scope toggle, **5c** pack-detail → read-only catalog (create-vs-catalog separation). Frontend rebuilt + recreated on `assessiq.in` (additive; marketing/api/worker/db untouched).
+**Commits (main):** `fa49578` 5b (assessments.tsx picker) · `13e8289` 5a (platform.tsx scope toggle + `listPlatformPublishedPacks`) · `ad66099` 5c (pack-detail read-only).
+**Tests/verify:** `vite build` clean (389 modules); admin-dashboard `tsc` shows only pre-existing `AdminShell.tsx:183/186`. Deployed `assessiq-frontend` only — healthy; bundle `index-CUJexiBg.js` has "From a set"/"Single set"/"Generate questions"; `/api/billing/available-sets` + `/api/admin/assessments/from-set` → 401 (wired). **Concurrency test (RCA 2026-05-23) PROVEN on prod DB:** duplicate `(tenant_id, source_pack_id)` insert rejected by `question_packs_tenant_source_uniq`, rolled back, 0 rows persisted; advisory lock + unique index both hold.
+**Next:** Full UI walkthrough is **OPERATOR-GATED** — (1) prod is SSO+TOTP gated (no headless auth), and (2) **the platform tenant has ZERO published packs**, so `getAvailableSets()` returns `[]` for every company despite active `soc`/`phishing` domain licenses (`wipro-soc`, `e2e-walkthrough`). The clone/license/publish-gate code is all live; there's just no published platform set to consume yet. Operator runbook (generate → publish platform SOC set → company "From a set" → publish → candidate) is in `docs/design/question-set-sharing-clone-on-grant.md` § "Phase 6 — verification status".
+**Open questions:** (a) FromSetPicker empty-state copy says "no sets licensed" — slightly inaccurate when a company IS licensed but no platform set is published yet (says "contact operator", which is the right remedy). (b) Deferred (documented, not blocking): re-sync of an updated source (`update_available` already surfaced in the picker dropdown); clone-archival on revoke (publish gate already blocks revoked licenses for NEW assessments).
+
+---
+
+## Agent utilization (Step 2 Phase 5 UI)
+- **Opus 4.7:** Phase 0 grounding; designed + wrote 5b (FromSetPicker + Creation-method control + 403 handling) and 5a (scope toggle + `listPlatformPublishedPacks` reusing `/admin/packs`, no new backend route); Phase-3 diff review of the Sonnet 5c removal (verified KEEP-list survived, fixed a stale comment); frontend deploy (pull + build + recreate, additive); prod verification incl. the rolled-back DB concurrency proof; docs + handoff. `Opus · 5b+5a author + 5c review + deploy/verify · reworked: N`.
+- **Sonnet:** 1 subagent — 5c mechanical removal (Generate drawer + add-level + add-question off pack-detail.tsx, ~693 deletions, dead-code prune, typecheck-clean). `Sonnet · 5c read-only-catalog refactor · reworked: N (Opus added 1 stale-comment fix post-review)`.
+- **Haiku:** n/a — VPS build/deploy/verify run inline via `ssh assessiq-vps`.
+- **codex:rescue:** n/a — non-load-bearing presentational admin UI; the security-adjacent backend (cross-tenant clone-on-use authz) was already `codex`/Sonnet-gated + shipped in the earlier backend session. No new authz surface this session.
+- **claude-mem:** read prior Step-2 + admin-dashboard-pattern context from hook observations; no durable write.
+
+---
+
 # Session — 2026-05-23 (SEO Phase 2–4 — comparison / library / content clusters LIVE; site now 45 pages)
 
 **Headline:** Built + deployed SEO Phases 2, 3, 4 on the Astro marketing site (`assessiq.in`), one by one. **P2:** `/compare` (3 head-to-head) + `/alternatives` (5) + `/solutions` hub + breadcrumb-bug fix. **P3:** `/glossary` (10 psychometrics terms) + `/tests` skill library (8 India skills), quality-gated per §5.6. **P4 (content only):** `/resources` blog (1 pillar + 2 supporting) + `/methodology` (E-E-A-T). Site grew **10 → 45 indexable pages**. SPA/API untouched throughout.
