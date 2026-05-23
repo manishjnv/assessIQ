@@ -18,6 +18,8 @@ function inlineSitemap() {
     { loc: `${SITE}/contact`,                               lastmod: today },
     { loc: `${SITE}/pricing`,                               lastmod: today },
     { loc: `${SITE}/security`,                              lastmod: today },
+    { loc: `${SITE}/privacy`,                               lastmod: today },
+    { loc: `${SITE}/terms`,                                 lastmod: today },
     { loc: `${SITE}/solutions/it-hiring`,                   lastmod: today },
     { loc: `${SITE}/solutions/campus-recruitment`,          lastmod: today },
     { loc: `${SITE}/solutions/educational-institutions`,    lastmod: today },
