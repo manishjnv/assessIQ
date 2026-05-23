@@ -30,8 +30,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi, getCompanyEntitlements, getCompanyUsage } from "../api.js";
-import type { DomainItem, CategoryItem, TenantEntitlement, CompanyUsage } from "../api.js";
+import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi, getCompanyEntitlements, getCompanyUsage, getAvailableSets, createAssessmentFromSet } from "../api.js";
+import type { DomainItem, CategoryItem, TenantEntitlement, CompanyUsage, AvailableSet } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { UsageBanner } from "../components/UsageBanner.js";
 
@@ -629,6 +629,198 @@ function PreviewAdequacy({ assessmentId }: PreviewAdequacyProps): React.ReactEle
 }
 
 // ---------------------------------------------------------------------------
+// FromSetPicker sub-component (Step 2 — clone-on-use, "Assess from a set")
+// ---------------------------------------------------------------------------
+//
+// Company-admin path to consume a licensed PLATFORM-library set. Lists the sets
+// this tenant is entitled to (getAvailableSets → GET /billing/available-sets),
+// lets the admin pick a set + level (1-based position) + how many questions to
+// draw, and reports the selection up. The actual clone-on-use happens server-
+// side when createAssessmentFromSet is called on submit — this component only
+// reads license-gated METADATA (name, domain, level/question counts, version);
+// it never reads platform pack content.
+//
+// A domain license surfaces all current AND future sets in that domain, so new
+// sets the super admin publishes appear here automatically.
+
+interface FromSetSelection {
+  source_pack_id: string;
+  level_position: number;
+  question_count: number;
+}
+
+interface FromSetPickerProps {
+  /** Stable setState reference from the parent (mirrors BlueprintBuilder). */
+  onChange: (sel: FromSetSelection | null) => void;
+}
+
+function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElement {
+  const [sets, setSets] = useState<AvailableSet[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [selectedSourceId, setSelectedSourceId] = useState<string>("");
+  const [levelPosition, setLevelPosition] = useState<number>(1);
+  const [questionCount, setQuestionCount] = useState<number>(10);
+
+  // Load licensed sets on mount (only mounts when "From a set" mode is active).
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      try {
+        const data = await getAvailableSets();
+        setSets(data.sets);
+      } catch (err) {
+        setLoadError(
+          err instanceof AdminApiError ? err.apiError.message : "Failed to load available sets.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // Reset level when the set changes (positions are 1-based within the set).
+  useEffect(() => {
+    setLevelPosition(1);
+  }, [selectedSourceId]);
+
+  // Report selection up on every change. Null until a complete, valid selection.
+  useEffect(() => {
+    const set = sets?.find((s) => s.source_pack_id === selectedSourceId) ?? null;
+    if (!selectedSourceId || set === null) { onChange(null); return; }
+    if (!Number.isInteger(levelPosition) || levelPosition < 1) { onChange(null); return; }
+    if (!Number.isInteger(questionCount) || questionCount < 1) { onChange(null); return; }
+    onChange({ source_pack_id: selectedSourceId, level_position: levelPosition, question_count: questionCount });
+  }, [sets, selectedSourceId, levelPosition, questionCount, onChange]);
+
+  const selectedSet = sets?.find((s) => s.source_pack_id === selectedSourceId) ?? null;
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "var(--aiq-font-sans)",
+    fontSize: "var(--aiq-text-xs)",
+    fontWeight: 600,
+    color: "var(--aiq-color-fg-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    marginBottom: 4,
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--aiq-color-border)",
+        borderRadius: "var(--aiq-radius-sm)",
+        padding: "var(--aiq-space-md)",
+        background: "var(--aiq-color-bg-sunken)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--aiq-space-md)",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: "var(--aiq-text-xs)",
+          color: "var(--aiq-color-fg-muted)",
+          margin: 0,
+        }}
+      >
+        Pick a question set your company is licensed for. The set is copied into your
+        workspace the first time you assess from it, and each candidate draws a fresh
+        set from your own stable copy.
+      </p>
+
+      {loadError && (
+        <div style={{ color: "var(--aiq-color-danger)", fontSize: "var(--aiq-text-xs)" }}>
+          {loadError}
+        </div>
+      )}
+
+      {loading ? (
+        <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+          Loading available sets…
+        </span>
+      ) : sets !== null && sets.length === 0 ? (
+        <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+          No question sets are licensed for your company yet — contact your platform
+          operator to enable one.
+        </span>
+      ) : (
+        <>
+          {/* Set picker */}
+          <div>
+            <div style={labelStyle}>Question set</div>
+            <select
+              className="aiq-input"
+              value={selectedSourceId}
+              onChange={(e) => setSelectedSourceId(e.target.value)}
+            >
+              <option value="">— Select a set —</option>
+              {(sets ?? []).map((s) => (
+                <option key={s.source_pack_id} value={s.source_pack_id}>
+                  {s.name} · {s.domain} · {s.level_count} level{s.level_count !== 1 ? "s" : ""} · {s.question_count} q
+                  {s.update_available ? " · update available" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedSet !== null && (
+            <>
+              <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+                {selectedSet.cloned && (
+                  <Chip leftIcon="check">In your workspace</Chip>
+                )}
+                {selectedSet.update_available && (
+                  <Chip>Source updated · re-sync available</Chip>
+                )}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)" }}>
+                {/* Level */}
+                <div>
+                  <div style={labelStyle}>Level</div>
+                  <select
+                    className="aiq-input"
+                    value={String(levelPosition)}
+                    onChange={(e) => setLevelPosition(parseInt(e.target.value, 10) || 1)}
+                  >
+                    {Array.from({ length: Math.max(1, selectedSet.level_count) }, (_, i) => i + 1).map((pos) => (
+                      <option key={pos} value={pos}>Level {pos}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Questions to draw */}
+                <div>
+                  <div style={labelStyle}>Questions to draw</div>
+                  <input
+                    className="aiq-input"
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={questionCount}
+                    onChange={(e) => {
+                      const v = Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 1));
+                      setQuestionCount(v);
+                    }}
+                  />
+                </div>
+              </div>
+              <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: 0 }}>
+                The pool is checked when you publish — if the chosen level has fewer
+                questions than this, lower the count before publishing.
+              </p>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // AdminAssessments — main page
 // ---------------------------------------------------------------------------
 
@@ -656,8 +848,13 @@ export function AdminAssessments(): React.ReactElement {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Blueprint mode state
-  const [useBlueprintMode, setUseBlueprintMode] = useState(false);
+  // Creation method: "from-set" (clone-on-use a licensed platform set, default)
+  // | "blueprint" (per-criterion random draw from the company's own domain pack).
+  // The legacy non-blueprint "manual" path required a pack_id this form never
+  // collected (→ PACK_NOT_FOUND for company admins), so it is intentionally not
+  // offered here — companies consume sets, they do not hand-author packs.
+  const [createMode, setCreateMode] = useState<"from-set" | "blueprint">("from-set");
+  const [pendingFromSet, setPendingFromSet] = useState<FromSetSelection | null>(null);
   const [pendingBlueprint, setPendingBlueprint] = useState<{
     domain_id: string;
     level: BlueprintLevel;
@@ -752,7 +949,11 @@ export function AdminAssessments(): React.ReactElement {
       setCreateError("Opens is required — an assessment with no Opens date never becomes active and candidates can't start it. Set when it should open.");
       return;
     }
-    if (useBlueprintMode && pendingBlueprint === null) {
+    if (createMode === "from-set" && pendingFromSet === null) {
+      setCreateError("Select a licensed set, a level, and the number of questions to draw.");
+      return;
+    }
+    if (createMode === "blueprint" && pendingBlueprint === null) {
       setCreateError("Blueprint is incomplete. Select a domain, level, and at least one valid criterion.");
       return;
     }
@@ -760,11 +961,33 @@ export function AdminAssessments(): React.ReactElement {
     setCreateError(null);
     setCreatedAssessmentId(null);
     try {
-      const body: Record<string, unknown> = { name: newForm.name.trim() };
-      if (newForm.opens_at) body.opens_at = new Date(newForm.opens_at).toISOString();
-      if (newForm.closes_at) body.closes_at = new Date(newForm.closes_at).toISOString();
+      const opensAtIso = new Date(newForm.opens_at).toISOString();
+      const closesAtIso = newForm.closes_at ? new Date(newForm.closes_at).toISOString() : undefined;
 
-      if (useBlueprintMode && pendingBlueprint !== null) {
+      // ── From-set (clone-on-use) ───────────────────────────────────────────
+      // The server license-checks the source set, clones it into this tenant on
+      // first use (idempotent), and creates the assessment from the clone. We
+      // navigate straight to the created draft (no blueprint adequacy preview —
+      // the source set's level already defines the pool; publish validates it).
+      if (createMode === "from-set" && pendingFromSet !== null) {
+        const created = await createAssessmentFromSet({
+          source_pack_id: pendingFromSet.source_pack_id,
+          level_position: pendingFromSet.level_position,
+          name: newForm.name.trim(),
+          question_count: pendingFromSet.question_count,
+          opens_at: opensAtIso,
+          ...(closesAtIso ? { closes_at: closesAtIso } : {}),
+        });
+        navigate(`/admin/assessments/${created.id}`);
+        return;
+      }
+
+      // ── Blueprint ─────────────────────────────────────────────────────────
+      const body: Record<string, unknown> = { name: newForm.name.trim() };
+      body.opens_at = opensAtIso;
+      if (closesAtIso) body.closes_at = closesAtIso;
+
+      if (pendingBlueprint !== null) {
         // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
         body.settings = { blueprint: pendingBlueprint };
         // question_count placeholder — backend overrides via Σcriteria.count
@@ -779,21 +1002,23 @@ export function AdminAssessments(): React.ReactElement {
         body: JSON.stringify(body),
       });
 
-      if (useBlueprintMode) {
-        // Show adequacy preview before navigating
-        setCreatedAssessmentId(created.id);
-        // Also refresh the list
-        void fetchAssessments(statusFilter);
-        setCreating(false);
-      } else {
-        navigate(`/admin/assessments/${created.id}`);
-      }
+      // Blueprint: show adequacy preview before navigating
+      setCreatedAssessmentId(created.id);
+      void fetchAssessments(statusFilter);
+      setCreating(false);
     } catch (err) {
-      setCreateError(
-        err instanceof AdminApiError
-          ? err.apiError.message
-          : "Failed to create assessment.",
-      );
+      // 403 NOT_LICENSED: the source set is no longer licensed for this tenant.
+      if (err instanceof AdminApiError && err.apiError.code === "NOT_LICENSED") {
+        setCreateError(
+          "Your company is no longer licensed for this set. Contact your platform operator to re-enable it.",
+        );
+      } else {
+        setCreateError(
+          err instanceof AdminApiError
+            ? err.apiError.message
+            : "Failed to create assessment.",
+        );
+      }
       setCreating(false);
     }
   }
@@ -1022,34 +1247,34 @@ export function AdminAssessments(): React.ReactElement {
               New assessment.
             </h2>
 
-            {/* Blueprint mode toggle */}
+            {/* Creation method — segmented control (mirrors the status filter strip) */}
             <div style={{ marginBottom: "var(--aiq-space-md)" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--aiq-space-sm)",
-                  cursor: "pointer",
-                  fontFamily: "var(--aiq-font-sans)",
-                  fontSize: "var(--aiq-text-sm)",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={useBlueprintMode}
-                  onChange={(e) => {
-                    setUseBlueprintMode(e.target.checked);
-                    setPendingBlueprint(null);
-                    setCreatedAssessmentId(null);
-                  }}
-                />
-                <span>
-                  Use Blueprint{" "}
-                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-                    (per-criterion random draw — auto-resolves pack/level)
-                  </span>
-                </span>
-              </label>
+              <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+                {([
+                  { value: "from-set", label: "From a set", hint: "use a licensed platform set" },
+                  { value: "blueprint", label: "Blueprint", hint: "per-criterion random draw" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    className={`aiq-btn aiq-btn-sm ${createMode === m.value ? "aiq-btn-primary" : "aiq-btn-outline"}`}
+                    onClick={() => {
+                      setCreateMode(m.value);
+                      setPendingFromSet(null);
+                      setPendingBlueprint(null);
+                      setCreatedAssessmentId(null);
+                      setCreateError(null);
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: "6px 0 0" }}>
+                {createMode === "from-set"
+                  ? "From a set — assess from a question set your company is licensed for."
+                  : "Blueprint — each candidate draws a fresh random set per criterion from your domain content."}
+              </p>
             </div>
 
             <form onSubmit={(e) => void handleCreateAssessment(e)}>
@@ -1141,8 +1366,13 @@ export function AdminAssessments(): React.ReactElement {
                 </div>
               </div>
 
-              {/* Blueprint builder — only shown when blueprint mode is on */}
-              {useBlueprintMode && (
+              {/* Source builder — "From a set" picker or the Blueprint builder */}
+              {createMode === "from-set" && (
+                <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+                  <FromSetPicker onChange={setPendingFromSet} />
+                </div>
+              )}
+              {createMode === "blueprint" && (
                 <div style={{ marginBottom: "var(--aiq-space-md)" }}>
                   <BlueprintBuilder
                     onBlueprintChange={setPendingBlueprint}
