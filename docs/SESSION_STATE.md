@@ -1,3 +1,23 @@
+# Session — 2026-05-23 (SEO Phase 2–4 — comparison / library / content clusters LIVE; site now 45 pages)
+
+**Headline:** Built + deployed SEO Phases 2, 3, 4 on the Astro marketing site (`assessiq.in`), one by one. **P2:** `/compare` (3 head-to-head) + `/alternatives` (5) + `/solutions` hub + breadcrumb-bug fix. **P3:** `/glossary` (10 psychometrics terms) + `/tests` skill library (8 India skills), quality-gated per §5.6. **P4 (content only):** `/resources` blog (1 pillar + 2 supporting) + `/methodology` (E-E-A-T). Site grew **10 → 45 indexable pages**. SPA/API untouched throughout.
+**Commits (main):** `6156003` P2 · `4c282ea` P3 · `86b8313` P4 (atop P0/P1 `c2fd170`…`6113a7a`).
+**Tests/verify:** `astro build` green (46 pages, sitemap 45); **fabrication scans clean** (no fake prices/certs/ratings/stats; competitor pages web-researched + fair per §6.3; author = Organization, NOT a fabricated person); all internal links resolve (fixed 2 broken); live probes — every cluster 200, app + neighbor + AOP intact. Fixed 3 build breaks: unescaped apostrophe (`solutions.astro`) + raw JSX/Java braces in code samples (`react`/`java` → HTML entities — Astro parses raw `{}` as JS exprs).
+**Deploy:** LIVE. Each phase = `git pull` + rebuild `assessiq-marketing` + `--force-recreate` (additive; new marketing pages need NO Caddy change — they fall to default→9093).
+**Next:** (1) **GSC + Bing submission** (ASMT-00, operator — still the #1 action). (2) **DEFERRED load-bearing:** candidate share-flywheel (§10/ASMT-30 — `modules/18-certification`, PII/tenancy → **codex:rescue-gated dedicated session**). (3) Real prices, Reviews/AggregateRating, named author bios, annual data study — all need real data/people (operator). (4) Optional: role-based test pages (ASMT-14), free tools (ASMT-22), per-page OG images (ASMT-08), CWV/Lighthouse pass.
+**Open questions:** (a) Blog needs sustained ~monthly cadence or it ages (§17). (b) New SPA top-level routes must be added to Caddy `@app` or they 404 at marketing (allowlist discipline).
+
+---
+
+## Agent utilization (SEO Phase 2–4)
+- **Opus 4.7:** orchestrated 7 subagent builds across 3 phases; **rigorous fabrication/accuracy review** of competitor content (verified web-sourced, no prices/disparagement); broken-link audit (fixed 2); 3 build-break fixes (apostrophe + raw-brace code samples); 3 deploy cycles + live verification; this handoff. `Opus · SEO P2–4 orchestration+review+deploy · reworked: N`.
+- **Sonnet:** 7 subagent page-builds — P2 alternatives(6)/compare(4)/site-structure; P3 glossary(11)/tests(9)/nav; P4 resources(4)/methodology+nav. `Sonnet · marketing cluster builds · reworked: minor (Opus fixed 2 broken links + 3 build breaks in agent output)`.
+- **Haiku:** n/a — VPS deploy/verify inline via `ssh`.
+- **codex:rescue:** n/a this phase (marketing content, non-load-bearing). **REQUIRED before the deferred §10 flywheel** (touches certification/PII/tenancy).
+- **claude-mem:** read prior infra context from hooks. No durable memory written.
+
+---
+
 # Session — 2026-05-23 (Step 2 — question-set sharing BACKEND live: standing license + clone-on-use)
 
 **Headline:** Shipped + deployed the **backend** for sharing super-admin-curated question sets with companies, using the **standing-license + clone-on-use** model (chosen over eager clone-at-grant and over a cross-tenant reference read). A license (domain or pack entitlement) is pure permission — a **domain license covers all current AND future** sets in that domain; the actual set is **cloned into the company tenant on first use** (when they build an assessment from it), idempotently, with the publish-gate recognising the clone via lineage. UI is NOT built yet (Phase 5).
