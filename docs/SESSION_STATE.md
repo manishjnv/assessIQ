@@ -1,3 +1,22 @@
+# Session — 2026-05-23 (Google Safe Browsing "Deceptive pages" remediation + Bing verification)
+
+**Headline:** Remediated the Google Safe Browsing **"Deceptive pages" (social-engineering)** flag on `assessiq.in` — added `/privacy` + `/terms` (DPDP-aligned, bracketed-placeholder legal pages), wired them sitewide (Footer + login + candidate landing) and into the sitemap, hardened the SPA login (H1 → "Sign in to AssessIQ" + legal links), and shipped Bing Webmaster verification. All LIVE.
+**Commits (main):** `657ee2a` — BingSiteAuth.xml (Bing verify) · `ab899fe` — Privacy+Terms pages + sitewide legal links + login hardening (cherry-picked to `main`; original `e41c9ca` sits on `feat/question-difficulty-phase-a`).
+**Tests/verify:** marketing `astro build` clean (48 pages, sitemap 47 incl. /privacy /terms); frontend `vite build` clean; login + TokenLanding typecheck clean (only pre-existing `AdminShell.tsx:183/186`). LIVE probes: `/privacy` `/terms` → 200 w/ correct titles + DPDP/governing-law content; homepage footer links both; live sitemap-0.xml includes both; `/BingSiteAuth.xml` → 200 (text/xml); deployed SPA bundle `index-mAjNuDPF.js` contains "Sign in to AssessIQ" + "Privacy Policy". Only `assessiq-marketing` + `assessiq-frontend` rebuilt (additive; api/worker/db/neighbors untouched).
+**Next (operator-gated):** (1) fill `[bracketed]` legal placeholders (entity/address/grievance officer/jurisdiction/effective date) after legal review; (2) in GSC → **Request Review** for the deceptive-pages flag (now lands on hardened pages); (3) click **Verify** in Bing Webmaster (file is live); (4) GSC + Bing sitemap submission (standing #1 SEO action).
+**Open questions:** (a) Exact flagged URL unknown (GSC Sample URLs = N/A) — login/SSO page is the strong hypothesis; if the review is rejected, pull the specific URL from `transparencyreport.google.com/safe-browsing`. (b) Login render is **bundle-verified, not click-verified** (no headless SSO) — behavioral check pending operator. (c) A hook switched the primary working dir to `feat/question-difficulty-phase-a` mid-session; this fix was cherry-picked to `main` via an isolated worktree to keep it off the Phase A branch.
+
+---
+
+## Agent utilization (Safe Browsing remediation)
+- **Opus 4.7:** diagnosed the flag (read login.tsx/TokenLanding.tsx + Logo + marketing pages; identified the new-domain + Google-SSO + no-legal-pages false-positive profile); wrote the 5 small edits (Footer/login/candidate/sitemap/H1); Phase-3 review of the 2 Sonnet legal pages; all git/branch surgery (cherry-pick to `main` via isolated worktree), deploy, live verification, docs + handoff. `Opus · diagnosis + wiring + branch-surgery + deploy/verify · reworked: N`.
+- **Sonnet:** 2 parallel subagents — `privacy.astro` + `terms.astro` (DPDP-aligned, `security.astro` pattern, bracketed placeholders, breadcrumb JSON-LD). Both accept-quality on Phase-3 review (minor notes only). `Sonnet · 2 legal pages · reworked: N`.
+- **Haiku:** n/a — VPS build/deploy/verify run inline via `ssh assessiq-vps`.
+- **codex:rescue:** n/a — non-load-bearing marketing content + presentational login *copy* only; no auth logic touched (`startGoogleSso`/`startEmailOtp` handlers unchanged). No new authz/classifier surface.
+- **claude-mem:** read prior marketing/deploy context from hook observations; no durable write.
+
+---
+
 # Session — 2026-05-23 (Step 2 question-set sharing — Phase 5 UI SHIPPED + DEPLOYED)
 
 **Headline:** Built + deployed the **Phase 5 admin UI** for question-set sharing (clone-on-use), completing the feature whose backend shipped earlier today. Three pieces, one commit each: **5b** company "Assess from a set" picker, **5a** SA pack|domain grant-scope toggle, **5c** pack-detail → read-only catalog (create-vs-catalog separation). Frontend rebuilt + recreated on `assessiq.in` (additive; marketing/api/worker/db untouched).

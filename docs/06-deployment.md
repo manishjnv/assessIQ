@@ -272,6 +272,37 @@ New marketing pages need NO Caddy change (they fall to the default→9093 route)
 `docs/design/seo-marketing-site-architecture.md` and `docs/design/SEO_Strategy.md`
 §17. The React SPA stays the gated app and remains `noindex`.
 
+**Trust pages + Google Safe Browsing remediation (2026-05-23).** Google Search
+Console flagged `assessiq.in` with a **"Deceptive pages" (social-engineering)**
+Safe Browsing issue (Sample URLs: N/A). **What changed:** added `/privacy`
+(DPDP-Act-2023-aligned Privacy Policy) and `/terms` (Terms of Service) as Astro
+pages (`apps/marketing/src/pages/{privacy,terms}.astro`, mirroring the
+`security.astro` pattern + breadcrumb JSON-LD), linked sitewide from the Footer
+"Company" column and added to the **hardcoded** sitemap in `astro.config.mjs`
+(45→47 URLs); hardened the SPA login (`apps/web/src/pages/admin/login.tsx`) —
+H1 "Sign in to continue." → "Sign in to AssessIQ." + Terms/Privacy links under
+the auth buttons — and added Privacy/Terms links to the candidate landing
+(`apps/web/src/pages/take/TokenLanding.tsx`). Separately added
+`apps/marketing/public/BingSiteAuth.xml` for Bing Webmaster verification.
+**Why:** the flag's most probable trigger is the textbook false-positive profile —
+a brand-new domain whose login hero CTA is "Continue with Google", with **no
+Privacy/Terms anywhere on the site** (Safe Browsing crawls login pages regardless
+of `robots.txt` Disallow). Strong self-identification + sitewide legal links are
+the standard legitimacy signals that clear it. **Considered & rejected:** Bing's
+HTML-meta-tag verification (would inject a tag into all ~45 pages — used the single
+XML file instead); requesting the GSC review immediately (held until the hardening
+shipped, so the appeal lands on a fixed page, not a repeat-offender cooldown).
+**NOT included:** the legal pages ship with `[bracketed]` placeholders (entity name,
+registered address, grievance officer, jurisdiction city, effective date) — they
+need a real legal-review pass before the placeholders are filled; the GSC "Request
+Review" and Bing "Verify" clicks are operator-gated. **Downstream impact:**
+`assessiq-marketing` rebuilt (47 pages) + `assessiq-frontend` rebuilt (login copy);
+`docs/04-auth-flows.md` login screen now reads "Sign in to AssessIQ" with legal
+links. Commits `657ee2a` (Bing file) + `ab899fe` (trust pages + login hardening),
+both on `main`. The note on the **hardcoded sitemap**: any *future* marketing page
+is silently absent from `sitemap-0.xml` until added to the `pages[]` array in
+`astro.config.mjs` — a known maintenance trap, not auto-discovered.
+
 **Container.** `assessiq-marketing` in `infra/docker-compose.yml`: `nginx:alpine`
 serving Astro `dist/`, host port **9093:80** (9091=frontend, 9092=api). Dockerfile
 at `infra/docker/assessiq-marketing/Dockerfile` (multi-stage; **pnpm pinned to
