@@ -1,0 +1,253 @@
+---
+// compare.astro — /compare hub page
+// JSON-LD: THREE separate blocks — ItemList + BreadcrumbList (per SEO §3.6 / §15)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// Comparison cluster per SEO §5.3 — highest-intent, highest-converting bottom-funnel
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// ItemList JSON-LD — links the 3 comparison pages (§15 template)
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "AssessIQ Competitor Comparisons",
+  "description": "Side-by-side comparisons of AssessIQ against leading assessment platforms for Indian IT companies and educational institutions.",
+  "url": `${site}/compare`,
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "AssessIQ vs Mercer Mettl: 2026 Comparison",
+      "url": `${site}/compare/assessiq-vs-mettl`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "AssessIQ vs HackerEarth: 2026 Comparison",
+      "url": `${site}/compare/assessiq-vs-hackerearth`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "AssessIQ vs iMocha: 2026 Comparison",
+      "url": `${site}/compare/assessiq-vs-imocha`
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Compare"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+const comparisons = [
+  {
+    slug: "assessiq-vs-mettl",
+    competitor: "Mercer Mettl",
+    description: "Mercer Mettl is a Gurugram-based platform acquired by Mercer in 2018, positioned for enterprise talent assessment and proctored examinations. See how AssessIQ compares on India-first hiring, structured scoring, and admin simplicity.",
+    tags: ["Enterprise proctoring", "Talent assessments", "Global reach"]
+  },
+  {
+    slug: "assessiq-vs-hackerearth",
+    competitor: "HackerEarth",
+    description: "HackerEarth is a Bengaluru-founded platform known for its developer community, hackathons, and large coding-challenge library. See how AssessIQ compares on structured B2B hiring, rubric-based scoring, and audit trails.",
+    tags: ["Coding challenges", "Hackathons", "Developer community"]
+  },
+  {
+    slug: "assessiq-vs-imocha",
+    competitor: "iMocha",
+    description: "iMocha positions as a Skills Intelligence Cloud for enterprise workforce analytics and pre-employment screening. See how AssessIQ compares on India-focused hiring workflows, transparent scoring, and getting started quickly.",
+    tags: ["Skills intelligence", "Workforce analytics", "Enterprise"]
+  }
+];
+---
+
+<BaseLayout
+  title="Compare AssessIQ vs Assessment Platforms"
+  description="Side-by-side comparisons of AssessIQ against Mercer Mettl, HackerEarth, and iMocha. Find out which assessment platform fits your India hiring needs in 2026."
+  canonicalPath="/compare"
+>
+  <!-- JSON-LD: ItemList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Compare
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Compare &middot; Assessment Platforms
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        AssessIQ vs the alternatives. Honestly compared.
+      </h1>
+
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        Every comparison below uses the same neutral criteria — India focus, proctoring, question types, code evaluation, integrations, deployment, support, and ideal customer. No fabricated stats. No price claims. Genuine "which to choose" guidance for both sides.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── COMPARISON CARDS ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="comparisons-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Comparisons</p>
+      <h2 id="comparisons-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Who are you evaluating against?
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {comparisons.map(comp => (
+          <a
+            href={`/compare/${comp.slug}`}
+            class="block bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-accent transition-colors duration-150 no-underline group"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              AssessIQ vs
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0 group-hover:text-aiq-accent transition-colors">
+              {comp.competitor}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg m-0">
+              {comp.description}
+            </p>
+            <div class="flex flex-wrap gap-aiq-sm">
+              {comp.tags.map(tag => (
+                <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase bg-aiq-bg-sunken px-aiq-sm py-aiq-2xs rounded-aiq-sm">
+                  {tag}
+                </span>
+              ))}
+            </div>
+            <p class="font-sans text-aiq-sm text-aiq-accent mt-aiq-lg mb-0 font-medium group-hover:text-aiq-accent-hover transition-colors">
+              Read comparison &rsaquo;
+            </p>
+          </a>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── HOW WE COMPARE ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="approach-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Our approach</p>
+      <h2 id="approach-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0 max-w-2xl">
+        Comparisons written to help you decide, not to sell you.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl max-w-4xl">
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Neutral criteria only.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Every table uses the same rows for every competitor: India focus, proctoring, question types, code evaluation, integrations, deployment, support, and ideal customer. No rows invented to make a competitor look bad.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Competitor strengths acknowledged.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Each comparison page names situations where the competitor is the stronger choice. A platform you should buy only if it fits you is more trustworthy than one that claims to fit everyone.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            No fabricated data.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            We do not quote invented review scores, fake customer counts, or unverifiable price claims for any platform. Where information is uncertain, we say so.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Updated for 2026.
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Platforms evolve. These pages reflect publicly available positioning as of May 2026. If you spot something outdated, <a href="/contact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">tell us</a>.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+      <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0 max-w-2xl">
+        Ready to try AssessIQ yourself?
+      </h2>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-xl">
+        The fastest way to evaluate any assessment platform is to run a real test. Start free — no credit card required.
+      </p>
+      <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Start free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+        See also: <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Pricing</a> &middot; <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Security &amp; data residency</a> &middot; <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; Technical Hiring</a>
+      </p>
+
+    </div>
+  </section>
+
+</BaseLayout>

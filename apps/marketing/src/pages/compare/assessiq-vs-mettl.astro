@@ -1,0 +1,447 @@
+---
+// compare/assessiq-vs-mettl.astro — /compare/assessiq-vs-mettl
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList (per SEO §3.6 / §5.3 / §15)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// NO specific price claims for either platform (anti-fabrication rule)
+// Competitor facts sourced from publicly verifiable information (2025-2026)
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// Article JSON-LD (§15 template — comparison pages use Article)
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "AssessIQ vs Mercer Mettl: Complete 2026 Comparison",
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "url": `${site}/`
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}/compare/assessiq-vs-mettl`,
+  "description": "An honest, side-by-side comparison of AssessIQ and Mercer Mettl across proctoring, India focus, question types, code evaluation, integrations, deployment, support, and ideal customer — updated May 2026."
+};
+
+// FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Mercer Mettl?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mercer Mettl (now branded Mercer | Mettl) is an online talent assessment and proctoring platform headquartered in Gurugram, India. It was acquired by Mercer in 2018. The platform is known for a broad assessment library, AI-powered proctoring, and enterprise-scale examination delivery used by 6,000+ companies globally."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ differ from Mercer Mettl for Indian IT companies?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ is designed specifically for structured, auditable B2B hiring decisions — with anchor-based rubrics, scoring bands, and full attempt logs that let teams defend every shortlist decision. Mercer Mettl offers a wider enterprise assessment library and a large-scale proctoring infrastructure. For Indian IT companies that need a focused coding-and-skills screening workflow with transparent scoring rationale, AssessIQ is the more direct fit. For enterprise exam programs, certification delivery, or very large question library breadth, Mercer Mettl is worth evaluating."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does AssessIQ support AI-powered proctoring like Mercer Mettl?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Mercer Mettl suitable for small and mid-size Indian companies?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mercer Mettl serves a wide range of business sizes from startups to enterprises. Some user reviews note that pricing can be a consideration for smaller organizations. AssessIQ is designed with Indian team sizes and hiring workflows in mind, and offers a free starting point. Both platforms are worth evaluating based on your volume and feature requirements — check current pricing directly with each vendor."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which platform has a larger question library — AssessIQ or Mercer Mettl?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mercer Mettl publicly states a library of 100,000+ technical questions across many domains. AssessIQ's question packs are curated for Indian IT hiring role stacks — Python, Java, SQL, React, .NET, aptitude, and logical reasoning — with an emphasis on quality and calibration for Indian candidate pools rather than breadth alone. If raw library count is the primary criterion, Mercer Mettl has more volume. If calibration for Indian hiring contexts matters more, AssessIQ's curated approach is designed for that."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I try AssessIQ before committing?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ has a free starting point — you can create an account and run assessments without a credit card. This makes it practical to evaluate the platform against your real hiring workflow before deciding."
+      }
+    }
+  ]
+};
+
+// BreadcrumbList JSON-LD (§15 — last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Compare",
+      "item": `${site}/compare`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "AssessIQ vs Mercer Mettl"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+// Comparison table rows — neutral criteria, honest entries, no absolute "lacks X" claims
+const tableRows = [
+  {
+    criterion: "India focus",
+    assessiq: "Built India-first — calibrated packs for Indian IT role stacks, local data residency, pricing designed for Indian teams",
+    mettl: "Founded and headquartered in India (Gurugram); serves 100+ countries; strong India enterprise presence"
+  },
+  {
+    criterion: "Proctoring",
+    assessiq: "Tab-switch detection, full-screen enforcement, webcam monitoring, copy-paste restriction, timestamped event log per attempt",
+    mettl: "AI-powered proctoring at enterprise scale; 200,000+ proctored assessments per day; listed in Gartner's proctoring category"
+  },
+  {
+    criterion: "Question types",
+    assessiq: "Coding (live execution + test cases), MCQ, output prediction, aptitude, logical reasoning — curated for Indian IT hiring",
+    mettl: "Broad library of 100,000+ questions across technical and behavioral domains; supports many assessment categories"
+  },
+  {
+    criterion: "Code evaluation",
+    assessiq: "Browser-based coding environment; submissions run against hidden test cases; pass/fail count + execution time visible to admin",
+    mettl: "Auto-graded coding simulators with support for multiple languages; part of their technical assessment suite"
+  },
+  {
+    criterion: "Structured scoring",
+    assessiq: "Anchor-based rubrics and scoring bands on every question; per-answer rationale visible to reviewer",
+    mettl: "Scoring varies by assessment type; detailed candidate reports available; check vendor for rubric-level detail"
+  },
+  {
+    criterion: "Integrations",
+    assessiq: "Admin dashboard, CSV export, PDF reports; ATS integrations — varies by plan (check current docs)",
+    mettl: "Integrates with major HRMS and LMS platforms; wide enterprise integration catalog"
+  },
+  {
+    criterion: "Deployment",
+    assessiq: "Cloud SaaS; bulk invite via CSV or shareable link; no per-seat cap on concurrent sessions",
+    mettl: "Cloud SaaS; enterprise on-premise options may vary — confirm with vendor"
+  },
+  {
+    criterion: "Support",
+    assessiq: "Email and chat support; direct access for setup and configuration questions",
+    mettl: "Dedicated customer success for enterprise accounts; support scale varies by tier"
+  },
+  {
+    criterion: "Company background",
+    assessiq: "India-focused B2B assessment platform; structured hiring and institutional exams",
+    mettl: "Acquired by Mercer (global HR consulting) in 2018; backed by global talent management brand"
+  },
+  {
+    criterion: "Ideal customer",
+    assessiq: "Indian IT companies, campus hiring teams, and educational institutions wanting structured, auditable assessment workflows",
+    mettl: "Enterprises and institutions needing high-volume proctored exams, wide assessment variety, or global multi-country deployment"
+  }
+];
+
+const faqs = [
+  {
+    q: "What is Mercer Mettl?",
+    a: "Mercer Mettl (now branded Mercer | Mettl) is an online talent assessment and proctoring platform headquartered in Gurugram, India. It was acquired by Mercer in 2018. The platform is known for a broad assessment library, AI-powered proctoring, and enterprise-scale examination delivery used by 6,000+ companies globally."
+  },
+  {
+    q: "How does AssessIQ differ from Mercer Mettl for Indian IT companies?",
+    a: "AssessIQ is designed specifically for structured, auditable B2B hiring decisions — with anchor-based rubrics, scoring bands, and full attempt logs that let teams defend every shortlist decision. Mercer Mettl offers a wider enterprise assessment library and a large-scale proctoring infrastructure. For Indian IT companies that need a focused coding-and-skills screening workflow with transparent scoring rationale, AssessIQ is the more direct fit. For enterprise exam programs, certification delivery, or very large question library breadth, Mercer Mettl is worth evaluating."
+  },
+  {
+    q: "Does AssessIQ support AI-powered proctoring like Mercer Mettl?",
+    a: "AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
+  },
+  {
+    q: "Is Mercer Mettl suitable for small and mid-size Indian companies?",
+    a: "Mercer Mettl serves a wide range of business sizes from startups to enterprises. Some user reviews note that pricing can be a consideration for smaller organizations. AssessIQ is designed with Indian team sizes and hiring workflows in mind, and offers a free starting point. Both platforms are worth evaluating based on your volume and feature requirements — check current pricing directly with each vendor."
+  },
+  {
+    q: "Which platform has a larger question library — AssessIQ or Mercer Mettl?",
+    a: "Mercer Mettl publicly states a library of 100,000+ technical questions across many domains. AssessIQ's question packs are curated for Indian IT hiring role stacks — Python, Java, SQL, React, .NET, aptitude, and logical reasoning — with an emphasis on quality and calibration for Indian candidate pools rather than breadth alone. If raw library count is the primary criterion, Mercer Mettl has more volume. If calibration for Indian hiring contexts matters more, AssessIQ's curated approach is designed for that."
+  },
+  {
+    q: "Can I try AssessIQ before committing?",
+    a: "Yes. AssessIQ has a free starting point — you can create an account and run assessments without a credit card. This makes it practical to evaluate the platform against your real hiring workflow before deciding."
+  }
+];
+---
+
+<BaseLayout
+  title="AssessIQ vs Mercer Mettl: 2026 Comparison"
+  description="AssessIQ vs Mercer Mettl: 2026 comparison — India focus, proctoring, code evaluation, structured scoring, and which platform best fits your IT hiring needs."
+  canonicalPath="/compare/assessiq-vs-mettl"
+  ogType="article"
+>
+  <!-- JSON-LD: Article (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <!-- JSON-LD: FAQPage (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/compare" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Compare
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            AssessIQ vs Mercer Mettl
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Compare &middot; Updated May 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        AssessIQ vs Mercer Mettl: Complete 2026 Comparison
+      </h1>
+
+      <!-- 50-word TL;DR — snippet target per §5.3 -->
+      <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-2xl max-w-2xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">TL;DR</p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          AssessIQ offers structured, rubric-based hiring assessments built for Indian IT teams — anchor scoring, audit trails, and a simple admin workflow. Mercer Mettl brings a larger question library, enterprise-scale proctoring, and global reach backed by Mercer. The right choice depends on whether you need breadth or structured-scoring depth.
+        </p>
+      </div>
+
+      <!-- Internal links row -->
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+        Also compare: <a href="/compare/assessiq-vs-hackerearth" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ vs HackerEarth</a> &middot; <a href="/compare/assessiq-vs-imocha" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ vs iMocha</a> &middot; <a href="/alternatives/mettl" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Mercer Mettl alternatives</a>
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── SIDE-BY-SIDE TABLE ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="table-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Side-by-side</p>
+      <h2 id="table-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Feature-by-feature comparison.
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left">
+          <thead>
+            <tr class="border-b-2 border-aiq-border-strong">
+              <th class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase pb-aiq-md pr-aiq-xl w-1/4">Criterion</th>
+              <th class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase pb-aiq-md pr-aiq-xl w-[37.5%]">AssessIQ</th>
+              <th class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase pb-aiq-md w-[37.5%]">Mercer Mettl</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.map((row, i) => (
+              <tr class={`border-b border-aiq-border ${i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised'}`}>
+                <td class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase py-aiq-lg pr-aiq-xl align-top font-medium">
+                  {row.criterion}
+                </td>
+                <td class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed py-aiq-lg pr-aiq-xl align-top">
+                  {row.assessiq}
+                </td>
+                <td class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed py-aiq-lg align-top">
+                  {row.mettl}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-xl mb-0">
+        Table entries reflect publicly available information as of May 2026. Verify current capabilities and pricing directly with each vendor before making a purchase decision.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── WHICH SHOULD YOU CHOOSE ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="choose-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Decision guide</p>
+      <h2 id="choose-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Which should you choose?
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-lg">
+
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">Choose AssessIQ if…</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You are an Indian IT company running structured pre-interview screening and need scoring that explains itself — anchors, bands, and per-answer rationale your hiring team can act on.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You want coding tests, MCQ, and aptitude in a single timed session, with a proctoring log your team can actually review.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You are a campus team or educational institution running bulk invite drives with CSV import and no per-seat concurrency limits.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You want to start without a lengthy procurement cycle — free account, no credit card.
+            </li>
+          </ul>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">Choose Mercer Mettl if…</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You need a very large question library spanning behavioral, personality, cognitive, and technical dimensions — 100,000+ questions across many assessment types.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You run high-volume proctored examination programs — certification exams, university exams, or government-level assessments — where enterprise proctoring scale and Mercer's brand assurance matter.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              Your organization operates across multiple countries and needs a vendor with 90+ country reach and multi-language assessment support.
+            </li>
+            <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+              You need deep integration with existing HRMS or LMS infrastructure typical in large enterprises.
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about AssessIQ vs Mercer Mettl.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        {faqs.map((faq, i) => (
+          <div class={i < faqs.length - 1 ? 'border-b border-aiq-border pb-aiq-xl' : ''}>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              {faq.q}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {faq.a}
+            </p>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CTA + RELATED ── -->
+  <section class="bg-aiq-bg-base" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Try AssessIQ on your own hiring workflow.
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            See also: <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Pricing</a> &middot; <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Security</a> &middot; <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; Technical Hiring</a>
+          </p>
+        </div>
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">More comparisons</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/compare/assessiq-vs-hackerearth" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs HackerEarth
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Compare on developer community, coding challenges, and structured B2B hiring.</p>
+            </li>
+            <li>
+              <a href="/compare/assessiq-vs-imocha" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs iMocha
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Compare on skills intelligence, workforce analytics, and India hiring workflows.</p>
+            </li>
+            <li>
+              <a href="/alternatives/mettl" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Mercer Mettl alternatives
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Looking for a Mercer Mettl alternative for Indian IT hiring?</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

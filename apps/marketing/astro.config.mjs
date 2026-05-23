@@ -22,6 +22,17 @@ function inlineSitemap() {
     { loc: `${SITE}/solutions/campus-recruitment`,          lastmod: today },
     { loc: `${SITE}/solutions/educational-institutions`,    lastmod: today },
     { loc: `${SITE}/solutions/team-skill-gap`,              lastmod: today },
+    { loc: `${SITE}/solutions`,                             lastmod: today },
+    { loc: `${SITE}/alternatives`,                          lastmod: today },
+    { loc: `${SITE}/alternatives/mettl`,                    lastmod: today },
+    { loc: `${SITE}/alternatives/hackerearth`,              lastmod: today },
+    { loc: `${SITE}/alternatives/imocha`,                   lastmod: today },
+    { loc: `${SITE}/alternatives/hackerrank`,               lastmod: today },
+    { loc: `${SITE}/alternatives/amcat`,                    lastmod: today },
+    { loc: `${SITE}/compare`,                               lastmod: today },
+    { loc: `${SITE}/compare/assessiq-vs-mettl`,             lastmod: today },
+    { loc: `${SITE}/compare/assessiq-vs-hackerearth`,       lastmod: today },
+    { loc: `${SITE}/compare/assessiq-vs-imocha`,            lastmod: today },
   ];
 
   function urlsetXml(urls) {

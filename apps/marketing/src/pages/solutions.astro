@@ -1,0 +1,190 @@
+---
+// solutions.astro — /solutions hub page
+// JSON-LD: TWO blocks — ItemList (4 solution pages) + BreadcrumbList (Home › Solutions)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// India-first positioning per SEO §17
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const solutions = [
+  {
+    href: '/solutions/it-hiring',
+    name: 'IT & Technical Hiring',
+    description: 'Coding tests, technical skills assessments, and proctored developer screening for IT companies. Evaluate Python, Java, SQL, React, and more — with anti-cheat controls and structured scoring.',
+    label: 'For IT & engineering teams',
+  },
+  {
+    href: '/solutions/campus-recruitment',
+    name: 'Campus & Fresher Recruitment',
+    description: 'Aptitude, coding, and English proficiency at bulk scale. Run placement drives across multiple colleges simultaneously — with randomised question pools and full proctoring.',
+    label: 'For talent acquisition & campus teams',
+  },
+  {
+    href: '/solutions/educational-institutions',
+    name: 'Educational Institutions',
+    description: 'Online proctored exams and skill certification for colleges and universities. Browser lockdown, webcam monitoring, and tamper-evident digital credentials — no software installation required.',
+    label: 'For colleges & universities',
+  },
+  {
+    href: '/solutions/team-skill-gap',
+    name: 'Team Skill-Gap Analysis',
+    description: 'Map your existing team’s competencies, identify upskilling priorities, and benchmark individuals against role requirements — with structured scoring and cohort-level analytics.',
+    label: 'For L&D and HR teams',
+  },
+];
+
+// ItemList JSON-LD — 4 solution pages (per SEO §15 hub template)
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "AssessIQ Assessment Solutions",
+  "description": "Assessment solutions for IT hiring, campus recruitment, educational institutions, and team skill-gap analysis.",
+  "itemListElement": solutions.map((s, i) => ({
+    "@type": "ListItem",
+    "position": i + 1,
+    "url": `${site}${s.href}`,
+    "name": s.name,
+  })),
+};
+
+// BreadcrumbList JSON-LD — Home › Solutions (last item has NO `item` URL per spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Solutions"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="Assessment Solutions"
+  description="AssessIQ assessment solutions for IT hiring, campus recruitment, educational institutions, and team skill-gap analysis. Structured, auditable assessments for every hiring and evaluation context."
+  canonicalPath="/solutions"
+>
+  <!-- JSON-LD: ItemList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <!-- JSON-LD: BreadcrumbList (separate block per §3.6) -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Solutions
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Solutions
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Every assessment context, one platform.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AssessIQ is a structured assessment platform built for Indian organisations. Whether you're screening IT candidates, running campus placement drives, administering institutional exams, or mapping your team's skill gaps — every solution runs on the same auditable, evidence-based foundation.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── SOLUTION CARDS ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="solutions-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Choose a solution</p>
+      <h2 id="solutions-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Built for every hiring and evaluation context.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-lg">
+        {solutions.map(s => (
+          <a
+            href={s.href}
+            class="group bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl
+                   hover:border-aiq-border-strong transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2
+                   flex flex-col gap-aiq-md no-underline"
+          >
+            <div>
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0 mb-aiq-xs">
+                {s.label}
+              </p>
+              <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mt-0 mb-aiq-sm leading-snug group-hover:text-aiq-accent transition-colors duration-150">
+                {s.name}
+              </h3>
+              <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+                {s.description}
+              </p>
+            </div>
+            <span class="font-sans text-aiq-sm font-medium text-aiq-accent group-hover:text-aiq-accent-hover transition-colors duration-150 mt-auto">
+              Learn more &rsaquo;
+            </span>
+          </a>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="bg-aiq-bg-base" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+        <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Not sure which solution fits? Talk to us.
+        </h2>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="https://assessiq.in/admin/login"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Get started free
+          </a>
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Talk to us
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
