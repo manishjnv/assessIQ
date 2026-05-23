@@ -1,0 +1,127 @@
+---
+// glossary/criterion-validity.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Criterion Validity",
+  "description": "A form of assessment validity that quantifies the statistical relationship between test scores and a real-world performance criterion — typically job performance ratings, sales figures, or training success. Expressed as a correlation coefficient (r), where values above 0.30 are generally considered practically significant in personnel selection.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/criterion-validity`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Criterion Validity" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Criterion Validity"
+  description="Criterion validity measures whether a test predicts real-world outcomes like job performance. Learn the difference between predictive and concurrent validity, how correlation coefficients are interpreted, and why this evidence is essential for defensible hiring."
+  canonicalPath="/glossary/criterion-validity"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Criterion Validity</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Criterion Validity
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        Criterion validity is the statistical relationship between scores on a selection test and a real-world performance criterion — typically supervisor ratings, output metrics, or training results. It is expressed as a correlation coefficient (r). In personnel selection, values above 0.30 are generally considered practically significant, meaning the test adds meaningful predictive power over chance.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Criterion validity is the most direct evidence that a test is worth using in hiring. It answers the question: does a higher score actually predict better performance on the job? Without this evidence, a test may feel rigorous and look professional while systematically selecting for traits that do not drive results. Structured skills tests, coding assessments, and aptitude batteries are defensible precisely because their criterion-related validity can be (and has been, in the research literature) demonstrated empirically.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          There are two subtypes. <strong>Predictive validity</strong> is established by testing candidates before hire, then correlating their scores with later performance data — the gold standard because it matches the actual selection context. <strong>Concurrent validity</strong> tests current employees and correlates their scores with existing performance ratings — faster to obtain but potentially biased because poor performers may already have been separated and top performers may score higher due to job experience rather than pre-existing ability.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          When an organisation is challenged on a hiring decision — or faces an adverse impact claim — criterion validity evidence is one of the primary defences. A vendor who cannot produce validity data (ideally a peer-reviewed study or a client-commissioned local validation) is selling on brand, not science.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A company administers a Python coding test to 120 developer applicants and hires 40 of them. Twelve months later, it correlates each hire's test score with their 12-month performance rating. The resulting correlation is r = 0.42, which is above the 0.30 threshold and statistically significant at p &lt; 0.01. This is criterion validity evidence. The company can now state that higher test scores predicted stronger on-the-job performance in this role — making the test a defensible component of the selection process.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/construct-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Construct Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Evidence that the test measures the psychological attribute it is designed to measure — a prerequisite for interpreting criterion relationships meaningfully.</p>
+          </li>
+          <li>
+            <a href="/glossary/reliability-coefficient" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Reliability Coefficient</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">A test cannot be more criterion-valid than it is reliable — measurement error in the test attenuates the observed validity coefficient.</p>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Adverse Impact</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Criterion validity is the primary evidence of business necessity used to justify a selection tool that produces disparate pass rates.</p>
+          </li>
+          <li>
+            <a href="/glossary/cut-score" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Cut Score</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Setting a defensible cut score typically requires criterion validity data to determine where on the score scale job-relevant ability becomes sufficient.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

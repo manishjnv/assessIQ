@@ -1,0 +1,129 @@
+---
+// glossary/computer-adaptive-testing.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Computer-Adaptive Testing",
+  "description": "An assessment format in which the difficulty of each successive item is selected in real time based on the test-taker's estimated ability level, derived from responses to previous items. Powered by Item Response Theory, CAT achieves the same measurement precision as a fixed-form test using significantly fewer items — typically 40–60% fewer — while reducing floor and ceiling effects.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/computer-adaptive-testing`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Computer-Adaptive Testing" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Computer-Adaptive Testing"
+  description="Computer-adaptive testing (CAT) adjusts item difficulty in real time based on each response, measuring ability more precisely with fewer questions. Learn how CAT works, its advantages over fixed-form tests, and when it is the right choice for candidate screening."
+  canonicalPath="/glossary/computer-adaptive-testing"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Computer-Adaptive Testing</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Computer-Adaptive Testing
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        Computer-adaptive testing (CAT) is an assessment format in which the difficulty of each successive item is chosen in real time based on the test-taker's estimated ability, updated after every response. Rather than presenting every candidate with the same fixed question set, the algorithm targets items near the estimated ability level — concentrating measurement where it is most informative and reaching a precise score estimate with significantly fewer items.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Fixed-form tests waste questions on both ends of the ability distribution. A very strong candidate answers the easy items correctly with certainty, gaining almost no measurement information. A weaker candidate answers the hardest items incorrectly with near certainty, also gaining little information. CAT eliminates most of this waste by bypassing items that are too easy or too hard for a given candidate and concentrating on items at the edge of their ability — the zone where response uncertainty is highest and information is greatest.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The practical benefits for candidate screening are concrete:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>Shorter tests, same precision:</strong> CAT typically reaches equivalent measurement precision with 40&ndash;60&nbsp;% fewer items than a fixed-form test. A 60-item aptitude battery can be reduced to 25&ndash;35 adaptive items without sacrificing the accuracy of the ability estimate.</li>
+          <li class="mb-aiq-sm"><strong>Reduced floor and ceiling effects:</strong> Fixed forms often fail to discriminate among candidates at the top or bottom of the score range. Adaptive selection avoids this by continuously targeting the ability frontier.</li>
+          <li class="mb-aiq-sm"><strong>Better candidate experience:</strong> Candidates are not grinding through items far below their level (demoralising) or consistently failing items far above it (discouraging). The adaptive difficulty feels more like a conversation than a gauntlet.</li>
+          <li><strong>Security:</strong> Because no two candidates see exactly the same item sequence, memorising and sharing answers provides limited advantage compared with a fixed form where the full item set can be reconstructed and leaked.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          CAT requires a calibrated item bank — typically at least 200&ndash;500 items per domain calibrated via Item Response Theory — before it can function. This makes it an infrastructure investment not suited to small-scale or bespoke assessment programmes.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A platform launches a 40-item CAT aptitude test. Candidate A answers the first medium-difficulty item correctly; the algorithm updates the ability estimate upward and serves a harder item. After five correct answers in a row, the estimated ability stabilises in the 85th-percentile range and easier items are no longer administered. The test terminates after 22 items once the standard error of measurement falls below a preset threshold. Candidate B, answering inconsistently, takes the full 40 items because the algorithm cannot reduce uncertainty quickly. Both receive ability estimates on the same scale, comparable against the same norm group.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/item-response-theory" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Item Response Theory</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">The psychometric model that powers adaptive item selection — CAT cannot function without a calibrated IRT item bank.</p>
+          </li>
+          <li>
+            <a href="/glossary/reliability-coefficient" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Reliability Coefficient</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">CAT targets a reliability threshold (expressed as a standard error bound) as its stopping criterion, rather than a fixed item count.</p>
+          </li>
+          <li>
+            <a href="/glossary/percentile-rank" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Percentile Rank</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">CAT scores are typically reported as percentile ranks against a norm group, translating the IRT theta score into a hiring-practical comparison point.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

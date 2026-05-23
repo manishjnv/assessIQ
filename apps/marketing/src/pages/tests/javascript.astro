@@ -1,0 +1,264 @@
+---
+// tests/javascript.astro — JavaScript Online Test skill page (/tests/javascript)
+// JSON-LD: Service + FAQPage + BreadcrumbList (separate blocks per SEO §3.6 / §15)
+// NO aggregateRating, NO fabricated stats
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "JavaScript skills assessment",
+  "provider": { "@type": "Organization", "name": "AssessIQ" },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Online JavaScript test for pre-employment screening and frontend or full-stack hiring in India. Covers closures, async/await, the event loop, ES6+ features, and DOM interaction. Structured scoring with anti-cheat proctoring.",
+  "url": `${site}/tests/javascript`
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How long is a JavaScript online test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A JavaScript MCQ and output-prediction test typically runs 30–45 minutes. Tests that include writing and running JavaScript in a browser environment — event handling, DOM manipulation, or async flows — run 60–90 minutes. Admins set the duration."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the JavaScript test free on AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ has a free tier for running tests and reviewing results. Higher candidate volumes and advanced proctoring controls are part of paid plans. See the pricing page."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the JavaScript test cover Node.js?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Core JavaScript language features (closures, async/await, the event loop, modules) apply equally in Node.js and the browser. Node-specific APIs (fs, http, streams, process) are available as a separate add-on pack for backend Node.js role screening."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What ES version does the JavaScript test cover?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Questions cover ES6 through ES2022: arrow functions, destructuring, spread/rest, template literals, Promises, async/await, optional chaining (?.), nullish coalescing (??), and modules (import/export). ES5 compatibility questions are included at the junior tier."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What score is considered good on a JavaScript test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "For a frontend developer role, strong scores on closure, async, and DOM questions are more predictive than raw score totals. AssessIQ shows per-question answer breakdowns so you can assess where a candidate is strong and where they need support, beyond just the final number."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I combine the JavaScript test with a React test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. A common screening pattern for frontend roles is a JavaScript core pack (language fundamentals) followed by a React pack (component model, hooks, state) in a single timed session. AssessIQ lets admins mix question packs per test."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Skill Tests", "item": `${site}/tests` },
+    { "@type": "ListItem", "position": 3, "name": "JavaScript Test" }
+  ]
+};
+
+const topics = [
+  { name: "Closures and scope", detail: "Lexical scoping, the closure pattern, variable capture in loops, IIFE (immediately invoked function expressions), and the module pattern before ES6 modules." },
+  { name: "Async JavaScript", detail: "The event loop and call stack, microtask vs macrotask queue, Promises (then/catch/finally, Promise.all/race/allSettled), and async/await error handling with try/catch." },
+  { name: "ES6+ features", detail: "Arrow functions (and their this binding), destructuring (array and object), spread and rest operators, template literals, optional chaining (?.) and nullish coalescing (??)." },
+  { name: "Prototypes and this", detail: "Prototype chain traversal, Object.create, constructor functions vs class syntax, how this is bound in regular vs arrow functions, call/apply/bind." },
+  { name: "DOM and events", detail: "DOM traversal (querySelector, closest), event delegation vs direct binding, event bubbling and capture, debounce and throttle patterns, and async fetch with error handling." },
+  { name: "Modules and tooling concepts", detail: "ES module import/export semantics, named vs default exports, circular dependency risks, and what a bundler does at a conceptual level (not webpack config questions)." },
+];
+---
+
+<BaseLayout
+  title="JavaScript Online Test for Hiring & Assessment"
+  description="Run a JavaScript online test to screen frontend and full-stack developers in India. Covers closures, async/await, ES6+, DOM, event loop, and modules. Structured scoring, anti-cheat proctoring."
+  canonicalPath="/tests/javascript"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">JavaScript Test</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Skill Test &middot; JavaScript</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        JavaScript Online Test for Hiring &amp; Assessment
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        A JavaScript online test measures a candidate's understanding of the language's runtime behaviour — closures, the event loop, async patterns, and prototype semantics — not just syntax recall. It surfaces the difference between developers who write working code in a familiar codebase and those who can reason about why JavaScript behaves the way it does.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Get started free</a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="topics-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Topic breakdown</p>
+      <h2 id="topics-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">What the JavaScript test covers</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {topics.map(t => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample question</p>
+      <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">The kind of question candidates answer</h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Async / event loop — mid level</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-primary leading-relaxed mb-aiq-lg font-medium">What does the following code log, and in what order?</p>
+          <pre class="bg-aiq-bg-sunken border border-aiq-border rounded-aiq-md p-aiq-lg font-mono text-aiq-sm text-aiq-fg-primary leading-relaxed overflow-x-auto mb-aiq-lg"><code>console.log('A');
+
+setTimeout(() => console.log('B'), 0);
+
+Promise.resolve().then(() => console.log('C'));
+
+console.log('D');</code></pre>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Options</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary">
+            <li>A. A, B, C, D</li>
+            <li>B. A, D, B, C</li>
+            <li class="text-aiq-accent font-medium">C. A, D, C, B &#10003; Correct</li>
+            <li>D. A, C, D, B</li>
+          </ul>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">What this question tests</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            The event loop priority order: synchronous code runs first (A, D), then the microtask queue drains (Promise.resolve = C), then the macrotask queue runs (setTimeout = B). Candidates who confuse macrotasks and microtasks choose B or D. This is a real source of race-condition bugs in production async JavaScript.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="roles-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who should take it</p>
+      <h2 id="roles-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Roles this test screens for</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg max-w-4xl">
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Frontend Developer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Screens the JavaScript foundation before framework-specific interviews. Pair with the <a href="/tests/react" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">React test</a> for a complete frontend screening pack.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Full-Stack Engineer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">JavaScript on both sides of the stack. Combine with a Node.js add-on pack and an <a href="/tests/sql" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">SQL test</a> for a complete full-stack assessment.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Node.js / Backend Developer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Core language proficiency before Node-specific API and runtime behaviour questions. Async patterns and event loop understanding are especially relevant here.</p>
+        </div>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">Relevant for <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; technical hiring</a> and <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">campus recruitment</a> in India.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="format-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Format &amp; difficulty</p>
+      <h2 id="format-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Duration, format, and difficulty levels</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Duration</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">30–90 min</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Configurable per test</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Format</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">MCQ + Live code</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Output prediction + DOM scripting</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Levels</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Junior — Senior</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">ES5 basics to async internals</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Common questions about the JavaScript online test</h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long is a JavaScript online test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A JavaScript MCQ and output-prediction test typically runs 30–45 minutes. Tests with live JavaScript execution run 60–90 minutes. Duration is configurable.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the JavaScript test free on AssessIQ?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">AssessIQ has a free tier. Paid plans add higher candidate volumes and advanced proctoring. See the <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing page</a>.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does the JavaScript test cover Node.js?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Core language features apply to both environments. Node-specific APIs are a separate add-on pack for backend Node.js role screening.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What ES version does the JavaScript test cover?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Questions cover ES6 through ES2022: arrow functions, destructuring, spread/rest, Promises, async/await, optional chaining, nullish coalescing, and ES modules.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What score is considered good on a JavaScript test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">For frontend roles, strong scores on closure and async questions are more predictive than raw totals. AssessIQ shows per-question breakdowns so you can assess where a candidate is strong beyond just the final number.</p></div>
+        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can I combine the JavaScript test with a React test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. A JavaScript core pack followed by a React pack in a single session is a common frontend screening pattern. AssessIQ lets admins mix question packs per test.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Ready to screen JavaScript candidates?</h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Start free</a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Pricing</a>
+          </div>
+        </div>
+        <div>
+          <p id="related-heading" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related tests</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/react" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">React Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Pair with JavaScript core for complete frontend screening.</p></li>
+            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Backend language screening for scripting and API roles.</p></li>
+            <li><a href="/tests/sql" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">SQL Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Add database query screening for full-stack roles.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

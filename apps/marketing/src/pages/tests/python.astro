@@ -1,0 +1,337 @@
+---
+// tests/python.astro — Python Online Test skill page (/tests/python)
+// JSON-LD: Service + FAQPage + BreadcrumbList (separate blocks per SEO §3.6 / §15)
+// NO aggregateRating, NO fabricated stats (SEO §13 hard rule)
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "Python skills assessment",
+  "provider": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Online Python test for pre-employment screening and technical hiring in India. Evaluates data structures, OOP, comprehensions, error handling, and standard library usage with structured scoring.",
+  "url": `${site}/tests/python`
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How long is a Python online test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A standard Python screening test on AssessIQ runs 30–45 minutes for a mixed MCQ and output-prediction format, or 60–90 minutes when live coding questions with test-case execution are included. Admins can configure the duration per test."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the Python test free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ offers a free tier that lets you run assessments and review results. Paid plans unlock higher candidate volumes, advanced proctoring controls, and bulk invite. See the pricing page for the current plan limits."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What score is considered good on a Python test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A good score depends on the role seniority and question difficulty. For a junior Python developer role, a score in the top 40% of your cohort is a reasonable shortlist threshold. For senior roles with algorithmic questions, many teams set a higher bar. AssessIQ shows per-cohort distribution so you can calibrate for each campaign."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the Python test include live coding questions?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ supports live coding questions where candidates write Python in a browser-based editor and their code runs against hidden test cases. You see pass/fail counts per test case, submitted code, and execution time — not just a final score."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which Python topics does the test cover?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ Python question packs cover: data structures (lists, dicts, sets, tuples), object-oriented programming (classes, inheritance, dunder methods), comprehensions and generators, error handling and exceptions, standard library modules (itertools, collections, os, re), and algorithmic problem-solving."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use AssessIQ Python tests for campus hiring in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ supports bulk invite via CSV and concurrent session handling with no per-seat cap, making it suitable for campus drives with hundreds of candidates. Proctoring controls (tab-switch detection, webcam monitoring, full-screen enforcement) are included on all plans."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Skill Tests",
+      "item": `${site}/tests`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Python Test"
+      // No "item" — current page
+    }
+  ]
+};
+
+const topics = [
+  { name: "Data structures", detail: "Lists, dicts, sets, tuples — mutability, iteration, time complexity of common operations." },
+  { name: "Object-oriented programming", detail: "Classes, inheritance, method resolution order, dunder methods (__init__, __str__, __len__), property decorators." },
+  { name: "Comprehensions & generators", detail: "List, dict, and set comprehensions; generator expressions; the yield keyword and lazy evaluation." },
+  { name: "Error handling", detail: "try/except/finally, custom exception classes, exception chaining, context managers (with statement)." },
+  { name: "Standard library", detail: "itertools, collections (Counter, defaultdict, deque), functools (partial, lru_cache), os and pathlib, re (regex)." },
+  { name: "Algorithmic problem-solving", detail: "Sorting, searching, recursion, two-pointer and sliding-window patterns at junior-to-mid level." },
+];
+---
+
+<BaseLayout
+  title="Python Online Test for Hiring & Assessment"
+  description="Run a Python online test to screen developers in India. Covers data structures, OOP, comprehensions, error handling, and standard library. Structured scoring, live coding, anti-cheat proctoring."
+  canonicalPath="/tests/python"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Python Test</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Skill Test &middot; Python</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Python Online Test for Hiring &amp; Assessment
+      </h1>
+      <!-- 40–60 word definitional intro — featured-snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        A Python online test measures a candidate's ability to write correct, idiomatic Python — covering data structures, object-oriented design, comprehensions, error handling, and standard library usage. It screens for practical coding skill rather than self-reported experience, giving hiring teams a consistent, objective shortlisting signal.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Get started free
+        </a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHAT THE TEST COVERS -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="topics-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Topic breakdown</p>
+      <h2 id="topics-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What the Python test covers
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {topics.map(t => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- SAMPLE QUESTION -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample question</p>
+      <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        The kind of question candidates answer
+      </h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Output prediction — mid level</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-primary leading-relaxed mb-aiq-lg font-medium">
+            What does the following code print?
+          </p>
+          <pre class="bg-aiq-bg-sunken border border-aiq-border rounded-aiq-md p-aiq-lg font-mono text-aiq-sm text-aiq-fg-primary leading-relaxed overflow-x-auto mb-aiq-lg"><code>def flatten(lst):
+    result = []
+    for item in lst:
+        if isinstance(item, list):
+            result.extend(flatten(item))
+        else:
+            result.append(item)
+    return result
+
+data = [1, [2, [3, 4]], 5]
+print(flatten(data))</code></pre>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Options</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary">
+            <li>A. [1, 2, [3, 4], 5]</li>
+            <li class="text-aiq-accent font-medium">B. [1, 2, 3, 4, 5] &#10003; Correct</li>
+            <li>C. [1, [2, [3, 4]], 5]</li>
+            <li>D. TypeError: unhashable type</li>
+          </ul>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">What this question tests</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Recursive list traversal and the distinction between <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">append</code> (add one item) and <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">extend</code> (unpack an iterable). A candidate who confuses the two will pick A. This targets a real production error pattern — incorrectly nested lists — without being a trick question.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHO SHOULD TAKE IT -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="roles-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who should take it</p>
+      <h2 id="roles-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Roles this test screens for
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg max-w-4xl">
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Backend / Python Developer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Hiring for Django, Flask, FastAPI, or scripting roles. Covers the language core every Python backend engineer needs.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Data Analyst / Data Engineer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Verifies scripting fluency before roles that rely on pandas, NumPy, or ETL pipelines. Pair with the <a href="/tests/sql" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">SQL test</a> for analyst screening.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">ML / AI Engineer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Python fluency is the foundation before domain-specific ML skills. Tests core language competency without assuming framework knowledge.</p>
+        </div>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">
+        Relevant for <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; technical hiring</a> and <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">campus recruitment</a> in India.
+      </p>
+    </div>
+  </section>
+
+  <!-- FORMAT & DIFFICULTY -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="format-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Format &amp; difficulty</p>
+      <h2 id="format-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Duration, format, and difficulty levels
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Duration</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">30–90 min</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Configurable per test</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Format</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">MCQ + Live code</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Mix to match seniority</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Levels</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Junior — Senior</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Question packs by difficulty</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about the Python online test
+      </h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long is a Python online test?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A standard Python screening test on AssessIQ runs 30–45 minutes for a mixed MCQ and output-prediction format, or 60–90 minutes when live coding questions with test-case execution are included. Admins can configure the duration per test.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the Python test free to use?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">AssessIQ offers a free tier that lets you run assessments and review results. Paid plans unlock higher candidate volumes, advanced proctoring controls, and bulk invite. See the <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing page</a> for the current plan limits.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What score is considered good on a Python test?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A good score depends on the role seniority and question difficulty. For a junior Python developer role, a score in the top 40% of your cohort is a reasonable shortlist threshold. For senior roles with algorithmic questions, many teams set a higher bar. AssessIQ shows per-cohort distribution so you can calibrate for each campaign.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does the Python test include live coding questions?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. AssessIQ supports live coding questions where candidates write Python in a browser-based editor and their code runs against hidden test cases. You see pass/fail counts per test case, submitted code, and execution time — not just a final score.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Which Python topics does the test cover?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">AssessIQ Python question packs cover: data structures (lists, dicts, sets, tuples), object-oriented programming (classes, inheritance, dunder methods), comprehensions and generators, error handling and exceptions, standard library modules (itertools, collections, os, re), and algorithmic problem-solving.</p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can I use AssessIQ Python tests for campus hiring in India?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. AssessIQ supports bulk invite via CSV and concurrent session handling with no per-seat cap, making it suitable for campus drives with hundreds of candidates. Proctoring controls (tab-switch detection, webcam monitoring, full-screen enforcement) are included on all plans.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RELATED TESTS + CTA -->
+  <section class="bg-aiq-bg-base" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to screen Python candidates?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Start free
+            </a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Pricing
+            </a>
+          </div>
+        </div>
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0" id="related-heading">Related tests</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/sql" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">SQL Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Pair with Python for data analyst and data engineer screening.</p></li>
+            <li><a href="/tests/java" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Java Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Backend language screening for enterprise and product teams.</p></li>
+            <li><a href="/tests/javascript" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">JavaScript Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Full-stack and frontend language proficiency.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

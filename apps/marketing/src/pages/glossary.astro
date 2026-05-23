@@ -1,0 +1,232 @@
+---
+// glossary.astro — AssessIQ Assessment Glossary hub
+// JSON-LD: DefinedTermSet + BreadcrumbList (per SEO §15 / §5.5)
+// Grouped alphabetically, links to all 10 term pages, no trailing slashes
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+// DefinedTermSet JSON-LD — hub schema; hasDefinedTerm lists all terms
+const termSetSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTermSet",
+  "name": "AssessIQ Assessment Glossary",
+  "description": "Plain-English definitions of psychometrics and assessment-science terms used in pre-employment testing, candidate screening, and team skill evaluation.",
+  "url": `${site}/glossary`,
+  "hasDefinedTerm": [
+    { "@type": "DefinedTerm", "name": "Adverse Impact",           "url": `${site}/glossary/adverse-impact` },
+    { "@type": "DefinedTerm", "name": "Computer-Adaptive Testing","url": `${site}/glossary/computer-adaptive-testing` },
+    { "@type": "DefinedTerm", "name": "Construct Validity",       "url": `${site}/glossary/construct-validity` },
+    { "@type": "DefinedTerm", "name": "Criterion Validity",       "url": `${site}/glossary/criterion-validity` },
+    { "@type": "DefinedTerm", "name": "Cut Score",                "url": `${site}/glossary/cut-score` },
+    { "@type": "DefinedTerm", "name": "Item Response Theory",     "url": `${site}/glossary/item-response-theory` },
+    { "@type": "DefinedTerm", "name": "Norm-Referenced Scoring",  "url": `${site}/glossary/norm-referenced-scoring` },
+    { "@type": "DefinedTerm", "name": "Percentile Rank",          "url": `${site}/glossary/percentile-rank` },
+    { "@type": "DefinedTerm", "name": "Proctoring",               "url": `${site}/glossary/proctoring` },
+    { "@type": "DefinedTerm", "name": "Reliability Coefficient",  "url": `${site}/glossary/reliability-coefficient` }
+  ]
+};
+
+// BreadcrumbList JSON-LD (last item has no `item` per §15 spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",    "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary" }
+  ]
+};
+
+// Terms grouped by first letter for the hub listing
+const terms = [
+  {
+    letter: "A",
+    entries: [
+      { slug: "adverse-impact",           label: "Adverse Impact",            tagline: "When a selection tool produces a substantially different pass rate for a protected group." }
+    ]
+  },
+  {
+    letter: "C",
+    entries: [
+      { slug: "computer-adaptive-testing", label: "Computer-Adaptive Testing", tagline: "An assessment format that adjusts question difficulty in real time based on each answer." },
+      { slug: "construct-validity",        label: "Construct Validity",         tagline: "Evidence that a test actually measures the psychological trait it claims to measure." },
+      { slug: "criterion-validity",        label: "Criterion Validity",         tagline: "The statistical relationship between test scores and a real-world performance outcome." },
+      { slug: "cut-score",                 label: "Cut Score",                  tagline: "The minimum score required to pass a test or advance to the next stage of selection." }
+    ]
+  },
+  {
+    letter: "I",
+    entries: [
+      { slug: "item-response-theory",     label: "Item Response Theory",       tagline: "A psychometric framework that models the probability of a correct answer as a function of ability and item difficulty." }
+    ]
+  },
+  {
+    letter: "N",
+    entries: [
+      { slug: "norm-referenced-scoring",  label: "Norm-Referenced Scoring",    tagline: "Scoring that locates a candidate’s result relative to a reference population rather than an absolute standard." }
+    ]
+  },
+  {
+    letter: "P",
+    entries: [
+      { slug: "percentile-rank",          label: "Percentile Rank",            tagline: "The percentage of scores in a reference group that fall at or below a given score." },
+      { slug: "proctoring",               label: "Proctoring",                 tagline: "Controls that verify a candidate’s identity and monitor behaviour during a remote assessment." }
+    ]
+  },
+  {
+    letter: "R",
+    entries: [
+      { slug: "reliability-coefficient",  label: "Reliability Coefficient",    tagline: "A numerical index (0–1) of how consistently a test measures the same thing across administrations or raters." }
+    ]
+  }
+];
+---
+
+<BaseLayout
+  title="Assessment Glossary"
+  description="Plain-English definitions of psychometrics and assessment-science terms — adverse impact, criterion validity, item response theory, cut score, proctoring, and more."
+  canonicalPath="/glossary"
+>
+  <!-- JSON-LD: DefinedTermSet -->
+  <script type="application/ld+json" set:html={JSON.stringify(termSetSchema)} />
+  <!-- JSON-LD: BreadcrumbList -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Glossary
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Reference &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Assessment glossary.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 word definitional intro -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-0 max-w-2xl">
+        Clear, accurate definitions of the psychometrics and assessment-science terms that appear in pre-employment testing, candidate screening, and team skill evaluation. Each entry explains what the concept means, why it matters in hiring, and how it connects to related ideas.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- TERM LIST — grouped by letter -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="terms-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">All terms</p>
+      <h2 id="terms-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        10 terms, from adverse impact to reliability.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-3xl">
+        {terms.map(group => (
+          <div>
+            <!-- Letter divider -->
+            <div class="border-b border-aiq-border mb-aiq-lg pb-aiq-xs">
+              <span class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase">{group.letter}</span>
+            </div>
+
+            <ul class="list-none m-0 p-0 flex flex-col gap-aiq-lg">
+              {group.entries.map(entry => (
+                <li>
+                  <a
+                    href={`/glossary/${entry.slug}`}
+                    class="block group rounded-aiq-lg border border-aiq-border bg-aiq-bg-raised p-aiq-xl hover:border-aiq-border-strong transition-colors duration-150"
+                  >
+                    <p class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xs mt-0 group-hover:text-aiq-accent transition-colors">
+                      {entry.label}
+                    </p>
+                    <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+                      {entry.tagline}
+                    </p>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- WHY THIS GLOSSARY -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="why-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Why it matters</p>
+        <h2 id="why-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Better vocabulary, better decisions.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              For HR and talent teams.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Terms like adverse impact and cut score carry legal and ethical weight. Understanding them precisely helps you design defensible selection processes and avoid unintentional bias.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              For assessment buyers.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Vendors use terms like criterion validity and reliability coefficient in sales conversations. Knowing what they mean — and what evidence to ask for — lets you evaluate claims honestly.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="bg-aiq-bg-base">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0 max-w-2xl">
+        Ready to run assessments that stand up to scrutiny?
+      </p>
+      <div class="flex flex-wrap gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

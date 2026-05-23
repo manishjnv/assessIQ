@@ -1,0 +1,130 @@
+---
+// glossary/norm-referenced-scoring.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Norm-Referenced Scoring",
+  "description": "A score interpretation framework that locates a test-taker's result relative to a defined reference population rather than against an absolute standard of performance. The score's meaning is derived from where it falls in the distribution of the norm group — not from how many correct answers were given or whether a competency threshold was met.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/norm-referenced-scoring`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Norm-Referenced Scoring" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Norm-Referenced Scoring"
+  description="Norm-referenced scoring ranks candidates relative to a reference population rather than against an absolute standard. Learn how it differs from criterion-referenced scoring, how the norm group affects interpretation, and when each approach is appropriate."
+  canonicalPath="/glossary/norm-referenced-scoring"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Norm-Referenced Scoring</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Norm-Referenced Scoring
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        Norm-referenced scoring locates a test-taker's result relative to a defined reference population rather than against an absolute performance standard. The score tells you where a candidate falls in the distribution of others who took the same test — not whether they have mastered a specific skill or passed a minimum competency threshold.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The core distinction in score interpretation is between norm-referenced and criterion-referenced (or standards-referenced) scoring. In criterion-referenced scoring, a candidate either meets the standard or does not — a driving test pass is criterion-referenced, because you need to demonstrate specific competencies, regardless of how anyone else performed. In norm-referenced scoring, ranking relative to others is the point — selecting the top quartile of applicants is norm-referenced, regardless of whether everyone in that quartile would perform adequately in the role.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Most commercial pre-employment tests are norm-referenced. Vendors report scores in percentiles, stanines, or z-scores, all of which describe position in a distribution. This is useful for rank-ordering candidates in competitive selection — you want to hire the strongest candidates from a large pool — but it creates a specific risk: if the norm group is weak, even the top-ranked candidates may not meet an absolute competency standard. And if the norm group is exceptionally strong, a qualified candidate with average absolute ability will appear near the bottom of the distribution.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The practical implication for assessment buyers is to ask two separate questions:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>Who is in the norm group?</strong> Recent applicants for similar roles, all test-takers across industries, or incumbent workers? Each produces a different distribution and a different meaning for "top 30&nbsp;%."</li>
+          <li><strong>Is the norm group still representative?</strong> A norm group collected three years ago may no longer reflect the current labour market, particularly in fast-moving technical domains where average skill levels shift quickly.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          Some organisations blend norm- and criterion-referenced approaches: they set a minimum absolute score (criterion threshold) and then rank above it by percentile. This ensures every selected candidate meets a baseline standard while still allowing rank-ordering among those who clear the bar.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A company uses a Java knowledge test normed on all test-takers across a vendor platform over the past 18 months. A candidate scores at the 60th percentile. But 60&nbsp;% of that norm group are students and early-career developers who do not reflect the senior engineer talent pool the company wants to hire from. The same candidate, compared against a senior-engineer norm group, might fall at the 30th percentile. The raw score did not change; the norm group did. Reporting only the percentile rank without disclosing the norm group composition gives a misleading picture of the candidate's relative standing.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/percentile-rank" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Percentile Rank</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">The most common way to express a norm-referenced score — the percentage of the norm group that falls at or below the candidate's score.</p>
+          </li>
+          <li>
+            <a href="/glossary/cut-score" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Cut Score</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">A cut score can be set norm-referenced (e.g. "top 25%") or criterion-referenced (e.g. "must score at least 70") — the choice affects what the threshold represents.</p>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Adverse Impact</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Norm group composition affects adverse impact rates — a norm group that is not representative of the applicant pool can distort apparent pass rates across demographic groups.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

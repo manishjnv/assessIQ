@@ -1,0 +1,134 @@
+---
+// glossary/proctoring.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Proctoring",
+  "description": "The set of controls applied during an assessment to verify the test-taker's identity, ensure they complete the test independently, and detect behaviours inconsistent with genuine individual performance. In online assessment, proctoring typically includes browser lockdown, webcam monitoring, environment scanning, and anomaly flagging — either reviewed by a human in real time or by automated analysis post-submission.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/proctoring`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Proctoring" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Proctoring"
+  description="Proctoring is the set of controls used during an assessment to verify identity and ensure independent completion. Learn the main types of online proctoring — browser lockdown, webcam monitoring, AI flagging — their trade-offs, and how to evaluate claims responsibly."
+  canonicalPath="/glossary/proctoring"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Proctoring</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Proctoring
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        Proctoring refers to the controls applied during an assessment to verify that the test-taker is who they claim to be, that they complete the test independently without prohibited assistance, and that detected behaviours are consistent with genuine individual performance. In online settings, it replaces the human invigilator present in a physical test room with a combination of technical and procedural controls.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          The validity of a pre-employment test depends on the assumption that scores reflect the candidate's own ability under standardised conditions. If a candidate can look up answers, use AI tools, have a third party assist them, or sit in a non-standardised environment, scores become unreliable signals — a high score may reflect resources, not ability. Proctoring is the control layer that defends that assumption.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Online proctoring takes several forms, with different trade-offs between deterrence, detection, candidate experience, and privacy implications:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>Browser lockdown:</strong> Restricts the candidate to the assessment interface — blocks tab-switching, new windows, copy-paste from external sources, and often keyboard shortcuts that could invoke AI tools. Effective against casual reference-checking; does not prevent second devices or pre-loaded content.</li>
+          <li class="mb-aiq-sm"><strong>Webcam monitoring:</strong> Records or streams video of the candidate during the test. Flags events such as the face leaving frame, multiple faces appearing, or gaze direction suggesting reference to another screen. Reviewed by a human reviewer, by automated analysis, or by a combination. Raises significant data-privacy considerations, particularly under GDPR and India&#39;s DPDP Act.</li>
+          <li class="mb-aiq-sm"><strong>Environment scan:</strong> Before the test starts, the candidate is prompted to show their workspace via webcam — desk, surrounding area, any visible screens or notes. Provides a point-in-time record of the test environment.</li>
+          <li class="mb-aiq-sm"><strong>AI anomaly flagging:</strong> Automated systems flag events for human review rather than making pass/fail decisions autonomously. The distinction matters — automated proctoring systems have documented false-positive rates, particularly for candidates with non-standard environments, disabilities affecting gaze patterns, or certain skin tones (bias in facial recognition systems is a documented issue).</li>
+          <li><strong>Timestamped event logs:</strong> Every detected anomaly (tab switch, focus loss, window resize, question revisit pattern) is logged with a timestamp, enabling post-hoc review of a complete attempt record alongside the score.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          Effective proctoring is deterrence as much as detection. The knowledge that behaviour is being monitored and logged changes candidate behaviour, reducing the prevalence of casual cheating even if not all sophisticated attempts are caught. Over-reliance on automated pass/fail proctoring decisions without human review introduces legal and fairness risks that outweigh the convenience.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A company runs a 60-minute proctored coding assessment for 200 applicants. The platform enforces full-screen mode and logs 14 tab-switch events across the cohort, flags 3 attempts where a second face appeared in frame, and records 2 attempts where copy-paste was triggered from outside the browser. The admin reviews the flagged attempts alongside the submitted code and timestamps. One attempt is voided after review; the other flags are noted but the code quality does not suggest external assistance. The proctoring layer produced an evidence record — it did not make the decision; the reviewer did.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/construct-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Construct Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Proctoring failures (undetected assistance) threaten construct validity by introducing variance from sources other than the target ability.</p>
+          </li>
+          <li>
+            <a href="/glossary/reliability-coefficient" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Reliability Coefficient</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Systematic cheating inflates scores and reduces inter-candidate reliability — the score no longer reflects consistent individual performance.</p>
+          </li>
+          <li>
+            <a href="/glossary/adverse-impact" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Adverse Impact</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Biased automated proctoring systems that flag certain demographic groups at higher rates can introduce adverse impact through the monitoring layer rather than the test content itself.</p>
+          </li>
+          <li>
+            <a href="/glossary/cut-score" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Cut Score</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">Proctoring flagged attempts should be reviewed before a candidate is screened out at the cut score — a flag alone is not grounds for disqualification.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

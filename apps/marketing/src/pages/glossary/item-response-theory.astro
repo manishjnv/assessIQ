@@ -1,0 +1,128 @@
+---
+// glossary/item-response-theory.astro
+// JSON-LD: DefinedTerm + BreadcrumbList
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const termSchema = {
+  "@context": "https://schema.org",
+  "@type": "DefinedTerm",
+  "name": "Item Response Theory",
+  "description": "A family of psychometric models that describe the probability of a correct response to a test item as a mathematical function of the test-taker's latent ability and the item's characteristics (difficulty, discrimination, and guessing parameter). Unlike classical test theory, IRT scores are independent of the specific item sample administered, enabling adaptive testing and cross-form score comparability.",
+  "inDefinedTermSet": {
+    "@type": "DefinedTermSet",
+    "name": "AssessIQ Assessment Glossary",
+    "url": `${site}/glossary`
+  },
+  "url": `${site}/glossary/item-response-theory`
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home",     "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${site}/glossary` },
+    { "@type": "ListItem", "position": 3, "name": "Item Response Theory" }
+  ]
+};
+---
+
+<BaseLayout
+  title="Item Response Theory"
+  description="Item Response Theory (IRT) models the probability of a correct answer as a function of ability and item difficulty. Learn how IRT enables adaptive testing, cross-form score comparability, and better measurement precision than classical test theory."
+  canonicalPath="/glossary/item-response-theory"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(termSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Glossary</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Item Response Theory</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-3xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Glossary &middot; Assessment Science
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Item Response Theory
+      </h1>
+
+      <!-- Definition — 40–60 word snippet target -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl">
+        Item Response Theory (IRT) is a family of psychometric models that describe the probability of a correct response as a mathematical function of the test-taker's underlying ability and the characteristics of the specific item — principally its difficulty and how well it discriminates between ability levels. Unlike classical test theory, IRT ability estimates are independent of which specific items were administered, making them comparable across test forms and candidates.
+      </p>
+
+      <!-- Why it matters -->
+      <section aria-labelledby="why-heading" class="mb-aiq-2xl">
+        <h2 id="why-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Why it matters in hiring and assessment.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Classical test theory (CTT) — the older framework — scores candidates by summing correct answers and calibrates items based on how difficult they were for the specific sample that took them. This means a "hard" item is only hard relative to the particular group tested, and two candidates who sit different versions of a test cannot be fairly compared without statistical equating. IRT solves both problems by modelling difficulty and ability on the same latent scale, independent of the sample.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In applied hiring assessment, IRT matters for three reasons:
+        </p>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg pl-aiq-xl list-disc">
+          <li class="mb-aiq-sm"><strong>Adaptive testing:</strong> IRT is the mathematical engine behind computer-adaptive testing (CAT). Because the model can estimate ability from any subset of calibrated items, it can select the next question based on real-time ability estimates — making the test shorter and more precise simultaneously.</li>
+          <li class="mb-aiq-sm"><strong>Item banking and form equivalence:</strong> Large-scale assessors maintain banks of IRT-calibrated items and can assemble new test forms that are statistically equivalent, preventing score inflation as items become exposed.</li>
+          <li><strong>Differential Item Functioning (DIF) analysis:</strong> IRT enables detection of items that are unexpectedly harder or easier for specific demographic subgroups after controlling for ability — a key tool in adverse impact investigation and test fairness review.</li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
+          The most common IRT models are the 1PL (Rasch), 2PL, and 3PL, differing in whether they model item discrimination and a lower-asymptote guessing parameter in addition to difficulty. The Rasch model is particularly favoured in high-stakes certification because its strict requirements — when met — guarantee that ability estimates are person-free and item-free.
+        </p>
+      </section>
+
+      <!-- Concrete example -->
+      <section aria-labelledby="example-heading" class="mb-aiq-2xl border-l-2 border-aiq-accent pl-aiq-xl">
+        <h2 id="example-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+          Example.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          A platform maintains a bank of 500 IRT-calibrated SQL questions. Candidate A is administered 30 questions drawn randomly; candidate B takes a different 30. Because both sets are calibrated on the same latent scale, their ability estimates (expressed as theta, &theta;) can be directly compared even though they answered different items. A candidate with &theta; = 1.5 is estimated to have a 75&nbsp;% probability of correctly answering an item at the same difficulty level — the item characteristic curve makes this explicit and auditable.
+        </p>
+      </section>
+
+      <!-- Related terms -->
+      <section aria-labelledby="related-heading" class="mb-aiq-2xl">
+        <h2 id="related-heading" class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+          Related terms.
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li>
+            <a href="/glossary/computer-adaptive-testing" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Computer-Adaptive Testing</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">CAT is the applied implementation of IRT — adaptive item selection requires a calibrated IRT model to function.</p>
+          </li>
+          <li>
+            <a href="/glossary/reliability-coefficient" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Reliability Coefficient</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">IRT expresses reliability as a test information function rather than a single coefficient, showing where on the ability scale measurement is most precise.</p>
+          </li>
+          <li>
+            <a href="/glossary/construct-validity" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors font-medium">Construct Validity</a>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-2xs">IRT&#39;s DIF analysis is a tool for detecting items that violate construct validity by behaving differently across demographic groups after controlling for ability.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="border-t border-aiq-border pt-aiq-xl">
+        <a href="/glossary" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-accent transition-colors">&larr; All glossary terms</a>
+      </div>
+
+    </div>
+  </article>
+
+</BaseLayout>

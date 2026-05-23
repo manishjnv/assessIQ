@@ -1,0 +1,298 @@
+---
+// tests.astro — Skill Tests hub page (/tests)
+// JSON-LD: ItemList (8 skill pages) + BreadcrumbList (per SEO §15)
+// NO aggregateRating — no real data (SEO §13 hard rule)
+// India-first positioning per SEO §17
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const skills = [
+  {
+    slug: 'python',
+    name: 'Python Test',
+    tagline: 'Data structures, OOP, comprehensions, libraries',
+    forRoles: 'Backend Developer, Data Analyst, ML Engineer',
+  },
+  {
+    slug: 'java',
+    name: 'Java Test',
+    tagline: 'OOP principles, collections, multithreading, Spring basics',
+    forRoles: 'Java Developer, Backend Engineer, Enterprise Dev',
+  },
+  {
+    slug: 'sql',
+    name: 'SQL Test',
+    tagline: 'Joins, aggregations, subqueries, window functions',
+    forRoles: 'Data Analyst, Database Engineer, Backend Developer',
+  },
+  {
+    slug: 'javascript',
+    name: 'JavaScript Test',
+    tagline: 'Closures, async/await, DOM, ES6+, event loop',
+    forRoles: 'Frontend Developer, Full-Stack Engineer, Node.js Dev',
+  },
+  {
+    slug: 'react',
+    name: 'React Test',
+    tagline: 'Hooks, component lifecycle, state management, performance',
+    forRoles: 'Frontend Developer, React Engineer, Full-Stack Dev',
+  },
+  {
+    slug: 'aptitude',
+    name: 'Aptitude Test',
+    tagline: 'Numerical reasoning, data interpretation, time-speed-distance',
+    forRoles: 'All campus / fresher hiring roles, analyst tracks',
+  },
+  {
+    slug: 'logical-reasoning',
+    name: 'Logical Reasoning Test',
+    tagline: 'Syllogisms, pattern series, critical thinking, assumptions',
+    forRoles: 'Management trainees, analyst roles, campus drives',
+  },
+  {
+    slug: 'english',
+    name: 'English Test',
+    tagline: 'Grammar, vocabulary, comprehension, business writing',
+    forRoles: 'Customer success, operations, communication-heavy roles',
+  },
+];
+
+// ItemList JSON-LD — the 8 skill pages (§15 template)
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Online Skill Tests for Hiring — AssessIQ",
+  "description": "Pre-employment skill tests for IT companies and recruiters in India. Python, Java, SQL, JavaScript, React, Aptitude, Logical Reasoning, and English.",
+  "itemListElement": skills.map((s, i) => ({
+    "@type": "ListItem",
+    "position": i + 1,
+    "name": s.name,
+    "url": `${site}/tests/${s.slug}`
+  }))
+};
+
+// BreadcrumbList JSON-LD — last item has NO `item` URL (§15 spec)
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Skill Tests"
+      // No "item" — this IS the current page
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="Online Skill Tests for Hiring & Assessment"
+  description="Assess candidates with pre-employment skill tests for Python, Java, SQL, JavaScript, React, Aptitude, Logical Reasoning, and English. Structured scoring, anti-cheat, built for India hiring."
+  canonicalPath="/tests"
+>
+  <!-- JSON-LD: ItemList -->
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <!-- JSON-LD: BreadcrumbList -->
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Skill Tests
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Skill Tests &middot; Hiring Assessments
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Online skill tests for every hiring decision.
+      </h1>
+
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        AssessIQ's pre-employment skill tests let you screen candidates on real ability — not self-reported experience. Each test combines structured questions, anti-cheat proctoring, and anchor-based scoring, so every shortlisting decision rests on the same evidence.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/pricing"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          See pricing
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SKILL CARDS -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="tests-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Available tests</p>
+      <h2 id="tests-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Eight skill tests, ready to deploy.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-aiq-lg">
+        {skills.map(skill => (
+          <a
+            href={`/tests/${skill.slug}`}
+            class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl
+                   hover:border-aiq-accent hover:shadow-aiq-md transition-all duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2
+                   flex flex-col gap-aiq-sm no-underline group"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">
+              {skill.name}
+            </p>
+            <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed m-0">
+              {skill.tagline}
+            </p>
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">
+              {skill.forRoles}
+            </p>
+          </a>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="how-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How AssessIQ tests work</p>
+      <h2 id="how-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Structured screening, not checkbox exercises.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">01 &mdash; Build</p>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Select and configure your test.</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Choose from skill-specific question packs — or mix skills into a single timed session. Set time limits, difficulty mix, and the passing threshold.
+          </p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">02 &mdash; Invite</p>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Send to candidates in bulk.</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Upload a CSV or share a link. Candidates get a proctored, timed session — browser-lock, tab-switch detection, and webcam anomaly flagging included.
+          </p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">03 &mdash; Review</p>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Scores that explain themselves.</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Every submission shows the score, a per-question breakdown, the scoring rationale, and any proctoring flags — side by side in the admin dashboard.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SOLUTIONS LINKS + CTA -->
+  <section class="bg-aiq-bg-base" aria-labelledby="context-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="context-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Tests that fit every hiring context.
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Start free
+            </a>
+            <a
+              href="/pricing"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Pricing
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Explore by use case</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                IT &amp; Technical Hiring
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests and technical skills batteries for developer screening.</p>
+            </li>
+            <li>
+              <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Campus &amp; Fresher Recruitment
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, English, and coding at bulk scale for campus drives.</p>
+            </li>
+            <li>
+              <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Educational Institutions
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Proctored skill certification for colleges and universities.</p>
+            </li>
+            <li>
+              <a href="/solutions/team-skill-gap" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Team Skill-Gap Analysis
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Map existing team competencies and plan upskilling priorities.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

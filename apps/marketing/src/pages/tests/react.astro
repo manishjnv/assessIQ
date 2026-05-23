@@ -1,0 +1,265 @@
+---
+// tests/react.astro — React Online Test skill page (/tests/react)
+// JSON-LD: Service + FAQPage + BreadcrumbList (separate blocks per SEO §3.6 / §15)
+// NO aggregateRating, NO fabricated stats
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "React skills assessment",
+  "provider": { "@type": "Organization", "name": "AssessIQ" },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Online React test for pre-employment screening and frontend hiring in India. Covers hooks, component lifecycle, state management, performance optimisation, and patterns. Structured scoring with anti-cheat proctoring.",
+  "url": `${site}/tests/react`
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How long is a React online test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A React MCQ and concept-check test typically runs 30–45 minutes. Tests that include writing React component code (functional components, hooks, state management patterns) run 60–90 minutes. Duration is set by the admin."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the React test free on AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ has a free tier for running tests and reviewing results. Higher candidate volumes and advanced proctoring are part of paid plans. See the pricing page for current limits."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the React test require knowledge of class components?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The primary focus is functional components and hooks (useState, useEffect, useContext, useReducer, useCallback, useMemo), which reflect current React best practice. A junior tier covers class component lifecycle methods (componentDidMount, componentDidUpdate, shouldComponentUpdate) because legacy codebases still use them."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the React test cover state management libraries like Redux?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Redux and Zustand questions are available as a separate add-on pack. The core React test focuses on React's built-in state model (useState, useReducer, Context) so admins can run a clean React language test without requiring Redux familiarity for roles that don't use it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What score is considered good on a React test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "For senior React roles, strong understanding of hook dependency arrays, re-render triggers, and memoisation trade-offs is more predictive than raw score. AssessIQ shows per-question breakdowns so interviewers know which topics to probe in the next round."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Should I give a JavaScript test before a React test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, and AssessIQ supports this in one session. A combined JavaScript core pack (closures, async, event loop) followed by a React pack in a single timed session is a common and efficient frontend screening pattern. You get two signal layers without two separate scheduling rounds."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Skill Tests", "item": `${site}/tests` },
+    { "@type": "ListItem", "position": 3, "name": "React Test" }
+  ]
+};
+
+const topics = [
+  { name: "Hooks deep dive", detail: "useState, useEffect (cleanup, dependency array), useRef, useContext, useReducer. When to use each, and what mistakes cause stale closures or infinite re-renders." },
+  { name: "Component lifecycle", detail: "Functional component render cycle, when effects fire relative to paint, how React batches state updates (React 17 vs React 18 automatic batching), and Strict Mode double-invocation." },
+  { name: "State and data flow", detail: "Unidirectional data flow, prop drilling and when it becomes a problem, lifting state up, Context as a solution vs Redux or Zustand, and controlled vs uncontrolled inputs." },
+  { name: "Performance optimisation", detail: "React.memo for component memoisation, useMemo and useCallback (correct use cases and common misuse), key prop correctness in lists, and how to use the React DevTools Profiler to find re-render hot-spots." },
+  { name: "Patterns and composition", detail: "Compound components, render props, custom hooks for logic reuse, the children pattern, and conditional rendering strategies that avoid unnecessary DOM thrashing." },
+  { name: "Error boundaries and suspense", detail: "Class-based error boundaries, where they catch and where they don't, React.lazy for code splitting, Suspense for async loading states, and the ErrorBoundary + Suspense composition pattern." },
+];
+---
+
+<BaseLayout
+  title="React Online Test for Hiring & Assessment"
+  description="Run a React online test to screen frontend developers in India. Covers hooks, component lifecycle, state management, performance, and React patterns. Structured scoring, anti-cheat proctoring."
+  canonicalPath="/tests/react"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">React Test</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Skill Test &middot; React</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        React Online Test for Hiring &amp; Assessment
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        A React online test measures a candidate's understanding of the functional component model, hooks semantics, data flow patterns, and performance trade-offs. It goes beyond "have you used React before?" to test whether a developer can reason about why React re-renders, when memoisation helps, and how to avoid common hook mistakes that only show up at scale.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Get started free</a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="topics-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Topic breakdown</p>
+      <h2 id="topics-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">What the React test covers</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {topics.map(t => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample question</p>
+      <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">The kind of question candidates answer</h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">useEffect dependency array — mid level</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-primary leading-relaxed mb-aiq-lg font-medium">What is the problem with this component, and how would you fix it?</p>
+          <pre class="bg-aiq-bg-sunken border border-aiq-border rounded-aiq-md p-aiq-lg font-mono text-aiq-sm text-aiq-fg-primary leading-relaxed overflow-x-auto mb-aiq-lg"><code>function UserProfile(&#123; userId &#125;) &#123;
+  const [user, setUser] = useState(null);
+
+  useEffect(() => &#123;
+    fetch(`/api/users/$&#123;userId&#125;`)
+      .then(r => r.json())
+      .then(data => setUser(data));
+  &#125;, []); // empty dependency array
+
+  return user ? &lt;div&gt;&#123;user.name&#125;&lt;/div&gt; : &lt;p&gt;Loading...&lt;/p&gt;;
+&#125;</code></pre>
+          <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-md p-aiq-lg">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Correct answer and approach</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The effect runs once on mount and never re-runs, so if the parent passes a different <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">userId</code> later, the component still shows the original user. Fix: add <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">userId</code> to the dependency array: <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">[userId]</code>. Additionally, the effect should return a cleanup function that aborts the fetch (via AbortController) to prevent state updates on unmounted components.
+            </p>
+          </div>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">What this question tests</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Understanding that an empty dependency array means "run once on mount, never again" — not "run whenever I feel the data might be stale." The AbortController follow-up separates mid-level from senior candidates. Both mistakes cause real production bugs (stale data and memory leaks on route changes).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="roles-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who should take it</p>
+      <h2 id="roles-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Roles this test screens for</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg max-w-4xl">
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Frontend / React Developer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The primary use case. Pair with the <a href="/tests/javascript" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">JavaScript core test</a> for a complete frontend screening session.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Full-Stack Engineer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Screens the frontend half of a full-stack role. Combine with an <a href="/tests/sql" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">SQL test</a> or Python test for the backend side.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Tech Lead / Senior Engineer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Performance and architectural pattern questions at senior tier probe whether a candidate can design a component system, not just build a single component.</p>
+        </div>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">Relevant for <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; technical hiring</a> across product and startup engineering teams in India.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="format-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Format &amp; difficulty</p>
+      <h2 id="format-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Duration, format, and difficulty levels</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Duration</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">30–90 min</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Configurable per test</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Format</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">MCQ + Code review</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Concept + component writing</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Levels</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Junior — Senior</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Hooks basics to perf patterns</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Common questions about the React online test</h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long is a React online test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">An MCQ and concept-check test runs 30–45 minutes. Tests with live component writing run 60–90 minutes. Duration is set by the admin.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the React test free on AssessIQ?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">AssessIQ has a free tier. Paid plans add higher volumes and advanced proctoring. See the <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing page</a>.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does the React test require knowledge of class components?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Primary focus is functional components and hooks. Class component lifecycle methods are covered at the junior tier because legacy codebases still use them.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does the React test cover Redux?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Redux and Zustand are available as a separate add-on pack. The core React test focuses on React's built-in state model so admins can exclude Redux for roles that don't use it.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What score is considered good on a React test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">For senior roles, strong scores on hook dependency and performance questions are more predictive than raw totals. AssessIQ shows per-question breakdowns so interviewers know which areas to probe.</p></div>
+        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Should I give a JavaScript test before a React test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. A combined JavaScript core + React session screens both layers without two scheduling rounds. AssessIQ supports mixed question packs in a single timed session.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Ready to screen React candidates?</h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Start free</a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Pricing</a>
+          </div>
+        </div>
+        <div>
+          <p id="related-heading" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related tests</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/javascript" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">JavaScript Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Pair with React for a complete frontend screening session.</p></li>
+            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Add backend language screening for full-stack roles.</p></li>
+            <li><a href="/tests/sql" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">SQL Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Database query proficiency for full-stack and API roles.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

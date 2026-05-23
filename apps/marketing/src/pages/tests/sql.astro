@@ -1,0 +1,267 @@
+---
+// tests/sql.astro — SQL Online Test skill page (/tests/sql)
+// JSON-LD: Service + FAQPage + BreadcrumbList (separate blocks per SEO §3.6 / §15)
+// NO aggregateRating, NO fabricated stats
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "SQL skills assessment",
+  "provider": { "@type": "Organization", "name": "AssessIQ" },
+  "areaServed": ["India", "Worldwide"],
+  "description": "Online SQL test for pre-employment screening and data role hiring in India. Covers joins, aggregations, subqueries, window functions, and query optimisation. Structured scoring with anti-cheat proctoring.",
+  "url": `${site}/tests/sql`
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How long is an SQL online test?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A SQL screening test typically runs 30–45 minutes for multiple-choice and query-output questions. Tests that require writing live SQL queries against a test database run 45–60 minutes. Admins set the duration per test."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the SQL test free on AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The free tier lets you run SQL tests and review candidate results. Paid plans add higher candidate volumes, bulk invite, and advanced proctoring controls. See the pricing page for current limits."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which SQL dialect does the test use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Questions are written in standard ANSI SQL and are compatible with MySQL, PostgreSQL, and SQL Server. Dialect-specific syntax (e.g. LIMIT vs TOP, date functions) is flagged in the question where relevant, so candidates aren't penalised for dialect differences."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the SQL test cover window functions?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Window functions (ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PARTITION BY) are included at the mid-level and senior question tiers. They are kept separate from the core joins-and-aggregations pack so admins can target the right difficulty for the role."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What score is good on an SQL test for a data analyst role?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "For data analyst roles, strong SQL fundamentals (joins, GROUP BY, HAVING, subqueries) matter more than window functions or query-plan reading. A candidate in the top third of your cohort on a mid-level SQL pack is typically a solid shortlist signal. AssessIQ shows the cohort distribution per test run."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can SQL tests be combined with other skill tests on AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Admins can combine SQL questions with Python, aptitude, or logical reasoning questions in a single timed session. This is common for data analyst and data engineer screening, where SQL query skill and scripting fluency both matter."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Skill Tests", "item": `${site}/tests` },
+    { "@type": "ListItem", "position": 3, "name": "SQL Test" }
+  ]
+};
+
+const topics = [
+  { name: "JOINs and set operations", detail: "INNER, LEFT, RIGHT, FULL OUTER, and CROSS JOINs; UNION vs UNION ALL; INTERSECT and EXCEPT — when each produces duplicates and when it doesn't." },
+  { name: "Aggregations and grouping", detail: "GROUP BY, HAVING vs WHERE (filter order matters), COUNT/SUM/AVG/MIN/MAX, and grouping on multiple columns with correct NULL handling." },
+  { name: "Subqueries and CTEs", detail: "Correlated vs non-correlated subqueries, scalar subqueries in SELECT, EXISTS and NOT EXISTS, and WITH (CTE) for readable multi-step queries." },
+  { name: "Window functions", detail: "ROW_NUMBER, RANK, DENSE_RANK for ranking; LAG and LEAD for row-over-row comparison; PARTITION BY and ORDER BY within OVER(); running totals with SUM() OVER()." },
+  { name: "Data manipulation", detail: "INSERT, UPDATE with JOIN, DELETE with subquery, and UPSERT patterns (INSERT ... ON DUPLICATE KEY / ON CONFLICT). Understanding transaction scope." },
+  { name: "Query design and optimisation", detail: "Index usage basics, avoiding SELECT *, SARGable vs non-SARGable predicates, the cost of functions in WHERE clauses, and reading a basic execution plan." },
+];
+---
+
+<BaseLayout
+  title="SQL Online Test for Hiring & Assessment"
+  description="Run an SQL online test to screen data analysts and backend developers in India. Covers joins, aggregations, subqueries, window functions, and query design. Structured scoring, anti-cheat proctoring."
+  canonicalPath="/tests/sql"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">SQL Test</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Skill Test &middot; SQL</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        SQL Online Test for Hiring &amp; Assessment
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        An SQL online test measures a candidate's ability to query, transform, and reason about relational data — from correct join semantics and GROUP BY logic to subqueries, CTEs, and window functions. It identifies candidates who write correct SQL under realistic conditions, not just those who recall syntax from memory.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Get started free</a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="topics-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Topic breakdown</p>
+      <h2 id="topics-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">What the SQL test covers</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {topics.map(t => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample question</p>
+      <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">The kind of question candidates answer</h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Window functions — mid level</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-primary leading-relaxed mb-aiq-lg font-medium">
+            Given an <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">orders</code> table with columns <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">order_id</code>, <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">customer_id</code>, and <code class="font-mono text-aiq-sm bg-aiq-bg-sunken px-1 rounded">order_total</code>, write a query that returns each order along with that customer's running total of orders placed so far (ordered by order_id).
+          </p>
+          <pre class="bg-aiq-bg-sunken border border-aiq-border rounded-aiq-md p-aiq-lg font-mono text-aiq-sm text-aiq-fg-primary leading-relaxed overflow-x-auto mb-aiq-lg"><code>-- Correct answer:
+SELECT
+  order_id,
+  customer_id,
+  order_total,
+  SUM(order_total) OVER (
+    PARTITION BY customer_id
+    ORDER BY order_id
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS running_total
+FROM orders;</code></pre>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Common wrong approaches</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary">
+            <li>Using a correlated subquery (works, but 10x slower on large tables)</li>
+            <li>Forgetting PARTITION BY customer_id (gives a global running total, not per-customer)</li>
+            <li>Using GROUP BY instead of a window function (loses individual row granularity)</li>
+          </ul>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">What this question tests</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Understanding when a window function is both semantically correct and more efficient than a correlated subquery or self-join. The PARTITION BY mistake (missing customer_id) is the most common production error — it produces results that look plausible but are wrong.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="roles-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who should take it</p>
+      <h2 id="roles-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Roles this test screens for</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg max-w-4xl">
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Data Analyst</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">SQL is the primary tool. A core joins-aggregations-subqueries pack screens for the daily query work without requiring window function expertise at junior level.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Data / Backend Engineer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Pairing the SQL test with a <a href="/tests/python" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Python test</a> covers both query and scripting skill — the typical data engineering stack.</p>
+        </div>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Full-Stack Developer</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Screens whether a full-stack candidate can write maintainable queries rather than relying entirely on ORM abstractions — a practical signal for teams with complex reporting needs.</p>
+        </div>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">Relevant for <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; technical hiring</a> and <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">campus recruitment</a> in India.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="format-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Format &amp; difficulty</p>
+      <h2 id="format-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Duration, format, and difficulty levels</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Duration</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">30–60 min</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Configurable per test</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Format</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">MCQ + Query writing</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Output prediction + live SQL</p>
+        </div>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Levels</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Foundational — Advanced</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Joins-only to window functions</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Common questions about the SQL online test</h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long is an SQL online test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A SQL screening test typically runs 30–45 minutes for MCQ and query-output questions. Tests requiring live SQL query writing run 45–60 minutes. Duration is configurable by the admin.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the SQL test free on AssessIQ?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The free tier lets you run SQL tests and review candidate results. Paid plans add higher candidate volumes and advanced proctoring. See the <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing page</a>.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Which SQL dialect does the test use?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Questions are written in standard ANSI SQL, compatible with MySQL, PostgreSQL, and SQL Server. Dialect-specific syntax is flagged in the question where relevant.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does the SQL test cover window functions?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PARTITION BY are included at mid and senior tiers. They are kept separate from the core pack so admins can include or exclude them by role.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What score is good on an SQL test for a data analyst role?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">For data analyst roles, strong SQL fundamentals (joins, GROUP BY, HAVING, subqueries) matter most. A candidate in the top third of your cohort on a mid-level pack is typically a solid shortlist signal. AssessIQ shows the cohort distribution per test run.</p></div>
+        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can SQL tests be combined with other skill tests?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. Admins can combine SQL with Python, aptitude, or logical reasoning questions in a single timed session. This is common for data analyst and data engineer screening.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base" aria-labelledby="related-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Ready to screen SQL candidates?</h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Start free</a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Pricing</a>
+          </div>
+        </div>
+        <div>
+          <p id="related-heading" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related tests</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Pair with SQL for data analyst and data engineer roles.</p></li>
+            <li><a href="/tests/java" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Java Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Backend language screening for enterprise teams.</p></li>
+            <li><a href="/tests/aptitude" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Aptitude Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Numerical reasoning for analyst and campus hiring.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
