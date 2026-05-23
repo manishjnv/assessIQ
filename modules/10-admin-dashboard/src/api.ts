@@ -794,6 +794,29 @@ export async function createAssessmentFromSet(
   );
 }
 
+/** Minimal platform-pack option for the SA pack-scope grant dropdown (Step 2 5a). */
+export interface PlatformPackOption {
+  id: string;
+  name: string;
+  domain: string;
+  status: string;
+}
+
+/**
+ * GET /api/admin/packs — platform master library (super-admin only).
+ *
+ * The super-admin session operates inside the platform tenant, so this
+ * RLS-scoped list returns the master-library packs. Used to populate the
+ * pack-scope grant dropdown in the platform billing drawer (5a). Filtered to
+ * status='published' client-side — a pack grant's scope_id is the PLATFORM pack
+ * id, which assertPublishEntitled matches against a clone's source_pack_id.
+ * Reuses the existing list route; no new backend endpoint.
+ */
+export async function listPlatformPublishedPacks(): Promise<{ packs: PlatformPackOption[] }> {
+  const data = await adminApi<{ items: PlatformPackOption[] }>("/admin/packs?pageSize=200");
+  return { packs: (data.items ?? []).filter((p) => p.status === "published") };
+}
+
 // ---------------------------------------------------------------------------
 // Typed helpers — D1 content-scopes (super-admin billing drawer)
 // ---------------------------------------------------------------------------
