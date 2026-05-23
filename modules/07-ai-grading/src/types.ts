@@ -185,6 +185,13 @@ export interface GenerateQuestionsInput {
   /** For structured logging only — not sent to the model. */
   packId: string;
   levelId: string;
+  /**
+   * Optional difficulty target vector for this level (Phase A3) — the full
+   * per-type map. Serializable plain data, injected into the skill prompt so
+   * the model targets the intended intrinsic difficulty. Absent for back-compat
+   * (callers that do not inject difficulty).
+   */
+  difficulty?: unknown;
 }
 
 /**
@@ -271,6 +278,8 @@ export interface GenerateByTypeInput {
   }>;
   packId: string;
   levelId: string;
+  /** Per-type difficulty target for this level (Phase A3); serializable, injected into the skill prompt. Absent for back-compat. */
+  difficulty?: unknown;
 }
 
 // ---------------------------------------------------------------------------

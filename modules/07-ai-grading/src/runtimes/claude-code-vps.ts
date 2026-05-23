@@ -361,6 +361,9 @@ export async function generateQuestions(
     topic_focus: input.topicFocus ?? null,
     existing_topics: input.existingTopics,
     sources: input.sources,
+    // Phase A3: per-(type,level) structural difficulty targets injected by the
+    // caller (04 difficulty-spec.ts). null when difficulty was not injected.
+    difficulty: input.difficulty ?? null,
   };
 
   const events = await runSkill({
@@ -508,6 +511,9 @@ export async function generateQuestionsByType(
     topic_focus: input.topicFocus ?? null,
     existing_topics: input.existingTopics,
     sources: input.sources,
+    // Phase A3: per-(type,level) structural difficulty targets injected by the
+    // caller (04 difficulty-spec.ts). null when difficulty was not injected.
+    difficulty: input.difficulty ?? null,
   };
 
   const events = await runSkill({

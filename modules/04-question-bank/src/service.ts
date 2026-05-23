@@ -1447,6 +1447,10 @@ export async function generateQuestions(
     SOC_KB_BY_LEVEL,
     SOC_KB_FUNCTIONS,
   } = await import("./knowledge-base/index.js");
+  // difficulty-spec.ts (this module) — single source of truth for per-(type,level)
+  // intrinsic-difficulty targets (Phase A3). Intra-module import; no boundary cross.
+  const { DIFFICULTY_SPEC, validateStructuralDifficulty, functionToNice } =
+    await import("./difficulty-spec.js");
 
   // Resolve level label to SOC level
   const level = await withTenant(tenantId, async (client) => {
@@ -1464,6 +1468,26 @@ export async function generateQuestions(
     if (upper.includes("L2") || upper.includes("LEVEL 2") || upper.includes("INTERMEDIATE") || upper.includes("ANALYST")) return "L2";
     return "L1";
   })();
+
+  // ── Difficulty injection (Phase A3) ───────────────────────────────────────
+  // Resolve this level's per-type intrinsic-difficulty targets and pass them —
+  // plus a level-bound structural validator and the KbSource.function→NICE
+  // mapper — into handleAdminGenerate as in-process data + closures. This keeps
+  // the ai-grading→question-bank no-import boundary intact (04 depends on 07,
+  // never the reverse): 07 receives targets + closures, never imports difficulty-spec.
+  const difficultyByType: Record<string, unknown> = {};
+  for (const t of ["mcq", "subjective", "kql", "scenario", "log_analysis"] as const) {
+    difficultyByType[t] = DIFFICULTY_SPEC[t][socLevel];
+  }
+  const difficulty = {
+    byType: difficultyByType,
+    validate: (
+      type: Parameters<typeof validateStructuralDifficulty>[0],
+      content: unknown,
+      rubric: unknown,
+    ) => validateStructuralDifficulty(type, socLevel, content, rubric),
+    niceForFunction: functionToNice,
+  };
 
   // Select sources from KB filtered by level (and optionally topic_focus)
   let sources = SOC_KB_BY_LEVEL[socLevel];
@@ -1530,6 +1554,7 @@ export async function generateQuestions(
     socLevel,
     sources,
     existingTopics,
+    difficulty,
     ...(typeCounts !== undefined ? { typeCounts } : {}),
     ...(domainId !== undefined ? { domainId } : {}),
     ...(categoryId !== undefined ? { categoryId } : {}),
