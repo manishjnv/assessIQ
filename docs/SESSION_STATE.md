@@ -1,11 +1,11 @@
 # Session — 2026-05-24 (Lifecycle MFA step-up — review + docs follow-up)
 
 **Headline:** Reviewed/tested the super-admin Suspend/Archive/Resume/Unarchive feature end-to-end and found a stale-MFA dead-end in `LifecycleConfirmModal` (a `401 "fresh totp required"` had no in-place recovery, unlike Create-company). The CODE fix (mirror Create-company's `MfaStepUp`: `confirm|mfa` sub-state + retry-with-preserved-reason + parent re-throws only the fresh-MFA 401) shipped via a **parallel session's PR #5 (`234c196`)** and is LIVE in the served `assessiq-frontend` bundle. This session contributes the same-fix **docs** that the code PR omitted.
-**Commits (main):** `ca2f1b9` — docs(platform,rca): document lifecycle MFA step-up (`docs/08-ui-system.md § Platform`, RCA 2026-05-24).
-**Tests/verify:** module `tsc` + web SPA build clean on the identical patch (verified before the duplicate was detected); live bundle confirmed to contain the lifecycle signature `re-verified before you can`; VPS source fast-forwarded to `ca2f1b9` (docs-only, no container rebuild).
-**Adversarial gate (auth-adjacent UI):** Sonnet takeover = **ACCEPT** on 5 vectors (bypass / error-misrouting / loop / injection / React footguns); codex companion stalled at "Starting Codex Resume.", a separate codex run also ACCEPTed. No server/gate change — enforcement stays 100% server-side.
-**Next:** operator behavioral click-through of the step-up with a stale-MFA super-admin session (couldn't drive one from here). Test gap remains: no automated tests for the four lifecycle endpoints, and `apps/api/src/__tests__/routes/admin-super.test.ts` fails at collection (stale `@assessiq/auth` mock missing `CANDIDATE_LOGIN_TOKEN_TTL_SEC`).
-**Open questions:** none — feature is shipped and live.
+**Commits (main):** `ca2f1b9` docs(platform,rca): document lifecycle MFA step-up; `8a69e06` test(admin-super): cover the four lifecycle endpoints + repair the broken `@assessiq/auth` mock + fix suspend-copy undercount.
+**Tests/verify:** module `tsc` + web SPA build clean; live bundle confirmed to contain the lifecycle signature `re-verified before you can`. **Follow-up (8a69e06):** `admin-super.test.ts` collects again (importActual-spread mock) and **18/18 pass** incl. 10 new lifecycle tests; `apps/api` + `admin-dashboard` `tsc` clean; web build clean.
+**Adversarial gate (auth-adjacent UI):** Sonnet takeover = **ACCEPT** on 5 vectors (bypass / error-misrouting / loop / injection / React footguns); codex companion stalled, a separate codex run also ACCEPTed. No server/gate change. (The follow-up test+copy commit touches no security path → no gate required.)
+**Next:** **DEPLOY PENDING for `8a69e06`** — the suspend-copy reword changes the served SPA bundle, so `assessiq-frontend` needs a rebuild to go live (test + RCA + this handoff are deploy-irrelevant). Also: operator behavioral click-through of the MFA step-up with a stale-MFA super-admin session (couldn't drive one from here).
+**Open questions:** none — all review findings (MFA dead-end, test gap, suspend undercount) are fixed and on `origin/main`; only the frontend rebuild for the cosmetic copy remains.
 
 ---
 
