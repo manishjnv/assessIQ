@@ -600,6 +600,36 @@ export async function createAssessmentFromSet(
 }
 
 // ---------------------------------------------------------------------------
+// importLicensedSet — clone a licensed platform set without creating an assessment
+// ---------------------------------------------------------------------------
+//
+// Company-admin path: stock the workspace up front by cloning a licensed
+// PLATFORM-library set into this tenant's Question Bank without creating an
+// assessment. Flow: license re-check against the SOURCE set → materialise
+// (clone-on-use, idempotent + audited) into this tenant.
+//
+// Security invariant: assertLicensedForSourcePack runs BEFORE materializeSetForTenant.
+// This ordering is critical — never clone first.
+export async function importLicensedSet(
+  tenantId: string,
+  sourcePackId: string,
+  createdByUserId: string,
+): Promise<{ cloned_pack_id: string; slug: string; reused: boolean; question_count: number }> {
+  // 1. License re-check against the SOURCE platform set (throws 403 NOT_LICENSED).
+  await assertLicensedForSourcePack(tenantId, sourcePackId);
+
+  // 2. Materialise (clone-on-use, idempotent + audited) the set into this tenant.
+  const mat = await materializeSetForTenant(sourcePackId, tenantId, createdByUserId);
+
+  return {
+    cloned_pack_id: mat.clonedPackId,
+    slug: mat.clonedSlug,
+    reused: mat.reusedExisting,
+    question_count: mat.questionCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // updateAssessment
 // ---------------------------------------------------------------------------
 

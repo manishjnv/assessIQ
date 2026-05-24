@@ -883,6 +883,20 @@ export async function getAvailableSets(): Promise<{ sets: AvailableSet[] }> {
   return adminApi<{ sets: AvailableSet[] }>('/billing/available-sets');
 }
 
+/**
+ * POST /api/admin/sets/:sourcePackId/import
+ *
+ * Company-admin: clone a licensed platform-library set into this tenant's
+ * Question Bank without creating an assessment. Idempotent — reuses an
+ * existing clone. Returns cloned_pack_id, slug, reused flag, and question_count.
+ * 403 NOT_LICENSED if the source set isn't licensed for this tenant.
+ */
+export async function importLicensedSet(
+  sourcePackId: string,
+): Promise<{ cloned_pack_id: string; slug: string; reused: boolean; question_count: number }> {
+  return adminApi(`/admin/sets/${sourcePackId}/import`, { method: "POST" });
+}
+
 /** Body for createAssessmentFromSet (clone-on-use). opens_at is ISO 8601. */
 export interface CreateAssessmentFromSetRequest {
   source_pack_id: string;

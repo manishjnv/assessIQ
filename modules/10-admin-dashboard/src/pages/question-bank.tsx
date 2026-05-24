@@ -21,8 +21,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, listDomainsApi } from "../api.js";
-import type { DomainItem } from "../api.js";
+import { adminApi, AdminApiError, listDomainsApi, getAvailableSets, importLicensedSet } from "../api.js";
+import type { DomainItem, AvailableSet } from "../api.js";
 import { useAdminSession } from "../session.js";
 import { formatDate } from "../lib/format.js";
 import { domainLabel } from "../lib/domains.js";
@@ -199,6 +199,9 @@ export function AdminQuestionBank(): React.ReactElement {
 
   const [archivingPackId, setArchivingPackId] = useState<string | null>(null);
 
+  const [licensedSets, setLicensedSets] = useState<AvailableSet[]>([]);
+  const [importingSet, setImportingSet] = useState<string | null>(null);
+
   const fetchPacks = useCallback(async (status: string, search: string) => {
     setLoading(true);
     setError(null);
@@ -260,6 +263,22 @@ export function AdminQuestionBank(): React.ReactElement {
     }
   }
 
+  async function handleImportSet(sourcePackId: string) {
+    setImportingSet(sourcePackId);
+    try {
+      await importLicensedSet(sourcePackId);
+      // Refresh the licensed-sets catalog (cloned flag flips) and the packs list (new pack appears).
+      const fresh = await getAvailableSets();
+      setLicensedSets(fresh.sets);
+      await fetchPacks(statusFilter, searchQuery);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("import licensed set failed:", err instanceof AdminApiError ? err.apiError.message : err);
+    } finally {
+      setImportingSet(null);
+    }
+  }
+
   // Domains for the New-Pack dropdown. Canonical source is the domains table
   // (the same /admin/domains the Generate + Blueprint dropdowns use), so new
   // packs always carry a valid lowercase slug — no free-text casing drift.
@@ -270,6 +289,14 @@ export function AdminQuestionBank(): React.ReactElement {
       .then((res) => setDomains(res.items))
       .catch(() => { /* non-critical — the field will show no options */ });
   }, [isSuperAdmin]);
+
+  // Licensed sets — platform-library sets this tenant is licensed for.
+  // Returns empty for super_admin (platform owns the library) — section hidden.
+  useEffect(() => {
+    getAvailableSets()
+      .then((res) => setLicensedSets(res.sets))
+      .catch(() => { /* non-critical */ });
+  }, []);
 
   async function handleCreatePack(e: React.FormEvent) {    e.preventDefault();
     if (!newForm.name.trim()) { setCreateError("Pack name is required."); return; }
@@ -598,6 +625,90 @@ export function AdminQuestionBank(): React.ReactElement {
                 {creating ? "Creating…" : "Create pack"}
               </button>
             </form>
+          </div>
+        )}
+
+        {/* Licensed sets — read-only, only shown when tenant has licensed sets */}
+        {licensedSets.length > 0 && (
+          <div style={{ marginBottom: "var(--aiq-space-lg)" }}>
+            <h2
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: "var(--aiq-text-xl)",
+                fontWeight: 400,
+                margin: "0 0 var(--aiq-space-xs)",
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Licensed sets.
+            </h2>
+            <p
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-fg-muted)",
+                margin: "0 0 var(--aiq-space-md)",
+              }}
+            >
+              Question sets your company is licensed for. Add one to your workspace from the Assessments page (&ldquo;From a set&rdquo;).
+            </p>
+            <div
+              style={{
+                border: "1px solid var(--aiq-color-border)",
+                borderRadius: "var(--aiq-radius-md)",
+                overflow: "hidden",
+              }}
+            >
+              {licensedSets.map((set, idx) => (
+                <div
+                  key={set.source_pack_id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--aiq-space-md)",
+                    padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                    borderTop: idx === 0 ? undefined : "1px solid var(--aiq-color-border)",
+                    background: "var(--aiq-color-bg-raised)",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontWeight: 500,
+                        fontSize: "var(--aiq-text-sm)",
+                        display: "block",
+                      }}
+                    >
+                      {set.name}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--aiq-font-mono)",
+                        fontSize: "var(--aiq-text-xs)",
+                        color: "var(--aiq-color-fg-muted)",
+                      }}
+                    >
+                      {domainLabel(set.domain)} &middot; {set.level_count} level{set.level_count !== 1 ? "s" : ""} &middot; {set.question_count} question{set.question_count !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexShrink: 0, alignItems: "center" }}>
+                    {set.cloned && <Chip leftIcon="check">In your workspace</Chip>}
+                    {set.update_available && <Chip>Update available</Chip>}
+                    {!set.cloned && (
+                      <button
+                        type="button"
+                        className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                        disabled={importingSet === set.source_pack_id}
+                        onClick={() => void handleImportSet(set.source_pack_id)}
+                      >
+                        {importingSet === set.source_pack_id ? "Adding…" : "Add to workspace"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

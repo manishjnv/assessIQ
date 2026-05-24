@@ -36,6 +36,7 @@ import {
   listAssessments,
   createAssessment,
   createAssessmentFromSet,
+  importLicensedSet,
   getAssessment,
   updateAssessment,
   publishAssessment,
@@ -255,6 +256,30 @@ export async function registerAssessmentLifecycleRoutes(
 
       const assessment = await createAssessmentFromSet(tenantId, input, userId);
       return reply.code(201).send(assessment);
+    },
+  );
+
+  // POST /api/admin/sets/:sourcePackId/import
+  // Clone-on-use a licensed PLATFORM-library set into THIS tenant's Question
+  // Bank without creating an assessment. License-checked; idempotent (reuses an
+  // existing clone). Lets a company admin stock their workspace up front.
+  app.post(
+    "/api/admin/sets/:sourcePackId/import",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { sourcePackId } = req.params as { sourcePackId: string };
+      const trimmed = typeof sourcePackId === "string" ? sourcePackId.trim() : "";
+      // Validate UUID shape up front so a malformed path param returns a clean
+      // 400 INVALID_PARAM instead of a Postgres cast error downstream.
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+        throw new ValidationError("sourcePackId must be a valid UUID", {
+          details: { code: "INVALID_PARAM", param: "sourcePackId" },
+        });
+      }
+      const result = await importLicensedSet(tenantId, trimmed, userId);
+      return reply.code(201).send(result);
     },
   );
 
