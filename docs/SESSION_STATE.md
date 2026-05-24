@@ -1,3 +1,24 @@
+# Session — 2026-05-24 (Fix: archiving question packs was a silent no-op)
+
+**Headline:** "Archive is not working" — clicking `⋯ → Archive…` on a question pack did nothing. Root cause was two-layered: backend `archivePack` rejected any non-`published` pack with `409 PACK_NOT_PUBLISHED`, but packs default to `status='draft'` and archive is the ONLY soft-delete path (no hard DELETE in Phase 1) — so the empty auto-created `dom-*` packs could never be cleared; AND the admin UI swallowed the 409 into a `console.warn`, so the operator saw no error. Fixed both, SHIPPED to main (`4198e5f`) and DEPLOYED 2026-05-24 (assessiq-api + assessiq-frontend rebuilt + recreated, both healthy, /api/health 200, frontend route 200).
+**Commits (main):** `4198e5f` — fix(question-bank): allow archiving draft packs; surface archive errors in UI.
+**What changed:** (1) `modules/04-question-bank/src/service.ts` `archivePack` — guard changed from `status !== 'published'` to `status === 'archived'`; draft + published are now both archivable, only re-archiving an already-archived pack is rejected (new `PACK_ALREADY_ARCHIVED` code in `types.ts`). `PACK_HAS_ASSESSMENTS` reference gate + `auditInTx` write unchanged. (2) `modules/10-admin-dashboard/src/pages/question-bank.tsx` — added a dismissible `actionError` banner; `handleArchivePack` + `handleImportSet` now surface the API message instead of swallowing it.
+**Tests/verify:** `04-question-bank` full suite **62/62 green** (real Postgres testcontainer) incl. updated "draft pack archive succeeds" + new "already-archived → PACK_ALREADY_ARCHIVED". Both touched modules `tsc --noEmit` clean. New frontend code confirmed present in the served bundle (`/usr/share/nginx/html/assets/index-t8byOntJ.js` contains "Could not archive"). **Behavioral UI verification (actually clicking Archive on a draft pack and seeing it move to the Archived tab) is PENDING OPERATOR — couldn't drive a browser from here.**
+**Not security/auth/classifier** (module 04, non-load-bearing) → no codex:rescue gate. Multi-tenancy unchanged (`withTenant` + RLS). Docs updated same-PR: `docs/03-api-contract.md` (archive row), `docs/RCA_LOG.md` (2026-05-24 entry).
+**Next:** Operator: log in as super-admin, archive one of the empty `dom-threat-intelligence` / `dom-phishing` / `dom-soc` packs, confirm it disappears from "All" and appears under "Archived". (Ties back to the product question that opened the session — archive is now the working cleanup path for 0-question / poor-content packs.)
+**Open questions:** None for this fix. (Separate product follow-up still open: should empty/0-question packs be FILTERED out of the assessment-creation pickers, and should poor-quality questions get a review/approval gate before reaching candidates? Discussed but not built.)
+
+---
+
+## Agent utilization (archive-pack fix)
+- **Opus 4.7:** systematic-debugging Phase 1–5 end to end — traced the front-to-back archive flow, found the draft-status restriction + swallowed-error pair, wrote all edits (≤80 lines across 4 code/test files, in hot cache → self-executed per "don't delegate when faster"), ran tests, drove commit/push/deploy/docs. `Opus · archive draft-status fix + UI error surfacing · reworked: N`.
+- **Sonnet:** n/a — surgical edits in Opus's hot read cache; nothing mechanical/templated to delegate.
+- **Haiku:** n/a — no bulk sweep; smoke check was a single curl pair + one container grep, run inline.
+- **codex:rescue:** n/a — module 04 non-load-bearing, not security/auth/classifier; no adversarial gate required.
+- **claude-mem:** read-only context (memory index honored: vps-shared-host additive-only deploy, parallel-session-shared-working-tree branch check before commit, noreply git-push pattern, bundle-presence-≠-behavioral-verification).
+
+---
+
 # Session — 2026-05-24 (Domain consistency + super-admin-only Blueprint — A1/A2/A3/C1 of an 8-phase plan)
 
 **Headline:** Implemented the "clean setup" consistency workstream + Blueprint scope lockdown. One canonical domain source everywhere (New-Pack dropdown; Grant drawer now reads the PLATFORM library's `domains` table + published sets and filters already-granted; lowercasing at every domain write path) + migration `0090` to repair existing drift; Blueprint authoring is now super_admin-only across POST/PATCH/from-set. SHIPPED to main (`765563f`) + DEPLOYED 2026-05-24: `0090` applied to prod (UPDATE 2 / DELETE 1 / UPDATE 1 — WIPRO-SOC now has clean lowercase `soc`+`phishing` entitlements), assessiq-api + assessiq-frontend rebuilt + recreated (healthy, /api/health 200). B1 (Licensed-sets view) + B2 (add-to-workspace clone) shipped too. **B3 (re-sync) deferred** (design + decision recorded below). Detailed docs (03/02/08) updated.
