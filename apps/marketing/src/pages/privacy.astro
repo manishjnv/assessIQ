@@ -1,0 +1,541 @@
+---
+// privacy.astro — AssessIQ Privacy Policy page
+// JSON-LD: BreadcrumbList (Home › Privacy) per SEO §3.6 / §15 template
+//
+// PLACEHOLDERS: [Legal entity name], [Registered address, India],
+//               [Grievance officer name], [grievance@assessiq.in], [Effective date]
+// — do NOT replace until legal review is complete.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Privacy"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="Privacy Policy"
+  description="AssessIQ's privacy policy — how candidate and account data is collected, used, and protected in line with India's DPDP Act 2023, with data stored on India-region infrastructure."
+  canonicalPath="/privacy"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Privacy
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Privacy Policy</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Straightforward about how we handle your data.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        Candidate data carries real weight — it influences hiring decisions and careers. This policy explains
+        what information AssessIQ collects, why we collect it, how it is used, and what rights data principals
+        have under India's Digital Personal Data Protection Act 2023.
+      </p>
+    </div>
+  </section>
+
+  <!-- 1. Who we are -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="who-we-are-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Who we are</p>
+        <h2 id="who-we-are-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          AssessIQ and the organisation operating it.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          AssessIQ is a candidate and team assessment platform. It allows organisations to create, administer,
+          and grade assessments for hiring, internal evaluation, and skill-gap analysis.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          The platform is operated by <strong class="font-medium text-aiq-fg-primary">[Legal entity name]</strong>,
+          registered in India at <strong class="font-medium text-aiq-fg-primary">[Registered address, India]</strong>.
+          References to "AssessIQ", "we", "us", or "our" in this policy refer to that entity.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Information we collect -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="data-collected-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Information we collect</p>
+      <h2 id="data-collected-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What data we process, and where it comes from.
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            Candidate data
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Name, email address, and assessment responses are collected when a candidate accepts an invitation
+            to take an assessment. Where proctoring is enabled by the hiring organisation, this also includes
+            webcam footage or screenshots, device and browser metadata (operating system, browser version,
+            screen resolution), and IP address. Proctoring is always disclosed to the candidate before the
+            assessment begins.
+          </p>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            Admin and account data
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            When a company administrator or reviewer logs in to AssessIQ, we process their name, work email
+            address, and role within the platform. Administrators are invited by their organisation; they do
+            not self-register through a public sign-up flow.
+          </p>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            Usage and platform logs
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            We maintain server logs of platform activity — page loads, API requests, errors — for security
+            monitoring and debugging. Logs include IP addresses and timestamps. These are retained for a
+            limited operational period and are not used for analytics or marketing profiling.
+          </p>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            What we do not collect
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            We do not collect payment card details (billing is handled by a third-party payment processor).
+            We do not collect sensitive personal data — such as caste, religion, health status, or financial
+            account numbers — and our assessment packs are reviewed to avoid questions that solicit such
+            information.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. How we use information -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="use-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How we use data</p>
+        <h2 id="use-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Purpose-limited processing.
+        </h2>
+        <div class="flex flex-col gap-aiq-xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Delivering and grading assessments.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Candidate data is used to administer the assessment the candidate was invited to take and to
+              produce a scored result. Grading is performed on behalf of the hiring organisation. The result
+              and any rationale are made available to that organisation's administrators and assigned reviewers.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Generating reports for the hiring organisation.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Assessment outcomes, band scores, and supporting rationale are compiled into reports that
+              the hiring organisation uses to make hiring or evaluation decisions. We do not add our own
+              interpretation beyond what the rubric produces.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Platform security and support.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Usage logs and metadata are used to detect abuse, investigate reported incidents, and respond
+              to support requests. Data is not used for behavioural advertising, sold to data brokers, or
+              shared with third parties for their independent marketing purposes.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Legal basis & DPDP Act 2023 -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="legal-basis-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Legal basis</p>
+        <h2 id="legal-basis-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          India DPDP Act 2023 and our role in processing.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          India's Digital Personal Data Protection (DPDP) Act 2023 governs the processing of digital personal
+          data of individuals in India. AssessIQ operates in this framework in two capacities depending on
+          context.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For candidate data, the <strong class="font-medium text-aiq-fg-primary">hiring organisation</strong> (the
+          company or institution that invited the candidate) is the Data Fiduciary — it determines the purpose
+          of the assessment and bears primary obligations to the data principal under the Act. AssessIQ acts
+          as a Data Processor, processing candidate data only on that organisation's instructions and for the
+          purpose of delivering the assessment.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          For administrator account data, AssessIQ acts as a Data Fiduciary with respect to the personal data
+          of the administrators it onboards on behalf of their employer organisations.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          In both cases, processing is purpose-limited: candidate data is processed to conduct and grade the
+          assessment; it is not repurposed for unrelated activities. We continue to monitor DPDP rulemaking
+          as subsidiary rules and guidance are issued under the Act.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Data residency -->
+  <section class="bg-aiq-accent-soft border-b border-aiq-border" aria-labelledby="residency-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Data residency</p>
+        <h2 id="residency-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Assessment data stored in India.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          All assessment data, candidate records, proctoring footage, and attempt logs are stored on
+          India-region infrastructure. We do not route personal data through overseas servers for routine
+          processing. Where a sub-processor is involved (for example, a transactional email provider),
+          that sub-processor is contracted to handle data in a manner consistent with our obligations and
+          does not retain personal data beyond the transaction. See the <a href="/security" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">security page</a> for
+          the full infrastructure posture.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Who we share data with -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="sharing-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Data sharing</p>
+        <h2 id="sharing-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Who can see candidate data.
+        </h2>
+        <div class="flex flex-col gap-aiq-lg">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              The hiring organisation.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              The organisation that invited a candidate to take an assessment can view that candidate's
+              result, band score, and supporting rationale. Access within the organisation is further
+              limited by role: reviewers see only the assessments assigned to them; administrators see
+              all assessments within their tenant. No organisation can see data belonging to another.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              Sub-processors under contract.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              We use a small number of infrastructure and operational sub-processors — hosting, transactional
+              email — each under a data processing agreement that limits their use of data to providing the
+              contracted service. We do not authorise sub-processors to use personal data for their own
+              purposes.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+              We do not sell data.
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              Candidate data, assessment responses, and account data are never sold to third parties, shared
+              with data brokers, or used for advertising profiling. Disclosure to law enforcement or regulatory
+              authorities occurs only where required by applicable law and, where permitted, after notifying
+              the relevant Data Fiduciary.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Cookies & sessions -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="cookies-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Cookies & sessions</p>
+        <h2 id="cookies-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Essential session cookies only.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          AssessIQ uses session cookies solely to maintain a logged-in state during a platform session.
+          These cookies are essential for the platform to function — without them, neither candidates nor
+          administrators can authenticate.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          We do not use tracking cookies, advertising cookies, or third-party analytics cookies. We do not
+          run Google Analytics, Meta Pixel, or equivalent tracking scripts on the assessment or administration
+          application. This marketing site may use minimal, privacy-preserving analytics to understand
+          aggregate traffic; no personal data from the assessment platform is involved.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. Data retention -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="retention-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Data retention</p>
+        <h2 id="retention-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Kept as long as needed, no longer.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Candidate data is retained for the lifecycle of the assessment engagement and for as long as the
+          hiring organisation's account remains active on the platform. When a customer terminates their
+          contract, candidate data associated with their account is deleted or anonymised within a reasonable
+          period, subject to any legal hold obligations.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Organisations can request deletion of specific candidate records at any time via the admin
+          interface or by contacting us. We will fulfil deletion requests subject to any mandatory retention
+          period required by applicable Indian law.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          Server and audit logs are retained for a defined operational period for security and compliance
+          purposes and are then purged.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. Data principal rights -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="rights-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Your rights</p>
+      <h2 id="rights-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Rights of data principals under the DPDP Act.
+      </h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-aiq-lg max-w-4xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            Access
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            You have the right to know what personal data is held about you, the basis on which it is
+            processed, and who it has been shared with. Requests should be directed to the hiring
+            organisation that administered your assessment, as it is the Data Fiduciary for that data.
+            We will support the organisation in responding.
+          </p>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            Correction
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            You have the right to request correction of inaccurate or incomplete personal data. If your
+            name or contact details recorded in the platform are incorrect, contact the hiring organisation
+            or reach us at the grievance address below.
+          </p>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            Erasure
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            You have the right to request erasure of your personal data where the purpose of processing
+            is fulfilled and no legal obligation requires retention. Erasure requests are processed in
+            accordance with the DPDP Act and subject to any applicable legal hold.
+          </p>
+        </div>
+
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            Grievance redressal
+          </p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            You have the right to raise a grievance about how your personal data has been handled. See
+            the Grievance Officer section below for contact details. We aim to acknowledge grievances
+            within 48 hours and resolve them within the period prescribed under the DPDP Act.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. Grievance officer -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="grievance-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Grievance officer</p>
+        <h2 id="grievance-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          How to raise a complaint.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          In accordance with the Digital Personal Data Protection Act 2023 and the Information Technology
+          (Intermediary Guidelines and Digital Media Ethics Code) Rules 2021, the details of the Grievance
+          Officer are as follows:
+        </p>
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            <strong class="font-medium text-aiq-fg-primary">Name:</strong> [Grievance officer name]<br />
+            <strong class="font-medium text-aiq-fg-primary">Email:</strong>{' '}
+            <a href="mailto:[grievance@assessiq.in]" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">
+              [grievance@assessiq.in]
+            </a><br />
+            <strong class="font-medium text-aiq-fg-primary">Organisation:</strong> [Legal entity name]<br />
+            <strong class="font-medium text-aiq-fg-primary">Address:</strong> [Registered address, India]
+          </p>
+        </div>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mt-aiq-lg m-0">
+          Grievances should be submitted in writing with a clear description of the concern, the data
+          involved, and the relief sought. We will acknowledge receipt and respond within the period
+          prescribed by applicable law.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11. Children / eligibility -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="children-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Eligibility</p>
+        <h2 id="children-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Not directed at children under 18.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          AssessIQ is a professional and institutional assessment platform. It is not directed at children
+          under the age of 18. We do not knowingly process the personal data of children in a consumer
+          context.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          Where an educational institution administers assessments to students who may be under 18, it is
+          the institution's responsibility — as Data Fiduciary — to ensure that appropriate parental or
+          guardian consent is obtained in accordance with the DPDP Act and any applicable institutional
+          policy before inviting those students to take an assessment on the platform.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12. Changes to this policy & effective date -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="changes-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Policy updates</p>
+        <h2 id="changes-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Changes to this policy.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          We may update this policy as the platform evolves, as regulatory guidance under the DPDP Act
+          develops, or as our data practices change. Material changes will be communicated to active
+          account holders via the email address on record. The updated policy will be published at this
+          URL with a revised effective date.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          Continued use of the platform after a material change constitutes acceptance of the revised
+          policy. If you do not accept the revised terms, you should cease using the platform and contact
+          us to request deletion of your data.
+        </p>
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+          Effective date: <strong class="font-medium text-aiq-fg-secondary normal-case tracking-normal">[Effective date]</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA row -->
+  <section class="bg-aiq-bg-base">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+          Questions about how we handle your data?
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          If you have a specific privacy or data-protection question — about your candidate data, our DPDP
+          Act posture, or a deletion request — reach out. We'll give you a plain answer.
+        </p>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Contact us
+          </a>
+          <a
+            href="/security"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Our security posture
+          </a>
+        </div>
+
+        <!-- Related policy links -->
+        <div class="mt-aiq-2xl pt-aiq-2xl border-t border-aiq-border">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related policies</p>
+          <div class="flex flex-wrap gap-aiq-sm">
+            {[
+              { href: '/security', label: 'Our security posture' },
+              { href: '/terms',    label: 'Terms of Service' },
+              { href: '/contact',  label: 'Contact us' },
+            ].map(link => (
+              <a
+                href={link.href}
+                class="font-sans text-aiq-sm font-medium px-4 py-2 rounded-aiq-pill border border-aiq-border
+                       text-aiq-fg-muted hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
