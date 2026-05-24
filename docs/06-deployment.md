@@ -292,10 +292,13 @@ the standard legitimacy signals that clear it. **Considered & rejected:** Bing's
 HTML-meta-tag verification (would inject a tag into all ~45 pages — used the single
 XML file instead); requesting the GSC review immediately (held until the hardening
 shipped, so the appeal lands on a fixed page, not a repeat-offender cooldown).
-**NOT included:** the legal pages ship with `[bracketed]` placeholders (entity name,
-registered address, grievance officer, jurisdiction city, effective date) — they
-need a real legal-review pass before the placeholders are filled; the GSC "Request
-Review" and Bing "Verify" clicks are operator-gated. **Downstream impact:**
+**Placeholders filled (2026-05-24, commit on `main`):** entity "AssessIQ", address
+Bommanahalli/Bangalore 560068, jurisdiction Bangalore, effective date May 2026. The
+grievance section no longer names a dedicated officer or `grievance@` inbox — it routes
+to the published `hello@assessiq.in`. `terms.astro` says "based in India" rather than
+"a company incorporated under the laws of India" pending confirmation of AssessIQ's
+incorporation status (restore the stronger wording if it is a registered company). The
+GSC "Request Review" and Bing "Verify" clicks remain operator-gated. **Downstream impact:**
 `assessiq-marketing` rebuilt (47 pages) + `assessiq-frontend` rebuilt (login copy);
 `docs/04-auth-flows.md` login screen now reads "Sign in to AssessIQ" with legal
 links. Commits `657ee2a` (Bing file) + `ab899fe` (trust pages + login hardening),
