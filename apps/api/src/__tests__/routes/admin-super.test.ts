@@ -26,7 +26,13 @@ import type { FastifyInstance } from 'fastify';
 // ---------------------------------------------------------------------------
 
 // @assessiq/auth — same passthrough-seam pattern as auth.test.ts.
-vi.mock('@assessiq/auth', () => {
+// Spread the REAL @assessiq/auth (so every constant + helper the buildServer
+// route graph imports — candidate-login, embed, google, email-otp, etc. — is
+// present without manual enumeration), then override ONLY the gating middleware
+// with the x-test-session-* header seam. Real auth has no import-time Redis
+// side effects (verified), so importActual is safe.
+vi.mock('@assessiq/auth', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@assessiq/auth');
   const passthrough = (): unknown => async (_req: unknown, _reply: unknown) => undefined;
 
   type MockReq = { headers: Record<string, string | undefined>; session?: { id: string; tenantId: string; userId: string; role: string; totpVerified: boolean; expiresAt: string; lastTotpAt: string | null }; apiKey?: unknown };
@@ -58,32 +64,33 @@ vi.mock('@assessiq/auth', () => {
     if (req.session !== undefined && Array.isArray(opts.roles) && !opts.roles.includes(req.session.role)) {
       throw new AuthzError(`role ${req.session.role} not authorized`);
     }
+    // NOTE: this seam does NOT enforce freshMfaWithinMinutes — the real gate is
+    // exercised in 01-auth unit tests. These route tests focus on handler logic.
   };
 
   return {
+    ...actual,
     rateLimitMiddleware: (_opts?: unknown) => passthrough(),
     sessionLoaderMiddleware,
     apiKeyAuthMiddleware: passthrough(),
     requireAuth,
-    requireRole: (_roles: string[]) => passthrough(),
-    requireFreshMfa: (_min?: number) => passthrough(),
-    requireScope: (_scope: string) => passthrough(),
-    cookieParserMiddleware: passthrough(),
-    requestIdMiddleware: passthrough(),
     extendOnPassMiddleware: (_name: string) => passthrough(),
-    extractClientIp: () => 'test-ip',
-    parseCookieHeader: () => ({}),
-    sessions: { create: vi.fn(), get: vi.fn(), refresh: vi.fn() },
-    totp: { enrollStart: vi.fn(), enrollConfirm: vi.fn(), verify: vi.fn() },
-    apiKeys: { create: vi.fn(), list: vi.fn(), revoke: vi.fn(), authenticate: vi.fn(), requireScope: vi.fn() },
-    normalizeEmail: (e: string) => e.trim().toLowerCase(),
-    setRedisForTesting: vi.fn(),
-    closeRedis: vi.fn().mockResolvedValue(undefined),
+    // Override the session store so the suspend/archive handlers' tenant-wide
+    // session sweep is a controllable no-op (no Redis/PG).
+    sessions: {
+      ...(actual.sessions as Record<string, unknown>),
+      destroyAllForTenant: vi.fn().mockResolvedValue({ revokedCount: 0, affectedUsers: [] }),
+    },
   };
 });
 
-// @assessiq/tenancy — mock updateAiGenerateMode; other symbols are no-ops.
+// @assessiq/tenancy — controllable handles for the service functions the
+// admin-super handlers call; other symbols are no-ops.
 const mockUpdateAiGenerateMode = vi.fn();
+const mockSuspendTenant = vi.fn();
+const mockResumeTenant = vi.fn();
+const mockArchiveTenant = vi.fn();
+const mockUnarchiveTenant = vi.fn();
 
 vi.mock('@assessiq/tenancy', () => ({
   tenantContextMiddleware: () => ({
@@ -97,7 +104,15 @@ vi.mock('@assessiq/tenancy', () => ({
   closePool: vi.fn(),
   setPoolForTesting: vi.fn(),
   updateTenantSettings: vi.fn(),
-  suspendTenant: vi.fn(),
+  // assertTenantActive is a write-block guard on config endpoints; lifecycle
+  // endpoints intentionally do NOT call it. Default to a resolved no-op.
+  assertTenantActive: vi.fn().mockResolvedValue(undefined),
+  createTenant: vi.fn(),
+  activateTenant: vi.fn(),
+  suspendTenant: (...args: unknown[]) => mockSuspendTenant(...args),
+  resumeTenant: (...args: unknown[]) => mockResumeTenant(...args),
+  archiveTenant: (...args: unknown[]) => mockArchiveTenant(...args),
+  unarchiveTenant: (...args: unknown[]) => mockUnarchiveTenant(...args),
   updateAiGenerateMode: (...args: unknown[]) => mockUpdateAiGenerateMode(...args),
 }));
 
@@ -112,6 +127,8 @@ vi.mock('@assessiq/users', () => ({
   inviteUser: vi.fn(),
   acceptInvitation: vi.fn(),
   bulkImport: vi.fn(),
+  cancelInvitation: vi.fn(),
+  sweepUserSessions: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@assessiq/question-bank', () => ({ registerQuestionBankRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/assessment-lifecycle', () => ({ registerAssessmentLifecycleRoutes: vi.fn().mockResolvedValue(undefined) }));
@@ -364,5 +381,168 @@ describe('PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode', () => {
     expect(body.error).toBeDefined();
     // Service was attempted once.
     expect(mockUpdateAiGenerateMode).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tenant lifecycle endpoints: suspend / resume / archive / unarchive
+//
+// These POST routes are gated by superAdminFreshMfa. The handler:
+//   - parses + validates body.reason (≤500 chars, no control chars)
+//   - calls the matching service fn (mocked here)
+//   - on suspend + archive AND !noOp, sweeps tenant sessions (destroyAllForTenant)
+//     and returns sessionsRevoked; resume/unarchive never sweep
+//   - returns 200 { tenantId, slug, status, previousStatus, noOp, auditId,
+//     sessionsRevoked? }
+// Note: the test seam does not enforce fresh-MFA (see the @assessiq/auth mock).
+// ---------------------------------------------------------------------------
+
+describe('POST /api/admin/super/tenants/:tenantId/{suspend,resume,archive,unarchive}', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildServer();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const lifecycleResult = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    tenantId: TARGET_TENANT_ID,
+    slug: 'acme',
+    previousStatus: 'active',
+    newStatus: 'suspended',
+    auditId: 'audit-life-001',
+    noOp: false,
+    ...over,
+  });
+
+  const post = (action: string, headers: Record<string, string>, body: unknown) =>
+    app.inject({
+      method: 'POST',
+      url: `/api/admin/super/tenants/${TARGET_TENANT_ID}/${action}`,
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  // ─── suspend: happy path sweeps sessions ──────────────────────────────
+  it('suspend: 200 with status/previousStatus/noOp + sessionsRevoked for super_admin', async () => {
+    mockSuspendTenant.mockResolvedValue(lifecycleResult());
+
+    const res = await post('suspend', SUPER_ADMIN_HEADERS, { reason: 'policy violation' });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      tenantId: string; slug: string; status: string; previousStatus: string;
+      noOp: boolean; auditId: string; sessionsRevoked?: { count: number; affectedUsers: string[] };
+    }>();
+    expect(body.status).toBe('suspended');
+    expect(body.previousStatus).toBe('active');
+    expect(body.noOp).toBe(false);
+    expect(body.auditId).toBe('audit-life-001');
+    // suspend (not noOp) MUST report a session sweep result.
+    expect(body.sessionsRevoked).toEqual({ count: 0, affectedUsers: [] });
+    // actorUserId + actorTenantId come from the session, reason from the body.
+    expect(mockSuspendTenant).toHaveBeenCalledWith(
+      TARGET_TENANT_ID, 'super-admin-user-uuid', 'platform-tenant-uuid', 'policy violation',
+    );
+  });
+
+  // ─── suspend: idempotent no-op skips the session sweep ────────────────
+  it('suspend: noOp result omits sessionsRevoked (no sweep on already-suspended)', async () => {
+    mockSuspendTenant.mockResolvedValue(
+      lifecycleResult({ previousStatus: 'suspended', newStatus: 'suspended', noOp: true, auditId: null }),
+    );
+
+    const res = await post('suspend', SUPER_ADMIN_HEADERS, {});
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ noOp: boolean; sessionsRevoked?: unknown }>();
+    expect(body.noOp).toBe(true);
+    expect(body.sessionsRevoked).toBeUndefined();
+  });
+
+  // ─── archive: happy path sweeps sessions ──────────────────────────────
+  it('archive: 200 archived + sweeps sessions', async () => {
+    mockArchiveTenant.mockResolvedValue(
+      lifecycleResult({ newStatus: 'archived', previousStatus: 'active', auditId: 'audit-life-arch' }),
+    );
+
+    const res = await post('archive', SUPER_ADMIN_HEADERS, { reason: 'end of life' });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ status: string; sessionsRevoked?: unknown }>();
+    expect(body.status).toBe('archived');
+    expect(body.sessionsRevoked).toBeDefined();
+    expect(mockArchiveTenant).toHaveBeenCalledWith(
+      TARGET_TENANT_ID, 'super-admin-user-uuid', 'platform-tenant-uuid', 'end of life',
+    );
+  });
+
+  // ─── resume: never sweeps (re-enabling access) ────────────────────────
+  it('resume: 200 active and never includes sessionsRevoked', async () => {
+    mockResumeTenant.mockResolvedValue(
+      lifecycleResult({ newStatus: 'active', previousStatus: 'suspended', auditId: 'audit-life-res' }),
+    );
+
+    const res = await post('resume', SUPER_ADMIN_HEADERS, {});
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ status: string; sessionsRevoked?: unknown }>();
+    expect(body.status).toBe('active');
+    expect(body.sessionsRevoked).toBeUndefined();
+  });
+
+  // ─── wrong-direction transition → 409 ─────────────────────────────────
+  it('unarchive: 409 when the service throws INVALID_LIFECYCLE_TRANSITION', async () => {
+    const { ConflictError } = await import('@assessiq/core');
+    mockUnarchiveTenant.mockRejectedValue(
+      new ConflictError("tenant cannot transition from 'active' to 'active'", {
+        details: { code: 'INVALID_LIFECYCLE_TRANSITION', currentStatus: 'active' },
+      }),
+    );
+
+    const res = await post('unarchive', SUPER_ADMIN_HEADERS, {});
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ error: { code: string } }>().error).toBeDefined();
+  });
+
+  // ─── role gate: tenant admin gets 403, service not called ─────────────
+  it('suspend: 403 for role=admin (service not called)', async () => {
+    const res = await post('suspend', TENANT_ADMIN_HEADERS, {});
+    expect(res.statusCode).toBe(403);
+    expect(mockSuspendTenant).not.toHaveBeenCalled();
+  });
+
+  // ─── unauthenticated → 401, service not called ────────────────────────
+  it('archive: 401 when no session is present (service not called)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/admin/super/tenants/${TARGET_TENANT_ID}/archive`,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.statusCode).toBe(401);
+    expect(mockArchiveTenant).not.toHaveBeenCalled();
+  });
+
+  // ─── reason validation: control chars → 400 ───────────────────────────
+  it('suspend: 400 INVALID_REASON when reason contains control characters', async () => {
+    const res = await post('suspend', SUPER_ADMIN_HEADERS, { reason: 'bad' + String.fromCharCode(0) + 'reason' });
+    expect(res.statusCode).toBe(400);
+    expect(mockSuspendTenant).not.toHaveBeenCalled();
+  });
+
+  // ─── reason validation: > 500 chars → 400 ─────────────────────────────
+  it('suspend: 400 INVALID_REASON when reason exceeds 500 chars', async () => {
+    const res = await post('suspend', SUPER_ADMIN_HEADERS, { reason: 'x'.repeat(501) });
+    expect(res.statusCode).toBe(400);
+    expect(mockSuspendTenant).not.toHaveBeenCalled();
   });
 });
