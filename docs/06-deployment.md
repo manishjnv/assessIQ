@@ -306,6 +306,22 @@ both on `main`. The note on the **hardcoded sitemap**: any *future* marketing pa
 is silently absent from `sitemap-0.xml` until added to the `pages[]` array in
 `astro.config.mjs` — a known maintenance trap, not auto-discovered.
 
+**Microsoft Clarity analytics (2026-05-24, marketing-site-only).** **What:** added the
+Clarity tag (project `wvv1j6k46i`) as an `is:inline` `<script>` in
+`apps/marketing/src/layouts/BaseLayout.astro` `<head>`, so it loads on the ~48 marketing
+pages and **nowhere else**. **Why marketing-only:** the SPA (`apps/web`, served at
+`/admin` `/candidate` `/take`) does NOT use this layout, so Clarity never touches candidate
+PII / assessment sessions — required by hard rule (the Privacy Policy states no third-party
+analytics on the assessment/admin app, and DPDP forbids unconsented recording of candidate
+data). **Do NOT** install Clarity via a Cloudflare zone-level integration or domain-wide GTM
+— that would inject it into the SPA too. **Masking:** Clarity dashboard Masking must stay at
+Balanced/Strict so the `/contact` form (name/email/message) and any input is masked — a
+dashboard setting, not code. **Considered & rejected:** a cookie-consent banner (not yet
+added — DPDP leans toward consent for non-essential analytics cookies; flagged as a follow-up).
+**Downstream:** `/privacy` cookies section updated to disclose Clarity by name (`_clck`/`_clsk`
+cookies, masked session replay) and to reaffirm "no analytics on the app"; `assessiq-marketing`
+rebuilt. The Clarity ID is public (ships in page source) — not a secret.
+
 **Container.** `assessiq-marketing` in `infra/docker-compose.yml`: `nginx:alpine`
 serving Astro `dist/`, host port **9093:80** (9091=frontend, 9092=api). Dockerfile
 at `infra/docker/assessiq-marketing/Dockerfile` (multi-stage; **pnpm pinned to
