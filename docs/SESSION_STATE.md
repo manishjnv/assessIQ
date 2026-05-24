@@ -1,3 +1,23 @@
+# Session — 2026-05-24 (Lifecycle MFA step-up — review + docs follow-up)
+
+**Headline:** Reviewed/tested the super-admin Suspend/Archive/Resume/Unarchive feature end-to-end and found a stale-MFA dead-end in `LifecycleConfirmModal` (a `401 "fresh totp required"` had no in-place recovery, unlike Create-company). The CODE fix (mirror Create-company's `MfaStepUp`: `confirm|mfa` sub-state + retry-with-preserved-reason + parent re-throws only the fresh-MFA 401) shipped via a **parallel session's PR #5 (`234c196`)** and is LIVE in the served `assessiq-frontend` bundle. This session contributes the same-fix **docs** that the code PR omitted.
+**Commits (main):** `ca2f1b9` — docs(platform,rca): document lifecycle MFA step-up (`docs/08-ui-system.md § Platform`, RCA 2026-05-24).
+**Tests/verify:** module `tsc` + web SPA build clean on the identical patch (verified before the duplicate was detected); live bundle confirmed to contain the lifecycle signature `re-verified before you can`; VPS source fast-forwarded to `ca2f1b9` (docs-only, no container rebuild).
+**Adversarial gate (auth-adjacent UI):** Sonnet takeover = **ACCEPT** on 5 vectors (bypass / error-misrouting / loop / injection / React footguns); codex companion stalled at "Starting Codex Resume.", a separate codex run also ACCEPTed. No server/gate change — enforcement stays 100% server-side.
+**Next:** operator behavioral click-through of the step-up with a stale-MFA super-admin session (couldn't drive one from here). Test gap remains: no automated tests for the four lifecycle endpoints, and `apps/api/src/__tests__/routes/admin-super.test.ts` fails at collection (stale `@assessiq/auth` mock missing `CANDIDATE_LOGIN_TOKEN_TTL_SEC`).
+**Open questions:** none — feature is shipped and live.
+
+---
+
+## Agent utilization (lifecycle MFA review + docs)
+- **Opus 4.7:** reviewed the full suspend/archive flow (frontend modal + admin-super routes + tenancy service + session sweep), found the stale-MFA dead-end, wrote the fix + docs; mid-session detected that a parallel session had shipped the identical code via PR #5 and pivoted to a docs-only commit to avoid a duplicate. `Opus · review + fix + docs · reworked: Y (duplicate code detected → discarded code commit, shipped docs only)`.
+- **Sonnet:** 1 subagent — adversarial takeover (codex stalled), VERDICT ACCEPT on 5 vectors. `Sonnet · adversarial review · reworked: N`.
+- **Haiku:** n/a — no bulk sweeps.
+- **codex:rescue:** companion stalled at "Starting Codex Resume." → sanctioned Sonnet-takeover fallback (a separate codex run, task-mpjrcrmo, also returned ACCEPT).
+- **claude-mem:** read-only; the `parallel-session-shared-working-tree` memory correctly predicted the branch-checkout thrash that wiped this session's uncommitted edits twice — recovered via an isolated worktree.
+
+---
+
 # Session — 2026-05-24 (Platform "Edit company" — editable tenant name + column renames; follow-up to Edit-admin)
 
 **Headline:** Follow-up to Edit-admin: the Platform row's "Manage ▸ Edit admin" modal is now **"Edit company"** and also edits the **company/tenant display name** (`tenants.name`), via a new `PATCH /api/admin/super/tenants/:tenantId` (super_admin + fresh MFA, `withTenant` + `auditInTx('tenant.renamed')`, `SELECT … FOR UPDATE`, idempotent no-op). Plus two table-header renames: **NAME → "Organisation"** and the status column **TENANT → "Status"** (the old "TENANT" header sat over the active/suspended/archived chip — confusing; user-approved rename).
