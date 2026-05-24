@@ -370,6 +370,25 @@ export function TokenLanding(): JSX.Element {
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <div style={{ width: '100%', maxWidth: 380 }}>{leftContent}</div>
         </div>
+
+        {/* Legal links — trust signal + DPDP transparency for candidates.
+            Plain <a> so it loads the marketing-served /privacy and /terms. */}
+        <p
+          style={{
+            marginTop: 24,
+            fontSize: 12,
+            color: 'var(--aiq-color-fg-muted)',
+            fontFamily: 'var(--aiq-font-sans)',
+          }}
+        >
+          <a href="/privacy" style={{ color: 'inherit', textDecoration: 'underline' }}>
+            Privacy
+          </a>
+          {' · '}
+          <a href="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>
+            Terms
+          </a>
+        </p>
       </main>
 
       <TakeRightPane />

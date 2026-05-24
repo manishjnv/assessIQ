@@ -1,0 +1,353 @@
+---
+// terms.astro — AssessIQ Terms of Service page
+// JSON-LD: BreadcrumbList (Home › Terms of Service) per SEO §3.6 / §15 template
+//
+// HARD RULE: Use clearly bracketed placeholders [like this] for all legal specifics
+// (entity name, registered address, jurisdiction city, effective date).
+// Do NOT fabricate company facts, addresses, or registration details.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Terms of Service"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+---
+
+<BaseLayout
+  title="Terms of Service"
+  description="Terms of Service for AssessIQ's candidate and team assessment platform. Covers acceptable use, data responsibilities, billing, IP, liability, and governing law for India."
+  canonicalPath="/terms"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Terms of Service
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Legal</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Terms of Service
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        These terms govern your access to and use of the AssessIQ platform. Please read them carefully.
+        By using AssessIQ you agree to be bound by these terms.
+      </p>
+    </div>
+  </section>
+
+  <!-- Effective date callout -->
+  <section class="bg-aiq-accent-soft border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-xl">
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 max-w-3xl">
+        <strong class="font-medium text-aiq-fg-primary">Effective date: [Effective date].</strong> These terms
+        apply from the effective date above. We will notify registered administrators by email before making
+        material changes. Continued use after the notice period constitutes acceptance of the revised terms.
+      </p>
+    </div>
+  </section>
+
+  <!-- Main content — sections 1–15 -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl flex flex-col gap-aiq-3xl">
+
+        <!-- 1. Acceptance of terms -->
+        <div id="acceptance">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            1. Acceptance of terms
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Using AssessIQ means agreeing to these terms.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            These Terms of Service ("Terms") form a legally binding agreement between you and <strong class="font-medium text-aiq-fg-primary">[Legal entity name]</strong> ("AssessIQ", "we", "us", or "our"). By creating an account, accessing the platform, or inviting candidates to take an assessment, you confirm that you have read, understood, and agree to these Terms. If you do not agree, you must not use the service. If you are acting on behalf of an organisation, you represent that you have authority to bind that organisation to these Terms.
+          </p>
+        </div>
+
+        <!-- 2. The service -->
+        <div id="the-service">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            2. The service
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            What AssessIQ is and who provides it.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ is a candidate and team assessment platform that allows organisations to design, administer, and evaluate assessments for hiring, skill measurement, and professional development purposes. The platform is operated by <strong class="font-medium text-aiq-fg-primary">[Legal entity name]</strong>, a company incorporated under the laws of India, with its registered office at <strong class="font-medium text-aiq-fg-primary">[Registered address, India]</strong>. We may update, extend, or discontinue features of the service with reasonable notice.
+          </p>
+        </div>
+
+        <!-- 3. Accounts & eligibility -->
+        <div id="accounts">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            3. Accounts &amp; eligibility
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Who can use the platform and how accounts work.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Administrator accounts are provisioned via Google SSO or email-based authentication. Candidates access the platform through invitation links issued by an organisation's administrator — they do not create independent accounts. To open an administrator account you must: (a) be at least 18 years of age; (b) be authorised to act on behalf of the organisation you represent; and (c) provide accurate and complete registration information. You are responsible for maintaining the security of your credentials and for all activity that occurs under your account. Notify us promptly at the contact address below if you suspect unauthorised access.
+          </p>
+        </div>
+
+        <!-- 4. Acceptable use -->
+        <div id="acceptable-use">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            4. Acceptable use
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            What you may and may not do on the platform.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-md">
+            You agree to use AssessIQ only for lawful purposes and in accordance with these Terms. You must not:
+          </p>
+          <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 pl-aiq-xl flex flex-col gap-aiq-sm">
+            <li>Reverse-engineer, decompile, or attempt to extract the source code of the platform.</li>
+            <li>Scrape, crawl, or programmatically harvest data from any part of the service except through our documented API with proper authorisation.</li>
+            <li>Attempt to access data belonging to another tenant or another organisation's candidates.</li>
+            <li>Introduce malicious code, conduct denial-of-service attacks, or otherwise attempt to disrupt the platform or its users.</li>
+            <li>Resell, sublicense, or white-label the platform without a written reseller agreement with us.</li>
+            <li>Use the platform to conduct assessments that are unlawful, discriminatory, or that violate applicable employment or education law.</li>
+          </ul>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 mt-aiq-md">
+            We reserve the right to suspend or terminate access if we reasonably believe these rules have been violated.
+          </p>
+        </div>
+
+        <!-- 5. Assessment integrity & candidate conduct -->
+        <div id="integrity">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            5. Assessment integrity &amp; candidate conduct
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Honest participation is required.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Candidates must complete assessments honestly, using only the resources explicitly permitted by the assessment instructions. Impersonation, use of unauthorised aids, collusion with other candidates, or any other attempt to misrepresent performance is prohibited. Administrators may enable proctoring and anti-cheat measures — including browser lockdown and webcam monitoring — where the assessment configuration and applicable law permit. Where misuse is detected or credibly suspected, the administering organisation may invalidate assessment results. AssessIQ may also flag accounts associated with confirmed misuse and may share that information with the administering organisation.
+          </p>
+        </div>
+
+        <!-- 6. Customer data & responsibilities -->
+        <div id="customer-data">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            6. Customer data &amp; responsibilities
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            You control your candidates' data.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            The hiring organisation or institution ("Customer") is the data fiduciary for candidate personal data uploaded to or collected through AssessIQ. The Customer is responsible for: (a) having a lawful basis under applicable law (including India's Digital Personal Data Protection Act 2023) to collect and process candidate data; (b) obtaining any consents required before inviting candidates to assessments; (c) ensuring candidate data is accurate and that candidates have been informed of how it will be used. AssessIQ processes candidate data on the Customer's behalf as a data processor. Our collection and use of personal data is described in our <a href="/privacy" class="text-aiq-accent hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-aiq-accent rounded-aiq-sm">Privacy Policy</a>.
+          </p>
+        </div>
+
+        <!-- 7. Fees & billing -->
+        <div id="billing">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            7. Fees &amp; billing
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Paid plans, taxes, and renewals.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ offers a free tier and paid subscription plans described on the <a href="/pricing" class="text-aiq-accent hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-aiq-accent rounded-aiq-sm">Pricing page</a>. For paid plans: (a) fees are as stated in your order or contract and are due in advance unless otherwise agreed; (b) all fees are exclusive of applicable taxes — Goods and Services Tax (GST) and any other taxes required by Indian law will be added to your invoice; (c) subscriptions renew automatically unless cancelled before the renewal date; (d) we will give at least 30 days' written notice before increasing fees on an existing plan. Failure to pay may result in suspension of your account until arrears are settled.
+          </p>
+        </div>
+
+        <!-- 8. Intellectual property -->
+        <div id="ip">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            8. Intellectual property
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Who owns what.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            The AssessIQ platform — including its software, design, algorithms, question packs created by AssessIQ, and all platform-generated content — is owned by <strong class="font-medium text-aiq-fg-primary">[Legal entity name]</strong> and is protected by applicable intellectual property laws. These Terms do not grant you any rights in AssessIQ's intellectual property beyond the limited right to use the service as described herein. The Customer retains ownership of its own data — including questions it creates, candidate responses, and assessment configurations — and grants AssessIQ a limited licence to process that data solely to provide the service. You must not use AssessIQ's name, logo, or trademarks without our prior written consent.
+          </p>
+        </div>
+
+        <!-- 9. Third-party services -->
+        <div id="third-party">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            9. Third-party services
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Services we rely on.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ integrates with or relies on third-party services including Google (for SSO authentication and infrastructure), cloud hosting and database providers, and transactional email services. Use of those third-party components is subject to their own terms and privacy policies, which govern the portions of the service they provide. We are not responsible for the practices of third-party providers, though we take care to select providers that meet reasonable security and privacy standards. We will update this section if significant integrations change.
+          </p>
+        </div>
+
+        <!-- 10. Disclaimers -->
+        <div id="disclaimers">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            10. Disclaimers
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            The service is provided as-is.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            The AssessIQ platform is provided "as is" and "as available" without warranties of any kind, express or implied, to the extent permitted by applicable Indian law. We do not warrant that the service will be uninterrupted, error-free, or free from harmful components. Assessment results are decision-support tools — they reflect a candidate's performance on a specific set of tasks at a specific time. They are not a guarantee of future job performance, academic achievement, or any other outcome, and must not be used as the sole basis for consequential decisions affecting a candidate's rights or opportunities. The Customer is responsible for how it interprets and acts on assessment results.
+          </p>
+        </div>
+
+        <!-- 11. Limitation of liability -->
+        <div id="liability">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            11. Limitation of liability
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Our liability is limited.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            To the extent permitted by the laws of India, AssessIQ's total aggregate liability to you for any claims arising out of or relating to these Terms or your use of the service shall not exceed the fees paid by you in the twelve months immediately preceding the event giving rise to the claim, or INR 10,000 (whichever is greater). In no event shall AssessIQ be liable for indirect, incidental, consequential, special, or exemplary damages — including loss of revenue, loss of data, loss of business opportunity, or reputational harm — even if we have been advised of the possibility of such damages. Nothing in these Terms limits liability that cannot lawfully be excluded under applicable Indian law.
+          </p>
+        </div>
+
+        <!-- 12. Indemnification -->
+        <div id="indemnification">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            12. Indemnification
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Responsibility for misuse.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            The Customer agrees to indemnify, defend, and hold harmless AssessIQ and its officers, employees, and agents from and against any claims, losses, liabilities, costs, and expenses (including reasonable legal fees) arising from: (a) the Customer's misuse of the platform in violation of these Terms; (b) the Customer's unlawful collection, processing, or use of candidate personal data; (c) any claim by a candidate that their data was used without proper authorisation; or (d) any assessment conducted in a manner that violates applicable employment, discrimination, or data protection law. This indemnification obligation survives termination of these Terms.
+          </p>
+        </div>
+
+        <!-- 13. Term & termination -->
+        <div id="termination">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            13. Term &amp; termination
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            How the agreement starts and ends.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            These Terms take effect when you first access or use the service and continue until terminated. Either party may terminate the agreement by giving notice in accordance with the relevant order or subscription plan. We may suspend or terminate your access immediately if you materially breach these Terms, fail to pay fees after reasonable notice, or if we are required to do so by law. On termination: (a) your right to access the platform ends; (b) we will retain your data for 30 days to allow export, after which it may be deleted in line with our data retention policy; (c) provisions of these Terms that by their nature should survive (IP ownership, limitations of liability, indemnification, governing law) will do so.
+          </p>
+        </div>
+
+        <!-- 14. Governing law & jurisdiction -->
+        <div id="governing-law">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            14. Governing law &amp; jurisdiction
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            Indian law governs these terms.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            These Terms are governed by and construed in accordance with the laws of India, without regard to its conflict-of-laws principles. Any dispute, claim, or controversy arising out of or in connection with these Terms or the use of the service that cannot be resolved amicably shall be subject to the exclusive jurisdiction of the courts at <strong class="font-medium text-aiq-fg-primary">[Jurisdiction city, India]</strong>. The parties agree to attempt to resolve disputes in good faith before initiating formal proceedings.
+          </p>
+        </div>
+
+        <!-- 15. Changes to terms -->
+        <div id="changes">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+            15. Changes to terms
+          </p>
+          <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+            How we handle updates.
+          </h2>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            We may update these Terms from time to time to reflect changes in the law, our services, or our business practices. When we make material changes we will notify registered administrators by email at least 14 days before the changes take effect and will update the effective date above. If you continue to use the service after that notice period, you are taken to have accepted the revised terms. If you do not accept the revised terms, you must stop using the service and notify us so we can close your account. Minor changes (such as formatting corrections or clarifications that do not affect your rights) may be made without notice.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA row -->
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+          Questions about these terms?
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          If you have questions about these Terms, your data rights, or how AssessIQ operates, reach out.
+          We will give you a direct answer.
+        </p>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Contact us
+          </a>
+          <a
+            href="/privacy"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Privacy Policy
+          </a>
+        </div>
+
+        <!-- Related links -->
+        <div class="mt-aiq-2xl pt-aiq-2xl border-t border-aiq-border">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related pages</p>
+          <div class="flex flex-wrap gap-aiq-sm">
+            {[
+              { href: '/privacy',  label: 'Privacy Policy' },
+              { href: '/pricing',  label: 'Pricing' },
+              { href: '/contact',  label: 'Contact us' },
+            ].map(link => (
+              <a
+                href={link.href}
+                class="font-sans text-aiq-sm font-medium px-4 py-2 rounded-aiq-pill border border-aiq-border
+                       text-aiq-fg-muted hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
