@@ -24,17 +24,19 @@ const resourceLinks = [
   { href: '/glossary',     label: 'Glossary' },
   { href: '/resources',    label: 'Blog / Articles' },
   { href: '/methodology',  label: 'Methodology' },
+  { href: '/tools',        label: 'Free Tools' },
 ];
 
 // Treat any /solutions/* path as "Solutions" active
 const isSolutionsActive = currentPath.startsWith('/solutions');
 // Treat any /tests/* path as "Skill Tests" active
 const isTestsActive = currentPath === '/tests' || currentPath.startsWith('/tests/');
-// Treat any /glossary/*, /resources/*, or /methodology path as "Resources" active
+// Treat any /glossary/*, /resources/*, /methodology, or /tools/* path as "Resources" active
 const isResourcesActive =
   currentPath === '/glossary'     || currentPath.startsWith('/glossary/') ||
   currentPath === '/resources'    || currentPath.startsWith('/resources/') ||
-  currentPath === '/methodology';
+  currentPath === '/methodology'  ||
+  currentPath === '/tools'        || currentPath.startsWith('/tools/');
 ---
 
 <header class="border-b border-aiq-border bg-aiq-bg-base sticky top-0 z-50">

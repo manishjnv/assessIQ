@@ -13,7 +13,11 @@
 #
 # Multi-stage: builder (astro build → /app/dist) → nginx:alpine static runtime.
 
-ARG NODE_VERSION=22-alpine
+# Builder is Debian (node:22), NOT alpine: the SEO build runs `pagefind` (a Rust
+# CLI shipping a glibc prebuilt binary) which fails on musl/alpine. Runtime stays
+# nginx:alpine (static files only — no native deps at serve time). astro-og-canvas
+# uses canvaskit-wasm (WASM), so OG generation works on any base.
+ARG NODE_VERSION=22
 ARG NGINX_VERSION=1.27-alpine
 
 # ─── Stage 1: builder — astro build → /app/dist ──────────────────────────────

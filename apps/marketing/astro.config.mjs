@@ -65,6 +65,8 @@ function inlineSitemap() {
     { loc: `${SITE}/tests/role/full-stack-developer`,             lastmod: today },
     { loc: `${SITE}/tests/role/data-analyst`,                     lastmod: today },
     { loc: `${SITE}/tests/role/software-engineer`,                lastmod: today },
+    { loc: `${SITE}/tools`,                                       lastmod: today },
+    { loc: `${SITE}/tools/cost-of-a-bad-hire`,                   lastmod: today },
   ];
 
   function urlsetXml(urls) {
