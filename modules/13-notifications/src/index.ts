@@ -24,6 +24,12 @@ export { processEmailSendJob } from './email/index.js';
 export type { EmailSendJobData } from './email/index.js';
 
 // ---------------------------------------------------------------------------
+// Contact-form enquiry (public, unauthenticated — no tenant context)
+// ---------------------------------------------------------------------------
+export { sendContactEnquiry } from './email/contact.js';
+export type { ContactEnquiryInput } from './email/contact.js';
+
+// ---------------------------------------------------------------------------
 // Legacy shims — SAME signatures as Phase 0 stub; existing callers unchanged
 // ---------------------------------------------------------------------------
 export {

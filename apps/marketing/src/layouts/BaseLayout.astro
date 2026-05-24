@@ -29,8 +29,31 @@ const {
 const site = 'https://assessiq.in';
 const canonicalUrl = `${site}${canonicalPath}`;
 const fullTitle = `${title} — AssessIQ`;
-// Static OG image — dynamic renderer is ASMT-08 (Phase 1, deferred)
-const ogImage = `${site}/og-default.png`;
+
+// ASMT-08: Compute OG slug from canonicalPath (same scheme as the pages map in og/[...route].png.ts)
+// "/" → "index", "/solutions/it-hiring" → "solutions-it-hiring"
+// OG image set is built at build time; pages not in the map fall back to /og-default.png.
+const ogPagesWithDynamicImage = new Set([
+  'index',
+  'about', 'pricing', 'contact', 'security', 'privacy', 'terms', 'methodology', 'compare', 'alternatives', 'glossary', 'tests', 'resources', 'solutions',
+  'solutions-it-hiring', 'solutions-campus-recruitment', 'solutions-educational-institutions', 'solutions-team-skill-gap',
+  'tests-python', 'tests-java', 'tests-sql', 'tests-javascript', 'tests-react', 'tests-aptitude', 'tests-logical-reasoning', 'tests-english',
+  'tests-role-frontend-developer', 'tests-role-backend-developer', 'tests-role-full-stack-developer', 'tests-role-data-analyst', 'tests-role-software-engineer',
+  'alternatives-mettl', 'alternatives-hackerearth', 'alternatives-hackerrank', 'alternatives-imocha', 'alternatives-amcat',
+  'compare-assessiq-vs-mettl', 'compare-assessiq-vs-hackerearth', 'compare-assessiq-vs-imocha',
+  'glossary-adverse-impact', 'glossary-criterion-validity', 'glossary-construct-validity', 'glossary-reliability-coefficient',
+  'glossary-item-response-theory', 'glossary-computer-adaptive-testing', 'glossary-percentile-rank', 'glossary-norm-referenced-scoring', 'glossary-cut-score', 'glossary-proctoring',
+  'resources-technical-hiring-india-guide', 'resources-reducing-bias-technical-hiring', 'resources-remote-proctoring-integrity',
+  'tools', 'tools-cost-of-a-bad-hire',
+]);
+
+// Derive slug: strip leading slash, replace remaining slashes with '-', "/" becomes "index"
+// astro-og-canvas OGImageRoute (file src/pages/og/[...route].ts) outputs /og/{slug}.png.
+// Pages not in the map above fall back to /og-default.png.
+const ogSlug = canonicalPath === '/' ? 'index' : canonicalPath.replace(/^\//, '').replace(/\//g, '-');
+const ogImage = ogPagesWithDynamicImage.has(ogSlug)
+  ? `${site}/og/${ogSlug}.png`
+  : `${site}/og-default.png`;
 ---
 
 <!doctype html>

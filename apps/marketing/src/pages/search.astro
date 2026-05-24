@@ -1,0 +1,63 @@
+---
+// search.astro — On-site search page powered by Pagefind (/search)
+// NOINDEX: search results pages should not be indexed by search engines.
+// NOT added to sitemap. NOT in nav (footer or header).
+// Reads ?q= URL param and pre-populates the Pagefind UI search input.
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Search AssessIQ"
+  description="Search the AssessIQ site — solutions, skill tests, glossary, resources, and more."
+  canonicalPath="/search"
+  noindex={true}
+>
+  <!-- Pagefind UI stylesheet — generated into dist/pagefind/ after build -->
+  <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+
+  <!-- Search hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Site Search
+      </p>
+      <h1 class="font-serif text-aiq-3xl font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-2xl">
+        Search AssessIQ.
+      </h1>
+    </div>
+  </section>
+
+  <!-- Pagefind search UI -->
+  <section class="bg-aiq-bg-base min-h-[40vh]">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div id="search"></div>
+    </div>
+  </section>
+
+</BaseLayout>
+
+<!-- Pagefind UI init — reads ?q= param and triggers search -->
+<script is:inline>
+  window.addEventListener('DOMContentLoaded', function () {
+    // Dynamically load pagefind-ui.js (generated at build time)
+    var script = document.createElement('script');
+    script.src = '/pagefind/pagefind-ui.js';
+    script.onload = function () {
+      var ui = new PagefindUI({ element: '#search', showSubResults: true });
+
+      // Pre-populate + trigger search from ?q= URL param
+      var params = new URLSearchParams(window.location.search);
+      var q = params.get('q');
+      if (q) {
+        // Pagefind UI exposes no direct API to pre-trigger; we set the input
+        // value and dispatch an input event, which triggers the internal search.
+        var input = document.querySelector('#search input[type="text"]');
+        if (input) {
+          input.value = q;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    };
+    document.body.appendChild(script);
+  });
+</script>

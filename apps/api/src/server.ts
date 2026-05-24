@@ -10,6 +10,7 @@ import { tenantContextMiddleware } from '@assessiq/tenancy';
 import { extractClientIp } from '@assessiq/auth';
 import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
+import { registerContactRoutes } from './routes/contact.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
@@ -155,6 +156,8 @@ export async function buildServer() {
   await registerLogIngestRoutes(app);
   await registerAdminUserRoutes(app);
   await registerInvitationRoutes(app);
+  // public, unauthenticated, rate-limited contact form → emails connect@assessiq.in
+  await registerContactRoutes(app);
   // Auth routes install their own per-route preHandler chain (rateLimit →
   // sessionLoader → apiKeyAuth → syncCtx → requireAuth → extendOnPass)
   // via apps/api/src/middleware/auth-chain.ts. Routes are config:{skipAuth:true}

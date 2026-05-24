@@ -1,0 +1,131 @@
+---
+// tools.astro — Free Tools hub page (/tools)
+// Lists all free tools (just Cost of a Bad Hire calculator for now).
+// BreadcrumbList schema. Indexable.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Free Tools"
+      // no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+const tools = [
+  {
+    href: '/tools/cost-of-a-bad-hire',
+    label: 'Cost of a Bad Hire Calculator',
+    body: 'Estimate the true cost of a hiring mistake — recruiting, ramp-up productivity loss, and exit costs — using your own numbers. India context, ₹ denominated.',
+    tag: 'Calculator',
+  }
+];
+---
+
+<BaseLayout
+  title="Free Tools for Hiring Teams"
+  description="Free tools for hiring and assessment teams in India — calculators, guides, and decision aids. No sign-up required."
+  canonicalPath="/tools"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Free Tools
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Free Tools &middot; AssessIQ
+      </p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Free tools for hiring teams.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-0 max-w-2xl">
+        Calculators and decision aids to help you make better hiring calls. No sign-up required — use them directly in your browser.
+      </p>
+    </div>
+  </section>
+
+  <!-- TOOL LISTING -->
+  <section class="bg-aiq-bg-base" aria-labelledby="tools-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <h2 id="tools-heading" class="sr-only">Available tools</h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {tools.map(tool => (
+          <a
+            href={tool.href}
+            class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-accent
+                   transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent
+                   focus-visible:ring-offset-2 group no-underline block"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {tool.tag}
+            </p>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0 leading-snug
+                       group-hover:text-aiq-accent transition-colors duration-150">
+              {tool.label}
+            </h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {tool.body}
+            </p>
+            <p class="font-sans text-aiq-sm text-aiq-accent mt-aiq-lg mb-0 font-medium">
+              Open calculator &rarr;
+            </p>
+          </a>
+        ))}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RELATED LINKS -->
+  <section class="bg-aiq-bg-raised border-t border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-3xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Also useful</p>
+      <div class="flex flex-wrap gap-aiq-lg">
+        <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+          IT &amp; Tech Hiring solution &rarr;
+        </a>
+        <a href="/pricing" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+          Pricing &rarr;
+        </a>
+        <a href="/resources" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+          Resources &amp; Articles &rarr;
+        </a>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

@@ -1,0 +1,424 @@
+---
+// tools/cost-of-a-bad-hire.astro — Interactive bad-hire cost calculator (/tools/cost-of-a-bad-hire)
+// Vanilla JS calculator. India context, INR. Indexable.
+// Schemas: BreadcrumbList + WebApplication
+// No fabricated industry stats — all defaults labeled "illustrative".
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Free Tools",
+      "item": `${site}/tools`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Cost of a Bad Hire Calculator"
+      // no "item" on last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+const appSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Cost of a Bad Hire Calculator",
+  "url": `${site}/tools/cost-of-a-bad-hire`,
+  "description": "Estimate the true cost of a bad hire — recruiting, ramp-up productivity loss, and exit costs — using your own numbers. India context, INR denominated.",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "INR"
+  }
+};
+---
+
+<BaseLayout
+  title="Cost of a Bad Hire Calculator (India, ₹)"
+  description="Estimate what a wrong hire really costs your company — recruiting fees, productivity loss during ramp-up, and exit costs. Free, browser-based, India context."
+  canonicalPath="/tools/cost-of-a-bad-hire"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(appSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/tools" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Free Tools
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Cost of a Bad Hire
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Free Calculator &middot; India &middot; &#8377;
+      </p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        What does a bad hire actually cost?
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-0 max-w-2xl">
+        Enter your own numbers to estimate the true cost: recruiting and replacement, lost productivity during ramp-up, and separation costs. No sign-up. No data is sent anywhere — the calculation runs entirely in your browser.
+      </p>
+    </div>
+  </section>
+
+  <!-- CALCULATOR -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="calc-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="calc-heading" class="sr-only">Calculator inputs and results</h2>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-aiq-3xl items-start">
+
+        <!-- Inputs -->
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+
+          <div class="mb-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-xs mt-0 font-medium">
+              Illustrative defaults — adjust to your numbers
+            </p>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+              The figures below are starting points only. Replace every field with your actual data for a meaningful estimate.
+            </p>
+          </div>
+
+          <form id="calc-form" novalidate>
+
+            <!-- Annual CTC -->
+            <div class="mb-aiq-xl">
+              <label for="ctc" class="block font-sans text-aiq-sm font-medium text-aiq-fg-primary mb-aiq-xs">
+                Annual CTC of the role (&#8377;)
+              </label>
+              <p class="font-sans text-aiq-xs text-aiq-fg-muted m-0 mb-aiq-sm">
+                Total cost-to-company for the position (salary + PF + benefits). <em>Illustrative default: &#8377;12,00,000</em>
+              </p>
+              <input
+                type="number"
+                id="ctc"
+                name="ctc"
+                min="0"
+                step="10000"
+                value="1200000"
+                class="w-full font-sans text-aiq-md text-aiq-fg-primary bg-aiq-bg-base border border-aiq-border-strong
+                       rounded-aiq-md px-aiq-md py-aiq-sm focus:outline-none focus:ring-2 focus:ring-aiq-accent
+                       focus:border-transparent"
+                aria-describedby="ctc-hint"
+              />
+            </div>
+
+            <!-- Recruiting cost % -->
+            <div class="mb-aiq-xl">
+              <label for="recruiting-pct" class="block font-sans text-aiq-sm font-medium text-aiq-fg-primary mb-aiq-xs">
+                Recruiting &amp; replacement cost (% of annual CTC)
+              </label>
+              <p class="font-sans text-aiq-xs text-aiq-fg-muted m-0 mb-aiq-sm">
+                Includes job-board fees, recruiter time, interview hours, onboarding overhead. <em>Illustrative default: 25%</em>
+              </p>
+              <input
+                type="number"
+                id="recruiting-pct"
+                name="recruiting-pct"
+                min="0"
+                max="200"
+                step="1"
+                value="25"
+                class="w-full font-sans text-aiq-md text-aiq-fg-primary bg-aiq-bg-base border border-aiq-border-strong
+                       rounded-aiq-md px-aiq-md py-aiq-sm focus:outline-none focus:ring-2 focus:ring-aiq-accent
+                       focus:border-transparent"
+              />
+            </div>
+
+            <!-- Months to full productivity -->
+            <div class="mb-aiq-xl">
+              <label for="ramp-months" class="block font-sans text-aiq-sm font-medium text-aiq-fg-primary mb-aiq-xs">
+                Months until the new hire reaches full productivity
+              </label>
+              <p class="font-sans text-aiq-xs text-aiq-fg-muted m-0 mb-aiq-sm">
+                How long before the replacement is fully effective in the role. <em>Illustrative default: 4 months</em>
+              </p>
+              <input
+                type="number"
+                id="ramp-months"
+                name="ramp-months"
+                min="0"
+                max="36"
+                step="1"
+                value="4"
+                class="w-full font-sans text-aiq-md text-aiq-fg-primary bg-aiq-bg-base border border-aiq-border-strong
+                       rounded-aiq-md px-aiq-md py-aiq-sm focus:outline-none focus:ring-2 focus:ring-aiq-accent
+                       focus:border-transparent"
+              />
+            </div>
+
+            <!-- Average productivity during ramp -->
+            <div class="mb-aiq-xl">
+              <label for="ramp-productivity" class="block font-sans text-aiq-sm font-medium text-aiq-fg-primary mb-aiq-xs">
+                Average productivity during ramp (% of full output)
+              </label>
+              <p class="font-sans text-aiq-xs text-aiq-fg-muted m-0 mb-aiq-sm">
+                Estimate how effective the replacement hire is on average across the ramp period. <em>Illustrative default: 50%</em>
+              </p>
+              <input
+                type="number"
+                id="ramp-productivity"
+                name="ramp-productivity"
+                min="0"
+                max="100"
+                step="1"
+                value="50"
+                class="w-full font-sans text-aiq-md text-aiq-fg-primary bg-aiq-bg-base border border-aiq-border-strong
+                       rounded-aiq-md px-aiq-md py-aiq-sm focus:outline-none focus:ring-2 focus:ring-aiq-accent
+                       focus:border-transparent"
+              />
+            </div>
+
+            <!-- Separation / exit cost -->
+            <div class="mb-aiq-xs">
+              <label for="exit-cost" class="block font-sans text-aiq-sm font-medium text-aiq-fg-primary mb-aiq-xs">
+                Separation &amp; exit cost (&#8377;)
+              </label>
+              <p class="font-sans text-aiq-xs text-aiq-fg-muted m-0 mb-aiq-sm">
+                Includes notice-period salary, severance (if any), legal/HR overhead, and handover time costs. <em>Illustrative default: &#8377;1,50,000</em>
+              </p>
+              <input
+                type="number"
+                id="exit-cost"
+                name="exit-cost"
+                min="0"
+                step="5000"
+                value="150000"
+                class="w-full font-sans text-aiq-md text-aiq-fg-primary bg-aiq-bg-base border border-aiq-border-strong
+                       rounded-aiq-md px-aiq-md py-aiq-sm focus:outline-none focus:ring-2 focus:ring-aiq-accent
+                       focus:border-transparent"
+              />
+            </div>
+
+          </form>
+        </div>
+
+        <!-- Results -->
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl sticky top-20">
+
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg mt-0 font-medium">
+            Estimated Cost Breakdown
+          </p>
+
+          <!-- Line items -->
+          <div class="flex flex-col gap-aiq-md mb-aiq-xl">
+            <div class="flex items-center justify-between py-aiq-sm border-b border-aiq-border">
+              <span class="font-sans text-aiq-md text-aiq-fg-secondary">Recruiting &amp; replacement</span>
+              <span id="result-recruiting" class="font-mono text-aiq-md text-aiq-fg-primary font-medium">&#8377;3,00,000</span>
+            </div>
+            <div class="flex items-center justify-between py-aiq-sm border-b border-aiq-border">
+              <span class="font-sans text-aiq-md text-aiq-fg-secondary">Ramp productivity loss</span>
+              <span id="result-ramp" class="font-mono text-aiq-md text-aiq-fg-primary font-medium">&#8377;2,00,000</span>
+            </div>
+            <div class="flex items-center justify-between py-aiq-sm border-b border-aiq-border">
+              <span class="font-sans text-aiq-md text-aiq-fg-secondary">Separation &amp; exit cost</span>
+              <span id="result-exit" class="font-mono text-aiq-md text-aiq-fg-primary font-medium">&#8377;1,50,000</span>
+            </div>
+          </div>
+
+          <!-- Total -->
+          <div class="bg-aiq-accent-soft border border-aiq-accent/20 rounded-aiq-lg px-aiq-xl py-aiq-lg">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-xs mt-0">Estimated total cost</p>
+            <p id="result-total" class="font-serif text-aiq-hero font-normal tracking-aiq-tighter text-aiq-accent m-0 leading-none">
+              &#8377;6,50,000
+            </p>
+          </div>
+
+          <p class="font-sans text-aiq-xs text-aiq-fg-muted leading-relaxed mt-aiq-lg mb-0">
+            This is an estimate based on the inputs you provide. Actual costs vary by role, team size, and company context. Use this as a directional guide, not a precise figure.
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- METHODOLOGY -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="methodology-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl max-w-3xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How the estimate works</p>
+      <h2 id="methodology-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+        Three components, your numbers.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl">
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Recruiting &amp; replacement cost
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Calculated as: Annual CTC &times; (Recruiting % &divide; 100). This covers the direct cost of sourcing, screening, interviewing, and onboarding a replacement — job ads, recruiter time, hiring-manager interview hours, and the first weeks of onboarding overhead.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Ramp productivity loss
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Calculated as: (Monthly CTC &times; Ramp months) &times; (1 &minus; Average productivity &divide; 100). During the ramp period, the replacement hire is not yet operating at full capacity. This component estimates the value of output that is foregone compared to a fully effective employee in the same role.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
+            Separation &amp; exit cost
+          </h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Entered directly as a rupee amount. Includes notice-period salary, any agreed severance or gratuity, HR and legal overhead, and the cost of knowledge transfer and handover time.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RELATED LINKS -->
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Reduce bad hires with AssessIQ</p>
+      <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0 max-w-2xl">
+        A structured assessment before the hire is the cheapest mitigation.
+      </h2>
+
+      <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Get started free
+        </a>
+        <a
+          href="/solutions/it-hiring"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          See IT hiring solution
+        </a>
+      </div>
+
+      <div class="flex flex-wrap gap-aiq-lg">
+        <a href="/pricing" class="font-sans text-aiq-sm text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+          Pricing &rarr;
+        </a>
+        <a href="/resources" class="font-sans text-aiq-sm text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+          Hiring resources &amp; articles &rarr;
+        </a>
+        <a href="/tools" class="font-sans text-aiq-sm text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+          All free tools &rarr;
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+</BaseLayout>
+
+<!-- Calculator logic — vanilla JS, runs in browser, no framework -->
+<script is:inline>
+(function () {
+  'use strict';
+
+  // Format a number as Indian rupee string with lakh/crore grouping
+  function formatINR(amount) {
+    // Use Intl if available (modern browsers)
+    try {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+      }).format(Math.round(amount));
+    } catch (e) {
+      return '₹' + Math.round(amount).toLocaleString('en-IN');
+    }
+  }
+
+  function calculate() {
+    var ctc = parseFloat(document.getElementById('ctc').value) || 0;
+    var recruitingPct = parseFloat(document.getElementById('recruiting-pct').value) || 0;
+    var rampMonths = parseFloat(document.getElementById('ramp-months').value) || 0;
+    var rampProductivity = parseFloat(document.getElementById('ramp-productivity').value) || 0;
+    var exitCost = parseFloat(document.getElementById('exit-cost').value) || 0;
+
+    // Clamp percentages to valid range
+    recruitingPct = Math.max(0, recruitingPct);
+    rampMonths = Math.max(0, rampMonths);
+    rampProductivity = Math.min(100, Math.max(0, rampProductivity));
+
+    // 1. Recruiting & replacement cost
+    var recruitingCost = ctc * (recruitingPct / 100);
+
+    // 2. Ramp productivity loss
+    //    Monthly salary equivalent = ctc / 12
+    //    Productivity gap = 1 - (rampProductivity / 100)
+    var monthlyCTC = ctc / 12;
+    var productivityGap = 1 - (rampProductivity / 100);
+    var rampLoss = monthlyCTC * rampMonths * productivityGap;
+
+    // 3. Separation & exit cost (direct input)
+    var separation = exitCost;
+
+    // Total
+    var total = recruitingCost + rampLoss + separation;
+
+    // Update DOM
+    document.getElementById('result-recruiting').textContent = formatINR(recruitingCost);
+    document.getElementById('result-ramp').textContent = formatINR(rampLoss);
+    document.getElementById('result-exit').textContent = formatINR(separation);
+    document.getElementById('result-total').textContent = formatINR(total);
+  }
+
+  // Run on every input change
+  var form = document.getElementById('calc-form');
+  if (form) {
+    form.addEventListener('input', calculate);
+    // Initial render with defaults
+    calculate();
+  }
+}());
+</script>
