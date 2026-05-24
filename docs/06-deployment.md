@@ -292,16 +292,35 @@ the standard legitimacy signals that clear it. **Considered & rejected:** Bing's
 HTML-meta-tag verification (would inject a tag into all ~45 pages — used the single
 XML file instead); requesting the GSC review immediately (held until the hardening
 shipped, so the appeal lands on a fixed page, not a repeat-offender cooldown).
-**NOT included:** the legal pages ship with `[bracketed]` placeholders (entity name,
-registered address, grievance officer, jurisdiction city, effective date) — they
-need a real legal-review pass before the placeholders are filled; the GSC "Request
-Review" and Bing "Verify" clicks are operator-gated. **Downstream impact:**
+**Placeholders filled (2026-05-24, commit on `main`):** entity "AssessIQ", address
+Bommanahalli/Bangalore 560068, jurisdiction Bangalore, effective date May 2026. The
+grievance section no longer names a dedicated officer or `grievance@` inbox — it routes
+to the published `hello@assessiq.in`. `terms.astro` says "based in India" rather than
+"a company incorporated under the laws of India" pending confirmation of AssessIQ's
+incorporation status (restore the stronger wording if it is a registered company). The
+GSC "Request Review" and Bing "Verify" clicks remain operator-gated. **Downstream impact:**
 `assessiq-marketing` rebuilt (47 pages) + `assessiq-frontend` rebuilt (login copy);
 `docs/04-auth-flows.md` login screen now reads "Sign in to AssessIQ" with legal
 links. Commits `657ee2a` (Bing file) + `ab899fe` (trust pages + login hardening),
 both on `main`. The note on the **hardcoded sitemap**: any *future* marketing page
 is silently absent from `sitemap-0.xml` until added to the `pages[]` array in
 `astro.config.mjs` — a known maintenance trap, not auto-discovered.
+
+**Microsoft Clarity analytics (2026-05-24, marketing-site-only).** **What:** added the
+Clarity tag (project `wvv1j6k46i`) as an `is:inline` `<script>` in
+`apps/marketing/src/layouts/BaseLayout.astro` `<head>`, so it loads on the ~48 marketing
+pages and **nowhere else**. **Why marketing-only:** the SPA (`apps/web`, served at
+`/admin` `/candidate` `/take`) does NOT use this layout, so Clarity never touches candidate
+PII / assessment sessions — required by hard rule (the Privacy Policy states no third-party
+analytics on the assessment/admin app, and DPDP forbids unconsented recording of candidate
+data). **Do NOT** install Clarity via a Cloudflare zone-level integration or domain-wide GTM
+— that would inject it into the SPA too. **Masking:** Clarity dashboard Masking must stay at
+Balanced/Strict so the `/contact` form (name/email/message) and any input is masked — a
+dashboard setting, not code. **Considered & rejected:** a cookie-consent banner (not yet
+added — DPDP leans toward consent for non-essential analytics cookies; flagged as a follow-up).
+**Downstream:** `/privacy` cookies section updated to disclose Clarity by name (`_clck`/`_clsk`
+cookies, masked session replay) and to reaffirm "no analytics on the app"; `assessiq-marketing`
+rebuilt. The Clarity ID is public (ships in page source) — not a secret.
 
 **Container.** `assessiq-marketing` in `infra/docker-compose.yml`: `nginx:alpine`
 serving Astro `dist/`, host port **9093:80** (9091=frontend, 9092=api). Dockerfile
