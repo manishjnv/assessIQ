@@ -263,7 +263,9 @@ describe("Block 1 — RLS visibility", () => {
     await deleteTenantOverrides();
   });
 
-  it("tenant A sees all global rows (25 from seed)", async () => {
+  // NOTE: count tracks the active global-row total in 0011_seed_help_content.sql
+  // (one INSERT per admin.yml key). Bump it when the generated seed grows.
+  it("tenant A sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_A, async (client) => {
       const res = await client.query<{ count: string }>(
@@ -271,10 +273,10 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(58);
+    expect(count).toBe(114);
   });
 
-  it("tenant B also sees all global rows (25 from seed)", async () => {
+  it("tenant B also sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_B, async (client) => {
       const res = await client.query<{ count: string }>(
@@ -282,7 +284,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(58);
+    expect(count).toBe(114);
   });
 
   it("tenant A override is visible to tenant A", async () => {
