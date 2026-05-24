@@ -4,8 +4,9 @@
 **Commits (main):** `ca2f1b9` docs(platform,rca): document lifecycle MFA step-up; `8a69e06` test(admin-super): cover the four lifecycle endpoints + repair the broken `@assessiq/auth` mock + fix suspend-copy undercount.
 **Tests/verify:** module `tsc` + web SPA build clean; live bundle confirmed to contain the lifecycle signature `re-verified before you can`. **Follow-up (8a69e06):** `admin-super.test.ts` collects again (importActual-spread mock) and **18/18 pass** incl. 10 new lifecycle tests; `apps/api` + `admin-dashboard` `tsc` clean; web build clean.
 **Adversarial gate (auth-adjacent UI):** Sonnet takeover = **ACCEPT** on 5 vectors (bypass / error-misrouting / loop / injection / React footguns); codex companion stalled, a separate codex run also ACCEPTed. No server/gate change. (The follow-up test+copy commit touches no security path → no gate required.)
-**Next:** **DEPLOY PENDING for `8a69e06`** — the suspend-copy reword changes the served SPA bundle, so `assessiq-frontend` needs a rebuild to go live (test + RCA + this handoff are deploy-irrelevant). Also: operator behavioral click-through of the MFA step-up with a stale-MFA super-admin session (couldn't drive one from here).
-**Open questions:** none — all review findings (MFA dead-end, test gap, suspend undercount) are fixed and on `origin/main`; only the frontend rebuild for the cosmetic copy remains.
+**Deploy:** `assessiq-frontend` **rebuilt + recreated** on the VPS (image `assessiq/frontend:latest` sha `9fb8946…`, container healthy); VPS source pulled to `ba5bb3f`. Verified the reworded suspend copy (`admins, reviewers, and candidates`) is in the freshly served bundle (`index-DtCJ_dXL.js`). Additive, namespaced — no other container touched (`--no-deps --force-recreate`).
+**Next:** operator behavioral click-through of the MFA step-up with a stale-MFA super-admin session (couldn't drive one from here) — the only remaining unverified item.
+**Open questions:** none — all three review findings (MFA dead-end, test gap, suspend undercount) are fixed, on `origin/main`, and live.
 
 ---
 
