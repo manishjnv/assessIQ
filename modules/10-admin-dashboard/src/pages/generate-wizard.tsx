@@ -23,6 +23,8 @@
 //  - No hardcoded test data.
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import {
   adminApi,
@@ -34,8 +36,9 @@ import {
   createCategoryApi,
   bulkUpdateQuestionStatus,
   listQuestionsApi,
+  listGenerationAttempts,
 } from "../api.js";
-import type { DomainItem, CategoryItem, QuestionListItem } from "../api.js";
+import type { DomainItem, CategoryItem, QuestionListItem, GenerationAttemptSummary } from "../api.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -321,6 +324,7 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
 // ---------------------------------------------------------------------------
 
 export function AdminGenerateWizard(): React.ReactElement {
+  const navigate = useNavigate();
   const [step, setStep] = useState<WizardStep>("config");
 
   // Config state
@@ -366,6 +370,14 @@ export function AdminGenerateWizard(): React.ReactElement {
   // D5: on-mount check for existing drafts (resume-on-return)
   const [resumeCount, setResumeCount] = useState<number | null>(null);
 
+  // ③ Resume-on-return for a generation that is still RUNNING server-side.
+  // Progress during handleGenerate lives only in React state (genResults), so
+  // navigating away and back used to drop straight to an empty config form even
+  // though the server was still generating. We now query for a running attempt
+  // on mount and, while one exists, show an "in progress" panel and poll until
+  // it terminates — matching what Generation History shows live.
+  const [runningAttempt, setRunningAttempt] = useState<GenerationAttemptSummary | null>(null);
+
   // Fetch domains on mount
   useEffect(() => {
     setDomainsLoading(true);
@@ -379,6 +391,16 @@ export function AdminGenerateWizard(): React.ReactElement {
     listQuestionsApi({ status: "ai_draft", pageSize: 1 })
       .then((res) => { setResumeCount(res.total > 0 ? res.total : null); })
       .catch(() => { /* non-critical */ });
+  }, []);
+
+  // ③ On mount, detect a generation still running server-side (started in a
+  // prior visit/tab). Single-flight means at most one is running platform-wide.
+  useEffect(() => {
+    let cancelled = false;
+    listGenerationAttempts({ status: "running", limit: 1 })
+      .then((res) => { if (!cancelled) setRunningAttempt(res.items[0] ?? null); })
+      .catch(() => { /* non-critical — fall through to the normal config form */ });
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch categories when domain changes
@@ -472,6 +494,28 @@ export function AdminGenerateWizard(): React.ReactElement {
     }
     setDraftsLoading(false);
   }, []);
+
+  // ③ While a running attempt is tracked, poll until it leaves the running set,
+  // then load the resulting drafts and land on Review (same as a fresh generate).
+  // Defined after loadDrafts so the dep reference is past its TDZ at render time.
+  useEffect(() => {
+    if (!runningAttempt) return;
+    const trackedId = runningAttempt.id;
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      listGenerationAttempts({ status: "running", limit: 5 })
+        .then(async (res) => {
+          if (cancelled) return;
+          if (res.items.some((a) => a.id === trackedId)) return; // still running
+          window.clearInterval(timer);
+          setRunningAttempt(null);
+          await loadDrafts();
+          setStep("review");
+        })
+        .catch(() => { /* transient — retry on next tick */ });
+    }, 4000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [runningAttempt, loadDrafts]);
 
   // Generate handler — sequential to respect single-flight mutex (D3-FE + D4)
   const handleGenerate = useCallback(async () => {
@@ -1035,6 +1079,46 @@ export function AdminGenerateWizard(): React.ReactElement {
   // Main render
   // ---------------------------------------------------------------------------
 
+  // ③ Resumed in-progress panel — shown when a generation is still running
+  // server-side (detected on mount). Replaces the step UI so the page reflects
+  // the in-flight run; the poll effect flips to Review automatically when done.
+  function renderRunningResume(): React.ReactElement {
+    const att = runningAttempt;
+    const requested = att ? ` for ${att.count_requested} question${att.count_requested === 1 ? "" : "s"}` : "";
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+          gap: "var(--aiq-space-md)",
+          padding: "var(--aiq-space-xl)",
+          background: "var(--aiq-color-bg-raised)",
+          border: "1px solid var(--aiq-color-border)",
+          borderRadius: "var(--aiq-radius-sm)",
+        }}
+        aria-live="polite"
+      >
+        <Spinner />
+        <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xl)", fontWeight: 700, color: "var(--aiq-color-fg-primary)", margin: 0 }}>
+          Generation in progress…
+        </h3>
+        <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", maxWidth: 460, margin: 0 }}>
+          A question-generation run{requested} is still working on the server. This page updates
+          automatically when it finishes — you don't need to stay here.
+        </p>
+        <button
+          type="button"
+          className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+          onClick={() => navigate("/admin/generation-attempts")}
+        >
+          View generation history →
+        </button>
+      </div>
+    );
+  }
+
   return (
     <AdminShell breadcrumbs={["Generate Questions"]} helpPage="admin.generate-wizard">
       <div>
@@ -1047,29 +1131,35 @@ export function AdminGenerateWizard(): React.ReactElement {
           </p>
         </div>
 
-        {/* Step nav — config/review are always navigable; generating is transient */}
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: "var(--aiq-space-xl)" }}>
-          {(["config", "generating", "review"] as WizardStep[]).map((s, i) => (
-            <React.Fragment key={s}>
-              {i > 0 && <span style={{ color: "var(--aiq-color-border-strong)", fontSize: 12 }}>{" → "}</span>}
-              <button
-                type="button"
-                style={{ background: "none", border: "none", padding: 0, cursor: step === "generating" || s === "generating" ? "default" : "pointer", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: step === s ? 600 : 400, color: step === s ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)", textDecoration: "none", textTransform: "capitalize" }}
-                disabled={s === "generating"}
-                onClick={() => {
-                  if (s === "config") { setStep("config"); return; }
-                  if (s === "review") { void navigateToReview(); }
-                }}
-              >
-                {s === "config" ? "Configure" : s === "generating" ? "Generating" : "Review"}
-              </button>
-            </React.Fragment>
-          ))}
-        </div>
+        {runningAttempt ? (
+          renderRunningResume()
+        ) : (
+          <>
+            {/* Step nav — config/review are always navigable; generating is transient */}
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: "var(--aiq-space-xl)" }}>
+              {(["config", "generating", "review"] as WizardStep[]).map((s, i) => (
+                <React.Fragment key={s}>
+                  {i > 0 && <span style={{ color: "var(--aiq-color-border-strong)", fontSize: 12 }}>{" → "}</span>}
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", padding: 0, cursor: step === "generating" || s === "generating" ? "default" : "pointer", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: step === s ? 600 : 400, color: step === s ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)", textDecoration: "none", textTransform: "capitalize" }}
+                    disabled={s === "generating"}
+                    onClick={() => {
+                      if (s === "config") { setStep("config"); return; }
+                      if (s === "review") { void navigateToReview(); }
+                    }}
+                  >
+                    {s === "config" ? "Configure" : s === "generating" ? "Generating" : "Review"}
+                  </button>
+                </React.Fragment>
+              ))}
+            </div>
 
-        {step === "config" && renderConfig()}
-        {step === "generating" && renderGenerating()}
-        {step === "review" && renderReview()}
+            {step === "config" && renderConfig()}
+            {step === "generating" && renderGenerating()}
+            {step === "review" && renderReview()}
+          </>
+        )}
       </div>
     </AdminShell>
   );

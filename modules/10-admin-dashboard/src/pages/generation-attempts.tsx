@@ -20,6 +20,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Chip, Spinner } from "@assessiq/ui-system";
+import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, scoreGenerationAttempt } from "../api.js";
 import type { ScoreAttemptResponse } from "../api.js";
@@ -219,9 +220,11 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
     <div style={{ marginTop: "var(--aiq-space-md)" }}>
       {/* Overall verdict */}
       <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-sm)" }}>
-        <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-          Overall verdict:
-        </span>
+        <HelpTip helpId="admin.gen_score.verdict">
+          <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+            Overall verdict:
+          </span>
+        </HelpTip>
         <VerdictPill verdict={result.overall} />
       </div>
 
@@ -235,7 +238,9 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
           margin: "0 0 4px",
         }}
       >
-        Structural quality
+        <HelpTip helpId="admin.gen_score.structural">
+          <span>Structural quality</span>
+        </HelpTip>
       </p>
       <div style={{ overflowX: "auto" }}>
         <table style={tableStyle}>
@@ -282,7 +287,9 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
               margin: "var(--aiq-space-sm) 0 4px",
             }}
           >
-            Runtime metrics
+            <HelpTip helpId="admin.gen_score.runtime">
+              <span>Runtime metrics</span>
+            </HelpTip>
           </p>
           <div style={{ overflowX: "auto" }}>
             <table style={tableStyle}>
@@ -446,6 +453,7 @@ function AttemptDetails({ attempt, packName, levelLabel, scoreResult, scoreLoadi
       {/* Score this attempt — in-app button that calls the server-side scorer */}
       <div style={{ marginTop: "var(--aiq-space-md)" }}>
         {/* Primary action: Score this attempt */}
+        <HelpTip helpId="admin.gen_score.score_button">
         <button
           type="button"
           disabled={scoreLoading}
@@ -482,6 +490,7 @@ function AttemptDetails({ attempt, packName, levelLabel, scoreResult, scoreLoadi
           )}
           {scoreLoading ? "Scoring…" : "Score this attempt"}
         </button>
+        </HelpTip>
 
         {/* Error state */}
         {scoreError && (
@@ -707,7 +716,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
   const hasMore = attempts.length < total;
 
   return (
-    <AdminShell breadcrumbs={["AI generation history"]} helpPage="admin.generation-attempts.history">
+    <AdminShell breadcrumbs={["AI generation history"]} helpPage="admin.gen_score">
       {/* ── Page header ── */}
       <div style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
         <div style={{ marginBottom: 12 }}>
