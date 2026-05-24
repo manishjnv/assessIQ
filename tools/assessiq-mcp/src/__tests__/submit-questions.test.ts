@@ -1,12 +1,18 @@
 /**
  * Unit tests for ../tools/submit-questions.ts
  *
- * Tests the Zod schema enforcement at the MCP tool boundary: canonical shapes
- * pass, forbidden synonym field names (stem, explanation, log_snippet, etc.)
- * are rejected with isError:true and a human-readable error message.
+ * The MCP tool now applies tolerant coercion (../tools/coerce-questions.ts)
+ * BEFORE strict Zod validation. So this suite covers three behaviours:
+ *   1. Happy path — canonical shapes pass untouched.
+ *   2. Coercion — the model's well-known non-canonical variants (stem,
+ *      object-options, log_lines, prose log_format, steps_dependency, …) are
+ *      normalised onto the canonical shape and ACCEPTED, with the canonical
+ *      output verified.
+ *   3. Genuine rejection — questions missing a required field with no synonym,
+ *      or with structurally invalid values (wrong option count, out-of-range
+ *      index), still fail with isError:true and a human-readable message.
  *
  * Run: node --import tsx/esm --test src/__tests__/submit-questions.test.ts
- * (tsx is already a devDependency; node:test is built-in for Node >=22)
  */
 
 import { describe, it, before, after } from "node:test";
@@ -96,7 +102,7 @@ const VALID_SUBJECTIVE = {
 };
 
 // ---------------------------------------------------------------------------
-// Helper: assert isError response
+// Helpers
 // ---------------------------------------------------------------------------
 type MaybeError = { isError?: boolean; content: Array<{ type: string; text: string }> };
 
@@ -107,190 +113,242 @@ function assertRejected(result: MaybeError, label: string): string {
   return text;
 }
 
+/** Assert accepted, return the canonical questions echoed back by the tool. */
+function acceptedQuestions(result: MaybeError, label: string): any[] {
+  assert.equal(result.isError, undefined, `${label}: unexpected isError — ${result.content?.[0]?.text?.slice(0, 300)}`);
+  const payload = JSON.parse(result.content[0].text);
+  assert.equal(payload.accepted, true, `${label}: expected accepted:true`);
+  return payload.questions;
+}
+
 // ---------------------------------------------------------------------------
 // Happy-path tests — canonical shapes must pass without isError
 // ---------------------------------------------------------------------------
 
 describe("happy paths — canonical shapes accepted", () => {
-  it("canonical mcq → accepted, no isError", async () => {
-    const result = (await handleSubmitQuestions({ questions: [VALID_MCQ] })) as MaybeError;
-    assert.equal(result.isError, undefined, "mcq: unexpected isError");
-    const text = result.content[0].text;
-    assert.ok(text.includes('"accepted":true'), `mcq: expected accepted:true, got: ${text}`);
+  it("canonical mcq → accepted", async () => {
+    const q = acceptedQuestions(await handleSubmitQuestions({ questions: [VALID_MCQ] }) as MaybeError, "mcq");
+    assert.deepEqual(q[0].content.options, VALID_MCQ.content.options);
+    assert.equal(q[0].content.correct, 1);
   });
-
-  it("canonical log_analysis → accepted, no isError", async () => {
-    const result = (await handleSubmitQuestions({ questions: [VALID_LOG_ANALYSIS] })) as MaybeError;
-    assert.equal(result.isError, undefined, "log_analysis: unexpected isError");
-    assert.ok(result.content[0].text.includes('"accepted":true'));
+  it("canonical log_analysis → accepted", async () => {
+    acceptedQuestions(await handleSubmitQuestions({ questions: [VALID_LOG_ANALYSIS] }) as MaybeError, "log_analysis");
   });
-
-  it("canonical scenario → accepted, no isError", async () => {
-    const result = (await handleSubmitQuestions({ questions: [VALID_SCENARIO] })) as MaybeError;
-    assert.equal(result.isError, undefined, "scenario: unexpected isError");
-    assert.ok(result.content[0].text.includes('"accepted":true'));
+  it("canonical scenario → accepted", async () => {
+    acceptedQuestions(await handleSubmitQuestions({ questions: [VALID_SCENARIO] }) as MaybeError, "scenario");
   });
-
-  it("canonical kql → accepted, no isError", async () => {
-    const result = (await handleSubmitQuestions({ questions: [VALID_KQL] })) as MaybeError;
-    assert.equal(result.isError, undefined, "kql: unexpected isError");
-    assert.ok(result.content[0].text.includes('"accepted":true'));
+  it("canonical kql → accepted", async () => {
+    acceptedQuestions(await handleSubmitQuestions({ questions: [VALID_KQL] }) as MaybeError, "kql");
   });
-
-  it("canonical subjective → accepted, no isError", async () => {
-    const result = (await handleSubmitQuestions({ questions: [VALID_SUBJECTIVE] })) as MaybeError;
-    assert.equal(result.isError, undefined, "subjective: unexpected isError");
-    assert.ok(result.content[0].text.includes('"accepted":true'));
+  it("canonical subjective → accepted", async () => {
+    acceptedQuestions(await handleSubmitQuestions({ questions: [VALID_SUBJECTIVE] }) as MaybeError, "subjective");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Rejection tests — forbidden synonym field names and structural violations
+// Coercion — non-canonical model output is normalised and accepted
 // ---------------------------------------------------------------------------
 
-describe("rejection — mcq forbidden synonyms and shape violations", () => {
-  it("'stem' instead of 'question' → isError:true, error text mentions 'content'", async () => {
+describe("coercion — mcq variants normalised", () => {
+  it("'stem' → 'question'", async () => {
+    const q = { ...VALID_MCQ, content: { stem: "Stem text?", options: VALID_MCQ.content.options, correct: 1, rationale: "r" } };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "stem");
+    assert.equal(out[0].content.question, "Stem text?");
+  });
+
+  it("object options + correct flag → string options + integer index", async () => {
     const q = {
       ...VALID_MCQ,
       content: {
-        stem: VALID_MCQ.content.question, // forbidden synonym
-        options: VALID_MCQ.content.options,
-        correct: VALID_MCQ.content.correct,
-        rationale: VALID_MCQ.content.rationale,
+        question: "Which is correct?",
+        options: [
+          { label: "A", text: "Option A", correct: false },
+          { label: "B", text: "Option B", correct: true },
+          { label: "C", text: "Option C", correct: false },
+          { label: "D", text: "Option D", correct: false },
+        ],
+        rationale: "B is correct.",
       },
     };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "stem synonym");
-    assert.ok(
-      text.includes("content"),
-      `expected 'content' path in error, got: ${text.slice(0, 300)}`,
-    );
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "object-options");
+    assert.deepEqual(out[0].content.options, ["Option A", "Option B", "Option C", "Option D"]);
+    assert.equal(out[0].content.correct, 1);
   });
 
-  it("'explanation' synonym field → isError:true, 'explanation' named in error", async () => {
-    const q = {
-      ...VALID_MCQ,
-      content: { ...VALID_MCQ.content, explanation: "extra synonym field" },
-    };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "explanation synonym");
-    assert.ok(
-      text.includes("explanation"),
-      `expected 'explanation' named in error, got: ${text.slice(0, 300)}`,
-    );
-  });
-
-  it("mcq options.length=3 (not 4) → isError:true", async () => {
-    const q = {
-      ...VALID_MCQ,
-      content: {
-        ...VALID_MCQ.content,
-        options: ["Option A", "Option B", "Option C"], // must be exactly 4
-      },
-    };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    assertRejected(result, "mcq 3 options");
-  });
-
-  it("mcq correct=4 (out of range 0-3) → isError:true", async () => {
-    const q = {
-      ...VALID_MCQ,
-      content: { ...VALID_MCQ.content, correct: 4 },
-    };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    assertRejected(result, "mcq correct out of range");
+  it("letter 'B' → index 1; 'explanation' → 'rationale'", async () => {
+    const q = { ...VALID_MCQ, content: { question: "Q?", options: VALID_MCQ.content.options, correct: "B", explanation: "because B" } };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "letter+explanation");
+    assert.equal(out[0].content.correct, 1);
+    assert.equal(out[0].content.rationale, "because B");
   });
 });
 
-describe("rejection — log_analysis shape violations", () => {
-  it("missing log_format → isError:true", async () => {
-    const { log_format: _removed, ...contentWithoutFormat } = VALID_LOG_ANALYSIS.content;
-    const q = { ...VALID_LOG_ANALYSIS, content: contentWithoutFormat };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    assertRejected(result, "log_analysis missing log_format");
+describe("answer-key safety — fail closed (codex 2026-05-24)", () => {
+  const mcqWith = (extra: Record<string, unknown>, options: unknown[] = VALID_MCQ.content.options) =>
+    ({ questions: [{ ...VALID_MCQ, content: { question: "Q?", options, rationale: "r", ...extra } }] });
+
+  it("correct as unique option TEXT → resolved to that index", async () => {
+    const out = acceptedQuestions(await handleSubmitQuestions(mcqWith({ correct_answer: "Role-Based Access Control" })) as MaybeError, "text-match");
+    assert.equal(out[0].content.correct, 2);
   });
 
-  it("'log_snippet' synonym (instead of log_excerpt) → isError:true", async () => {
-    const { log_excerpt: _removed, ...rest } = VALID_LOG_ANALYSIS.content;
-    const q = {
-      ...VALID_LOG_ANALYSIS,
-      content: { ...rest, log_snippet: "synonym field" },
-    };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "log_snippet synonym");
-    assert.ok(
-      text.includes("log_snippet"),
-      `expected 'log_snippet' named in error, got: ${text.slice(0, 300)}`,
-    );
+  it("empty-string correct (no other signal) → rejected, NOT coerced to 0", async () => {
+    assertRejected(await handleSubmitQuestions(mcqWith({ correct: "" })) as MaybeError, "empty correct");
   });
 
-  it("expected_findings with only 1 item (min 2 required) → isError:true", async () => {
-    const q = {
-      ...VALID_LOG_ANALYSIS,
-      content: {
-        ...VALID_LOG_ANALYSIS.content,
-        expected_findings: ["Only one finding"],
-      },
-    };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    assertRejected(result, "log_analysis 1 finding");
+  it("quoted number '1' (0- vs 1-based ambiguous) → rejected", async () => {
+    assertRejected(await handleSubmitQuestions(mcqWith({ correct: "1" })) as MaybeError, "quoted number");
+  });
+
+  it("multiple option flags set correct → rejected", async () => {
+    const opts = [
+      { text: "Mandatory Access Control", correct: true },
+      { text: "Discretionary Access Control", correct: true },
+      { text: "Role-Based Access Control", correct: false },
+      { text: "Attribute-Based Access Control", correct: false },
+    ];
+    assertRejected(await handleSubmitQuestions(mcqWith({}, opts)) as MaybeError, "multi-flag");
+  });
+
+  it("explicit correct conflicts with option flag → rejected", async () => {
+    const opts = [
+      { text: "Mandatory Access Control", correct: false },
+      { text: "Discretionary Access Control", correct: false },
+      { text: "Role-Based Access Control", correct: true },
+      { text: "Attribute-Based Access Control", correct: false },
+    ];
+    // correct:"A" → index 0, but the embedded flag → index 2 ⇒ conflict ⇒ fail closed.
+    assertRejected(await handleSubmitQuestions(mcqWith({ correct: "A" }, opts)) as MaybeError, "conflict");
+  });
+
+  it("duplicate option-text match → rejected (ambiguous)", async () => {
+    const opts = ["Same answer", "Same answer", "Other", "Else"];
+    assertRejected(await handleSubmitQuestions(mcqWith({ correct_answer: "Same answer" }, opts)) as MaybeError, "dup-text");
+  });
+
+  it("present-but-unresolvable signal + a resolving flag → rejected (no silent flag-wins)", async () => {
+    const opts = [
+      { text: "Mandatory Access Control", correct: false },
+      { text: "Discretionary Access Control", correct: true },
+      { text: "Role-Based Access Control", correct: false },
+      { text: "Attribute-Based Access Control", correct: false },
+    ];
+    // correct_answer "1" is ambiguous; a flag resolves to index 1. Must fail
+    // closed because "1" might mean the first option (index 0). codex round 2.
+    assertRejected(await handleSubmitQuestions(mcqWith({ correct_answer: "1" }, opts)) as MaybeError, "ambiguous+flag");
   });
 });
 
-describe("rejection — scenario shape violations", () => {
-  it("'steps_dependency' typo (should be step_dependency) → isError:true", async () => {
-    const { step_dependency: _removed, ...rest } = VALID_SCENARIO.content;
+describe("coercion — log_analysis variants normalised", () => {
+  it("'log_snippet' → 'log_excerpt'", async () => {
+    const { log_excerpt: _x, ...rest } = VALID_LOG_ANALYSIS.content;
+    const q = { ...VALID_LOG_ANALYSIS, content: { ...rest, log_snippet: "raw log line" } };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "log_snippet");
+    assert.equal(out[0].content.log_excerpt, "raw log line");
+  });
+
+  it("'log_lines' array → joined log_excerpt string", async () => {
+    const { log_excerpt: _x, ...rest } = VALID_LOG_ANALYSIS.content;
+    const q = { ...VALID_LOG_ANALYSIS, content: { ...rest, log_lines: ["line1", "line2"] } };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "log_lines");
+    assert.equal(out[0].content.log_excerpt, "line1\nline2");
+  });
+
+  it("prose log_format → 'windows_event' enum", async () => {
+    const q = { ...VALID_LOG_ANALYSIS, content: { ...VALID_LOG_ANALYSIS.content, log_format: "Windows Security Event Log — Event ID 4625" } };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "prose-log_format");
+    assert.equal(out[0].content.log_format, "windows_event");
+  });
+});
+
+describe("coercion — scenario / kql / subjective variants normalised", () => {
+  it("scenario 'steps_dependency' typo → 'step_dependency'; step 'answer' → 'expected'", async () => {
+    const { step_dependency: _d, ...rest } = VALID_SCENARIO.content;
     const q = {
       ...VALID_SCENARIO,
-      content: { ...rest, steps_dependency: "linear" }, // typo
+      content: {
+        ...rest,
+        steps_dependency: "linear",
+        steps: [{ prompt: "First action?", answer: "Isolate the host." }],
+      },
     };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    assertRejected(result, "steps_dependency typo");
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "scenario-variants");
+    assert.equal(out[0].content.step_dependency, "linear");
+    assert.equal(out[0].content.steps[0].expected, "Isolate the host.");
+  });
+
+  it("kql 'task' → 'question'; string 'tables' → array", async () => {
+    const { question: _q, tables: _t, ...rest } = VALID_KQL.content;
+    const q = { ...VALID_KQL, content: { ...rest, task: "Write a query.", tables: "SecurityEvent" } };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "kql-variants");
+    assert.equal(out[0].content.question, "Write a query.");
+    assert.deepEqual(out[0].content.tables, ["SecurityEvent"]);
+  });
+
+  it("subjective 'prompt' → 'question'", async () => {
+    const q = { ...VALID_SUBJECTIVE, content: { prompt: "Explain STRIDE." } };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "subjective-prompt");
+    assert.equal(out[0].content.question, "Explain STRIDE.");
+  });
+
+  it("stray wrapper-level key 'difficulty' is dropped (not rejected)", async () => {
+    const q = { ...VALID_MCQ, difficulty: "hard", skill_level: "L2" };
+    const out = acceptedQuestions(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "wrapper-extra");
+    assert.equal(out[0].difficulty, undefined);
+    assert.equal(out[0].skill_level, undefined);
   });
 });
 
-describe("rejection — kql shape violations", () => {
-  it("'task' synonym (instead of question) → isError:true", async () => {
-    const { question: _removed, ...rest } = VALID_KQL.content;
-    const q = {
-      ...VALID_KQL,
-      content: { ...rest, task: "synonym for question" },
-    };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "kql task synonym");
-    assert.ok(
-      text.includes("task"),
-      `expected 'task' named in error, got: ${text.slice(0, 300)}`,
-    );
+// ---------------------------------------------------------------------------
+// Rejection — genuinely incomplete / structurally invalid (no synonym to map)
+// ---------------------------------------------------------------------------
+
+describe("rejection — structural violations not fixable by coercion", () => {
+  it("mcq with 3 options → isError", async () => {
+    const q = { ...VALID_MCQ, content: { ...VALID_MCQ.content, options: ["A", "B", "C"] } };
+    assertRejected(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "mcq 3 options");
   });
 
-  it("missing sample_solution → isError:true", async () => {
-    const { sample_solution: _removed, ...rest } = VALID_KQL.content;
-    const q = { ...VALID_KQL, content: rest };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    assertRejected(result, "kql missing sample_solution");
+  it("mcq correct=4 (out of range) → isError", async () => {
+    const q = { ...VALID_MCQ, content: { ...VALID_MCQ.content, correct: 4 } };
+    assertRejected(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "mcq correct OOR");
+  });
+
+  it("mcq missing question AND options (only a topic-less stem fragment) → isError", async () => {
+    const q = { ...VALID_MCQ, content: { rationale: "only rationale present" } };
+    assertRejected(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "mcq missing fields");
+  });
+
+  it("log_analysis missing log_format (no synonym) → isError", async () => {
+    const { log_format: _f, ...rest } = VALID_LOG_ANALYSIS.content;
+    assertRejected(await handleSubmitQuestions({ questions: [{ ...VALID_LOG_ANALYSIS, content: rest }] }) as MaybeError, "missing log_format");
+  });
+
+  it("log_analysis expected_findings with 1 item (min 2) → isError", async () => {
+    const q = { ...VALID_LOG_ANALYSIS, content: { ...VALID_LOG_ANALYSIS.content, expected_findings: ["only one"] } };
+    assertRejected(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "1 finding");
+  });
+
+  it("kql missing sample_solution (no synonym) → isError", async () => {
+    const { sample_solution: _s, ...rest } = VALID_KQL.content;
+    assertRejected(await handleSubmitQuestions({ questions: [{ ...VALID_KQL, content: rest }] }) as MaybeError, "missing sample_solution");
   });
 });
 
 describe("rejection — top-level array violations", () => {
-  it("empty questions array → isError:true", async () => {
-    const result = (await handleSubmitQuestions({ questions: [] })) as MaybeError;
-    assertRejected(result, "empty questions array");
+  it("empty questions array → isError", async () => {
+    assertRejected(await handleSubmitQuestions({ questions: [] }) as MaybeError, "empty array");
   });
-
-  it("missing questions key entirely → isError:true", async () => {
-    const result = (await handleSubmitQuestions({})) as MaybeError;
-    assertRejected(result, "missing questions key");
+  it("missing questions key → isError", async () => {
+    assertRejected(await handleSubmitQuestions({}) as MaybeError, "missing key");
   });
-
-  it("non-array questions value → isError:true", async () => {
-    const result = (await handleSubmitQuestions({ questions: "not-an-array" })) as MaybeError;
-    assertRejected(result, "questions not array");
+  it("non-array questions value → isError", async () => {
+    assertRejected(await handleSubmitQuestions({ questions: "not-an-array" }) as MaybeError, "not array");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Rejection logger tests
+// Rejection logger — JSONL file output (uncoercible payload still rejects+logs)
 // ---------------------------------------------------------------------------
 
 describe("rejection logger — JSONL file output", () => {
@@ -306,20 +364,14 @@ describe("rejection logger — JSONL file output", () => {
     try { fs.unlinkSync(tmpLog); } catch { /* ignore */ }
   });
 
-  /**
-   * Wait for the async fs.appendFile callback to have flushed.
-   * The callback fires on the next event-loop tick after the OS write,
-   * so 50 ms is more than enough on any reasonable machine.
-   */
   const flush = () => new Promise<void>((r) => setTimeout(r, 50));
+  // content with only a stem → question coerced, but options/correct/rationale
+  // remain missing → still rejected → a log line is written.
+  const badPayload = () => ({ questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] });
 
   it("rejection writes a JSONL line to the configured log path", async () => {
-    const badPayload = { questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] };
-    const result = (await handleSubmitQuestions(badPayload)) as MaybeError;
-    assertRejected(result, "logger basic write");
-
+    assertRejected(await handleSubmitQuestions(badPayload()) as MaybeError, "logger basic write");
     await flush();
-
     const raw = fs.readFileSync(tmpLog, "utf8").trim();
     assert.ok(raw.length > 0, "log file must not be empty after rejection");
     const line = JSON.parse(raw.split("\n").at(-1)!);
@@ -331,73 +383,41 @@ describe("rejection logger — JSONL file output", () => {
   });
 
   it("payload_excerpt is truncated to ≤2048 chars", async () => {
-    // Build a payload with a very long field to exceed 2 KB when serialised.
     const big = "x".repeat(5000);
-    const badPayload = {
-      questions: [{ ...VALID_MCQ, content: { stem: big } }],
-    };
-    await handleSubmitQuestions(badPayload);
+    await handleSubmitQuestions({ questions: [{ ...VALID_MCQ, content: { stem: big } }] });
     await flush();
-
-    const lines = fs.readFileSync(tmpLog, "utf8").trim().split("\n");
-    const line = JSON.parse(lines.at(-1)!);
-    assert.ok(
-      line.payload_excerpt.length <= 2048,
-      `payload_excerpt must be ≤2048 chars, got ${line.payload_excerpt.length}`,
-    );
+    const line = JSON.parse(fs.readFileSync(tmpLog, "utf8").trim().split("\n").at(-1)!);
+    assert.ok(line.payload_excerpt.length <= 2048, `payload_excerpt must be ≤2048, got ${line.payload_excerpt.length}`);
   });
 
   it("concurrent rejections don't interleave JSON lines", async () => {
-    const badPayload = () => ({ questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] });
-    // Fire 10 concurrent rejections.
     await Promise.all(Array.from({ length: 10 }, () => handleSubmitQuestions(badPayload())));
     await flush();
-
-    const raw = fs.readFileSync(tmpLog, "utf8").trim();
-    const lines = raw.split("\n").filter(Boolean);
-    // Every line must be independently parseable JSON — no interleaving.
+    const lines = fs.readFileSync(tmpLog, "utf8").trim().split("\n").filter(Boolean);
     for (const line of lines) {
       assert.doesNotThrow(() => JSON.parse(line), `Line is not valid JSON: ${line.slice(0, 80)}`);
     }
   });
 
-  it("rejection logger — issues text is not truncated (≤15 issues shown, no example)", async () => {
-    const badPayload = { questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] };
-    await handleSubmitQuestions(badPayload);
+  it("rejection logger — JSONL log does not include the inline example", async () => {
+    await handleSubmitQuestions(badPayload());
     await flush();
-
-    const lines = fs.readFileSync(tmpLog, "utf8").trim().split("\n").filter(Boolean);
-    const line = JSON.parse(lines.at(-1)!);
-    assert.ok(
-      !line.issues.includes("CORRECT SHAPE EXAMPLE"),
-      "JSONL log must NOT include inline example (that's for model-facing messages only)",
-    );
+    const line = JSON.parse(fs.readFileSync(tmpLog, "utf8").trim().split("\n").filter(Boolean).at(-1)!);
+    assert.ok(!line.issues.includes("CORRECT SHAPE EXAMPLE"), "JSONL log must NOT include inline example");
   });
 
   it("write failure → rejection response still returned, only stderr gets the error", async () => {
-    // Point log path to an unwritable location.
     process.env.MCP_REJECTION_LOG = "/no-such-dir/mcp-rejections.log";
-
     const stderrChunks: string[] = [];
     const origWrite = process.stderr.write.bind(process.stderr) as typeof process.stderr.write;
     process.stderr.write = (chunk: string | Uint8Array, ...rest: unknown[]) => {
       stderrChunks.push(typeof chunk === "string" ? chunk : String(chunk));
       return (origWrite as (...a: unknown[]) => boolean)(chunk, ...rest);
     };
-
     try {
-      const badPayload = { questions: [{ ...VALID_MCQ, content: { stem: "bad" } }] };
-      const result = (await handleSubmitQuestions(badPayload)) as MaybeError;
-      // The MCP response must still be a proper rejection.
-      assertRejected(result, "write failure — response");
-
+      assertRejected(await handleSubmitQuestions(badPayload()) as MaybeError, "write failure — response");
       await flush();
-
-      const stderrOutput = stderrChunks.join("");
-      assert.ok(
-        stderrOutput.includes("rejection-log write failed"),
-        `Expected "rejection-log write failed" in stderr, got: ${stderrOutput.slice(0, 300)}`,
-      );
+      assert.ok(stderrChunks.join("").includes("rejection-log write failed"), "expected write-failure on stderr");
     } finally {
       process.stderr.write = origWrite;
       process.env.MCP_REJECTION_LOG = tmpLog;
@@ -407,59 +427,35 @@ describe("rejection logger — JSONL file output", () => {
 
 // ---------------------------------------------------------------------------
 // Inline canonical example in model-facing rejection messages (D2)
+// Uses genuinely-uncoercible payloads so a rejection (with example) still fires.
 // ---------------------------------------------------------------------------
 
 describe("rejection — inline canonical example in error message", () => {
-  it("mcq rejection includes CORRECT SHAPE EXAMPLE block for type 'mcq'", async () => {
+  it("mcq example block present when required fields missing", async () => {
     const q = { ...VALID_MCQ, content: { stem: "bad field name" } };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "mcq example block");
-    assert.ok(
-      text.includes("CORRECT SHAPE EXAMPLE for type 'mcq'"),
-      `expected canonical example in error, got: ${text.slice(0, 400)}`,
-    );
+    const text = assertRejected(await handleSubmitQuestions({ questions: [q] }) as MaybeError, "mcq example");
+    assert.ok(text.includes("CORRECT SHAPE EXAMPLE for type 'mcq'"), `got: ${text.slice(0, 400)}`);
   });
 
-  it("log_analysis rejection includes CORRECT SHAPE EXAMPLE block for type 'log_analysis'", async () => {
-    const { log_format: _removed, ...rest } = VALID_LOG_ANALYSIS.content;
-    const q = { ...VALID_LOG_ANALYSIS, content: rest };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "log_analysis example block");
-    assert.ok(
-      text.includes("CORRECT SHAPE EXAMPLE for type 'log_analysis'"),
-      `expected canonical example in error, got: ${text.slice(0, 400)}`,
-    );
+  it("log_analysis example block present when log_format missing", async () => {
+    const { log_format: _f, ...rest } = VALID_LOG_ANALYSIS.content;
+    const text = assertRejected(await handleSubmitQuestions({ questions: [{ ...VALID_LOG_ANALYSIS, content: rest }] }) as MaybeError, "log_analysis example");
+    assert.ok(text.includes("CORRECT SHAPE EXAMPLE for type 'log_analysis'"), `got: ${text.slice(0, 400)}`);
   });
 
-  it("scenario rejection includes CORRECT SHAPE EXAMPLE block for type 'scenario'", async () => {
-    const { step_dependency: _removed, ...rest } = VALID_SCENARIO.content;
-    const q = { ...VALID_SCENARIO, content: { ...rest, steps_dependency: "linear" } };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "scenario example block");
-    assert.ok(
-      text.includes("CORRECT SHAPE EXAMPLE for type 'scenario'"),
-      `expected canonical example in error, got: ${text.slice(0, 400)}`,
-    );
+  it("scenario example block present when steps missing", async () => {
+    const { steps: _s, ...rest } = VALID_SCENARIO.content;
+    const text = assertRejected(await handleSubmitQuestions({ questions: [{ ...VALID_SCENARIO, content: rest }] }) as MaybeError, "scenario example");
+    assert.ok(text.includes("CORRECT SHAPE EXAMPLE for type 'scenario'"), `got: ${text.slice(0, 400)}`);
   });
 
-  it("kql rejection includes CORRECT SHAPE EXAMPLE block for type 'kql'", async () => {
-    const { question: _removed, ...rest } = VALID_KQL.content;
-    const q = { ...VALID_KQL, content: { ...rest, task: "bad synonym" } };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "kql example block");
-    assert.ok(
-      text.includes("CORRECT SHAPE EXAMPLE for type 'kql'"),
-      `expected canonical example in error, got: ${text.slice(0, 400)}`,
-    );
+  it("kql example block present when sample_solution + tables missing", async () => {
+    const text = assertRejected(await handleSubmitQuestions({ questions: [{ ...VALID_KQL, content: { question: "Q only" } }] }) as MaybeError, "kql example");
+    assert.ok(text.includes("CORRECT SHAPE EXAMPLE for type 'kql'"), `got: ${text.slice(0, 400)}`);
   });
 
-  it("subjective rejection includes CORRECT SHAPE EXAMPLE block for type 'subjective'", async () => {
-    const q = { ...VALID_SUBJECTIVE, content: { prompt: "bad synonym" } };
-    const result = (await handleSubmitQuestions({ questions: [q] })) as MaybeError;
-    const text = assertRejected(result, "subjective example block");
-    assert.ok(
-      text.includes("CORRECT SHAPE EXAMPLE for type 'subjective'"),
-      `expected canonical example in error, got: ${text.slice(0, 400)}`,
-    );
+  it("subjective example block present when content is empty", async () => {
+    const text = assertRejected(await handleSubmitQuestions({ questions: [{ ...VALID_SUBJECTIVE, content: {} }] }) as MaybeError, "subjective example");
+    assert.ok(text.includes("CORRECT SHAPE EXAMPLE for type 'subjective'"), `got: ${text.slice(0, 400)}`);
   });
 });

@@ -53,6 +53,7 @@ import {
   parseToolInput,
   type StreamJsonEvent,
 } from "../stream-json-parser.js";
+import { coerceQuestionsPayload } from "../coerce-question-content.js";
 
 import { z } from "zod";
 
@@ -342,6 +343,91 @@ const SubmitQuestionsInputSchema = z.object({
   questions: z.array(GeneratedQuestionDraftSchema).min(1).max(12),
 });
 
+// Strict per-type content schemas — mirror tools/assessiq-mcp/src/tools/submit-questions.ts.
+// Runtime defence-in-depth (codex 2026-05-24 #8): the model can finish with exit 0
+// even after the MCP rejected its final submit_questions call, so the runtime must
+// NOT trust MCP acceptance. It validates each coerced question's content here and
+// drops any that fail, so content the MCP would have rejected is never persisted.
+const McqContentSchema = z
+  .object({
+    question: z.string().min(1),
+    options: z.array(z.string().min(1)).length(4),
+    correct: z.number().int().min(0).max(3),
+    rationale: z.string().min(1),
+  })
+  .strict();
+const LogAnalysisContentSchema = z
+  .object({
+    question: z.string().min(1),
+    log_format: z.enum(["json", "syslog", "windows_event", "freeform"]),
+    log_excerpt: z.string().min(1),
+    expected_findings: z.array(z.string().min(1)).min(2),
+    sample_solution: z.string().min(1),
+    hint: z.string().min(1),
+  })
+  .strict();
+const ScenarioContentSchema = z
+  .object({
+    title: z.string().min(1),
+    intro: z.string().min(1),
+    step_dependency: z.enum(["linear", "dag"]),
+    steps: z
+      .array(z.object({ prompt: z.string().min(1), expected: z.string().min(1) }).strict())
+      .min(1),
+  })
+  .strict();
+const KqlContentSchema = z
+  .object({
+    question: z.string().min(1),
+    tables: z.array(z.string().min(1)).min(1),
+    expected_keywords: z.array(z.string().min(1)).min(1),
+    sample_solution: z.string().min(1),
+  })
+  .strict();
+const SubjectiveContentSchema = z.object({ question: z.string().min(1) }).strict();
+
+const CONTENT_SCHEMA_BY_TYPE: Record<string, z.ZodTypeAny> = {
+  mcq: McqContentSchema,
+  log_analysis: LogAnalysisContentSchema,
+  scenario: ScenarioContentSchema,
+  kql: KqlContentSchema,
+  subjective: SubjectiveContentSchema,
+};
+
+type ParsedQuestion = z.infer<typeof SubmitQuestionsInputSchema>["questions"][number];
+
+/**
+ * Validate each coerced question's content against the strict per-type schema and
+ * DROP (do not persist) any that fail. Returns the valid subset with strict-
+ * validated content. This is the runtime's authoritative content gate — it does
+ * not rely on the MCP server having accepted the payload.
+ */
+function selectValidContent(
+  questions: ParsedQuestion[],
+  ctx: { skill: string; packId: string; type?: string },
+): ParsedQuestion[] {
+  const valid: ParsedQuestion[] = [];
+  for (const q of questions) {
+    const schema = CONTENT_SCHEMA_BY_TYPE[q.type];
+    const check = schema?.safeParse(q.content);
+    if (!check || !check.success) {
+      log.warn(
+        {
+          skill: ctx.skill,
+          packId: ctx.packId,
+          type: q.type,
+          topic: q.topic,
+          issues: check ? check.error.issues.slice(0, 5) : "unknown_type",
+        },
+        "generation.content.dropped",
+      );
+      continue;
+    }
+    valid.push({ ...q, content: check.data });
+  }
+  return valid;
+}
+
 /**
  * Generate SOC-grounded ai_draft questions using the generate-questions skill.
  * Called by the runtime-selector; entry point is admin-generate.ts handler.
@@ -398,7 +484,11 @@ export async function generateQuestions(
     );
   }
 
-  const parsed = SubmitQuestionsInputSchema.safeParse(raw);
+  // Coerce the model's raw payload to canonical shapes before validation.
+  // Mirrors the MCP gate (coerce-questions.ts) so the content persisted to the
+  // DB matches what the MCP server accepted. See coerce-question-content.ts.
+  const coerced = coerceQuestionsPayload(raw);
+  const parsed = SubmitQuestionsInputSchema.safeParse(coerced);
   if (!parsed.success) {
     // Log raw payload (truncated 2KB) + Zod issues so the structural mismatch
     // is diagnosable without reading production DB rows.
@@ -424,7 +514,20 @@ export async function generateQuestions(
   // knowledge_base_source_id from the input.sources array.
   const sourceById = new Map(input.sources.map((s) => [s.id, s]));
 
-  const questions: GeneratedQuestionDraft[] = parsed.data.questions.map((q) => ({
+  const validQuestions = selectValidContent(parsed.data.questions, {
+    skill: SKILL_GENERATE,
+    packId: input.packId,
+  });
+  if (validQuestions.length === 0) {
+    throw new AppError(
+      "submit_questions payload failed per-type content validation",
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { skill: SKILL_GENERATE, packId: input.packId } },
+    );
+  }
+
+  const questions: GeneratedQuestionDraft[] = validQuestions.map((q) => ({
     type: q.type,
     topic: q.topic,
     points: q.points,
@@ -548,7 +651,11 @@ export async function generateQuestionsByType(
     );
   }
 
-  const parsed = SubmitQuestionsInputSchema.safeParse(raw);
+  // Coerce the model's raw payload to canonical shapes before validation.
+  // Mirrors the MCP gate (coerce-questions.ts) so the content persisted to the
+  // DB matches what the MCP server accepted. See coerce-question-content.ts.
+  const coerced = coerceQuestionsPayload(raw);
+  const parsed = SubmitQuestionsInputSchema.safeParse(coerced);
   if (!parsed.success) {
     log.error(
       {
@@ -571,7 +678,19 @@ export async function generateQuestionsByType(
 
   const sourceById = new Map(input.sources.map((s) => [s.id, s]));
 
-  const allQuestions = parsed.data.questions;
+  const allQuestions = selectValidContent(parsed.data.questions, {
+    skill: skillName,
+    packId: input.packId,
+    type: input.type,
+  });
+  if (allQuestions.length === 0) {
+    throw new AppError(
+      "submit_questions payload failed per-type content validation",
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { skill: skillName, type: input.type, packId: input.packId } },
+    );
+  }
   let wrongTypeDropped = 0;
   const questions: GeneratedQuestionDraft[] = [];
 
