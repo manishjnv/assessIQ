@@ -426,38 +426,43 @@ export async function listActiveEntitlements(
 /**
  * Return the distinct domain labels and pack list visible for a tenant.
  *
- * domains: distinct non-empty domain values from question_packs rows.
- *   These are exactly the strings that domain-scoped entitlements use as
- *   scope_id (consistent with the 0082 backfill migration).
+ * Grantable catalog = the PLATFORM library, not the target tenant. The caller
+ * (service.listTenantContentScopes) resolves and passes the platform tenant id.
  *
- * packs: every pack with id, name, domain (ordered by name).
- *   Column is `name` TEXT NOT NULL per 0010_question_packs.sql migration.
+ * domains: canonical domain slugs from the `domains` table — the same source the
+ *   Generate-Questions and Blueprint dropdowns use, so every domain dropdown
+ *   shows one consistent, lowercase list. These slugs are exactly what a
+ *   domain-scoped entitlement stores as scope_id (and what available-sets
+ *   matches against platform pack.domain at license-resolution time).
+ *
+ * packs: PUBLISHED platform sets only (id, name, domain) — the licensable sets
+ *   a single-set entitlement can target.
  */
 export async function getTenantContentScopes(
   client: PoolClient,
-  tenantId: string,
+  platformTenantId: string,
 ): Promise<{ domains: string[]; packs: Array<{ id: string; name: string; domain: string }> }> {
   const [domainsResult, packsResult] = await Promise.all([
-    client.query<{ domain: string }>(
-      `SELECT DISTINCT domain
-       FROM question_packs
+    client.query<{ slug: string }>(
+      `SELECT slug
+       FROM domains
        WHERE tenant_id = $1
-         AND domain IS NOT NULL
-         AND domain <> ''
-       ORDER BY domain`,
-      [tenantId],
+         AND status = 'active'
+       ORDER BY display_order ASC, slug ASC`,
+      [platformTenantId],
     ),
     client.query<{ id: string; name: string; domain: string }>(
       `SELECT id, name, domain
        FROM question_packs
        WHERE tenant_id = $1
+         AND status = 'published'
        ORDER BY name`,
-      [tenantId],
+      [platformTenantId],
     ),
   ]);
 
   return {
-    domains: domainsResult.rows.map((r) => r.domain),
+    domains: domainsResult.rows.map((r) => r.slug),
     packs: packsResult.rows,
   };
 }

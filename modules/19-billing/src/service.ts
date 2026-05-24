@@ -334,7 +334,13 @@ export async function grantEntitlement(
   }
 
   const scopeType = input.scopeType as EntitlementScopeType;
-  const scopeId = input.scopeId.trim();
+  // Domain scope_ids are canonical lowercase slugs (matching the `domains`
+  // table and platform pack.domain, which the licensing catalog compares by
+  // exact string). Normalize to lowercase so grants/revokes always align with
+  // the canonical slug and an API caller can't drift to 'SOC'-style values that
+  // silently match no platform set. Pack scope_ids are UUIDs — left as-is.
+  const scopeId =
+    scopeType === 'domain' ? input.scopeId.trim().toLowerCase() : input.scopeId.trim();
 
   const pool = getPool();
   const client = await pool.connect();
@@ -405,7 +411,13 @@ export async function revokeEntitlement(
   }
 
   const scopeType = input.scopeType as EntitlementScopeType;
-  const scopeId = input.scopeId.trim();
+  // Domain scope_ids are canonical lowercase slugs (matching the `domains`
+  // table and platform pack.domain, which the licensing catalog compares by
+  // exact string). Normalize to lowercase so grants/revokes always align with
+  // the canonical slug and an API caller can't drift to 'SOC'-style values that
+  // silently match no platform set. Pack scope_ids are UUIDs — left as-is.
+  const scopeId =
+    scopeType === 'domain' ? input.scopeId.trim().toLowerCase() : input.scopeId.trim();
 
   const pool = getPool();
   const client = await pool.connect();
@@ -464,17 +476,40 @@ export async function listTenantEntitlements(tenantId: string): Promise<TenantEn
 }
 
 /**
- * List the distinct content scopes (domains + packs) visible for a tenant.
+ * List the grantable content scopes (domains + packs) for the super-admin
+ * billing drawer, for granting to `tenantId`.
  *
- * Used by the super-admin billing drawer to populate the Grant scope_id
- * dropdown instead of a free-text input. Runs under assessiq_system
- * (BYPASSRLS) via withSystemTx — same cross-tenant read pattern as
- * listTenantEntitlements.
+ * The grantable catalog is the PLATFORM library (shared, same for every
+ * tenant) — canonical domain slugs + published platform sets — NOT the target
+ * tenant's own packs. Reading the target tenant's packs (the prior behavior)
+ * leaked non-canonical free-text domains like 'SOC' into the dropdown that
+ * never matched the lowercase platform slugs at license-resolution time.
+ *
+ * Scopes already granted (active) to this tenant are filtered out so the drawer
+ * only offers new grants. Runs under assessiq_system (BYPASSRLS) via
+ * withSystemTx — same cross-tenant read pattern as listTenantEntitlements.
  */
 export async function listTenantContentScopes(
   tenantId: string,
 ): Promise<{ domains: string[]; packs: Array<{ id: string; name: string; domain: string }> }> {
-  return withSystemTx((client) => getTenantContentScopes(client, tenantId));
+  return withSystemTx(async (client) => {
+    const platformTenantId = await getPlatformTenantId(client);
+    if (platformTenantId === null) return { domains: [], packs: [] };
+
+    const catalog = await getTenantContentScopes(client, platformTenantId);
+
+    const active = await listEntitlements(client, tenantId, { activeOnly: true });
+    const grantedDomains = new Set(
+      active.filter((e) => e.scope_type === 'domain').map((e) => e.scope_id),
+    );
+    const grantedPacks = new Set(
+      active.filter((e) => e.scope_type === 'pack').map((e) => e.scope_id),
+    );
+    return {
+      domains: catalog.domains.filter((d) => !grantedDomains.has(d)),
+      packs: catalog.packs.filter((p) => !grantedPacks.has(p.id)),
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

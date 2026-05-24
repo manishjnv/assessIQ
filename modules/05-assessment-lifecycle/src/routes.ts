@@ -31,7 +31,7 @@
 // never receives a broken Date.
 
 import type { FastifyInstance } from "fastify";
-import { ValidationError } from "@assessiq/core";
+import { AuthzError, ValidationError } from "@assessiq/core";
 import {
   listAssessments,
   createAssessment,
@@ -188,6 +188,18 @@ export async function registerAssessmentLifecycleRoutes(
         input.closes_at = null;
       }
 
+      // Blueprint authoring is super_admin-only: it composes the tenant's
+      // domain question pool by per-criterion quota (a platform-operator
+      // capability). Company admins build assessments by consuming a licensed
+      // library set via POST /api/admin/assessments/from-set, which stays
+      // adminOnly. A non-blueprint direct create here is unaffected.
+      const hasBlueprint =
+        input.settings !== undefined &&
+        (input.settings as Record<string, unknown>)["blueprint"] !== undefined;
+      if (hasBlueprint && req.session!.role !== "super_admin") {
+        throw new AuthzError("Blueprint assessments are restricted to super_admin");
+      }
+
       const assessment = await createAssessment(tenantId, input, userId);
       return reply.code(201).send(assessment);
     },
@@ -288,6 +300,17 @@ export async function registerAssessmentLifecycleRoutes(
         patch.closes_at = parseDate(raw["closes_at"], "closes_at");
       } else if (raw["closes_at"] === null) {
         patch.closes_at = null;
+      }
+
+      // Same super_admin gate as create: blueprint authoring (including
+      // converting an existing draft into a blueprint via PATCH) is a
+      // platform-operator capability. Without this, a tenant admin could create
+      // a non-blueprint draft and then PATCH a blueprint onto it.
+      const hasBlueprint =
+        patch.settings !== undefined &&
+        (patch.settings as Record<string, unknown>)["blueprint"] !== undefined;
+      if (hasBlueprint && req.session!.role !== "super_admin") {
+        throw new AuthzError("Blueprint assessments are restricted to super_admin");
       }
 
       return updateAssessment(tenantId, id, patch, userId);
