@@ -157,6 +157,10 @@ export const ACTION_CATALOG = [
   // tenant.purged: forward-compat for 6-month retention purge; wired in a later phase.
   'tenant.resumed',
   'tenant.purged',
+  // Super-admin edits a tenant's display name (the `tenants.name` column) from
+  // the Platform page "Edit company" modal. Display-only change; no isolation /
+  // RLS impact. Distinct from tenant.settings.updated (settings JSON, not name).
+  'tenant.renamed',
   // Phase A — user lifecycle controls.
   // user.disabled / user.reenabled: tenant-admin (or super-admin override) pauses / restores a user.
   // user.invitation_cancelled: pending invite explicitly cancelled before acceptance.

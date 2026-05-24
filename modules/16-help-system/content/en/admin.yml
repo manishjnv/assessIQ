@@ -822,6 +822,23 @@ admin.platform.admin_name:
 
     Leave blank to send the invitation without a personalised greeting.
 
+admin.platform.edit_company_name:
+  audience: admin
+  short_text: "The company's display name (the tenants.name column). Editable; the slug stays fixed. Requires fresh MFA."
+  long_md: |
+    ## Organisation name
+
+    The company's display name, shown in the Platform list and across the admin
+    UI. You can rename it here at any time — it's a label only, with no effect
+    on data, logins, or isolation.
+
+    **The slug is permanent.** The short URL-safe identifier (e.g. `acme-corp`)
+    issued at provisioning is used in webhook payloads and embed URLs, so it
+    cannot be changed here. Only the display name is editable.
+
+    Renaming is a platform-operator action gated by fresh MFA and recorded in
+    the audit log (`tenant.renamed`).
+
 admin.platform.edit_admin:
   audience: admin
   short_text: "Update the company's primary admin — name, role (admin/reviewer), or email. Requires fresh MFA."

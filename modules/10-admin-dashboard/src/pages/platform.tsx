@@ -23,6 +23,7 @@ import {
   createCompanyApi,
   resendInvitationApi,
   superUpdateAdminApi,
+  superUpdateTenantApi,
   listTenantsApi,
   verifyTotpApi,
   getTenantBillingDetail,
@@ -119,10 +120,12 @@ function MfaStepUp({
   onVerified,
   onCancel,
   prompt = "Your admin MFA needs to be verified before provisioning a new company. Enter your 6-digit authenticator code to continue.",
+  confirmLabel = "Verify & create",
 }: {
   onVerified: () => void;
   onCancel: () => void;
   prompt?: string;
+  confirmLabel?: string;
 }): React.ReactElement {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -237,7 +240,7 @@ function MfaStepUp({
           loading={loading}
           disabled={code.length !== 6 || isLocked || isExpired}
         >
-          Verify &amp; create
+          {confirmLabel}
         </Button>
       </div>
     </div>
@@ -559,6 +562,7 @@ function CreateCompanyForm({
 const normEmail = (s: string): string => s.trim().toLowerCase();
 
 interface EditAdminFieldErrors {
+  orgName?: string | undefined;
   name?: string | undefined;
   email?: string | undefined;
 }
@@ -578,10 +582,12 @@ function EditAdminModal({
   // free to re-address. Mirrors the server's identity-confirm gate.
   const hasAccount = tenant.admin_status !== "pending";
 
+  const origOrgName = tenant.name ?? "";
   const origName = tenant.admin_name ?? "";
   const origEmail = normEmail(tenant.admin_email ?? "");
   const origRole: "admin" | "reviewer" = tenant.admin_role === "reviewer" ? "reviewer" : "admin";
 
+  const [orgName, setOrgName] = useState(origOrgName);
   const [name, setName] = useState(origName);
   const [email, setEmail] = useState(tenant.admin_email ?? "");
   const [role, setRole] = useState<"admin" | "reviewer">(origRole);
@@ -593,10 +599,12 @@ function EditAdminModal({
   const [loading, setLoading] = useState(false);
   const [modalState, setModalState] = useState<ModalState>("form");
 
+  const orgNameChanged = orgName.trim() !== origOrgName.trim();
   const emailChanged = normEmail(email) !== origEmail;
   const nameChanged = name.trim() !== origName;
   const roleChanged = role !== origRole;
-  const hasChanges = emailChanged || nameChanged || roleChanged;
+  const adminChanged = emailChanged || nameChanged || roleChanged;
+  const hasChanges = orgNameChanged || adminChanged;
 
   // Identity-transfer gate: changing the email of an existing account (active or
   // disabled) needs explicit confirm.
@@ -617,6 +625,7 @@ function EditAdminModal({
 
   const validateClient = (): boolean => {
     const errs: EditAdminFieldErrors = {};
+    if (!orgName.trim()) errs.orgName = "Organisation name is required.";
     if (!name.trim()) errs.name = "Name is required.";
     if (!email.trim()) errs.email = "Email is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = "Enter a valid email address.";
@@ -628,11 +637,22 @@ function EditAdminModal({
     setLoading(true);
     setGlobalError(null);
     try {
-      const res = await superUpdateAdminApi(adminUserId, buildPayload());
-      const bits: string[] = [];
-      if (res.emailChanged) bits.push(res.reinvited ? `re-invited ${res.email}` : `email → ${res.email}`);
-      if (res.sessionsSwept && !res.reinvited) bits.push("signed out");
-      onSuccess(`Updated ${res.name}${bits.length ? ` · ${bits.join(" · ")}` : ""}`);
+      const summaryBits: string[] = [];
+      // 1. Company rename. Idempotent server-side — a no-op name returns noOp:true,
+      //    so a post-MFA retry that re-sends the same name is harmless.
+      if (orgNameChanged) {
+        const tRes = await superUpdateTenantApi(tenant.id, { name: orgName.trim() });
+        if (!tRes.noOp) summaryBits.push(`renamed → ${tRes.name}`);
+      }
+      // 2. Admin edits (name / role / email).
+      if (adminChanged) {
+        const res = await superUpdateAdminApi(adminUserId, buildPayload());
+        const bits: string[] = [];
+        if (res.emailChanged) bits.push(res.reinvited ? `re-invited ${res.email}` : `email → ${res.email}`);
+        if (res.sessionsSwept && !res.reinvited) bits.push("signed out");
+        summaryBits.push(`admin ${res.name}${bits.length ? ` (${bits.join(", ")})` : ""}`);
+      }
+      onSuccess(summaryBits.length ? `Updated ${summaryBits.join(" · ")}` : "Saved.");
     } catch (err) {
       if (err instanceof AdminApiError) {
         if (err.status === 401 && /fresh totp/i.test(err.apiError.message)) {
@@ -703,7 +723,7 @@ function EditAdminModal({
       <Card padding="lg" onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480 }}>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
           <h2 className="aiq-serif" style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}>
-            {modalState === "mfa" ? "Verify MFA" : "Edit admin"}
+            {modalState === "mfa" ? "Verify MFA" : "Edit company"}
           </h2>
           <span style={{ flex: 1 }} />
           <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close">
@@ -713,17 +733,17 @@ function EditAdminModal({
 
         {modalState === "mfa" ? (
           <MfaStepUp
-            prompt="Your admin MFA needs to be verified before changing admin details. Enter your 6-digit authenticator code to continue."
+            prompt="Your admin MFA needs to be verified before editing this company. Enter your 6-digit authenticator code to continue."
             onVerified={handleMfaVerified}
             onCancel={onCancel}
           />
         ) : (
           <div data-help-id="admin.platform.edit_admin">
             <p style={{ fontSize: 13, color: "var(--aiq-color-fg-secondary)", margin: "0 0 8px", lineHeight: 1.5 }}>
-              Update the company's primary admin. Editing email changes their login identity.
+              Rename the company and update its primary admin. Editing the admin email changes their login identity.
             </p>
             <div style={{ ...META_LABEL, fontSize: 10, marginBottom: 16 }}>
-              {tenant.name} · {tenant.admin_status ?? "pending"}
+              {tenant.slug} · {tenant.admin_status ?? "pending"}
             </div>
 
             {globalError && (
@@ -733,6 +753,26 @@ function EditAdminModal({
             )}
 
             <div style={{ display: "grid", gap: 16 }}>
+              {/* Company / Organisation name (tenants.name) */}
+              <div data-help-id="admin.platform.edit_company_name">
+                <Field
+                  label="Organisation name"
+                  placeholder="Acme Corp"
+                  value={orgName}
+                  onChange={(e) => {
+                    setOrgName(e.target.value);
+                    setFieldErrors((fe) => ({ ...fe, orgName: undefined }));
+                  }}
+                  {...(fieldErrors.orgName ? { error: fieldErrors.orgName } : {})}
+                />
+                <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10, textTransform: "none", letterSpacing: 0 }}>
+                  Slug &ldquo;{tenant.slug}&rdquo; is permanent and can&rsquo;t be changed.
+                </span>
+              </div>
+
+              {/* ── Primary admin ── */}
+              <div style={{ ...META_LABEL, fontSize: 10, marginTop: 4 }}>Primary admin</div>
+
               {/* Name */}
               <div data-help-id="admin.platform.admin_name">
                 <Field
@@ -906,6 +946,7 @@ function LifecycleConfirmModal({
 }): React.ReactElement {
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modalState, setModalState] = useState<"confirm" | "mfa">("confirm");
   const copy = LIFECYCLE_COPY[action];
   const userCount = (tenant.admin_count ?? 0) + (tenant.reviewer_count ?? 0);
 
@@ -913,9 +954,27 @@ function LifecycleConfirmModal({
     setLoading(true);
     try {
       await onConfirm(reason.trim() || undefined);
+    } catch (err) {
+      // The parent re-throws ONLY the fresh-MFA 401 so we can step the operator
+      // through in-place TOTP re-verification (mirrors CreateCompanyForm). Every
+      // other error is handled at the page level by the parent, which closes us.
+      if (
+        err instanceof AdminApiError &&
+        err.status === 401 &&
+        /fresh totp/i.test(err.apiError.message)
+      ) {
+        setModalState("mfa");
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  // After re-verification succeeds, return to the confirm view and retry the
+  // original action — now within the 15-minute fresh-MFA window.
+  const handleMfaVerified = (): void => {
+    setModalState("confirm");
+    void handleConfirm();
   };
 
   return (
@@ -942,7 +1001,7 @@ function LifecycleConfirmModal({
             className="aiq-serif"
             style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
           >
-            {copy.title(tenant.name)}
+            {modalState === "mfa" ? "Verify MFA" : copy.title(tenant.name)}
           </h2>
           <span style={{ flex: 1 }} />
           <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close" disabled={loading}>
@@ -950,63 +1009,74 @@ function LifecycleConfirmModal({
           </Button>
         </div>
 
-        <p
-          style={{
-            fontSize: 13,
-            color: "var(--aiq-color-fg-secondary)",
-            margin: "0 0 20px",
-            lineHeight: 1.5,
-          }}
-        >
-          {copy.body(tenant.name, userCount)}
-        </p>
-
-        {/* Optional reason textarea */}
-        <div style={{ marginBottom: 20 }}>
-          <label
-            style={{
-              display: "block",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: 12,
-              fontWeight: 500,
-              marginBottom: 6,
-            }}
-          >
-            Reason (optional)
-          </label>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            maxLength={500}
-            disabled={loading}
-            placeholder="Briefly describe why (recorded in the audit log)…"
-            rows={3}
-            style={{
-              width: "100%",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: 13,
-              padding: "8px 10px",
-              borderRadius: "var(--aiq-radius-md)",
-              border: "1px solid var(--aiq-color-border)",
-              background: "var(--aiq-color-bg-raised)",
-              color: "var(--aiq-color-fg-primary)",
-              resize: "vertical",
-              boxSizing: "border-box",
-            }}
+        {modalState === "mfa" ? (
+          <MfaStepUp
+            prompt={`Your admin MFA needs to be re-verified before you can ${copy.verb.toLowerCase()} ${tenant.name}. Enter your 6-digit authenticator code to continue.`}
+            confirmLabel={`Verify & ${copy.verb.toLowerCase()}`}
+            onVerified={handleMfaVerified}
+            onCancel={onCancel}
           />
-          <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10 }}>
-            {reason.length} / 500
-          </span>
-        </div>
+        ) : (
+          <>
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--aiq-color-fg-secondary)",
+                margin: "0 0 20px",
+                lineHeight: 1.5,
+              }}
+            >
+              {copy.body(tenant.name, userCount)}
+            </p>
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Button variant="ghost" onClick={onCancel} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={() => void handleConfirm()} loading={loading}>
-            {copy.verb}
-          </Button>
-        </div>
+            {/* Optional reason textarea */}
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                }}
+              >
+                Reason (optional)
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={500}
+                disabled={loading}
+                placeholder="Briefly describe why (recorded in the audit log)…"
+                rows={3}
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: 13,
+                  padding: "8px 10px",
+                  borderRadius: "var(--aiq-radius-md)",
+                  border: "1px solid var(--aiq-color-border)",
+                  background: "var(--aiq-color-bg-raised)",
+                  color: "var(--aiq-color-fg-primary)",
+                  resize: "vertical",
+                  boxSizing: "border-box",
+                }}
+              />
+              <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10 }}>
+                {reason.length} / 500
+              </span>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Button variant="ghost" onClick={onCancel} disabled={loading}>
+                Cancel
+              </Button>
+              <Button onClick={() => void handleConfirm()} loading={loading}>
+                {copy.verb}
+              </Button>
+            </div>
+          </>
+        )}
       </Card>
     </div>
   );
@@ -1949,7 +2019,7 @@ function ManageMenu({
           onClick={(e) => e.stopPropagation()}
         >
           {menuItem("Open billing", () => { onOpenBilling(); })}
-          {tenant.admin_user_id !== null && menuItem("Edit admin", () => { onEditAdmin(); })}
+          {tenant.admin_user_id !== null && menuItem("Edit company", () => { onEditAdmin(); })}
           {menuItem("Manage users", () => { navigate(`/admin/platform/${tenant.id}/users`); })}
           {lifecycleItems.length > 0 && (
             <div
@@ -2060,6 +2130,17 @@ export function AdminPlatform(): React.ReactElement {
       setTimeout(() => setLifecycleToast(null), 4000);
       void fetchTenants(includeArchived);
     } catch (err) {
+      // Fresh-MFA challenge: hand control back to the modal so it can drive
+      // in-place TOTP re-verification (mirrors CreateCompanyForm). Re-throw
+      // WITHOUT closing the modal or setting a page-level error — the modal's
+      // handleConfirm catch flips to its MFA sub-state and retries on success.
+      if (
+        err instanceof AdminApiError &&
+        err.status === 401 &&
+        /fresh totp/i.test(err.apiError.message)
+      ) {
+        throw err;
+      }
       if (err instanceof AdminApiError) {
         const details = err.apiError.details as Record<string, unknown> | undefined;
         if (details?.code === "INVALID_LIFECYCLE_TRANSITION") {
@@ -2280,10 +2361,10 @@ export function AdminPlatform(): React.ReactElement {
               }}
             >
               <span>Slug</span>
-              <span>Name</span>
+              <span>Organisation</span>
               <span>Primary contact</span>
               <span>Usage</span>
-              <span>Tenant</span>
+              <span>Status</span>
               <span>Created</span>
               <span></span>
             </div>
