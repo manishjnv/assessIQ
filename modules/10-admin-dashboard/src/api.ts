@@ -422,9 +422,13 @@ export interface TenantListItem {
   /** First admin invited at company-creation time. Null for tenants with no
    *  role='admin' user (e.g. the platform tenant). admin_status is 'pending'
    *  until the admin accepts the invite, then 'active'. */
+  admin_user_id: string | null;
   admin_email: string | null;
   admin_name: string | null;
+  admin_role: string | null;
   admin_status: string | null;
+  /** Id of the outstanding (unaccepted) invitation for the primary admin, if any. */
+  admin_invitation_id: string | null;
   admin_invitation_expires_at: string | null;
   /** A2: billing usage for this tenant, or null if no plan row. */
   usage: TenantUsage | null;
@@ -557,6 +561,49 @@ export async function resendInvitationApi(
   return adminApi<ResendInvitationResponse>(
     `/admin/super/tenants/${tenantId}/invitations/resend`,
     { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export interface SuperUpdateAdminRequest {
+  name?: string;
+  role?: 'admin' | 'reviewer';
+  email?: string;
+  /** Required when changing an ACTIVE (accepted) admin's email — confirms the
+   *  operator understands this transfers the account's login identity. */
+  confirmEmailIdentityChange?: boolean;
+  reason?: string;
+}
+
+export interface SuperUpdateAdminResponse {
+  userId: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'reviewer';
+  previousEmail: string;
+  emailChanged: boolean;
+  status: string;
+  /** True when the user's sessions were swept (email or role change on an active user). */
+  sessionsSwept: boolean;
+  /** True when a fresh invitation was re-issued to a corrected pending-admin email. */
+  reinvited: boolean;
+  auditId: string | null;
+}
+
+/**
+ * PATCH /api/admin/super/users/:userId
+ *
+ * Super-admin edit of a tenant user's profile (name / role / email). Gate:
+ * super_admin + fresh MFA (401 "fresh totp" → MfaStepUp). Email IS the login
+ * identity: changing an ACTIVE admin's email requires confirmEmailIdentityChange
+ * and signs the admin out; a PENDING admin's email is re-addressed (fresh invite).
+ */
+export async function superUpdateAdminApi(
+  userId: string,
+  body: SuperUpdateAdminRequest,
+): Promise<SuperUpdateAdminResponse> {
+  return adminApi<SuperUpdateAdminResponse>(
+    `/admin/super/users/${encodeURIComponent(userId)}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
   );
 }
 
