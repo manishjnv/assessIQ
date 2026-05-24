@@ -590,6 +590,8 @@ Two small helpers consolidate display logic that was previously duplicated inlin
 
 Status rendering composes with the `Chip` primitive: `const s = attemptStatusDisplay(row.status); return <Chip variant={s.variant}>{s.label}</Chip>;`.
 
+**Question Bank list — Status column (added 2026-05-25).** The `/admin/question-bank` pack list previously had **no status column**, so an admin couldn't tell draft / published / archived packs apart in the list (only the per-pack detail page showed a status pill). A sortable **Status** column now sits between Domain and Questions, rendered via the canonical `packStatusDisplay(row.status)` → `<Chip variant={s.variant}>` pattern above — not a hand-rolled colour map. This pairs with the same-session archive fix (`docs/RCA_LOG.md` 2026-05-24): archiving a draft pack now works *and* is visible in the list. The detail page still uses its own inline `packStatusColor` span (pre-existing drift) — harmless, but a future consolidation could route it through `packStatusDisplay` too.
+
 ### Question & answer content renderers (never raw JSON)
 
 Any admin surface that displays a frozen question or a candidate's submitted answer MUST render a typed, human-readable layout — **never** `JSON.stringify` the stored payload into a `<pre>`/text node. Two renderers own this:

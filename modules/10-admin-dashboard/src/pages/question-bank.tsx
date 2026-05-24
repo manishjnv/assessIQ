@@ -26,6 +26,7 @@ import type { DomainItem, AvailableSet } from "../api.js";
 import { useAdminSession } from "../session.js";
 import { formatDate } from "../lib/format.js";
 import { domainLabel } from "../lib/domains.js";
+import { packStatusDisplay } from "../lib/status.js";
 
 type PackStatus = "draft" | "published" | "archived";
 
@@ -378,6 +379,15 @@ export function AdminQuestionBank(): React.ReactElement {
           {domainLabel(row.domain)}
         </span>
       ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (row: PackListItem) => {
+        const s = packStatusDisplay(row.status);
+        return <Chip variant={s.variant}>{s.label}</Chip>;
+      },
     },
     {
       key: "question_count",
