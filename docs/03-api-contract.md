@@ -146,7 +146,8 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
   "name":             "string (1–100 chars, required)",
   "email":            "string (3–320 chars, required)",
   "message":          "string (1–5000 chars, required)",
-  "company_website":  "string (0–200 chars, optional — honeypot)"
+  "company_website":  "string (0–200 chars, optional — honeypot)",
+  "cf_turnstile_response": "string (Cloudflare Turnstile token; verified server-side, fail-closed)"
 }
 ```
 
@@ -159,8 +160,10 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 1. Honeypot check — silent drop if `company_website` is non-empty.
 2. Whitespace trim + empty guard → `400 CONTACT_EMPTY`.
 3. Basic email shape regex → `400 CONTACT_BAD_EMAIL`.
-4. `sendContactEnquiry({ name, email, message })` — strips CR/LF from `name` before subject header, HTML-escapes all fields in the HTML body. Recipient hardcoded `connect@assessiq.in`; `replyTo` = submitter so the team can reply directly.
-5. SMTP null-fallback: if `SMTP_URL` is unset, the enquiry is dropped to `webhook.log` with WARN (no throw) — handler still returns `200 { ok: true }`.
+4. **Cloudflare Turnstile** — server-side verify the `cf_turnstile_response` token via Cloudflare `siteverify` (using `TURNSTILE_SECRET`). **Fail-closed:** missing/invalid token, or a `siteverify` network/parse error → `403 TURNSTILE_FAILED`. If `TURNSTILE_SECRET` is unset: rejected in production (fail-closed), skipped in non-prod (dev) with a WARN.
+5. Global submission budget — in-memory per-process cap (20/hour across all IPs) protecting the shared Resend quota from a distributed flood → `429 RATE_LIMITED` when exceeded.
+6. `sendContactEnquiry({ name, email, message })` — strips CR/LF from `name` before subject header, HTML-escapes all fields in the HTML body. Recipient hardcoded `connect@assessiq.in`; `replyTo` = submitter so the team can reply directly.
+7. SMTP null-fallback: if `SMTP_URL` is unset, the enquiry is dropped to `webhook.log` with WARN (no throw) — handler still returns `200 { ok: true }`.
 
 **Responses:**
 
@@ -169,7 +172,9 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `200` | `{ "ok": true }` | Sent successfully (or honeypot triggered, or SMTP unset) |
 | `400` | `{ "error": { "code": "CONTACT_EMPTY" \| "CONTACT_BAD_EMAIL", "message": "..." } }` | Validation failure |
 | `400` | `{ "error": { "code": "VALIDATION_FAILED", "message": "...", "details": { "validation": [...] } } }` | Fastify schema validation failure (e.g. field over maxLength) |
+| `403` | `{ "error": { "code": "TURNSTILE_FAILED", "message": "..." } }` | Turnstile token missing/invalid (fail-closed) |
 | `429` | rate-limit headers | Per-IP credential bucket exceeded |
+| `429` | `{ "error": { "code": "RATE_LIMITED", "message": "..." } }` | Global 20/hour submission budget exceeded |
 | `502` | `{ "error": { "code": "SEND_FAILED", "message": "Could not send your message. Please email connect@assessiq.in directly." } }` | SMTP transport threw (Resend down, auth error, etc.) |
 
 **Email delivery:** `from: config.EMAIL_FROM`, `to: connect@assessiq.in`, `replyTo: <submitter email>`. Plain-text + HTML multipart. `name` has CR/LF stripped before use in the `Subject` header (email-header-injection defense). All user-supplied fields are HTML-escaped in the HTML body.

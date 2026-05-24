@@ -372,6 +372,23 @@ caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
 
 **Contact-form backend (2026-05-24).** The `/contact` page previously used a `mailto:` form action which opened the visitor's email client — unreliable on mobile and flagged as "not secure" in browser UX. It now submits via AJAX `POST /api/contact` (the `assessiq-api` container, already behind the `@api` Caddy matcher — no Caddy change required). The endpoint is public and unauthenticated; it reuses the existing per-IP credential-tier rate limiter (`authChain({ requireSession: false, credentialEndpoint: true })`) to cap relay abuse. A hidden honeypot field (`company_website`) silently drops bot submissions before they hit SMTP. Email is sent directly (no BullMQ queue — contact enquiries are not tenant-scoped and carry no `email_log` row) via the platform Resend SMTP transport (`resolveTransport()`); `replyTo` is set to the submitter's address so the team can reply inline. Recipient is hardcoded `connect@assessiq.in`. If `SMTP_URL` is unset (local dev), the enquiry is dropped to `webhook.log` with a WARN and the API still returns `200 { ok: true }`. On SMTP error the API returns `502 SEND_FAILED` with a fallback message pointing to the direct email address. No new environment variables or Caddy changes are needed; the feature is fully live once the API container is redeployed.
 
+**Cloudflare Turnstile on the contact form (2026-05-24).** Bot protection beyond the
+honeypot. **Frontend** (`contact.astro`): the Turnstile widget
+(`data-sitekey="0x4AAAAAADVMWHe1bQPyzyZJ"` — public) + `challenges.cloudflare.com/turnstile/v0/api.js`;
+the submit handler reads the `cf-turnstile-response` token, blocks if absent, sends it as
+`cf_turnstile_response`, and resets the widget per attempt (single-use). **Backend**
+(`/api/contact`): server-side `siteverify` before send — **fail-closed** (missing/invalid
+token or siteverify error → `403 TURNSTILE_FAILED`); when `TURNSTILE_SECRET` is unset it
+rejects in production and skips only in non-prod. **New env var** `TURNSTILE_SECRET` in
+`/srv/assessiq/.env` (widget secret key; root-owned, not in git) — recreate `assessiq-api`
+after setting it. Widget = `AssessIQ contact` (Managed) in Cloudflare. Layered with the
+honeypot + per-IP credential limiter + global 20/hr budget. **codex:rescue ACCEPT** (after
+one REVISE: prod fail-closed on unset secret + confirmed the per-IP limiter runs before the
+siteverify call). **Sharp edge:** the backend (turnstile) and frontend (widget) shipped in
+*separate* commits — if you ever see the form 403 on every submit, the widget is missing
+from the deployed marketing build (frontend not deployed). To rotate the secret: regen in
+Turnstile → update `.env` + recreate the API.
+
 **Platform email sender → Resend (2026-05-24).** The platform's SMTP transport was
 switched from a personal **Gmail SMTP** (`smtp.gmail.com`, From `manishjnvk@gmail.com`
 — see RCA 2026-05-24) to **Resend**. `assessiq.in` is verified in Resend (DKIM
