@@ -179,6 +179,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       if (focusables.length === 0) return;
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
+      // narrow HTMLElement | undefined (noUncheckedIndexedAccess); the length>0 guard above guarantees both exist at runtime
+      if (!first || !last) return;
       if (e.shiftKey && document.activeElement === first) {
         last.focus();
         e.preventDefault();
