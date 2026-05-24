@@ -154,6 +154,9 @@ describe('GET /verify/:credentialId — valid cert', () => {
     expect(res.body).toContain('cert-status--valid');
     expect(res.body).toContain(CREDENTIAL_ID);
     expect(res.body).toContain('EducationalOccupationalCredential');
+    // Privacy regression pin (SEO_Strategy §10): verify pages must be noindex —
+    // a candidate's name + result must not be bulk-indexed by search engines.
+    expect(res.body).toContain('name="robots" content="noindex,follow"');
   });
 });
 
@@ -375,6 +378,7 @@ describe('GET /verify/:credentialId/og.svg — OG image', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toMatch(/image\/svg\+xml/);
+    expect(res.headers['x-robots-tag']).toBe('noindex');
     expect(res.body).toContain('viewBox="0 0 1200 630"');
   });
 });
@@ -489,6 +493,7 @@ describe('GET /verify/:credentialId/og.png — Session 7', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toMatch(/image\/png/);
     expect(res.headers['cache-control']).toContain('max-age=3600');
+    expect(res.headers['x-robots-tag']).toBe('noindex');
 
     const buf = res.rawPayload;
     expect(buf.length).toBeGreaterThan(0);
