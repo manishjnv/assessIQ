@@ -1,3 +1,22 @@
+# Session — 2026-05-24 (Contact form → real /api/contact endpoint, Resend-backed)
+
+**Headline:** Replaced the marketing contact form's `mailto:` action (which triggered Chrome's "This form is not secure" warning and didn't really submit) with a real public **`POST /api/contact`** endpoint that emails enquiries to `connect@assessiq.in` via the existing nodemailer/Resend transport (replyTo=submitter), plus an AJAX form with inline success/error. LIVE + verified.
+**Commits (main):** `fcd6aab` (= cherry-pick `90321f5`) — feat(api,marketing) /api/contact (from feat `1c07d00`; contact.astro conflict resolved → connect@ + new form). Earlier this session (all on main): Bing verify `657ee2a`, Safe-Browsing remediation `ab899fe`, legal-page fills `29732c3`, connect@ rename `057cf57`, Microsoft Clarity `93a50d6`.
+**Tests/verify:** notifications + api `tsc -b` clean. LIVE: `/api/health` 200; `POST /api/contact` honeypot→200 (no send), bad-email→400 `CONTACT_BAD_EMAIL`, valid→200 `{ok:true}` (real deploy-test email sent to connect@). Marketing `/contact`: no `action="mailto"`, honeypot present, AJAX fetch→/api/contact. Built+recreated api+marketing (additive; worker/db/neighbors untouched).
+**Next:** (1) Confirm the deploy-test email landed in Gmail (200 ≠ delivery only if SMTP_URL were empty — it's set). (2) **Check the sender** — RCA 2026-05-21 flagged `EMAIL_FROM` once leaked a personal Gmail; confirm it's a proper `*@assessiq.in` address. (3) Optional: Cloudflare Turnstile on the form (codex flagged distributed-flood quota risk — mitigated by per-IP limit + in-memory 20/hr global cap + 10s send timeout, but CAPTCHA is the stronger control). (4) Optional: Gmail "Send mail as connect@" for branded replies.
+**Open questions:** (a) Global contact cap is in-memory per-process (20/hr) — fine for the single assessiq-api container; needs Redis if the API scales horizontally. (b) `feat/question-difficulty-phase-a` (primary working dir) lags main on contact.astro/email — reconcile on its next merge.
+
+---
+
+## Agent utilization (contact endpoint)
+- **Opus 4.7:** Phase 0 exploration (Fastify route + auth-chain rate-limit + notifications transport); wrote the Sonnet contract; Phase-3 security review; **codex:rescue REVISE→addressed** (added global hourly cap + 10s SMTP send timeout); branch surgery (feat commit → cherry-pick to main, resolved the contact.astro conflict → connect@); deploy api+marketing + live endpoint verification; docs + handoff. `Opus · contract+review+rescue-fix+deploy/verify · reworked: Y (1 codex round — DoS/quota cap)`.
+- **Sonnet:** 1 subagent — full implementation per contract (route + `sendContactEnquiry` helper + form rewrite + 03-api-contract + 06-deployment docs), typecheck-clean, no commit. `Sonnet · /api/contact feature build · reworked: Y (Opus added global cap + timeout post-codex)`.
+- **Haiku:** n/a — VPS build/deploy/verify inline via ssh.
+- **codex:rescue:** REVISE → addressed. 6/7 vectors clean (header-injection, open-relay, HTML-injection, honeypot, validation, info-leak); 1 MED (distributed-flood quota/DoS) fixed before push.
+- **claude-mem:** read prior email-system + API-route context from hook observations; no durable write.
+
+---
+
 # Session — 2026-05-24 (Question Difficulty — Phase A: A1 spec + A2 schema + A3 generation wiring)
 
 **Headline:** Implemented Phase A of the per-(type,level) question-difficulty spec — A1 `difficulty-spec.ts` (Bloom matrix + structural validator + 62 tests), A2 migration `0086` (cognitive_level/nice_task_id/difficulty_params/attack_technique on questions+question_versions, forward-only), A3 wired the structural difficulty gate + tagging into generation (handler-stamped, injection-via-closures, migration `0087` difficulty_dropped). **A1–A3 are on `origin/main` and DEPLOYED + LIVE (2026-05-24)** — migrations `0086`/`0087` applied to prod, `assessiq-api` rebuilt + recreated (healthy, `/api/health` 200, A3 code confirmed in container).
