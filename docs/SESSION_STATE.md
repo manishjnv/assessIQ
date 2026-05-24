@@ -1,3 +1,44 @@
+# Session — 2026-05-24 (Domain consistency + super-admin-only Blueprint — A1/A2/A3/C1 of an 8-phase plan)
+
+**Headline:** Implemented the "clean setup" consistency workstream + Blueprint scope lockdown. One canonical domain source everywhere (New-Pack dropdown; Grant drawer now reads the PLATFORM library's `domains` table + published sets and filters already-granted; lowercasing at every domain write path) + migration `0090` to repair existing drift; Blueprint authoring is now super_admin-only across POST/PATCH/from-set. Committed to `feat/domain-consistency-blueprint-scope` (`446d8b7`). NOT deployed; `0090` NOT applied (dry-run verified on prod in a rolled-back txn). Phases B1/B2/B3 (Licensed-sets view in Question Bank + add-to-workspace + re-sync) NOT started.
+**Commits (branch `feat/domain-consistency-blueprint-scope`):** `446d8b7` canonical domain slugs + super-admin-only Blueprint (A1/A2/A3/C1); `cf0fbb9` Licensed-sets view + add-to-workspace (B1/B2).
+**B-workstream update:** B1 (read-only Licensed-sets section on Question Bank, reuses `getAvailableSets`) + B2 (`POST /api/admin/sets/:sourcePackId/import` → `importLicensedSet`: license-check-before-clone, UUID-validated; "Add to workspace" button) are DONE, typecheck-clean, codex:rescue **ACCEPT**. **B3 (re-sync) DEFERRED by design** — see "B3 design spike" below; needs a product decision + a focused session (load-bearing clone engine + attempt-pinning).
+**Tests/verify:** `tsc --noEmit` clean for all four touched modules (04-question-bank, 05-assessment-lifecycle, 10-admin-dashboard, 19-billing). Migration `0090` dry-run on prod (BEGIN…ROLLBACK): normalized 2 packs + 1 entitlement, deleted 1 redundant *revoked* row, 0 mixed-case remaining. Module unit/integration tests NOT run (need Docker test DB).
+**Adversarial gate (billing entitlements + assessment authz):** codex:rescue = **ACCEPT** after one REVISE round — it caught (1) a `PATCH /assessments/:id` blueprint bypass and (2) incomplete `pack.domain` write normalization; both fixed and re-confirmed ACCEPT.
+**Phase 0 finding (why WIPRO-SOC shows "no licensed sets"):** the active entitlement was `domain='SOC'` (uppercase) → matched no lowercase platform pack; AND the platform soc/phishing packs are still DRAFT (only `cloud-security` + `incident-response` are published). After `0090` the entitlement is lowercase `soc`, but the picker stays empty until the operator PUBLISHES the platform soc/phishing sets or grants a domain that has published content. Operational, not code.
+**Next:** (1) user OK to DEPLOY the whole branch (A1/A2/A3/C1 + B1/B2) — apply `0090` (destructive: deletes 1 redundant revoked entitlement row) + rebuild assessiq-api + assessiq-frontend; (2) detailed docs (03-api-contract: blueprint gate + content-scopes source + `POST /sets/:id/import`; 02-data-model: `0090`; 08-ui-system: New-Pack dropdown, hidden Blueprint button, Licensed-sets section); (3) decide the B3 re-sync product question + implement (Option 2) in a fresh focused session.
+**Open questions:** B3 re-sync — how to re-pull a newer master version without breaking assessments already version-pinned to the old clone (likely: new clone/version; leave in-flight attempts pinned).
+
+---
+
+## Agent utilization (domain consistency + blueprint scope)
+- **Opus 4.7:** ran the Phase 0 prod data audit; implemented A1/A2/A3/C1 + both codex-flagged revisions directly (surgical edits in load-bearing billing/authz/question-bank paths); designed migration `0090` and dry-ran it on prod. `Opus · A1/A2/A3/C1 + migration · reworked: Y (codex REVISE → fixed PATCH bypass + pack.domain writes)`.
+- **Sonnet:** n/a — edits were surgical and already in Opus's hot read cache; no template rollout to delegate.
+- **Haiku:** n/a — no bulk sweeps (Phase 0 audit was a single SQL run).
+- **codex:rescue:** REVISE → (fixes) → ACCEPT. Caught a real PATCH-route blueprint bypass + incomplete write-path normalization. Gate satisfied before push. `codex:rescue · authz+entitlement diff · reworked: Y`.
+- **claude-mem:** read-only; honored vps-shared-host (read-only SQL only), parallel-session-shared-working-tree (verified branch before committing), and the noreply git-push pattern.
+
+(Earlier in the same conversation, 2× Explore subagents mapped the question-bank generate/publish/activate and assessments from-set/blueprint flows for the explanation turns that preceded this implementation.)
+
+---
+
+## B3 design spike — re-sync an `update_available` licensed set (DEFERRED, not yet built)
+
+**Goal:** let a tenant admin pull a newer platform-master version into their existing clone when `available-sets` flags `update_available` (clone.source_version < master.version).
+
+**Hard constraint:** a clone pack is referenced by (a) existing assessments via `pack_id` + pinned `pack_version`, and (b) attempts via `question_versions` snapshots pinned at attempt-start. Re-sync must NOT change what those already-pinned references resolve to. Also `question_packs` has `UNIQUE (tenant_id, source_pack_id)` (migration 0085) — only ONE clone per source is allowed.
+
+**Options considered:**
+- **Opt 1 — fresh re-clone into a new pack:** ❌ violates the 0085 unique index.
+- **Opt 2 — in-place content refresh of the existing clone (RECOMMENDED):** upsert questions from the new master — add new, bump changed ones to a new `question_versions` row, NEVER hard-delete (archive instead) — bump the clone pack `version`, update recorded `source_version`. One clone per source (respects 0085); version-pinning protects in-flight/completed attempts. Requires NEW diff/upsert logic in the clone engine (`clone.ts` currently only fresh-INSERTs) + a `codex:rescue` gate (clone engine + attempt integrity = load-bearing).
+- **Opt 3 — relax unique index to `(tenant, source, source_version)` + archive old clone:** more invasive (schema + catalog "pick newest" changes).
+
+**Open product decision before building:** should an ALREADY-PUBLISHED assessment (created pre-resync, not yet attempted) pick up the refreshed questions at attempt-start, or stay pinned to the version it was published with? This decides whether re-sync bumps "active" question content that the attempt-engine draws, and must be confirmed with the user.
+
+**Why deferred:** load-bearing clone-engine change + interacts with attempt-engine version pinning (modules/06) + needs the product decision above. Not a mechanical edit; rushing it risks breaking in-flight attempts. Implement in a fresh focused session.
+
+---
+
 # Session — 2026-05-24 (Lifecycle MFA step-up — review + docs follow-up)
 
 **Headline:** Reviewed/tested the super-admin Suspend/Archive/Resume/Unarchive feature end-to-end and found a stale-MFA dead-end in `LifecycleConfirmModal` (a `401 "fresh totp required"` had no in-place recovery, unlike Create-company). The CODE fix (mirror Create-company's `MfaStepUp`: `confirm|mfa` sub-state + retry-with-preserved-reason + parent re-throws only the fresh-MFA 401) shipped via a **parallel session's PR #5 (`234c196`)** and is LIVE in the served `assessiq-frontend` bundle. This session contributes the same-fix **docs** that the code PR omitted.
