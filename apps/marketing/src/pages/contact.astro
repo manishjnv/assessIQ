@@ -188,6 +188,9 @@ const breadcrumbSchema = {
               ></textarea>
             </div>
 
+            <!-- Cloudflare Turnstile — bot check; the token is verified server-side in /api/contact. -->
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAADVMWHe1bQPyzyZJ" data-theme="light"></div>
+
             <button
               type="submit"
               class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
@@ -200,6 +203,9 @@ const breadcrumbSchema = {
             <p id="contact-status" role="status" aria-live="polite" class="font-sans text-aiq-sm m-0" style="min-height:1.25rem"></p>
 
             <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-[0.04em] m-0">
+              We'll reply from <strong class="font-medium text-aiq-fg-secondary">connect@assessiq.in</strong>.
+            </p>
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-[0.04em] m-0">
               We'll use your details only to reply to your enquiry. See our <a href="/privacy" class="text-aiq-accent underline">Privacy Policy</a>.
             </p>
           </form>
@@ -210,6 +216,9 @@ const breadcrumbSchema = {
   </section>
 
 </BaseLayout>
+
+<!-- Cloudflare Turnstile API — renders the widget; is:inline so Astro emits it verbatim. -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer is:inline></script>
 
 <script>
   const form     = document.getElementById('contact-form') as HTMLFormElement | null;
@@ -229,6 +238,15 @@ const breadcrumbSchema = {
       const message = msgEl.value.trim();
       const company_website = honeypot?.value ?? '';
 
+      // Cloudflare Turnstile injects this hidden input once the challenge is solved.
+      const tokenEl = form.querySelector('input[name="cf-turnstile-response"]') as HTMLInputElement | null;
+      const cf_turnstile_response = tokenEl?.value ?? '';
+      if (!cf_turnstile_response) {
+        status.textContent = 'Please complete the verification and try again.';
+        status.style.color = 'var(--aiq-color-danger, #c0392b)';
+        return;
+      }
+
       submitBtn.disabled = true;
       status.textContent = 'Sending…';
       status.style.color = '';
@@ -237,7 +255,7 @@ const breadcrumbSchema = {
         const res = await fetch('/api/contact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, message, company_website }),
+          body: JSON.stringify({ name, email, message, company_website, cf_turnstile_response }),
         });
 
         if (res.ok) {
@@ -254,6 +272,9 @@ const breadcrumbSchema = {
         status.textContent = 'Something went wrong. Please email connect@assessiq.in directly.';
         status.style.color = 'var(--aiq-color-danger, #c0392b)';
         submitBtn.disabled = false;
+      } finally {
+        // Turnstile tokens are single-use — reset so a retry gets a fresh one.
+        (window as any).turnstile?.reset();
       }
     });
   }
