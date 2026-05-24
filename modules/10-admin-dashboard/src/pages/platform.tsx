@@ -909,8 +909,8 @@ const LIFECYCLE_COPY: Record<
 > = {
   suspend: {
     title: (name) => `Suspend ${name}?`,
-    body: (name, count) =>
-      `Suspending ${name} will sign out all active users immediately (${count} users) and prevent future logins. All data, billing, and entitlements are preserved. You can resume any time.`,
+    body: (name) =>
+      `Suspending ${name} will immediately sign out all active users — admins, reviewers, and candidates — and prevent future logins. All data, billing, and entitlements are preserved. You can resume any time.`,
     verb: "Suspend",
   },
   resume: {
