@@ -439,7 +439,16 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `DELETE` | `/api/admin/super/users/:userId` | Super-admin soft-delete; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/restore` | Super-admin restore soft-deleted user | **live 2026-05-20** |
 | `DELETE` | `/api/admin/super/users/invitations/:invitationId` | Super-admin cancel pending invitation | **live 2026-05-20** |
-| `PATCH` | `/api/admin/super/users/:userId` | Super-admin edit of a tenant user (name / role / email); identity-transfer guard on email | **branch `feat/platform-edit-admin`, PR-pending — not deployed** |
+| `PATCH` | `/api/admin/super/users/:userId` | Super-admin edit of a tenant user (name / role / email); identity-transfer guard on email | **live 2026-05-24** |
+| `PATCH` | `/api/admin/super/tenants/:tenantId` | Super-admin rename a tenant's display name (`tenants.name`); slug unchanged | **branch `feat/platform-edit-company`, PR-pending** |
+
+#### `PATCH /api/admin/super/tenants/:tenantId` (rename company)
+
+Renames a tenant's display name (the `tenants.name` column) from the Platform page "Manage ▸ Edit company" modal. Display-only: the **slug is permanent** and is not touched here; no isolation/RLS/session/login impact.
+
+**Auth:** `super_admin` + **fresh MFA** (401 `fresh totp` → MfaStepUp). **Body:** `{ name }` (1–200 chars, non-empty after trim). Mirrors the `suspendTenant` audited pattern — `withTenant(tenantId)` row-locks (`SELECT … FOR UPDATE`), `UPDATE tenants SET name`, and `auditInTx('tenant.renamed', before/after)` in one transaction. A name equal to the current one short-circuits to `noOp:true` (no write, no audit) — making a post-MFA retry idempotent.
+
+**Response 200:** `{ tenantId, name, previousName, auditId, noOp }`. **400:** `MISSING_NAME` / `NAME_TOO_LONG`. **404:** tenant not found. New audit action `tenant.renamed` added to the `14-audit-log` catalog.
 
 #### `PATCH /api/admin/super/users/:userId` (Edit admin)
 

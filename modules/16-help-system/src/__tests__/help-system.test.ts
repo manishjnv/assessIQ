@@ -273,7 +273,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(114);
+    expect(count).toBe(115);
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -284,7 +284,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(114);
+    expect(count).toBe(115);
   });
 
   it("tenant A override is visible to tenant A", async () => {

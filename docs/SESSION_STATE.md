@@ -1,3 +1,23 @@
+# Session — 2026-05-24 (Platform "Edit company" — editable tenant name + column renames; follow-up to Edit-admin)
+
+**Headline:** Follow-up to Edit-admin: the Platform row's "Manage ▸ Edit admin" modal is now **"Edit company"** and also edits the **company/tenant display name** (`tenants.name`), via a new `PATCH /api/admin/super/tenants/:tenantId` (super_admin + fresh MFA, `withTenant` + `auditInTx('tenant.renamed')`, `SELECT … FOR UPDATE`, idempotent no-op). Plus two table-header renames: **NAME → "Organisation"** and the status column **TENANT → "Status"** (the old "TENANT" header sat over the active/suspended/archived chip — confusing; user-approved rename).
+**Commits (branch `feat/platform-edit-company`):** one commit — feat(platform,admin-super): editable company name + column renames + `tenant.renamed` audit action.
+**Tests/verify:** API + audit-log `tsc` clean; admin-dashboard `tsc` clean for my files; help-keys 62/62; repo-wide eslint adds **zero** new problems (the 4 errors + 1 warning in `platform.tsx`/`admin-super.ts` are the pre-existing `LIFECYCLE_COPY` unused-`name` + `react-hooks` rule-not-found + create-company `no-control-regex` disable — verified unchanged); help seed regenerated to 115 rows.
+**Adversarial gate (02-tenancy + 14-audit-log):** Sonnet=**ACCEPT** with 2 minor improvements applied (C2 add `FOR UPDATE` to the pre-rename SELECT to match the lifecycle pattern; C1 use typed `auditRow.id` instead of a dead `unknown`/`'id' in` guard). Opus 2nd pass=ACCEPT. GLM-5.1 n/a (harness data-exfiltration classifier blocks the external send; see memory).
+**Next:** land (rebase onto main → drop nothing this time, it's a clean 1-commit) + deploy (api + frontend rebuild + apply help seed) OR per user. Then hard-refresh `/admin/platform` → Manage ▸ **Edit company** shows the Organisation-name field; headers read Organisation / Status.
+**Open questions:** company-name edit is reachable only where an admin exists (menu gate unchanged) — the admin-less platform tenant isn't renamable here (acceptable; not a real company).
+
+---
+
+## Agent utilization (Edit-company)
+- **Opus 4.7:** designed + wrote the tenant-rename endpoint (inlined in admin-super.ts, mirrors suspendTenant) + `tenant.renamed` audit action + frontend org-name field/orchestration + column renames + help + docs; applied both Sonnet review fixes; 2nd-reviewer pass. `Opus · tenant-rename + column renames · reworked: N`.
+- **Sonnet:** 1 subagent — adversarial review of the rename endpoint (VERDICT ACCEPT; 2 minor fixes applied). `Sonnet · adversarial review · reworked: N`.
+- **Haiku:** n/a.
+- **Adversarial review (codex:rescue substitute):** Sonnet=ACCEPT(+2 fixes) · GLM-5.1=n/a (harness blocked) · Opus-2nd=ACCEPT.
+- **claude-mem:** reused the Edit-admin / admin-super / tenancy context from the prior session in-context; no new durable write needed.
+
+---
+
 # Session — 2026-05-24 (Platform "Edit admin" — name/role/email from the Companies row, merged to main + deploying)
 
 **Headline:** Added a super-admin **"Edit admin"** capability to the Platform page (`/admin/platform`) — a per-row "Manage ▸ Edit admin" modal that edits the primary-contact admin's **name, role (admin↔reviewer), and email**, backed by a new `PATCH /api/admin/super/users/:userId` (gate: `super_admin` + fresh MFA). Email is the login identity (Google SSO resolves by verified email), so an email change is an identity transfer: pending invites are re-addressed (fresh invite); active/disabled accounts require a confirm checkbox + forced re-login + stale-oauth cleanup.
