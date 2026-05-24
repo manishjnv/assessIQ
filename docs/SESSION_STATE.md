@@ -1,3 +1,28 @@
+# Session — 2026-05-24 (Question Difficulty — Phase A: A1 spec + A2 schema + A3 generation wiring)
+
+**Headline:** Implemented Phase A of the per-(type,level) question-difficulty spec — A1 `difficulty-spec.ts` (Bloom matrix + structural validator + 62 tests), A2 migration `0086` (cognitive_level/nice_task_id/difficulty_params/attack_technique on questions+question_versions, forward-only), A3 wired the structural difficulty gate + tagging into generation (handler-stamped, injection-via-closures, migration `0087` difficulty_dropped). **A1–A3 are on `origin/main`** (FF chain through `72e4053`). **Deploy is operator-gated on the migration step — NOT live yet.**
+**Commits (on main):** `aa2966e` docs(spec+plan) · `667286a` A1 module+62 tests · `fc61718` A2 migration 0086+data-model · `2c102fa` A3 gen wiring+migration 0087 · merge `f16265b`. **PR #1** (`feat/question-difficulty`) carries `7ce4f3c` = trivial AdminShell.tsx null-guard CI-unblock fix + this handoff — awaiting merge.
+**Tests/verify:** 04+07+10 `tsc` clean (CI confirms each "Done"). Adversarial gate **Sonnet ACCEPT + GLM-5.1 ACCEPT** (7 vectors: no spawn site, parameterized SQL, tenant-scoped, throw-contained, no proto-pollution, additive migration). DB-backed insert tests skip locally (no Docker). **CI `Test` NOT reached** — blocked by PRE-EXISTING repo-wide failures (Lint ~30 errors + ESLint-config breakage in apps/web+apps/marketing; standalone Secrets/No-Anthropic/No-TODO) — **none from this work** (my AdminShell fix cleared the Typecheck blocker).
+**Next (OPERATOR-GATED — deploy NOT done):**
+  1. **Apply migrations 0086+0087** with the postgres-**superuser** DATABASE_URL: `DATABASE_URL='postgres://<super>@…/assessiq' pnpm tsx tools/migrate.ts --check` (shows 0086,0087 pending) then drop `--check` to apply. ⚠ The VPS host CANNOT run this (no pnpm/tsx/node_modules; `.env` has only the app role, which can't write `schema_migrations`). Run from a machine with the repo+deps + the superuser cred. (schema_migrations currently tops out at `0085`.)
+  2. **THEN** rebuild+recreate api: `cd /srv/assessiq && docker compose -f infra/docker-compose.yml build assessiq-api && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-api`. MUST be after step 1 — the new INSERT references the new columns; recreating first would make every generation throw.
+  3. **Verify:** `\d questions` shows the 4 new cols + `generation_attempts.difficulty_dropped`; api healthy; then a real admin generation = the FIRST behavioral test of the INSERT path (watch `generation_attempts.status`/`difficulty_dropped` + `grading.log`).
+  4. **Merge PR #1** to land the AdminShell CI fix + this handoff on `main`.
+  5. **Cleanup:** delete junk local branch `feat/question-difficulty-phase-a` (A1+A2 + duplicate parallel commits, superseded) + the `.claude/worktrees/qdiff-a3` worktree; reset the main tree off the junk branch onto `main`.
+**Open questions:** (a) generation INSERT path is reviewed (Sonnet+GLM) + typechecked but NOT execution-tested — first admin generation is the real check. (b) Deferred: SKILL.md prompt edits so the model actively targets the difficulty params (rule #6 deploy-event; the model already RECEIVES them via `promptVars`); `attack_technique` population + embedding distractor-homogeneity check (Phase B); empirical within-type p-value drift report (Phase C). Plan: `docs/plans/QUESTION_DIFFICULTY_PHASE_A.md`; spec + §10 impl status: `docs/design/2026-05-23-question-difficulty-spec.md`.
+
+---
+
+## Agent utilization (Question Difficulty Phase A)
+- **Opus 4.7:** Phase-0 discovery synthesis; authored all A3 load-bearing wiring (07 types/service injection/admin-generate gate+stamp/promptVars/migration 0087) + A1 spec design + A2 migration + docs; diagnosed & isolated the shared-tree collision (worktree off the clean A2 tip); fixed the AdminShell CI-typecheck blocker; merge→FF main; CI triage (proved failures pre-existing); deploy enumeration + surfaced the migration-cred blocker; handoff. `Opus · A1 design + A3 wiring + git/CI/deploy orchestration · reworked: N`.
+- **Sonnet:** A1 build (difficulty-spec.ts + 62 tests, accept on Opus review); 4 Phase-0 discovery subagents (1 incomplete → Opus direct-read fallback); adversarial reviewer on A3 diff → **ACCEPT**. `Sonnet · A1 build + discovery + adversarial · reworked: 1 (one discovery agent incomplete)`.
+- **Haiku:** n/a — VPS enumeration/migration-state checks run inline via `ssh assessiq-vps`.
+- **GLM-5.1 (OpenRouter, sanctioned adversarial exception):** second adversarial review on the A3 diff → **ACCEPT**. `GLM-5.1 · A3 adversarial · reworked: N`.
+- **codex:rescue:** n/a — Sonnet+GLM is the ai-grading adversarial routing; both ACCEPT, no escalation needed.
+- **claude-mem:** persistent memory `question-difficulty-spec.md` maintained across this multi-session feature (decisions, branch SHAs, deploy-pending state).
+
+---
+
 # Session — 2026-05-23 (Google Safe Browsing "Deceptive pages" remediation + Bing verification)
 
 **Headline:** Remediated the Google Safe Browsing **"Deceptive pages" (social-engineering)** flag on `assessiq.in` — added `/privacy` + `/terms` (DPDP-aligned, bracketed-placeholder legal pages), wired them sitewide (Footer + login + candidate landing) and into the sitemap, hardened the SPA login (H1 → "Sign in to AssessIQ" + legal links), and shipped Bing Webmaster verification. All LIVE.
