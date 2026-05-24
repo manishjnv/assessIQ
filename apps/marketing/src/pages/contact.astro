@@ -119,15 +119,22 @@ const breadcrumbSchema = {
             Send us a note.
           </h2>
 
-          <!-- NOTE: form action is mailto — no data is submitted to a server yet.
-               TODO: Replace action with a real form endpoint before go-live. -->
           <form
-            action="mailto:connect@assessiq.in"
-            method="get"
-            enctype="text/plain"
+            id="contact-form"
             class="flex flex-col gap-aiq-lg"
             aria-label="Contact form"
           >
+            <!-- Honeypot — hidden from real users; bots fill it in.
+                 Submission is silently dropped server-side when non-empty. -->
+            <input
+              type="text"
+              name="company_website"
+              tabindex="-1"
+              autocomplete="off"
+              aria-hidden="true"
+              style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"
+            />
+
             <div class="flex flex-col gap-aiq-sm">
               <label for="contact-name" class="font-sans text-aiq-sm font-medium text-aiq-fg-primary">
                 Your name
@@ -170,7 +177,7 @@ const breadcrumbSchema = {
               </label>
               <textarea
                 id="contact-message"
-                name="body"
+                name="message"
                 rows="4"
                 required
                 placeholder="Tell us about your team size, role types, or assessment goals."
@@ -190,9 +197,10 @@ const breadcrumbSchema = {
               Send message
             </button>
 
+            <p id="contact-status" role="status" aria-live="polite" class="font-sans text-aiq-sm m-0" style="min-height:1.25rem"></p>
+
             <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-[0.04em] m-0">
-              <!-- TODO: real data — update privacy policy link when published -->
-              This opens your email client. No data is collected by this form.
+              We'll use your details only to reply to your enquiry. See our <a href="/privacy" class="text-aiq-accent underline">Privacy Policy</a>.
             </p>
           </form>
         </div>
@@ -202,3 +210,51 @@ const breadcrumbSchema = {
   </section>
 
 </BaseLayout>
+
+<script>
+  const form     = document.getElementById('contact-form') as HTMLFormElement | null;
+  const nameEl   = document.getElementById('contact-name') as HTMLInputElement | null;
+  const emailEl  = document.getElementById('contact-email') as HTMLInputElement | null;
+  const msgEl    = document.getElementById('contact-message') as HTMLTextAreaElement | null;
+  const honeypot = form?.querySelector<HTMLInputElement>('input[name="company_website"]') ?? null;
+  const submitBtn = form?.querySelector<HTMLButtonElement>('button[type="submit"]') ?? null;
+  const status   = document.getElementById('contact-status') as HTMLElement | null;
+
+  if (form && nameEl && emailEl && msgEl && status && submitBtn) {
+    form.addEventListener('submit', async (e: Event) => {
+      e.preventDefault();
+
+      const name    = nameEl.value.trim();
+      const email   = emailEl.value.trim();
+      const message = msgEl.value.trim();
+      const company_website = honeypot?.value ?? '';
+
+      submitBtn.disabled = true;
+      status.textContent = 'Sending…';
+      status.style.color = '';
+
+      try {
+        const res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, message, company_website }),
+        });
+
+        if (res.ok) {
+          status.textContent = "Thanks — we’ve got your message and will be in touch soon.";
+          status.style.color = 'var(--aiq-color-fg-secondary, #555)';
+          form.reset();
+          submitBtn.disabled = false;
+        } else {
+          status.textContent = 'Something went wrong. Please email connect@assessiq.in directly.';
+          status.style.color = 'var(--aiq-color-danger, #c0392b)';
+          submitBtn.disabled = false;
+        }
+      } catch {
+        status.textContent = 'Something went wrong. Please email connect@assessiq.in directly.';
+        status.style.color = 'var(--aiq-color-danger, #c0392b)';
+        submitBtn.disabled = false;
+      }
+    });
+  }
+</script>

@@ -127,6 +127,55 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 | `GET`  | `/take/:token`         | Renders landing; marks invitation viewed |
 | `POST` | `/take/start`          | Mints session, creates `attempt`, returns assessment shape |
 
+### Public — Contact form
+
+> **Status: LIVE 2026-05-24.** Routes in `apps/api/src/routes/contact.ts`. Email sent via `modules/13-notifications/src/email/contact.ts` using the platform Resend SMTP transport. No tenant context; no session required.
+
+#### `POST /api/contact`
+
+Accepts a contact enquiry from the public marketing site and delivers it to `connect@assessiq.in` via Resend SMTP.
+
+**Auth:** none — public and unauthenticated (`config: { skipAuth: true }`).
+
+**Rate-limit:** per-IP credential bucket (same tier as `/auth/login`, `/auth/totp/verify`) via `authChain({ requireSession: false, credentialEndpoint: true })`. This is intentional — the endpoint hits an external SMTP relay on each submission; the tighter cap prevents relay abuse.
+
+**Body:**
+
+```json
+{
+  "name":             "string (1–100 chars, required)",
+  "email":            "string (3–320 chars, required)",
+  "message":          "string (1–5000 chars, required)",
+  "company_website":  "string (0–200 chars, optional — honeypot)"
+}
+```
+
+`additionalProperties: false` — any extra fields return 400.
+
+**Honeypot (`company_website`):** included in the JSON schema so Fastify accepts it without a 400. When non-empty the handler returns `200 { ok: true }` immediately without sending (silent bot drop — avoids revealing the mechanism to scrapers).
+
+**Handler logic:**
+
+1. Honeypot check — silent drop if `company_website` is non-empty.
+2. Whitespace trim + empty guard → `400 CONTACT_EMPTY`.
+3. Basic email shape regex → `400 CONTACT_BAD_EMAIL`.
+4. `sendContactEnquiry({ name, email, message })` — strips CR/LF from `name` before subject header, HTML-escapes all fields in the HTML body. Recipient hardcoded `connect@assessiq.in`; `replyTo` = submitter so the team can reply directly.
+5. SMTP null-fallback: if `SMTP_URL` is unset, the enquiry is dropped to `webhook.log` with WARN (no throw) — handler still returns `200 { ok: true }`.
+
+**Responses:**
+
+| Status | Body | Condition |
+|---|---|---|
+| `200` | `{ "ok": true }` | Sent successfully (or honeypot triggered, or SMTP unset) |
+| `400` | `{ "error": { "code": "CONTACT_EMPTY" \| "CONTACT_BAD_EMAIL", "message": "..." } }` | Validation failure |
+| `400` | `{ "error": { "code": "VALIDATION_FAILED", "message": "...", "details": { "validation": [...] } } }` | Fastify schema validation failure (e.g. field over maxLength) |
+| `429` | rate-limit headers | Per-IP credential bucket exceeded |
+| `502` | `{ "error": { "code": "SEND_FAILED", "message": "Could not send your message. Please email connect@assessiq.in directly." } }` | SMTP transport threw (Resend down, auth error, etc.) |
+
+**Email delivery:** `from: config.EMAIL_FROM`, `to: connect@assessiq.in`, `replyTo: <submitter email>`. Plain-text + HTML multipart. `name` has CR/LF stripped before use in the `Subject` header (email-header-injection defense). All user-supplied fields are HTML-escaped in the HTML body.
+
+---
+
 ### Admin — Tenants & users
 
 > **Status (2026-05-01, Phase 0 closure — auth route layer + first API deploy live):** `assessiq-api` container is live behind Caddy split-route at `https://assessiq.automateedge.cloud/api/*` + `/embed*`. The Fastify route layer wrapping `@assessiq/auth` shipped in commits `58eba33` (route layer + Dockerfile) + `335d055` (dev-auth shim swap). All `Auth` table endpoints below are LIVE in code; the `Admin api-keys`, `Admin embed-secrets`, and `/embed` endpoints are LIVE in code. Live drill verification: `/embed` HS256 + replay defense PASSED (Drill C alg=none → 401, Drill D replay → 200 then 401 with Redis cache populated); `/api/auth/google/start` route + tenant resolution PASSED but Drill B (curl 302) is DEFERRED until `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` are added to `/srv/assessiq/.env` (currently returns 401 `"Google SSO is not configured"` cleanly). The `/admin/users/*` slice and `/admin/invitations` POST also live; `acceptInvitation` mints real sessions via `@assessiq/auth.sessions.create`. The `import` route remains a 501 stub returning `details.code = 'BULK_IMPORT_PHASE_1'`. `/admin/tenant` is 02-tenancy Phase 1 work. `GET /api/admin/embed-secrets` intentionally NOT shipped (library lacks `listEmbedSecrets`; Phase 1 follow-up). `assessiq-frontend` Dockerfile + Drill 1 (browser full-stack) deferred to Phase 1+.
