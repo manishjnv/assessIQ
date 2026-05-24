@@ -4,6 +4,16 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-24 — analytics:refresh_mv failed every minute — MV owned by a role the worker can't refresh as
+
+**Symptom:** `assessiq-worker` logged the `analytics:refresh_mv` cron FAILED **every minute** — `must be owner of materialized view attempt_summary_mv` (PG SQLSTATE 42501) — flooding `worker.log` (66MB). `attempt_summary_mv` has held **stale data since it was created** (migration 0060); analytics reports read a never-refreshed snapshot.
+
+**Cause:** `0060_attempt_summary_mv.sql` created the MV as the migration role (`assessiq`, a BYPASSRLS superuser), which became the owner. The refresh job runs in the worker, which connects as the unprivileged app role `assessiq_app` (RLS-subject — tenant isolation depends on it staying that way). `REFRESH MATERIALIZED VIEW` requires the executing role to **be** the owner — being a *member* of the owner role is not enough (confirmed: `assessiq_app` ∈ `assessiq_system` yet refresh still denied). Compounding it: the MV's SELECT reads the RLS-subject base tables (`attempt_scores`/`attempts`/`assessments`) across ALL tenants, so the refresh must run as a BYPASSRLS role or the MV would refresh to empty.
+
+**Fix:** (commit `<sha>`) (1) migration `0088_attempt_summary_mv_owner.sql` — `ALTER MATERIALIZED VIEW attempt_summary_mv OWNER TO assessiq_system` (the designated BYPASSRLS role). (2) `modules/15-analytics/src/refresh-mv-job.ts` — the worker (`assessiq_app`, a member of `assessiq_system`) does `SET ROLE assessiq_system` around the refresh, with `RESET ROLE` in `finally` and `client.release(true)` (destroy the connection) if RESET ever fails — so a connection elevated to BYPASSRLS can NEVER return to the pool where a later tenant-scoped query would inherit it (cross-tenant-leak guard). Granting `assessiq_app` BYPASSRLS directly was rejected — it would defeat tenant isolation for every app query. codex:rescue: **ACCEPT** (no pool-contamination path; `release(true)` is the correct destroy API; transaction-scoped `SET LOCAL ROLE` noted as optional future hardening).
+
+**Prevention:** Migration 0088 makes ownership correct for fresh DBs too (0060 creates as the migration superuser; 0088 transfers). Durable rule: **a materialized view refreshed by a background job must be OWNED BY the (BYPASSRLS) role the job assumes — not the migration superuser; and any background `SET ROLE` to a BYPASSRLS role must RESET-or-destroy the pooled connection.** MV consumers still filter by `tenant_id` (`tools/lint-mv-tenant-filter.ts`) — RLS does not cover MVs.
+
 ## 2026-05-24 — AI question generation produced 0 questions every run (MCP schema-drift rejection loop; prior "turns + rate-limit" diagnosis was incomplete)
 
 **Symptom:** Every admin **Generate Questions** run finished `failed` with `0/N` saved, `MODEL —`, `CHUNKS 1-0` in AI Generation History. `generation_attempts`: `error_code=AIG_RUNTIME_FAILURE`, message "claude subprocess exited with code 1 (skill=generate-questions)". Last success was 2026-05-17 (count=1); every count≥3 run since failed. (`MODEL —`/`CHUNKS 1-0` are display artifacts of the failure-finalize path not recording `model`/`chunks_failed` — symptoms, not the bug.)
