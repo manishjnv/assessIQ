@@ -1,0 +1,418 @@
+---
+// tests/role/backend-developer.astro — Backend Developer Assessment (/tests/role/backend-developer)
+// JSON-LD: Article + ItemList + FAQPage + BreadcrumbList (per SEO §5.2 / §15)
+// NO aggregateRating, NO fabricated stats (SEO §13 hard rule)
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const canonicalPath = '/tests/role/backend-developer';
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Backend Developer Assessment Test: Skills, Battery & Scorecard",
+  "datePublished": "2026-05-24",
+  "dateModified": "2026-05-24",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}${canonicalPath}`,
+  "description": "A structured guide to assessing backend developers in India — covering the competency matrix for server-side roles, recommended test battery (Python, Java, SQL), benchmarking guidance, and sample scorecard."
+};
+
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Backend Developer Assessment Battery — AssessIQ",
+  "description": "Recommended skill tests for backend developer hiring in India.",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Python Online Test",
+      "url": `${site}/tests/python`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Java Online Test",
+      "url": `${site}/tests/java`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "SQL Online Test",
+      "url": `${site}/tests/sql`
+    }
+  ]
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What should a backend developer test include?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A backend developer test should cover at least one primary server-side language (Python or Java), database query skills (SQL — joins, aggregations, window functions, query optimisation), and knowledge of core backend concepts such as REST API design, data structures, and algorithmic reasoning. The language choice depends on the target stack: Python for Django/FastAPI/Flask shops, Java for enterprise and Spring-based teams."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How long should a backend developer assessment take?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A full three-component backend battery (Python or Java + SQL + one language) runs 75–105 minutes: roughly 30–45 minutes per language component and 30 minutes for SQL. If both Python and Java are included for polyglot roles, budget 90–120 minutes. Admins can scope the battery to the specific stack and configure time limits per segment."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Should you test both Python and Java for a backend role?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Only if the role genuinely requires both languages. Testing a candidate in a language they will not use inflates test length without adding signal. For a Django backend role, test Python plus SQL. For a Spring microservices role, test Java plus SQL. The full battery (Python + Java + SQL) is appropriate for polyglot backend roles or senior engineers expected to work across stacks."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How important is SQL in a backend developer assessment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Very important, even for roles using an ORM. Backend engineers who do not understand SQL write inefficient queries via their ORM, miss index opportunities, and produce N+1 query bugs. The SQL component covers joins, aggregations, subqueries, window functions, and query plan reasoning — directly relevant to production backend work."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What differentiates a junior from a senior backend developer on these tests?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Junior candidates typically score well on language syntax and basic queries but struggle with concurrency, transaction isolation, query optimisation, and system design considerations. Senior candidates demonstrate fluency across all competency areas and show consistent reasoning in their approach to edge-case questions. The per-question breakdown in AssessIQ shows where each candidate's knowledge drops off — a more useful signal than the aggregate score alone."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can this battery be used for campus backend developer hiring in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. For campus hiring, the battery is typically scoped to Python or Java (based on curriculum alignment) plus SQL basics, with question difficulty set to entry level. AssessIQ supports bulk invite via CSV and concurrent session handling at scale — suitable for campus drives across engineering colleges in India."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Skill Tests",
+      "item": `${site}/tests`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Backend Developer Assessment"
+      // No "item" — current page
+    }
+  ]
+};
+
+const competencies = [
+  {
+    name: "Server-side language (Python)",
+    detail: "Data structures, OOP, comprehensions, error handling, standard library (itertools, collections), async I/O. Covers Django/FastAPI patterns at mid level."
+  },
+  {
+    name: "Server-side language (Java)",
+    detail: "OOP principles, generics, collections framework, exception handling, multithreading basics, and Spring Boot conventions for enterprise backend roles."
+  },
+  {
+    name: "SQL & database design",
+    detail: "Joins (inner, outer, self), aggregations, subqueries, window functions (ROW_NUMBER, RANK, LEAD/LAG), indexing concepts, and transaction basics (ACID)."
+  },
+  {
+    name: "API design principles",
+    detail: "REST resource design, HTTP method semantics, status codes, pagination, versioning, and error response conventions — the contract a backend exposes to consumers."
+  },
+  {
+    name: "Data structures & algorithms",
+    detail: "Arrays, linked lists, hash maps, trees, and graph traversal at junior-to-mid level. Time and space complexity reasoning for common operations."
+  },
+  {
+    name: "System reliability basics",
+    detail: "Idempotency, retries with backoff, database connection pooling, and caching patterns (cache-aside, write-through). Increasingly tested at senior backend levels."
+  }
+];
+
+const batteryTests = [
+  {
+    slug: 'python',
+    name: 'Python Test',
+    rationale: 'The primary language for Django, FastAPI, and Flask backend roles. Tests OOP, data structures, comprehensions, and standard library — the gap-indicator between junior and mid-level Python developers.'
+  },
+  {
+    slug: 'java',
+    name: 'Java Test',
+    rationale: 'Essential for enterprise and Spring Boot roles. Covers OOP, collections, multithreading, and exception handling — a strong predictor of readiness for large-scale Java systems.'
+  },
+  {
+    slug: 'sql',
+    name: 'SQL Test',
+    rationale: 'Non-negotiable for backend roles. Even ORM-first developers must understand the queries their code generates. Window functions and query optimisation questions separate strong candidates from weak ones.'
+  }
+];
+---
+
+<BaseLayout
+  title="Backend Developer Assessment Test"
+  description="Assess backend developers in India with Python, Java, and SQL tests. Competency matrix, benchmark guidance, and scorecard for server-side role hiring. Structured, proctored, no fabricated stats."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Backend Developer</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Backend Developer</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Backend Developer Assessment Test: Skills, Battery &amp; Scorecard
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        Assessing a backend developer means verifying three things: fluency in a server-side language, the ability to write and reason about SQL, and a working mental model of how backend systems fail. A structured battery covering Python or Java plus SQL gives hiring teams objective, comparable evidence across every candidate in the pool.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Get started free
+        </a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPETENCY MATRIX -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="competency-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Competency matrix</p>
+      <h2 id="competency-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What a backend developer role requires
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {competencies.map(c => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{c.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{c.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- RECOMMENDED BATTERY -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="battery-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Recommended test battery</p>
+      <h2 id="battery-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Language + SQL: the two-component backend signal
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg mb-aiq-2xl">
+        {batteryTests.map((t, i) => (
+          <a
+            href={`/tests/${t.slug}`}
+            class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-accent hover:shadow-aiq-md transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2 flex flex-col gap-aiq-sm no-underline group"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">Test {i + 1}</p>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.rationale}</p>
+          </a>
+        ))}
+      </div>
+      <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Scope to your stack</p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          You do not need to run all three tests for every backend campaign. Python-only shops should test Python + SQL. Java shops should test Java + SQL. The full Python + Java + SQL battery is appropriate for polyglot or platform engineering roles where both language ecosystems appear in production.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENCHMARKING -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="benchmark-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Benchmark &amp; percentile guidance</p>
+      <h2 id="benchmark-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Calibrating shortlist thresholds for backend roles
+      </h2>
+      <div class="max-w-3xl">
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          Backend assessment thresholds should be set relative to the cohort, not against a fixed number. What counts as a strong SQL score at a startup with a self-service data layer differs from the same metric at a company with a heavily normalised reporting database.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Fresher / Trainee</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Language syntax and basic SQL (simple joins, aggregations). Look for candidates who reason through problems, not just those who memorise syntax.</p>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Junior (1&#8211;3 yrs)</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Subqueries, OOP fluency, and basic error handling. SQL window functions at this level is a positive signal; absence is acceptable if language score is strong.</p>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Mid / Senior (3+ yrs)</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Window functions, query plans, concurrency in the language of choice. Senior candidates should score in the upper band on both language and SQL components.</p>
+          </div>
+        </div>
+        <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+          AssessIQ shows per-cohort score distribution alongside each result, so you can set a percentile cutoff that is calibrated to the actual applicant pool for each campaign.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAMPLE SCORECARD -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="scorecard-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample scorecard</p>
+      <h2 id="scorecard-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What reviewers see in the admin dashboard
+      </h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg mt-0">Example: Backend Developer &#8212; Candidate Scorecard</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg mb-aiq-lg">
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Python</p>
+              <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band score</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">OOP, data structures, stdlib</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Java</p>
+              <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band score</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Collections, concurrency, Spring</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">SQL</p>
+              <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band score</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Joins, window functions, indexes</p>
+            </div>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">
+            The dashboard shows band scores per component, a per-question breakdown with the candidate&#39;s submitted answer and the scoring rationale, and any proctoring event flags (tab switches, webcam anomalies). Reviewers see structured evidence, not just a number.
+          </p>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Reading the backend scorecard</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            A candidate who scores in the upper band on language but the lower band on SQL is a trainable backend engineer for ORM-heavy roles &#8212; but a risk for data-intensive or analytics-adjacent work. The inverse (strong SQL, weaker language) can indicate a data or reporting background rather than pure backend engineering. Band-level component scores surface these distinctions that a single aggregate score hides.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about backend developer assessment
+      </h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What should a backend developer test include?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A backend developer test should cover at least one primary server-side language (Python or Java), database query skills (SQL &#8212; joins, aggregations, window functions, query optimisation), and knowledge of core backend concepts such as REST API design, data structures, and algorithmic reasoning.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long should a backend developer assessment take?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A full three-component backend battery runs 75&#8211;105 minutes: roughly 30&#8211;45 minutes per language component and 30 minutes for SQL. If scoped to one language plus SQL, budget 60&#8211;75 minutes. Admins can configure time limits per segment.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Should you test both Python and Java for a backend role?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Only if the role genuinely requires both. For a Django backend role, test Python plus SQL. For a Spring microservices role, test Java plus SQL. The full battery (Python + Java + SQL) suits polyglot or platform engineering roles.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How important is SQL in a backend developer assessment?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Very important, even for ORM-first roles. Backend engineers who do not understand SQL write inefficient ORM queries, miss index opportunities, and produce N+1 bugs. The SQL component covers joins, window functions, and query plan reasoning &#8212; directly relevant to production backend work.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What differentiates a junior from a senior backend developer on these tests?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Junior candidates score well on language syntax and basic queries but struggle with concurrency, transaction isolation, query optimisation, and system design. Senior candidates demonstrate fluency across all areas and show consistent reasoning on edge-case questions. The per-question breakdown shows where knowledge drops off.</p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can this battery be used for campus backend developer hiring in India?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. For campus hiring, scope to Python or Java (based on curriculum alignment) plus SQL basics at entry level. AssessIQ supports bulk invite via CSV and concurrent sessions at scale &#8212; suitable for large campus drives across Indian engineering colleges.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTERNAL LINKS + CTA -->
+  <section class="bg-aiq-bg-base" aria-labelledby="links-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="links-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to screen backend developers?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Start free
+            </a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Pricing
+            </a>
+          </div>
+        </div>
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related pages</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Data structures, OOP, standard library, algorithmic problem-solving.</p></li>
+            <li><a href="/tests/java" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Java Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">OOP, collections, multithreading, Spring basics.</p></li>
+            <li><a href="/tests/sql" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">SQL Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Joins, aggregations, window functions, query optimisation.</p></li>
+            <li><a href="/tests/role/full-stack-developer" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Full-Stack Developer Assessment</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Broader battery adding JavaScript and React to the backend core.</p></li>
+            <li><a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">IT &amp; Technical Hiring</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Full solution overview for technical screening in India.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

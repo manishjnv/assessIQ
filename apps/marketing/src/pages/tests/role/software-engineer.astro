@@ -1,0 +1,435 @@
+---
+// tests/role/software-engineer.astro — Software Engineer Assessment (/tests/role/software-engineer)
+// JSON-LD: Article + ItemList + FAQPage + BreadcrumbList (per SEO §5.2 / §15)
+// NO aggregateRating, NO fabricated stats (SEO §13 hard rule)
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const canonicalPath = '/tests/role/software-engineer';
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Software Engineer Assessment Test: Skills, Battery & Scorecard",
+  "datePublished": "2026-05-24",
+  "dateModified": "2026-05-24",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}${canonicalPath}`,
+  "description": "A structured guide to assessing software engineers in India — covering the competency matrix for SWE roles, recommended test battery (Python, Java, SQL, Logical Reasoning), benchmarking guidance, and sample scorecard."
+};
+
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Software Engineer Assessment Battery — AssessIQ",
+  "description": "Recommended skill tests for software engineer hiring in India.",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Python Online Test",
+      "url": `${site}/tests/python`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Java Online Test",
+      "url": `${site}/tests/java`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "SQL Online Test",
+      "url": `${site}/tests/sql`
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "name": "Logical Reasoning Test",
+      "url": `${site}/tests/logical-reasoning`
+    }
+  ]
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What should a software engineer test include?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A software engineer test should cover at least one programming language in depth (Python or Java are the two most common in India), SQL for database interaction, and logical reasoning to evaluate structured thinking and problem decomposition. For roles at technology companies, algorithmic questions (data structures, time complexity, problem-solving patterns) are an important addition. The battery reflects the breadth of competencies a software engineer deploys across a typical sprint."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why include logical reasoning in a software engineer assessment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Logical reasoning tests — syllogisms, pattern series, assumptions, deductive reasoning — measure structured thinking independent of programming language knowledge. Software engineers regularly encounter problems that require decomposing ambiguous requirements, identifying hidden assumptions in specifications, and reasoning about edge cases. Logical reasoning scores are a leading indicator of these capabilities, particularly for engineers earlier in their careers."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How long should a software engineer assessment take?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A full four-component software engineer battery takes 90–120 minutes: approximately 35–45 minutes per language component, 30 minutes for SQL, and 25 minutes for logical reasoning. For a single-language scope (e.g. Python + SQL + Logical Reasoning), budget 80–90 minutes. Admins can configure segment duration and scope to match the seniority level and available candidate time window."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What differentiates a software engineer assessment from a backend developer assessment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A backend developer assessment is stack-specific — scoped to the server-side language and SQL relevant to a particular backend system. A software engineer assessment is broader and more role-agnostic: it includes logical reasoning to assess structured thinking, and often covers both Python and Java to reflect roles where engineers work across language boundaries. Software engineer roles in Indian IT companies and product firms typically involve a wider range of tasks than a narrowly defined backend developer position."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do you assess a software engineer candidate fairly across different educational backgrounds?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Structured, proctored assessments create a consistent evaluation environment regardless of the candidate's college or prior employer. All candidates face the same questions in the same timed conditions; scoring is automated and rubric-based. The logical reasoning component is particularly useful for comparing candidates across different academic backgrounds because it tests reasoning ability rather than curriculum-specific knowledge."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can this battery be used for campus software engineer hiring in India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The software engineer battery is well-suited to campus hiring in India. The logical reasoning and SQL components complement the coding sections, making the battery appropriate for engineering college graduates who may have more academic than professional experience. AssessIQ supports bulk invite via CSV and concurrent session handling at scale for campus drives."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Skill Tests",
+      "item": `${site}/tests`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Software Engineer Assessment"
+      // No "item" — current page
+    }
+  ]
+};
+
+const competencies = [
+  {
+    name: "Programming language (Python)",
+    detail: "OOP design, data structures, comprehensions, error handling, standard library. Python is one of the two dominant languages for software engineering roles across Indian product and IT services companies."
+  },
+  {
+    name: "Programming language (Java)",
+    detail: "OOP principles, generics, collections framework, exception handling, multithreading, and Spring conventions. Java underpins the majority of enterprise software engineering stacks in India."
+  },
+  {
+    name: "SQL and database interaction",
+    detail: "Joins, aggregations, subqueries, window functions, indexing, and transaction basics. Software engineers write queries that power the systems they build — SQL is not optional, even with an ORM."
+  },
+  {
+    name: "Logical and structured reasoning",
+    detail: "Syllogisms, pattern series, deductive reasoning, critical assumptions. Measures the structured thinking that underlies code design, debugging, and requirements analysis &#8212; independent of language."
+  },
+  {
+    name: "Data structures and algorithms",
+    detail: "Arrays, linked lists, hash maps, stacks, queues, trees, and graph traversal. Time and space complexity reasoning at junior-to-mid level. Directly tested in coding questions within the language components."
+  },
+  {
+    name: "Software design basics",
+    detail: "SOLID principles, common design patterns (Factory, Singleton, Observer), layered architecture, and API contract design. Increasingly assessed for mid-level and senior software engineering roles."
+  }
+];
+
+const batteryTests = [
+  {
+    slug: 'python',
+    name: 'Python Test',
+    rationale: 'One of the two primary languages for Indian software engineering roles. Tests OOP, data structures, comprehensions, and algorithmic problem-solving — revealing both language fluency and engineering thinking.'
+  },
+  {
+    slug: 'java',
+    name: 'Java Test',
+    rationale: 'The dominant language in enterprise software engineering in India. Collections, multithreading, exception handling, and Spring patterns map directly to production Java codebases.'
+  },
+  {
+    slug: 'sql',
+    name: 'SQL Test',
+    rationale: 'Software engineers interact with databases whether or not they own the schema. SQL window functions and subquery fluency separate engineers who can own data interactions from those who cannot.'
+  },
+  {
+    slug: 'logical-reasoning',
+    name: 'Logical Reasoning Test',
+    rationale: 'Structured reasoning is the meta-skill behind debugging, requirements analysis, and system design. Logical reasoning scores predict engineering capability in ways that pure coding tests do not always surface.'
+  }
+];
+---
+
+<BaseLayout
+  title="Software Engineer Assessment Test"
+  description="Assess software engineers in India with Python, Java, SQL, and Logical Reasoning tests. Competency matrix, benchmark guidance, and scorecard for SWE hiring. Structured, proctored, no fabricated stats."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Software Engineer</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Software Engineer</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Software Engineer Assessment Test: Skills, Battery &amp; Scorecard
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        Assessing a software engineer means going beyond a single coding test. A structured battery covering Python, Java, SQL, and logical reasoning evaluates programming language fluency, database skills, and the structured thinking that underlies sound engineering — giving hiring teams a multi-dimensional signal rather than a single pass/fail score.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Get started free
+        </a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPETENCY MATRIX -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="competency-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Competency matrix</p>
+      <h2 id="competency-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What a software engineer role requires
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {competencies.map(c => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{c.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{c.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- RECOMMENDED BATTERY -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="battery-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Recommended test battery</p>
+      <h2 id="battery-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Language, database, and reasoning: the SWE triangle
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-aiq-lg mb-aiq-2xl">
+        {batteryTests.map((t, i) => (
+          <a
+            href={`/tests/${t.slug}`}
+            class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-accent hover:shadow-aiq-md transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2 flex flex-col gap-aiq-sm no-underline group"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">Test {i + 1}</p>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.rationale}</p>
+          </a>
+        ))}
+      </div>
+      <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Single-language variant</p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          For roles tied to a specific stack, scope to one language (Python or Java) plus SQL and Logical Reasoning. The three-component variant takes 80&#8211;90 minutes and is sufficient for roles where bilingual language coverage is not required.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENCHMARKING -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="benchmark-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Benchmark &amp; percentile guidance</p>
+      <h2 id="benchmark-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Calibrating thresholds for software engineer roles
+      </h2>
+      <div class="max-w-3xl">
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          Software engineer is a broad title in India spanning roles from campus trainee to staff engineer. The right threshold varies significantly across this range. The logical reasoning component adds a useful dimension that pure coding tests miss: candidates who score well on reasoning but less well on a specific language are often faster to train than candidates with the opposite profile.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Campus / Fresher</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Logical reasoning and one language component carry the most predictive weight. Strong reasoning + mid-band language is a better signal than weak reasoning + strong language for trainee roles.</p>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Junior SWE (1&#8211;3 yrs)</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Language fluency and SQL are the primary shortlist signals. Logical reasoning serves as a tiebreaker and a check on problem-solving approach when coding scores are close.</p>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Mid / Senior SWE</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Upper band expected on both language and SQL. Logical reasoning score informs how the engineer handles ambiguity and design trade-offs &#8212; a senior signal beyond syntax and query writing.</p>
+          </div>
+        </div>
+        <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+          AssessIQ shows per-cohort score distribution alongside each result. Set percentile-based thresholds per component relative to your actual candidate pool.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAMPLE SCORECARD -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="scorecard-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample scorecard</p>
+      <h2 id="scorecard-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Four-component view in the admin dashboard
+      </h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg mt-0">Example: Software Engineer &#8212; Candidate Scorecard</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-aiq-md mb-aiq-lg">
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Python</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">OOP, DSA, stdlib</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Java</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Collections, threads</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">SQL</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Joins, window fns</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Reasoning</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Syllogisms, patterns</p>
+            </div>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">
+            Band scores per component, per-question breakdown with submitted answers and scoring rationale, and proctoring event flags. The four-component view lets reviewers distinguish strong broad engineers from language-specific specialists.
+          </p>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Why logical reasoning completes the picture</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Two candidates with identical Python and SQL scores may reason very differently about ambiguous engineering problems. A candidate in the upper band on logical reasoning who scores mid-band on Java is likely faster to onboard onto a Java codebase than a candidate with the opposite profile. The reasoning component makes this visible before the interview stage.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about software engineer assessment
+      </h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What should a software engineer test include?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A software engineer test should cover at least one programming language in depth (Python or Java are the most common in India), SQL for database interaction, and logical reasoning to evaluate structured thinking. For technology company roles, algorithmic questions (data structures, time complexity) are an important addition within the language components.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Why include logical reasoning in a software engineer assessment?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Logical reasoning measures structured thinking independent of programming language knowledge. Software engineers regularly decompose ambiguous requirements, identify hidden assumptions, and reason about edge cases. Logical reasoning scores are a leading indicator of these capabilities, particularly for engineers earlier in their careers.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long should a software engineer assessment take?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A full four-component battery takes 90&#8211;120 minutes. For a single-language scope (Python or Java + SQL + Logical Reasoning), budget 80&#8211;90 minutes. Admins can configure segment duration and scope to match seniority level and available candidate time.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What differentiates a software engineer assessment from a backend developer assessment?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A backend developer assessment is stack-specific &#8212; scoped to the server-side language and SQL relevant to a particular backend system. A software engineer assessment is broader: it includes logical reasoning to assess structured thinking, and often covers both Python and Java for roles where engineers work across language boundaries.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How do you assess a software engineer fairly across different educational backgrounds?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Structured, proctored assessments create a consistent evaluation environment regardless of college or prior employer. All candidates face the same questions in the same timed conditions; scoring is automated and rubric-based. The logical reasoning component is particularly useful for comparing candidates across academic backgrounds because it tests reasoning, not curriculum-specific knowledge.</p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can this battery be used for campus software engineer hiring in India?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. The software engineer battery is well-suited to campus hiring. The logical reasoning and SQL components complement the coding sections, making the battery appropriate for engineering college graduates with more academic than professional experience. AssessIQ supports bulk invite and concurrent sessions at scale for campus drives.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTERNAL LINKS + CTA -->
+  <section class="bg-aiq-bg-base" aria-labelledby="links-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="links-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to screen software engineers?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Start free
+            </a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Pricing
+            </a>
+          </div>
+        </div>
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related pages</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Data structures, OOP, algorithmic problem-solving.</p></li>
+            <li><a href="/tests/java" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Java Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Collections, multithreading, Spring basics.</p></li>
+            <li><a href="/tests/logical-reasoning" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Logical Reasoning Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Syllogisms, patterns, deductive and critical reasoning.</p></li>
+            <li><a href="/tests/role/backend-developer" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Backend Developer Assessment</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Stack-specific battery for server-side and API roles.</p></li>
+            <li><a href="/tests/role/full-stack-developer" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Full-Stack Developer Assessment</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">JavaScript, React, SQL, Python for roles spanning both layers.</p></li>
+            <li><a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">IT &amp; Technical Hiring</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Full solution overview for technical screening in India.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

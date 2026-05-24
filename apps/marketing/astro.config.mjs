@@ -60,6 +60,11 @@ function inlineSitemap() {
     { loc: `${SITE}/resources/technical-hiring-india-guide`,       lastmod: today },
     { loc: `${SITE}/resources/reducing-bias-technical-hiring`,     lastmod: today },
     { loc: `${SITE}/resources/remote-proctoring-integrity`,        lastmod: today },
+    { loc: `${SITE}/tests/role/frontend-developer`,               lastmod: today },
+    { loc: `${SITE}/tests/role/backend-developer`,                lastmod: today },
+    { loc: `${SITE}/tests/role/full-stack-developer`,             lastmod: today },
+    { loc: `${SITE}/tests/role/data-analyst`,                     lastmod: today },
+    { loc: `${SITE}/tests/role/software-engineer`,                lastmod: today },
   ];
 
   function urlsetXml(urls) {

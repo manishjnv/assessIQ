@@ -1,0 +1,430 @@
+---
+// tests/role/full-stack-developer.astro — Full-Stack Developer Assessment (/tests/role/full-stack-developer)
+// JSON-LD: Article + ItemList + FAQPage + BreadcrumbList (per SEO §5.2 / §15)
+// NO aggregateRating, NO fabricated stats (SEO §13 hard rule)
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const canonicalPath = '/tests/role/full-stack-developer';
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Full-Stack Developer Assessment Test: Skills, Battery & Scorecard",
+  "datePublished": "2026-05-24",
+  "dateModified": "2026-05-24",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}${canonicalPath}`,
+  "description": "A structured guide to assessing full-stack developers in India — competency matrix spanning frontend and backend, recommended four-test battery (JavaScript, React, SQL, Python), benchmarking guidance, and scorecard."
+};
+
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Full-Stack Developer Assessment Battery — AssessIQ",
+  "description": "Recommended skill tests for full-stack developer hiring in India.",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "JavaScript Online Test",
+      "url": `${site}/tests/javascript`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "React Online Test",
+      "url": `${site}/tests/react`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "SQL Online Test",
+      "url": `${site}/tests/sql`
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "name": "Python Online Test",
+      "url": `${site}/tests/python`
+    }
+  ]
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What should a full-stack developer test include?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A full-stack developer test should span both frontend and backend competencies: JavaScript language fundamentals and React for the client-side layer, Python (or Java) for the server-side layer, and SQL for database interaction. The combination reveals whether a candidate can own a feature end-to-end — from browser rendering to API design to database query — rather than excelling in one layer and being weak in another."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is a four-test battery too long for full-stack candidates?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "At 90–120 minutes total, the four-component battery is manageable when each segment runs 20–30 minutes. The alternative — skipping components — creates blind spots. If timeline is a constraint, prioritise the stack the role actually uses day-to-day: JavaScript + React for product-facing roles, SQL + Python for data-adjacent full-stack work. Admins can configure segment duration and scope per campaign."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do you calibrate a full-stack developer shortlist threshold?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Full-stack roles rarely require maximum depth in every component. A candidate who scores in the upper band on JavaScript and React but the middle band on SQL may be an excellent frontend-leaning full-stack engineer — a better fit for product UI work than for API-heavy data systems. Review the per-component band scores, not just the total, to match candidate strengths to role requirements."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What Python topics are relevant for a full-stack developer?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "For full-stack roles, the relevant Python competencies are: REST API development patterns (request/response handling, serialisation, error formats), OOP and data structure fluency, and familiarity with common web framework conventions (Django ORM, FastAPI routing). Deep algorithmic Python (generators, metaclasses) is secondary for most full-stack positions."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does a full-stack assessment differ from separate frontend and backend assessments?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A full-stack assessment evaluates breadth across layers rather than depth in one. The same candidate pool is scored on all four components, making it possible to distinguish frontend-leaning full-stack candidates from backend-leaning ones within a single hiring campaign. Separate frontend and backend assessments target specialised role pipelines; a full-stack battery is for roles that genuinely require ownership across the entire feature layer."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can AssessIQ run a full-stack assessment for remote hiring across India?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The full four-component battery runs in a single proctored browser session — no software install, no switching platforms. Bulk invite via CSV or shareable link supports geographically distributed candidates. Proctoring (tab-switch detection, webcam monitoring, full-screen enforcement) runs throughout the session."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Skill Tests",
+      "item": `${site}/tests`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Full-Stack Developer Assessment"
+      // No "item" — current page
+    }
+  ]
+};
+
+const competencies = [
+  {
+    name: "JavaScript language (frontend layer)",
+    detail: "Closures, event loop, async/await, Promises, ES6+ destructuring and spread — the shared language of frontend and Node.js backend. Non-negotiable for full-stack engineers."
+  },
+  {
+    name: "React (UI layer)",
+    detail: "Functional components, hooks (useState, useEffect, useCallback, useMemo), state lifting, context, and performance optimisation. The dominant UI library for full-stack product teams in India."
+  },
+  {
+    name: "Python (backend layer)",
+    detail: "REST API patterns, OOP design, data structures, and web framework conventions (Django ORM, FastAPI). The server-side complement to a JavaScript/React frontend in many Indian product companies."
+  },
+  {
+    name: "SQL (data layer)",
+    detail: "Joins, aggregations, subqueries, window functions, and index basics. Full-stack engineers write queries that power the APIs they also design — SQL fluency is not optional."
+  },
+  {
+    name: "API integration patterns",
+    detail: "HTTP semantics, JSON serialisation, pagination, error handling, authentication (token-based), and CORS — the contract between frontend and backend that a full-stack engineer owns on both sides."
+  },
+  {
+    name: "Cross-layer debugging",
+    detail: "Ability to trace a bug from browser devtools through network requests to server logs to a database query. Full-stack engineers are expected to isolate failures across all layers without handing off."
+  }
+];
+
+const batteryTests = [
+  {
+    slug: 'javascript',
+    name: 'JavaScript Test',
+    rationale: 'The language foundation for both the React frontend and potential Node.js backend. Tests closures, event loop, async patterns, and ES6+ — competency that transfers across the full stack.'
+  },
+  {
+    slug: 'react',
+    name: 'React Test',
+    rationale: 'The UI layer. Hooks, state, component design, and performance reveal whether the candidate can build and maintain production-grade React frontends without specialised help.'
+  },
+  {
+    slug: 'sql',
+    name: 'SQL Test',
+    rationale: 'The data layer. Full-stack engineers write the API endpoints and the queries powering them. SQL fluency is what separates engineers who own the full feature from those who need a backend specialist for data work.'
+  },
+  {
+    slug: 'python',
+    name: 'Python Test',
+    rationale: 'The server-side layer for Django/FastAPI stacks. Tests OOP, data structures, and standard library — the backend complement to the JavaScript/React frontend in many Indian product companies.'
+  }
+];
+---
+
+<BaseLayout
+  title="Full-Stack Developer Assessment Test"
+  description="Assess full-stack developers in India with a four-test battery: JavaScript, React, SQL, and Python. Competency matrix, benchmarking, and scorecard guidance for hiring teams. No fabricated numbers."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Full-Stack Developer</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Full-Stack Developer</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Full-Stack Developer Assessment Test: Skills, Battery &amp; Scorecard
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        Assessing a full-stack developer means verifying competency across four layers: JavaScript and React for the client-side, Python for the server-side, and SQL for the database. A battery that tests all four reveals whether a candidate can genuinely own a feature end-to-end, or whether they have depth in one layer and gaps in the others.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Get started free
+        </a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPETENCY MATRIX -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="competency-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Competency matrix</p>
+      <h2 id="competency-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What a full-stack developer role requires
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {competencies.map(c => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{c.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{c.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- RECOMMENDED BATTERY -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="battery-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Recommended test battery</p>
+      <h2 id="battery-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Four tests, full-stack coverage
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-aiq-lg mb-aiq-2xl">
+        {batteryTests.map((t, i) => (
+          <a
+            href={`/tests/${t.slug}`}
+            class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-accent hover:shadow-aiq-md transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2 flex flex-col gap-aiq-sm no-underline group"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">Test {i + 1}</p>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.rationale}</p>
+          </a>
+        ))}
+      </div>
+      <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Scope by role emphasis</p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          If the role is frontend-leaning full-stack, prioritise JavaScript + React + SQL. If the role is backend-leaning, prioritise Python + SQL + JavaScript. The four-test battery is the full picture; scoped versions reduce session length when the role has a clear emphasis.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENCHMARKING -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="benchmark-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Benchmark &amp; percentile guidance</p>
+      <h2 id="benchmark-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Reading full-stack scores across four components
+      </h2>
+      <div class="max-w-3xl">
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          Full-stack assessment is about breadth, not uniform depth. Very few candidates score at the top band across all four components. The signal to look for is a consistent middle-to-upper band across the board, rather than a perfect score on one component and a weak score on another.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Strong full-stack signal</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Upper-middle band on all four components. Can contribute meaningfully to a sprint task that touches UI, API, and database without needing specialist help at any layer.</p>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Specialist with full-stack label</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Top band on one or two components, lower band on others. May be a better fit for a specialised role. Per-component bands surface this pattern; an aggregate score would hide it.</p>
+          </div>
+        </div>
+        <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+          AssessIQ shows each score alongside the distribution for your current campaign cohort. Set percentile-based thresholds per component, not a single aggregated cutoff.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAMPLE SCORECARD -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="scorecard-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample scorecard</p>
+      <h2 id="scorecard-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Four-component view in the admin dashboard
+      </h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg mt-0">Example: Full-Stack Developer &#8212; Candidate Scorecard</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-aiq-md mb-aiq-lg">
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">JavaScript</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Closures, async, ES6+</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">React</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Hooks, state, perf</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">SQL</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Joins, window fns</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Python</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">OOP, stdlib, API patterns</p>
+            </div>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">
+            Each component shows a band score, a per-question breakdown with submitted answers and scoring rationale, and proctoring flags. Reviewers can compare candidates across all four layers simultaneously.
+          </p>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Why four bands beat one total</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            A total score of 72 across four tests tells you almost nothing about a full-stack candidate. A candidate at 90/90/40/80 and a candidate at 68/68/72/76 have very different skill profiles despite similar totals. Band scores per component let you match the candidate to the actual layer emphasis of the role.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about full-stack developer assessment
+      </h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What should a full-stack developer test include?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A full-stack developer test should span both frontend and backend competencies: JavaScript and React for the client-side layer, Python for the server-side layer, and SQL for database interaction. The combination reveals whether a candidate can own a feature end-to-end, rather than excelling in one layer and being weak in another.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is a four-test battery too long for full-stack candidates?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">At 90&#8211;120 minutes total, the four-component battery is manageable when each segment runs 20&#8211;30 minutes. If timeline is a constraint, prioritise the stack the role uses day-to-day: JavaScript + React for product-facing roles, SQL + Python for data-adjacent full-stack work. Admins can configure segment duration and scope per campaign.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How do you calibrate a full-stack developer shortlist threshold?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Full-stack roles rarely require maximum depth in every component. A candidate in the upper band on JavaScript and React but the middle band on SQL may be an excellent frontend-leaning full-stack engineer. Review per-component band scores, not just the total, to match candidate strengths to role requirements.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What Python topics are relevant for a full-stack developer?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">For full-stack roles, the relevant Python competencies are: REST API patterns (request/response handling, serialisation, error formats), OOP and data structure fluency, and familiarity with web framework conventions (Django ORM, FastAPI routing). Deep algorithmic Python is secondary for most full-stack positions.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How does a full-stack assessment differ from separate frontend and backend assessments?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A full-stack assessment evaluates breadth across layers rather than depth in one. The same candidate pool is scored on all four components, making it possible to distinguish frontend-leaning from backend-leaning full-stack candidates within a single campaign. Separate assessments target specialised role pipelines; a full-stack battery is for roles that require ownership across the entire feature layer.</p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can AssessIQ run a full-stack assessment for remote hiring across India?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. The four-component battery runs in a single proctored browser session &#8212; no software install, no platform switching. Bulk invite via CSV or shareable link supports geographically distributed candidates. Proctoring runs throughout the entire session.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTERNAL LINKS + CTA -->
+  <section class="bg-aiq-bg-base" aria-labelledby="links-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="links-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to screen full-stack developers?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Start free
+            </a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Pricing
+            </a>
+          </div>
+        </div>
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related pages</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/javascript" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">JavaScript Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Language-level JavaScript screening.</p></li>
+            <li><a href="/tests/react" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">React Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Hooks, state management, and React performance.</p></li>
+            <li><a href="/tests/role/frontend-developer" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Frontend Developer Assessment</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">JavaScript + React + Aptitude battery for frontend-only roles.</p></li>
+            <li><a href="/tests/role/backend-developer" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Backend Developer Assessment</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Python + Java + SQL battery for server-side roles.</p></li>
+            <li><a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">IT &amp; Technical Hiring</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Full solution overview for technical screening in India.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
