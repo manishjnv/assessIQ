@@ -4,6 +4,13 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-24 — Platform email sent from a personal Gmail (sender leak + contact-form self-dedup)
+
+**Symptom:** All transactional email (login OTPs, invites) — and the new contact-form enquiries — were sent **From `manishjnvk@gmail.com`** via Gmail SMTP. Contact enquiries (which route `connect@assessiq.in` → Cloudflare Email Routing → `manishjnvk@gmail.com`) were **deduped out of the Inbox** by Gmail because sender == recipient; they appeared "missing" (surfaced by a Cloudflare "missing email" notice). Personal address also leaked as the sender of every OTP/invite.
+**Cause:** `/srv/assessiq/.env` had `EMAIL_FROM="AssessIQ <manishjnvk@gmail.com>"` and `SMTP_URL` → `smtp.gmail.com` (personal app-password), despite `modules/13-notifications/SKILL.md` documenting Resend as the default. Gmail SMTP forces the From to the authenticated account, so `EMAIL_FROM` could not be corrected without swapping the transport. Flagged in the 2026-05-21 email audit; unresolved until now.
+**Fix:** Verified `assessiq.in` in Resend (DKIM `resend._domainkey` + SPF/MX on `send.assessiq.in` via Cloudflare). Switched `/srv/assessiq/.env`: `SMTP_URL=smtps://resend:<key>@smtp.resend.com:465`, `EMAIL_FROM="AssessIQ <noreply@assessiq.in>"`. Recreated `assessiq-api` + `assessiq-worker` (2026-05-24). Verified end-to-end: contact enquiry + login OTP both deliver to the Inbox From `noreply@assessiq.in`. `.env.bak.<ts>` kept for rollback. See `docs/06-deployment.md` § "Platform email sender → Resend".
+**Prevention:** Manual discipline — `.env` is gitignored, so the live sender is now documented in `docs/06-deployment.md`. Candidate guard: a startup assertion that `EMAIL_FROM`'s domain is a verified sending domain (reject `gmail.com`/personal) would catch a regression at boot.
+
 ## 2026-05-23 — Duplicate question-set clones possible under concurrent clone-on-use (caught pre-deploy)
 
 **Symptom:** Caught in the Step-2 adversarial review (Sonnet), NOT in production. Concurrent `POST /api/admin/assessments/from-set` for the same `(tenant, source platform pack)` could each create a separate cloned pack in the company tenant — duplicating the set. Blast radius is the tenant's OWN data (no cross-tenant leak / no authz bypass), but it's a correctness/accounting defect.

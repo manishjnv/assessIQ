@@ -1,0 +1,434 @@
+---
+// tests/role/data-analyst.astro — Data Analyst Assessment (/tests/role/data-analyst)
+// JSON-LD: Article + ItemList + FAQPage + BreadcrumbList (per SEO §5.2 / §15)
+// NO aggregateRating, NO fabricated stats (SEO §13 hard rule)
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const canonicalPath = '/tests/role/data-analyst';
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Data Analyst Assessment Test: Skills, Battery & Scorecard",
+  "datePublished": "2026-05-24",
+  "dateModified": "2026-05-24",
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}${canonicalPath}`,
+  "description": "A structured guide to assessing data analysts in India — covering the competency matrix for data roles, recommended test battery (SQL, Python, Aptitude, English), benchmarking guidance, and sample scorecard."
+};
+
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Data Analyst Assessment Battery — AssessIQ",
+  "description": "Recommended skill tests for data analyst hiring in India.",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "SQL Online Test",
+      "url": `${site}/tests/sql`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Python Online Test",
+      "url": `${site}/tests/python`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Aptitude Test",
+      "url": `${site}/tests/aptitude`
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "name": "English Test",
+      "url": `${site}/tests/english`
+    }
+  ]
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What should a data analyst test include?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A data analyst test should cover SQL for data extraction and transformation (joins, aggregations, window functions, subqueries), Python scripting for data manipulation and analysis (pandas operations, data cleaning patterns), numerical aptitude for quantitative reasoning, and English communication for report writing and stakeholder-facing output. The mix reflects the actual day-to-day work of a data analyst: query, clean, analyse, communicate."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why is English included in a data analyst assessment?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Data analysts communicate findings to non-technical stakeholders — in written reports, dashboard annotations, and presentation decks. Poor written communication means correct analysis fails to influence decisions. The English component tests grammar, vocabulary, business writing, and reading comprehension — all directly relevant to how a data analyst's output is received by the business."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How long should a data analyst assessment take?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A full four-component data analyst battery takes 80–100 minutes: approximately 30 minutes for SQL, 25 minutes for Python, 20 minutes for aptitude, and 20 minutes for English. For junior or fresher analyst roles, scoping to SQL plus aptitude reduces the session to 50 minutes while still covering the two most critical competencies."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What SQL topics are tested for data analyst roles?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The SQL component for data analyst roles emphasises analytical query patterns: complex joins across multiple tables, aggregation with GROUP BY and HAVING, window functions (ROW_NUMBER, RANK, SUM OVER, LAG/LEAD), subqueries and CTEs for multi-step transformations, and query efficiency considerations. These map directly to the kinds of queries analysts write against reporting databases or data warehouses."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What Python topics are tested for data analyst roles?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The Python component for data analyst roles focuses on scripting fluency relevant to data work: data structure manipulation (lists, dicts, comprehensions), file I/O and string parsing, and general Python syntax and error handling. Deep algorithmic Python or OOP design patterns are secondary — the test validates that the analyst can write reliable scripts for data cleaning, transformation, and automation tasks."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can the data analyst battery be used for BI or reporting analyst roles?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The SQL and aptitude components are highly relevant to BI and reporting analyst roles, which typically rely on SQL for data extraction and quantitative reasoning for interpreting results. The English component is particularly important for BI analysts who produce executive dashboards and written commentary. Python is optional for pure BI roles — admins can scope the battery to SQL, aptitude, and English for reporting-focused positions."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Skill Tests",
+      "item": `${site}/tests`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Data Analyst Assessment"
+      // No "item" — current page
+    }
+  ]
+};
+
+const competencies = [
+  {
+    name: "SQL for data extraction",
+    detail: "Joins (inner, left, self, cross), aggregations with GROUP BY and HAVING, subqueries, CTEs, and window functions (ROW_NUMBER, RANK, SUM OVER, LAG/LEAD). The core tool of every data analyst."
+  },
+  {
+    name: "Python scripting for data work",
+    detail: "Data structure manipulation, file parsing, string operations, comprehensions, and error handling. Validates that the analyst can write reliable data cleaning and transformation scripts."
+  },
+  {
+    name: "Numerical aptitude",
+    detail: "Percentage calculations, ratio and proportion, data interpretation from tables and charts, and basic statistical reasoning. Reflects the quantitative analysis tasks analysts perform daily."
+  },
+  {
+    name: "English communication",
+    detail: "Grammar, vocabulary, reading comprehension, and business writing. Data analysts present findings to non-technical stakeholders — written communication quality directly determines whether analysis influences decisions."
+  },
+  {
+    name: "Data interpretation",
+    detail: "Reading and interpreting visualisations, identifying trends and anomalies in tabular data, and drawing defensible conclusions from incomplete information. Covered within the aptitude component."
+  },
+  {
+    name: "Analytical reasoning",
+    detail: "Logical deduction, structured problem decomposition, and identifying assumptions in data-driven arguments. Relevant for analysts working with ambiguous or contradictory data sets."
+  }
+];
+
+const batteryTests = [
+  {
+    slug: 'sql',
+    name: 'SQL Test',
+    rationale: 'The primary tool of every data analyst. Window functions, CTEs, and complex joins separate analysts who can do self-service data extraction from those who need DBA help for every non-trivial query.'
+  },
+  {
+    slug: 'python',
+    name: 'Python Test',
+    rationale: 'Validates scripting fluency for data cleaning, transformation, and automation. Analysts who can write Python scripts multiply their productivity beyond what SQL alone allows.'
+  },
+  {
+    slug: 'aptitude',
+    name: 'Aptitude Test',
+    rationale: 'Numerical reasoning and data interpretation mirror the quantitative thinking required for analytics work. Also a strong predictor of training success for fresher analyst roles.'
+  },
+  {
+    slug: 'english',
+    name: 'English Test',
+    rationale: 'Report writing, dashboard annotation, and stakeholder communication are core analyst deliverables. English fluency determines whether correct analysis actually reaches decision-makers effectively.'
+  }
+];
+---
+
+<BaseLayout
+  title="Data Analyst Assessment Test"
+  description="Assess data analysts in India with SQL, Python, Aptitude, and English tests. Competency matrix, benchmark guidance, and scorecard for analytics role hiring. Structured, proctored, no fabricated stats."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/tests" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Skill Tests</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Data Analyst</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Data Analyst</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Data Analyst Assessment Test: Skills, Battery &amp; Scorecard
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        Assessing a data analyst requires more than a SQL quiz. A structured battery tests the four competencies the role actually demands: SQL for data extraction, Python for scripting and automation, numerical aptitude for quantitative reasoning, and English for communicating findings to stakeholders. Together they reveal whether a candidate can complete the full analysis cycle, not just write queries.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Get started free
+        </a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPETENCY MATRIX -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="competency-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Competency matrix</p>
+      <h2 id="competency-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What a data analyst role requires
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
+        {competencies.map(c => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{c.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{c.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- RECOMMENDED BATTERY -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="battery-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Recommended test battery</p>
+      <h2 id="battery-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        The full analyst cycle: query, script, reason, communicate
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-aiq-lg mb-aiq-2xl">
+        {batteryTests.map((t, i) => (
+          <a
+            href={`/tests/${t.slug}`}
+            class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl hover:border-aiq-accent hover:shadow-aiq-md transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2 flex flex-col gap-aiq-sm no-underline group"
+          >
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">Test {i + 1}</p>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">{t.name}</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.rationale}</p>
+          </a>
+        ))}
+      </div>
+      <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Scope for BI and reporting roles</p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          For BI or reporting analyst roles that do not involve Python scripting, the recommended scope is SQL + Aptitude + English. The English component is especially important for analysts who produce written dashboards and executive summaries as primary deliverables.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENCHMARKING -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="benchmark-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Benchmark &amp; percentile guidance</p>
+      <h2 id="benchmark-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Setting shortlist thresholds for data analyst roles
+      </h2>
+      <div class="max-w-3xl">
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          Data analyst roles vary significantly in technical depth. A business analyst role in a fintech company may demand sophisticated SQL and Python, while a reporting analyst role at a smaller company may primarily need strong SQL and English. Calibrate the battery scope and difficulty to the actual role before setting a threshold.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg mb-aiq-xl">
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Junior / Fresher</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">SQL basics (joins, aggregations), aptitude in the upper half of the cohort, and reasonable English score. Python is optional at this level &#8212; prioritise trainability over existing proficiency.</p>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Mid-level (2&#8211;5 yrs)</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Window functions and subqueries in SQL, Python scripting fluency, and strong English. Aptitude still matters but is not the primary shortlist driver for candidates with a track record.</p>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Senior Analyst</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Upper band on SQL (CTEs, window functions, optimisation), Python data-manipulation fluency, and polished English. Look for candidates in the top tier of the cohort on SQL and English combined.</p>
+          </div>
+        </div>
+        <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+          AssessIQ shows per-cohort score distribution alongside each result. Set thresholds relative to your actual candidate pool, not an abstract norm.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAMPLE SCORECARD -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="scorecard-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample scorecard</p>
+      <h2 id="scorecard-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        What the admin dashboard shows for a data analyst candidate
+      </h2>
+      <div class="max-w-3xl">
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg mt-0">Example: Data Analyst &#8212; Candidate Scorecard</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-aiq-md mb-aiq-lg">
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">SQL</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Joins, window fns, CTEs</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Python</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Scripting, data ops</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">Aptitude</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Numerical, data interp</p>
+            </div>
+            <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-md p-aiq-lg text-center">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-xs mt-0">English</p>
+              <p class="font-serif text-aiq-xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Band</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Grammar, comprehension, writing</p>
+            </div>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">
+            Band scores per component, per-question breakdown with submitted answers and scoring rationale, and proctoring event flags. Reviewers see the full evidence profile, not just a total.
+          </p>
+        </div>
+        <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">The English component as a differentiator</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            For data analyst roles, candidates with near-identical SQL scores are often differentiated by the English component. Analysis that is technically correct but poorly communicated does not move decisions. The English band score surfaces this before the interview stage &#8212; saving interview time for candidates who can genuinely complete the full analyst cycle.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about data analyst assessment
+      </h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What should a data analyst test include?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A data analyst test should cover SQL for data extraction and transformation, Python scripting for data manipulation and analysis, numerical aptitude for quantitative reasoning, and English communication for report writing and stakeholder-facing output. The mix reflects the actual day-to-day work of a data analyst: query, clean, analyse, communicate.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Why is English included in a data analyst assessment?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Data analysts communicate findings to non-technical stakeholders in written reports, dashboard annotations, and presentations. Poor written communication means correct analysis fails to influence decisions. The English component tests grammar, vocabulary, business writing, and reading comprehension &#8212; directly relevant to how a data analyst&#39;s output is received.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long should a data analyst assessment take?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A full four-component data analyst battery takes 80&#8211;100 minutes: approximately 30 minutes for SQL, 25 minutes for Python, 20 minutes for aptitude, and 20 minutes for English. For junior or fresher roles, scoping to SQL plus aptitude reduces the session to 50 minutes while covering the two most critical competencies.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What SQL topics are tested for data analyst roles?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The SQL component for data analyst roles emphasises analytical query patterns: complex joins, aggregations with GROUP BY and HAVING, window functions (ROW_NUMBER, RANK, SUM OVER, LAG/LEAD), subqueries and CTEs. These map directly to the queries analysts write against reporting databases or data warehouses.</p>
+        </div>
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What Python topics are tested for data analyst roles?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The Python component focuses on scripting fluency relevant to data work: data structure manipulation, file I/O, string parsing, comprehensions, and error handling. The test validates that the analyst can write reliable scripts for data cleaning, transformation, and automation &#8212; not deep algorithmic Python.</p>
+        </div>
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can the data analyst battery be used for BI or reporting analyst roles?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. The SQL and aptitude components are highly relevant for BI and reporting roles. The English component is particularly important for BI analysts who produce executive dashboards. Python is optional for pure BI roles &#8212; admins can scope to SQL, aptitude, and English.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTERNAL LINKS + CTA -->
+  <section class="bg-aiq-bg-base" aria-labelledby="links-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="links-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to screen data analyst candidates?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md">
+            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Start free
+            </a>
+            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              Pricing
+            </a>
+          </div>
+        </div>
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related pages</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li><a href="/tests/sql" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">SQL Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Joins, aggregations, window functions, CTEs.</p></li>
+            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Data structures, OOP, scripting, standard library.</p></li>
+            <li><a href="/tests/role/software-engineer" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Software Engineer Assessment</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Python + Java + SQL + Logical Reasoning for engineering roles.</p></li>
+            <li><a href="/tests/role/backend-developer" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Backend Developer Assessment</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Server-side language and SQL battery for API and systems roles.</p></li>
+            <li><a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">IT &amp; Technical Hiring</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Full solution overview for technical screening in India.</p></li>
+            <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

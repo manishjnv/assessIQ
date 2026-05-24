@@ -169,6 +169,12 @@ function renderVerifyPage(data: VerifyPageData): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Certificate Verification — AssessIQ</title>
+  <!-- Privacy: candidate verify pages are NOT bulk-indexed by search engines —
+       each shows a person's name + result, and §10 (SEO_Strategy) mandates
+       opt-in only. The page stays public-by-URL for on-demand verification, and
+       LinkedIn/OG sharing is UNAFFECTED (social crawlers ignore robots noindex;
+       it only opts the page out of Google's/Bing's search index). -->
+  <meta name="robots" content="noindex,follow" />
   ${ogMeta}
   ${jsonLd}
   <style>
@@ -537,6 +543,10 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         .code(200)
         .header('content-type', 'image/svg+xml')
         .header('cache-control', 'public, max-age=3600')
+        // X-Robots-Tag noindex: the image bakes in the candidate's name + result,
+        // so keep it out of image search (the HTML verify page is noindex too).
+        // Social unfurlers ignore this header, so LinkedIn/OG previews still work.
+        .header('x-robots-tag', 'noindex')
         .send(renderOgSvg(cert, status));
     },
   );
@@ -574,6 +584,9 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         .code(200)
         .header('content-type', 'image/png')
         .header('cache-control', 'public, max-age=3600')
+        // X-Robots-Tag noindex: keep the candidate-PII share image out of image
+        // search. LinkedIn/social crawlers ignore it, so previews still render.
+        .header('x-robots-tag', 'noindex')
         .send(png);
     },
   );

@@ -1,3 +1,43 @@
+# Session — 2026-05-24 (SEO backlog cleared — role pages, search, calculator, OG images, verify-page privacy)
+
+**Headline:** Shipped the remaining DOABLE SEO backlog on the Astro marketing site, then closed the §10 privacy gap on the candidate share-flywheel (which was ALREADY fully built in `modules/18-certification`). All additive; the React app was untouched except a privacy-only `noindex` meta on the certification verify page.
+**Commits (main):** `9e671d4` ASMT-14 — 5 role-based test pages (`/tests/role/*`) + /tests "by role" section · `5418421` ASMT-21 Pagefind search + `WebSite` SearchAction, ASMT-22 cost-of-a-bad-hire calculator (`/tools/*`), ASMT-08 per-page OG images (astro-og-canvas; marketing Docker builder alpine→Debian for pagefind's glibc binary) · `221bf27` certification verify pages `noindex,follow` + OG endpoints `X-Robots-Tag: noindex` (privacy, no-index-by-default per product decision).
+**Tests/verify:** `astro build` green; **134/134 certification tests** green (incl. new noindex + X-Robots-Tag regression pins); fabrication scans clean; all internal links resolve (fixed 2 + restored the 2 role-pack links). Live probes — role pages, `/search`, `/tools/*`, `/og/*.png`, verify route all 200; app + neighbor + AOP intact.
+**Deploy:** all LIVE. Marketing container rebuilt per increment (additive, default→9093, no Caddy edit). `assessiq-api` rebuilt for the verify-page noindex — also activated the concurrent session's `/api/contact` (now 400-on-empty = working). All work done in **worktrees off `origin/main`** (local tree was on the concurrent session's `feat/question-difficulty-phase-a`), rebased onto main before each push.
+**codex:rescue:** verify-page privacy diff → **REVISE → addressed** — caught that the OG *images* (candidate name baked in) could surface in image search; fixed via `X-Robots-Tag: noindex`. The harness correctly **gated the first push** until the adversarial review was on record.
+**Next:** SEO is at a natural stopping point — every autonomous/doable item is shipped. Remaining is **operator/real-data-gated only**: real pricing (user chose to keep contact-sales), real G2/Capterra reviews → AggregateRating, real integrations list, named author bios, demo video, social-profile URLs (Organization `sameAs`). Plus the **§17.6 checkpoint (~2026-07-19, ~8 weeks post-GSC-submit):** review GSC indexation/impressions and scale the Phase 3 library only for what ranks.
+**Open questions:** (a) Full candidate opt-in indexing (a `shareable` flag + sitemap-verify.xml) is a future feature if bulk credential indexing is ever wanted — current posture is noindex-by-default, share-by-URL. (b) Pagefind indexes full page bodies (no `data-pagefind-body`); adding it gives cleaner results. (c) Verify-page noindex is test-verified; a live spot-check needs a real credential URL.
+
+---
+
+## Agent utilization (SEO backlog + flywheel)
+- **Opus 4.7:** orchestrated the backlog builds; **investigated `modules/18-certification` before touching it** (found the flywheel already built — no blind rebuild); wrote the verify-page privacy change directly (load-bearing PII code, not delegated); fabrication + broken-link + build-break reviews; worktree isolation + rebase/push/deploy across 3 commits + 2 API/marketing deploy cycles; live verification. `Opus · SEO backlog + flywheel-privacy · reworked: N`.
+- **Sonnet:** subagent builds — role pages; search+calculator+OG; site-structure/nav/sitemap helpers. `Sonnet · marketing feature builds · reworked: minor (Opus fixed OG double-extension, 2 broken links, and the X-Robots image revision)`.
+- **Haiku:** n/a — VPS build/deploy/verify inline via `ssh`.
+- **codex:rescue:** verify-page privacy → **REVISE → addressed** (OG-image image-search exposure → X-Robots-Tag). Demonstrated the gate's value on PII-adjacent code.
+- **claude-mem:** read prior infra/module context from hooks. No durable memory written.
+
+---
+
+# Session — 2026-05-24 (Contact form → real /api/contact endpoint, Resend-backed)
+
+**Headline:** Replaced the marketing contact form's `mailto:` action (which triggered Chrome's "This form is not secure" warning and didn't really submit) with a real public **`POST /api/contact`** endpoint that emails enquiries to `connect@assessiq.in` via the existing nodemailer/Resend transport (replyTo=submitter), plus an AJAX form with inline success/error. LIVE + verified.
+**Commits (main):** `fcd6aab` (= cherry-pick `90321f5`) — feat(api,marketing) /api/contact (from feat `1c07d00`; contact.astro conflict resolved → connect@ + new form). Earlier this session (all on main): Bing verify `657ee2a`, Safe-Browsing remediation `ab899fe`, legal-page fills `29732c3`, connect@ rename `057cf57`, Microsoft Clarity `93a50d6`.
+**Tests/verify:** notifications + api `tsc -b` clean. LIVE: `/api/health` 200; `POST /api/contact` honeypot→200 (no send), bad-email→400 `CONTACT_BAD_EMAIL`, valid→200 `{ok:true}` (real deploy-test email sent to connect@). Marketing `/contact`: no `action="mailto"`, honeypot present, AJAX fetch→/api/contact. Built+recreated api+marketing (additive; worker/db/neighbors untouched).
+**Next:** (1) Confirm the deploy-test email landed in Gmail (200 ≠ delivery only if SMTP_URL were empty — it's set). (2) **Check the sender** — RCA 2026-05-21 flagged `EMAIL_FROM` once leaked a personal Gmail; confirm it's a proper `*@assessiq.in` address. (3) Optional: Cloudflare Turnstile on the form (codex flagged distributed-flood quota risk — mitigated by per-IP limit + in-memory 20/hr global cap + 10s send timeout, but CAPTCHA is the stronger control). (4) Optional: Gmail "Send mail as connect@" for branded replies.
+**Open questions:** (a) Global contact cap is in-memory per-process (20/hr) — fine for the single assessiq-api container; needs Redis if the API scales horizontally. (b) `feat/question-difficulty-phase-a` (primary working dir) lags main on contact.astro/email — reconcile on its next merge.
+
+---
+
+## Agent utilization (contact endpoint)
+- **Opus 4.7:** Phase 0 exploration (Fastify route + auth-chain rate-limit + notifications transport); wrote the Sonnet contract; Phase-3 security review; **codex:rescue REVISE→addressed** (added global hourly cap + 10s SMTP send timeout); branch surgery (feat commit → cherry-pick to main, resolved the contact.astro conflict → connect@); deploy api+marketing + live endpoint verification; docs + handoff. `Opus · contract+review+rescue-fix+deploy/verify · reworked: Y (1 codex round — DoS/quota cap)`.
+- **Sonnet:** 1 subagent — full implementation per contract (route + `sendContactEnquiry` helper + form rewrite + 03-api-contract + 06-deployment docs), typecheck-clean, no commit. `Sonnet · /api/contact feature build · reworked: Y (Opus added global cap + timeout post-codex)`.
+- **Haiku:** n/a — VPS build/deploy/verify inline via ssh.
+- **codex:rescue:** REVISE → addressed. 6/7 vectors clean (header-injection, open-relay, HTML-injection, honeypot, validation, info-leak); 1 MED (distributed-flood quota/DoS) fixed before push.
+- **claude-mem:** read prior email-system + API-route context from hook observations; no durable write.
+
+---
+
 # Session — 2026-05-24 (Question Difficulty — Phase A: A1 spec + A2 schema + A3 generation wiring)
 
 **Headline:** Implemented Phase A of the per-(type,level) question-difficulty spec — A1 `difficulty-spec.ts` (Bloom matrix + structural validator + 62 tests), A2 migration `0086` (cognitive_level/nice_task_id/difficulty_params/attack_technique on questions+question_versions, forward-only), A3 wired the structural difficulty gate + tagging into generation (handler-stamped, injection-via-closures, migration `0087` difficulty_dropped). **A1–A3 are on `origin/main` and DEPLOYED + LIVE (2026-05-24)** — migrations `0086`/`0087` applied to prod, `assessiq-api` rebuilt + recreated (healthy, `/api/health` 200, A3 code confirmed in container).
