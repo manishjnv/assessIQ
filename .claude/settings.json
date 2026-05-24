@@ -12,6 +12,10 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/no-sed-shared-mount.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/push-adversarial-gate.sh\""
           }
         ]
       }
