@@ -1,3 +1,23 @@
+# Session — 2026-05-24 (Platform "Edit admin" — name/role/email from the Companies row, merged to main + deploying)
+
+**Headline:** Added a super-admin **"Edit admin"** capability to the Platform page (`/admin/platform`) — a per-row "Manage ▸ Edit admin" modal that edits the primary-contact admin's **name, role (admin↔reviewer), and email**, backed by a new `PATCH /api/admin/super/users/:userId` (gate: `super_admin` + fresh MFA). Email is the login identity (Google SSO resolves by verified email), so an email change is an identity transfer: pending invites are re-addressed (fresh invite); active/disabled accounts require a confirm checkbox + forced re-login + stale-oauth cleanup.
+**Commits (main, via PR #3):** `d8b49e4` (rebased onto main, then re-rebased to clear high-churn SESSION_STATE/0011 conflicts) feat(platform,admin-super): super-admin Edit-admin with identity-transfer guard — a clean 1-commit change (4 cherry-equivalent duplicates from the deleted `feat/question-difficulty-phase-a` were dropped).
+**Tests/verify:** API `tsc` clean; admin-dashboard `tsc` shows only pre-existing `AdminShell.tsx:183/186`; help-keys 62/62; TODO/secret scan clean. Repo-wide `eslint .` is chronically red (33 problems IDENTICAL on main — my change adds zero); help-seed regenerated to 114 rows (main's entries + my 2).
+**Adversarial gate (01-auth identity):** Sonnet=REVISE→2 fixed (F5 disabled-account email confirm; F2 invite-send failure no longer 500s); F1 cross-tenant DELETE verified safe via `user_invitations` RLS. Opus 2nd-reviewer pass=ACCEPT. GLM-5.1 blocked by the harness data-exfiltration classifier (recorded in memory) — Opus took the slot.
+**Next:** confirm deploy live on `assessiq.in` — open Manage ▸ Edit admin on a pending-invite company (expect fresh invite to new address) and on an accepted admin (expect confirm gate + sign-out).
+**Open questions:** should last-admin demotion get an override here (currently hard-blocked → use Manage-users)?
+
+---
+
+## Agent utilization (Edit-admin)
+- **Opus 4.7:** brainstorm/design (surfaced email=identity / account-transfer risk pre-build); wrote the load-bearing backend (`admin-super.ts` PATCH + GET extension), frontend `EditAdminModal` + `api.ts`, help YAML; reconciled review + applied fixes; independent 2nd-reviewer pass; rebased onto fast-moving main twice (isolated worktree, then shared-tree to regenerate the seed). `Opus · full bespoke load-bearing impl + review + rebase · reworked: N`.
+- **Sonnet:** 1 subagent — adversarial review (VERDICT REVISE, F2+F5 fixed, F1 verified safe). `Sonnet · adversarial review · reworked: N`.
+- **Haiku:** n/a.
+- **Adversarial review (codex:rescue substitute):** Sonnet=REVISE→fixed · GLM-5.1=n/a (harness blocked external send) · Opus-2nd=ACCEPT.
+- **claude-mem:** read prior admin-super/03-users/01-auth context; updated `feedback-adversarial-reviewer-routing` with the harness-blocks-OR-side fact.
+
+---
+
 # Session — 2026-05-24 (Question-Difficulty Phase A UI follow-ups — wizard resume + scorecard help; gating already done)
 
 **Headline:** Shipped the two real frontend follow-ups from Phase A on a fresh branch off `origin/main` (isolated worktree). **②** "hide generation from non-super-admins" needed **zero code** — nav, routes, the AI-mode toggle, and the pack-detail link are all already `super_admin`-gated on `origin/main` (the Phase A handoff's "remaining UI gap" note was stale). **③** the Generate wizard now detects a still-running `generation_attempt` on mount and shows/polls a "Generation in progress…" panel (was: progress lived only in React state, lost on navigate-away). **④** the per-attempt scorecard on Generation History got 4 `HelpTip`s (`admin.gen_score.{score_button,verdict,structural,runtime}`) — which forced fixing a **latent dead help-prefix** (the page's hyphenated `helpPage` could never match any valid key). All non-load-bearing. **PR #4 merged to main; `assessiq-frontend` rebuilt + recreated; help migration `0089` applied to prod — LIVE.**

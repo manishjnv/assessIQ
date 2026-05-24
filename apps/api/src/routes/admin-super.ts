@@ -675,30 +675,41 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
           name: string;
           status: string;
           created_at: Date;
+          admin_user_id: string | null;
           admin_email: string | null;
           admin_name: string | null;
+          admin_role: string | null;
           admin_status: string | null;
+          admin_invitation_id: string | null;
           admin_invitation_expires_at: Date | null;
           admin_count: number;
           reviewer_count: number;
         }>(
+          // admin_user_id / admin_role / admin_invitation_id let the Platform UI
+          // target the primary-contact admin precisely for the inline edit modal
+          // (PATCH /api/admin/super/users/:userId). The invitation id is the
+          // outstanding (unaccepted) invite for that admin, used to re-address a
+          // pending invite when its email is corrected.
           `SELECT t.id, t.slug, t.name, t.status, t.created_at,
+                  a.id     AS admin_user_id,
                   a.email  AS admin_email,
                   a.name   AS admin_name,
+                  a.role   AS admin_role,
                   a.status AS admin_status,
+                  i.id         AS admin_invitation_id,
                   i.expires_at AS admin_invitation_expires_at,
                   COALESCE(ac.cnt, 0)::int AS admin_count,
                   COALESCE(rc.cnt, 0)::int AS reviewer_count
            FROM tenants t
            LEFT JOIN LATERAL (
-             SELECT u.email, u.name, u.status
+             SELECT u.id, u.email, u.name, u.role, u.status
              FROM users u
              WHERE u.tenant_id = t.id AND u.role = 'admin'
              ORDER BY u.created_at ASC
              LIMIT 1
            ) a ON true
            LEFT JOIN LATERAL (
-             SELECT ui.expires_at
+             SELECT ui.id, ui.expires_at
              FROM user_invitations ui
              WHERE ui.tenant_id = t.id
                AND lower(ui.email) = a.email
@@ -1281,6 +1292,304 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
         userId: updated.id,
         status: updated.status,
         previousStatus: target.status,
+      });
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PATCH /api/admin/super/users/:userId
+  //
+  // Super-admin edit of a tenant user's profile (name / role / email). Surfaced
+  // from the Platform page "Manage ▸ Edit admin" inline modal; targets the
+  // primary-contact admin shown on the row (any tenant user, by id).
+  //
+  // Gate: superAdminFreshMfa (TOTP within 15 min) — same as create-company and
+  // the lifecycle overrides. Stale TOTP → 401 "fresh totp"; the UI shows the
+  // MFA step-up sub-form and retries.
+  //
+  // Body: { name?, role?, email?, confirmEmailIdentityChange?, reason? }
+  //   - role ∈ {admin, reviewer}. candidate / super_admin are rejected — the
+  //     users CHECK blocks super_admin and candidate is a different surface.
+  //   - email IS the login identity. Google SSO resolves a user purely by
+  //     Google-verified email (modules/01-auth/src/google-sso.ts — "the SOLE
+  //     cross-tenant identity key"). Changing an ACCEPTED (status='active')
+  //     admin's email therefore TRANSFERS ACCOUNT OWNERSHIP: the admin must
+  //     control a Google account at the new address, and is signed out. We
+  //     require confirmEmailIdentityChange=true for that case, sweep the user's
+  //     sessions, and drop the now-stale Google oauth_identities link.
+  //   - A PENDING admin's email is safe to correct (they never logged in): we
+  //     retire the old-address invitation and re-issue a fresh one to the new
+  //     address post-commit; the old link stops working.
+  //
+  // Cross-tenant design: resolve the target's tenantId via system-role
+  // (resolveUserTenant), then operate under withTenant(targetTenantId) — NEVER
+  // session.tenantId (the platform tenant).
+  //
+  // Last-admin guard: demoting the tenant's only active admin to reviewer is
+  // blocked (409 LAST_ADMIN). No override here by design — use the Manage-users
+  // drill-down for last-admin operations.
+  //
+  // 200: { userId, email, name, role, previousEmail, emailChanged, status,
+  //        sessionsSwept, reinvited, auditId }
+  // 400: INVALID_ROLE / INVALID_EMAIL / MISSING_NAME / NAME_TOO_LONG / NO_CHANGES
+  //      / CANNOT_EDIT_SUPER_ADMIN
+  // 404: user not found
+  // 409: USER_DELETED / EMAIL_IDENTITY_CONFIRM_REQUIRED / USER_EMAIL_EXISTS / LAST_ADMIN
+  // ──────────────────────────────────────────────────────────────────────────
+  app.patch(
+    '/api/admin/super/users/:userId',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { userId } = req.params as { userId: string };
+      const body = (req.body ?? {}) as {
+        name?: unknown;
+        role?: unknown;
+        email?: unknown;
+        confirmEmailIdentityChange?: unknown;
+        reason?: unknown;
+      };
+
+      const target = await resolveUserTenant(userId);
+      if (target === null) {
+        throw new NotFoundError(`User not found: ${userId}`);
+      }
+      if (target.role === 'super_admin') {
+        throw new ValidationError('Super-admin accounts cannot be edited here.', {
+          details: { code: 'CANNOT_EDIT_SUPER_ADMIN' },
+        });
+      }
+      if (target.deleted_at !== null) {
+        throw new ConflictError('This user has been deleted. Restore it before editing.', {
+          details: { code: 'USER_DELETED' },
+        });
+      }
+      const targetTenantId = target.tenantId;
+      const reason =
+        typeof body.reason === 'string' && body.reason.trim().length > 0
+          ? body.reason.trim()
+          : undefined;
+
+      // ---- Validate + normalize requested changes ----
+      let newName: string | undefined;
+      if (body.name !== undefined) {
+        if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+          throw new ValidationError('Name must not be empty.', { details: { code: 'MISSING_NAME' } });
+        }
+        if (body.name.length > 200) {
+          throw new ValidationError('Name must not exceed 200 characters.', { details: { code: 'NAME_TOO_LONG' } });
+        }
+        newName = body.name.trim();
+      }
+
+      let newRole: 'admin' | 'reviewer' | undefined;
+      if (body.role !== undefined) {
+        if (body.role !== 'admin' && body.role !== 'reviewer') {
+          throw new ValidationError("Role must be 'admin' or 'reviewer'.", {
+            details: { code: 'INVALID_ROLE', role: body.role },
+          });
+        }
+        newRole = body.role;
+      }
+
+      // normalizeEmail parity with 01-auth/03-users: trim + lowercase only.
+      let newEmail: string | undefined;
+      if (body.email !== undefined) {
+        if (typeof body.email !== 'string') {
+          throw new ValidationError('Invalid email address.', { details: { code: 'INVALID_EMAIL' } });
+        }
+        const normalized = body.email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+          throw new ValidationError(`Invalid email address: '${body.email}'`, {
+            details: { code: 'INVALID_EMAIL' },
+          });
+        }
+        newEmail = normalized;
+      }
+
+      const currentEmail = target.email.toLowerCase();
+      const emailChanged = newEmail !== undefined && newEmail !== currentEmail;
+      const roleChanged = newRole !== undefined && newRole !== target.role;
+      const nameChanged = newName !== undefined && newName !== target.name;
+
+      if (!emailChanged && !roleChanged && !nameChanged) {
+        throw new ValidationError('No changes requested.', { details: { code: 'NO_CHANGES' } });
+      }
+
+      // Identity-transfer confirmation for any account that already exists —
+      // active OR disabled. Both have (or will have, on re-enable) the new email
+      // as their login identity; only a never-logged-in 'pending' invite is safe
+      // to re-address freely. (Sonnet review F5.)
+      if (emailChanged && target.status !== 'pending' && body.confirmEmailIdentityChange !== true) {
+        throw new ConflictError(
+          "Changing this account's email transfers its login identity. Re-send with confirmEmailIdentityChange=true to proceed.",
+          { details: { code: 'EMAIL_IDENTITY_CONFIRM_REQUIRED' } },
+        );
+      }
+
+      const effectiveRole = newRole ?? (target.role as 'admin' | 'reviewer');
+      const wasPending = target.status === 'pending';
+
+      // ---- Transaction: apply name/role/email + audit; clean up oauth link ----
+      let auditId: string | null = null;
+      try {
+        await withTenant(targetTenantId, async (client) => {
+          // Last-admin guard: block demoting the only active admin to reviewer.
+          if (
+            roleChanged &&
+            target.role === 'admin' &&
+            newRole === 'reviewer' &&
+            target.status === 'active' &&
+            target.deleted_at === null
+          ) {
+            const countRes = await client.query<{ count: string }>(
+              `SELECT count(*) FROM users
+                WHERE role = 'admin' AND status = 'active' AND deleted_at IS NULL
+                  AND id <> $1`,
+              [userId],
+            );
+            if (parseInt(countRes.rows[0]?.count ?? '0', 10) === 0) {
+              throw new ConflictError(
+                "This is the tenant's last active admin and cannot be demoted. Add another admin first, or use the Manage-users page.",
+                { details: { code: 'LAST_ADMIN' } },
+              );
+            }
+          }
+
+          const sets: string[] = [];
+          const vals: unknown[] = [];
+          let p = 1;
+          if (newName !== undefined) { sets.push(`name = $${p++}`); vals.push(newName); }
+          if (newRole !== undefined) { sets.push(`role = $${p++}`); vals.push(newRole); }
+          if (newEmail !== undefined) { sets.push(`email = $${p++}`); vals.push(newEmail); }
+          sets.push('updated_at = now()');
+          vals.push(userId);
+          await client.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${p}`, vals);
+
+          if (emailChanged) {
+            // Drop the stale Google identity link. Login resolves by email, so the
+            // old (provider,subject)→user_id row is inert, but removing it avoids a
+            // dangling mapping and lets the new address re-link JIT on next login.
+            await client.query(
+              `DELETE FROM oauth_identities WHERE user_id = $1 AND provider = 'google'`,
+              [userId],
+            );
+            // Pending admin: retire the old-address invitation now; a fresh invite
+            // to the new address is issued post-commit via inviteUser.
+            if (wasPending) {
+              await client.query(
+                `DELETE FROM user_invitations WHERE lower(email) = $1 AND accepted_at IS NULL`,
+                [currentEmail],
+              );
+            }
+          }
+
+          const changedFields = [
+            ...(nameChanged ? ['name'] : []),
+            ...(roleChanged ? ['role'] : []),
+            ...(emailChanged ? ['email'] : []),
+          ];
+          const auditRes: unknown = await auditInTx(client, {
+            tenantId: targetTenantId,
+            actorKind: 'user',
+            actorUserId: session.userId,
+            action: 'user.updated',
+            entityType: 'user',
+            entityId: userId,
+            before: {
+              name: target.name,
+              role: target.role,
+              ...(emailChanged ? { email: target.email } : {}),
+            },
+            after: {
+              ...(nameChanged ? { name: newName } : {}),
+              ...(roleChanged ? { role: newRole } : {}),
+              ...(emailChanged ? { email: newEmail } : {}),
+              changed_fields: changedFields,
+              kind: 'super_profile_edit',
+              ...(emailChanged ? { email_identity_transfer: target.status === 'active' } : {}),
+              reason: reason ?? null,
+            },
+          });
+          if (auditRes !== null && typeof auditRes === 'object' && 'id' in auditRes) {
+            auditId = String((auditRes as { id: unknown }).id);
+          }
+        });
+      } catch (err) {
+        // UNIQUE (tenant_id, email) collision → 409 (mirror createUser).
+        if (
+          err !== null &&
+          typeof err === 'object' &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictError('A user with this email already exists in this tenant.', {
+            details: { code: 'USER_EMAIL_EXISTS', email: newEmail },
+          });
+        }
+        throw err;
+      }
+
+      // ---- Post-commit side effects ----
+      let sessionsSwept = false;
+      let reinvited = false;
+      if (emailChanged) {
+        if (wasPending) {
+          // Re-issue the invitation to the corrected address. inviteUser finds the
+          // (now-renamed) pending user and replaces its invitation + resends email.
+          // The rename has already committed; if the send fails we DON'T 500 (that
+          // would imply the whole edit failed). We return 200 with reinvited:false —
+          // the row stays pending and the operator recovers via "Resend invite".
+          // (Sonnet review F2.)
+          try {
+            await inviteUser(targetTenantId, {
+              email: newEmail!,
+              role: effectiveRole,
+              invited_by: session.userId,
+            });
+            reinvited = true;
+          } catch (inviteErr) {
+            log.error(
+              { err: inviteErr, userId, tenantId: targetTenantId },
+              'edit-admin: post-rename re-invite failed; email saved, recoverable via Resend invite',
+            );
+            reinvited = false;
+          }
+        } else {
+          // ACCEPTED admin: force re-login under the new identity.
+          await sweepUserSessions(userId);
+          sessionsSwept = true;
+        }
+      } else if (roleChanged) {
+        // Drop stale role claims from any live session.
+        await sweepUserSessions(userId);
+        sessionsSwept = true;
+      }
+
+      logLifecycleEvent({
+        action: 'user.updated',
+        actor: { userId: session.userId, role: session.role },
+        target: { entityType: 'user', entityId: userId },
+        before: { name: target.name, role: target.role, email: target.email, status: target.status },
+        after: {
+          ...(nameChanged ? { name: newName } : {}),
+          ...(roleChanged ? { role: newRole } : {}),
+          ...(emailChanged ? { email: newEmail } : {}),
+          reason: reason ?? null,
+        },
+      });
+
+      return reply.code(200).send({
+        userId,
+        email: newEmail ?? target.email,
+        name: newName ?? target.name,
+        role: effectiveRole,
+        previousEmail: target.email,
+        emailChanged,
+        status: target.status,
+        sessionsSwept,
+        reinvited,
+        auditId,
       });
     },
   );
