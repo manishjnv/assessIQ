@@ -129,6 +129,79 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   );
 
   // ──────────────────────────────────────────────────────────────────────────
+  // PATCH /api/admin/super/tenants/:tenantId
+  //
+  // Rename a tenant's display name (the `tenants.name` column) — surfaced from
+  // the Platform page "Edit company" modal. Display-only: the slug is permanent
+  // and is NOT touched here, and there is no isolation/RLS impact.
+  //
+  // Gate: super_admin + fresh MFA. Body: { name }.
+  // Mirrors the suspendTenant audited pattern: withTenant(tenantId) UPDATE +
+  // auditInTx('tenant.renamed') in one transaction.
+  //
+  // 200: { tenantId, name, previousName, auditId, noOp }
+  // 400: MISSING_NAME / NAME_TOO_LONG
+  // 404: tenant not found
+  // ──────────────────────────────────────────────────────────────────────────
+  app.patch(
+    '/api/admin/super/tenants/:tenantId',
+    { preHandler: superAdminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const { tenantId } = req.params as { tenantId: string };
+      const body = (req.body ?? {}) as { name?: unknown };
+
+      if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+        throw new ValidationError('name is required', { details: { code: 'MISSING_NAME' } });
+      }
+      if (body.name.length > 200) {
+        throw new ValidationError('name must not exceed 200 characters', {
+          details: { code: 'NAME_TOO_LONG' },
+        });
+      }
+      const newName = body.name.trim();
+
+      const result = await withTenant(tenantId, async (client) => {
+        // FOR UPDATE row-locks the tenant (matches the suspendTenant lifecycle
+        // pattern) so two concurrent renames can't both pass the no-op check and
+        // double-write / double-audit.
+        const cur = await client.query<{ name: string }>(
+          `SELECT name FROM tenants WHERE id = $1 FOR UPDATE`,
+          [tenantId],
+        );
+        const row = cur.rows[0];
+        if (row === undefined) {
+          throw new NotFoundError(`Tenant not found: ${tenantId}`);
+        }
+        const previousName = row.name;
+        if (previousName === newName) {
+          return { tenantId, name: newName, previousName, auditId: null, noOp: true };
+        }
+
+        await client.query(
+          `UPDATE tenants SET name = $1, updated_at = now() WHERE id = $2`,
+          [newName, tenantId],
+        );
+
+        const auditRow = await auditInTx(client, {
+          tenantId,
+          actorKind: 'user',
+          actorUserId: session.userId,
+          action: 'tenant.renamed',
+          entityType: 'tenant',
+          entityId: tenantId,
+          before: { name: previousName },
+          after: { name: newName },
+        });
+
+        return { tenantId, name: newName, previousName, auditId: auditRow.id, noOp: false };
+      });
+
+      return reply.code(200).send(result);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
   // POST /api/admin/super/companies
   //
   // Create a new company tenant, seed its taxonomy, and invite the first admin.

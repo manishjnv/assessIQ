@@ -607,6 +607,30 @@ export async function superUpdateAdminApi(
   );
 }
 
+export interface SuperUpdateTenantResponse {
+  tenantId: string;
+  name: string;
+  previousName: string;
+  auditId: string | null;
+  noOp: boolean;
+}
+
+/**
+ * PATCH /api/admin/super/tenants/:tenantId
+ *
+ * Rename a tenant's display name (the `tenants.name` column). Super-admin +
+ * fresh MFA (401 "fresh totp" → MfaStepUp). Slug is permanent and not editable.
+ */
+export async function superUpdateTenantApi(
+  tenantId: string,
+  body: { name: string },
+): Promise<SuperUpdateTenantResponse> {
+  return adminApi<SuperUpdateTenantResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  );
+}
+
 /**
  * POST /api/auth/totp/verify
  *
