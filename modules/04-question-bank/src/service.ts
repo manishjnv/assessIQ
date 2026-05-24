@@ -490,10 +490,14 @@ export async function archivePack(
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
-    if (pack.status !== "published") {
+    // Archive is the only soft-delete path (no hard DELETE in Phase 1, see
+    // routes.ts), so both draft and published packs must be archivable —
+    // otherwise empty/junk auto-created drafts could never be cleared. Only an
+    // already-archived pack is rejected, to keep the audit trail honest.
+    if (pack.status === "archived") {
       throw new ConflictError(
-        `Pack '${id}' must be in 'published' status to archive (current: '${pack.status}')`,
-        { details: { code: QB_ERROR_CODES.PACK_NOT_PUBLISHED } },
+        `Pack '${id}' is already archived`,
+        { details: { code: QB_ERROR_CODES.PACK_ALREADY_ARCHIVED } },
       );
     }
 

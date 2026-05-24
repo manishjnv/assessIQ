@@ -1162,17 +1162,27 @@ describe("archivePack", () => {
     expect(archived.status).toBe("archived");
   });
 
-  it("archivePack on a draft pack throws ConflictError PACK_NOT_PUBLISHED", async () => {
+  it("archivePack on a draft pack succeeds; status becomes archived", async () => {
+    // Archive is the only soft-delete path, so empty/junk drafts (e.g. the
+    // auto-created dom-* packs) must be archivable without publishing first.
     const pack = await createPack(
       tenantA,
       { slug: `archive-draft-${randomUUID().slice(0, 8)}`, name: "Archive Draft", domain: "soc" },
       adminA,
     );
 
+    const archived = await archivePack(tenantA, pack.id, adminA);
+    expect(archived.status).toBe("archived");
+  });
+
+  it("archivePack on an already-archived pack throws ConflictError PACK_ALREADY_ARCHIVED", async () => {
+    const pack = await buildPublishedPack("archive-twice");
+    await archivePack(tenantA, pack.id, adminA);
+
     await expect(archivePack(tenantA, pack.id, adminA)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ConflictError &&
-        (e.details as Record<string, unknown> | undefined)?.["code"] === "PACK_NOT_PUBLISHED",
+        (e.details as Record<string, unknown> | undefined)?.["code"] === "PACK_ALREADY_ARCHIVED",
     );
   });
 

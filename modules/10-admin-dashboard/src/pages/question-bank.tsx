@@ -198,6 +198,9 @@ export function AdminQuestionBank(): React.ReactElement {
   const [searchInput, setSearchInput] = useState(searchQuery);
 
   const [archivingPackId, setArchivingPackId] = useState<string | null>(null);
+  // Surfaces failures from row actions (archive / import) that would otherwise
+  // be invisible — a swallowed 409 reads to the admin as "archive does nothing".
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [licensedSets, setLicensedSets] = useState<AvailableSet[]>([]);
   const [importingSet, setImportingSet] = useState<string | null>(null);
@@ -252,12 +255,16 @@ export function AdminQuestionBank(): React.ReactElement {
   async function handleArchivePack(pack: PackListItem) {
     if (!window.confirm(`Are you sure? This will archive "${pack.name}".`)) return;
     setArchivingPackId(pack.id);
+    setActionError(null);
     try {
       await adminApi(`/admin/packs/${pack.id}/archive`, { method: "POST" });
       await fetchPacks(statusFilter, searchQuery);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("archive-pack error:", err instanceof AdminApiError ? err.apiError.message : err);
+      setActionError(
+        err instanceof AdminApiError
+          ? `Could not archive "${pack.name}": ${err.apiError.message}`
+          : `Could not archive "${pack.name}".`,
+      );
     } finally {
       setArchivingPackId(null);
     }
@@ -265,6 +272,7 @@ export function AdminQuestionBank(): React.ReactElement {
 
   async function handleImportSet(sourcePackId: string) {
     setImportingSet(sourcePackId);
+    setActionError(null);
     try {
       await importLicensedSet(sourcePackId);
       // Refresh the licensed-sets catalog (cloned flag flips) and the packs list (new pack appears).
@@ -272,8 +280,11 @@ export function AdminQuestionBank(): React.ReactElement {
       setLicensedSets(fresh.sets);
       await fetchPacks(statusFilter, searchQuery);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("import licensed set failed:", err instanceof AdminApiError ? err.apiError.message : err);
+      setActionError(
+        err instanceof AdminApiError
+          ? `Could not add set to workspace: ${err.apiError.message}`
+          : "Could not add set to workspace.",
+      );
     } finally {
       setImportingSet(null);
     }
@@ -786,6 +797,36 @@ export function AdminQuestionBank(): React.ReactElement {
             }}
           >
             {error}
+          </div>
+        )}
+
+        {actionError && (
+          <div
+            role="alert"
+            style={{
+              color: "var(--aiq-color-danger)",
+              background: "var(--aiq-color-danger-soft, transparent)",
+              border: "1px solid var(--aiq-color-danger)",
+              borderRadius: "var(--aiq-radius-md)",
+              padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "var(--aiq-space-md)",
+            }}
+          >
+            <span>{actionError}</span>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+              onClick={() => setActionError(null)}
+              style={{ color: "inherit" }}
+            >
+              ✕
+            </button>
           </div>
         )}
 
