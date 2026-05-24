@@ -21,7 +21,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError } from "../api.js";
+import { adminApi, AdminApiError, listDomainsApi } from "../api.js";
+import type { DomainItem } from "../api.js";
 import { useAdminSession } from "../session.js";
 import { formatDate } from "../lib/format.js";
 import { domainLabel } from "../lib/domains.js";
@@ -192,6 +193,7 @@ export function AdminQuestionBank(): React.ReactElement {
   const [newForm, setNewForm] = useState<NewPackForm>({ name: "", domain: "", description: "" });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [domains, setDomains] = useState<DomainItem[]>([]);
 
   const [searchInput, setSearchInput] = useState(searchQuery);
 
@@ -257,6 +259,17 @@ export function AdminQuestionBank(): React.ReactElement {
       setArchivingPackId(null);
     }
   }
+
+  // Domains for the New-Pack dropdown. Canonical source is the domains table
+  // (the same /admin/domains the Generate + Blueprint dropdowns use), so new
+  // packs always carry a valid lowercase slug — no free-text casing drift.
+  // Only fetched for super_admin, the sole role that can create packs.
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    listDomainsApi()
+      .then((res) => setDomains(res.items))
+      .catch(() => { /* non-critical — the field will show no options */ });
+  }, [isSuperAdmin]);
 
   async function handleCreatePack(e: React.FormEvent) {    e.preventDefault();
     if (!newForm.name.trim()) { setCreateError("Pack name is required."); return; }
@@ -527,15 +540,20 @@ export function AdminQuestionBank(): React.ReactElement {
                   >
                     Domain *
                   </label>
-                  <input
+                  <select
                     data-help-id="admin.packs.create.domain"
                     className="aiq-input"
-                    type="text"
-                    placeholder="e.g. soc"
                     value={newForm.domain}
                     onChange={(e) => setNewForm((f) => ({ ...f, domain: e.target.value }))}
                     required
-                  />
+                  >
+                    <option value="">— Select a domain —</option>
+                    {domains.map((d) => (
+                      <option key={d.id} value={d.slug}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div

@@ -34,6 +34,7 @@ import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi, getCompanyE
 import type { DomainItem, CategoryItem, TenantEntitlement, CompanyUsage, AvailableSet } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { UsageBanner } from "../components/UsageBanner.js";
+import { useAdminSession } from "../session.js";
 
 type AssessmentStatus = "draft" | "published" | "active" | "closed";
 
@@ -835,6 +836,11 @@ export function AdminAssessments(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get("status") ?? "";
 
+  const { session } = useAdminSession();
+  // Blueprint authoring is a super_admin-only capability; tenant admins only see
+  // "From a set". Backend enforces the same gate on POST /api/admin/assessments.
+  const isSuperAdmin = session?.user.role === "super_admin";
+
   const [items, setItems] = useState<AssessmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1250,10 +1256,10 @@ export function AdminAssessments(): React.ReactElement {
             {/* Creation method — segmented control (mirrors the status filter strip) */}
             <div style={{ marginBottom: "var(--aiq-space-md)" }}>
               <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
-                {([
-                  { value: "from-set", label: "From a set", hint: "use a licensed platform set" },
-                  { value: "blueprint", label: "Blueprint", hint: "per-criterion random draw" },
-                ] as const).map((m) => (
+                {[
+                  { value: "from-set" as const, label: "From a set", hint: "use a licensed platform set" },
+                  { value: "blueprint" as const, label: "Blueprint", hint: "per-criterion random draw" },
+                ].filter((m) => m.value !== "blueprint" || isSuperAdmin).map((m) => (
                   <button
                     key={m.value}
                     type="button"

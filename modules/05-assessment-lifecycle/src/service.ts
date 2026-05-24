@@ -584,7 +584,15 @@ export async function createAssessmentFromSet(
   };
   if (input.description !== undefined) createInput.description = input.description;
   if (input.randomize !== undefined) createInput.randomize = input.randomize;
-  if (input.settings !== undefined) createInput.settings = input.settings;
+  if (input.settings !== undefined) {
+    // from-set resolves pack/level from the CLONED set. A blueprint would
+    // override that and is a super_admin-only authoring capability (enforced at
+    // POST /api/admin/assessments). Strip any blueprint smuggled in through
+    // this path so a tenant admin cannot bypass that gate via from-set.
+    const settingsWithoutBlueprint: AssessmentSettings = { ...input.settings };
+    delete settingsWithoutBlueprint.blueprint;
+    createInput.settings = settingsWithoutBlueprint;
+  }
   if (input.opens_at !== undefined) createInput.opens_at = input.opens_at;
   if (input.closes_at !== undefined) createInput.closes_at = input.closes_at;
 

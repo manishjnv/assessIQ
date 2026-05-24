@@ -234,6 +234,10 @@ export async function createPack(
 ): Promise<QuestionPack> {
   assertNonEmpty(input.name, "name");
   assertNonEmpty(input.domain, "domain");
+  // Canonical domain slugs are lowercase (the `domains` table). Normalize at
+  // every pack write — UI, API, or import — so pack.domain always matches a
+  // domain-scoped entitlement's lowercased scope_id at license-resolution time.
+  const domain = input.domain.trim().toLowerCase();
 
   const id = uuidv7();
 
@@ -255,7 +259,7 @@ export async function createPack(
           tenantId,
           slug,
           name: input.name,
-          domain: input.domain,
+          domain,
           ...(input.description !== undefined ? { description: input.description } : {}),
           createdBy: createdByUserId,
         });
@@ -302,7 +306,7 @@ export async function createPack(
           tenantId,
           slug,
           name: input.name,
-          domain: input.domain,
+          domain,
           ...(input.description !== undefined ? { description: input.description } : {}),
           createdBy: createdByUserId,
         });
@@ -390,7 +394,7 @@ export async function updatePack(
     // Build conditional patch — exactOptionalPropertyTypes: never pass undefined
     const repoPatch: Parameters<typeof repo.updatePackRow>[2] = {};
     if (patch.name !== undefined) repoPatch.name = patch.name;
-    if (patch.domain !== undefined) repoPatch.domain = patch.domain;
+    if (patch.domain !== undefined) repoPatch.domain = patch.domain.trim().toLowerCase();
     if (patch.description !== undefined) repoPatch.description = patch.description;
 
     return repo.updatePackRow(client, id, repoPatch);
@@ -1128,7 +1132,7 @@ export async function bulkImport(
         tenantId,
         slug: importData.pack.slug,
         name: importData.pack.name,
-        domain: importData.pack.domain,
+        domain: importData.pack.domain.trim().toLowerCase(),
         ...(importData.pack.description !== undefined ? { description: importData.pack.description } : {}),
         createdBy: createdByUserId,
       });
