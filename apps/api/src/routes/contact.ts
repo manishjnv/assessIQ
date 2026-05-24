@@ -16,7 +16,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { ValidationError, streamLogger } from '@assessiq/core';
+import { ValidationError, streamLogger, config } from '@assessiq/core';
 import { sendContactEnquiry } from '@assessiq/notifications';
 import { authChain } from '../middleware/auth-chain.js';
 
@@ -42,6 +42,41 @@ function globalBudgetExceeded(): boolean {
   return false;
 }
 
+// Cloudflare Turnstile verification (bot protection). Fail-closed: a missing/invalid
+// token is rejected. If TURNSTILE_SECRET is unset, verification is REJECTED in
+// production (fail-closed) and skipped only in non-prod (local dev) with a WARN.
+const TURNSTILE_SECRET = process.env['TURNSTILE_SECRET'] ?? '';
+const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+async function turnstilePassed(token: string): Promise<boolean> {
+  if (TURNSTILE_SECRET.length === 0) {
+    // Fail-CLOSED in production (codex:rescue MED): an unset secret must NOT silently
+    // disable bot protection. Skip only in non-prod (local dev) for convenience.
+    if (config.NODE_ENV === 'production') {
+      appLog.error({}, 'contact.turnstile.MISCONFIGURED — TURNSTILE_SECRET unset in production; rejecting (fail-closed)');
+      return false;
+    }
+    appLog.warn({}, 'contact.turnstile.unconfigured — skipping verification (dev only)');
+    return true;
+  }
+  if (token.length === 0) return false;
+  try {
+    const form = new URLSearchParams({ secret: TURNSTILE_SECRET, response: token });
+    const res = await fetch(TURNSTILE_VERIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form,
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { success?: boolean };
+    return data.success === true;
+  } catch (err) {
+    appLog.error({ err }, 'contact.turnstile.verify_error');
+    return false; // fail-closed on network/parse error
+  }
+}
+
 export async function registerContactRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/api/contact',
@@ -65,6 +100,8 @@ export async function registerContactRoutes(app: FastifyInstance): Promise<void>
             // Honeypot — present in schema so Fastify accepts it without 400,
             // but the handler silently drops the request when it is non-empty.
             company_website:  { type: 'string', maxLength: 200 },
+            // Cloudflare Turnstile token — verified server-side (fail-closed).
+            cf_turnstile_response: { type: 'string', maxLength: 3000 },
           },
         },
       },
@@ -75,6 +112,7 @@ export async function registerContactRoutes(app: FastifyInstance): Promise<void>
         email: string;
         message: string;
         company_website?: string;
+        cf_turnstile_response?: string;
       };
 
       // 1. HONEYPOT: legitimate users never fill this hidden field; bots do.
@@ -101,6 +139,19 @@ export async function registerContactRoutes(app: FastifyInstance): Promise<void>
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
         throw new ValidationError('Please enter a valid email address.', {
           details: { code: 'CONTACT_BAD_EMAIL' },
+        });
+      }
+
+      // 3.5 Cloudflare Turnstile — verify the bot-check token server-side (fail-closed).
+      //     Runs before the global budget so failed challenges don't consume send quota.
+      const turnstileToken = typeof body.cf_turnstile_response === 'string' ? body.cf_turnstile_response : '';
+      if (!(await turnstilePassed(turnstileToken))) {
+        appLog.warn({}, 'contact.turnstile.failed');
+        return reply.code(403).send({
+          error: {
+            code: 'TURNSTILE_FAILED',
+            message: 'Verification failed. Please reload the page and try again.',
+          },
         });
       }
 
