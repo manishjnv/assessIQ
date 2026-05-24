@@ -1,5 +1,6 @@
 import { z } from "zod";
 import fs from "node:fs";
+import { coerceQuestionsPayload } from "./coerce-questions.js";
 
 // ---------------------------------------------------------------------------
 // MCP Rejection Logger
@@ -462,11 +463,20 @@ function formatIssues(issues: z.ZodIssue[], type: string): string {
 // ---------------------------------------------------------------------------
 
 const SubmitQuestionsInputSchema = z.object({
-  questions: z.array(GeneratedQuestionSchema).min(1),
+  // max(12) mirrors the runtime cap (claude-code-vps.ts) and the inputSchema
+  // maxItems so MCP-accepted and runtime-stored batches cannot desync.
+  questions: z.array(GeneratedQuestionSchema).min(1).max(12),
 }).strict();
 
 export async function handleSubmitQuestions(args: unknown) {
-  const parsed = SubmitQuestionsInputSchema.safeParse(args);
+  // Tolerant coercion FIRST: deterministically map the model's well-known
+  // non-canonical field names/shapes (stem→question, object-options→strings,
+  // log_lines→log_excerpt, prose log_format→enum, …) onto the canonical shape
+  // before strict validation. Three rounds of prompt hardening failed to stop
+  // the drift (RCA 2026-05-24); coercion meets the model where it is. Only
+  // genuinely incomplete questions fall through to the rejection path below.
+  const coerced = coerceQuestionsPayload(args);
+  const parsed = SubmitQuestionsInputSchema.safeParse(coerced);
   if (!parsed.success) {
     const issues = parsed.error.issues;
     const firstIssue = issues[0];
@@ -482,9 +492,11 @@ export async function handleSubmitQuestions(args: unknown) {
       }) + "\n",
     );
 
-    const inferredType = inferType(args);
+    const inferredType = inferType(coerced);
 
     // Structured rejection log — full issues text (operators, no length cap).
+    // Log the ORIGINAL args (what the model actually emitted) so the rejection
+    // log shows raw model output; the issues describe the post-coercion gaps.
     const issuesForLog = formatIssuesForLog(issues);
     logRejection(inferredType, issuesForLog, args);
 
