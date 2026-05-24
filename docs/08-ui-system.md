@@ -764,6 +764,7 @@ stays (a kept-test asserts its presence) but remains unrendered — converting t
 
 **Seeding:** keys live in `modules/16-help-system/content/en/admin.yml`; `0011`
 was regenerated (`pnpm tsx tools/generate-help-seed.ts`) and a forward migration
-`modules/16-help-system/migrations/0088_seed_gen_score_help.sql` carries the four
-rows to prod (0011 is already-applied, so it never re-runs). `short_text` ≤120
+`modules/16-help-system/migrations/0089_seed_gen_score_help.sql` carries the four
+rows to prod (0011 is already-applied, so it never re-runs). Numbered 0089 to
+avoid the analytics `0088_attempt_summary_mv_owner.sql` added in parallel. `short_text` ≤120
 chars and non-empty `long_md` per the help-key test.

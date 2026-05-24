@@ -1,4 +1,4 @@
--- 0088_seed_gen_score_help.sql
+-- 0089_seed_gen_score_help.sql
 --
 -- Forward seed for the four `admin.gen_score.*` help keys that back the
 -- generation scorecard tooltips on the Generation History page
