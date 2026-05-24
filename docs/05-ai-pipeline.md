@@ -1196,3 +1196,19 @@ cron.schedule("*/5 * * * *", async () => {
 The lint matches `node-cron` `.schedule()` callbacks whose transitive imports reach `runClaudeCodeGrading` (or any symbol from `modules/07-ai-grading/runtimes/*`). The fix is not to comment-suppress the line — it is to ask whether the work belongs to admin-click-driven sync grading at all. If it does, route it through the existing handler; if it does not, it has no business calling the runtime.
 
 The same pattern applies for `generateQuestions`, `generateRubricDraft`, and any future symbol that the sentinel adds to its banned-symbol set as new code surfaces ship.
+
+---
+
+## Generation — tolerant input coercion (2026-05-24)
+
+**What.** A deterministic coercion layer normalises the model's `submit_questions` payload onto the canonical per-type `content` shape **before** Zod validation, at both gates: `tools/assessiq-mcp/src/tools/coerce-questions.ts` (the MCP `submit_questions` tool) and an **identical** `modules/07-ai-grading/src/coerce-question-content.ts` (the runtime). `coerceQuestionsPayload(args)` rebuilds each question with only canonical keys and maps known synonyms — `stem`/`prompt`→`question`, MCQ object-`options`→string array, `log_lines`/`log_snippet`→`log_excerpt`, prose→`log_format` enum, `steps_dependency`→`step_dependency`, `task`→`question`, source-id objects→id strings, etc.
+
+**Why.** Generation produced **0 questions on every run** (RCA 2026-05-24): the model emits non-canonical field names, the `.strict()` MCP schema rejected the whole batch, `claude` burned its retry budget and exited 1. Three rounds of `SKILL.md` prompt hardening had already failed — the model invents *novel* wrong shapes, so the prompt can't enumerate them. Coercion meets the model where it is ("be liberal in what you accept"); the SKILL.md canonical shape stays the documented target.
+
+**Two gates, why both.** The runtime reads the model's **raw** tool input via `parseToolInput` (not the MCP's coerced result), so coercion must run in *both* places or the MCP would accept while the runtime stored raw/garbage content. Both copies are byte-identical except headers (codex-verified); the MCP package is standalone (no dep on `07-ai-grading`), hence the duplication with a "keep in sync" contract.
+
+**Answer-key safety (fail closed).** `resolveCorrectIndex()` is the one place coercion must never guess: it gathers every answer signal (`correct`, `correct_answer`, `answer`, `answer_index`, `correct_option_id`, …) plus embedded option `correct:true` flags, resolves each to a 0-based index **only when unambiguous** (integer, bare letter A–H, or a unique exact option-text match), and returns an index **only if all signals agree on exactly one**. Empty/whitespace, quoted numbers (`"1"` — 0- vs 1-based ambiguous), prose, duplicate-text matches, multiple flags, any disagreement, **or any present-but-unresolvable signal** → `correct` is dropped → strict Zod rejects the question (regenerated) rather than storing a guessed key.
+
+**Runtime defence-in-depth.** `selectValidContent()` (in `claude-code-vps.ts`, both generation paths) re-validates each coerced question against strict per-type content schemas and **drops** (logs `generation.content.dropped`) any that fail — so the runtime never persists content the MCP would have rejected, even if the model exits 0 after an MCP rejection. Partial batches are kept; the run throws only if zero questions survive.
+
+**Not included / downstream.** No schema/DB/API change — coercion is internal; `questions.content` shape is unchanged. The `generate-*/SKILL.md` files are untouched (they remain the documented canonical contract; coercion is the safety net, not a prompt edit → no eval re-baseline). codex:rescue ACCEPT after 2 revise rounds. Tests: `tools/assessiq-mcp/src/__tests__/submit-questions.test.ts` (41) pin coercion + fail-closed answer-key cases.
