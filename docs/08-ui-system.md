@@ -770,3 +770,53 @@ was regenerated (`pnpm tsx tools/generate-help-seed.ts`) and a forward migration
 rows to prod (0011 is already-applied, so it never re-runs). Numbered 0089 to
 avoid the analytics `0088_attempt_summary_mv_owner.sql` added in parallel. `short_text` ≤120
 chars and non-empty `long_md` per the help-key test.
+
+---
+
+## Admin dashboard UI changes (2026-05-24)
+
+Three admin-facing UI changes shipped as part of the domain-slug normalization + Question Bank import work.
+
+### Question Bank — Domain field changed from free-text to dropdown
+
+**What:** The "Domain" field on the New Pack form (`modules/10-admin-dashboard/src/pages/question-bank.tsx`, New Pack modal) is now a `<Select>` populated from `GET /api/admin/domains` (the tenant's canonical domain list). Previously it was a free-text `<Input>`, which allowed mixed-case entries like `'SOC'` that silently failed entitlement resolution at publish time (the license resolver matches `question_packs.domain` by exact lowercase slug).
+
+**Why:** Free-text entry was the root cause of the casing-drift bug fixed by migration `0090_normalize_domain_slugs.sql` (see `docs/02-data-model.md`). Sourcing from the `domains` table guarantees the stored value is always a canonical lowercase slug. The dropdown renders the human-readable `label` but submits the lowercase `slug`.
+
+**Not included:** retroactive UI changes to the Pack Edit form (PATCH) — the domain field is not editable post-creation in the current admin surface; if it is added later, it must also use the dropdown.
+
+**Downstream:** `createPack`/`updatePack` service methods also lowercase `domain` at the write path as defense-in-depth; the UI change removes the primary entry point for drift, not the only guard.
+
+---
+
+### Question Bank — "Licensed sets" section (2026-05-24)
+
+**What:** A new read-only **Licensed sets** section in the Question Bank page (`modules/10-admin-dashboard/src/pages/question-bank.tsx`) lists the PLATFORM-library question sets the calling tenant is licensed for, sourced from `GET /api/billing/available-sets`.
+
+**Layout:** The section appears below the tenant's own pack list and is hidden entirely when `sets` is empty (no licensed sets). Each row shows:
+
+| Column | Content |
+|---|---|
+| Name | `source.name` |
+| Domain | lowercase slug chip |
+| Questions | `question_count` |
+| Status badge | "In your workspace" (`success` Chip, when `cloned: true` and not `update_available`) — "Update available" (`warning` Chip, when `cloned: true` and `update_available: true`) — no badge when not yet cloned |
+| Action | "Add to workspace" button (`ghost` variant, visible only when `cloned: false`) — calls `POST /api/admin/sets/:source_pack_id/import` and refreshes the section on success |
+
+**"In your workspace" / "Update available" logic:** driven by the `cloned` and `update_available` flags from the `GET /api/billing/available-sets` response. "Update available" means a newer `source_version` exists than what was cloned; the update path (re-clone) is deferred — the badge is informational only for now, no button.
+
+**"Add to workspace" button:** calls `POST /api/admin/sets/:source_pack_id/import` (see `docs/03-api-contract.md` § `POST /api/admin/sets/:sourcePackId/import`). On `201` success, the button switches to the "In your workspace" badge and the tenant's own pack list is refreshed so the new clone appears immediately. On `403 NOT_LICENSED`, an inline error Chip is shown ("Not licensed"); on other errors, a toast.
+
+**Not included:** a re-clone/update flow for `update_available: true` sets (deferred); pagination of the licensed sets list (platform library is expected to stay small for Phase 1); candidate-facing visibility of licensed sets.
+
+---
+
+### Assessments — Blueprint mode button hidden for non-super-admins (2026-05-24)
+
+**What:** On the New Assessment form (`modules/10-admin-dashboard/src/pages/assessments.tsx`), the "Blueprint" mode toggle button is rendered only when `session.user.role === 'super_admin'`. Tenant admins (`role === 'admin'`) do not see the button; the form defaults to the standard mode silently.
+
+**Why:** Blueprint mode sets `settings.blueprint` on the assessment, which is a `super_admin`-only capability enforced server-side by both `POST /admin/assessments` and `PATCH /admin/assessments/:id` (see `docs/03-api-contract.md` § Blueprint authoring restriction). The FE hide is defense-in-depth — the backend 403 is the authoritative gate.
+
+**Implementation:** The session role is already available via `useSession()` (or the equivalent `AdminWhoami` hook) used throughout the admin dashboard. The conditional is a single `{isSuperAdmin && <BlueprintModeButton … />}` guard, consistent with the existing `{isSuperAdmin && …}` pattern used on the Platform nav entry and the AI-generate-mode select.
+
+**Not included:** any change to the assessment edit form for existing draft assessments — if a super-admin created a blueprint assessment and a tenant admin views it in edit mode, `settings.blueprint` is simply not rendered in the form (read-only exclusion); the tenant admin cannot clear or modify it.

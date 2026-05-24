@@ -266,10 +266,10 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | Method | Path | Purpose |
 |---|---|---|
 | `GET`  | `/admin/assessments`              | List assessments (paginated; filter by `status`, `pack_id`) |
-| `POST` | `/admin/assessments`              | Create draft assessment (returns 201) |
-| `POST` | `/admin/assessments/from-set`     | **Step 2:** create a draft assessment from a licensed PLATFORM-library set. Body: `{ source_pack_id, level_position, name, question_count, opens_at, closes_at?, randomize?, description?, settings? }`. License-checked (`403 NOT_LICENSED`), cloned-on-use into the tenant (idempotent), then created from the clone (returns 201). |
+| `POST` | `/admin/assessments`              | Create draft assessment (returns 201). **Blueprint restriction:** if the request body carries `settings.blueprint`, the caller must be `super_admin`; a tenant admin receives `403 AuthzError` ("Blueprint assessments are restricted to super_admin"). See § Blueprint authoring restriction below. |
+| `POST` | `/admin/assessments/from-set`     | **Step 2:** create a draft assessment from a licensed PLATFORM-library set. Body: `{ source_pack_id, level_position, name, question_count, opens_at, closes_at?, randomize?, description?, settings? }`. License-checked (`403 NOT_LICENSED`), cloned-on-use into the tenant (idempotent), then created from the clone (returns 201). **Defense-in-depth:** any `settings.blueprint` field in the request body is stripped before delegating (even though this route is `adminOnly` — see § Blueprint authoring restriction). |
 | `GET`  | `/admin/assessments/:id`          | Get assessment by id (extension) |
-| `PATCH`| `/admin/assessments/:id`          | Update — only allowed in `draft` status |
+| `PATCH`| `/admin/assessments/:id`          | Update — only allowed in `draft` status. **Blueprint restriction:** if the request body carries `settings.blueprint`, the caller must be `super_admin`; a tenant admin receives `403 AuthzError` ("Blueprint assessments are restricted to super_admin"). |
 | `POST` | `/admin/assessments/:id/publish`  | `draft → published` — runs pool-size pre-flight (count active questions ≥ `question_count` else 422 `POOL_TOO_SMALL`). **B2: 403 `NOT_ENTITLED` if pack is not entitled for the tenant's plan.** |
 | `POST` | `/admin/assessments/:id/close`    | `active → closed` — illegal on `draft` (state-machine reject) |
 | `POST` | `/admin/assessments/:id/reopen`   | `closed → published` if `now < closes_at`; else 422 `REOPEN_PAST_CLOSES_AT` (extension). **B2: 403 `NOT_ENTITLED` if pack is not entitled for the tenant's plan.** |
@@ -288,6 +288,52 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `NOT_ENTITLED` | 403 | `/publish`, `/reopen` — assessment's question pack not entitled for the tenant's plan (B2); see § Phase B2 — publish-time enforcement for body shape |
 | `AUTHN_FAILED` | 401 | All routes — no session |
 | `AUTHZ_FAILED` | 403 | All routes — caller is not a tenant admin |
+
+#### Blueprint authoring restriction (2026-05-24)
+
+**What:** Both `POST /admin/assessments` (create) and `PATCH /admin/assessments/:id` (update) now require `role=super_admin` when the request body carries `settings.blueprint`. A tenant admin receives `403 AuthzError` with message "Blueprint assessments are restricted to super_admin".
+
+**Why:** Blueprint mode lets an assessment author compose the tenant's domain question pool by per-criterion quota — this is a platform-operator capability, not a company-admin capability. Blueprints define cross-tenant pool structure and allowing a tenant admin to set `settings.blueprint` could produce quota arrangements that conflict with platform licensing invariants.
+
+**`POST /admin/assessments/from-set` defense-in-depth:** this route is `adminOnly` (not `super_admin`) and is the correct entry point for tenant admins building assessments from licensed sets. As an additional safeguard it strips any `settings.blueprint` from the delegated body before creating the assessment — so even if a client crafts a request with `settings.blueprint`, the clone-and-create path never writes it.
+
+**Downstream:** the admin-dashboard hides the "Blueprint" mode button on the New Assessment form for non-super-admin sessions (FE defense-in-depth; the backend gate is authoritative).
+
+---
+
+#### `POST /api/admin/sets/:sourcePackId/import` (2026-05-24)
+
+**Purpose:** Clone a licensed PLATFORM-library set into the caller's Question Bank without creating an assessment ("Add to workspace"). This is the explicit workspace-import action distinct from the implicit clone-on-use that happens inside `POST /admin/assessments/from-set`.
+
+**Auth:** `adminOnly` (`roles:['admin']`).
+
+**Path params:** `sourcePackId` — UUID of the platform-library pack to clone. Validated as UUID format; returns `400 INVALID_PARAM` if not a valid UUID.
+
+**Flow:**
+1. `assertLicensedForSourcePack(tenantId, sourcePackId)` — checks the caller's tenant has an active entitlement whose `scope_type='domain'` matches `question_packs.domain` of the source, OR `scope_type='pack'` matches the source UUID exactly. Returns `403 NOT_LICENSED` if no active entitlement covers the source.
+2. `materializeSetForTenant(tenantId, sourcePackId)` — advisory-locked clone (`pg_advisory_xact_lock(tenant, source)`); reuses an existing clone if the unique index `question_packs_tenant_source_uniq` finds one (idempotent). The clone engine rejects non-platform packs (source must be owned by the `platform` tenant) and unpublished sources (`status ≠ 'published'`); either condition returns `403 NOT_LICENSED`.
+3. Returns `201` with the clone metadata.
+
+**Response 201:**
+```json
+{
+  "cloned_pack_id": "uuid",
+  "slug": "soc-analyst-l1-l3-clone",
+  "reused": false,
+  "question_count": 42
+}
+```
+`reused: true` when an existing clone was found rather than a new one created (idempotent re-import). `question_count` reflects the cloned pack's question total at clone time.
+
+**Errors:**
+| `details.code` | HTTP | Condition |
+|---|---|---|
+| `INVALID_PARAM` | 400 | `sourcePackId` is not a valid UUID |
+| `NOT_LICENSED` | 403 | No active entitlement covers the source pack, OR source is not a platform pack, OR source is not published |
+| `AUTHN_FAILED` | 401 | No session |
+| `AUTHZ_FAILED` | 403 | Caller is not a tenant admin |
+
+**Source:** `modules/04-question-bank/src/routes.ts` (`POST /admin/sets/:sourcePackId/import`), `modules/19-billing/src/service.ts` (`assertLicensedForSourcePack`), `modules/04-question-bank/src/clone.ts` (`materializeSetForTenant`).
 
 ### Admin — Grading & review
 
@@ -2238,6 +2284,41 @@ Note: this `DELETE` carries a JSON body — required because the scope identity 
 **Audit:** Emits `tenant.entitlement_revoked` (`ACTION_CATALOG` in `modules/14-audit-log/src/types.ts`). Same two-role transaction pattern as grant.
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`revokeTenantEntitlement`).
+
+---
+
+### `GET /api/admin/super/tenants/:tenantId/content-scopes` (2026-05-24)
+
+Returns the PLATFORM library's **grantable scopes** for the named tenant — the set of domain slugs and published platform packs that a super-admin can grant via `POST /entitlements`, minus scopes that are already actively granted to this tenant.
+
+**Auth:** `super_admin` only.
+
+**Path params:** `tenantId` — UUID of the target tenant.
+
+**What it returns.** The response is built from two sources under `assessiq_system` (BYPASSRLS):
+1. **Canonical domain slugs** — queried from the `domains` table (the platform's taxonomy, seeded by migration 0083). These are lowercase slugs like `"soc"`, `"devops"`, `"cloud-architect"`.
+2. **Published platform packs** — `question_packs` rows where `tenant_id = platform_tenant_id` AND `status = 'published'`, represented as `scope_type='pack'` entries with `scope_id = pack.id`.
+
+Scopes that already have an `active` row in `tenant_entitlements` for this tenant are **excluded** — the result is the delta the super-admin can still grant, not a full catalog re-listing.
+
+**Why this endpoint replaced the old behavior.** The previous implementation read the **target tenant's own** `question_packs.domain` column values and returned those as grantable scopes. That produced non-canonical free-text domains (e.g. `'SOC'`, mixed-case values entered via the old free-text Domain field) that never matched the lowercase platform slug `'soc'` during license-resolution at publish time (`assertPublishEntitled` matches entitlement `scope_id` against `question_packs.domain` by exact string). The fix sources scopes from the platform's `domains` table instead, ensuring the granted `scope_id` always matches the canonical lowercase slug written to `question_packs.domain` by the write-path enforcement (see migration `0090_normalize_domain_slugs.sql` in `docs/02-data-model.md`).
+
+**Response 200:**
+```json
+{
+  "grantable": [
+    { "scope_type": "domain", "scope_id": "soc",        "label": "SOC Analyst" },
+    { "scope_type": "domain", "scope_id": "devops",     "label": "DevOps" },
+    { "scope_type": "pack",   "scope_id": "uuid-of-pack", "label": "SOC Analyst L1–L3", "domain": "soc" }
+  ]
+}
+```
+
+`label` is the human-readable name from the `domains` table (for domain scopes) or `question_packs.name` (for pack scopes). `domain` is present only on pack entries. Already-granted-active scopes are omitted. Empty `grantable` array when nothing remains to grant.
+
+**Errors:** `401 AUTHN_FAILED` — no session. `403 AUTHZ_FAILED` — caller is not `super_admin`. `404` — `tenantId` not found.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`listGrantableScopesForTenant`).
 
 ---
 
