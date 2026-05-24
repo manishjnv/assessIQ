@@ -295,7 +295,7 @@ shipped, so the appeal lands on a fixed page, not a repeat-offender cooldown).
 **Placeholders filled (2026-05-24, commit on `main`):** entity "AssessIQ", address
 Bommanahalli/Bangalore 560068, jurisdiction Bangalore, effective date May 2026. The
 grievance section no longer names a dedicated officer or `grievance@` inbox — it routes
-to the published `hello@assessiq.in`. `terms.astro` says "based in India" rather than
+to the published `connect@assessiq.in`. `terms.astro` says "based in India" rather than
 "a company incorporated under the laws of India" pending confirmation of AssessIQ's
 incorporation status (restore the stronger wording if it is a registered company). The
 GSC "Request Review" and Bing "Verify" clicks remain operator-gated. **Downstream impact:**
