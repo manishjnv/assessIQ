@@ -177,6 +177,53 @@ export async function scoreGenerationAttempt(id: string): Promise<ScoreAttemptRe
 }
 
 // ---------------------------------------------------------------------------
+// Typed helpers — generation-attempts list (resume-on-return for the wizard)
+// ---------------------------------------------------------------------------
+
+export type GenerationAttemptStatus = "success" | "partial" | "failed" | "running";
+
+/**
+ * Minimal generation-attempt summary used by the generate wizard to detect and
+ * resume a run that is still in flight server-side. The full row shape lives in
+ * generation-attempts.tsx (the history page); this only carries what the wizard
+ * needs to render an "in progress" panel and poll for completion.
+ */
+export interface GenerationAttemptSummary {
+  id: string;
+  status: GenerationAttemptStatus;
+  count_requested: number;
+  count_inserted: number;
+  pack_id: string;
+  level_id: string;
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface GenerationAttemptsListResponse {
+  items: GenerationAttemptSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * List recent generation attempts (super_admin-only endpoint, same one the
+ * Generation History page reads). Pass `status: "running"` to find an in-flight
+ * run. Single-flight on the server means at most one attempt is "running" at a
+ * time, so a small `limit` is sufficient.
+ */
+export async function listGenerationAttempts(
+  opts: { status?: GenerationAttemptStatus; limit?: number } = {},
+): Promise<GenerationAttemptsListResponse> {
+  const params = new URLSearchParams();
+  params.set("limit", String(opts.limit ?? 5));
+  if (opts.status) params.set("status", opts.status);
+  return adminApi<GenerationAttemptsListResponse>(
+    `/admin/generation-attempts?${params.toString()}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Typed helpers — super-admin AI generation mode endpoint
 // ---------------------------------------------------------------------------
 
