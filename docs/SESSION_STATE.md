@@ -1,3 +1,22 @@
+# Session — 2026-05-24 (analytics:refresh_mv FIXED + branch reconciled — continuation of the generation-fix session)
+
+**Headline:** Fixed the `analytics:refresh_mv` failure (worker logged `must be owner of materialized view` 42501 every nightly run; MV stale since creation) and reconciled the stale local branch. **Both deployed/live.**
+**Matview fix (commit `e83d826`):** root cause — `attempt_summary_mv` was owned by the migration superuser `assessiq`, but the worker refreshes as `assessiq_app`, and REFRESH requires *being* the owner; the MV also reads RLS-subject base tables across all tenants so the refresh must bypass RLS. Fix = migration `0088_attempt_summary_mv_owner.sql` transfers ownership to `assessiq_system` (BYPASSRLS) + `refresh-mv-job.ts` does `SET ROLE assessiq_system` around the refresh, RESET-or-destroy(`release(true)`) in finally so an elevated connection can never leak BYPASSRLS to a pooled query. **codex:rescue ACCEPT** (no pool-contamination path).
+**Deploy/verify:** 0088 applied to prod via `psql -U $POSTGRES_USER` + recorded in `schema_migrations` (sha `e00ecee8…`); MV owner now `assessiq_system`; **refresh verified via the exact worker path** (`assessiq_app` → `SET ROLE assessiq_system` → `REFRESH CONCURRENTLY` → `RESET` ran clean; MV = 1 row / 1 tenant — low because pre-launch, not a bug). Image rebuilt, **`assessiq-worker` recreated + healthy**, running the new code. Next 02:00 UTC cron exercises the deployed wrapper (DB path already proven).
+**Branch reconcile:** working tree moved to `main` (32d8101→e83d826); stale **local-only** `feat/question-difficulty-phase-a` **deleted** — it was 30 commits behind main with no unique work (its one patch-distinct commit `1c07d00`'s `/api/contact` feature is already on main as `fcd6aab`; `3aeac01` still in reflog). The actual merged feature branch was `origin/feat/question-difficulty` (PR #2). 12 stale `worktree-agent-*` worktrees + `qdiff-a3` remain (pre-existing; prunable).
+**Tests:** analytics typecheck clean · MV-tenant-filter lint OK (20 files) · 3 analytics suites fail only on missing local Docker (Testcontainers) — unrelated.
+**Next:** observe tomorrow's 02:00 UTC `analytics:refresh_mv` run (should succeed now); optionally adopt codex's defense-in-depth suggestion (`BEGIN; SET LOCAL ROLE …; REFRESH; COMMIT` for transaction-scoped auto-reset).
+
+---
+
+## Agent utilization (matview fix + branch reconcile)
+- **Opus 4.7:** root-caused the owner/role + RLS-on-refresh interaction; designed the SET-ROLE + fail-safe-release fix; wrote migration 0088 + code; ran branch-reconcile git surgery; applied prod migration + DB-verified the refresh path; rebuilt/recreated worker. `Opus · matview RLS fix + branch reconcile · reworked: N`.
+- **Sonnet / Haiku:** n/a — single-file load-bearing (RLS) change + inline VPS ops, kept on Opus.
+- **codex:rescue:** **ACCEPT** — verified no pool-contamination path (connection reset-or-destroyed before pool return); confirmed `release(true)` destroy semantics; noted transaction-scoped SET LOCAL ROLE as optional hardening.
+- **claude-mem:** recalled the matview/role context (obs 4322 "member but can't refresh", 2258/2266 MV schema) confirming ownership not membership was the blocker.
+
+---
+
 # Session — 2026-05-24 (AI question generation FIXED — schema-drift coercion, both gates; corrects prior "turns+rate-limit" diagnosis)
 
 **Headline:** Generation produced **0 questions on every run** because the model emits non-canonical `content` shapes and the strict MCP `submit_questions` Zod gate rejected the whole batch → `claude` exit 1. The prior handoff (below) blamed "omnibus max-turns + rate-limit" and prescribed only the sharded flip — **that diagnosis was incomplete** (the 4 tool calls were 4 schema *rejections*; sharded hits the same gate). Shipped a deterministic **tolerant-coercion** layer at BOTH gates + **fail-closed** MCQ answer-key resolver + runtime per-type content re-validation. **Deployed + live in prod.**
