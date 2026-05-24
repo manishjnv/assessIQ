@@ -1,0 +1,24 @@
+-- modules/15-analytics/migrations/0088_attempt_summary_mv_owner.sql
+--
+-- Fix: the analytics:refresh_mv BullMQ job has failed EVERY MINUTE in prod with
+--   "must be owner of materialized view attempt_summary_mv" (PG SQLSTATE 42501).
+--   The MV has therefore held stale data since it was created (0060).
+--
+-- ROOT CAUSE: 0060 created attempt_summary_mv as the migration role (assessiq,
+--   a BYPASSRLS superuser), so `assessiq` owns it. The refresh job runs in the
+--   worker, which connects as the unprivileged app role `assessiq_app`. REFRESH
+--   MATERIALIZED VIEW requires the executing role to *be* the owner — being a
+--   member of the owner role is NOT sufficient — so every refresh was denied.
+--
+-- WHY assessiq_system (not assessiq_app): the MV's SELECT reads the RLS-subject
+--   base tables (attempt_scores / attempts / assessments) across ALL tenants. RLS
+--   applies to those base tables during REFRESH, so the refresh must run as a
+--   BYPASSRLS role or the MV would refresh to EMPTY. `assessiq_system` has
+--   BYPASSRLS; `assessiq_app` is a member and SET ROLEs to it for the refresh only
+--   (modules/15-analytics/src/refresh-mv-job.ts). Granting assessiq_app BYPASSRLS
+--   directly is rejected — it would defeat tenant isolation for every app query.
+--   RLS still does not cover the MV itself; consumers filter by tenant_id
+--   (enforced by tools/lint-mv-tenant-filter.ts) — unchanged by this migration.
+--
+-- Idempotent: a no-op when the MV is already owned by assessiq_system.
+ALTER MATERIALIZED VIEW attempt_summary_mv OWNER TO assessiq_system;
