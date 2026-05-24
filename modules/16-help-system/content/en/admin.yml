@@ -822,6 +822,49 @@ admin.platform.admin_name:
 
     Leave blank to send the invitation without a personalised greeting.
 
+admin.platform.edit_admin:
+  audience: admin
+  short_text: "Update the company's primary admin — name, role (admin/reviewer), or email. Requires fresh MFA."
+  long_md: |
+    ## Edit admin
+
+    Update the company's primary-contact admin without re-provisioning the
+    tenant. You can change their display name, switch their role between
+    `admin` and `reviewer`, and correct or change their email.
+
+    **Role.** Demoting the company's only active admin to reviewer is blocked —
+    add another admin first, or use the Manage-users page.
+
+    **Email is the login identity** — see the email field's own help for the
+    consequences of changing it.
+
+    This is a platform-operator action gated by fresh MFA (a TOTP code entered
+    within the last 15 minutes); you may be prompted to re-enter your
+    authenticator code. Every change is recorded in the audit log.
+
+admin.platform.edit_admin.email:
+  audience: admin
+  short_text: "An admin signs in with the Google account at this email. Changing it transfers the login identity."
+  long_md: |
+    ## Admin email — the login identity
+
+    AssessIQ resolves a signed-in admin to their account purely by their
+    Google-verified email. The email field here is therefore the account's
+    **login identity**, not just a contact detail.
+
+    **Pending admin (invite not yet accepted).** Changing the email is safe:
+    the old invitation link is retired and a fresh one is sent to the new
+    address.
+
+    **Accepted admin.** Changing the email **transfers account ownership**. The
+    admin is signed out and can only sign back in with a Google account at the
+    new address. If they don't control that address they will be locked out; if
+    someone else controls it, that person gains access. Because of this, the
+    change requires an explicit confirmation checkbox.
+
+    Either way, the new email must not already belong to another user in the
+    same company.
+
 admin.platform.mfa_code:
   audience: admin
   short_text: "6-digit code from your authenticator app. Required before provisioning a new tenant (fresh-MFA gate)."

@@ -422,7 +422,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `PATCH` | `/api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip `ai_generate_mode` for a target tenant | **live 2026-05-08** |
 | `POST` | `/api/admin/super/companies` | Provision new company tenant + send first-admin invitation | **live 2026-05-17** |
 | `POST` | `/api/admin/super/tenants/:tenantId/invitations/resend` | Re-issue a pending admin invitation for an existing tenant | **live 2026-05-20** |
-| `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: `usage`; Phase B: `admin_count`, `reviewer_count`; `admin_invitation_expires_at`; `?include_archived=true`) | **live 2026-05-17** |
+| `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: `usage`; Phase B: `admin_count`, `reviewer_count`; `admin_invitation_expires_at`; Edit-admin: `admin_user_id`, `admin_role`, `admin_invitation_id`; `?include_archived=true`) | **live 2026-05-17** · Edit-admin fields **PR-pending** |
 | `GET` | `/api/admin/super/tenants/:tenantId/billing` | Full billing detail for one tenant (A2) | **live 2026-05-17** |
 | `GET` | `/api/admin/super/tenants/:tenantId/billing/export.csv` | Export all billing events as CSV (A2) | **live 2026-05-17** |
 | `PATCH` | `/api/admin/super/tenants/:tenantId/plan` | Update a tenant's tier and/or credit allowance (A2) | **live 2026-05-17** |
@@ -439,6 +439,34 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `DELETE` | `/api/admin/super/users/:userId` | Super-admin soft-delete; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/restore` | Super-admin restore soft-deleted user | **live 2026-05-20** |
 | `DELETE` | `/api/admin/super/users/invitations/:invitationId` | Super-admin cancel pending invitation | **live 2026-05-20** |
+| `PATCH` | `/api/admin/super/users/:userId` | Super-admin edit of a tenant user (name / role / email); identity-transfer guard on email | **branch `feat/platform-edit-admin`, PR-pending — not deployed** |
+
+#### `PATCH /api/admin/super/users/:userId` (Edit admin)
+
+Edits a tenant user's profile from the Platform page "Manage ▸ Edit admin" inline modal. Targets the primary-contact admin shown on each row (`admin_user_id`).
+
+**Auth:** `super_admin` + **fresh MFA** (`superAdminFreshMfa`, TOTP within 15 min). A stale TOTP returns `401` with a `fresh totp` message → the UI shows the MFA step-up sub-form and retries (same UX as create-company).
+
+**Path params:** `userId` — the target user's UUID. The tenant is resolved server-side via `resolveUserTenant` (system-role read); all writes run under `withTenant(targetTenantId)`. `session.tenantId` (the platform tenant) is never used for the data operation.
+
+**Body** (all fields optional; at least one effective change required):
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | 1–200 chars. |
+| `role` | `"admin" \| "reviewer"` | `candidate`/`super_admin` rejected (`INVALID_ROLE`). |
+| `email` | string | The **login identity** (Google SSO resolves a user purely by Google-verified email). See semantics below. |
+| `confirmEmailIdentityChange` | boolean | Required `true` when changing the email of a **non-pending** account (`active` or `disabled`). |
+| `reason` | string | Optional, recorded in the audit row. |
+
+**Email-change semantics (load-bearing — see `docs/04-auth-flows.md`):**
+- **Pending** admin (invite not yet accepted): the old-address invitation is retired in-transaction and a fresh invite is re-issued to the new address post-commit (`reinvited:true`). A post-commit send failure still returns `200` with `reinvited:false` (the rename committed; recover via "Resend invite").
+- **Active/disabled** admin: requires `confirmEmailIdentityChange:true`. Transfers the login identity — the user's sessions are swept (forced re-login) and the stale Google `oauth_identities` link is removed (`sessionsSwept:true`).
+- A role change on a live user also sweeps sessions to drop stale role claims.
+
+**Guards:** demoting the tenant's only active admin to reviewer → `409 LAST_ADMIN` (no override here — use the Manage-users drill-down). New email colliding with an existing user in the same tenant → `409 USER_EMAIL_EXISTS`. Editing a `super_admin` user → `400 CANNOT_EDIT_SUPER_ADMIN`. Editing a soft-deleted user → `409 USER_DELETED`. Every change writes one `audit_log` row (`user.updated`, `kind:'super_profile_edit'`) in the same transaction.
+
+**Response 200:** `{ userId, email, name, role, previousEmail, emailChanged, status, sessionsSwept, reinvited, auditId }`
 
 #### `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`
 
