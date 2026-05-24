@@ -33,7 +33,7 @@
 - **Opt 2 — in-place content refresh of the existing clone (RECOMMENDED):** upsert questions from the new master — add new, bump changed ones to a new `question_versions` row, NEVER hard-delete (archive instead) — bump the clone pack `version`, update recorded `source_version`. One clone per source (respects 0085); version-pinning protects in-flight/completed attempts. Requires NEW diff/upsert logic in the clone engine (`clone.ts` currently only fresh-INSERTs) + a `codex:rescue` gate (clone engine + attempt integrity = load-bearing).
 - **Opt 3 — relax unique index to `(tenant, source, source_version)` + archive old clone:** more invasive (schema + catalog "pick newest" changes).
 
-**Open product decision before building:** should an ALREADY-PUBLISHED assessment (created pre-resync, not yet attempted) pick up the refreshed questions at attempt-start, or stay pinned to the version it was published with? This decides whether re-sync bumps "active" question content that the attempt-engine draws, and must be confirmed with the user.
+**Product decision (DECIDED 2026-05-24):** an ALREADY-PUBLISHED assessment **stays pinned** to the version it was published with; only NEW assessments use refreshed content. So re-sync must NOT change what an existing published assessment draws at attempt-start — implement Option 2 such that the refresh creates new question versions but published assessments resolve their pinned pack/question versions.
 
 **Why deferred:** load-bearing clone-engine change + interacts with attempt-engine version pinning (modules/06) + needs the product decision above. Not a mechanical edit; rushing it risks breaking in-flight attempts. Implement in a fresh focused session.
 
