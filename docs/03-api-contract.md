@@ -230,7 +230,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `GET`  | `/admin/packs/:id`                   | Pack with levels (`{ pack, levels }`) |
 | `PATCH`| `/admin/packs/:id`                   | Update pack metadata (name, domain, description) |
 | `POST` | `/admin/packs/:id/publish`           | Transition draft → published; snapshots all questions; bumps `pack.version` and each `question.version` |
-| `POST` | `/admin/packs/:id/archive`           | Transition published → archived (rejected if any active assessment references the pack — `PACK_HAS_ASSESSMENTS`) |
+| `POST` | `/admin/packs/:id/archive`           | Transition draft **or** published → archived (soft-delete; the only delete path in Phase 1). Rejected if already archived (`PACK_ALREADY_ARCHIVED`) or if any active assessment references the pack (`PACK_HAS_ASSESSMENTS`). **fix 2026-05-24** — draft packs are now archivable; previously archive required `published` (`PACK_NOT_PUBLISHED`), which left empty/junk auto-created drafts uncleanable. |
 | `POST` | `/admin/packs/:id/activate-questions` | Bulk-flip every `status='draft'` question in this pack to `active`. Returns `{ activated, alreadyActive, archived }`. Throws `NO_DRAFT_QUESTIONS_TO_ACTIVATE` if no draft rows exist (idempotency surface — admin UI renders "already done"). Pack must be `status='published'`. **live 2026-05-02** |
 | `POST` | `/admin/packs/:id/levels`            | Add level (returns 201) |
 | `PATCH`| `/admin/levels/:id`                  | Update level fields (label, description, duration, default_question_count, passing_score_pct) |
