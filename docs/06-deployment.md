@@ -372,6 +372,22 @@ caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
 
 **Contact-form backend (2026-05-24).** The `/contact` page previously used a `mailto:` form action which opened the visitor's email client — unreliable on mobile and flagged as "not secure" in browser UX. It now submits via AJAX `POST /api/contact` (the `assessiq-api` container, already behind the `@api` Caddy matcher — no Caddy change required). The endpoint is public and unauthenticated; it reuses the existing per-IP credential-tier rate limiter (`authChain({ requireSession: false, credentialEndpoint: true })`) to cap relay abuse. A hidden honeypot field (`company_website`) silently drops bot submissions before they hit SMTP. Email is sent directly (no BullMQ queue — contact enquiries are not tenant-scoped and carry no `email_log` row) via the platform Resend SMTP transport (`resolveTransport()`); `replyTo` is set to the submitter's address so the team can reply inline. Recipient is hardcoded `connect@assessiq.in`. If `SMTP_URL` is unset (local dev), the enquiry is dropped to `webhook.log` with a WARN and the API still returns `200 { ok: true }`. On SMTP error the API returns `502 SEND_FAILED` with a fallback message pointing to the direct email address. No new environment variables or Caddy changes are needed; the feature is fully live once the API container is redeployed.
 
+**Platform email sender → Resend (2026-05-24).** The platform's SMTP transport was
+switched from a personal **Gmail SMTP** (`smtp.gmail.com`, From `manishjnvk@gmail.com`
+— see RCA 2026-05-24) to **Resend**. `assessiq.in` is verified in Resend (DKIM
+`resend._domainkey` + SPF/MX on `send.assessiq.in`, added via Cloudflare DNS). On the
+VPS, `/srv/assessiq/.env` (root-owned, `600`, **not** in git) now has
+`SMTP_URL=smtps://resend:<api-key>@smtp.resend.com:465` and
+`EMAIL_FROM="AssessIQ <noreply@assessiq.in>"`. This covers **all** outbound email —
+login OTPs + invites (queued via the worker) and contact enquiries (synchronous).
+Recreate `assessiq-api` **and** `assessiq-worker` after an `.env` change (env_file is
+read at container start). Verified 2026-05-24: OTP + contact both deliver to the Gmail
+Inbox From `noreply@assessiq.in`. Rollback: `cp .env.bak.<ts> .env` + recreate. The
+Resend API key is a secret — to rotate, create a new key in Resend → API Keys and
+re-run the `.env` swap. **Why it mattered:** Gmail-as-sender caused contact enquiries
+(which forward to that same Gmail) to be deduped out of the Inbox, and leaked a
+personal address as the sender of every OTP/invite; Gmail SMTP also caps ~500/day.
+
 ## Reverse-proxy plan — additive Caddyfile block
 
 The ti-platform Caddyfile (at `/opt/ti-platform/caddy/Caddyfile`) already has Cloudflare IPs in `trusted_proxies` and uses bridge-gateway upstreams (`172.17.0.1:<port>`) to reach apps on other Docker networks (this is the pattern roadmap and accessbridge use today). Match that pattern — no edits to ti-platform's `docker-compose.yml`, no `extra_hosts`, no shared-network coupling.
