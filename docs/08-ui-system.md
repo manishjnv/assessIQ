@@ -702,3 +702,69 @@ Never remove or rename existing keys.
 - `admin.shell.mobile_continue_anyway` (M5 — admin interstitial override).
 
 All four wired via `data-help-id` on the actual control and seeded into 0011 by `pnpm help:seed:regen`.
+
+## Generation admin UI — wizard resume + scorecard help (2026-05-24)
+
+Two super-admin-only generation surfaces in `modules/10-admin-dashboard`. Both
+are presentational/help only — no auth, tenancy, or grading-pipeline logic.
+
+### Generation gating is already complete (no code this round)
+
+Question generation is **super_admin-only** on every surface; this was confirmed,
+not changed, this session. The four gates (FE defence-in-depth; the backend
+`super_admin`-only generate route is the real boundary):
+
+- **Nav** — `AdminShell.tsx` Library section: "Generate Questions" and
+  "Generation history" are `superAdminOnly: true`.
+- **Routes** — `apps/web/src/App.tsx`: `/admin/generate-wizard` and
+  `/admin/generation-attempts` are `RequireSession role="super_admin"`.
+- **Mode toggle** — `billing.tsx` AI-generate-mode `<select>` renders only inside
+  `{isSuperAdmin && …}`.
+- **Pack-detail link** — the "✦ Generate questions →" button is `{isSuperAdmin && …}`.
+
+### Resume a running generation (`generate-wizard.tsx`)
+
+**What:** the wizard's per-category progress lives only in React state
+(`genResults`), so navigating away during a run and returning dropped the user on
+an empty config form even though the server was still generating. Now, on mount
+the wizard queries `listGenerationAttempts({ status: "running", limit: 1 })`; if a
+run is in flight it shows a **"Generation in progress…"** panel (replacing the
+step UI) and polls every 4s until the tracked attempt leaves the running set, then
+loads the resulting drafts and lands on **Review** — matching what Generation
+History shows live.
+
+**Why:** generation is sync-on-click + single-flight, so at most one attempt is
+`running` platform-wide; a returning super-admin should see that, not a fresh form.
+
+**Not included:** no cancel control, no per-category live progress on resume (the
+in-flight category's React progress is gone once you navigate away — by design,
+same as before). The poll reuses the existing `GET /api/admin/generation-attempts`
+endpoint (new typed helper `listGenerationAttempts` in `api.ts`); no backend change.
+
+### Scorecard inline help (`generation-attempts.tsx`)
+
+Four `HelpTip`s on the per-attempt scorecard, keyed `admin.gen_score.*`:
+
+| Element | help_id |
+|---|---|
+| "Score this attempt" button | `admin.gen_score.score_button` |
+| "Overall verdict:" label | `admin.gen_score.verdict` |
+| "Structural quality" heading | `admin.gen_score.structural` |
+| "Runtime metrics" heading | `admin.gen_score.runtime` (per-metric one-liners in its drawer `long_md`) |
+
+**Page-prefix fix (required):** help resolves via `key LIKE page||'.%'`
+(`listHelpForPage`), and `help_id` segments are `[a-z0-9_]` only — **no hyphens**.
+The page's old `helpPage="admin.generation-attempts.history"` (hyphenated) could
+never match any valid key, so the provider was inert and the `<h1 data-help-id>`
+was a no-op (there is no global `[data-help-id]` binder — help renders only via
+`<HelpTip>`/`useHelp`). The page prop is now `helpPage="admin.gen_score"`, which
+the four keys match. The pre-existing `admin.generation_attempts.history` YAML key
+stays (a kept-test asserts its presence) but remains unrendered — converting the
+`<h1>` to a real `HelpTip` was left out of scope.
+
+**Seeding:** keys live in `modules/16-help-system/content/en/admin.yml`; `0011`
+was regenerated (`pnpm tsx tools/generate-help-seed.ts`) and a forward migration
+`modules/16-help-system/migrations/0089_seed_gen_score_help.sql` carries the four
+rows to prod (0011 is already-applied, so it never re-runs). Numbered 0089 to
+avoid the analytics `0088_attempt_summary_mv_owner.sql` added in parallel. `short_text` ≤120
+chars and non-empty `long_md` per the help-key test.

@@ -1,3 +1,22 @@
+# Session — 2026-05-24 (Question-Difficulty Phase A UI follow-ups — wizard resume + scorecard help; gating already done)
+
+**Headline:** Shipped the two real frontend follow-ups from Phase A on a fresh branch off `origin/main` (isolated worktree). **②** "hide generation from non-super-admins" needed **zero code** — nav, routes, the AI-mode toggle, and the pack-detail link are all already `super_admin`-gated on `origin/main` (the Phase A handoff's "remaining UI gap" note was stale). **③** the Generate wizard now detects a still-running `generation_attempt` on mount and shows/polls a "Generation in progress…" panel (was: progress lived only in React state, lost on navigate-away). **④** the per-attempt scorecard on Generation History got 4 `HelpTip`s (`admin.gen_score.{score_button,verdict,structural,runtime}`) — which forced fixing a **latent dead help-prefix** (the page's hyphenated `helpPage` could never match any valid key). All non-load-bearing. **PR #4 merged to main; `assessiq-frontend` rebuilt + recreated; help migration `0089` applied to prod — LIVE.**
+**Commits (branch `feat/qdiff-admin-ui-followups`, off `origin/main`):** feat(admin) wizard resume-on-return + scorecard help + `admin.gen_score` seed; chore renumber seed migration `0088`→`0089` (analytics took 0088 in parallel); merge origin/main. **PR #4 — MERGED + DEPLOYED this session (see below).**
+**Tests/verify:** admin-dashboard `tsc --noEmit` clean · admin-dashboard vitest **53/53** (fixed `generation-attempts-score.test.tsx` by mocking `@assessiq/help-system/components`, the established pattern) · help-system `admin-help-keys` **62/62** · apps/web `tsc -b && vite build` clean (389 modules). Only pre-existing failure: help-system `audit-writes.test.ts` (Docker/testcontainers — no local runtime). No backend/auth/grading change.
+**Next:** Behavioral verify (super-admin SSO+TOTP, pending operator — no in-tool session): start a generation, navigate away + back → "Generation in progress…" panel; hover the 4 scorecard `(?)` triggers. Optional follow-up: convert the Generation History `<h1>` (dead `data-help-id="admin.generation_attempts.history"`) to a real `HelpTip` under the new `admin.gen_score` prefix.
+**Open questions:** (a) `0011` regen also synced one **pre-existing** mobile-kit drift pair (`admin.shell.nav.mobile_menu` added / `admin.shell.mobile_continue_anyway` removed) — not introduced here; the canonical seed now matches `admin.yml`. (b) `admin.generation_attempts.history` YAML key is now orphaned (page prefix changed) but kept (a test asserts its presence); harmless.
+
+---
+
+## Agent utilization (Phase A UI follow-ups)
+- **Opus 4.7:** whole task — Phase-0 grounding (found ② already shipped + the dead help-prefix); authored ③ (resume detection + 4s poll past the `loadDrafts` TDZ + in-progress panel) and ④ (4 HelpTips + `admin.gen_score` prefix flip + 4 seeded keys + 0011 regen + forward migration 0089); fixed the score-test HelpProvider regression; full verify (tsc/vitest/vite build); merged PR #4, deployed `assessiq-frontend` + applied 0089 to prod; docs (08-ui-system + RCA + this handoff). `Opus · ② verify + ③/④ impl + verify + docs · reworked: N (caught + fixed own score-test break pre-PR)`.
+- **Sonnet:** n/a — non-load-bearing frontend in Opus hot cache; self-execute beat subagent cold-start (global "don't delegate when self-executing is faster").
+- **Haiku:** n/a — no bulk sweeps; targeted Grep/Read inline.
+- **codex:rescue:** n/a — presentational admin UI + help content; no auth/tenancy/grading/RLS surface (the generate route's `super_admin` enforcement is unchanged backend, Phase B1).
+- **claude-mem:** read prior Phase-A + help-system + admin-dashboard context from hook observations; no durable write (no new cross-session pattern beyond the RCA entry).
+
+---
+
 # Session — 2026-05-24 (analytics:refresh_mv FIXED + branch reconciled — continuation of the generation-fix session)
 
 **Headline:** Fixed the `analytics:refresh_mv` failure (worker logged `must be owner of materialized view` 42501 every nightly run; MV stale since creation) and reconciled the stale local branch. **Both deployed/live.**

@@ -1346,6 +1346,76 @@ admin.generation_attempts.history:
     | `failed` | No questions were inserted; the run terminated with an error |
     | `running` | Generation is in progress |
 
+# ─── Generation scorecard (admin.gen_score.*) — score-attempt UI on the Generation History page ───
+
+admin.gen_score.score_button:
+  audience: admin
+  short_text: "Runs the server-side scorer on this run — structural quality plus runtime metrics — and records an overall verdict."
+  long_md: |
+    ## Score this attempt
+
+    Runs the generation **scorer** server-side for this attempt — no CLI or SSH
+    required. It re-evaluates the run on two axes and shows the result inline:
+
+    - **Structural quality** — re-checks every generated draft against the
+      per-type content schema and the difficulty structural gates.
+    - **Runtime metrics** — compares the run's timing/resource figures against
+      their thresholds.
+
+    The combined **overall verdict** (pass / warning / regression) appears above
+    the tables. Scoring is read-only — it never edits or deletes any drafts.
+
+admin.gen_score.verdict:
+  audience: admin
+  short_text: "Roll-up call for this run — pass, warning, or regression — from the structural and runtime checks below."
+  long_md: |
+    ## Overall verdict
+
+    A single roll-up of the structural-quality and runtime checks for this run:
+
+    - **pass** — structural checks pass and no runtime metric failed.
+    - **warning** — minor issues worth a look (e.g. a soft metric miss), but not
+      a regression.
+    - **regression** — a structural baseline regressed, or a runtime metric
+      failed its threshold.
+    - **n/a** — not enough data to score (e.g. the run produced no questions).
+
+    The verdict is derived from the tables below; it does not change any drafts.
+
+admin.gen_score.structural:
+  audience: admin
+  short_text: "Per-type counts of drafts that passed or failed the schema and difficulty structural gates, with top failure reasons."
+  long_md: |
+    ## Structural quality
+
+    Per question-type, how many generated drafts **passed** or **failed** the
+    structural gates — the per-type content schema plus the difficulty
+    structural validator (Bloom/NICE tagging, required fields, distractor and
+    step shape). The **reasons** column lists the most common failure causes.
+
+    The footer line shows total passed / total and how many results regressed
+    against the stored baseline — a non-zero regression count is the usual
+    trigger for a `warning` or `regression` verdict.
+
+admin.gen_score.runtime:
+  audience: admin
+  short_text: "Run timing and resource metrics measured against thresholds; pass or fail is shown per metric."
+  long_md: |
+    ## Runtime metrics
+
+    Operational metrics for the run, each compared against a threshold and marked
+    **pass** or **fail**. These capture *how the run executed*, not the quality
+    of individual questions. Typical metrics:
+
+    - **Run duration** — wall-clock time for the run; a high value usually means
+      the model hit its max-turns budget or was rate-limited.
+    - **Failed chunks** — per-type generation chunks that errored; more than one
+      is the usual cause of a `partial` result.
+    - **Dropped drafts** — near-duplicate or ungrounded drafts discarded before
+      insert.
+
+    The table only appears when thresholds are available for the run.
+
 # ─── Super-admin settings (Stage 3 rollout, 2026-05-10) ───
 
 admin.settings.ai_generate_mode:

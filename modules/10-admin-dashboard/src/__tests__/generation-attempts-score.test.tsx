@@ -44,6 +44,14 @@ vi.mock("../components/AdminShell.js", () => ({
     React.createElement("div", { "data-testid": "admin-shell" }, children),
 }));
 
+// HelpTip wraps the scorecard labels + "Score this attempt" button on the page.
+// AdminShell (which provides the real HelpProvider) is stubbed above, so render
+// HelpTip transparently — these tests cover scoring behaviour, not help wiring.
+vi.mock("@assessiq/help-system/components", () => ({
+  HelpTip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  HelpProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 // ---------------------------------------------------------------------------
 // Test fixtures
 // ---------------------------------------------------------------------------

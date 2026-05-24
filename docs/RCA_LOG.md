@@ -4,6 +4,38 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-24 — Generation History help provider was inert (hyphenated page prefix could never match a valid key)
+
+**Symptom:** Found while adding scorecard help, not in production. The Generation
+History page (`modules/10-admin-dashboard/src/pages/generation-attempts.tsx`)
+mounted a `HelpProvider` via `AdminShell helpPage="admin.generation-attempts.history"`,
+and its `<h1>` carried `data-help-id="admin.generation_attempts.history"` — yet no
+help could ever render on the page. No user-visible breakage (nothing on the page
+actually called `useHelp`), but any future `HelpTip` added under that prefix would
+have silently degraded to no-tooltip.
+
+**Cause:** two independent dead ends. (1) The provider `page` prop was **hyphenated**
+(`admin.generation-attempts.history`), but help is fetched via
+`listHelpForPage` → `WHERE key LIKE page || '.%'` and `help_id` segments are
+validated `[a-z0-9_]` only (no hyphens) by both `isValidHelpId` and
+`admin-help-keys.test.ts`. A hyphenated prefix therefore can never match any
+seeded key. (2) The `<h1 data-help-id=…>` attribute is inert — this app has **no
+global `[data-help-id]` binder**; help renders only through `<HelpTip>`/`useHelp`
+(same finding as RCA 2026-05-19). So even the one "wired" key was decorative.
+
+**Fix:** changed the page prop to `helpPage="admin.gen_score"` (hyphen-free) and
+wired four real `<HelpTip>`s on the scorecard (`admin.gen_score.{score_button,
+verdict,structural,runtime}`), seeded in `admin.yml` + forward migration `0089`.
+The orphaned `admin.generation_attempts.history` YAML key is left in place (a kept
+test asserts its presence); the `<h1>` was not converted (out of scope).
+
+**Prevention:** Phase-3 help-wiring checklist — a `HelpProvider page=` value must
+be hyphen-free and be a true dot-prefix of every `helpId` used on that page
+(`key LIKE page||'.%'`), and a `data-help-id` attribute alone renders nothing
+(use `<HelpTip>`/`useHelp`). Recurring theme with RCA 2026-05-19 (help key/prefix
+mismatch degrades silently). A lint that cross-checks each page's `helpPage`
+prefix against the `HelpTip helpId`s in the same file would catch this class.
+
 ## 2026-05-24 — analytics:refresh_mv failed every minute — MV owned by a role the worker can't refresh as
 
 **Symptom:** `assessiq-worker` logged the `analytics:refresh_mv` cron FAILED **every minute** — `must be owner of materialized view attempt_summary_mv` (PG SQLSTATE 42501) — flooding `worker.log` (66MB). `attempt_summary_mv` has held **stale data since it was created** (migration 0060); analytics reports read a never-refreshed snapshot.
