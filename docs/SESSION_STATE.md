@@ -1,3 +1,16 @@
+# Session — 2026-05-25 (Auto-activate questions on publish — "published = usable")
+
+**Headline:** Operator found "Publish" + "Activate all" confusing (a Published pack with draft questions looks usable but isn't drawn into assessments until questions are `active`). Per operator decision, **publishPack now auto-activates every draft question in the same transaction** — reversing the 2026-05-02 publish/activate decoupling. The per-level button is renamed **"Activate drafts"** and only renders when a level actually has draft questions (edge case: drafts added to an already-published pack), so it's no longer a dead button. Shipped `1c8ae9f`, DEPLOYED (api + frontend rebuilt+recreated, both healthy, /api/health 200).
+**Commits (main):** `1c8ae9f` — feat(question-bank): auto-activate questions on publish.
+**What changed:** `modules/04-question-bank/src/service.ts` `publishPack` calls `repo.bulkActivateDraftQuestionsForPack` after flipping to published (same tx); audit `after` now carries `activated_questions`. `ai_draft`/`archived` left untouched. `modules/10-admin-dashboard/src/pages/pack-detail.tsx` gates the (renamed) button on `levelQs.some(q => q.status === "draft")`. Comments on `activateAllQuestionsForPack` updated (now the edge-case affordance).
+**Tests/verify:** `04-question-bank` **65/65** (repaired `buildPackWith` to set each status explicitly since publish auto-activates; added "publishPack auto-activates draft questions"). Both modules `tsc` clean. **Behavioral UI check (publish → questions show ACTIVE with no second click; "Activate drafts" only when drafts exist) PENDING OPERATOR.**
+**⚠️ Pre-existing red (NOT mine, NOT fixed):** `05-assessment-lifecycle` (12) + `06-attempt-engine` (34) tests fail in their shared helper `buildActiveAssessmentWithInvite` → `ValidationError: opens_at is required` from `createAssessment`. The `opens_at` requirement (multi-tenant assessment work) was added but those test helpers never updated to pass it. Production is fine (the New-assessment form requires Opens). Needs a separate 05/06 test-helper fix.
+**Migrations:** none added here. Verified 0090/0091/0092 all applied on prod before rebuilding the api.
+**Next:** (1) operator behavioral-verify auto-activate-on-publish; (2) fix the 05/06 `opens_at` test-helper drift so those suites go green.
+**Open questions:** none for this change.
+
+---
+
 # Session — 2026-05-25 (Platform domain management + tenant propagation — backend + UI, SHIPPED + LIVE)
 
 **Headline:** Built the PRIMARY backlog item end-to-end. A super-admin can create / archive / reactivate **PLATFORM** domains from `/admin/platform`; each change **propagates across every company tenant**. New `domains.source` ('platform'|'tenant') provenance (migration `0091`) guarantees a platform archive NEVER touches a tenant-LOCAL domain sharing a slug (WIPRO-SOC's `threat-hunting`/`vulnerability-management` stay `tenant`). **Catalog-only archive** (operator-decided): hides everywhere + makes non-grantable, but does NOT revoke entitlements or untag content; reversible. `seedTenantTaxonomy` now seeds new tenants from the **live platform set** (not the static hardcoded 0019 list; hardcoded kept only as a fresh-DB fallback). **ALL LIVE on prod.**
