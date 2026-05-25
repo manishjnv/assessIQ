@@ -327,6 +327,48 @@ export async function createCategoryApi(body: CreateCategoryRequest): Promise<Ca
   });
 }
 
+// ---------------------------------------------------------------------------
+// Typed helpers — platform domain management (super-admin)
+// ---------------------------------------------------------------------------
+
+export interface PlatformDomainItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  status: string;
+  display_order: number;
+  source: string;
+}
+
+export async function listPlatformDomainsApi(): Promise<{ domains: PlatformDomainItem[] }> {
+  return adminApi<{ domains: PlatformDomainItem[] }>("/admin/super/domains");
+}
+
+export interface CreatePlatformDomainRequest {
+  name: string;
+  description?: string;
+}
+
+export async function createPlatformDomainApi(
+  body: CreatePlatformDomainRequest,
+): Promise<PlatformDomainItem & { propagatedTenants: number }> {
+  return adminApi<PlatformDomainItem & { propagatedTenants: number }>("/admin/super/domains", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function setPlatformDomainStatusApi(
+  id: string,
+  status: "active" | "archived",
+): Promise<PlatformDomainItem & { affectedRows: number }> {
+  return adminApi<PlatformDomainItem & { affectedRows: number }>(
+    `/admin/super/domains/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+  );
+}
+
 export interface GenerateWithTagRequest {
   count: number;
   type_counts?: Partial<Record<GenerateQuestionType, number>>;

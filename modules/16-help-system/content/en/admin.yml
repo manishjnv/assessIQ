@@ -975,6 +975,44 @@ admin.platform.entitlements:
     - admin.platform.billing
     - admin.platform
 
+admin.platform.domains:
+  audience: admin
+  short_text: "Subject domains shared across every company. Archiving hides a domain everywhere without revoking licenses."
+  long_md: |
+    ## Platform domains
+
+    Platform domains are the subject-area categories that the platform
+    operator defines and propagates to every company tenant.
+
+    **Creating a domain** makes it available in every company's domain
+    pickers immediately. The URL slug is generated automatically from the
+    name and cannot be changed after creation.
+
+    **Archiving a domain** removes it from every company's pickers and
+    prevents new entitlements or assessments from being based on it.
+    Archiving is catalog-only — it does not revoke existing licenses or
+    alter previously published assessments. Questions tagged to an archived
+    domain keep their tags. You can reactivate the domain at any time.
+
+  related_keys:
+    - admin.platform.entitlements
+    - admin.platform
+
+admin.platform.domain_name:
+  audience: admin
+  short_text: "The domain name; the URL slug is generated automatically and shared across all companies."
+  long_md: |
+    ## Domain name
+
+    Enter a human-readable name for the domain (for example, "Security
+    Operations" or "Cloud Infrastructure"). The platform generates a
+    URL-safe slug from the name automatically. The slug is shared across
+    every company tenant and appears in entitlement records, question tags,
+    and API responses.
+
+    The slug cannot be changed after the domain is created, so choose a
+    name that reflects a stable subject area.
+
 admin.notifications.in_app.short_poll_interval:
   audience: admin
   short_text: "In-app notifications are fetched every 15 seconds. There is no WebSocket push in Phase 3."
