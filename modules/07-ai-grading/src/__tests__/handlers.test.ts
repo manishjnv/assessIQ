@@ -1411,4 +1411,57 @@ describe("Per-type dispatch (handleAdminGrade routes by question type)", () => {
     expect(Array.isArray(answer.steps)).toBe(true);
     expect(answer.steps).toHaveLength(2);
   });
+
+  it("9.6 scenario WITHOUT rubric — gradeSubjective called with rubric synthesised from steps[].expected", async () => {
+    const expected = [
+      "0xC000006A means valid account, wrong password — targeted brute force from one external IP.",
+      "Scheduled task runs from AppData\\Temp and spoofs a Windows component — malicious persistence.",
+    ];
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "scenario",
+      {
+        title: "2 AM SIEM Alerts",
+        intro: "Two correlated alerts fire against an HR workstation.",
+        steps: [
+          { prompt: "Interpret the sub-status code and classify the activity.", expected: expected[0] },
+          { prompt: "Identify the persistence indicators.", expected: expected[1] },
+        ],
+        step_dependency: "linear",
+      },
+      null, // No admin-authored rubric — must be synthesised from steps[].expected
+      { steps: [{ stepIndex: 0, response: "Targeted brute force." }, { stepIndex: 1, response: "Temp-dir exe is persistence." }] },
+    );
+
+    mockGradeSubjective.mockResolvedValue(makeProposal(attemptId, questionId));
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    expect(result.proposals).toHaveLength(1);
+    expect(mockGradeSubjective).toHaveBeenCalledOnce();
+
+    const call = mockGradeSubjective.mock.calls[0]![0];
+    expect(call.question_id).toBe(questionId);
+
+    // Verify the rubric was synthesised from steps[].expected (one anchor each).
+    const rubric = call.rubric as {
+      anchors: Array<{ id: string; concept: string; weight: number; synonyms: string[] }>;
+      anchor_weight_total: number;
+      reasoning_weight_total: number;
+    };
+    expect(Array.isArray(rubric.anchors)).toBe(true);
+    expect(rubric.anchors).toHaveLength(expected.length);
+    for (let i = 0; i < expected.length; i++) {
+      expect(rubric.anchors[i]!.id).toBe(`anchor-${i}`);
+      expect(rubric.anchors[i]!.concept).toBe(expected[i]);
+      expect(rubric.anchors[i]!.synonyms).toEqual([expected[i]]);
+    }
+    const anchorWeightSum = rubric.anchors.reduce((acc, a) => acc + a.weight, 0);
+    expect(anchorWeightSum).toBe(rubric.anchor_weight_total);
+    expect(rubric.anchor_weight_total + rubric.reasoning_weight_total).toBe(100);
+  });
 });
