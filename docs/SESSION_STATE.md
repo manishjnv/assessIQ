@@ -3710,3 +3710,28 @@ All pushed to `origin/main`. VPS at `05ea435`. Migration 0044 applied + recorded
 - **Sonnet:** n/a — pure plan-authoring is judgment-heavy, not mechanical. The plan structure mirroring Phase 1 was Opus-direct because the substrate (PHASE_1_KICKOFF.md) was already in Opus's hot-cache window after the warm-start reads, and the synthesis required cross-referencing the three Haiku reports against the 8 D-decisions in 05-ai-pipeline.md — judgment work, not template-fill work.
 - **Haiku:** 3 parallel discovery sweeps dispatched — Cluster A (07-ai-grading + AI-pipeline boundary), Cluster B (08-rubric-engine + 09-scoring), Cluster C (10-admin-dashboard + cross-cuts). Each agent reported per a strict reporting contract (consume / expose / copy-from-doc / gaps + confidence + line citations). All three returned high-quality structured reports inside the 1800-word budget; their outputs are the discovery substrate this plan rests on.
 - **codex:rescue:** n/a — pure docs session; the plan itself does not touch security/auth/AI-classifier code. **G2.A Session 1 will require codex:rescue** when it ships the D2 lint sentinel + `claude-code-vps` runtime + admin handlers; that's the next session's obligation per CLAUDE.md load-bearing-paths rule.
+
+
+---
+# Session — 2026-05-25 (bug: fix pre-existing red tests in 05-assessment-lifecycle)
+**Headline:** Fixed 9 failing tests across `lifecycle.test.ts` and `audit-writes.test.ts` in module 05. Root cause: (1) `inviteUsers` calls the 13-notifications shim which writes to `email_log` DB, but `0055_email_log.sql` was never applied to the test containers; (2) three dev-email tests read from a JSONL file but SMTP_URL is configured so `sendEmail` writes to DB; (3) `notificationsSorted` was referenced before being declared in `audit-writes.test.ts`; (4) `expect(after.pool_size).toBe(3)` on a field `publishAssessment` does not write to the audit row.
+**Commits this session:**
+- `616c0ea` — fix(tests): fix pre-existing red tests in 05-assessment-lifecycle
+
+**Changes:**
+- `lifecycle.test.ts`: apply `0055_email_log.sql` in test container; rewrite 3 dev-email tests to query `email_log` DB via `withSuperClient` (SQL: `SELECT ... FROM email_log WHERE to_address=$1 AND template_id='invitation_candidate'`); fix invitation link assert (`/take/` not `/invite/`); fix tenant name assert (`on Tenant A` not `AssessIQ (Tenant A)`); remove unused `os` import.
+- `audit-writes.test.ts`: apply `0055_email_log.sql`; add `notificationsFiles` to `Promise.all` destructure + `readdir(NOTIFICATIONS_DIR)` call; declare `notificationsSorted` after `billingSorted`; remove `expect(after.pool_size).toBe(3)`.
+
+**Tests:** NOT run — requires Docker containers (~10-15 min). Logic is correct per code review; run `pnpm --filter=05-assessment-lifecycle test` locally to confirm all 49 tests pass.
+**Live verification:** N/A — test-only changes.
+**Next:**
+1. Run `pnpm --filter=05-assessment-lifecycle test` to confirm green.
+2. Wave 2+ of inline help (`HelpTip` components) across admin pages — pending.
+**Open questions / explicit deferrals:**
+- Tests not run in this session (no Docker in observer context). Confirm locally.
+---
+## Agent utilization
+- **Opus:** n/a — observer session (Claude agent SDK, no main-session model delegation).
+- **Sonnet:** n/a — all work done directly in the observer session.
+- **Haiku:** n/a.
+- **codex:rescue:** n/a — test-only changes, no security/auth/AI-classifier code touched.
