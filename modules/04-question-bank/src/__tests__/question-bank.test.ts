@@ -1093,6 +1093,35 @@ describe("publishPack snapshot semantics (decision #21)", () => {
     expect(versionCount).toBe(3);
   });
 
+  it("publishPack auto-activates draft questions (published = usable, 2026-05-25)", async () => {
+    const pack = await createPack(
+      tenantA,
+      { slug: `pub-autoactivate-${randomUUID().slice(0, 8)}`, name: "Auto Activate", domain: "soc" },
+      adminA,
+    );
+    const level = await addLevel(tenantA, pack.id, {
+      position: 1, label: "L1", duration_minutes: 30, default_question_count: 2,
+    });
+    for (let i = 0; i < 2; i++) {
+      await createQuestion(
+        tenantA,
+        { pack_id: pack.id, level_id: level.id, type: "mcq", topic: `aa-q-${i}`, points: 5, content: mcqContent() },
+        adminA,
+      );
+    }
+
+    // Pre-publish: questions are draft.
+    const before = await listQuestions(tenantA, { pack_id: pack.id });
+    expect(before.items.every((q) => q.status === "draft")).toBe(true);
+
+    await publishPack(tenantA, pack.id, adminA);
+
+    // Post-publish: every draft question is now active — no separate Activate step.
+    const after = await listQuestions(tenantA, { pack_id: pack.id });
+    expect(after.items).toHaveLength(2);
+    expect(after.items.every((q) => q.status === "active")).toBe(true);
+  });
+
   it("editing a question AFTER publish adds one more snapshot row (snapshot-before-update rule)", async () => {
     const pack = await createPack(
       tenantA,
@@ -1624,23 +1653,20 @@ describe("activateAllQuestionsForPack", () => {
     }
     await publishPack(tenantA, pack.id, adminA);
 
-    // Apply per-question status overrides via the superuser client. After
-    // publishPack, every question is still 'draft' (publishPack does NOT
-    // auto-flip — that gap is exactly what this affordance fixes). Flip the
-    // ones the test wants to be 'active' or 'archived' upfront.
+    // Force per-question status via the superuser client. As of 2026-05-25
+    // publishPack AUTO-ACTIVATES drafts, so after publish every question is
+    // 'active' — we must explicitly set EACH question to its target status
+    // (including 'draft') to get a deterministic fixture.
     await withSuperClient(async (client) => {
       const ids = await client.query<{ id: string }>(
         `SELECT id FROM questions WHERE pack_id = $1 ORDER BY created_at ASC, id ASC`,
         [pack.id],
       );
       for (let i = 0; i < ids.rows.length; i++) {
-        const target = questionStatuses[i];
-        if (target !== "draft") {
-          await client.query(
-            `UPDATE questions SET status = $1 WHERE id = $2`,
-            [target, ids.rows[i]!.id],
-          );
-        }
+        await client.query(
+          `UPDATE questions SET status = $1 WHERE id = $2`,
+          [questionStatuses[i], ids.rows[i]!.id],
+        );
       }
     });
     return { packId: pack.id };

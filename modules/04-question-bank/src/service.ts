@@ -453,6 +453,16 @@ export async function publishPack(
     // 4. Flip status to 'published', bump pack version (so next publish lands a new row)
     const updated = await repo.updatePackRow(client, id, { status: "published", version: pack.version + 1 });
 
+    // 5. Auto-activate: a published pack must be immediately usable. Questions
+    //    are only drawn into a candidate assessment when status='active', so
+    //    flip every draft question to active in this same transaction — the
+    //    admin no longer needs a separate "Activate all" click. This REVERSES
+    //    the 2026-05-02 decoupling decision per the 2026-05-25 product call
+    //    ("published = usable"). ai_draft (unreviewed AI) and archived questions
+    //    are intentionally left as-is; the manual activate-questions affordance
+    //    still exists for drafts ADDED to an already-published pack afterwards.
+    const activation = await repo.bulkActivateDraftQuestionsForPack(client, id);
+
     await auditInTx(client, {
       tenantId,
       actorKind: "user",
@@ -465,6 +475,7 @@ export async function publishPack(
         status: updated.status,
         version: updated.version,
         question_count: questions.length,
+        activated_questions: activation.activated,
       },
     });
 
@@ -531,16 +542,19 @@ export async function archivePack(
 }
 
 // ---------------------------------------------------------------------------
-// activateAllQuestionsForPack — admin "activate all" affordance
+// activateAllQuestionsForPack — admin "activate all" affordance (edge-case)
 // ---------------------------------------------------------------------------
 //
-// Closes the workflow gap RCA'd 2026-05-02 (publishPack does NOT auto-flip
-// questions to status='active'; assessments + attempts both require active
-// questions to load the pool). Per the RCA's prevention note option (b), this
-// service surfaces an explicit admin click rather than coupling activation to
-// publishPack — admins who want pre-activation can call this immediately
-// after publishPack; admins who want graduated activation can leave some
-// questions as draft and only activate the curated subset.
+// HISTORY: the 2026-05-02 RCA decoupled activation from publish so admins could
+// publish a pack but activate only a curated subset (graduated rollout). That
+// proved more confusing than useful (a "Published" pack with draft questions
+// looks usable but isn't), so as of 2026-05-25 publishPack auto-activates every
+// draft question in the same transaction — "published = usable".
+//
+// This service is now the EDGE-CASE affordance: re-activating drafts ADDED to a
+// pack that is ALREADY published (publish only fires once, draft → published).
+// The pack-detail UI only surfaces the button when a level has inactive
+// questions, so it no longer shows as a dead button on a fully-active pack.
 //
 // Guards:
 //   - Pack must exist (RLS-scoped lookup).
