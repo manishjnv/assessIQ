@@ -300,6 +300,17 @@ admin.question_bank.pack.activate_drafts:
 
 # ─── Assessment lifecycle ───
 
+admin.assessments.create.submit:
+  audience: admin
+  short_text: "Create this assessment as a Draft. You then Publish it to open candidate invitations."
+  long_md: |
+    ## Create assessment
+
+    Saves the assessment in **Draft** — nothing is sent to candidates yet. From
+    the assessment's detail page you then **Publish** it (which freezes its
+    question set and opens it) and **invite candidates**. A draft can be edited
+    or deleted freely before publishing.
+
 admin.assessments.create.duration:
   audience: admin
   short_text: "Total wall-clock minutes from candidate start to auto-submit. L1: 30–45, L2: 45–60, L3: 60–90."

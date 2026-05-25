@@ -34,6 +34,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
+import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, getCompanyEntitlements } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
@@ -313,7 +314,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, "Detail"]} helpPage="admin.assessments.detail">
+      <AdminShell breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, "Detail"]} helpPage="admin.assessments">
         <div
           style={{
             color: "var(--aiq-color-fg-muted)",
@@ -330,7 +331,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   if (error || !assessment) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, "Detail"]} helpPage="admin.assessments.detail">
+      <AdminShell breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, "Detail"]} helpPage="admin.assessments">
         <div
           style={{
             color: "var(--aiq-color-danger)",
@@ -351,7 +352,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
   return (
     <AdminShell
       breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, assessment.name]}
-      helpPage="admin.assessments.detail"
+      helpPage="admin.assessments"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Header */}
@@ -433,15 +434,16 @@ export function AdminAssessmentDetail(): React.ReactElement {
             </button>
             {assessment.status === "draft" && (
               <div data-help-id="admin.assessments.content_source" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--aiq-space-xs)" }}>
-                <button
-                  type="button"
-                  data-help-id="admin.assessments.publish"
-                  className="aiq-btn aiq-btn-primary"
-                  onClick={() => void handlePublish()}
-                  disabled={publishing}
-                >
-                  {publishing ? "Publishing…" : "Publish"}
-                </button>
+                <HelpTip helpId="admin.assessments.publish">
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-primary"
+                    onClick={() => void handlePublish()}
+                    disabled={publishing}
+                  >
+                    {publishing ? "Publishing…" : "Publish"}
+                  </button>
+                </HelpTip>
                 {/* B2 — entitlement hint (FE convenience; server enforces).
                     Shown when pack_id is set. If entitlements loaded and the
                     pack_id is NOT in active pack-scope entitlements, show a
@@ -539,17 +541,19 @@ export function AdminAssessmentDetail(): React.ReactElement {
             >
               Invitations.
             </h2>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-outline aiq-btn-sm"
-              onClick={() => {
-                setShowInviteForm((v) => !v);
-                setInviteError(null);
-                setSelectedUserIds(new Set());
-              }}
-            >
-              {showInviteForm ? "Cancel" : "+ Invite candidates"}
-            </button>
+            <HelpTip helpId="admin.assessments.invite.bulk">
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                onClick={() => {
+                  setShowInviteForm((v) => !v);
+                  setInviteError(null);
+                  setSelectedUserIds(new Set());
+                }}
+              >
+                {showInviteForm ? "Cancel" : "+ Invite candidates"}
+              </button>
+            </HelpTip>
           </div>
 
           {/* Invite inline form */}

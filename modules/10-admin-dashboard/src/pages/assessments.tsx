@@ -1183,7 +1183,7 @@ export function AdminAssessments(): React.ReactElement {
   );
 
   return (
-    <AdminShell breadcrumbs={["Assessments"]} helpPage="admin.assessments.list">
+    <AdminShell breadcrumbs={["Assessments"]} helpPage="admin.assessments">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Page header — count chip + serif h1 + lede + action */}
         <div>
@@ -1435,9 +1435,11 @@ export function AdminAssessments(): React.ReactElement {
               )}
 
               {createdAssessmentId === null && (
-                <button type="submit" className="aiq-btn aiq-btn-primary" disabled={creating}>
-                  {creating ? "Creating…" : "Create assessment"}
-                </button>
+                <HelpTip helpId="admin.assessments.create.submit">
+                  <button type="submit" className="aiq-btn aiq-btn-primary" disabled={creating}>
+                    {creating ? "Creating…" : "Create assessment"}
+                  </button>
+                </HelpTip>
               )}
             </form>
           </div>
