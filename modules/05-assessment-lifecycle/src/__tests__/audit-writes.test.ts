@@ -63,6 +63,10 @@ const USERS_DIR = join(MODULES_ROOT, "03-users", "migrations");
 const AUDIT_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
 const QB_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
 const AL_DIR = join(AL_MODULE_ROOT, "migrations");
+// publishAssessment / reopenAssessment call assertPublishEntitled which queries
+// tenant_plans. Without this the audit suite throws "relation \"tenant_plans\"
+// does not exist" on every publish-path test.
+const BILLING_DIR = join(MODULES_ROOT, "19-billing", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -223,12 +227,13 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_al_audit_test`;
 
-  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles] = await Promise.all([
+  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles, billingFiles] = await Promise.all([
     readdir(TENANCY_DIR),
     readdir(USERS_DIR),
     readdir(AUDIT_DIR),
     readdir(QB_DIR),
     readdir(AL_DIR),
+    readdir(BILLING_DIR),
   ]);
 
   const tenancySorted = tenancyFiles
@@ -251,6 +256,13 @@ beforeAll(async () => {
     .filter((f) => f.endsWith(".sql"))
     .sort()
     .map((f) => ({ dir: AL_DIR, file: f }));
+
+  // Only the schema-creating billing migrations; 0079 requires the attempts
+  // table (not in this test set), 0080/0082 are backfills, 0090 is a noop UPDATE.
+  const billingSorted = billingFiles
+    .filter((f) => f.endsWith(".sql") && (f === "0078_tenant_plans.sql" || f === "0081_tenant_entitlements.sql"))
+    .sort()
+    .map((f) => ({ dir: BILLING_DIR, file: f }));
 
   await withSuperClient(async (client) => {
     await client.query(`
@@ -276,6 +288,7 @@ beforeAll(async () => {
       ...auditSorted,
       ...qbSorted,
       ...alSorted,
+      ...billingSorted,
     ]) {
       const sql = await readFile(join(dir, file), "utf-8");
       await client.query(sql);
@@ -293,6 +306,12 @@ beforeAll(async () => {
   await withSuperClient(async (client) => {
     await insertTenant(client, tenantA, "tenant-al-audit");
     await insertAdmin(client, adminA, tenantA, "admin-al-audit@example.com");
+    // assertPublishEntitled queries tenant_plans.tier; 'internal' bypasses all
+    // entitlement checks so every publish-path test in this audit suite proceeds.
+    await client.query(
+      `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'internal', NULL) ON CONFLICT DO NOTHING`,
+      [tenantA],
+    );
   });
 }, 90_000);
 
@@ -312,7 +331,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
 
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Create", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Create", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
 
@@ -333,7 +352,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Update Pre", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Update Pre", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await clearAudit(tenantA);
@@ -363,7 +382,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Publish", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Publish", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await clearAudit(tenantA);
@@ -386,7 +405,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Close", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Close", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -419,6 +438,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
         level_id: levelId,
         name: "Audit Reopen",
         question_count: 3,
+        opens_at: new Date(Date.now() + 60_000),
         closes_at: new Date(Date.now() + 60 * 60_000),
       },
       adminA,
@@ -453,7 +473,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Invite", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Invite", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -489,7 +509,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Invite Skip", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Invite Skip", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -509,7 +529,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Revoke", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Revoke", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
@@ -543,7 +563,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Audit Revoke Idem", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Audit Revoke Idem", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);

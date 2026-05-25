@@ -91,6 +91,11 @@ const AUDIT_LOG_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations"
 // modules/06-attempt-engine/src/repository.ts SELECT lists; without it
 // every findAttemptById throws "column embed_origin does not exist".
 const EMBED_SDK_MIGRATIONS_DIR = join(MODULES_ROOT, "12-embed-sdk", "migrations");
+// publishAssessment (called by buildActiveAssessmentWithInvite) calls
+// assertPublishEntitled from @assessiq/billing, which queries tenant_plans.
+// Without the billing schema migrations the test DB throws
+// "relation \"tenant_plans\" does not exist" on every publish-path test.
+const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -211,7 +216,7 @@ async function buildActiveAssessmentWithInvite(
   );
   const assessment = await createAssessment(
     tenantId,
-    { pack_id: packId, level_id: levelId, name: "SM Assessment", question_count: questionCount },
+    { pack_id: packId, level_id: levelId, name: "SM Assessment", question_count: questionCount, opens_at: new Date(Date.now() + 60_000) },
     adminId,
   );
   await publishAssessment(tenantId, assessment.id, adminId);
@@ -290,6 +295,13 @@ beforeAll(async () => {
     // Order: embed_origin column add must follow 0030; audit_log is standalone.
     await applyMigrationsFromDir(client, EMBED_SDK_MIGRATIONS_DIR, ["0073_attempt_embed_origin.sql"]);
     await applyMigrationsFromDir(client, AUDIT_LOG_MIGRATIONS_DIR);
+    // Apply only the schema-creating billing migrations (0078 + 0081).
+    // 0079 requires the attempts table which IS in this test set (AE migrations
+    // run above), but 0080/0082 are backfills and 0090 is a noop UPDATE — skip all.
+    await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
+      "0078_tenant_plans.sql",
+      "0081_tenant_entitlements.sql",
+    ]);
   });
 
   setPoolForTesting(containerUrl);
@@ -304,6 +316,16 @@ beforeAll(async () => {
     await insertTenant(client, tenantB, "sm-tenant-b", "SM Tenant B");
     await insertAdminUser(client, adminA, tenantA, "sm-admin-a@test.local");
     await insertAdminUser(client, adminB, tenantB, "sm-admin-b@test.local");
+    // assertPublishEntitled queries tenant_plans.tier; tier='internal' bypasses
+    // all entitlement checks so every publish-path test in this suite proceeds.
+    await client.query(
+      `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'internal', NULL) ON CONFLICT DO NOTHING`,
+      [tenantA],
+    );
+    await client.query(
+      `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'internal', NULL) ON CONFLICT DO NOTHING`,
+      [tenantB],
+    );
   });
 }, 90_000);
 

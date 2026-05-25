@@ -73,6 +73,11 @@ const AE_MIGRATIONS_DIR = join(AE_MODULE_ROOT, "migrations");
 // wiring in 04-question-bank.createPack now requires.
 const EMBED_SDK_MIGRATIONS_DIR = join(MODULES_ROOT, "12-embed-sdk", "migrations");
 const AUDIT_LOG_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
+// publishAssessment (called by buildActiveAssessmentWithInvite) calls
+// assertPublishEntitled from @assessiq/billing, which queries tenant_plans.
+// Without the billing schema migrations the test DB throws
+// "relation \"tenant_plans\" does not exist" on every publish-path test.
+const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -199,6 +204,7 @@ async function buildActiveAssessmentWithInvite(
       level_id: levelId,
       name: "Active Assessment",
       question_count: questionCount,
+      opens_at: new Date(Date.now() + 60_000),
     },
     adminId,
   );
@@ -245,6 +251,15 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, AE_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, EMBED_SDK_MIGRATIONS_DIR, ["0073_attempt_embed_origin.sql"]);
     await applyMigrationsFromDir(client, AUDIT_LOG_MIGRATIONS_DIR);
+    // Apply only the schema-creating billing migrations (0078 + 0081).
+    // 0079 requires the attempts table (module 06) which may not yet exist at
+    // this point in the apply sequence. 0080/0082 are backfills against live
+    // data and are irrelevant in test containers. 0090 UPDATEs existing rows
+    // (noop in an empty DB). Use the 'only' param to be surgical.
+    await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
+      "0078_tenant_plans.sql",
+      "0081_tenant_entitlements.sql",
+    ]);
   });
 
   // Wire withTenant to point at the test container.
@@ -261,6 +276,18 @@ beforeAll(async () => {
     await insertTenant(client, tenantB, "tenant-b", "Tenant B");
     await insertAdminUser(client, adminA, tenantA, "admin-a@test.local");
     await insertAdminUser(client, adminB, tenantB, "admin-b@test.local");
+    // assertPublishEntitled (called by publishAssessment inside
+    // buildActiveAssessmentWithInvite) queries tenant_plans.tier; tier='internal'
+    // bypasses all entitlement checks. Without these rows every publish-path
+    // test fails with a 403 ForbiddenError.
+    await client.query(
+      `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'internal', NULL) ON CONFLICT DO NOTHING`,
+      [tenantA],
+    );
+    await client.query(
+      `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'internal', NULL) ON CONFLICT DO NOTHING`,
+      [tenantB],
+    );
   });
 }, 90_000);
 
@@ -325,7 +352,7 @@ describe("startAttempt", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "Draft", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "Draft", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     // Leave in 'draft'.
@@ -346,7 +373,7 @@ describe("startAttempt", () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
     const assessment = await createAssessment(
       tenantA,
-      { pack_id: packId, level_id: levelId, name: "No invite", question_count: 3 },
+      { pack_id: packId, level_id: levelId, name: "No invite", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
       adminA,
     );
     await publishAssessment(tenantA, assessment.id, adminA);
