@@ -424,16 +424,16 @@ export function AdminCertificates(): React.ReactElement {
           </div>
           {[
             {
-              label: "When one appears here",
-              body: "Created automatically when you release a graded attempt that scored 70%+ (70–89% → Completion, 90%+ → Distinction). You don't create certificates by hand.",
+              label: "When one appears",
+              body: "Auto-created when you release a graded attempt scoring 70%+ (70–89% = Completion, 90%+ = Distinction). No manual step.",
             },
             {
-              label: "How the candidate gets & shares it",
-              body: "Candidates see their certificate in their own login, download it as a PDF, and share it (including to LinkedIn). Each one carries a QR code / link anyone can scan to verify it's genuine.",
+              label: "How the candidate gets it",
+              body: "They see it in their own login, download the PDF, and share it (incl. LinkedIn). A QR code lets anyone verify it's real.",
             },
             {
               label: "What you can do here",
-              body: "Revoke a certificate (with a reason) or Reissue one (e.g. to fix a misspelled name). A revoked certificate shows as revoked on the public verification page.",
+              body: "Revoke it (with a reason) or Reissue it (e.g. fix a name). Revoked certs show as revoked when verified.",
             },
           ].map((row) => (
             <p
