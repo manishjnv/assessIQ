@@ -1,3 +1,14 @@
+# Session — 2026-05-25 (Inline button help Wave 2 — assessment lifecycle + certificates)
+
+**Headline:** Wave 2 of the site-wide inline button-help rollout SHIPPED + LIVE. Wrapped the high-consequence action buttons in `<HelpTip>`: Assessments → **Create assessment**; Assessment detail → **Publish**, **+ Invite candidates**; Certificates → **Revoke**, **Reissue**. Shipped `57b4fa9`; migration `0094` applied + recorded on prod (sha256 `6cd14b8f…`, 1 row verified); frontend rebuilt+recreated (healthy, /admin/assessments + /admin/certificates → 200).
+**Commits (main):** `57b4fa9` — feat(help): inline button help Wave 2.
+**Key insight (drives all future waves):** `data-help-id` attributes are **inert markers** — only `<HelpTip>` renders visible help. Most of these buttons ALREADY had content keys (`admin.assessments.publish`, `.invite.bulk`, `admin.certificates.revoke`, `.reissue`) that simply weren't loading because the page's `helpPage` was a DEEPER prefix than the key (`HelpProvider` fetches `key LIKE '<helpPage>.%'`). So Wave 2 **broadened the `helpPage` prefix** (`admin.assessments.detail`/`.list` → `admin.assessments`; `admin.certificates.list` → `admin.certificates`) to surface the existing content, then wrapped the buttons. Only ONE new key authored (`admin.assessments.create.submit`, migration `0094`); `0011` regenerated for source-sync (124 rows). admin-dashboard `tsc` clean.
+**Behavioral check PENDING OPERATOR:** hover Create / Publish / Invite / Revoke / Reissue → tooltip + (?) drawer.
+**Next (Wave 3):** remaining pages — Attempts, Grading (attempt-detail: note `admin.grading.*` keys vs `admin.attempts.detail` prefix — broaden to a common ancestor or add page-prefixed keys), Reports, Users, Platform, Billing, Dashboard, Activity. Several already have `data-help-id` content needing only a `helpPage` broaden + `HelpTip` wrap (cheap, like Wave 2). Prefer broadening over duplicate keys.
+**Open questions:** none for Wave 2.
+
+---
+
 # Session — 2026-05-25 (Inline button help Wave 1 + repaired the 05/06 test suites)
 
 **Headline:** Two asks. (1) **Inline button help — Wave 1 SHIPPED + LIVE.** Action buttons on the two Question Bank pages now carry `<HelpTip>` (hover tooltip from `short_text` + a (?) icon opening the help drawer with `long_md`): list → New Pack, Add to workspace; pack detail → Generate questions, Publish pack, Archive pack, Activate drafts. (2) **05/06 test suites repaired** — `06-attempt-engine` now 49/49 green; `05-assessment-lifecycle` 99/102 (was ~46 failing).
