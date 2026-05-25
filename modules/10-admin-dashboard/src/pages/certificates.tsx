@@ -407,6 +407,51 @@ export function AdminCertificates(): React.ReactElement {
         </p>
       </div>
 
+      {/* ── How-it-works help card ── */}
+      <div style={{ padding: "0 var(--aiq-space-xl) var(--aiq-space-md)" }}>
+        <div
+          className="aiq-card"
+          style={{
+            padding: "var(--aiq-space-md) var(--aiq-space-lg)",
+            background: "var(--aiq-color-bg-raised)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--aiq-space-sm)",
+          }}
+        >
+          <div>
+            <Chip leftIcon="book">How certificates work</Chip>
+          </div>
+          {[
+            {
+              label: "When one appears here",
+              body: "Created automatically when you release a graded attempt that scored 90%+ (90–99% → Completion, 100% → Distinction). You don't create certificates by hand.",
+            },
+            {
+              label: "How the candidate gets & shares it",
+              body: "Candidates see their certificate in their own login, download it as a PDF, and share it (including to LinkedIn). Each one carries a QR code / link anyone can scan to verify it's genuine.",
+            },
+            {
+              label: "What you can do here",
+              body: "Revoke a certificate (with a reason) or Reissue one (e.g. to fix a misspelled name). A revoked certificate shows as revoked on the public verification page.",
+            },
+          ].map((row) => (
+            <p
+              key={row.label}
+              style={{
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+                color: "var(--aiq-color-fg-secondary)",
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              <strong style={{ color: "var(--aiq-color-fg-primary)" }}>{row.label}:</strong> {row.body}
+            </p>
+          ))}
+        </div>
+      </div>
+
       {/* ── Filter bar ── */}
       <div
         className="aiq-admin-filter-strip"
