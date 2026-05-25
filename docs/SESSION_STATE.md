@@ -61,6 +61,21 @@
 
 ---
 
+## Backlog for the next (fresh) session — agreed scope
+
+**(0) OPERATOR content step (not code):** WIPRO-SOC's "From a set" + Licensed-sets stay empty until the platform `soc`/`phishing` packs are **published** (currently draft; only `cloud-security`+`incident-response` are published, which WIPRO-SOC isn't granted). Publish the platform `soc` pack (when its questions are ready) so WIPRO-SOC's existing `soc` entitlement lights up. NOTE: granting `cloud-security` to WIPRO-SOC would be wrong content for a SOC company — publish soc/phishing instead.
+
+**(1) B3 — re-sync of `update_available` licensed sets** — see the "B3 design spike" section above. Option 2 (in-place content refresh + question versioning); published assessments **stay pinned** (decided). Load-bearing clone engine → `codex:rescue`.
+
+**(2) Platform domain management + tenant propagation (DECIDED: build full + propagate platform→tenants).** New feature, load-bearing (cross-tenant writes) → design pass + `codex:rescue`.
+  - *Backend:* `PATCH /api/admin/domains/:id { status }` (+ existing create), **super-admin only** (platform-affecting). Propagation in a system-role tx: platform CREATE → insert slug/name into every company tenant's `domains` (skip tenants already having that slug); platform ARCHIVE → flip `status='archived'` for that slug across tenants. New-tenant provisioning must seed from the *current* platform domain set (not the hardcoded list in migration 0019).
+  - *Design decisions to settle FIRST:* (a) **provenance** — add a `source` flag (`platform`|`tenant`) on `domains` (or match by slug) so archiving a platform domain never clobbers a tenant-LOCAL domain sharing a slug (e.g. WIPRO-SOC's `threat-hunting`/`vulnerability-management` are tenant-local — must be left alone); (b) **archive semantics** — archived domain drops from all dropdowns (the `status='active'` filter already does this) and is non-grantable (A2 already filters active); existing tagged packs/questions keep the tag for display; decide whether existing entitlements for a now-archived domain keep being honored or get revoked.
+  - *Frontend:* a super-admin domain-management surface (Platform page or dedicated) — list / create / archive / reactivate. All four dropdowns already reflect `status='active'` on fetch; add refetch-on-create where not already present.
+  - *Risks:* cross-tenant bulk writes must be idempotent + collision-safe; writes run under system role (RLS); future tenants must inherit current platform domains.
+  - *Already in sync today (verified 2026-05-24):* all four domain SELECTION dropdowns (Generate, Blueprint, New-Pack, Grant) read the canonical source and filter `status='active'`; the Grant endpoint returns the correct ungranted platform domains (live 200). The only gap is the archive capability + propagation above.
+
+---
+
 # Session — 2026-05-24 (Lifecycle MFA step-up — review + docs follow-up)
 
 **Headline:** Reviewed/tested the super-admin Suspend/Archive/Resume/Unarchive feature end-to-end and found a stale-MFA dead-end in `LifecycleConfirmModal` (a `401 "fresh totp required"` had no in-place recovery, unlike Create-company). The CODE fix (mirror Create-company's `MfaStepUp`: `confirm|mfa` sub-state + retry-with-preserved-reason + parent re-throws only the fresh-MFA 401) shipped via a **parallel session's PR #5 (`234c196`)** and is LIVE in the served `assessiq-frontend` bundle. This session contributes the same-fix **docs** that the code PR omitted.
