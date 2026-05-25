@@ -23,12 +23,19 @@ import type { Certificate } from '../types.js';
 // Brand tokens (sRGB — from OKLCH hue 258 palette)
 // ---------------------------------------------------------------------------
 
-const ACCENT = '#3177dc';
 const FG_PRIMARY = '#1a1a1a';
 const FG_SECONDARY = '#5f6368';
 const BG_BASE = '#ffffff';
 const BG_RAISED = '#fafafa';
 const BORDER = '#e8e8e8';
+
+// Tier-specific accent. Completion = brand blue; distinction = gold (matches the
+// admin tier chip #d97706); honors = violet. Branding gap noted in SKILL.md.
+const TIER_ACCENT: Record<string, string> = {
+  completion: '#3177dc',
+  distinction: '#b8860b',
+  honors: '#7c3aed',
+};
 
 const FONT_SERIF = "Newsreader, Georgia, 'Times New Roman', serif";
 const FONT_SANS = 'Geist, Helvetica, Arial, sans-serif';
@@ -54,9 +61,11 @@ function escHtml(s: string): string {
 /**
  * Renders the certificate as a self-contained A4 landscape HTML document.
  * `qrDataUrl` must be a PNG data URL produced by credentialQrDataUrl().
- * Text is selectable (not SVG).
+ * `verifyUrl` is the canonical public verification URL (also encoded in the QR);
+ * it is derived from PUBLIC_BASE_URL, so the printed domain always matches the
+ * deployment (no hardcoded host). Text is selectable (not SVG).
  */
-export function renderCertificateHtml(cert: Certificate, qrDataUrl: string): string {
+export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, verifyUrl: string): string {
   const issuedDate = new Date(cert.issued_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -64,6 +73,8 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string): str
   });
 
   const tierLabel = escHtml(cert.tier.charAt(0).toUpperCase() + cert.tier.slice(1));
+  const accent = TIER_ACCENT[cert.tier] ?? TIER_ACCENT['completion']!;
+  const verifyDisplay = escHtml(verifyUrl.replace(/^https?:\/\//, ''));
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -74,29 +85,42 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string): str
     @page { size: 297mm 210mm; margin: 0; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 297mm; height: 210mm; background: ${BG_BASE}; overflow: hidden; }
-    body {
-      font-family: ${FONT_SANS};
-      color: ${FG_PRIMARY};
+    body { font-family: ${FONT_SANS}; color: ${FG_PRIMARY}; }
+
+    /* Framed border — outer accent rule + thin inner rule (classic certificate). */
+    .frame {
+      position: absolute;
+      inset: 7mm;
+      border: 2.5px solid ${accent};
+      padding: 4mm;
+    }
+    .inner {
+      position: absolute;
+      inset: 0;
+      margin: 4mm;
+      border: 1px solid ${BORDER};
+      padding: 12mm 16mm;
       display: flex;
       flex-direction: column;
-      padding: 18mm 22mm 14mm 30mm;
-      position: relative;
     }
-    .accent-bar {
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 8mm;
-      background: ${ACCENT};
-    }
+
     .header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 7mm;
+      margin-bottom: 9mm;
+    }
+    .wordmark { display: flex; flex-direction: column; gap: 1mm; }
+    .brand {
+      font-family: ${FONT_SANS};
+      font-size: 15pt;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      color: ${accent};
     }
     .issuer {
       font-family: ${FONT_SANS};
-      font-size: 9pt;
+      font-size: 8.5pt;
       color: ${FG_SECONDARY};
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -110,6 +134,7 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string): str
       padding: 1mm 2.5mm;
       border-radius: 3px;
     }
+
     .cert-label {
       font-family: ${FONT_SANS};
       font-size: 9pt;
@@ -120,96 +145,129 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string): str
     }
     .recipient-name {
       font-family: ${FONT_SERIF};
-      font-size: 34pt;
+      font-size: 36pt;
       font-weight: 700;
       color: ${FG_PRIMARY};
       line-height: 1.1;
-      margin-bottom: 5mm;
+      margin-bottom: 3mm;
     }
-    .course-title {
-      font-family: ${FONT_SERIF};
-      font-size: 16pt;
-      color: ${ACCENT};
-      margin-bottom: 4mm;
-    }
-    .meta-row {
-      display: flex;
-      gap: 10mm;
-      margin-bottom: 5mm;
-    }
-    .meta-item {
+    .awarded {
       font-family: ${FONT_SANS};
       font-size: 10pt;
       color: ${FG_SECONDARY};
+      margin-bottom: 2mm;
     }
-    .meta-value {
-      font-weight: 600;
-      color: ${FG_PRIMARY};
+    .course-title {
+      font-family: ${FONT_SERIF};
+      font-size: 18pt;
+      color: ${accent};
+      margin-bottom: 5mm;
     }
+    .meta-row { display: flex; gap: 10mm; margin-bottom: 5mm; }
+    .meta-item { font-family: ${FONT_SANS}; font-size: 10pt; color: ${FG_SECONDARY}; }
+    .meta-value { font-weight: 600; color: ${FG_PRIMARY}; }
     .tier-badge {
-      display: inline-block;
-      background: ${ACCENT};
+      align-self: flex-start;
+      background: ${accent};
       color: #fff;
       font-family: ${FONT_SANS};
       font-size: 9pt;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
-      padding: 1mm 4mm;
+      padding: 1.5mm 5mm;
       border-radius: 999px;
     }
-    .footer {
+
+    /* Verification seal — top-right of the inner frame, out of normal flow. */
+    .seal {
       position: absolute;
-      bottom: 10mm;
-      left: 30mm;
-      right: 18mm;
+      top: 12mm;
+      right: 16mm;
+      width: 26mm;
+      height: 26mm;
+      border: 2px solid ${accent};
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5mm;
+      color: ${accent};
+    }
+    .seal .check { font-size: 15pt; font-weight: 700; line-height: 1; }
+    .seal .seal-text {
+      font-family: ${FONT_SANS};
+      font-size: 6pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .footer {
+      margin-top: auto;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
     }
-    .issued-line {
+    .sign { display: flex; flex-direction: column; gap: 1.5mm; }
+    .sign-line { width: 60mm; border-bottom: 1px solid ${FG_PRIMARY}; }
+    .sign-label { font-family: ${FONT_SANS}; font-size: 8.5pt; color: ${FG_SECONDARY}; }
+    .verify { display: flex; align-items: flex-end; gap: 4mm; }
+    .verify-text {
+      text-align: right;
       font-family: ${FONT_SANS};
-      font-size: 8pt;
+      font-size: 7.5pt;
       color: ${FG_SECONDARY};
+      line-height: 1.5;
+      padding-bottom: 1mm;
     }
-    .qr-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1mm;
-    }
+    .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 1mm; }
     .qr-wrap img { width: 22mm; height: 22mm; }
-    .qr-label {
-      font-family: ${FONT_SANS};
-      font-size: 7pt;
-      color: ${FG_SECONDARY};
-    }
+    .qr-label { font-family: ${FONT_SANS}; font-size: 7pt; color: ${FG_SECONDARY}; }
   </style>
 </head>
 <body>
-  <div class="accent-bar"></div>
+  <div class="frame"></div>
+  <div class="inner">
+    <div class="header">
+      <div class="wordmark">
+        <span class="brand">ASSESSIQ</span>
+        <span class="issuer">Certificate of ${tierLabel}</span>
+      </div>
+      <span class="credential-id">${escHtml(cert.credential_id)}</span>
+    </div>
 
-  <div class="header">
-    <span class="issuer">AssessIQ · Certificate of Completion</span>
-    <span class="credential-id">${escHtml(cert.credential_id)}</span>
-  </div>
+    <p class="cert-label">This is to certify that</p>
+    <p class="recipient-name">${escHtml(cert.display_name)}</p>
+    <p class="awarded">has successfully completed</p>
+    <p class="course-title">${escHtml(cert.course_title)}</p>
 
-  <p class="cert-label">This is to certify that</p>
-  <p class="recipient-name">${escHtml(cert.display_name)}</p>
-  <p class="course-title">${escHtml(cert.course_title)}</p>
+    <div class="meta-row">
+      <span class="meta-item">Level:&nbsp;<span class="meta-value">${escHtml(cert.level)}</span></span>
+      <span class="meta-item">Issued:&nbsp;<span class="meta-value">${escHtml(issuedDate)}</span></span>
+    </div>
 
-  <div class="meta-row">
-    <span class="meta-item">Level:&nbsp;<span class="meta-value">${escHtml(cert.level)}</span></span>
-    <span class="meta-item">Issued:&nbsp;<span class="meta-value">${escHtml(issuedDate)}</span></span>
-  </div>
+    <span class="tier-badge">${tierLabel}</span>
 
-  <span class="tier-badge">${tierLabel}</span>
+    <div class="seal">
+      <span class="check">&#10003;</span>
+      <span class="seal-text">Verified<br/>Credential</span>
+    </div>
 
-  <div class="footer">
-    <p class="issued-line">Verify at assessiq.automateedge.cloud/verify/${escHtml(cert.credential_id)}</p>
-    <div class="qr-wrap">
-      <img src="${qrDataUrl}" alt="Verify QR code" />
-      <span class="qr-label">Scan to verify</span>
+    <div class="footer">
+      <div class="sign">
+        <div class="sign-line"></div>
+        <div class="sign-label">AssessIQ &middot; Authorized Issuer</div>
+      </div>
+      <div class="verify">
+        <div class="verify-text">Verify this credential at<br/>${verifyDisplay}</div>
+        <div class="qr-wrap">
+          <img src="${qrDataUrl}" alt="Verify QR code" />
+          <span class="qr-label">Scan to verify</span>
+        </div>
+      </div>
     </div>
   </div>
 </body>

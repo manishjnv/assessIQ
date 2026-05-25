@@ -51,7 +51,7 @@ async function launchBrowser() {
 export async function renderCertificatePdf(cert: Certificate): Promise<Buffer> {
   const verifyUrl = `${getPublicBaseUrl()}/verify/${cert.credential_id}`;
   const qrDataUrl = await credentialQrDataUrl(verifyUrl);
-  const html = renderCertificateHtml(cert, qrDataUrl);
+  const html = renderCertificateHtml(cert, qrDataUrl, verifyUrl);
 
   const browser = await launchBrowser();
   try {
