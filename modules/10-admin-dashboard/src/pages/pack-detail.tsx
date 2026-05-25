@@ -879,16 +879,22 @@ export function AdminPackDetail(): React.ReactElement {
                         >
                           {levelQs.length} question{levelQs.length !== 1 ? "s" : ""}
                         </span>
-                        {isSuperAdmin && pack.status === "published" && (
-                          <button
-                            type="button"
-                            className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                            onClick={() => void handleActivateAll(level.id)}
-                            disabled={activatingLevel === level.id}
-                          >
-                            {activatingLevel === level.id ? "Activating…" : "Activate all"}
-                          </button>
-                        )}
+                        {/* Publish now auto-activates questions, so this is only
+                            for drafts ADDED to an already-published pack. Show it
+                            only when the level actually has draft questions to
+                            activate — otherwise it's a dead button. */}
+                        {isSuperAdmin &&
+                          pack.status === "published" &&
+                          levelQs.some((q) => q.status === "draft") && (
+                            <button
+                              type="button"
+                              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                              onClick={() => void handleActivateAll(level.id)}
+                              disabled={activatingLevel === level.id}
+                            >
+                              {activatingLevel === level.id ? "Activating…" : "Activate drafts"}
+                            </button>
+                          )}
                       </div>
                     </div>
 
