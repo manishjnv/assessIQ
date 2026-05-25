@@ -479,9 +479,9 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `POST` | `/api/admin/super/tenants/:tenantId/resume` | Tenant lifecycle: `suspended → active` | **live 2026-05-20** |
 | `POST` | `/api/admin/super/tenants/:tenantId/archive` | Tenant lifecycle: `active\|suspended → archived` (revokes all sessions) | **live 2026-05-20** |
 | `POST` | `/api/admin/super/tenants/:tenantId/unarchive` | Tenant lifecycle: `archived → active` | **live 2026-05-20** |
-| `GET` | `/api/admin/super/domains` | List the platform domain library (all statuses) for the management UI | **code 2026-05-25 · deploy pending** |
-| `POST` | `/api/admin/super/domains` | Create a platform domain + propagate to every tenant (fresh MFA) | **code 2026-05-25 · deploy pending** |
-| `PATCH` | `/api/admin/super/domains/:id` | Archive/reactivate a platform domain + propagate (catalog-only; fresh MFA) | **code 2026-05-25 · deploy pending** |
+| `GET` | `/api/admin/super/domains` | List the platform domain library (all statuses) for the management UI | **live 2026-05-25** |
+| `POST` | `/api/admin/super/domains` | Create a platform domain + propagate to every tenant (fresh MFA) | **live 2026-05-25** |
+| `PATCH` | `/api/admin/super/domains/:id` | Archive/reactivate a platform domain + propagate (catalog-only; fresh MFA) | **live 2026-05-25** |
 | `GET` | `/api/admin/super/tenants/:tenantId/users` | List users + pending invitations for a tenant (Phase C) | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/disable` | Super-admin user disable; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/reenable` | Super-admin user reenable | **live 2026-05-20** |
