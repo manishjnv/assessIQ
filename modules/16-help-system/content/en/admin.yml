@@ -228,6 +228,76 @@ admin.questions.type.subjective.rubric:
     Override the AI verdict any time. Your override sits *beside* the AI's
     record, never replaces it.
 
+# ─── Question Bank — action buttons (inline button help, 2026-05-25) ───
+
+admin.question_bank.list.new_pack:
+  audience: admin
+  short_text: "Create a new question pack for a domain. Super-admin only — it starts empty, in Draft."
+  long_md: |
+    ## New pack
+
+    Creates an empty question pack for one role-readiness domain. A new pack
+    starts in **Draft**: you add levels and questions, then **Publish** it to
+    make it usable in assessments. Only super-admins can create packs — company
+    admins build assessments from packs they've been licensed.
+
+admin.question_bank.list.add_to_workspace:
+  audience: admin
+  short_text: "Copy a licensed platform set into your company so you can build assessments from it."
+  long_md: |
+    ## Add to workspace
+
+    Makes your own copy of a platform question set your company is licensed for
+    ("clone-on-use"). The copy lives in your Question Bank and is what your
+    assessments draw from. Adding it again is a no-op — you already have the copy.
+
+# ─── Pack detail — action buttons ───
+
+admin.question_bank.pack.generate:
+  audience: admin
+  short_text: "Open the wizard to AI-generate draft questions for this pack. Drafts need review before going live."
+  long_md: |
+    ## Generate questions
+
+    Opens the generation wizard, which uses the pack's knowledge base to produce
+    `ai_draft` questions for a level. Generation never publishes or activates —
+    each draft must be reviewed (and edited if needed) before it can be used.
+    Super-admin only.
+
+admin.question_bank.pack.publish:
+  audience: admin
+  short_text: "Lock the pack and make it usable — snapshots questions and activates every draft so assessments can draw them."
+  long_md: |
+    ## Publish pack
+
+    Flips the pack from Draft to **Published**, snapshots every question as a
+    permanent version, and **activates all draft questions** so assessments can
+    immediately draw from them ("published = usable"). Editing a question after
+    publish adds a new version; already-published assessments stay pinned to the
+    snapshot they were built on.
+
+admin.question_bank.pack.archive:
+  audience: admin
+  short_text: "Retire this pack and hide it from pickers. Reversible via the Archived tab; blocked if a live assessment uses it."
+  long_md: |
+    ## Archive pack
+
+    Soft-deletes the pack: it disappears from the default list and the
+    assessment-creation pickers. This is the only delete path — there is no hard
+    delete. It's reversible (find it under the **Archived** filter). Archiving is
+    refused if a currently-live assessment still references the pack.
+
+admin.question_bank.pack.activate_drafts:
+  audience: admin
+  short_text: "Activate draft questions added after publishing so assessments can draw them. Publish already activates the rest."
+  long_md: |
+    ## Activate drafts
+
+    Publishing a pack already activates its questions. This button only matters
+    for **draft questions added to a pack that is already published** — it flips
+    those remaining drafts to `active` so assessments can draw them. It appears
+    only when a level actually has draft questions waiting.
+
 # ─── Assessment lifecycle ───
 
 admin.assessments.create.duration:

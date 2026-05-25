@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
+import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, listDomainsApi, getAvailableSets, importLicensedSet } from "../api.js";
 import type { DomainItem, AvailableSet } from "../api.js";
@@ -578,16 +579,18 @@ export function AdminQuestionBank(): React.ReactElement {
               </p>
             </div>
             {isSuperAdmin && (
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-primary"
-                onClick={() => {
-                  setShowNewForm((v) => !v);
-                  setCreateError(null);
-                }}
-              >
-                {showNewForm ? "Cancel" : "+ New Pack"}
-              </button>
+              <HelpTip helpId="admin.question_bank.list.new_pack">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-primary"
+                  onClick={() => {
+                    setShowNewForm((v) => !v);
+                    setCreateError(null);
+                  }}
+                >
+                  {showNewForm ? "Cancel" : "+ New Pack"}
+                </button>
+              </HelpTip>
             )}
           </div>
         </div>
@@ -784,14 +787,16 @@ export function AdminQuestionBank(): React.ReactElement {
                     {set.cloned && <Chip leftIcon="check">In your workspace</Chip>}
                     {set.update_available && <Chip>Update available</Chip>}
                     {!set.cloned && (
-                      <button
-                        type="button"
-                        className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                        disabled={importingSet === set.source_pack_id}
-                        onClick={() => void handleImportSet(set.source_pack_id)}
-                      >
-                        {importingSet === set.source_pack_id ? "Adding…" : "Add to workspace"}
-                      </button>
+                      <HelpTip helpId="admin.question_bank.list.add_to_workspace">
+                        <button
+                          type="button"
+                          className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                          disabled={importingSet === set.source_pack_id}
+                          onClick={() => void handleImportSet(set.source_pack_id)}
+                        >
+                          {importingSet === set.source_pack_id ? "Adding…" : "Add to workspace"}
+                        </button>
+                      </HelpTip>
                     )}
                   </div>
                 </div>
