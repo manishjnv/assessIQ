@@ -335,6 +335,27 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 
 **Source:** `modules/04-question-bank/src/routes.ts` (`POST /admin/sets/:sourcePackId/import`), `modules/19-billing/src/service.ts` (`assertLicensedForSourcePack`), `modules/04-question-bank/src/clone.ts` (`materializeSetForTenant`).
 
+#### `POST /api/admin/sets/:sourcePackId/resync` (2026-05-25)
+
+Pull a newer platform-master version into the tenant's EXISTING clone of a licensed set (in-place content refresh — B3). Surfaced in the Question Bank "Licensed sets" section as an **Update** button when `update_available` (clone `source_version` < master `version`).
+
+**Auth:** company tenant admin (`adminOnly`). License re-checked server-side (`assertLicensedForSourcePack`) before any write — same gate as import; a lapsed license → `403 NOT_LICENSED`.
+
+**Path params:** `sourcePackId` — UUID of the PLATFORM source pack (not the clone). `400 INVALID_PARAM` if malformed.
+
+**Behavior:** diffs master↔clone by `questions.source_question_id` — **adds** new master questions (version=2 + `qv{v1}`, taxonomy-remapped by slug, skip-unresolvable), **version-bumps** changed content/rubric (new `question_versions` snapshot at the clone question's current version → future attempts resolve the new content via `MAX(qv.version)`; in-flight attempts stay frozen), **applies metadata-only** changes (level/domain/category/points/topic/type) without a version bump, **archives** questions removed upstream; then bumps the clone `question_packs.version` and records `source_version`. Idempotent: if the clone is already at/above the master version it returns `updated:false` and writes nothing. Runs under `assessiq_system` with a per-`(tenant,source)` advisory lock; one `tenant.pack_resynced` audit row in the same tx (only when something changed).
+
+**Response 200:**
+```json
+{ "updated": true, "from_version": 1, "to_version": 2, "added": 3, "changed": 5, "archived": 1, "skipped": 0 }
+```
+
+**Errors:** `403 NOT_LICENSED`; `404` `CLONE_NOT_FOUND` (no clone of this set in the tenant) / `SOURCE_PACK_NOT_FOUND`; `400 INVALID_PARAM`; `401 AUTHN_FAILED`.
+
+**Caveat (decided 2026-05-25):** future attempts — even on an existing PUBLISHED assessment using this clone — draw the refreshed content, because the attempt engine serves the latest active snapshot at attempt-start and does NOT per-assessment version-pin. In-flight/started attempts are never disrupted (their `attempt_questions` snapshot is frozen). This matches how editing a pack's questions already behaves.
+
+**Source:** `modules/05-assessment-lifecycle/src/routes.ts`, `modules/05-assessment-lifecycle/src/service.ts` (`resyncLicensedSet`), `modules/04-question-bank/src/clone.ts` (`resyncSetForTenant` / `resyncClonedPack`).
+
 ### Admin — Grading & review
 
 > **Status (2026-05-03, Phase 2 G2.A Session 1.b — LIVE in commit `5aec6ad`):** All 10 admin endpoints below registered into `apps/api/src/server.ts` via `registerGradingRoutes(app, { adminOnly: authChain({roles:['admin']}), adminFreshMfa: authChain({roles:['admin'], freshMfaWithinMinutes: 5}) })`. Smoke verified live: 11/11 Haiku checks PASS (every endpoint returns 401 AUTHN_FAILED without session — none 404). Service handlers under `modules/07-ai-grading/src/handlers/admin-*.ts`, registrar at `routes.ts`. Grading runtime at `runtimes/claude-code-vps.ts` spawns `claude -p` per D1-D8 in `docs/05-ai-pipeline.md`. Override never replaces — INSERTs new `gradings` row with `grader='admin_override'`, `override_of` FK, `override_reason`. Multi-tenancy guard: `/accept` validates every `proposal.attempt_id === URL attemptId` AND every `proposal.question_id ∈ attempt_questions` for the attempt. D7 single-flight is in-process `Map<attemptId>`; same-attempt OR other-attempt 409. Skill SHAs at deploy time: `anchors=1f04c875`, `band=15c14f96`, `escalate=f3588256` (claude CLI v2.1.119 on the VPS).

@@ -939,6 +939,19 @@ export async function importLicensedSet(
   return adminApi(`/admin/sets/${sourcePackId}/import`, { method: "POST" });
 }
 
+/**
+ * POST /api/admin/sets/:sourcePackId/resync
+ *
+ * Company-admin: pull a newer platform-master version into the existing
+ * tenant clone. License-checked (same gate as import). Returns a diff summary
+ * indicating what changed. 403 NOT_LICENSED if the license has lapsed.
+ */
+export async function resyncLicensedSet(
+  sourcePackId: string,
+): Promise<{ updated: boolean; from_version: number; to_version: number; added: number; changed: number; archived: number; skipped: number }> {
+  return adminApi(`/admin/sets/${sourcePackId}/resync`, { method: "POST" });
+}
+
 /** Body for createAssessmentFromSet (clone-on-use). opens_at is ISO 8601. */
 export interface CreateAssessmentFromSetRequest {
   source_pack_id: string;

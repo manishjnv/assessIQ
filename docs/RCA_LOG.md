@@ -4,6 +4,13 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-25 — Cloned-pack questions had no question_versions → excluded from the attempt pool
+
+**Symptom:** A candidate could not start an attempt on an assessment built from a licensed/cloned platform set — the active-question pool came back empty (or short of the required count, failing the publish pre-flight). Latent: never observed in prod because cloned-pack assessments had not run end-to-end (licensed pickers empty / platform packs still draft).
+**Cause:** `clonePackToTenant` (`modules/04-question-bank/src/clone.ts`) inserted each cloned question with `version=1` but wrote NO `question_versions` row. The attempt-start pool query `listActiveQuestionPoolForPick` (`modules/06-attempt-engine/src/repository.ts:673`) INNER-JOINs `question_versions` (to pin each question to `MAX(qv.version)`), so any `status='active'` question with no snapshot is silently dropped from the pool. Cloned questions — created "published" directly without going through `publishPack` (which is what normally writes the v1 snapshot + bumps version to 2) — never got one.
+**Fix:** `clone.ts` now writes a `question_versions` row at version=1 per cloned question and inserts the question at `version=2`, exactly matching publishPack's end-state (`questions.version = MAX(qv.version)+1`). Migration `0095_backfill_clone_question_versions.sql` backfills the snapshot + restores `version` for pre-existing clone questions (idempotent `NOT EXISTS` guard; scoped to `question_packs.source_pack_id IS NOT NULL`). Discovered while building B3 (licensed-set re-sync), which depends on a coherent clone version model.
+**Prevention:** the B3 re-sync engine (`resyncClonedPack`) maintains the same invariant on every add/version-bump; codex:rescue gated the clone engine and verified the version arithmetic + in-flight-attempt safety (REVISE→ACCEPT). No automated e2e test yet — cloned-pack attempt start needs Docker/testcontainers; behavioral verification is operator-pending.
+
 ## 2026-05-24 — Generation History help provider was inert (hyphenated page prefix could never match a valid key)
 
 **Symptom:** Found while adding scorecard help, not in production. The Generation
