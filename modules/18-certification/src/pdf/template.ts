@@ -62,7 +62,7 @@ function escHtml(s: string): string {
  * it is derived from PUBLIC_BASE_URL, so the printed domain always matches the
  * deployment (no hardcoded host). Text is selectable (not SVG) except the seal.
  */
-export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, verifyUrl: string): string {
+export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, verifyUrl: string, orgName?: string): string {
   const issuedDate = new Date(cert.issued_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -72,6 +72,12 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
   const tierLabel = escHtml(cert.tier.charAt(0).toUpperCase() + cert.tier.slice(1));
   const accent = TIER_ACCENT[cert.tier] ?? TIER_ACCENT['completion']!;
   const verifyDisplay = escHtml(verifyUrl.replace(/^https?:\/\//, ''));
+
+  // The issuing organization is the tenant (company) that ran the assessment;
+  // AssessIQ is the verifiable platform. Fall back to AssessIQ if no org name.
+  const hasOrg = orgName !== undefined && orgName.trim().length > 0;
+  const issuer = hasOrg ? escHtml(orgName.trim()) : 'AssessIQ';
+  const issuerSub = hasOrg ? 'Issued via AssessIQ' : 'Authorized Issuer';
 
   // Inline SVG check — vector, so it renders without any installed font glyph
   // (the previous &#10003; entity tofu'd as a missing-glyph box on the VPS).
@@ -251,8 +257,8 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
     <div class="footer">
       <div class="col col-left">
         <div class="sign-line"></div>
-        <div class="sign-label">AssessIQ</div>
-        <div class="sign-sub">Authorized Issuer</div>
+        <div class="sign-label">${issuer}</div>
+        <div class="sign-sub">${issuerSub}</div>
       </div>
 
       <div class="col col-center">

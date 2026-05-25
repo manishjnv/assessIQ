@@ -22,7 +22,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
 
 import { ValidationError } from '@assessiq/core';
-import { withTenant } from '@assessiq/tenancy';
+import { withTenant, getTenantById } from '@assessiq/tenancy';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
 import { renderCertificatePdf } from './pdf/render.js';
@@ -167,7 +167,16 @@ export async function registerCertificationRoutes(
         return reply.code(500).send({ error: 'Internal Server Error' });
       }
 
-      const pdfBuf = await renderCertificatePdf(cert);
+      // Company (tenant) name — shown as the issuing organization on the PDF.
+      // Best-effort: a lookup failure must not break the download.
+      let orgName: string | undefined;
+      try {
+        orgName = (await getTenantById(cert.tenant_id)).name;
+      } catch {
+        orgName = undefined; // template falls back to "AssessIQ"
+      }
+
+      const pdfBuf = await renderCertificatePdf(cert, orgName);
 
       // Increment pdf_downloads. Non-critical analytics; errors are caught and
       // swallowed so a counter failure never breaks a successful download.

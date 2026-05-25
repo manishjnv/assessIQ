@@ -38,7 +38,7 @@
 import { Resvg } from '@resvg/resvg-js';
 import type { FastifyInstance } from 'fastify';
 
-import { withTenant } from '@assessiq/tenancy';
+import { withTenant, getTenantById } from '@assessiq/tenancy';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
 import {
@@ -135,10 +135,16 @@ type CertStatus = 'valid' | 'tampered' | 'revoked';
 interface VerifyPageData {
   status: CertStatus;
   cert: Certificate;
+  /** Issuing organization (tenant/company) name. AssessIQ is the platform. */
+  orgName?: string | undefined;
 }
 
 function renderVerifyPage(data: VerifyPageData): string {
-  const { status, cert } = data;
+  const { status, cert, orgName } = data;
+  const issuedBy =
+    orgName !== undefined && orgName.trim().length > 0
+      ? `${escHtml(orgName.trim())} &middot; via AssessIQ`
+      : 'AssessIQ';
 
   const statusLabel =
     status === 'valid'
@@ -208,6 +214,10 @@ function renderVerifyPage(data: VerifyPageData): string {
     <div class="field">
       <p class="label">Course</p>
       <p class="value">${escHtml(cert.course_title)}</p>
+    </div>
+    <div class="field">
+      <p class="label">Issued by</p>
+      <p class="value">${issuedBy}</p>
     </div>
     <div class="field">
       <p class="label">Level</p>
@@ -507,11 +517,21 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         ).catch(() => {});
       }
 
+      // Issuing organization (tenant/company) name. Best-effort; falls back to
+      // "AssessIQ" in the template if the lookup fails. getTenantById opens its
+      // own withTenant for cert.tenant_id, so it resolves cross-tenant here.
+      let orgName: string | undefined;
+      try {
+        orgName = (await getTenantById(cert.tenant_id)).name;
+      } catch {
+        orgName = undefined;
+      }
+
       return reply
         .code(200)
         .header('content-type', 'text/html; charset=utf-8')
         .header('cache-control', 'no-cache')
-        .send(renderVerifyPage({ status, cert }));
+        .send(renderVerifyPage({ status, cert, orgName }));
     },
   );
 
