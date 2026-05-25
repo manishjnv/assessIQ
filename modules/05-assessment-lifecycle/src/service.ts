@@ -51,7 +51,7 @@ import * as qbRepo from "../../04-question-bank/src/repository.js";
 import { findOrCreatePackForDomain } from "../../04-question-bank/src/service.js";
 // Step 2 — clone-on-use: materialise a licensed platform set into this tenant.
 // Relative import mirrors the qbRepo / findOrCreatePackForDomain pattern above.
-import { materializeSetForTenant } from "../../04-question-bank/src/clone.js";
+import { materializeSetForTenant, resyncSetForTenant } from "../../04-question-bank/src/clone.js";
 import {
   assertCanTransition,
   assertValidWindow,
@@ -626,6 +626,35 @@ export async function importLicensedSet(
     slug: mat.clonedSlug,
     reused: mat.reusedExisting,
     question_count: mat.questionCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// resyncLicensedSet — pull a newer platform-master version into an existing clone
+// ---------------------------------------------------------------------------
+//
+// Company-admin path: update an already-cloned licensed set in this tenant's
+// Question Bank to the latest version published by the platform. Flow:
+// license re-check against the SOURCE set → resync (diff-apply, idempotent + audited).
+//
+// Security invariant: assertLicensedForSourcePack runs BEFORE resyncSetForTenant.
+// This ordering mirrors importLicensedSet — never resync without a valid license.
+export async function resyncLicensedSet(
+  tenantId: string,
+  sourcePackId: string,
+  actorUserId: string,
+): Promise<{ updated: boolean; from_version: number; to_version: number; added: number; changed: number; archived: number; skipped: number }> {
+  // License must still be active to pull updates (same gate as import).
+  await assertLicensedForSourcePack(tenantId, sourcePackId);
+  const r = await resyncSetForTenant(sourcePackId, tenantId, actorUserId);
+  return {
+    updated: r.updated,
+    from_version: r.fromVersion,
+    to_version: r.toVersion,
+    added: r.added,
+    changed: r.changed,
+    archived: r.archived,
+    skipped: r.skipped,
   };
 }
 

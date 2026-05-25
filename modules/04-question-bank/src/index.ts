@@ -159,4 +159,6 @@ export type {
 // the grant transaction. See docs/design/question-set-sharing-clone-on-grant.md.
 
 export { clonePackToTenant, materializeSetForTenant } from "./clone.js";
+export { resyncClonedPack, resyncSetForTenant } from "./clone.js";
+export type { ResyncResult } from "./clone.js";
 export type { ClonePackResult, MaterializeSetResult } from "./clone.js";

@@ -23,7 +23,7 @@ import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, listDomainsApi, getAvailableSets, importLicensedSet } from "../api.js";
+import { adminApi, AdminApiError, listDomainsApi, getAvailableSets, importLicensedSet, resyncLicensedSet } from "../api.js";
 import type { DomainItem, AvailableSet } from "../api.js";
 import { useAdminSession } from "../session.js";
 import { formatDate } from "../lib/format.js";
@@ -255,6 +255,7 @@ export function AdminQuestionBank(): React.ReactElement {
 
   const [licensedSets, setLicensedSets] = useState<AvailableSet[]>([]);
   const [importingSet, setImportingSet] = useState<string | null>(null);
+  const [resyncingSet, setResyncingSet] = useState<string | null>(null);
 
   const fetchPacks = useCallback(async (status: string, search: string) => {
     setLoading(true);
@@ -338,6 +339,26 @@ export function AdminQuestionBank(): React.ReactElement {
       );
     } finally {
       setImportingSet(null);
+    }
+  }
+
+  async function handleResyncSet(sourcePackId: string) {
+    setResyncingSet(sourcePackId);
+    setActionError(null);
+    try {
+      await resyncLicensedSet(sourcePackId);
+      // Refresh the licensed-sets catalog (update_available flag may clear) and the packs list.
+      const fresh = await getAvailableSets();
+      setLicensedSets(fresh.sets);
+      await fetchPacks(statusFilter, searchQuery);
+    } catch (err) {
+      setActionError(
+        err instanceof AdminApiError
+          ? `Could not update set: ${err.apiError.message}`
+          : "Could not update set.",
+      );
+    } finally {
+      setResyncingSet(null);
     }
   }
 
@@ -786,6 +807,16 @@ export function AdminQuestionBank(): React.ReactElement {
                   <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexShrink: 0, alignItems: "center" }}>
                     {set.cloned && <Chip leftIcon="check">In your workspace</Chip>}
                     {set.update_available && <Chip>Update available</Chip>}
+                    {set.cloned && set.update_available && (
+                      <button
+                        type="button"
+                        className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                        disabled={resyncingSet === set.source_pack_id}
+                        onClick={() => void handleResyncSet(set.source_pack_id)}
+                      >
+                        {resyncingSet === set.source_pack_id ? "Updating…" : "Update"}
+                      </button>
+                    )}
                     {!set.cloned && (
                       <HelpTip helpId="admin.question_bank.list.add_to_workspace">
                         <button

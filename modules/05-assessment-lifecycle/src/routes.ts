@@ -37,6 +37,7 @@ import {
   createAssessment,
   createAssessmentFromSet,
   importLicensedSet,
+  resyncLicensedSet,
   getAssessment,
   updateAssessment,
   publishAssessment,
@@ -280,6 +281,30 @@ export async function registerAssessmentLifecycleRoutes(
       }
       const result = await importLicensedSet(tenantId, trimmed, userId);
       return reply.code(201).send(result);
+    },
+  );
+
+  // POST /api/admin/sets/:sourcePackId/resync
+  // Pull a newer platform-master version into the existing tenant clone.
+  // License-checked (same gate as import). Returns a diff summary; 200 because
+  // it mutates an existing resource (not 201 — nothing is created).
+  app.post(
+    "/api/admin/sets/:sourcePackId/resync",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { sourcePackId } = req.params as { sourcePackId: string };
+      const trimmed = typeof sourcePackId === "string" ? sourcePackId.trim() : "";
+      // Validate UUID shape up front so a malformed path param returns a clean
+      // 400 INVALID_PARAM instead of a Postgres cast error downstream.
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+        throw new ValidationError("sourcePackId must be a valid UUID", {
+          details: { code: "INVALID_PARAM", param: "sourcePackId" },
+        });
+      }
+      const result = await resyncLicensedSet(tenantId, trimmed, userId);
+      return reply.code(200).send(result);
     },
   );
 

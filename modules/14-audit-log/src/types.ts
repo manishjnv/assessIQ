@@ -143,6 +143,11 @@ export const ACTION_CATALOG = [
   // system-role tx as the entitlement grant. See
   // docs/design/question-set-sharing-clone-on-grant.md.
   'tenant.pack_cloned',
+  // B3 licensed-set re-sync (2026-05-25) — a tenant admin pulls a newer master
+  // version into an existing clone (in-place content refresh + question
+  // versioning). Written in the same system-role tx as the refresh
+  // (resyncSetForTenant). after = {from_version,to_version,added,changed,archived,...}.
+  'tenant.pack_resynced',
   // Super-admin resend of a pending admin invitation (resend endpoint).
   // Distinct from user.invited (kind=reinvite written by inviteUser) so
   // super-admin activity is queryable separately from tenant-admin re-invites.
