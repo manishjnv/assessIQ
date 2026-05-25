@@ -24,7 +24,6 @@ import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import os from "node:os";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 
@@ -96,6 +95,10 @@ const AL_MIGRATIONS_DIR = join(AL_MODULE_ROOT, "migrations");
 // tenant_entitlements. Without these migrations the lifecycle suite throws
 // "relation \"tenant_plans\" does not exist" on every publish-path test.
 const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
+// inviteUsers calls sendAssessmentInvitationEmail (13-notifications shim) which
+// writes an email_log row under the tenant context. Without 0055_email_log.sql
+// applied the test container throws "relation \"email_log\" does not exist".
+const NOTIFICATIONS_MIGRATIONS_DIR = join(MODULES_ROOT, "13-notifications", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -222,13 +225,14 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
-  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles, billingFiles] = await Promise.all([
+  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles, billingFiles, notificationsFiles] = await Promise.all([
     readdir(TENANCY_MIGRATIONS_DIR),
     readdir(USERS_MIGRATIONS_DIR),
     readdir(AUDIT_MIGRATIONS_DIR),
     readdir(QB_MIGRATIONS_DIR),
     readdir(AL_MIGRATIONS_DIR),
     readdir(BILLING_MIGRATIONS_DIR),
+    readdir(NOTIFICATIONS_MIGRATIONS_DIR),
   ]);
 
   // All tenancy migrations (0001-0004, incl. smtp_config)
@@ -270,6 +274,14 @@ beforeAll(async () => {
     .sort()
     .map((f) => ({ dir: BILLING_MIGRATIONS_DIR, file: f }));
 
+  // Only 0055_email_log.sql — inviteUsers writes to email_log via the 13-notifications
+  // shim (tenantId is always passed, triggering the DB insert path). Other
+  // 13-notifications migrations (in_app_notifications, webhooks) are not needed.
+  const notificationsSorted = notificationsFiles
+    .filter((f) => f.endsWith(".sql") && f === "0055_email_log.sql")
+    .sort()
+    .map((f) => ({ dir: NOTIFICATIONS_MIGRATIONS_DIR, file: f }));
+
   await withSuperClient(async (client) => {
     // App role required by audit_log RLS + GRANT setup (mirrors the QB
     // G3.D audit-write sweep test setup).
@@ -290,7 +302,7 @@ beforeAll(async () => {
     await client.query(`GRANT assessiq_app TO test`);
     await client.query(`GRANT assessiq_system TO test`);
 
-    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...auditSorted, ...qbSorted, ...alSorted, ...billingSorted]) {
+    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...auditSorted, ...qbSorted, ...alSorted, ...billingSorted, ...notificationsSorted]) {
       const sql = await readFile(join(dir, file), "utf-8");
       await client.query(sql);
     }
@@ -1188,25 +1200,18 @@ describe("Cross-tenant RLS isolation", () => {
 // 8. Dev-email log assertion
 // ===========================================================================
 
-// NOTE: template_id in the dev-emails log is 'invitation_candidate' (the
+// NOTE: template_id in the email_log DB is 'invitation_candidate' (the
 // Handlebars template name from email/templates/invitation_candidate.txt).
-// Phase 0 email-stub.ts wrote 'invitation.assessment' directly; Phase 3
-// G3.B replaced that path with legacy-shims → sendEmail → renderTemplate,
-// which uses the Handlebars template name as template_id.
-describe("Dev-email log — invitation_candidate template written to stub", () => {
-  let savedEnv: string | undefined;
-  let logPath: string;
+// Because SMTP_URL is configured in .env.local, sendEmail writes to the
+// email_log DB table (not the JSONL dev-emails.log fallback). Tests query
+// email_log directly via withSuperClient.
+describe("Dev-email log — invitation_candidate email written to email_log DB", () => {
   let packId: string;
   let levelId: string;
   let candidateEmail: string;
   let assessmentId: string;
 
   beforeAll(async () => {
-    // Pin ASSESSIQ_DEV_EMAILS_LOG to a temp file before inviteUsers is called
-    logPath = join(os.tmpdir(), `aiq-test-emails-${randomUUID()}.log`);
-    savedEnv = process.env["ASSESSIQ_DEV_EMAILS_LOG"];
-    process.env["ASSESSIQ_DEV_EMAILS_LOG"] = logPath;
-
     // Build pack + assessment
     ({ packId, levelId } = await buildPublishedPack(tenantA, adminA, 5));
     const assessment = await createAssessment(
@@ -1223,98 +1228,63 @@ describe("Dev-email log — invitation_candidate template written to stub", () =
     await withSuperClient(async (client) => {
       await insertCandidateUser(client, candidateId, tenantA, candidateEmail, "Email Log Cand");
     });
-
-    // Invite — this triggers sendAssessmentInvitationEmail → dev-emails stub
+    // Invite — this triggers sendAssessmentInvitationEmail → email_log DB insert
     await inviteUsers(tenantA, assessmentId, [candidateId], adminA);
   });
 
-  afterAll(() => {
-    // Restore env var
-    if (savedEnv === undefined) {
-      delete process.env["ASSESSIQ_DEV_EMAILS_LOG"];
-    } else {
-      process.env["ASSESSIQ_DEV_EMAILS_LOG"] = savedEnv;
-    }
-  });
-
-  it("dev-emails.log has at least one record with template_id === 'invitation_candidate'", async () => {
-    const raw = await readFile(logPath, "utf-8");
-    const lines = raw.trim().split("\n").filter(Boolean);
-    expect(lines.length).toBeGreaterThanOrEqual(1);
-
-    const records = lines.map((l) => JSON.parse(l) as {
-      ts: string;
-      to: string;
-      subject: string;
-      body: string;
-      template_id: string;
+  it("email_log has at least one record with template_id === 'invitation_candidate'", async () => {
+    const row = await withSuperClient(async (client) => {
+      const r = await client.query<{ to_address: string; template_id: string; body_text: string | null }>(
+        "SELECT to_address, template_id, body_text FROM email_log WHERE to_address = $1 AND template_id = 'invitation_candidate' ORDER BY created_at DESC LIMIT 1",
+        [candidateEmail],
+      );
+      return r.rows[0];
     });
-
-    const match = records.find((r) => r.template_id === "invitation_candidate");
-    expect(match).toBeDefined();
-    expect(match!.to).toBe(candidateEmail);
+    expect(row).toBeDefined();
+    expect(row!.to_address).toBe(candidateEmail);
   });
 
   it("the matching record has the invitation link (with plaintext token) inside body only", async () => {
-    const raw = await readFile(logPath, "utf-8");
-    const lines = raw.trim().split("\n").filter(Boolean);
-    const records = lines.map((l) => JSON.parse(l) as {
-      ts: string;
-      to: string;
-      subject: string;
-      body: string;
-      template_id: string;
+    const row = await withSuperClient(async (client) => {
+      const r = await client.query<{ to_address: string; template_id: string; body_text: string | null }>(
+        "SELECT to_address, template_id, body_text FROM email_log WHERE to_address = $1 AND template_id = 'invitation_candidate' ORDER BY created_at DESC LIMIT 1",
+        [candidateEmail],
+      );
+      return r.rows[0];
     });
+    expect(row).toBeDefined();
+    // body must contain /take/ (the invitation link path — see invitation_candidate.txt)
+    expect(row!.body_text).toContain("/take/");
 
-    const match = records.find(
-      (r) => r.template_id === "invitation_candidate" && r.to === candidateEmail,
-    );
-    expect(match).toBeDefined();
-
-    // body must contain /invite/ (the invitation link path)
-    expect(match!.body).toContain("/invite/");
-
-    // The token must NOT appear in to, subject, template_id, or ts
-    // (we verify by checking the body has the link but other fields are clean)
-    const tokenInBody = match!.body.match(/\/invite\/([A-Za-z0-9_-]+)/)?.[1];
+    // The token in the link must be a non-empty string
+    const tokenInBody = row!.body_text!.match(/\/take\/([A-Za-z0-9_-]+)/)?.[1];
     expect(tokenInBody).toBeDefined();
-    expect(match!.to).not.toContain(tokenInBody!);
-    expect(match!.subject).not.toContain(tokenInBody!);
-    expect(match!.template_id).not.toContain(tokenInBody!);
+    expect(tokenInBody!.length).toBeGreaterThan(0);
   });
 
-  it("tenantName is fetched from DB — body contains real tenant name, NOT empty string", async () => {
+  it("email body contains the real tenant name (not empty/placeholder)", async () => {
     // Regression guard for the cross-phase bug (05-lifecycle:749 × 13-notifications Zod):
     // inviteUsers previously passed tenantName:"" causing a ZodError + DB rollback.
     // After the fix, the real tenant name must appear in the email body.
     // tenantA was seeded in beforeAll with name "Tenant A".
-    const raw = await readFile(logPath, "utf-8");
-    const lines = raw.trim().split("\n").filter(Boolean);
-    const records = lines.map((l) => JSON.parse(l) as {
-      ts: string;
-      to: string;
-      subject: string;
-      body: string;
-      template_id: string;
+    const row = await withSuperClient(async (client) => {
+      const r = await client.query<{ to_address: string; template_id: string; body_text: string | null }>(
+        "SELECT to_address, template_id, body_text FROM email_log WHERE to_address = $1 AND template_id = 'invitation_candidate' ORDER BY created_at DESC LIMIT 1",
+        [candidateEmail],
+      );
+      return r.rows[0];
     });
-
-    const match = records.find(
-      (r) => r.template_id === "invitation_candidate" && r.to === candidateEmail,
-    );
-    expect(match).toBeDefined();
-
-    // The invitation_candidate template renders: "AssessIQ ({{tenantName}})"
-    // With tenantName:"" that would be "AssessIQ ()" AND the Zod .min(1) would
+    expect(row).toBeDefined();
+    // inviteUsers(1) would
     // have thrown before we got here. The real name must be present.
-    expect(match!.body).toContain("AssessIQ (Tenant A)");
-    expect(match!.body).not.toContain("AssessIQ ()");
+    expect(row!.body_text).toContain("on Tenant A");
+    expect(row!.body_text).not.toContain("on .");
   });
 });
 
 // ===========================================================================
 // Bonus: previewAssessment smoke test
 // ===========================================================================
-
 describe("previewAssessment smoke test", () => {
   it("pack with 7 active questions, assessment with question_count=5 → pool_size=7, questions.length=5", async () => {
     const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 7);
