@@ -479,6 +479,9 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `POST` | `/api/admin/super/tenants/:tenantId/resume` | Tenant lifecycle: `suspended → active` | **live 2026-05-20** |
 | `POST` | `/api/admin/super/tenants/:tenantId/archive` | Tenant lifecycle: `active\|suspended → archived` (revokes all sessions) | **live 2026-05-20** |
 | `POST` | `/api/admin/super/tenants/:tenantId/unarchive` | Tenant lifecycle: `archived → active` | **live 2026-05-20** |
+| `GET` | `/api/admin/super/domains` | List the platform domain library (all statuses) for the management UI | **code 2026-05-25 · deploy pending** |
+| `POST` | `/api/admin/super/domains` | Create a platform domain + propagate to every tenant (fresh MFA) | **code 2026-05-25 · deploy pending** |
+| `PATCH` | `/api/admin/super/domains/:id` | Archive/reactivate a platform domain + propagate (catalog-only; fresh MFA) | **code 2026-05-25 · deploy pending** |
 | `GET` | `/api/admin/super/tenants/:tenantId/users` | List users + pending invitations for a tenant (Phase C) | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/disable` | Super-admin user disable; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/reenable` | Super-admin user reenable | **live 2026-05-20** |
@@ -2319,6 +2322,75 @@ Scopes that already have an `active` row in `tenant_entitlements` for this tenan
 **Errors:** `401 AUTHN_FAILED` — no session. `403 AUTHZ_FAILED` — caller is not `super_admin`. `404` — `tenantId` not found.
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`listGrantableScopesForTenant`).
+
+---
+
+### Platform domain management (2026-05-25)
+
+Super-admin management of the canonical domain taxonomy. These are **platform-wide** operations (no `:tenantId`): they read/write the platform master tenant's `domains` and **propagate** changes into every company tenant so the whole fleet shares one consistent domain set. Provenance (`domains.source`, migration 0091) keeps propagation from ever touching a tenant-LOCAL domain. Cross-tenant writes run under `SET LOCAL ROLE assessiq_system`; each mutation writes one audit row in the same transaction.
+
+**Why a new namespace (not the existing `POST /api/admin/domains`).** `POST /api/admin/domains` (module 04, `adminOnly`) remains the **tenant-local** domain-create path — a tenant admin adds a domain only for their own tenant (`source='tenant'`). The `/api/admin/super/domains` namespace is for **platform** domains that mirror across tenants and is gated by `super_admin` + fresh MFA, consistent with every other cross-tenant `/super` operation.
+
+#### `GET /api/admin/super/domains`
+
+Lists the platform master tenant's domains — **all statuses** (active + archived + legacy inactive) so the UI can show the full library and offer reactivate.
+
+**Auth:** `super_admin` only (read-only; no fresh MFA).
+
+**Response 200:**
+```json
+{ "domains": [
+  { "id": "uuid", "slug": "soc", "name": "SOC", "description": null,
+    "status": "active", "display_order": 1, "source": "platform" }
+] }
+```
+Empty `domains` array when the platform tenant does not exist (fresh DB).
+
+#### `POST /api/admin/super/domains`
+
+Creates a platform domain and propagates it (`source='platform'`, `status='active'`) into every non-platform tenant. The propagation INSERT is `ON CONFLICT (tenant_id, slug) DO NOTHING`, so a tenant that already has the slug — **including a tenant-local domain on the same slug** — is skipped and left untouched.
+
+**Auth:** `super_admin` + **fresh MFA** (15-min) — platform-affecting cross-tenant write.
+
+**Body (JSON):** `{ "name": "Network Security", "description": "optional" }` — `slug` is server-generated kebab-case(name).
+
+**Response 201:**
+```json
+{ "id": "uuid", "slug": "network-security", "name": "Network Security",
+  "description": null, "status": "active", "display_order": 10,
+  "source": "platform", "propagatedTenants": 5 }
+```
+`propagatedTenants` = number of company tenants that received the new row (collisions skipped are not counted).
+
+**Errors:** `400 MISSING_REQUIRED`/`INVALID_PARAM` — bad/empty name. `409 DOMAIN_SLUG_EXISTS` — the platform tenant already has this slug. `404 PLATFORM_TENANT_MISSING` — no platform tenant. `401`/`403` — auth/MFA.
+
+**Audit:** `domain.created`.
+
+#### `PATCH /api/admin/super/domains/:id`
+
+Archives (`status='archived'`) or reactivates (`status='active'`) a platform domain and propagates the status to **every platform-origin copy** of that slug across all tenants (`UPDATE … WHERE slug=$ AND source='platform'`). Tenant-local domains sharing the slug are never touched.
+
+**CATALOG-ONLY (decided 2026-05-25):** archiving removes the domain from all selection dropdowns (which filter `status='active'`) and makes it non-grantable going forward, but does **not** revoke existing `tenant_entitlements` and does **not** untag existing packs/questions. Reversible via reactivate.
+
+**Auth:** `super_admin` + **fresh MFA** (15-min).
+
+**Path params:** `id` — UUID of the **platform** domain row. Passing a tenant-local domain id (or any non-platform row) returns `404`.
+
+**Body (JSON):** `{ "status": "archived" }` or `{ "status": "active" }`.
+
+**Response 200:**
+```json
+{ "id": "uuid", "slug": "network-security", "name": "Network Security",
+  "description": null, "status": "archived", "display_order": 10,
+  "source": "platform", "affectedRows": 6 }
+```
+`affectedRows` = number of platform-origin rows flipped (platform tenant + each company copy).
+
+**Errors:** `400 INVALID_STATUS` — status not `active`/`archived`. `400 INVALID_PARAM` — id not a UUID. `404 DOMAIN_NOT_FOUND` — id is not a platform domain. `404 PLATFORM_TENANT_MISSING`. `401`/`403` — auth/MFA.
+
+**Audit:** `domain.archived` | `domain.reactivated`.
+
+**Source:** `apps/api/src/routes/admin-super.ts`, `modules/04-question-bank/src/platform-domains.ts`.
 
 ---
 

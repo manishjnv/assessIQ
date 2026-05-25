@@ -135,6 +135,23 @@ export type { RegisterQuestionBankRoutesOptions } from "./routes.js";
 export { seedTenantTaxonomy } from "./seed.js";
 
 // ---------------------------------------------------------------------------
+// 4b. Platform domain management + cross-tenant propagation (super-admin)
+// ---------------------------------------------------------------------------
+
+export {
+  listPlatformDomains,
+  createPlatformDomain,
+  setPlatformDomainStatus,
+} from "./platform-domains.js";
+export type {
+  PlatformDomainRow,
+  CreatePlatformDomainInput,
+  CreatePlatformDomainOutput,
+  PlatformDomainStatus,
+  SetPlatformDomainStatusOutput,
+} from "./platform-domains.js";
+
+// ---------------------------------------------------------------------------
 // 5. Clone-on-grant engine (Step 2 — question-set sharing)
 // ---------------------------------------------------------------------------
 // Cross-tenant copy of a published platform-library pack into a company tenant.

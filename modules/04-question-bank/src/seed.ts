@@ -2,27 +2,35 @@
 //
 // seedTenantTaxonomy — C5 of the super-admin-onboarding contract.
 //
-// Seeds the 9-domain taxonomy + per-domain categories for a single tenant.
-// Called by the C4 createCompany route immediately after createTenant.
+// Seeds the domain taxonomy + per-domain categories for a single (new company)
+// tenant. Called by the C4 createCompany route immediately after createTenant.
 //
-// Single source of truth: values are extracted verbatim from:
-//   - modules/04-question-bank/migrations/0019_seed_domains_categories.sql
-//     (domain slugs/names/display_order, category slugs/names/relevance_score/
-//     default_selected/default_question_count)
-//   - modules/04-question-bank/migrations/0020_supported_types_per_domain.sql
-//     (per-domain supported_types correction — replaces the all-types default
-//     from 0019 with the correct per-domain subset)
+// PRIMARY: copies the PLATFORM master tenant's CURRENT active domains +
+// categories (source='platform'), so every new tenant inherits the live
+// platform domain set — including any domain a super-admin added via platform
+// domain management, and excluding any that were archived. This replaces the
+// old behavior of seeding the static hardcoded 0019 list, which could not
+// reflect platform changes made after 0019 ran.
+//
+// FALLBACK: the hardcoded DOMAINS baseline below (values verbatim from
+// 0019_seed_domains_categories.sql + 0020_supported_types_per_domain.sql) is
+// used ONLY when no platform tenant exists yet (fresh DB before the manual
+// platform bootstrap) so a new tenant is never left with zero domains.
+//
+// Transaction: runs as a single assessiq_system (BYPASSRLS) tx — reads the
+// platform tenant, writes the target tenant by explicit tenant_id.
 //
 // Idempotency: ON CONFLICT DO NOTHING on every INSERT. Running this function
 // more than once for the same tenantId is safe and produces no duplicate rows.
 //
-// Cross-tenant safety: withTenant(tenantId) scopes ALL writes to the target
-// tenant via RLS + SET LOCAL app.current_tenant. This function MUST NOT be
-// called with the super-admin's own (platform) tenantId as the argument.
+// Cross-tenant safety: MUST be called with the NEW company's tenantId, never the
+// platform tenantId — guarded explicitly (throws). The platform tenant's own
+// taxonomy is owned by migration 0083 + platform domain management.
 //
-// Load-bearing-light (per contract): Opus diff review required before deploy.
+// Load-bearing (cross-tenant + provisioning path): Opus diff review +
+// codex:rescue gate required before deploy.
 
-import { withTenant } from "@assessiq/tenancy";
+import { getPool } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 
 // ---------------------------------------------------------------------------
@@ -185,33 +193,43 @@ const DOMAINS: DomainSeed[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Internal helpers — run inside an already-open withTenant transaction
+// Internal helpers — run inside an already-open assessiq_system transaction
 // ---------------------------------------------------------------------------
 
-async function seedDomain(
+async function seedDomainHardcoded(
   client: PoolClient,
   tenantId: string,
   domain: DomainSeed,
 ): Promise<string> {
-  // INSERT domain row (idempotent).
+  // INSERT domain row (idempotent). source='platform' — the hardcoded baseline
+  // IS the platform taxonomy (this path only runs as the fresh-env fallback when
+  // no platform tenant exists yet to copy from).
   const domainRes = await client.query<{ id: string }>(
-    `INSERT INTO domains (tenant_id, slug, name, status, display_order)
-     VALUES ($1, $2, $3, 'active', $4)
+    `INSERT INTO domains (tenant_id, slug, name, source, status, display_order)
+     VALUES ($1, $2, $3, 'platform', 'active', $4)
      ON CONFLICT (tenant_id, slug) DO NOTHING
      RETURNING id`,
     [tenantId, domain.slug, domain.name, domain.display_order],
   );
 
-  // If DO NOTHING fired (row already existed), fetch the existing id.
+  // If DO NOTHING fired (row already existed), fetch the existing id — but only
+  // top up categories when that row is platform-origin. NEVER attach platform
+  // categories to a tenant-LOCAL domain sharing this slug. (Defensive: this
+  // fallback only runs on a brand-new tenant with no pre-existing domains, so a
+  // collision is not expected — but the guard keeps a re-run safe.)
   let domainId: string;
   if (domainRes.rows.length > 0) {
     domainId = domainRes.rows[0]!.id;
   } else {
-    const existingRes = await client.query<{ id: string }>(
-      `SELECT id FROM domains WHERE tenant_id = $1 AND slug = $2`,
+    const existingRes = await client.query<{ id: string; source: string }>(
+      `SELECT id, source FROM domains WHERE tenant_id = $1 AND slug = $2`,
       [tenantId, domain.slug],
     );
-    domainId = existingRes.rows[0]!.id;
+    const existing = existingRes.rows[0];
+    if (existing === undefined || existing.source !== "platform") {
+      return ""; // tenant-local collision — leave it untouched (caller ignores the id)
+    }
+    domainId = existing.id;
   }
 
   // Supported types for this domain (from 0020 correction).
@@ -242,36 +260,177 @@ async function seedDomain(
 }
 
 // ---------------------------------------------------------------------------
+// Platform-sourced seeding (primary path)
+// ---------------------------------------------------------------------------
+
+/** Resolve the platform (master-library) tenant id by its well-known slug. */
+async function getPlatformTenantId(client: PoolClient): Promise<string | null> {
+  const res = await client.query<{ id: string }>(
+    `SELECT id FROM tenants WHERE slug = 'platform' LIMIT 1`,
+  );
+  return res.rows[0]?.id ?? null;
+}
+
+/**
+ * Copy the platform master tenant's ACTIVE domains + their categories into the
+ * target tenant. This is the live source of truth, so a new tenant inherits any
+ * domain a super-admin added via platform domain management — and never inherits
+ * one that was archived. Domains are tagged source='platform'. Idempotent
+ * (ON CONFLICT DO NOTHING). Returns the number of platform domains copied.
+ *
+ * Runs under the caller's assessiq_system transaction (BYPASSRLS) so it can read
+ * the platform tenant while writing the target tenant.
+ */
+async function seedFromPlatform(
+  client: PoolClient,
+  targetTenantId: string,
+  platformTenantId: string,
+): Promise<number> {
+  const domainsRes = await client.query<{
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    display_order: number;
+  }>(
+    `SELECT id, slug, name, description, display_order
+       FROM domains
+      WHERE tenant_id = $1 AND status = 'active'
+      ORDER BY display_order ASC`,
+    [platformTenantId],
+  );
+
+  for (const pd of domainsRes.rows) {
+    const ins = await client.query<{ id: string }>(
+      `INSERT INTO domains (tenant_id, slug, name, description, source, status, display_order)
+       VALUES ($1, $2, $3, $4, 'platform', 'active', $5)
+       ON CONFLICT (tenant_id, slug) DO NOTHING
+       RETURNING id`,
+      [targetTenantId, pd.slug, pd.name, pd.description, pd.display_order],
+    );
+
+    let targetDomainId: string;
+    if (ins.rows.length > 0) {
+      // Freshly inserted platform-origin domain.
+      targetDomainId = ins.rows[0]!.id;
+    } else {
+      // Slug already existed in the target tenant. Only top-up categories if the
+      // existing row is itself platform-origin; NEVER attach platform categories
+      // to a tenant-LOCAL domain that happens to share this slug.
+      const ex = await client.query<{ id: string; source: string }>(
+        `SELECT id, source FROM domains WHERE tenant_id = $1 AND slug = $2`,
+        [targetTenantId, pd.slug],
+      );
+      const existing = ex.rows[0];
+      if (existing === undefined || existing.source !== "platform") {
+        continue; // tenant-local collision — leave it untouched
+      }
+      targetDomainId = existing.id;
+    }
+
+    const catsRes = await client.query<{
+      slug: string;
+      name: string;
+      description: string | null;
+      relevance_score: number;
+      default_selected: boolean;
+      supported_types: unknown;
+      default_question_count: number;
+    }>(
+      `SELECT slug, name, description, relevance_score, default_selected,
+              supported_types, default_question_count
+         FROM categories
+        WHERE tenant_id = $1 AND domain_id = $2 AND status = 'active'`,
+      [platformTenantId, pd.id],
+    );
+
+    for (const c of catsRes.rows) {
+      await client.query(
+        `INSERT INTO categories
+           (tenant_id, domain_id, slug, name, description, relevance_score,
+            default_selected, supported_types, default_question_count, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'active')
+         ON CONFLICT (tenant_id, domain_id, slug) DO NOTHING`,
+        [
+          targetTenantId,
+          targetDomainId,
+          c.slug,
+          c.name,
+          c.description,
+          c.relevance_score,
+          c.default_selected,
+          JSON.stringify(c.supported_types),
+          c.default_question_count,
+        ],
+      );
+    }
+  }
+
+  return domainsRes.rows.length;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
- * Seed the 9-domain taxonomy for a single tenant.
+ * Seed the domain taxonomy for a single (new company) tenant.
  *
- * Uses withTenant(tenantId) — all writes are RLS-scoped to the target tenant.
- * Idempotent: ON CONFLICT DO NOTHING on every INSERT.
+ * PRIMARY path: copy the PLATFORM master tenant's current ACTIVE domains +
+ * categories (source='platform'). This keeps every tenant in sync with the live
+ * platform domain set — a super-admin's platform create/archive flows through to
+ * future tenants automatically (replaces the old hardcoded 0019 list, which
+ * could not reflect post-0019 platform changes).
  *
- * Cross-tenant safety: MUST be called with the new company's tenantId, never
- * with the platform tenantId. The route (C4) is responsible for passing the
- * correct tenantId. This runtime guard still holds — per-company onboarding
- * must not touch the platform tenant.
+ * FALLBACK path: if no platform tenant exists yet (fresh DB before the manual
+ * platform bootstrap), seed the hardcoded DOMAINS baseline (verbatim from
+ * 0019 + 0020). This guarantees a new tenant is never left with zero domains.
  *
- * NOTE (platform tenant exception): the platform tenant IS seeded with this
- * same taxonomy, but via the one-time migration
- * 0083_seed_platform_tenant_taxonomy.sql — NOT through this function. Post
- * Phase-B1 the platform tenant is the super-admin's master question library
- * (the source the SA curates and grants to companies via billing
- * entitlements). The migration is the sanctioned platform-seed path; this
- * runtime function remains per-company only. The two are not in conflict.
+ * Runs as a single assessiq_system (BYPASSRLS) transaction: reads the platform
+ * tenant, writes the target tenant by explicit tenant_id. Idempotent
+ * (ON CONFLICT DO NOTHING on every INSERT).
  *
- * Values are extracted verbatim from:
- *   0019_seed_domains_categories.sql (domains + categories baseline)
- *   0020_supported_types_per_domain.sql (per-domain supported_types correction)
+ * Cross-tenant safety: MUST be called with the NEW company's tenantId, never the
+ * platform tenantId — guarded explicitly (throws). The platform tenant's own
+ * taxonomy is owned by migration 0083 + platform domain management, not this
+ * per-company function.
  */
 export async function seedTenantTaxonomy(tenantId: string): Promise<void> {
-  await withTenant(tenantId, async (client) => {
-    for (const domain of DOMAINS) {
-      await seedDomain(client, tenantId, domain);
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE assessiq_system");
+
+    const platformTenantId = await getPlatformTenantId(client);
+    if (platformTenantId !== null && platformTenantId === tenantId) {
+      // Never seed the platform tenant into itself.
+      throw new Error(
+        "seedTenantTaxonomy must not be called with the platform tenant id",
+      );
     }
-  });
+
+    if (platformTenantId !== null) {
+      // PRIMARY: copy the live platform domain set. If the platform tenant has
+      // ZERO active domains (e.g. a super-admin archived them all), seed nothing
+      // — that is the correct catalog-only outcome. Do NOT fall back to the
+      // hardcoded baseline here: doing so would silently reintroduce archived
+      // domains as active for every new tenant, defeating the archive.
+      await seedFromPlatform(client, tenantId, platformTenantId);
+    } else {
+      // FALLBACK (fresh DB only): no platform tenant exists yet, before the
+      // manual platform bootstrap → seed the hardcoded baseline so the new
+      // tenant is never left with zero domains.
+      for (const domain of DOMAINS) {
+        await seedDomainHardcoded(client, tenantId, domain);
+      }
+    }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
