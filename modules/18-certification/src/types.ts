@@ -19,8 +19,9 @@
 //   3. `candidate_id` replaces the plan's `user_id` — matches 03-users naming
 //      convention (users.role = 'candidate').
 //
-//   4. Tier enum matches AssessIQ's banded scoring philosophy: completion (≥90%),
-//      distinction (100% + ≥80% repos), honors (distinction + AI eval ≥8.0).
+//   4. Tier enum matches AssessIQ's banded scoring philosophy. Auto-issue
+//      thresholds (2026-05-25): completion (70–<90%), distinction (≥90%);
+//      below 70% no certificate. Honors is deferred (AI-eval pipeline).
 //      TIER_ORDER enforces "only upgrade" invariant (plan §1.3).
 //
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.

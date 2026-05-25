@@ -8,7 +8,9 @@ share + admin list/revoke/reissue surfaces, automatic release trigger wiring.
 
 ## Purpose
 Issue, verify, and manage tamper-evident certificates when a candidate passes
-an assessment at or above the completion threshold. Each certificate is:
+an assessment at or above the completion threshold. **Auto-issue tiers
+(`issueCertificateOnRelease`, 2026-05-25): below 70% → none, 70–<90% →
+completion, ≥90% → distinction** (honors deferred). Each certificate is:
 
 - A **snapshotted** row (display_name, course_title, level frozen at issuance)
 - **Idempotent** (UNIQUE(tenant_id, candidate_id, attempt_id) — one cert per attempt)

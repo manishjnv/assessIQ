@@ -592,7 +592,7 @@ export async function incrementShareCount(
  * Returns the Certificate if one was issued/upgraded, or null when:
  *   - attempt not found (RLS filtered)
  *   - attempt_scores row absent (scores not yet computed)
- *   - score below the 90% completion threshold
+ *   - score below the 70% completion threshold
  *
  * NEVER throws — the caller (07-ai-grading release handler) wraps this in
  * a catch so cert failure cannot block grade release (SKILL.md §4.1).
@@ -634,11 +634,12 @@ export async function issueCertificateOnRelease(
 
   const pct = parseFloat(row.auto_pct);
   if (!isFinite(pct)) return null; // guard against PostgreSQL NaN literal
-  if (pct < 90) return null; // below completion threshold — no cert
+  if (pct < 70) return null; // below completion threshold — no cert
 
-  // AssessIQ has no repo-linking requirement, so: 100% = distinction, ≥90% = completion.
-  // Honors is deferred pending an AI-evaluation pipeline for certs.
-  const tier: Tier = pct === 100 ? 'distinction' : 'completion';
+  // AssessIQ tier thresholds (2026-05-25): 70–<90% = completion, ≥90% = distinction.
+  // (Lowered from the original 90% floor / 100%-only distinction.) Honors is
+  // deferred pending an AI-evaluation pipeline for certs.
+  const tier: Tier = pct >= 90 ? 'distinction' : 'completion';
 
   return issueCertificate(client, {
     tenant_id: tenantId,

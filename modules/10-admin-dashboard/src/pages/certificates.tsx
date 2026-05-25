@@ -425,7 +425,7 @@ export function AdminCertificates(): React.ReactElement {
           {[
             {
               label: "When one appears here",
-              body: "Created automatically when you release a graded attempt that scored 90%+ (90–99% → Completion, 100% → Distinction). You don't create certificates by hand.",
+              body: "Created automatically when you release a graded attempt that scored 70%+ (70–89% → Completion, 90%+ → Distinction). You don't create certificates by hand.",
             },
             {
               label: "How the candidate gets & shares it",
