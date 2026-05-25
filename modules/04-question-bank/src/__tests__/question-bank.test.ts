@@ -319,6 +319,48 @@ describe("Pack lifecycle", () => {
     }
   });
 
+  it("listPacks search matches name OR slug, case-insensitively, as a substring", async () => {
+    const uniq = randomUUID().slice(0, 8);
+    // Unique throwaway domain so these packs don't inflate a domain page that
+    // other pagination-sensitive tests assert against (e.g. the domain:"soc" lookups).
+    const byName = await createPack(
+      tenantA,
+      { slug: `srch-name-${uniq}`, name: `Searchable ${uniq} Widgets`, domain: "qbsearch" },
+      adminA,
+    );
+    const bySlug = await createPack(
+      tenantA,
+      { slug: `zz-${uniq}-needle`, name: "Unrelated", domain: "qbsearch" },
+      adminA,
+    );
+
+    // Substring of the NAME, different case → matches.
+    const byNameRes = await listPacks(tenantA, { search: uniq.toUpperCase() });
+    expect(byNameRes.items.some((p) => p.id === byName.id)).toBe(true);
+
+    // Substring of the SLUG (not in the name) → matches.
+    const bySlugRes = await listPacks(tenantA, { search: "needle" });
+    expect(bySlugRes.items.some((p) => p.id === bySlug.id)).toBe(true);
+
+    // A term in neither name nor slug → excludes.
+    const noneRes = await listPacks(tenantA, { search: `no-such-term-${uniq}` });
+    expect(noneRes.items.some((p) => p.id === byName.id || p.id === bySlug.id)).toBe(false);
+  });
+
+  it("listPacks returns level_count per pack", async () => {
+    const pack = await createPack(
+      tenantA,
+      { slug: `lvlcount-${randomUUID().slice(0, 8)}`, name: "Level Count Test", domain: "qbsearch" },
+      adminA,
+    );
+    await addLevel(tenantA, pack.id, { position: 1, label: "L1", duration_minutes: 30, default_question_count: 1 });
+    await addLevel(tenantA, pack.id, { position: 2, label: "L2", duration_minutes: 30, default_question_count: 1 });
+
+    const { items } = await listPacks(tenantA, { search: pack.slug });
+    const row = items.find((p) => p.id === pack.id);
+    expect(row?.level_count).toBe(2);
+  });
+
   it("listPacks with pageSize 500 succeeds (cap raised from 100→500)", async () => {
     // pageSize=500 must be accepted — pack-detail fetches all questions in a
     // pack in one shot; packs with L1/L2/L3 fully populated can reach 200+.

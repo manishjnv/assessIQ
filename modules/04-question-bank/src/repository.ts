@@ -79,9 +79,10 @@ interface PackRow {
   updated_at: Date;
 }
 
-/** PackRow plus the question_count derived column from the list query. */
+/** PackRow plus the derived count columns from the list query. */
 interface PackListRow extends PackRow {
   question_count: number;
+  level_count: number;
 }
 
 /**
@@ -295,6 +296,15 @@ export async function listPackRows(
     i++;
   }
 
+  if (filters.search !== undefined && filters.search.length > 0) {
+    // Case-insensitive substring on name OR slug. Parameterised — the %…% is
+    // built in SQL, not interpolated, so LIKE metachars in input only widen the
+    // match, never inject.
+    conditions.push(`(lower(name) LIKE '%' || lower($${i}) || '%' OR lower(slug) LIKE '%' || lower($${i}) || '%')`);
+    values.push(filters.search);
+    i++;
+  }
+
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   // Separate count query against the same WHERE clause.
@@ -314,7 +324,8 @@ export async function listPackRows(
   // tenant_id filter (see the file header's RLS-only rule).
   const dataResult = await client.query<PackListRow>(
     `SELECT ${PACK_COLUMNS},
-       (SELECT count(*)::int FROM questions q WHERE q.pack_id = question_packs.id) AS question_count
+       (SELECT count(*)::int FROM questions q WHERE q.pack_id = question_packs.id) AS question_count,
+       (SELECT count(*)::int FROM levels l WHERE l.pack_id = question_packs.id) AS level_count
      FROM question_packs ${where}
      ORDER BY created_at DESC, id DESC
      LIMIT $${i} OFFSET $${i + 1}`,
@@ -349,6 +360,7 @@ export async function listPackRows(
   const items: PackListItem[] = packs.map((row) => ({
     ...mapPackRow(row),
     question_count: row.question_count,
+    level_count: row.level_count,
     completed_count: completedByPack.get(row.id) ?? 0,
   }));
 

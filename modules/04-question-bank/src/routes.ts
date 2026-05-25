@@ -486,6 +486,7 @@ export async function registerQuestionBankRoutes(
       const filters: ListPacksInput = { page, pageSize };
       if (q["domain"] !== undefined) filters.domain = q["domain"];
       if (q["status"] !== undefined) filters.status = q["status"] as PackStatus;
+      if (q["search"] !== undefined) filters.search = q["search"];
       return listPacks(tenantId, filters);
     },
   );

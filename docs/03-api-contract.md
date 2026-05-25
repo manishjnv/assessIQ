@@ -225,7 +225,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/admin/packs`                       | List question packs (paginated; filter by `domain`, `status`). Each item carries `question_count` (all questions in the pack) and `completed_count` (tenant attempts that finished — status ∈ `submitted`/`auto_submitted`/`pending_admin_grading`/`graded`/`released`), both RLS-scoped. **2026-05-21** |
+| `GET`  | `/admin/packs`                       | List question packs (paginated; filter by `domain`, `status`, `search`). `search` is a case-insensitive **substring** match on pack name OR slug (**fix 2026-05-25** — was silently dropped at both the route and the repository, so the Question Bank search box did nothing). Each item carries `question_count` (all questions), `level_count` (levels defined — **added 2026-05-25**) and `completed_count` (tenant attempts that finished — status ∈ `submitted`/`auto_submitted`/`pending_admin_grading`/`graded`/`released`), all RLS-scoped. **2026-05-21** |
 | `POST` | `/admin/packs`                       | Create pack (returns 201). `slug` is **optional** — auto-generated from `name` (NFKD lowercase, hyphens, 64-char cap) when omitted. Collision appends `-2` … `-10` suffix. Explicit slug still validated against `/^[a-z0-9-]{3,80}$/`. **fix 2026-05-04** |
 | `GET`  | `/admin/packs/:id`                   | Pack with levels (`{ pack, levels }`) |
 | `PATCH`| `/admin/packs/:id`                   | Update pack metadata (name, domain, description) |
