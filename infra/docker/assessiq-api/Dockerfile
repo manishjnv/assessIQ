@@ -54,10 +54,17 @@ FROM node:${NODE_VERSION} AS runtime
 
 RUN corepack enable
 
-# Required for claude CLI (glibc ELF) to exec correctly on Debian slim.
-# ca-certificates is needed by claude for HTTPS API calls.
+# ca-certificates: claude CLI HTTPS + general TLS.
+# chromium + fonts-liberation: certificate PDF rendering (modules/18-certification
+#   launches headless Chromium via playwright-core at /usr/bin/chromium — the
+#   Debian package installs exactly there, matching render.ts's default
+#   executablePath). Without this the PDF endpoint 500s ("executable doesn't
+#   exist at /usr/bin/chromium"). fonts-liberation gives metric-compatible
+#   Arial/Times so the template's Helvetica/Georgia fallbacks render cleanly.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    chromium \
+    fonts-liberation \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \

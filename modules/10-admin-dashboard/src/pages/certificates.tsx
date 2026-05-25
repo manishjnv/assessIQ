@@ -1286,14 +1286,34 @@ export function AdminCertificates(): React.ReactElement {
               ))}
             </div>
 
-            {/* Revoke button (active certs only) */}
-            {selectedCert.revoked_at === null && (
-              <div
+            {/* Actions — Download PDF (any cert) + Revoke (active only) */}
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--aiq-space-sm)",
+                paddingTop: "var(--aiq-space-md)",
+                borderTop: "1px solid var(--aiq-color-border)",
+              }}
+            >
+              <a
+                href={`/api/certificates/${selectedCert.credential_id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
-                  paddingTop: "var(--aiq-space-md)",
-                  borderTop: "1px solid var(--aiq-color-border)",
+                  display: "inline-block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                  fontWeight: 600,
+                  padding: "6px 18px",
+                  borderRadius: "var(--aiq-radius-sm)",
+                  background: "var(--aiq-color-accent)",
+                  color: "#fff",
+                  textDecoration: "none",
                 }}
               >
+                Download PDF
+              </a>
+              {selectedCert.revoked_at === null && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1317,8 +1337,8 @@ export function AdminCertificates(): React.ReactElement {
                 >
                   Revoke Certificate
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </Drawer>
       )}
