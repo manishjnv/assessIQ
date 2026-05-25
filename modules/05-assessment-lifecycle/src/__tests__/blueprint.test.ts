@@ -384,11 +384,14 @@ describe("C2 — publishAssessment blueprint per-criterion pool pre-flight", () 
     (repo.findAssessmentById as ReturnType<typeof vi.fn>).mockResolvedValue(ASSESSMENT_WITH_BLUEPRINT);
     (repo.updateAssessmentRow as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ASSESSMENT_WITH_BLUEPRINT, status: "published" });
 
+    // assertPublishEntitled fires getTenantTier first; tier='internal' bypasses
+    // entitlement checks so the criterion pool-count queries follow in order.
     // count query for criterion 0 returns 3 (enough)
     // count query for criterion 1 returns 1 (NOT enough — need 2)
     const mockClient = makeClient([
-      { rows: [{ count: "3" }] },  // criterion 0: 3 available ≥ 3 required → pass
-      { rows: [{ count: "1" }] },  // criterion 1: 1 available < 2 required → fail
+      { rows: [{ tier: "internal" }] }, // getTenantTier → internal (bypass entitlement)
+      { rows: [{ count: "3" }] },       // criterion 0: 3 available ≥ 3 required → pass
+      { rows: [{ count: "1" }] },       // criterion 1: 1 available < 2 required → fail
     ]);
 
     (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
@@ -447,10 +450,13 @@ describe("C2 — publishAssessment blueprint per-criterion pool pre-flight", () 
     const published = { ...ASSESSMENT_WITH_BLUEPRINT, status: "published" };
     (repo.updateAssessmentRow as ReturnType<typeof vi.fn>).mockResolvedValue(published);
 
+    // assertPublishEntitled fires getTenantTier first; tier='internal' bypasses
+    // entitlement checks so the criterion pool-count queries follow in order.
     // Both criteria have enough
     const mockClient = makeClient([
-      { rows: [{ count: "5" }] },  // criterion 0: 5 ≥ 3
-      { rows: [{ count: "4" }] },  // criterion 1: 4 ≥ 2
+      { rows: [{ tier: "internal" }] }, // getTenantTier → internal (bypass entitlement)
+      { rows: [{ count: "5" }] },       // criterion 0: 5 ≥ 3
+      { rows: [{ count: "4" }] },       // criterion 1: 4 ≥ 2
     ]);
 
     (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
@@ -488,9 +494,12 @@ describe("C2 — publishAssessment blueprint per-criterion pool pre-flight", () 
 
     (repo.findAssessmentById as ReturnType<typeof vi.fn>).mockResolvedValue(ASSESSMENT_NO_BLUEPRINT);
 
+    // assertPublishEntitled fires getTenantTier first; tier='internal' bypasses
+    // entitlement checks so the whole-pool count query follows.
     // Whole-pool count: 5 < 10 required → POOL_TOO_SMALL (not POOL_TOO_SMALL_CRITERION)
     const mockClient = makeClient([
-      { rows: [{ count: "5" }] },  // whole-pool count
+      { rows: [{ tier: "internal" }] }, // getTenantTier → internal (bypass entitlement)
+      { rows: [{ count: "5" }] },       // whole-pool count
     ]);
 
     (withTenant as ReturnType<typeof vi.fn>).mockImplementation(

@@ -262,10 +262,11 @@ beforeAll(async () => {
     .sort()
     .map((f) => ({ dir: AL_MIGRATIONS_DIR, file: f }));
 
-  // All billing migrations (tenant_plans, tenant_entitlements, billing_events, …)
-  // — required by lifecycle's publishAssessment/reopenAssessment entitlement gate.
+  // Schema-only billing migrations: 0078 (tenant_plans) + 0081 (tenant_entitlements).
+  // Skipped: 0079 (billing_events) — FKs to the attempts table which is not in
+  // this test set; 0080/0082 — backfills against live data; 0090 — noop UPDATE.
   const billingSorted = billingFiles
-    .filter((f) => f.endsWith(".sql"))
+    .filter((f) => f.endsWith(".sql") && (f === "0078_tenant_plans.sql" || f === "0081_tenant_entitlements.sql"))
     .sort()
     .map((f) => ({ dir: BILLING_MIGRATIONS_DIR, file: f }));
 
@@ -312,6 +313,17 @@ beforeAll(async () => {
     await insertTenant(client, tenantB, "tenant-b", "Tenant B");
     await insertAdminUser(client, adminA, tenantA, "admin-a@example.com");
     await insertAdminUser(client, adminB, tenantB, "admin-b@example.com");
+    // assertPublishEntitled (called by publishAssessment/reopenAssessment) queries
+    // tenant_plans.tier; a tenant with tier='internal' bypasses all entitlement
+    // checks. Insert plan rows so every publish-path test can proceed without a 403.
+    await client.query(
+      `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'internal', NULL) ON CONFLICT DO NOTHING`,
+      [tenantA],
+    );
+    await client.query(
+      `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'internal', NULL) ON CONFLICT DO NOTHING`,
+      [tenantB],
+    );
   });
 }, 90_000);
 
@@ -743,6 +755,7 @@ describe("State machine integration via service", () => {
         level_id: levelId,
         name: "Reopen Future",
         question_count: 5,
+        opens_at: new Date(Date.now() - 60_000),
         closes_at: new Date(Date.now() + 60 * 60_000),
       },
       adminA,
