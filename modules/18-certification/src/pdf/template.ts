@@ -1,36 +1,33 @@
 // AssessIQ — modules/18-certification/src/pdf/template.ts
 //
-// A4 landscape HTML template for certificate PDFs.
-// All styles are inline (no external fetches — Chromium runs with --no-sandbox
-// and cannot reach the network in the production render path).
+// A4 landscape HTML template for certificate PDFs. Self-contained (inline CSS,
+// no network fetches — Chromium renders offline with --no-sandbox).
 //
-// Brand tokens: OKLCH hue 258 palette → sRGB, locked to light mode.
-// See docs/10-branding-guideline.md § 13.b for the canonical hex values.
-// Tier-specific accent colours are NOT defined in the branding guideline;
-// all tiers use the same accent (#3177dc). Gap documented in SKILL.md § PDF
-// generation.
+// Layout follows conventional professional-credential composition (Coursera /
+// AWS / university-diploma style): a framed page, CENTERED and vertically
+// balanced, with the recipient name as the visual centerpiece, an official
+// verification seal (inline SVG — no font-glyph dependency), an authorized-
+// issuer signature line, and a QR + verify URL footer.
 //
-// Font stacks: Newsreader / Geist may not be installed on the VPS system
-// Chromium. Fallbacks (Georgia, Helvetica) are baked into every OS and are
-// sufficient for a readable, on-brand output. See SKILL.md § PDF generation
-// for the known gap.
+// Brand tokens: OKLCH hue 258 palette → sRGB, light mode. Tier accent:
+// completion=blue, distinction=gold, honors=violet (branding gap per SKILL.md).
+// Font stacks fall back to Georgia/Helvetica/Arial (Liberation fonts are
+// installed in the api image) since Newsreader/Geist aren't on the VPS Chromium.
 //
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
 import type { Certificate } from '../types.js';
 
 // ---------------------------------------------------------------------------
-// Brand tokens (sRGB — from OKLCH hue 258 palette)
+// Brand tokens
 // ---------------------------------------------------------------------------
 
 const FG_PRIMARY = '#1a1a1a';
 const FG_SECONDARY = '#5f6368';
+const FG_MUTED = '#8a8f98';
 const BG_BASE = '#ffffff';
-const BG_RAISED = '#fafafa';
-const BORDER = '#e8e8e8';
+const BORDER = '#e2e2e2';
 
-// Tier-specific accent. Completion = brand blue; distinction = gold (matches the
-// admin tier chip #d97706); honors = violet. Branding gap noted in SKILL.md.
 const TIER_ACCENT: Record<string, string> = {
   completion: '#3177dc',
   distinction: '#b8860b',
@@ -63,7 +60,7 @@ function escHtml(s: string): string {
  * `qrDataUrl` must be a PNG data URL produced by credentialQrDataUrl().
  * `verifyUrl` is the canonical public verification URL (also encoded in the QR);
  * it is derived from PUBLIC_BASE_URL, so the printed domain always matches the
- * deployment (no hardcoded host). Text is selectable (not SVG).
+ * deployment (no hardcoded host). Text is selectable (not SVG) except the seal.
  */
 export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, verifyUrl: string): string {
   const issuedDate = new Date(cert.issued_at).toLocaleDateString('en-US', {
@@ -76,6 +73,10 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
   const accent = TIER_ACCENT[cert.tier] ?? TIER_ACCENT['completion']!;
   const verifyDisplay = escHtml(verifyUrl.replace(/^https?:\/\//, ''));
 
+  // Inline SVG check — vector, so it renders without any installed font glyph
+  // (the previous &#10003; entity tofu'd as a missing-glyph box on the VPS).
+  const checkSvg = `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,107 +86,116 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
     @page { size: 297mm 210mm; margin: 0; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 297mm; height: 210mm; background: ${BG_BASE}; overflow: hidden; }
-    body { font-family: ${FONT_SANS}; color: ${FG_PRIMARY}; }
+    body { font-family: ${FONT_SANS}; color: ${FG_PRIMARY}; position: relative; }
 
-    /* Framed border — outer accent rule + thin inner rule (classic certificate). */
-    .frame {
-      position: absolute;
-      inset: 7mm;
-      border: 2.5px solid ${accent};
-      padding: 4mm;
-    }
+    /* Framed page — bold accent rule + thin inner rule. */
+    .frame { position: absolute; inset: 8mm; border: 3px solid ${accent}; }
     .inner {
       position: absolute;
-      inset: 0;
-      margin: 4mm;
+      inset: 12mm;
       border: 1px solid ${BORDER};
-      padding: 12mm 16mm;
+      padding: 12mm 20mm;
       display: flex;
       flex-direction: column;
+      align-items: center;
+      text-align: center;
     }
 
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 9mm;
-    }
-    .wordmark { display: flex; flex-direction: column; gap: 1mm; }
+    /* Header — centered brand wordmark + rule. */
     .brand {
       font-family: ${FONT_SANS};
-      font-size: 15pt;
+      font-size: 16pt;
       font-weight: 800;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.32em;
       color: ${accent};
+      padding-left: 0.32em; /* offset trailing letter-spacing for true centering */
     }
-    .issuer {
+    .brand-sub {
       font-family: ${FONT_SANS};
-      font-size: 8.5pt;
-      color: ${FG_SECONDARY};
-      letter-spacing: 0.08em;
+      font-size: 7.5pt;
+      font-weight: 600;
+      letter-spacing: 0.22em;
+      color: ${FG_MUTED};
       text-transform: uppercase;
+      margin-top: 1mm;
     }
-    .credential-id {
-      font-family: ${FONT_MONO};
-      font-size: 8pt;
-      color: ${FG_SECONDARY};
-      background: ${BG_RAISED};
-      border: 1px solid ${BORDER};
-      padding: 1mm 2.5mm;
-      border-radius: 3px;
+    .title {
+      font-family: ${FONT_SERIF};
+      font-size: 21pt;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: ${FG_PRIMARY};
+      margin-top: 7mm;
+    }
+    .title-rule {
+      width: 34mm;
+      height: 2px;
+      background: ${accent};
+      margin: 3mm 0 0;
     }
 
+    /* Body — grows to fill the page so the composition is vertically centered. */
+    .body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3mm;
+      width: 100%;
+    }
     .cert-label {
       font-family: ${FONT_SANS};
-      font-size: 9pt;
+      font-size: 9.5pt;
       color: ${FG_SECONDARY};
-      letter-spacing: 0.06em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      margin-bottom: 2mm;
     }
     .recipient-name {
       font-family: ${FONT_SERIF};
-      font-size: 36pt;
+      font-size: 42pt;
       font-weight: 700;
       color: ${FG_PRIMARY};
-      line-height: 1.1;
-      margin-bottom: 3mm;
+      line-height: 1.05;
     }
-    .awarded {
-      font-family: ${FONT_SANS};
-      font-size: 10pt;
-      color: ${FG_SECONDARY};
-      margin-bottom: 2mm;
-    }
+    .name-rule { width: 120mm; max-width: 70%; height: 1px; background: ${BORDER}; }
+    .awarded { font-family: ${FONT_SANS}; font-size: 11pt; color: ${FG_SECONDARY}; }
     .course-title {
       font-family: ${FONT_SERIF};
-      font-size: 18pt;
+      font-size: 22pt;
+      font-weight: 600;
       color: ${accent};
-      margin-bottom: 5mm;
+      line-height: 1.15;
     }
-    .meta-row { display: flex; gap: 10mm; margin-bottom: 5mm; }
-    .meta-item { font-family: ${FONT_SANS}; font-size: 10pt; color: ${FG_SECONDARY}; }
-    .meta-value { font-weight: 600; color: ${FG_PRIMARY}; }
-    .tier-badge {
-      align-self: flex-start;
-      background: ${accent};
-      color: #fff;
+    .meta {
       font-family: ${FONT_SANS};
-      font-size: 9pt;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      padding: 1.5mm 5mm;
-      border-radius: 999px;
+      font-size: 9.5pt;
+      color: ${FG_SECONDARY};
+      letter-spacing: 0.04em;
+      margin-top: 1mm;
     }
+    .meta b { color: ${FG_PRIMARY}; font-weight: 600; }
 
-    /* Verification seal — top-right of the inner frame, out of normal flow. */
+    /* Footer — signature (left) · seal (center) · QR + verify (right). */
+    .footer {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .col { display: flex; flex-direction: column; gap: 1.5mm; }
+    .col-left { align-items: flex-start; text-align: left; }
+    .col-center { align-items: center; }
+    .col-right { align-items: flex-end; text-align: right; }
+
+    .sign-line { width: 56mm; border-bottom: 1px solid ${FG_PRIMARY}; margin-bottom: 1mm; }
+    .sign-label { font-family: ${FONT_SANS}; font-size: 8.5pt; color: ${FG_SECONDARY}; }
+    .sign-sub { font-family: ${FONT_SANS}; font-size: 7.5pt; color: ${FG_MUTED}; }
+
     .seal {
-      position: absolute;
-      top: 12mm;
-      right: 16mm;
-      width: 26mm;
-      height: 26mm;
+      width: 30mm;
+      height: 30mm;
       border: 2px solid ${accent};
       border-radius: 50%;
       display: flex;
@@ -193,80 +203,69 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
       align-items: center;
       justify-content: center;
       gap: 0.5mm;
-      color: ${accent};
+      position: relative;
     }
-    .seal .check { font-size: 15pt; font-weight: 700; line-height: 1; }
-    .seal .seal-text {
+    .seal::after {
+      content: '';
+      position: absolute;
+      inset: 1.5mm;
+      border: 1px solid ${accent};
+      border-radius: 50%;
+      opacity: 0.5;
+    }
+    .seal-text {
       font-family: ${FONT_SANS};
-      font-size: 6pt;
+      font-size: 5.5pt;
       font-weight: 700;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
+      color: ${accent};
       text-align: center;
+      line-height: 1.25;
     }
 
-    .footer {
-      margin-top: auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-    }
-    .sign { display: flex; flex-direction: column; gap: 1.5mm; }
-    .sign-line { width: 60mm; border-bottom: 1px solid ${FG_PRIMARY}; }
-    .sign-label { font-family: ${FONT_SANS}; font-size: 8.5pt; color: ${FG_SECONDARY}; }
-    .verify { display: flex; align-items: flex-end; gap: 4mm; }
-    .verify-text {
-      text-align: right;
-      font-family: ${FONT_SANS};
-      font-size: 7.5pt;
-      color: ${FG_SECONDARY};
-      line-height: 1.5;
-      padding-bottom: 1mm;
-    }
-    .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 1mm; }
-    .qr-wrap img { width: 22mm; height: 22mm; }
-    .qr-label { font-family: ${FONT_SANS}; font-size: 7pt; color: ${FG_SECONDARY}; }
+    .qr img { width: 22mm; height: 22mm; display: block; }
+    .verify-line { font-family: ${FONT_SANS}; font-size: 7.5pt; color: ${FG_SECONDARY}; line-height: 1.5; }
+    .cred-id { font-family: ${FONT_MONO}; font-size: 7pt; color: ${FG_MUTED}; }
   </style>
 </head>
 <body>
   <div class="frame"></div>
   <div class="inner">
-    <div class="header">
-      <div class="wordmark">
-        <span class="brand">ASSESSIQ</span>
-        <span class="issuer">Certificate of ${tierLabel}</span>
+    <div class="brand">ASSESSIQ</div>
+    <div class="brand-sub">Skills Assessment Platform</div>
+    <div class="title">Certificate of Completion</div>
+    <div class="title-rule"></div>
+
+    <div class="body">
+      <div class="cert-label">This is to certify that</div>
+      <div class="recipient-name">${escHtml(cert.display_name)}</div>
+      <div class="name-rule"></div>
+      <div class="awarded">has successfully completed the assessment</div>
+      <div class="course-title">${escHtml(cert.course_title)}</div>
+      <div class="meta">
+        Level <b>${escHtml(cert.level)}</b> &nbsp;&middot;&nbsp; <b>${tierLabel}</b> &nbsp;&middot;&nbsp; Issued <b>${escHtml(issuedDate)}</b>
       </div>
-      <span class="credential-id">${escHtml(cert.credential_id)}</span>
-    </div>
-
-    <p class="cert-label">This is to certify that</p>
-    <p class="recipient-name">${escHtml(cert.display_name)}</p>
-    <p class="awarded">has successfully completed</p>
-    <p class="course-title">${escHtml(cert.course_title)}</p>
-
-    <div class="meta-row">
-      <span class="meta-item">Level:&nbsp;<span class="meta-value">${escHtml(cert.level)}</span></span>
-      <span class="meta-item">Issued:&nbsp;<span class="meta-value">${escHtml(issuedDate)}</span></span>
-    </div>
-
-    <span class="tier-badge">${tierLabel}</span>
-
-    <div class="seal">
-      <span class="check">&#10003;</span>
-      <span class="seal-text">Verified<br/>Credential</span>
     </div>
 
     <div class="footer">
-      <div class="sign">
+      <div class="col col-left">
         <div class="sign-line"></div>
-        <div class="sign-label">AssessIQ &middot; Authorized Issuer</div>
+        <div class="sign-label">AssessIQ</div>
+        <div class="sign-sub">Authorized Issuer</div>
       </div>
-      <div class="verify">
-        <div class="verify-text">Verify this credential at<br/>${verifyDisplay}</div>
-        <div class="qr-wrap">
-          <img src="${qrDataUrl}" alt="Verify QR code" />
-          <span class="qr-label">Scan to verify</span>
+
+      <div class="col col-center">
+        <div class="seal">
+          ${checkSvg}
+          <div class="seal-text">Verified<br/>Credential</div>
         </div>
+      </div>
+
+      <div class="col col-right">
+        <div class="qr"><img src="${qrDataUrl}" alt="Verify QR code" /></div>
+        <div class="verify-line">Scan or visit ${verifyDisplay}</div>
+        <div class="cred-id">${escHtml(cert.credential_id)}</div>
       </div>
     </div>
   </div>
