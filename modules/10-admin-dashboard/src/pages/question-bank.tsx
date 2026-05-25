@@ -17,6 +17,7 @@
 //  - Empty-state renders; no hardcoded fake rows.
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
@@ -38,6 +39,8 @@ interface PackListItem {
   status: PackStatus;
   version: number;
   question_count: number;
+  /** Number of levels (L1/L2/L3) defined in this pack. */
+  level_count: number;
   /** Times candidates in this tenant finished an assessment built on this pack. */
   completed_count: number;
   created_at: string;
@@ -89,9 +92,11 @@ function sortPacks(rows: PackListItem[], key: string, dir: SortDir): PackListIte
   });
 }
 
-// Row-level overflow menu. Minimal self-contained popover so the destructive
-// "Archive" action isn't surfaced as a loud red button on every row. Promote
-// to @assessiq/ui-system if/when a second page needs it.
+// Row-level overflow menu. The dropdown is rendered to document.body via
+// createPortal and anchored with getBoundingClientRect (position:fixed) — the
+// packs table uses overflow:hidden for its rounded corners, which would clip a
+// plainly-absolute dropdown (the menu silently never appeared). Same pattern as
+// platform.tsx's ManageMenu. Closes on outside click / Esc / scroll / resize.
 interface RowOverflowMenuProps {
   busy?: boolean;
   onArchive: () => void;
@@ -99,27 +104,49 @@ interface RowOverflowMenuProps {
 
 function RowOverflowMenu({ busy, onArchive }: RowOverflowMenuProps): React.ReactElement {
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    if (triggerRef.current === null) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+
+    function close() {
+      setOpen(false);
+    }
     function onDocClick(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      if (
+        !panelRef.current?.contains(e.target as Node) &&
+        !triggerRef.current?.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
     };
   }, [open]);
 
   return (
-    <div ref={wrapRef} style={{ position: "relative", display: "inline-block" }}>
+    <>
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -134,42 +161,45 @@ function RowOverflowMenu({ busy, onArchive }: RowOverflowMenuProps): React.React
       >
         {busy ? "…" : "⋯"}
       </button>
-      {open && (
-        <div
-          role="menu"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            right: 0,
-            zIndex: 30,
-            minWidth: 160,
-            background: "var(--aiq-color-bg-base)",
-            border: "1px solid var(--aiq-color-border)",
-            borderRadius: "var(--aiq-radius-md)",
-            boxShadow: "var(--aiq-shadow-lg)",
-            padding: 4,
-          }}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-              onArchive();
-            }}
+      {open && coords !== null &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="menu"
             style={{
-              width: "100%",
-              justifyContent: "flex-start",
-              color: "var(--aiq-color-danger)",
+              position: "fixed",
+              top: coords.top,
+              right: coords.right,
+              zIndex: 1000,
+              minWidth: 160,
+              background: "var(--aiq-color-bg-base)",
+              border: "1px solid var(--aiq-color-border)",
+              borderRadius: "var(--aiq-radius-md)",
+              boxShadow: "var(--aiq-shadow-lg)",
+              padding: 4,
             }}
           >
-            Archive…
-          </button>
-        </div>
-      )}
-    </div>
+            <button
+              type="button"
+              role="menuitem"
+              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                onArchive();
+              }}
+              style={{
+                width: "100%",
+                justifyContent: "flex-start",
+                color: "var(--aiq-color-danger)",
+              }}
+            >
+              Archive…
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -180,6 +210,25 @@ export function AdminQuestionBank(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get("status") ?? "";
   const searchQuery = searchParams.get("search") ?? "";
+
+  // Default the list to Published on first visit (live content first). Ref-guarded
+  // so it runs exactly once — after this, clicking "All" (which clears the param)
+  // is respected and never bounced back to Published.
+  const didDefaultStatus = useRef(false);
+  useEffect(() => {
+    if (didDefaultStatus.current) return;
+    didDefaultStatus.current = true;
+    if (!searchParams.has("status")) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("status", "published");
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [searchParams, setSearchParams]);
 
   // Sort state — client-side over the loaded page. Defaults to the server's
   // own order (created_at desc) so first paint is unchanged.
@@ -388,6 +437,24 @@ export function AdminQuestionBank(): React.ReactElement {
         const s = packStatusDisplay(row.status);
         return <Chip variant={s.variant}>{s.label}</Chip>;
       },
+    },
+    {
+      key: "level_count",
+      label: "Levels",
+      sortable: true,
+      render: (row: PackListItem) => (
+        <span
+          className="num"
+          style={{
+            fontFamily: "var(--aiq-font-serif)",
+            fontSize: "var(--aiq-text-sm)",
+            fontVariantNumeric: "lining-nums tabular-nums",
+            color: row.level_count === 0 ? "var(--aiq-color-fg-muted)" : undefined,
+          }}
+        >
+          {row.level_count}
+        </span>
+      ),
     },
     {
       key: "question_count",

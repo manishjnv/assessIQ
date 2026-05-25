@@ -285,6 +285,8 @@ export interface Tag {
 export interface ListPacksInput {
   domain?: string;
   status?: PackStatus;
+  /** Case-insensitive substring match on pack name OR slug. */
+  search?: string;
   page?: number;
   pageSize?: number;
 }
@@ -356,6 +358,8 @@ export interface UpdateQuestionPatch {
 export interface PackListItem extends QuestionPack {
   /** Number of questions in this pack, all statuses. */
   question_count: number;
+  /** Number of levels (e.g. L1/L2/L3) defined in this pack. */
+  level_count: number;
   /**
    * Times a candidate in the current tenant finished an assessment built on
    * this pack. Counts attempts in a completed state: submitted, auto_submitted,
