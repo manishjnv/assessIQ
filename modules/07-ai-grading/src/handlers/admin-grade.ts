@@ -81,6 +81,119 @@ export interface HandleAdminGradeOutput {
 
 const AI_GRADEABLE_TYPES = new Set(["subjective", "scenario", "log_analysis"]);
 
+// ---------------------------------------------------------------------------
+// Grade-time rubric synthesis (log_analysis + scenario)
+// ---------------------------------------------------------------------------
+//
+// Admins historically do not author rubrics for the two question types that
+// carry their reference answers inside `content` — log_analysis
+// (`expected_findings`) and scenario (`steps[].expected`). `rubricRequiredFor`
+// returns false for these, so they are activated and served without a rubric
+// (fleet reality 2026-05-26: ~half of active scenarios have no rubric). Without
+// a rubric, gradeSubjective() throws AIG_SCHEMA_VIOLATION at its guard and the
+// question can never be graded — blocking the whole attempt from completing.
+//
+// At grade-time we synthesise an ephemeral rubric from those reference concepts
+// (70 % anchor weight split evenly across concepts, 30 % reasoning band). The
+// synthesised rubric is passed directly to gradeSubjective() and is NEVER
+// persisted to questions.rubric (D8 / Stage 1 acceptance contract). An admin-
+// authored rubric, when present, always takes precedence (synthesis only runs
+// when the stored rubric is missing or has no anchors).
+
+type SynthReasoningBands = {
+  band_4: string;
+  band_3: string;
+  band_2: string;
+  band_1: string;
+  band_0: string;
+};
+
+// Per-type reasoning bands. log_analysis text is preserved verbatim from the
+// prior inline block so its grading is byte-identical; scenario gets step-
+// oriented wording.
+const SYNTH_REASONING_BANDS: Record<"log_analysis" | "scenario", SynthReasoningBands> = {
+  log_analysis: {
+    band_4: "Identifies all expected findings with clear supporting evidence from the log",
+    band_3: "Identifies most expected findings with adequate supporting evidence",
+    band_2: "Identifies some expected findings; evidence partially supported",
+    band_1: "Identifies few findings; reasoning unclear or unsupported",
+    band_0: "No relevant findings identified or completely incorrect analysis",
+  },
+  scenario: {
+    band_4: "Addresses all scenario steps correctly with clear, well-supported reasoning",
+    band_3: "Addresses most steps adequately with reasonable supporting evidence",
+    band_2: "Addresses some steps; reasoning partially supported",
+    band_1: "Addresses few steps; reasoning unclear or unsupported",
+    band_0: "No steps addressed correctly or completely incorrect analysis",
+  },
+};
+
+/**
+ * Extract the per-type reference concepts a synthesised rubric anchors on.
+ * log_analysis → content.expected_findings; scenario → content.steps[].expected.
+ * Returns [] for any other type or malformed content (caller then leaves the
+ * stored rubric untouched, preserving the existing fail-on-missing behaviour).
+ */
+function extractSynthConcepts(type: string, content: unknown): string[] {
+  const c = content as Record<string, unknown> | null | undefined;
+  if (type === "log_analysis") {
+    // Filter is byte-identical to the pre-2026-05-26 inline block (no trim) so
+    // existing log_analysis grading is unchanged for every input.
+    const raw = c?.["expected_findings"];
+    return Array.isArray(raw)
+      ? raw.filter((f): f is string => typeof f === "string")
+      : [];
+  }
+  if (type === "scenario") {
+    const steps = c?.["steps"];
+    return Array.isArray(steps)
+      ? steps
+          .map((s) =>
+            s && typeof s === "object"
+              ? (s as Record<string, unknown>)["expected"]
+              : undefined,
+          )
+          .filter((e): e is string => typeof e === "string" && e.trim().length > 0)
+      : [];
+  }
+  return [];
+}
+
+/**
+ * Build an ephemeral rubric (70 % anchors / 30 % reasoning) from reference
+ * concepts. One anchor per concept (`anchor-{i}`, synonyms:[concept]); the 70
+ * anchor points split evenly with the remainder on the first anchor. Caller
+ * guarantees concepts.length > 0.
+ *
+ * Concepts are capped at ANCHOR_WEIGHT (70): beyond that, floor(70/n) rounds to
+ * 0 and every anchor past the first would silently score zero (and the rubric
+ * would grow unbounded on malformed/adversarial content). Real scenarios and
+ * log_analysis questions carry well under 70 reference concepts, so the cap is a
+ * no-op for every realistic input (weights/anchors identical for n ≤ 70) and
+ * only truncates degenerate content.
+ */
+function buildSynthesizedRubric(
+  concepts: string[],
+  reasoningBands: SynthReasoningBands,
+): unknown {
+  const ANCHOR_WEIGHT = 70;
+  const capped =
+    concepts.length > ANCHOR_WEIGHT ? concepts.slice(0, ANCHOR_WEIGHT) : concepts;
+  const perBase = Math.floor(ANCHOR_WEIGHT / capped.length);
+  const firstExtra = ANCHOR_WEIGHT - perBase * capped.length;
+  return {
+    anchors: capped.map((concept, i) => ({
+      id: `anchor-${i}`,
+      concept,
+      weight: i === 0 ? perBase + firstExtra : perBase,
+      synonyms: [concept],
+    })),
+    reasoning_bands: reasoningBands,
+    anchor_weight_total: ANCHOR_WEIGHT,
+    reasoning_weight_total: 30,
+  };
+}
+
 async function loadGradingData(
   client: PoolClient,
   attemptId: string,
@@ -213,46 +326,26 @@ export async function handleAdminGrade(
 
       const answer = answers.get(q.question_id) ?? null;
 
-      // For log_analysis questions, rubrics are not required to be
-      // admin-authored (rubricRequiredFor returns false for log_analysis).
-      // Synthesize a rubric at grade-time from content.expected_findings so
-      // gradeSubjective always receives a valid rubric object.
-      // This synthesized rubric is ephemeral — it is NEVER persisted to the
-      // questions.rubric column (D8 / Stage 1 acceptance contract).
+      // Grade-time rubric synthesis for the two types that carry their
+      // reference answers in content (log_analysis: expected_findings;
+      // scenario: steps[].expected). Admins historically don't author rubrics
+      // for these (rubricRequiredFor returns false), so without this the
+      // question hard-fails AIG_SCHEMA_VIOLATION and blocks the whole attempt.
+      // Ephemeral — NEVER persisted (D8). An authored rubric always wins.
       let effectiveRubric = q.rubric;
-      if (q.type === "log_analysis") {
+      if (q.type === "log_analysis" || q.type === "scenario") {
         const rubricVal = q.rubric as { anchors?: unknown[] } | null | undefined;
         if (
           !rubricVal ||
           !Array.isArray(rubricVal.anchors) ||
           rubricVal.anchors.length === 0
         ) {
-          const content = q.content as { expected_findings?: unknown } | null | undefined;
-          const rawFindings = content?.expected_findings;
-          const findings: string[] = Array.isArray(rawFindings)
-            ? rawFindings.filter((f): f is string => typeof f === "string")
-            : [];
-          if (findings.length > 0) {
-            const ANCHOR_WEIGHT = 70;
-            const perBase = Math.floor(ANCHOR_WEIGHT / findings.length);
-            const firstExtra = ANCHOR_WEIGHT - perBase * findings.length;
-            effectiveRubric = {
-              anchors: findings.map((finding, i) => ({
-                id: `anchor-${i}`,
-                concept: finding,
-                weight: i === 0 ? perBase + firstExtra : perBase,
-                synonyms: [finding],
-              })),
-              reasoning_bands: {
-                band_4: "Identifies all expected findings with clear supporting evidence from the log",
-                band_3: "Identifies most expected findings with adequate supporting evidence",
-                band_2: "Identifies some expected findings; evidence partially supported",
-                band_1: "Identifies few findings; reasoning unclear or unsupported",
-                band_0: "No relevant findings identified or completely incorrect analysis",
-              },
-              anchor_weight_total: ANCHOR_WEIGHT,
-              reasoning_weight_total: 30,
-            };
+          const concepts = extractSynthConcepts(q.type, q.content);
+          if (concepts.length > 0) {
+            effectiveRubric = buildSynthesizedRubric(
+              concepts,
+              SYNTH_REASONING_BANDS[q.type],
+            );
           }
         }
       }
