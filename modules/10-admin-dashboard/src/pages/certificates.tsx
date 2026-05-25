@@ -19,6 +19,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Chip, Drawer, Spinner } from "@assessiq/ui-system";
+import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
@@ -384,7 +385,7 @@ export function AdminCertificates(): React.ReactElement {
   const colCount = isSuperAdmin ? 9 : 8;
 
   return (
-    <AdminShell breadcrumbs={["Certificates"]} helpPage="admin.certificates.list">
+    <AdminShell breadcrumbs={["Certificates"]} helpPage="admin.certificates">
       {/* ── Page header ── */}
       <div data-help-id="admin.certificates.list" style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
         <div style={{ marginBottom: 12 }}>
@@ -686,19 +687,43 @@ export function AdminCertificates(): React.ReactElement {
                     {/* Actions */}
                     <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
                       {!isRevoked && (
+                        <HelpTip helpId="admin.certificates.revoke">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRevokeModalId(cert.credential_id);
+                              setRevokeReason("");
+                              setRevokeError(null);
+                            }}
+                            style={{
+                              fontFamily: "var(--aiq-font-sans)",
+                              fontSize: "var(--aiq-text-xs)",
+                              color: "var(--aiq-color-danger)",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              padding: "2px 6px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Revoke
+                          </button>
+                        </HelpTip>
+                      )}
+                      <HelpTip helpId="admin.certificates.reissue">
                         <button
                           type="button"
-                          data-help-id="admin.certificates.revoke"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setRevokeModalId(cert.credential_id);
-                            setRevokeReason("");
-                            setRevokeError(null);
+                            setReissueModalId(cert.credential_id);
+                            setReissueDisplayName("");
+                            setReissueError(null);
                           }}
                           style={{
                             fontFamily: "var(--aiq-font-sans)",
                             fontSize: "var(--aiq-text-xs)",
-                            color: "var(--aiq-color-danger)",
+                            color: "var(--aiq-color-accent)",
                             background: "none",
                             border: "none",
                             cursor: "pointer",
@@ -706,31 +731,9 @@ export function AdminCertificates(): React.ReactElement {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          Revoke
+                          Reissue
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        data-help-id="admin.certificates.reissue"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setReissueModalId(cert.credential_id);
-                          setReissueDisplayName("");
-                          setReissueError(null);
-                        }}
-                        style={{
-                          fontFamily: "var(--aiq-font-sans)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: "var(--aiq-color-accent)",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "2px 6px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Reissue
-                      </button>
+                      </HelpTip>
                     </td>
                   </tr>
                 );
