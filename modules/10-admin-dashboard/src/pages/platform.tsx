@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { MfaStepUp } from "../components/mfa-step-up.js";
 import {
   AdminApiError,
   createCompanyApi,
@@ -25,7 +26,6 @@ import {
   superUpdateAdminApi,
   superUpdateTenantApi,
   listTenantsApi,
-  verifyTotpApi,
   getTenantBillingDetail,
   updateTenantPlan,
   tenantBillingCsvUrl,
@@ -53,7 +53,6 @@ import {
   type CreatePlatformDomainRequest,
 } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
-import { fetchAdminWhoami } from "../session.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,145 +110,6 @@ function formatDate(iso: string): string {
     month: "short",
     year: "numeric",
   });
-}
-
-// ── MFA step-up sub-form ──────────────────────────────────────────────────────
-
-type MfaState =
-  | { status: "idle" }
-  | { status: "locked" }
-  | { status: "expired" }
-  | { status: "error"; message: string };
-
-function MfaStepUp({
-  onVerified,
-  onCancel,
-  prompt = "Your admin MFA needs to be verified before provisioning a new company. Enter your 6-digit authenticator code to continue.",
-  confirmLabel = "Verify & create",
-}: {
-  onVerified: () => void;
-  onCancel: () => void;
-  prompt?: string;
-  confirmLabel?: string;
-}): React.ReactElement {
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [state, setState] = useState<MfaState>({ status: "idle" });
-
-  const handleInput = (raw: string): void => {
-    // Strip non-digits, clamp to 6 chars
-    setCode(raw.replace(/\D/g, "").slice(0, 6));
-    setState({ status: "idle" });
-  };
-
-  const verify = async (): Promise<void> => {
-    if (code.length !== 6) return;
-    setLoading(true);
-    setState({ status: "idle" });
-    try {
-      await verifyTotpApi(code);
-      // Refresh session so new MFA freshness is picked up by subsequent calls
-      await fetchAdminWhoami(true);
-      setCode("");
-      onVerified();
-    } catch (err) {
-      if (err instanceof AdminApiError) {
-        if (err.apiError.code === "ACCOUNT_LOCKED" || err.status === 423) {
-          setState({ status: "locked" });
-        } else if (err.status === 401) {
-          // Session genuinely expired (not just stale MFA)
-          setState({ status: "expired" });
-        } else if (err.apiError.code === "INVALID_CODE") {
-          setState({ status: "error", message: "Invalid code. Try again." });
-        } else {
-          setState({ status: "error", message: err.apiError.message });
-        }
-      } else {
-        setState({ status: "error", message: "Unexpected error — please try again." });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isLocked = state.status === "locked";
-  const isExpired = state.status === "expired";
-
-  return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div
-        style={{
-          padding: "12px 16px",
-          background: "var(--aiq-color-bg-raised)",
-          borderRadius: "var(--aiq-radius-md)",
-          border: "1px solid var(--aiq-color-border)",
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            fontSize: 13,
-            color: "var(--aiq-color-fg-secondary)",
-            lineHeight: 1.5,
-          }}
-        >
-          {prompt}
-        </p>
-      </div>
-
-      {state.status === "locked" && (
-        <Chip>Too many attempts; locked for 15 minutes.</Chip>
-      )}
-      {state.status === "expired" && (
-        <div>
-          <Chip>Your session expired — </Chip>{" "}
-          <a
-            href="/admin/login"
-            style={{ fontSize: 13, color: "var(--aiq-color-accent)", fontWeight: 500 }}
-          >
-            sign in again.
-          </a>
-        </div>
-      )}
-      {state.status === "error" && <Chip>{state.message}</Chip>}
-
-      <div data-help-id="admin.platform.mfa_code">
-        <Field
-          label="Authenticator code"
-          placeholder="000000"
-          value={code}
-          onChange={(e) => handleInput(e.target.value)}
-          disabled={isLocked || isExpired || loading}
-          // These attrs go on the underlying <input> via Field's passthrough
-          // inputMode and autoComplete are standard HTML attributes Field forwards
-        />
-        {/* Overlay mono style on the input via a sibling note — Field handles the input element */}
-        <span
-          style={{
-            ...META_LABEL,
-            display: "block",
-            marginTop: 4,
-            fontSize: 10,
-          }}
-        >
-          6 digits · rotates every 30 s
-        </span>
-      </div>
-
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <Button variant="ghost" onClick={onCancel} disabled={loading}>
-          Cancel
-        </Button>
-        <Button
-          onClick={() => void verify()}
-          loading={loading}
-          disabled={code.length !== 6 || isLocked || isExpired}
-        >
-          {confirmLabel}
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 // ── Create-company modal ──────────────────────────────────────────────────────

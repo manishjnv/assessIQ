@@ -26,13 +26,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { MfaStepUp } from "../components/mfa-step-up.js";
 import {
   adminApi,
   AdminApiError,
   generateForDomainApi,
   listDomainsApi,
   listCategoriesApi,
-  createDomainApi,
+  createPlatformDomainApi,
   createCategoryApi,
   bulkUpdateQuestionStatus,
   listQuestionsApi,
@@ -344,6 +345,7 @@ export function AdminGenerateWizard(): React.ReactElement {
   const [newDomainDesc, setNewDomainDesc] = useState("");
   const [newDomainLoading, setNewDomainLoading] = useState(false);
   const [newDomainError, setNewDomainError] = useState<string | null>(null);
+  const [showDomainMfa, setShowDomainMfa] = useState(false);
 
   // Inline create category state (B2)
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -423,14 +425,14 @@ export function AdminGenerateWizard(): React.ReactElement {
       .catch(() => { setCategoriesLoading(false); setConfigError("Failed to load categories"); });
   }, [selectedDomainId]);
 
-  // Create domain handler (B2)
+  // Create domain handler (B2) — uses platform endpoint so domain propagates to all tenants
   const handleCreateDomain = useCallback(async () => {
     const name = newDomainName.trim();
     if (!name) { setNewDomainError("Name is required"); return; }
     setNewDomainLoading(true);
     setNewDomainError(null);
     try {
-      const created = await createDomainApi({
+      const created = await createPlatformDomainApi({
         name,
         ...(newDomainDesc.trim() ? { description: newDomainDesc.trim() } : {}),
       });
@@ -439,12 +441,23 @@ export function AdminGenerateWizard(): React.ReactElement {
       setSelectedDomainId(created.id);
       setNewDomainName("");
       setNewDomainDesc("");
+      setShowDomainMfa(false);
       setShowNewDomain(false);
     } catch (err) {
+      if (err instanceof AdminApiError && err.status === 401 && /fresh totp/i.test(err.apiError.message)) {
+        setShowDomainMfa(true);
+        setNewDomainLoading(false);
+        return;
+      }
       setNewDomainError(err instanceof AdminApiError ? err.apiError.message : "Failed to create domain");
     }
     setNewDomainLoading(false);
   }, [newDomainName, newDomainDesc]);
+
+  const handleDomainMfaVerified = useCallback(() => {
+    setShowDomainMfa(false);
+    void handleCreateDomain();
+  }, [handleCreateDomain]);
 
   // Create category handler (B2)
   const handleCreateCategory = useCallback(async () => {
@@ -664,14 +677,28 @@ export function AdminGenerateWizard(): React.ReactElement {
           </div>
           {showNewDomain && (
             <div style={{ marginBottom: "var(--aiq-space-sm)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", maxWidth: 360 }}>
-              {newDomainError && (
-                <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{newDomainError}</span>
+              {showDomainMfa ? (
+                <MfaStepUp
+                  prompt="Re-verify your MFA to create this platform domain. Enter your 6-digit authenticator code."
+                  confirmLabel="Verify & create"
+                  onVerified={() => void handleDomainMfaVerified()}
+                  onCancel={() => setShowDomainMfa(false)}
+                />
+              ) : (
+                <>
+                  <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
+                    Not listed? Creating a domain here adds a <strong>platform domain</strong> shared across every company (requires a fresh MFA code).
+                  </p>
+                  {newDomainError && (
+                    <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{newDomainError}</span>
+                  )}
+                  <input type="text" placeholder="Domain name (required)" value={newDomainName} onChange={(e) => setNewDomainName(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
+                  <input type="text" placeholder="Description (optional)" value={newDomainDesc} onChange={(e) => setNewDomainDesc(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
+                  <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={newDomainLoading || !newDomainName.trim()} onClick={() => void handleCreateDomain()}>
+                    {newDomainLoading ? "Creating..." : "Create Domain"}
+                  </button>
+                </>
               )}
-              <input type="text" placeholder="Domain name (required)" value={newDomainName} onChange={(e) => setNewDomainName(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
-              <input type="text" placeholder="Description (optional)" value={newDomainDesc} onChange={(e) => setNewDomainDesc(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
-              <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={newDomainLoading || !newDomainName.trim()} onClick={() => void handleCreateDomain()}>
-                {newDomainLoading ? "Creating..." : "Create Domain"}
-              </button>
             </div>
           )}
           <select className="aiq-input" value={selectedDomainId} onChange={(e) => setSelectedDomainId(e.target.value)} disabled={domainsLoading} style={{ maxWidth: 360 }}>
