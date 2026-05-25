@@ -788,6 +788,61 @@ export async function updateAssessment(
 }
 
 // ---------------------------------------------------------------------------
+// freezeAssessmentPool — "lock at assignment" snapshot (additive)
+// ---------------------------------------------------------------------------
+//
+// Snapshots the assessment's EXACT eligible question pool at publish time into
+// assessment_frozen_pool (migration 0096). After this, module 06 startAttempt
+// draws from the frozen set instead of the live pool, so master-pack revisions
+// and clone auto-sync only reach NEWLY-published assessments — already-assigned
+// tests keep their original content (and every candidate of one assessment sees
+// the same pool, closing the fairness gap).
+//
+// Captures the SAME pool listActiveQuestionPoolForPick would return at this
+// instant: every status='active' question in (pack, level), pinned to
+// MAX(question_versions.version), plus the taxonomy fields the blueprint draw
+// re-filters on. The full (pack, level) active set is frozen uniformly — the
+// legacy draw uses all rows; the blueprint draw filters by (domain, category,
+// type) at draw time. INNER JOIN question_versions mirrors the live query, so a
+// question with no snapshot is excluded identically (see RCA 2026-05-25 clone
+// snapshot fix).
+//
+// WRITE-ONCE / idempotent: ON CONFLICT (assessment_id, question_id) DO NOTHING.
+// publishAssessment (draft→published) is the first freeze; reopenAssessment
+// (closed→published) re-invokes this but the rows already exist, so it is a
+// no-op — the original freeze stands. Returns the assessment's total frozen
+// pool size (for the audit payload), not just the rows inserted this call.
+//
+// Runs inside the caller's withTenant tx (RLS-scoped to the assessment tenant).
+async function freezeAssessmentPool(
+  client: PoolClient,
+  tenantId: string,
+  assessmentId: string,
+  packId: string,
+  levelId: string,
+): Promise<number> {
+  await client.query(
+    `INSERT INTO assessment_frozen_pool
+       (tenant_id, assessment_id, question_id, question_version,
+        level_id, domain_id, category_id, type, points)
+     SELECT $1, $2, q.id, MAX(qv.version)::int,
+            q.level_id, q.domain_id, q.category_id, q.type, q.points
+       FROM questions q
+       JOIN question_versions qv ON qv.question_id = q.id
+      WHERE q.pack_id = $3 AND q.level_id = $4 AND q.status = 'active'
+      GROUP BY q.id, q.level_id, q.domain_id, q.category_id, q.type, q.points
+     ON CONFLICT (assessment_id, question_id) DO NOTHING`,
+    [tenantId, assessmentId, packId, levelId],
+  );
+
+  const sized = await client.query<{ count: string }>(
+    `SELECT count(*) FROM assessment_frozen_pool WHERE assessment_id = $1`,
+    [assessmentId],
+  );
+  return parseInt(sized.rows[0]?.count ?? "0", 10);
+}
+
+// ---------------------------------------------------------------------------
 // publishAssessment — draft → published (with pool-size pre-flight)
 // ---------------------------------------------------------------------------
 
@@ -876,6 +931,18 @@ export async function publishAssessment(
     // d. Transition to published
     const updated = await repo.updateAssessmentRow(client, id, { status: "published" });
 
+    // e. "Lock at assignment" — freeze the eligible pool now (additive). The
+    //    pre-flight above guaranteed the pool is non-empty and large enough, so
+    //    this captures a validated snapshot. Write-once: the first publish
+    //    freezes; a later reopen finds the rows and is a no-op.
+    const frozenPoolSize = await freezeAssessmentPool(
+      client,
+      tenantId,
+      id,
+      assessment.pack_id,
+      assessment.level_id,
+    );
+
     await auditInTx(client, {
       tenantId,
       actorKind: "user",
@@ -888,6 +955,7 @@ export async function publishAssessment(
         status: updated.status,
         question_count: assessment.question_count,
         has_blueprint: blueprint !== undefined,
+        frozen_pool_size: frozenPoolSize,
       },
     });
 
@@ -968,6 +1036,19 @@ export async function reopenAssessment(
 
     const updated = await repo.updateAssessmentRow(client, id, { status: "published" });
 
+    // "Lock at assignment" — write-once freeze. A normally-published assessment
+    // is already frozen, so this is a no-op (ON CONFLICT DO NOTHING) and the
+    // original content stands. The only case it inserts is a legacy assessment
+    // published BEFORE migration 0096 (no frozen rows yet) being reopened — it
+    // freezes the current pool then, which is the forward-only fallback.
+    const frozenPoolSize = await freezeAssessmentPool(
+      client,
+      tenantId,
+      id,
+      assessment.pack_id,
+      assessment.level_id,
+    );
+
     // Reuse assessment.published with after.kind=reopen — same pattern as
     // 04-question-bank's restoreVersion → question.updated kind=restore.
     // Keeps the action catalog tight; forensic queries filter on
@@ -984,6 +1065,7 @@ export async function reopenAssessment(
         kind: "reopen",
         status: updated.status,
         closes_at: updated.closes_at,
+        frozen_pool_size: frozenPoolSize,
       },
     });
 

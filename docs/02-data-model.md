@@ -593,6 +593,34 @@ CREATE UNIQUE INDEX attempt_events_capped_unique_idx
 
 **`integrity` / `client_meta` columns** (in the original sketch above) — explicitly dropped from the live schema. Behavioural signals live in `attempt_events` rows; if Phase 2 wants a denormalized aggregate, the read path can compute it from events in `attempt_scores`.
 
+### `assessment_frozen_pool` — "lock at assignment" (migration 0096, 2026-05-25)
+
+```sql
+CREATE TABLE assessment_frozen_pool (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         UUID NOT NULL REFERENCES tenants(id),
+  assessment_id     UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+  question_id       UUID NOT NULL REFERENCES questions(id),
+  question_version  INT  NOT NULL,                         -- MAX(question_versions.version) at publish
+  level_id          UUID NOT NULL REFERENCES levels(id),
+  domain_id         UUID,                                  -- for the blueprint per-criterion re-filter
+  category_id       UUID,
+  type              TEXT NOT NULL,
+  points            INT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT assessment_frozen_pool_uniq UNIQUE (assessment_id, question_id)
+);
+-- RLS: tenant_isolation (USING) + tenant_isolation_insert (WITH CHECK), same as assessments.
+```
+
+**What:** a per-assessment snapshot of the _eligible_ question pool, captured at publish. **Why:** before 0096, an assessment's content was resolved LIVE at attempt-start (`questions` `status='active'` pinned to `MAX(qv.version)`), so editing/re-syncing a pack changed what FUTURE attempts of an already-published assessment drew — and two candidates of one assessment could even get different content if the pack changed between their start times. Freezing at publish makes each assessment's content immutable: master-pack revisions and clone auto-sync only reach NEWLY-published assessments.
+
+**Write path:** `freezeAssessmentPool` (module 05 service) runs inside `publishAssessment`/`reopenAssessment`'s `withTenant` tx via `INSERT … SELECT q.id, MAX(qv.version), q.domain_id, q.category_id, q.type, q.points FROM questions q JOIN question_versions qv … WHERE pack_id=$ AND level_id=$ AND status='active' GROUP BY …` — mirroring the live pool query byte-for-byte so the snapshot equals what a live draw would have selected. **Write-once** via `ON CONFLICT (assessment_id, question_id) DO NOTHING`: the first publish freezes; a later reopen is a no-op (keeps the original content).
+
+**Read path:** module 06 `startAttempt` resolves `useFrozen = countFrozenPool(assessmentId) > 0`; if frozen it draws from `assessment_frozen_pool` (whole-pool, or re-filtered by `(domain_id, category_id, type)` for blueprints) instead of the live `questions` queries. The frozen list helpers return the identical `{ id, version }` shape + `ORDER BY question_id ASC`, so the existing shuffle/size-check/`attempt_questions` snapshot is unchanged.
+
+**Fallback (forward-only):** an assessment with **no** frozen rows (legacy/pre-0096; pre-launch has no real attempts) falls back to the live query — behaviour identical to before. No backfill. **Relationship to `attempt_questions`:** distinct concerns — `assessment_frozen_pool` is the per-assessment eligible SET (written at publish); `attempt_questions` is the per-attempt chosen subset (written at attempt-start, unchanged). Both pin via `(question_id, version)`.
+
 ## Grading & scoring
 
 > **Status note (2026-05-03) — Phase 2 G2.A Session 1.a redesign.**

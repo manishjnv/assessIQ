@@ -393,6 +393,103 @@ describe("startAttempt", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 1b. Frozen-pool resolution ("lock at assignment", migration 0096)
+//
+// buildActiveAssessmentWithInvite calls publishAssessment, which now freezes the
+// eligible pool — so every startAttempt test above already exercises the FROZEN
+// path. These two cases prove the novel guarantees: (a) the frozen set is
+// immutable against questions added to the pack after publish, and (b) an
+// assessment with NO frozen rows (legacy/pre-0096) falls back to the live pool.
+// ---------------------------------------------------------------------------
+
+describe("startAttempt — frozen-pool resolution (lock at assignment)", () => {
+  it("draws ONLY from the pool frozen at publish, ignoring questions added to the pack afterwards", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) =>
+      insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Cfrozen"),
+    );
+    // publishAssessment (inside the builder) freezes the eligible pool = 3 Qs.
+    const { assessmentId, packId } = await buildActiveAssessmentWithInvite(
+      tenantA,
+      adminA,
+      candidate,
+      3,
+    );
+
+    const frozenIds = await withSuperClient(async (c) => {
+      const r = await c.query<{ question_id: string }>(
+        `SELECT question_id FROM assessment_frozen_pool WHERE assessment_id = $1`,
+        [assessmentId],
+      );
+      return r.rows.map((x) => x.question_id).sort();
+    });
+    expect(frozenIds).toHaveLength(3);
+
+    // Add a 4th ACTIVE question (with a v1 snapshot, so the LIVE pool query's
+    // INNER JOIN question_versions would include it) to the pack AFTER publish.
+    const levelId = await withSuperClient(async (c) => {
+      const r = await c.query<{ level_id: string }>(
+        `SELECT level_id FROM questions WHERE pack_id = $1 LIMIT 1`,
+        [packId],
+      );
+      return r.rows[0]!.level_id;
+    });
+    const extraQid = randomUUID();
+    const extraContent =
+      '{"question":"Added after publish?","options":["A","B","C","D"],"correct":0,"rationale":"x"}';
+    await withSuperClient(async (c) => {
+      await c.query(
+        // questions is not tenant-scoped directly (inherits tenant via its pack).
+        `INSERT INTO questions (id, pack_id, level_id, type, topic, points, status, version, content, created_by)
+         VALUES ($1, $2, $3, 'mcq', 'extra-after-publish', 5, 'active', 2, $4::jsonb, $5)`,
+        [extraQid, packId, levelId, extraContent, adminA],
+      );
+      await c.query(
+        `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by)
+         VALUES ($1, $2, 1, $3::jsonb, NULL, $4)`,
+        [randomUUID(), extraQid, extraContent, adminA],
+      );
+    });
+
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
+    const drawnIds = await withSuperClient(async (c) => {
+      const r = await c.query<{ question_id: string }>(
+        `SELECT question_id FROM attempt_questions WHERE attempt_id = $1`,
+        [attempt.id],
+      );
+      return r.rows.map((x) => x.question_id).sort();
+    });
+    expect(drawnIds).toHaveLength(3);
+    expect(drawnIds).toEqual(frozenIds);
+    expect(drawnIds).not.toContain(extraQid);
+  });
+
+  it("falls back to the live pool for a legacy assessment with no frozen rows", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) =>
+      insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Clegacy"),
+    );
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 4);
+
+    // Simulate a pre-0096 (legacy) assessment: delete its frozen pool so
+    // countFrozenPool() === 0 and the live-pool fallback path runs unchanged.
+    await withSuperClient((c) =>
+      c.query(`DELETE FROM assessment_frozen_pool WHERE assessment_id = $1`, [assessmentId]),
+    );
+
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
+    const count = await withSuperClient(async (c) => {
+      const r = await c.query<{ count: string }>(
+        `SELECT count(*) FROM attempt_questions WHERE attempt_id = $1`,
+        [attempt.id],
+      );
+      return Number(r.rows[0]!.count);
+    });
+    expect(count).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 2. getAttemptForCandidate (frozen-version invariant)
 // ---------------------------------------------------------------------------
 

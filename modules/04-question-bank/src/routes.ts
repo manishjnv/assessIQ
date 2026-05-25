@@ -45,6 +45,7 @@ import {
   getPackWithLevels,
   updatePack,
   publishPack,
+  revisePack,
   archivePack,
   activateAllQuestionsForPack,
   addLevel,
@@ -540,6 +541,20 @@ export async function registerQuestionBankRoutes(
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
       return publishPack(tenantId, id, userId);
+    },
+  );
+
+  // POST /api/admin/packs/:id/revise — published → draft ("revise → publish new version")
+  app.post(
+    "/api/admin/packs/:id/revise",
+    // super_admin only — acts on the platform master library (Phase B1 lockdown),
+    // mirrors the publish route's gate.
+    { preHandler: superAdminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      return revisePack(tenantId, id, userId);
     },
   );
 

@@ -22,6 +22,7 @@ export {
   getPackWithLevels,
   updatePack,
   publishPack,
+  revisePack,
   archivePack,
   activateAllQuestionsForPack,
   // level ops

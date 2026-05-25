@@ -218,5 +218,19 @@ Steps (all within the one system-role tx):
 ## Explicitly NOT in scope
 - No cross-tenant runtime read path / RLS-policy changes (that was the rejected alternative).
 - No change to the candidate take-flow, grading pipeline, or pool-selection query.
-- No auto-propagation of source edits (re-sync is opt-in).
+- ~~No auto-propagation of source edits (re-sync is opt-in).~~ **Superseded 2026-05-25** — see below.
 - No revert of the super-admin-only generation lock.
+
+---
+
+## 2026-05-25 — "Lock at assignment" + Revise + auto-sync (push) — SHIPPED
+
+Three additive changes that complete the version-management story (operator-decided model; supersedes B3's manual-only re-sync):
+
+1. **Revise → publish new version** (`revisePack`, super_admin, module 04): a `published → draft` transition on a platform master so the super_admin can edit, then re-`publishPack`. No version bump on revise; the re-publish bumps once. Audit `pack.revised`. Route `POST /api/admin/packs/:id/revise` (`superAdminOnly`).
+
+2. **Auto-sync (push)** supersedes the manual "Update" button: at the end of `publishPack` (post-commit), `autoSyncClonesForPack` enumerates every tenant clone (`source_pack_id = :id`, non-archived) and runs `resyncSetForTenant(..., 'system')` per clone. **Reuses the B3 engine unchanged.** Best-effort/non-throwing (master already committed); the manual `…/resync` endpoint + UI button **remain as a fallback** (harmless, not removed). Still admin-in-the-loop (super_admin click), no cron/webhook → no-ambient rule honored.
+
+3. **Lock at assignment** (the load-bearing core, modules 05+06, migration 0096): an assessment freezes its eligible pool (`assessment_frozen_pool`) at publish. The B3 design's hard constraint — "an already-published assessment stays pinned" — could NOT be honored before because the attempt engine never per-assessment version-pinned (it served `MAX(qv.version)` of active questions at attempt-start). The frozen pool now makes that constraint TRUE: published assessments draw their frozen snapshot, so clone auto-sync / master revisions only reach NEWLY-published assessments. In-flight attempts stay pinned via `attempt_questions` (unchanged). Legacy/un-frozen assessments fall back to the live query (forward-only, no backfill). See `docs/02-data-model.md § assessment_frozen_pool`.
+
+**Gate:** `codex:rescue` ACCEPT on 7 vectors (version arithmetic, in-flight safety, frozen resolution + randomization parity, fallback correctness, frozen-pool RLS, cross-tenant auto-sync write, write-once freeze).

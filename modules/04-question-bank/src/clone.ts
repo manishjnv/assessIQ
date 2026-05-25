@@ -1047,6 +1047,12 @@ export async function resyncSetForTenant(
   sourcePackId: string,
   tenantId: string,
   actorUserId: string,
+  // ADDITIVE: defaults to "user" so the existing manual-Update endpoint caller
+  // is unchanged. The publish-time auto-sync push (autoSyncClonesForPack) passes
+  // "system" so the clone tenant's audit row reads as an automated platform push
+  // rather than a tenant-admin click, while still attributing the triggering
+  // super_admin via actor_user_id.
+  actorKind: "user" | "system" = "user",
 ): Promise<ResyncResult> {
   const pool = getPool();
   const client = await pool.connect();
@@ -1065,7 +1071,7 @@ export async function resyncSetForTenant(
       await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
       await auditInTx(client, {
         tenantId,
-        actorKind: "user",
+        actorKind,
         actorUserId,
         action: "tenant.pack_resynced",
         entityType: "question_pack",
@@ -1085,6 +1091,37 @@ export async function resyncSetForTenant(
 
     await client.query("COMMIT");
     return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Enumerate every tenant that holds a (non-archived) clone of a platform source
+ * pack. Cross-tenant read → runs under assessiq_system (BYPASSRLS) in its own
+ * short transaction, then releases the connection before the caller loops
+ * per-tenant re-syncs (each opens its own connection). Used by the publish-time
+ * auto-sync push (autoSyncClonesForPack in service.ts). DISTINCT defends against
+ * the (unique-index-prevented) possibility of more than one clone per tenant.
+ */
+export async function listCloneTenantIdsForSource(sourcePackId: string): Promise<string[]> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE assessiq_system");
+    const rows = (
+      await client.query<{ tenant_id: string }>(
+        `SELECT DISTINCT tenant_id FROM question_packs
+          WHERE source_pack_id = $1 AND status <> 'archived'`,
+        [sourcePackId],
+      )
+    ).rows;
+    await client.query("COMMIT");
+    return rows.map((r) => r.tenant_id);
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     throw err;

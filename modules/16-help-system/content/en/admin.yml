@@ -276,6 +276,19 @@ admin.question_bank.pack.publish:
     publish adds a new version; already-published assessments stay pinned to the
     snapshot they were built on.
 
+admin.question_bank.pack.revise:
+  audience: admin
+  short_text: "Move a published pack to draft, edit, then re-publish as a new version. Existing tests are unaffected."
+  long_md: |
+    ## Revise (new version)
+
+    Moves a **Published** pack back to **Draft** so you can edit it, then you
+    re-publish it as a new version. Super-admin only — this acts on the platform
+    master library. Already-published assessments keep the exact content they were
+    locked with at publish (they're frozen, so candidates are unaffected). When you
+    re-publish, every tenant clone of this set auto-updates in place, and only
+    NEWLY-published assessments draw the new content.
+
 admin.question_bank.pack.archive:
   audience: admin
   short_text: "Retire this pack and hide it from pickers. Reversible via the Archived tab; blocked if a live assessment uses it."
