@@ -258,6 +258,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
     { label: "Grading", href: "/admin/grading-jobs", icon: "chart" },
     { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
+    { label: "Certificates", href: "/admin/certificates", icon: "book", adminOnly: true },
   ];
 
   // Library — question-bank surface. Phase B1: generation history + generate
