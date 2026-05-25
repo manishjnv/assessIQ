@@ -842,7 +842,24 @@ export function AdminQuestionBank(): React.ReactElement {
               type="search"
               placeholder="Search packs…"
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearchInput(v);
+                // Emptying the box (incl. the native search "×") restores the
+                // full list immediately — submit is only needed to APPLY a term,
+                // not to clear one. Without this, the stale `search` URL param
+                // kept filtering the list after the text was gone.
+                if (v.trim() === "" && searchQuery !== "") {
+                  setSearchParams(
+                    (prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.delete("search");
+                      return next;
+                    },
+                    { replace: true },
+                  );
+                }
+              }}
               style={{ minWidth: 200 }}
             />
             <button type="submit" className="aiq-btn aiq-btn-outline aiq-btn-sm">
