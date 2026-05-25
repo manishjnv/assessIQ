@@ -20,6 +20,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Chip } from "@assessiq/ui-system";
+import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, bulkUpdateQuestionStatus } from "../api.js";
 import { useAdminSession } from "../session.js";
@@ -598,34 +599,40 @@ export function AdminPackDetail(): React.ReactElement {
               ← Back
             </button>
             {isSuperAdmin && (
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                onClick={() => navigate("/admin/generate-wizard")}
-              >
-                ✦ Generate questions →
-              </button>
+              <HelpTip helpId="admin.question_bank.pack.generate">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                  onClick={() => navigate("/admin/generate-wizard")}
+                >
+                  ✦ Generate questions →
+                </button>
+              </HelpTip>
             )}
             {isSuperAdmin && pack.status !== "archived" && (
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-                onClick={() => void handleArchivePack()}
-                disabled={archivingPack}
-                style={{ color: "var(--aiq-color-danger)" }}
-              >
-                {archivingPack ? "Archiving…" : "Archive pack"}
-              </button>
+              <HelpTip helpId="admin.question_bank.pack.archive">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                  onClick={() => void handleArchivePack()}
+                  disabled={archivingPack}
+                  style={{ color: "var(--aiq-color-danger)" }}
+                >
+                  {archivingPack ? "Archiving…" : "Archive pack"}
+                </button>
+              </HelpTip>
             )}
             {isSuperAdmin && pack.status === "draft" && (
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-primary"
-                onClick={() => void handlePublish()}
-                disabled={publishing}
-              >
-                {publishing ? "Publishing…" : "Publish pack"}
-              </button>
+              <HelpTip helpId="admin.question_bank.pack.publish">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-primary"
+                  onClick={() => void handlePublish()}
+                  disabled={publishing}
+                >
+                  {publishing ? "Publishing…" : "Publish pack"}
+                </button>
+              </HelpTip>
             )}
           </div>
         </div>
@@ -886,14 +893,16 @@ export function AdminPackDetail(): React.ReactElement {
                         {isSuperAdmin &&
                           pack.status === "published" &&
                           levelQs.some((q) => q.status === "draft") && (
-                            <button
-                              type="button"
-                              className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                              onClick={() => void handleActivateAll(level.id)}
-                              disabled={activatingLevel === level.id}
-                            >
-                              {activatingLevel === level.id ? "Activating…" : "Activate drafts"}
-                            </button>
+                            <HelpTip helpId="admin.question_bank.pack.activate_drafts">
+                              <button
+                                type="button"
+                                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                                onClick={() => void handleActivateAll(level.id)}
+                                disabled={activatingLevel === level.id}
+                              >
+                                {activatingLevel === level.id ? "Activating…" : "Activate drafts"}
+                              </button>
+                            </HelpTip>
                           )}
                       </div>
                     </div>
