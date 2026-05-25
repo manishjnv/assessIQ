@@ -169,6 +169,14 @@ export const ACTION_CATALOG = [
   'user.reenabled',
   'user.invitation_cancelled',
   'user.soft_deleted',
+  // Platform domain management (2026-05-25) — super-admin create / archive /
+  // reactivate of a PLATFORM domain. Each is written in the same system-role tx
+  // as the cross-tenant propagation (platform-domains.ts). domain.created fires
+  // on a new platform domain (+ propagation to all tenants); domain.archived /
+  // domain.reactivated fire on a status flip across platform-origin copies.
+  'domain.created',
+  'domain.archived',
+  'domain.reactivated',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];
