@@ -721,6 +721,76 @@ export async function listActiveQuestionPoolForCriterion(
   return result.rows;
 }
 
+// ---------------------------------------------------------------------------
+// FROZEN-POOL reads ("lock at assignment", migration 0096) — ADDITIVE.
+//
+// When an assessment was frozen at publish (assessment_frozen_pool has rows),
+// the draw reads from the frozen snapshot instead of the live questions table,
+// so master-pack revisions / clone auto-sync never change an already-published
+// assessment's content. These return the EXACT same shape ({ id, version }) and
+// ORDER (question_id ASC) as listActiveQuestionPoolForPick / ...ForCriterion, so
+// the caller's shuffle/take/snapshot logic is byte-identical — only the pool
+// SOURCE changes. Assessments with NO frozen rows fall back to the live queries
+// above (legacy/un-frozen). See countFrozenPool for the fallback decision.
+// ---------------------------------------------------------------------------
+
+/**
+ * How many questions were frozen for this assessment. 0 ⇒ never frozen
+ * (legacy/pre-0096) ⇒ caller uses the live-pool fallback.
+ */
+export async function countFrozenPool(
+  client: PoolClient,
+  assessmentId: string,
+): Promise<number> {
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*) FROM assessment_frozen_pool WHERE assessment_id = $1`,
+    [assessmentId],
+  );
+  return parseInt(result.rows[0]?.count ?? "0", 10);
+}
+
+/**
+ * Frozen equivalent of listActiveQuestionPoolForPick (whole-pool, no blueprint).
+ * The frozen snapshot already pinned each question to the version that was
+ * MAX(qv.version) at publish, so no JOIN/aggregation is needed here.
+ */
+export async function listFrozenPoolForPick(
+  client: PoolClient,
+  assessmentId: string,
+): Promise<Array<{ id: string; version: number }>> {
+  const result = await client.query<{ id: string; version: number }>(
+    `SELECT question_id AS id, question_version AS version
+       FROM assessment_frozen_pool
+      WHERE assessment_id = $1
+      ORDER BY question_id ASC`,
+    [assessmentId],
+  );
+  return result.rows;
+}
+
+/**
+ * Frozen equivalent of listActiveQuestionPoolForCriterion (blueprint draw).
+ * Re-filters the frozen set by the criterion's (domain_id, category_id, type),
+ * matching the live criterion query's predicate.
+ */
+export async function listFrozenPoolForCriterion(
+  client: PoolClient,
+  assessmentId: string,
+  domainId: string,
+  categoryId: string,
+  type: string,
+): Promise<Array<{ id: string; version: number }>> {
+  const result = await client.query<{ id: string; version: number }>(
+    `SELECT question_id AS id, question_version AS version
+       FROM assessment_frozen_pool
+      WHERE assessment_id = $1
+        AND domain_id = $2 AND category_id = $3 AND type = $4
+      ORDER BY question_id ASC`,
+    [assessmentId, domainId, categoryId, type],
+  );
+  return result.rows;
+}
+
 export async function findInvitationForCandidate(
   client: PoolClient,
   assessmentId: string,

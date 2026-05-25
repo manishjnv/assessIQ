@@ -32,6 +32,7 @@ import {
   getPack,
   updatePack,
   publishPack,
+  revisePack,
   archivePack,
   activateAllQuestionsForPack,
   addLevel,
@@ -1193,6 +1194,82 @@ describe("publishPack snapshot semantics (decision #21)", () => {
       (e: unknown) =>
         e instanceof ConflictError &&
         (e.details as Record<string, unknown> | undefined)?.["code"] === "PACK_NOT_DRAFT",
+    );
+  });
+});
+
+// ===========================================================================
+// 5b. revisePack (published → draft, "revise → publish new version")
+// ===========================================================================
+
+describe("revisePack (published → draft)", () => {
+  it("flips a published pack back to draft without bumping version; a later publish bumps once", async () => {
+    const pack = await createPack(
+      tenantA,
+      { slug: `revise-${randomUUID().slice(0, 8)}`, name: "Revise Test", domain: "soc" },
+      adminA,
+    );
+    const level = await addLevel(tenantA, pack.id, {
+      position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
+    });
+    await createQuestion(
+      tenantA,
+      { pack_id: pack.id, level_id: level.id, type: "mcq", topic: "rev-q", points: 5, content: mcqContent() },
+      adminA,
+    );
+
+    const published = await publishPack(tenantA, pack.id, adminA);
+    expect(published.status).toBe("published");
+    expect(published.version).toBe(2);
+
+    // Revise → draft. Version stays at 2; revise itself does not bump.
+    const revised = await revisePack(tenantA, pack.id, adminA);
+    expect(revised.status).toBe("draft");
+    expect(revised.version).toBe(2);
+
+    // Re-publish advances the version exactly once (revise→publish = +1 total).
+    const republished = await publishPack(tenantA, pack.id, adminA);
+    expect(republished.status).toBe("published");
+    expect(republished.version).toBe(3);
+  });
+
+  it("writes a pack.revised audit row in the same tx", async () => {
+    const pack = await createPack(
+      tenantA,
+      { slug: `revise-audit-${randomUUID().slice(0, 8)}`, name: "Revise Audit", domain: "soc" },
+      adminA,
+    );
+    const level = await addLevel(tenantA, pack.id, {
+      position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
+    });
+    await createQuestion(
+      tenantA,
+      { pack_id: pack.id, level_id: level.id, type: "mcq", topic: "rev-audit-q", points: 5, content: mcqContent() },
+      adminA,
+    );
+    await publishPack(tenantA, pack.id, adminA);
+    await revisePack(tenantA, pack.id, adminA);
+
+    const auditCount = await withSuperClient(async (client) => {
+      const r = await client.query(
+        `SELECT COUNT(*) AS cnt FROM audit_log WHERE action = 'pack.revised' AND entity_id = $1`,
+        [pack.id],
+      );
+      return parseInt((r.rows[0] as { cnt: string }).cnt, 10);
+    });
+    expect(auditCount).toBe(1);
+  });
+
+  it("revisePack on a draft pack throws ConflictError PACK_NOT_PUBLISHED", async () => {
+    const pack = await createPack(
+      tenantA,
+      { slug: `revise-draft-${randomUUID().slice(0, 8)}`, name: "Revise Draft", domain: "soc" },
+      adminA,
+    );
+    await expect(revisePack(tenantA, pack.id, adminA)).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ConflictError &&
+        (e.details as Record<string, unknown> | undefined)?.["code"] === "PACK_NOT_PUBLISHED",
     );
   });
 });

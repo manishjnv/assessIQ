@@ -272,6 +272,10 @@ export function AdminPackDetail(): React.ReactElement {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
+  // Revise (published → draft, "revise → publish new version") state
+  const [revising, setRevising] = useState(false);
+  const [reviseError, setReviseError] = useState<string | null>(null);
+
   const [activatingLevel, setActivatingLevel] = useState<string | null>(null);
 
   // Archive pack state
@@ -406,6 +410,30 @@ export function AdminPackDetail(): React.ReactElement {
       );
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleRevise() {
+    if (!id || !pack) return;
+    if (
+      !window.confirm(
+        `Revise "${pack.name}"? This moves it back to draft so you can edit it, ` +
+          `then re-publish as a new version. Already-published assessments keep their ` +
+          `current content; tenant clones of this set auto-update when you re-publish.`,
+      )
+    )
+      return;
+    setRevising(true);
+    setReviseError(null);
+    try {
+      await adminApi(`/admin/packs/${id}/revise`, { method: "POST" });
+      await fetchPack();
+    } catch (err) {
+      setReviseError(
+        err instanceof AdminApiError ? err.apiError.message : "Failed to revise pack.",
+      );
+    } finally {
+      setRevising(false);
     }
   }
 
@@ -634,6 +662,18 @@ export function AdminPackDetail(): React.ReactElement {
                 </button>
               </HelpTip>
             )}
+            {isSuperAdmin && pack.status === "published" && (
+              <HelpTip helpId="admin.question_bank.pack.revise">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-primary"
+                  onClick={() => void handleRevise()}
+                  disabled={revising}
+                >
+                  {revising ? "Revising…" : "Revise (new version)"}
+                </button>
+              </HelpTip>
+            )}
           </div>
         </div>
         </div>
@@ -647,6 +687,18 @@ export function AdminPackDetail(): React.ReactElement {
             }}
           >
             {publishError}
+          </div>
+        )}
+
+        {reviseError && (
+          <div
+            style={{
+              color: "var(--aiq-color-danger)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+            }}
+          >
+            {reviseError}
           </div>
         )}
 

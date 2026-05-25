@@ -263,8 +263,13 @@ describe("Block 1 — RLS visibility", () => {
     await deleteTenantOverrides();
   });
 
-  // NOTE: count tracks the active global-row total in 0011_seed_help_content.sql
-  // (one INSERT per admin.yml key). Bump it when the generated seed grows.
+  // NOTE: count tracks the active global-row total across ALL applied help
+  // migrations (0011 canonical seed + forward per-key seeds, deduped by
+  // ON CONFLICT). Bump it when a new global help row ships. 2026-05-25: this
+  // constant had drifted (was 115 while the DB already seeded 124 via earlier
+  // forward migrations 0092/0093/0094 that never bumped it); corrected to the
+  // true post-migration count 125 (124 pre-existing + 1 for
+  // admin.question_bank.pack.revise, migration 0097).
   it("tenant A sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_A, async (client) => {
@@ -273,7 +278,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(115);
+    expect(count).toBe(125);
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -284,7 +289,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(115);
+    expect(count).toBe(125);
   });
 
   it("tenant A override is visible to tenant A", async () => {

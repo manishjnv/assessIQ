@@ -213,19 +213,37 @@ export async function startAttempt(
 
     let chosen: Array<{ id: string; version: number }>;
 
+    // "Lock at assignment" (migration 0096) — ADDITIVE. If this assessment was
+    // frozen at publish (assessment_frozen_pool has rows), draw from that frozen
+    // snapshot so master-pack revisions / clone auto-sync never change an
+    // already-published assessment's content. If it was NEVER frozen
+    // (legacy/pre-0096 assessment), useFrozen is false and the existing live
+    // queries run exactly as before — the un-frozen path is unchanged. The
+    // frozen list helpers return the identical { id, version } shape and order,
+    // so the shuffle/size-check/snapshot logic below is byte-for-byte the same.
+    const useFrozen = (await repo.countFrozenPool(client, input.assessmentId)) > 0;
+
     if (blueprint !== undefined) {
       // ── Blueprint draw (C3) ─────────────────────────────────────────────────
       const allPicks: Array<{ id: string; version: number }> = [];
 
       for (const criterion of blueprint.criteria) {
-        const criterionPool = await repo.listActiveQuestionPoolForCriterion(
-          client,
-          assessment.pack_id,
-          assessment.level_id,
-          blueprint.domain_id,
-          criterion.category_id,
-          criterion.type,
-        );
+        const criterionPool = useFrozen
+          ? await repo.listFrozenPoolForCriterion(
+              client,
+              input.assessmentId,
+              blueprint.domain_id,
+              criterion.category_id,
+              criterion.type,
+            )
+          : await repo.listActiveQuestionPoolForCriterion(
+              client,
+              assessment.pack_id,
+              assessment.level_id,
+              blueprint.domain_id,
+              criterion.category_id,
+              criterion.type,
+            );
 
         const picks = [...criterionPool];
         shuffleInPlace(picks);
@@ -253,12 +271,16 @@ export async function startAttempt(
       }
       chosen = allPicks;
     } else {
-      // ── Legacy full-pool draw (no blueprint) — UNCHANGED ────────────────────
-      const pool = await repo.listActiveQuestionPoolForPick(
-        client,
-        assessment.pack_id,
-        assessment.level_id,
-      );
+      // ── Full-pool draw (no blueprint) ───────────────────────────────────────
+      // Frozen snapshot when locked at publish; otherwise the UNCHANGED legacy
+      // live-pool query (any modification to the live branch is a regression).
+      const pool = useFrozen
+        ? await repo.listFrozenPoolForPick(client, input.assessmentId)
+        : await repo.listActiveQuestionPoolForPick(
+            client,
+            assessment.pack_id,
+            assessment.level_id,
+          );
       if (pool.length < assessment.question_count) {
         throw new ValidationError(
           `Question pool too small at start: ${pool.length} < ${assessment.question_count}`,

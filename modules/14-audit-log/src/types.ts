@@ -36,6 +36,7 @@ export const ACTION_CATALOG = [
   // Question bank
   'pack.created',
   'pack.published',
+  'pack.revised',
   'pack.archived',
   'question.created',
   'question.updated',

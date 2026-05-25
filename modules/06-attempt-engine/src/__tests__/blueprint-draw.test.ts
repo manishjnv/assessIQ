@@ -51,6 +51,12 @@ vi.mock("../../../04-question-bank/src/repository.js", () => ({
 // Mock 06 repository
 vi.mock("../repository.js", () => ({
   findAttemptByAssessmentAndUser: vi.fn().mockResolvedValue(null), // no existing attempt
+  // countFrozenPool → 0 keeps useFrozen=false so these tests exercise the LIVE
+  // draw (listActiveQuestionPoolFor*), which is what they assert against. The
+  // frozen list fns are stubbed for completeness; useFrozen=false never calls them.
+  countFrozenPool: vi.fn().mockResolvedValue(0),
+  listFrozenPoolForPick: vi.fn(),
+  listFrozenPoolForCriterion: vi.fn(),
   listActiveQuestionPoolForPick: vi.fn(),
   listActiveQuestionPoolForCriterion: vi.fn(),
   findInvitationForCandidate: vi.fn().mockResolvedValue({

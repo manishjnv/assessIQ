@@ -24,6 +24,7 @@ import {
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import * as repo from "./repository.js";
+import { resyncSetForTenant, listCloneTenantIdsForSource } from "./clone.js";
 import {
   validateQuestionContent,
   validateRubric,
@@ -412,7 +413,7 @@ export async function publishPack(
 ): Promise<QuestionPack> {
   log.info({ tenantId, id }, "publishPack");
 
-  return withTenant(tenantId, async (client) => {
+  const updated = await withTenant(tenantId, async (client) => {
     // 1. Read pack + verify status = 'draft'
     const pack = await repo.findPackById(client, id);
     if (pack === null) {
@@ -481,6 +482,122 @@ export async function publishPack(
 
     return updated;
   });
+
+  // 6. Auto-sync (push) — AFTER the publish tx commits. Refresh every tenant
+  //    clone of this master in place so they pick up the new version without a
+  //    manual click. Best-effort and non-throwing: the master is already
+  //    published, and the manual "Update" endpoint remains as a fallback for any
+  //    clone this skips. Runs only on a super_admin publish click (the route is
+  //    superAdminOnly) — never a cron/webhook/candidate path, per CLAUDE.md
+  //    rule #1. A tenant's OWN (non-platform) pack has no clones, so this is a
+  //    no-op there. See autoSyncClonesForPack.
+  await autoSyncClonesForPack(id, savedByUserId);
+
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// revisePack — published → draft (super_admin, "revise → publish new version")
+// ---------------------------------------------------------------------------
+//
+// The master-side half of "Revise → publish new version". A super_admin reverts
+// a published platform pack to draft so it can be edited, then re-runs
+// publishPack — which snapshots + bumps versions, auto-activates, and (step 6)
+// auto-syncs every clone. ADDITIVE: a new transition; nothing else changes.
+//
+// Guards:
+//   - Pack must exist (RLS-scoped lookup).
+//   - Pack must be 'published' (PACK_NOT_PUBLISHED otherwise) — reverting a
+//     draft is meaningless and reverting an archived pack would resurrect it.
+//   - Route layer enforces super_admin (Phase B1 lockdown; platform master
+//     library). The version is NOT bumped here — the subsequent publishPack
+//     does that, so a revise→publish pair advances the version exactly once.
+//
+// In-flight safety: a master going to draft does NOT affect already-published
+// assessments (frozen at their own publish, migration 0096) or in-flight
+// attempts (pinned via attempt_questions). It only means the master briefly
+// leaves the licensed catalog while in draft — accepted (pre-launch).
+export async function revisePack(
+  tenantId: string,
+  id: string,
+  revisedByUserId: string,
+): Promise<QuestionPack> {
+  log.info({ tenantId, id }, "revisePack");
+
+  return withTenant(tenantId, async (client) => {
+    const pack = await repo.findPackById(client, id);
+    if (pack === null) {
+      throw new NotFoundError(`Pack not found: ${id}`, {
+        details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
+      });
+    }
+    if (pack.status !== "published") {
+      throw new ConflictError(
+        `Pack '${id}' must be 'published' to revise (current: '${pack.status}')`,
+        { details: { code: QB_ERROR_CODES.PACK_NOT_PUBLISHED } },
+      );
+    }
+
+    const updated = await repo.updatePackRow(client, id, { status: "draft" });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: revisedByUserId,
+      action: "pack.revised",
+      entityType: "question_pack",
+      entityId: id,
+      before: { status: pack.status, version: pack.version },
+      after: { status: updated.status, version: updated.version },
+    });
+
+    return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// autoSyncClonesForPack — publish-time clone refresh (push)
+// ---------------------------------------------------------------------------
+//
+// Called from publishPack after its tx commits. Enumerates every tenant clone
+// of the just-published master and re-syncs each in place via the B3 engine
+// (resyncSetForTenant), attributing the triggering super_admin but auditing as
+// 'system' (an automated platform push, not a tenant-admin click). Best-effort:
+// never throws (publish already succeeded), and one clone's failure is logged
+// without aborting the rest. The per-clone re-sync is itself transactional and
+// advisory-locked, so it cannot race a concurrent clone-on-use of the same
+// source.
+async function autoSyncClonesForPack(sourcePackId: string, actorUserId: string): Promise<void> {
+  let tenantIds: string[];
+  try {
+    tenantIds = await listCloneTenantIdsForSource(sourcePackId);
+  } catch (err) {
+    log.error(
+      { err, sourcePackId },
+      "autoSyncClonesForPack: clone enumeration failed; skipping auto-sync (manual Update remains available)",
+    );
+    return;
+  }
+  if (tenantIds.length === 0) return;
+
+  let updated = 0;
+  let failed = 0;
+  for (const tenantId of tenantIds) {
+    try {
+      const r = await resyncSetForTenant(sourcePackId, tenantId, actorUserId, "system");
+      if (r.updated) updated += 1;
+    } catch (err) {
+      failed += 1;
+      log.error(
+        { err, sourcePackId, tenantId },
+        "autoSyncClonesForPack: clone re-sync failed (continuing with other clones)",
+      );
+    }
+  }
+  log.info(
+    { sourcePackId, tenants: tenantIds.length, updated, failed },
+    "autoSyncClonesForPack complete",
+  );
 }
 
 // ---------------------------------------------------------------------------
