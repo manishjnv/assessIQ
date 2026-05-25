@@ -312,6 +312,15 @@ export function AdminAssessmentDetail(): React.ReactElement {
     },
   ];
 
+  // MUST be computed before the early returns below — a hook after a conditional
+  // return changes the hook order between the loading and loaded renders, which
+  // crashes React ("rendered more hooks than during the previous render") and
+  // blanks the page. (Regression from the sortable-tables change.)
+  const sortedInvitations = React.useMemo(
+    () => (sortBy ? sortRows(invitations, sortBy, sortDir) : invitations),
+    [invitations, sortBy, sortDir],
+  );
+
   if (loading) {
     return (
       <AdminShell breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, "Detail"]} helpPage="admin.assessments">
@@ -346,8 +355,6 @@ export function AdminAssessmentDetail(): React.ReactElement {
   }
 
   const sc = assessmentStatusColor(assessment.status);
-
-  const sortedInvitations = React.useMemo(() => (sortBy ? sortRows(invitations, sortBy, sortDir) : invitations), [invitations, sortBy, sortDir]);
 
   return (
     <AdminShell
