@@ -1,3 +1,13 @@
+# Session — 2026-05-25 (Certificate PDF redesign + verify-domain → assessiq.in)
+
+**Headline:** SHIPPED + LIVE. (1) **Cert verify domain switched to assessiq.in.** Root cause: the verify URL/QR read `PUBLIC_BASE_URL` (env), which prod had as `https://assessiq.automateedge.cloud`, AND the PDF template *hardcoded* that domain. Fix: template now takes a `verifyUrl` param (from `getPublicBaseUrl()`/`PUBLIC_BASE_URL`) instead of hardcoding; **prod `/srv/assessiq/.env` `PUBLIC_BASE_URL` changed to `https://assessiq.in`** (backup `.env.bak-*` saved; api `--force-recreate`d to reload — confirmed `printenv PUBLIC_BASE_URL=https://assessiq.in` in-container). `ASSESSIQ_BASE_URL` was already assessiq.in. (2) **Cert PDF upgraded to a formal format:** framed double border, tier-colored accent (completion blue / distinction gold / honors violet), "ASSESSIQ" wordmark + "Certificate of <Tier>", circular ✓ VERIFIED seal, Authorized-Issuer signature line; QR + verify URL retained.
+**Commit (main):** `eaa6084` — config-driven verify domain + formal certificate PDF (modules/18-certification template.ts + render.ts). 18-certification 134/134 green.
+**⚠️ Operational (NOT in git — .env):** prod `PUBLIC_BASE_URL` is now `https://assessiq.in`. This feeds ALL public cert URLs (verify_url, QR, PDF footer, OG/LinkedIn-share). `automateedge.cloud` still resolves but is legacy; assessiq.in is canonical.
+**Verify pending operator:** I can't render/view the PDF from here (auth'd endpoint + server-side Chromium) — download `https://assessiq.in/api/certificates/<credId>/pdf` (admin/candidate auth) to eyeball the new format. The public verify page `https://assessiq.in/verify/<credId>` returns 200.
+**Next:** none required. (Optional: docs/06-deployment smoke commands still cite automateedge.cloud — cosmetic.)
+
+---
+
 # NEXT-SESSION SPEC (designed 2026-05-25, NOT yet built) — "Lock at assignment" + Revise/new-version + auto-sync
 
 **Why this is its own session:** load-bearing attempt-engine change (modules 05 + 06 — candidate content resolution, the riskiest path), and it SUPERSEDES B3's shipped behavior. Operator decided the model; design is settled below. Implement fresh, codex:rescue-gated. Forward-only is OK — see memory `project-under-development-no-real-data` (prod has only dev/seed data; no real attempts; no retroactive backfill of existing assessments needed).
