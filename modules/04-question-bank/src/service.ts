@@ -159,6 +159,24 @@ function assertValidRubric(rubric: unknown): void {
 }
 
 /**
+ * True iff `rubric` is a usable anchor rubric (non-null object with ≥1 anchor).
+ * Used by publishPack's #2 quality gate. Distinct from assertValidRubric (which
+ * only validates shape WHEN a rubric is present): a `subjective` can become
+ * active with NO rubric (legacy seed bypassing the create gate, migration/import
+ * paths), and such a question can then only be graded holistically via the
+ * reasoning-only fallback. The publish gate requires real anchors for any
+ * subjective that will be served.
+ */
+function hasAnchorRubric(rubric: unknown): boolean {
+  return (
+    rubric != null &&
+    typeof rubric === "object" &&
+    Array.isArray((rubric as { anchors?: unknown }).anchors) &&
+    (rubric as { anchors: unknown[] }).anchors.length >= 1
+  );
+}
+
+/**
  * Full rubric-gate: checks required/not-allowed, validates shape if present.
  * rubricValue is the incoming patch.rubric or input.rubric (may be undefined =
  * "not supplied", null = "explicitly cleared").
@@ -430,6 +448,33 @@ export async function publishPack(
 
     // 2. Fetch all questions in this pack
     const questions = await repo.listAllQuestionsForPack(client, id);
+
+    // 2.5. Quality gate (#2, 2026-05-26): every SUBJECTIVE question that will be
+    //      served (active after publish) MUST have a real anchor rubric.
+    //      Subjective has no content-borne reference answer to synthesise from
+    //      (unlike scenario→steps[].expected / log_analysis→expected_findings),
+    //      so without ≥1 anchor it can only be graded holistically (the
+    //      reasoning-only fallback). Block publish so the admin authors/generates
+    //      a rubric first. Forward-only: already-published packs are unaffected
+    //      until re-published; ai_draft/archived are not activated, so excluded.
+    const subjectiveNoRubric = questions.filter(
+      (q) =>
+        q.type === "subjective" &&
+        (q.status === "draft" || q.status === "active") &&
+        !hasAnchorRubric(q.rubric),
+    );
+    if (subjectiveNoRubric.length > 0) {
+      throw new ValidationError(
+        `Cannot publish: ${subjectiveNoRubric.length} subjective question(s) have no rubric. ` +
+          `Add a rubric (at least one anchor) — use "Generate rubric" or author it — then publish.`,
+        {
+          details: {
+            code: QB_ERROR_CODES.RUBRIC_REQUIRED,
+            question_ids: subjectiveNoRubric.map((q) => q.id).slice(0, 50),
+          },
+        },
+      );
+    }
 
     // 3. Snapshot every question into question_versions, then bump the
     //    question's version. Bumping is necessary so a subsequent
