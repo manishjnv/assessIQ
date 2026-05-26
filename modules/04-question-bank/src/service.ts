@@ -25,6 +25,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import * as repo from "./repository.js";
 import { resyncSetForTenant, listCloneTenantIdsForSource } from "./clone.js";
+import { deriveQuestionTextForGuidance } from "./answer-guidance-derive.js";
 import {
   validateQuestionContent,
   validateRubric,
@@ -1868,6 +1869,46 @@ export async function generateRubricForQuestion(
       skillSha: output.skillSha,
       promptSha: output.promptSha,
       levelDefaultsHash: output.levelDefaultsHash,
+      model: output.model,
+    };
+  });
+}
+
+/**
+ * Generate a candidate-facing answer-format hint proposal for a question
+ * (feature #4 Phase B). Supports ALL question types. Returns a proposal
+ * WITHOUT persisting — the admin reviews it and POSTs the existing
+ * answer_guidance PATCH to save (admin-in-the-loop review gate).
+ *
+ * D2 compliance: uses dynamic import to call generateAnswerGuidanceDraft from
+ * @assessiq/ai-grading; this service file is not in a banned path. The
+ * generator receives only an answer-key-free stem (deriveQuestionTextForGuidance).
+ */
+export async function generateAnswerGuidanceForQuestion(
+  tenantId: string,
+  questionId: string,
+): Promise<{ proposal: string; skillSha: string; promptSha: string; model: string }> {
+  return withTenant(tenantId, async (client) => {
+    const question = await repo.findQuestionById(client, questionId);
+    if (!question) {
+      throw new NotFoundError("question not found", {
+        details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND, questionId },
+      });
+    }
+
+    const { generateAnswerGuidanceDraft } = await import("@assessiq/ai-grading");
+
+    const output = await generateAnswerGuidanceDraft({
+      questionText: deriveQuestionTextForGuidance(question),
+      questionType: question.type as "mcq" | "subjective" | "kql" | "scenario" | "log_analysis",
+      topic: question.topic,
+      questionId,
+    });
+
+    return {
+      proposal: output.answerGuidance,
+      skillSha: output.skillSha,
+      promptSha: output.promptSha,
       model: output.model,
     };
   });

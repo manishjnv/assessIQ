@@ -23,7 +23,7 @@
 
 import { AppError, config } from "@assessiq/core";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
-import type { GradingInput, GradingProposal, GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput, GenerateRubricInput, GenerateRubricOutput } from "./types.js";
+import type { GradingInput, GradingProposal, GenerateQuestionsInput, GenerateQuestionsOutput, GenerateByTypeInput, GenerateRubricInput, GenerateRubricOutput, GenerateAnswerGuidanceInput, GenerateAnswerGuidanceOutput } from "./types.js";
 
 /**
  * Mode-agnostic core. Delegates to the active runtime per D1.
@@ -103,6 +103,30 @@ export async function generateRubricDraft(
       const mode = config.AI_PIPELINE_MODE as string;
       throw new AppError(
         `generateRubricDraft not implemented for AI_PIPELINE_MODE: ${mode}`,
+        AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
+        501,
+      );
+    }
+  }
+}
+
+/**
+ * Mode-agnostic candidate answer-format hint generator (feature #4, Phase B).
+ * Only claude-code-vps implements it; admin-click-only via the question-bank
+ * service. The proposal is not persisted here.
+ */
+export async function generateAnswerGuidanceDraft(
+  input: GenerateAnswerGuidanceInput,
+): Promise<GenerateAnswerGuidanceOutput> {
+  switch (config.AI_PIPELINE_MODE) {
+    case "claude-code-vps": {
+      const m = await import("./runtimes/claude-code-vps.js");
+      return m.generateAnswerGuidanceDraft(input);
+    }
+    default: {
+      const mode = config.AI_PIPELINE_MODE as string;
+      throw new AppError(
+        `generateAnswerGuidanceDraft not implemented for AI_PIPELINE_MODE: ${mode}`,
         AI_GRADING_ERROR_CODES.RUNTIME_NOT_IMPLEMENTED,
         501,
       );

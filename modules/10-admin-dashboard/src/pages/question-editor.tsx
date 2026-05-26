@@ -429,6 +429,8 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
   const [savingGuidance, setSavingGuidance] = useState(false);
   const [guidanceSaved, setGuidanceSaved] = useState(false);
   const [guidanceError, setGuidanceError] = useState<string | null>(null);
+  // AI generation of the hint (feature #4 Phase B) — fills the field; NOT auto-saved.
+  const [generatingGuidance, setGeneratingGuidance] = useState(false);
 
   // Approve / archive state
   const [transitioning, setTransitioning] = useState(false);
@@ -542,6 +544,26 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
     if (!window.confirm("Discard current rubric and re-generate? This will not save automatically.")) return;
     setRubricDraft(null);
     void handleGenerate();
+  }
+
+  async function handleGenerateGuidance() {
+    if (!id) return;
+    setGeneratingGuidance(true);
+    setGuidanceError(null);
+    setGuidanceSaved(false);
+    try {
+      // Returns a proposal only — NOT saved. Fills the field for admin review;
+      // the admin clicks "Save guidance" to persist (admin-in-the-loop).
+      const result = await adminApi<{ proposal: string }>(
+        `/admin/questions/${id}/generate-answer-guidance`,
+        { method: "POST" },
+      );
+      setAnswerGuidance(result.proposal);
+    } catch (err) {
+      setGuidanceError(err instanceof AdminApiError ? err.apiError.message : "Generation failed.");
+    } finally {
+      setGeneratingGuidance(false);
+    }
   }
 
   async function handleSaveGuidance() {
@@ -690,8 +712,17 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
               <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
                 <button
                   type="button"
+                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                  disabled={generatingGuidance || savingGuidance}
+                  onClick={() => void handleGenerateGuidance()}
+                  title="AI-generate a hint to review, then Save"
+                >
+                  {generatingGuidance ? "Generating…" : "Generate with AI"}
+                </button>
+                <button
+                  type="button"
                   className="aiq-btn aiq-btn-primary aiq-btn-sm"
-                  disabled={savingGuidance}
+                  disabled={savingGuidance || generatingGuidance}
                   onClick={() => void handleSaveGuidance()}
                 >
                   {savingGuidance ? "Saving…" : "Save guidance"}
