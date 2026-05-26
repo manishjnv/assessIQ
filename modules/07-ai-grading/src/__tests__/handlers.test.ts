@@ -1464,4 +1464,37 @@ describe("Per-type dispatch (handleAdminGrade routes by question type)", () => {
     expect(anchorWeightSum).toBe(rubric.anchor_weight_total);
     expect(rubric.anchor_weight_total + rubric.reasoning_weight_total).toBe(100);
   });
+
+  it("9.7 subjective WITHOUT rubric — reasoning-only fallback (graded, not hard-failed)", async () => {
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "subjective",
+      { question: "Explain why Event ID 4625 sub-status 0xC000006A is significant." },
+      null, // no authored rubric — must NOT hard-fail; falls back to reasoning-only
+      { response: "It means the account name is valid but the password was wrong, so the attacker knows the account exists." },
+    );
+
+    mockGradeSubjective.mockResolvedValue(makeProposal(attemptId, questionId));
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    // Grading proceeds (no AIG_SCHEMA_VIOLATION) with a holistic reasoning-only rubric.
+    expect(result.proposals).toHaveLength(1);
+    expect(mockGradeSubjective).toHaveBeenCalledOnce();
+    const call = mockGradeSubjective.mock.calls[0]![0];
+    const rubric = call.rubric as {
+      anchors: unknown[];
+      anchor_weight_total: number;
+      reasoning_weight_total: number;
+      reasoning_bands: Record<string, string>;
+    };
+    expect(rubric.anchors).toEqual([]);
+    expect(rubric.anchor_weight_total).toBe(0);
+    expect(rubric.reasoning_weight_total).toBe(100);
+    expect(typeof rubric.reasoning_bands.band_4).toBe("string");
+  });
 });

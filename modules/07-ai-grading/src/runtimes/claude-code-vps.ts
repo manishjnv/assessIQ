@@ -121,37 +121,44 @@ export async function gradeSubjective(
   }
 
   // ----- Stage 1 — anchors -------------------------------------------------
-  const anchorsEvents = await runSkill({
-    skill: SKILL_ANCHORS,
-    promptVars: {
-      question_text: serializeQuestion(input.question_content),
-      anchors: rubric.anchors,
-      candidate_answer: serializeAnswer(input.answer),
-    },
-    allowedTools: [MCP_SUBMIT_ANCHORS],
-    attemptId: input.attempt_id,
-    questionId: input.question_id,
-  });
+  // Skipped for a reasoning-only rubric (no anchors): there is nothing to
+  // extract, so we go straight to the holistic band stage (handler's
+  // REASONING_ONLY fallback for questions with no usable anchors). When anchors
+  // ARE present, run Stage 1 exactly as before.
+  let anchors: AnchorFinding[] = [];
+  if (rubric.anchors.length > 0) {
+    const anchorsEvents = await runSkill({
+      skill: SKILL_ANCHORS,
+      promptVars: {
+        question_text: serializeQuestion(input.question_content),
+        anchors: rubric.anchors,
+        candidate_answer: serializeAnswer(input.answer),
+      },
+      allowedTools: [MCP_SUBMIT_ANCHORS],
+      attemptId: input.attempt_id,
+      questionId: input.question_id,
+    });
 
-  const anchorsRaw = parseToolInput(anchorsEvents, TOOL_SUBMIT_ANCHORS);
-  if (anchorsRaw === null) {
-    throw new AppError(
-      `expected ${TOOL_SUBMIT_ANCHORS} tool use in stream-json output`,
-      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
-      503,
-      { details: { stage: 1, attemptId: input.attempt_id } },
-    );
+    const anchorsRaw = parseToolInput(anchorsEvents, TOOL_SUBMIT_ANCHORS);
+    if (anchorsRaw === null) {
+      throw new AppError(
+        `expected ${TOOL_SUBMIT_ANCHORS} tool use in stream-json output`,
+        AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+        503,
+        { details: { stage: 1, attemptId: input.attempt_id } },
+      );
+    }
+    const anchorsParsed = SubmitAnchorsInputSchema.safeParse(anchorsRaw);
+    if (!anchorsParsed.success) {
+      throw new AppError(
+        "submit_anchors payload failed schema validation",
+        AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+        503,
+        { details: { stage: 1, issues: anchorsParsed.error.issues } },
+      );
+    }
+    anchors = anchorsParsed.data.findings;
   }
-  const anchorsParsed = SubmitAnchorsInputSchema.safeParse(anchorsRaw);
-  if (!anchorsParsed.success) {
-    throw new AppError(
-      "submit_anchors payload failed schema validation",
-      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
-      503,
-      { details: { stage: 1, issues: anchorsParsed.error.issues } },
-    );
-  }
-  const anchors: AnchorFinding[] = anchorsParsed.data.findings;
 
   // ----- Stage 2 — band ----------------------------------------------------
   const bandEvents = await runSkill({
@@ -267,7 +274,11 @@ export async function gradeSubjective(
   const { earned, max } = finalScore(rubric, anchors, band.reasoning_band);
 
   // ----- D4 SHA pinning ---------------------------------------------------
-  const anchorsSha = await skillSha(SKILL_ANCHORS);
+  // Stage 1 is skipped for a reasoning-only rubric (no anchors); reflect that in
+  // the version pin (anchors segment "-") so the audit trail does not claim the
+  // grade-anchors prompt ran when it did not.
+  const ranStage1 = rubric.anchors.length > 0;
+  const anchorsSha = ranStage1 ? await skillSha(SKILL_ANCHORS) : null;
   const bandSha = await skillSha(SKILL_BAND);
   if (shouldEscalate && escalateSha === null) {
     // Stage 3 ran but threw before setting escalateSha; capture for the row.
@@ -280,13 +291,13 @@ export async function gradeSubjective(
   }
 
   const promptVersionSha =
-    `anchors:${anchorsSha.short};` +
+    `anchors:${anchorsSha?.short ?? "-"};` +
     `band:${bandSha.short};` +
     `escalate:${escalateSha?.short ?? "-"}`;
   const promptVersionLabel =
-    `${anchorsSha.label};${bandSha.label};${escalateSha?.label ?? "-"}`;
+    `${anchorsSha?.label ?? "-"};${bandSha.label};${escalateSha?.label ?? "-"}`;
   const model =
-    `${anchorsSha.model};${bandSha.model};${escalateSha?.model ?? "-"}`;
+    `${anchorsSha?.model ?? "-"};${bandSha.model};${escalateSha?.model ?? "-"}`;
 
   log.info(
     {

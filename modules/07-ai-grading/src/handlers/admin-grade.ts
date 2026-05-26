@@ -159,6 +159,26 @@ function extractSynthConcepts(type: string, content: unknown): string[] {
   return [];
 }
 
+// Last-resort holistic rubric: no anchors, 100 % reasoning band. Used when a
+// question has no usable anchors at all (a subjective with no/empty authored
+// rubric, or a scenario/log_analysis whose content carried no reference
+// concepts). Lets grading proceed on the reasoning band alone (band 0..4 →
+// 0/25/50/75/100) instead of hard-failing AIG_SCHEMA_VIOLATION and blocking the
+// whole attempt. Lower fidelity than anchor-based scoring (the admin still
+// reviews/overrides), but never gets stuck. Ephemeral — never persisted.
+const REASONING_ONLY_RUBRIC = {
+  anchors: [] as never[],
+  reasoning_bands: {
+    band_4: "Thorough, accurate, well-justified answer that fully addresses the question",
+    band_3: "Largely correct and relevant with adequate justification",
+    band_2: "Partially correct; some relevant points but notable gaps or weak justification",
+    band_1: "Minimal relevance or accuracy; largely unsupported",
+    band_0: "Incorrect, irrelevant, or empty",
+  },
+  anchor_weight_total: 0,
+  reasoning_weight_total: 100,
+} as const;
+
 /**
  * Build an ephemeral rubric (70 % anchors / 30 % reasoning) from reference
  * concepts. One anchor per concept (`anchor-{i}`, synonyms:[concept]); the 70
@@ -347,6 +367,18 @@ export async function handleAdminGrade(
               SYNTH_REASONING_BANDS[q.type],
             );
           }
+        }
+      }
+
+      // Last-resort safety net: any AI-gradeable question that STILL has no
+      // usable anchors (subjective with no/empty rubric; scenario/log_analysis
+      // with no synthesisable concepts) grades holistically on the reasoning
+      // band instead of hard-failing AIG_SCHEMA_VIOLATION and blocking the
+      // attempt. Authored/synthesised anchor rubrics always take precedence.
+      {
+        const erv = effectiveRubric as { anchors?: unknown[] } | null | undefined;
+        if (!erv || !Array.isArray(erv.anchors) || erv.anchors.length === 0) {
+          effectiveRubric = REASONING_ONLY_RUBRIC;
         }
       }
 
