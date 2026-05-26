@@ -23,7 +23,7 @@ Future: `analyst` (read-only reports), `pack_author` (question-bank only). Add v
 ```ts
 listUsers({ tenantId, role?, status?, search?, page, pageSize, includeDeleted? }): Promise<PaginatedUsers>
 getUser(id): Promise<User>
-createUser({ email, name, role, metadata }): Promise<User>
+createUser({ email, name, role, metadata }): Promise<User>   // status is role-derived: candidate→active, admin/reviewer→pending (§ 14). No status input ⇒ cannot mint an active admin/reviewer.
 updateUser(id, patch): Promise<User>
 softDelete(userId, actorUserId, reason?)  : Promise<void>   // Phase C: emits audit + cascades pending invitations for the user's email
 restore(userId, actorUserId, reason?)     : Promise<User>
@@ -609,3 +609,15 @@ Tests:
 - `src/__tests__/audit-writes.test.ts` (NEW) — 13 cases: one happy-path per wired function/path (createUser, updateUser status flip, updateUser role demotion, softDelete, restore, inviteUser new, inviteUser reinvite, inviteUser active-user no-op), three atomicity proofs (auditInTx failure injection rolls back updateUser / softDelete / inviteUser), one coverage assertion (count of `auditInTx(` in service.ts == 4 + invitations.ts == 2), and one redaction sweep (no audit row across a representative mix of operations contains any redacted-field key in before/after).
 - `src/__tests__/users.test.ts` — testcontainer migration set extended to apply `14-audit-log/migrations/0050_audit_log.sql` plus the `assessiq_app` / `assessiq_system` role setup; an `SYSTEM_ACTOR_ID` user is seeded and the existing service calls are wrapped to thread it automatically (preserves all 30+ legacy test bodies verbatim).
 - `apps/api/src/routes/admin-users.ts` — `userId = req.session!.userId` now threaded into all four mutation routes; `acceptInvitation`, `listUsers`, `getUser` unchanged (no signature change).
+
+### 14. `createUser` status is role-derived — candidates are born `active` (2026-05-26)
+
+**What.** `createUser` sets the inserted `status` by role: `candidate` → `active`, everyone else (`admin`/`reviewer`) → `pending`. `CreateUserInput` still has no `status` field; the rule is the single source of truth in `service.ts`. The admin Users-page "Add candidate" drawer (`modules/10-admin-dashboard/src/pages/users.tsx`) posts here with `role:'candidate'`; the optional `designation` is stored at `metadata.designation` (free-text, no schema column).
+
+**Why.** Candidates have no identity-onboarding flow — they never log in. Their only access is a per-assessment magic link issued by `05-assessment-lifecycle.inviteUsers`, which requires the candidate row to be `role='candidate'` AND `status='active'`. Previously `createUser` forced `pending` for all roles, so a freshly-created candidate was un-invitable and there was no UI path to activate one — candidates could only enter via direct DB/API. Birthing candidates `active` closes that gap with no new activation step.
+
+**Considered & rejected.** (a) Add an optional `status` input — rejected: widens the surface so an active `admin` could be minted via this admin-only route; the role-derived rule makes that impossible by construction. (b) Keep `pending` + add a `pending→active` UI transition — rejected: pointless ceremony for an actor that never authenticates by login. (c) Route candidates through `inviteUser`/`POST /admin/invitations` — rejected: that path sends an identity-onboarding email (wrong for candidates) and is hard-blocked at `CANDIDATE_INVITATION_PHASE_1`.
+
+**Excluded.** No bulk CSV add (still the `BULK_IMPORT_PHASE_1` 501 stub, § 1). No candidate self-registration. No change to admin/reviewer onboarding (still invite→accept→active). No `designation` schema column (metadata only).
+
+**Downstream impact.** `05-assessment-lifecycle` invite picker (`assessment-detail.tsx`) now filters to `role==='candidate' && status==='active'` — created candidates appear immediately. Disable/soft-delete lifecycle (Phase C) applies to candidates unchanged. Audit: `createUser` already emits `user.created` with redacted `metadata` (designation is non-credential free-text). Help: `admin.users.candidate.fields` seeded via `16-help-system/migrations/0099_seed_candidate_fields_help.sql`.

@@ -63,6 +63,24 @@ admin.users.role:
     admin to reviewer revokes their fresh-MFA gates immediately. There is no
     "owner" or "billing" role — that is a Phase 2 concern.
 
+admin.users.candidate.fields:
+  audience: admin
+  short_text: "Candidates are added directly with no email sent. Name is shown in their assessment link; designation is optional."
+  long_md: |
+    ## Adding a candidate
+
+    Candidates are added directly to the tenant — no invitation email is sent
+    at this step. They receive a secure assessment link only when you assign
+    them to a specific assessment from the assessment's detail page.
+
+    **Name** is required. It is shown in the candidate's assessment invitation
+    email and appears in grading and reporting views.
+
+    **Designation** is optional free-text context (e.g. "SOC Analyst L1",
+    "Junior DevOps Engineer"). It is stored as metadata on the user record and
+    surfaced in exports and the grading UI to help admins distinguish between
+    candidates with similar profiles. It does not affect scoring or access.
+
 # ─── Pack & question authoring ───
 
 admin.packs.create.domain:

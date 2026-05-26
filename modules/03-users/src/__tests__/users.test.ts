@@ -280,7 +280,7 @@ describe('createUser + getUser', () => {
 
     expect(user.email).toBe('alice@example.com');
     expect(user.role).toBe('admin');
-    expect(user.status).toBe('pending'); // createUser defaults to pending per § 3
+    expect(user.status).toBe('pending'); // admins/reviewers are pending until they accept their invitation
 
     const fetched = await getUser(tenantA, user.id);
     expect(fetched.id).toBe(user.id);
@@ -590,6 +590,60 @@ describe('inviteUser', () => {
     const second = await inviteUser(tid, { email: 'pending@reinv.com', role: 'reviewer', invited_by: inviter.id });
     expect(second.invitation?.id).not.toBe(firstInvId); // new row
     expect(capturedEmails).toHaveLength(1); // new email sent
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test: createUser role-derived status — candidate → active, admin → pending
+// ---------------------------------------------------------------------------
+
+describe('createUser role-derived status', () => {
+  it('creates a candidate with status active (no invite-accept flow)', async () => {
+    const tid = randomUUID();
+    await withSuperClient(async (client) => {
+      await insertTenant(client, tid, `tenant-cand-active-${tid.slice(0, 8)}`, 'CandActive');
+    });
+
+    const candidate = await createUser(tid, {
+      email: `cand-${tid.slice(0, 8)}@x.com`,
+      name: 'Test Candidate',
+      role: 'candidate',
+    });
+
+    expect(candidate.status).toBe('active');
+    expect(candidate.role).toBe('candidate');
+  });
+
+  it('creates an admin with status pending (must accept invitation)', async () => {
+    const tid = randomUUID();
+    await withSuperClient(async (client) => {
+      await insertTenant(client, tid, `tenant-adm-pending-${tid.slice(0, 8)}`, 'AdmPending');
+    });
+
+    const admin = await createUser(tid, {
+      email: `admin-${tid.slice(0, 8)}@x.com`,
+      name: 'Test Admin',
+      role: 'admin',
+    });
+
+    expect(admin.status).toBe('pending');
+    expect(admin.role).toBe('admin');
+  });
+
+  it('creates a reviewer with status pending (must accept invitation)', async () => {
+    const tid = randomUUID();
+    await withSuperClient(async (client) => {
+      await insertTenant(client, tid, `tenant-rev-pending-${tid.slice(0, 8)}`, 'RevPending');
+    });
+
+    const reviewer = await createUser(tid, {
+      email: `reviewer-${tid.slice(0, 8)}@x.com`,
+      name: 'Test Reviewer',
+      role: 'reviewer',
+    });
+
+    expect(reviewer.status).toBe('pending');
+    expect(reviewer.role).toBe('reviewer');
   });
 });
 
