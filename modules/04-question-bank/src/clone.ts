@@ -85,6 +85,8 @@ interface SourceQuestionRow {
   status: QuestionStatus;
   content: unknown;
   rubric: unknown | null;
+  // Live (non-versioned) candidate hint — copied like topic/points.
+  answer_guidance: string | null;
   knowledge_base_sources: unknown;
   domain_id: string | null;
   category_id: string | null;
@@ -226,7 +228,7 @@ export async function clonePackToTenant(
   const srcQuestions = (
     await client.query<SourceQuestionRow>(
       `SELECT id, level_id, type, topic, points, status, content, rubric,
-              knowledge_base_sources, domain_id, category_id
+              answer_guidance, knowledge_base_sources, domain_id, category_id
          FROM questions WHERE pack_id = $1 ORDER BY created_at ASC, id ASC`,
       [sourcePackId],
     )
@@ -384,8 +386,8 @@ export async function clonePackToTenant(
     await client.query(
       `INSERT INTO questions
          (id, pack_id, level_id, type, topic, points, status, version, content,
-          rubric, knowledge_base_sources, created_by, domain_id, category_id, source_question_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 2, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14)`,
+          rubric, answer_guidance, knowledge_base_sources, created_by, domain_id, category_id, source_question_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 2, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15)`,
       [
         newQuestionId,
         newPackId,
@@ -396,6 +398,7 @@ export async function clonePackToTenant(
         q.status,
         JSON.stringify(q.content),
         q.rubric !== null ? JSON.stringify(q.rubric) : null,
+        q.answer_guidance,
         JSON.stringify(Array.isArray(q.knowledge_base_sources) ? q.knowledge_base_sources : []),
         actorUserId,
         newDomainId,
@@ -590,6 +593,7 @@ interface CloneQuestionRow {
   points: number;
   topic: string;
   type: QuestionType;
+  answer_guidance: string | null;
   domain_id: string | null;
   category_id: string | null;
 }
@@ -952,7 +956,7 @@ export async function resyncClonedPack(
   const srcQuestions = (
     await client.query<SourceQuestionRow>(
       `SELECT id, level_id, type, topic, points, status, content, rubric,
-              knowledge_base_sources, domain_id, category_id
+              answer_guidance, knowledge_base_sources, domain_id, category_id
          FROM questions WHERE pack_id = $1 AND status = 'active'
         ORDER BY created_at ASC, id ASC`,
       [sourcePackId],
@@ -1020,7 +1024,7 @@ export async function resyncClonedPack(
   const cloneQs = (
     await client.query<CloneQuestionRow>(
       `SELECT id, source_question_id, content, rubric, version, status,
-              level_id, points, topic, type, domain_id, category_id
+              level_id, points, topic, type, answer_guidance, domain_id, category_id
          FROM questions WHERE pack_id = $1`,
       [clone.id],
     )
@@ -1061,8 +1065,8 @@ export async function resyncClonedPack(
       await client.query(
         `INSERT INTO questions
            (id, pack_id, level_id, type, topic, points, status, version, content,
-            rubric, knowledge_base_sources, created_by, domain_id, category_id, source_question_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 2, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14)`,
+            rubric, answer_guidance, knowledge_base_sources, created_by, domain_id, category_id, source_question_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 2, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15)`,
         [
           nqid,
           clone.id,
@@ -1073,6 +1077,7 @@ export async function resyncClonedPack(
           M.status,
           contentJson,
           rubricJson,
+          M.answer_guidance,
           JSON.stringify(Array.isArray(M.knowledge_base_sources) ? M.knowledge_base_sources : []),
           actorUserId,
           tax.domainId,
@@ -1132,6 +1137,7 @@ export async function resyncClonedPack(
       Q.points !== M.points ||
       Q.topic !== M.topic ||
       Q.type !== M.type ||
+      Q.answer_guidance !== M.answer_guidance ||
       Q.status !== "active";
 
     if (contentChanged) {
@@ -1148,7 +1154,8 @@ export async function resyncClonedPack(
         `UPDATE questions
             SET content = $2::jsonb, rubric = $3::jsonb, level_id = $4,
                 domain_id = $5, category_id = $6, points = $7, topic = $8,
-                type = $9, status = 'active', version = $10, updated_at = now()
+                type = $9, status = 'active', version = $10,
+                answer_guidance = $11, updated_at = now()
           WHERE id = $1`,
         [
           Q.id,
@@ -1161,6 +1168,7 @@ export async function resyncClonedPack(
           M.topic,
           M.type,
           Q.version + 1,
+          M.answer_guidance,
         ],
       );
       changed++;
@@ -1171,9 +1179,9 @@ export async function resyncClonedPack(
       await client.query(
         `UPDATE questions
             SET level_id = $2, domain_id = $3, category_id = $4, points = $5,
-                topic = $6, type = $7, status = 'active', updated_at = now()
+                topic = $6, type = $7, answer_guidance = $8, status = 'active', updated_at = now()
           WHERE id = $1`,
-        [Q.id, tgtLevelId, tax.domainId, tax.categoryId, M.points, M.topic, M.type],
+        [Q.id, tgtLevelId, tax.domainId, tax.categoryId, M.points, M.topic, M.type, M.answer_guidance],
       );
       changed++;
     }

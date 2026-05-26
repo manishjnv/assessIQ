@@ -1308,6 +1308,27 @@ export function AttemptPage(): JSX.Element {
                 );
               })()}
 
+              {/* Answer-format hint — instructional ("HOW to answer"), candidate-
+                  safe (never a rubric/answer key), resolved server-side so it is
+                  always present. Rendered once here so every question type shows
+                  it directly above its answer input. Plain text only. */}
+              {typeof currentQuestion.answer_guidance === 'string' &&
+                currentQuestion.answer_guidance.trim() !== '' && (
+                  <p
+                    className="aiq-attempt-answer-guidance"
+                    style={{
+                      margin: '0 0 var(--aiq-space-sm)',
+                      paddingLeft: 'var(--aiq-space-sm)',
+                      borderLeft: '2px solid var(--aiq-color-border)',
+                      fontFamily: 'var(--aiq-font-sans)',
+                      fontSize: 'var(--aiq-text-sm)',
+                      color: 'var(--aiq-color-fg-muted)',
+                    }}
+                  >
+                    {currentQuestion.answer_guidance}
+                  </p>
+                )}
+
               {/* Type-switched answer area */}
               <AnswerArea
                 question={currentQuestion}

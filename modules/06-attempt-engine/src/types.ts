@@ -108,6 +108,11 @@ export interface FrozenQuestion {
   type: string;
   topic: string;
   points: number;
+  // Candidate-facing answer-format hint ("HOW to answer", e.g. "Select the one
+  // best option."). Always resolved server-side (authored value or a per-type
+  // default) so it is never null. Instructional only — never a rubric / answer
+  // key. Read LIVE from the question row (like topic/points), not the snapshot.
+  answer_guidance: string;
   // content with the rubric stripped (rubric is internal-only — candidates
   // must NEVER see grading anchors / band thresholds).
   content: unknown;

@@ -24,6 +24,7 @@ import type {
   AttemptStatus,
   FrozenQuestion,
 } from "./types.js";
+import { answerGuidanceFor } from "./answer-guidance.js";
 
 // ---------------------------------------------------------------------------
 // Column constants
@@ -88,6 +89,9 @@ interface FrozenQuestionRow {
   topic: string;
   points: number;
   content: unknown;
+  // Live-read from the `questions` row (NOT the frozen snapshot), like topic/
+  // points. NULL → resolved to a per-type default by answerGuidanceFor().
+  answer_guidance: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -389,6 +393,7 @@ export async function listFrozenQuestionsForAttempt(
        q.type,
        q.topic,
        q.points,
+       q.answer_guidance,
        qv.content
      FROM attempt_questions aq
      JOIN questions q ON q.id = aq.question_id
@@ -406,6 +411,9 @@ export async function listFrozenQuestionsForAttempt(
     type: r.type,
     topic: r.topic,
     points: r.points,
+    // Instructional, candidate-safe hint — resolved to a per-type default when
+    // the question carries no authored guidance.
+    answer_guidance: answerGuidanceFor(r.type, r.answer_guidance),
     content: sanitizeContentForCandidate(r.type, r.content),
   }));
 }

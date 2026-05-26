@@ -687,6 +687,7 @@ export async function registerQuestionBankRoutes(
             points: { type: "integer", minimum: 1 },
             content: {},
             rubric: {},
+            answer_guidance: { type: ["string", "null"], maxLength: 280 },
             tags: { type: "array", items: { type: "string", minLength: 1 }, maxItems: 20 },
           },
         },

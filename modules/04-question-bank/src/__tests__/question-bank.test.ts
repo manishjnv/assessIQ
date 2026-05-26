@@ -850,6 +850,40 @@ describe("Question lifecycle + versioning", () => {
     expect((v3Snapshot?.content as { question: string }).question).toBe("Edit 2?");
   });
 
+  it("answer_guidance is metadata-only: editing it does NOT bump version or snapshot", async () => {
+    const q = await createQuestion(
+      tenantA,
+      {
+        pack_id: packId,
+        level_id: levelId,
+        type: "mcq",
+        topic: "guidance-no-bump",
+        points: 5,
+        content: mcqContent(),
+      },
+      adminA,
+    );
+    expect(q.version).toBe(1);
+    expect(q.answer_guidance).toBeNull();
+
+    // Set the hint — like topic/points this must NOT bump version or snapshot.
+    const updated = await updateQuestion(
+      tenantA,
+      q.id,
+      { answer_guidance: "Answer in exactly one word." },
+      adminA,
+    );
+    expect(updated.version).toBe(1);
+    expect(updated.answer_guidance).toBe("Answer in exactly one word.");
+    expect(await listVersions(tenantA, q.id)).toHaveLength(0);
+
+    // Clearing back to null is also metadata-only.
+    const cleared = await updateQuestion(tenantA, q.id, { answer_guidance: null }, adminA);
+    expect(cleared.version).toBe(1);
+    expect(cleared.answer_guidance).toBeNull();
+    expect(await listVersions(tenantA, q.id)).toHaveLength(0);
+  });
+
   it("restoreVersion(questionId, 1) bumps version and captures pre-restore state as snapshot", async () => {
     // Create at version 1
     const q = await createQuestion(

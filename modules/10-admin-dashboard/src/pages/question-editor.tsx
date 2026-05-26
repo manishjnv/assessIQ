@@ -39,6 +39,8 @@ interface QuestionDetail {
   points: number;
   content: unknown;
   rubric: unknown;
+  /** Candidate-facing answer-format hint; null → a per-type default is shown to candidates. */
+  answer_guidance?: string | null;
   assessment_name?: string;
   level_label?: string;
 }
@@ -229,6 +231,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   const [type, setType] = useState<QuestionType>("mcq");
   const [topic, setTopic] = useState("");
   const [points, setPoints] = useState("5");
+  const [answerGuidance, setAnswerGuidance] = useState("");
   const [contentJson, setContentJson] = useState(() => JSON.stringify(DEFAULT_CONTENT["mcq"], null, 2));
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -267,7 +270,16 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
     try {
       const created = await adminApi<{ id: string }>("/admin/questions", {
         method: "POST",
-        body: JSON.stringify({ pack_id: packId, level_id: levelId, type, topic: topic.trim(), points: pointsNum, content }),
+        body: JSON.stringify({
+          pack_id: packId,
+          level_id: levelId,
+          type,
+          topic: topic.trim(),
+          points: pointsNum,
+          content,
+          // Optional candidate hint; omit when blank so the per-type default applies.
+          ...(answerGuidance.trim() ? { answer_guidance: answerGuidance.trim() } : {}),
+        }),
       });
       navigate(`/admin/question-bank/questions/${created.id}`);
     } catch (err) {
@@ -327,6 +339,22 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
             onChange={(e) => setPoints(e.target.value)}
             required
           />
+        </div>
+
+        <div className="aiq-form-group">
+          <label className="aiq-label" htmlFor="q-answer-guidance">Answer guidance (candidate hint)</label>
+          <input
+            id="q-answer-guidance"
+            className="aiq-input"
+            type="text"
+            maxLength={280}
+            value={answerGuidance}
+            onChange={(e) => setAnswerGuidance(e.target.value)}
+            placeholder="Leave blank to use the default for this question type"
+          />
+          <div style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)" }}>
+            Shown to candidates above the answer area — how to answer, not what the answer is.
+          </div>
         </div>
 
         <div className="aiq-form-group">
@@ -396,6 +424,12 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Answer-guidance (candidate hint) edit state — metadata-only, no version bump.
+  const [answerGuidance, setAnswerGuidance] = useState("");
+  const [savingGuidance, setSavingGuidance] = useState(false);
+  const [guidanceSaved, setGuidanceSaved] = useState(false);
+  const [guidanceError, setGuidanceError] = useState<string | null>(null);
+
   // Approve / archive state
   const [transitioning, setTransitioning] = useState(false);
 
@@ -434,6 +468,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
     try {
       const data = await adminApi<QuestionDetail>(`/admin/questions/${id}`);
       setQuestion(data);
+      setAnswerGuidance(typeof data.answer_guidance === "string" ? data.answer_guidance : "");
       if (data.rubric) {
         setRubricDraft(rubricToRubricDraft(data.rubric));
         const r = data.rubric as Record<string, unknown>;
@@ -507,6 +542,29 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
     if (!window.confirm("Discard current rubric and re-generate? This will not save automatically.")) return;
     setRubricDraft(null);
     void handleGenerate();
+  }
+
+  async function handleSaveGuidance() {
+    if (!id) return;
+    setSavingGuidance(true);
+    setGuidanceSaved(false);
+    setGuidanceError(null);
+    try {
+      // Metadata-only PATCH — no version bump, not snapshotted. Blank → null so
+      // candidates fall back to the per-type default.
+      const trimmed = answerGuidance.trim();
+      await adminApi(`/admin/questions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ answer_guidance: trimmed.length > 0 ? trimmed : null }),
+      });
+      setGuidanceSaved(true);
+      setTimeout(() => setGuidanceSaved(false), 3000);
+      void load();
+    } catch (err) {
+      setGuidanceError(err instanceof AdminApiError ? err.apiError.message : "Save failed.");
+    } finally {
+      setSavingGuidance(false);
+    }
   }
 
   if (loading) {
@@ -608,6 +666,55 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
             Question content (read-only)
           </div>
           <QuestionContentView type={question.type} content={question.content} />
+        </div>
+
+        {/* Answer guidance — candidate-facing answer-format hint. Metadata-only
+            (no version bump). Editable for super_admin; read-only otherwise. */}
+        <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+          <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
+            Answer guidance (candidate hint)
+          </div>
+          <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+            Shown to candidates above the answer area — how to answer, not what the answer is. Blank uses the default for this question type.
+          </p>
+          {isSuperAdmin ? (
+            <>
+              <input
+                className="aiq-input"
+                type="text"
+                maxLength={280}
+                value={answerGuidance}
+                onChange={(e) => setAnswerGuidance(e.target.value)}
+                placeholder="Leave blank to use the default for this question type"
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                  disabled={savingGuidance}
+                  onClick={() => void handleSaveGuidance()}
+                >
+                  {savingGuidance ? "Saving…" : "Save guidance"}
+                </button>
+                {guidanceSaved && (
+                  <span style={{ color: "var(--aiq-color-success)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+                    Saved.
+                  </span>
+                )}
+                {guidanceError && (
+                  <span style={{ color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+                    {guidanceError}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+              {answerGuidance.trim() !== ""
+                ? answerGuidance
+                : <span style={{ color: "var(--aiq-color-fg-muted)" }}>Using the default for this question type.</span>}
+            </div>
+          )}
         </div>
 
         {/* Approve / archive — super_admin only (curation); visible only for ai_draft */}

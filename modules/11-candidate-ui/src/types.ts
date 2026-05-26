@@ -49,6 +49,10 @@ export interface FrozenQuestionWire {
   type: string;
   topic: string;
   points: number;
+  // Candidate-facing answer-format hint ("HOW to answer"). Always a non-empty
+  // string — the server resolves an authored value or a per-type default.
+  // Instructional only; never a rubric/answer key.
+  answer_guidance: string;
   // The rubric is intentionally NEVER serialized — the server strips it
   // before sending. Keeping `unknown` here so callers must narrow.
   content: unknown;

@@ -250,6 +250,13 @@ export interface Question {
   version: number;
   content: unknown;       // validated via validateQuestionContent
   rubric: unknown | null;
+  /**
+   * Candidate-facing answer-format hint ("HOW to answer"). Instructional and
+   * candidate-safe — never a rubric/answer key. NULL → a per-type default is
+   * applied at serve time (module 06). Live-read like topic/points: editing it
+   * is a metadata change with no version bump and it is NOT snapshotted.
+   */
+  answer_guidance: string | null;
   /** Sources from the SOC KB used when generating this question. Empty for human-authored questions. */
   knowledge_base_sources: KnowledgeBaseSource[];
   created_by: string;
@@ -339,6 +346,8 @@ export interface CreateQuestionInput {
   points: number;
   content: unknown;       // validated against per-type schema in service
   rubric?: unknown;       // required for subjective/scenario
+  /** Optional candidate-facing answer-format hint. Empty/whitespace → stored as NULL (per-type default applies). */
+  answer_guidance?: string;
   tags?: string[];        // tag names
 }
 
@@ -348,6 +357,8 @@ export interface UpdateQuestionPatch {
   status?: QuestionStatus;
   content?: unknown;
   rubric?: unknown | null;
+  /** Metadata-only change (no version bump). `null` clears it back to the per-type default. */
+  answer_guidance?: string | null;
   tags?: string[];
 }
 
