@@ -236,9 +236,9 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `POST` | `/admin/packs/:id/levels`            | Add level (returns 201) |
 | `PATCH`| `/admin/levels/:id`                  | Update level fields (label, description, duration, default_question_count, passing_score_pct) |
 | `GET`  | `/admin/questions`                   | List questions (filter by `pack_id`, `level_id`, `type`, `status`, `tag`, `search`) |
-| `POST` | `/admin/questions`                   | Create question (returns 201) |
-| `GET`  | `/admin/questions/:id`               | Get question (latest version) |
-| `PATCH`| `/admin/questions/:id`               | Update — creates new version automatically (snapshot-before-update) |
+| `POST` | `/admin/questions`                   | Create question (returns 201). Optional `answer_guidance` (string ≤280; candidate-facing hint; omit/blank → per-type default) (0098) |
+| `GET`  | `/admin/questions/:id`               | Get question (latest version). Response includes `answer_guidance` (string or null) (0098) |
+| `PATCH`| `/admin/questions/:id`               | Update — `content`/`rubric` create a new version (snapshot-before-update); `topic`/`points`/`answer_guidance` are metadata-only (NO version bump). `answer_guidance: null` clears it to the per-type default (0098) |
 | `GET`  | `/admin/questions/:id/versions`      | List version snapshots (most-recent first) |
 | `POST` | `/admin/questions/:id/restore`       | Restore from a prior version (body: `{ version: number }`); snapshots current then bumps |
 | `POST` | `/admin/questions/import`            | Bulk import from JSON (Phase 1) — CSV deferred to Phase 2 |
@@ -1181,7 +1181,7 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 |---|---|---|---|
 | `GET`  | `/api/me/assessments`             | List active assessments the candidate is invited to | **live 2026-05-02** |
 | `POST` | `/api/me/assessments/:id/start`   | Begin attempt — creates `attempt`, freezes question set into `attempt_questions`, returns `201 Attempt` (idempotent — re-call returns existing) | **live 2026-05-02** |
-| `GET`  | `/api/me/attempts/:id`            | Server-authoritative attempt view — `{ attempt, questions[], answers[], remaining_seconds }`. Auto-submits the attempt if `ends_at` has passed. | **live 2026-05-02** |
+| `GET`  | `/api/me/attempts/:id`            | Server-authoritative attempt view — `{ attempt, questions[], answers[], remaining_seconds }`. Auto-submits the attempt if `ends_at` has passed. Each `questions[]` item carries `answer_guidance` (always a non-empty string — authored value or per-type default; instructional/candidate-safe, never a rubric/answer key) (0098). | **live 2026-05-02** |
 | `POST` | `/api/me/attempts/:id/answer`     | Autosave one answer (last-write-wins, decision #7) — body `{ question_id, answer, client_revision?, edits_count?, time_spent_seconds? }`; returns `204` + `X-Client-Revision` header | **live 2026-05-02** |
 | `POST` | `/api/me/attempts/:id/flag`       | Toggle flag on a question — body `{ question_id, flagged }`; returns `200 { flagged }` | **live 2026-05-02** |
 | `POST` | `/api/me/attempts/:id/event`      | Push behavioral event (catalog: `modules/06-attempt-engine/EVENTS.md`) — body `{ event_type, question_id?, payload? }`; returns `201 AttemptEvent` or `204` if rate-cap dropped | **live 2026-05-02** |

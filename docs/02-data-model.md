@@ -345,6 +345,7 @@ CREATE TABLE questions (
   version         INT NOT NULL DEFAULT 1,
   content         JSONB NOT NULL,               -- type-specific shape, see below
   rubric          JSONB,                        -- for subjective/scenario; null for deterministic types
+  answer_guidance TEXT,                          -- 0098: candidate-facing answer-format hint ("HOW to answer"). Instructional/candidate-safe (never a rubric/answer key). NULL → per-type default applied at serve time. Live-read like topic/points — NOT snapshotted to question_versions; editing it does NOT bump version.
   knowledge_base_sources JSONB NOT NULL DEFAULT '[]'::jsonb,  -- Stage 1.5 (0016): KB provenance for AI-generated questions; [] for human-authored
   source_question_id UUID,                      -- 0084: clone provenance (NULL for originals); written only by the system-role clone engine
   cognitive_level    TEXT CHECK (cognitive_level IS NULL OR cognitive_level IN ('remember','understand','apply','analyze','evaluate','create')),  -- 0086: revised Bloom level; NULL = untagged legacy/human-authored (forward-only)
@@ -372,6 +373,18 @@ CREATE TABLE question_versions (
   saved_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (question_id, version)
 );
+
+> **`answer_guidance` is deliberately NOT in `question_versions` (0098).** Unlike
+> `content`/`rubric` (frozen per attempt so an edit never changes what an
+> in-flight candidate sees), the answer-format hint is a presentational
+> instruction with no grading consequence. It is read LIVE from the `questions`
+> row at serve time — exactly like `topic`/`points`, which are also live-read and
+> not snapshotted. Module 04 `updateQuestion` therefore treats it as a
+> metadata-only patch (no version bump), and module 06's candidate read joins the
+> live `questions` row for it. NULL is resolved to a per-type default by module
+> 06's `answerGuidanceFor()` so every served question shows a hint. Phase A
+> (foundation) ships the column + wiring; Phase B fills it via an admin-triggered
+> AI generator.
 
 CREATE TABLE tags (
   id          UUID PRIMARY KEY DEFAULT uuidv7(),

@@ -55,7 +55,7 @@ const PACK_COLUMNS = `id, tenant_id, slug, name, domain, description, status, ve
 
 const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct, rubric_defaults`;
 
-const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id`;
+const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id`;
 
 const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`;
 
@@ -123,6 +123,7 @@ interface QuestionRow {
   version: number;
   content: unknown;
   rubric: unknown | null;
+  answer_guidance: string | null;
   knowledge_base_sources: unknown;
   created_by: string;
   created_at: Date;
@@ -194,6 +195,7 @@ function mapQuestionRow(row: QuestionRow): Question {
     version: row.version,
     content: row.content,
     rubric: row.rubric,
+    answer_guidance: row.answer_guidance ?? null,
     knowledge_base_sources: Array.isArray(row.knowledge_base_sources)
       ? (row.knowledge_base_sources as KnowledgeBaseSource[])
       : [],
@@ -688,7 +690,7 @@ export async function listQuestionRows(
   // Qualify all columns to avoid ambiguity when the tag JOIN is present.
   const dataResult = await client.query<QuestionRow>(
     `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic, q.points, q.status,
-            q.version, q.content, q.rubric, q.knowledge_base_sources,
+            q.version, q.content, q.rubric, q.answer_guidance, q.knowledge_base_sources,
             q.created_by, q.created_at, q.updated_at,
             q.domain_id, q.category_id
      FROM questions q
@@ -713,15 +715,17 @@ export async function insertQuestion(
     points: number;
     content: unknown;
     rubric?: unknown;
+    answerGuidance?: string | null;
     createdBy: string;
   },
 ): Promise<Question> {
   // questions has no tenant_id column — the WITH CHECK RLS policy derives
   // authorization through pack_id → question_packs.tenant_id. status defaults
   // to 'draft' per DB schema; content and rubric are stored as JSONB.
+  // answer_guidance is plain text (candidate hint); NULL when not authored.
   const result = await client.query<QuestionRow>(
-    `INSERT INTO questions (id, pack_id, level_id, type, topic, points, content, rubric, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9)
+    `INSERT INTO questions (id, pack_id, level_id, type, topic, points, content, rubric, answer_guidance, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10)
      RETURNING ${QUESTION_COLUMNS}`,
     [
       input.id,
@@ -732,6 +736,7 @@ export async function insertQuestion(
       input.points,
       JSON.stringify(input.content),
       input.rubric !== undefined ? JSON.stringify(input.rubric) : null,
+      input.answerGuidance ?? null,
       input.createdBy,
     ],
   );
@@ -796,6 +801,7 @@ export async function updateQuestionRow(
     status?: QuestionStatus;
     content?: unknown;
     rubric?: unknown | null;
+    answer_guidance?: string | null;
     version?: number;
   },
 ): Promise<Question> {
@@ -829,6 +835,17 @@ export async function updateQuestionRow(
     } else {
       sets.push(`rubric = $${i}::jsonb`);
       values.push(JSON.stringify(patch.rubric));
+      i++;
+    }
+  }
+  // answer_guidance is plain text, metadata-only (no version bump). null clears
+  // it so the per-type default applies again.
+  if (patch.answer_guidance !== undefined) {
+    if (patch.answer_guidance === null) {
+      sets.push(`answer_guidance = NULL`);
+    } else {
+      sets.push(`answer_guidance = $${i}`);
+      values.push(patch.answer_guidance);
       i++;
     }
   }

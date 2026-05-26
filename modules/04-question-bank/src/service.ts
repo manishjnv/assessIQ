@@ -968,6 +968,13 @@ export async function createQuestion(
       });
     }
 
+    // Normalize the optional candidate hint: empty/whitespace → NULL so the
+    // per-type default applies at serve time.
+    const answerGuidance =
+      typeof input.answer_guidance === "string" && input.answer_guidance.trim().length > 0
+        ? input.answer_guidance.trim()
+        : null;
+
     // Insert question (status defaults to 'draft' and version to 1 in DB schema)
     const question = await repo.insertQuestion(client, {
       id,
@@ -978,6 +985,7 @@ export async function createQuestion(
       points: input.points,
       content: input.content,
       ...(input.rubric !== undefined ? { rubric: input.rubric } : {}),
+      answerGuidance,
       createdBy: createdByUserId,
     });
 
@@ -1105,6 +1113,15 @@ export async function updateQuestion(
     if (patch.status !== undefined) repoPatch.status = patch.status;
     if (patch.content !== undefined) repoPatch.content = patch.content;
     if (patch.rubric !== undefined) repoPatch.rubric = patch.rubric;
+    // answer_guidance is metadata-only — like topic/points it does NOT trigger a
+    // version bump and is NOT snapshotted. Empty/whitespace normalises to NULL
+    // (per-type default applies); explicit null clears an authored value.
+    if (patch.answer_guidance !== undefined) {
+      repoPatch.answer_guidance =
+        typeof patch.answer_guidance === "string" && patch.answer_guidance.trim().length > 0
+          ? patch.answer_guidance.trim()
+          : null;
+    }
     if (versionBump) repoPatch.version = current.version + 1;
 
     const updated = await repo.updateQuestionRow(client, id, repoPatch);
