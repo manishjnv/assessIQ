@@ -830,3 +830,15 @@ Three admin-facing UI changes shipped as part of the domain-slug normalization +
 **Implementation:** The session role is already available via `useSession()` (or the equivalent `AdminWhoami` hook) used throughout the admin dashboard. The conditional is a single `{isSuperAdmin && <BlueprintModeButton … />}` guard, consistent with the existing `{isSuperAdmin && …}` pattern used on the Platform nav entry and the AI-generate-mode select.
 
 **Not included:** any change to the assessment edit form for existing draft assessments — if a super-admin created a blueprint assessment and a tenant admin views it in edit mode, `settings.blueprint` is simply not rendered in the form (read-only exclusion); the tenant admin cannot clear or modify it.
+
+---
+
+## Add-candidate drawer + invite-picker filter (2026-05-26)
+
+**What:** The admin Users page (`modules/10-admin-dashboard/src/pages/users.tsx`) `InviteForm` drawer is now role-aware. The role picker gained a third option, **candidate**. When `candidate` is selected the drawer shows **Name** (required) + **Designation** (optional, e.g. "SOC Analyst L1") fields, retitles to "Add candidate", swaps the subtitle to "Candidates are added directly — no email is sent now…", posts to `POST /admin/users` (not `/admin/invitations`), and confirms with a "Candidate added." chip. Admin/reviewer behaviour is byte-for-byte unchanged (still invite-email flow). On `assessment-detail.tsx` the invite picker now filters to `role==='candidate' && status==='active'` (was: all users), so only assignable candidates appear.
+
+**Why:** There was no UI to create a candidate (the invite form only offered admin/reviewer, and `inviteUser` hard-blocks candidates at `CANDIDATE_INVITATION_PHASE_1`). Candidates authenticate only via per-assessment magic links, so they need no invite/accept email — direct active creation is the simple, correct model. The picker previously listed admins/reviewers too, which the server silently rejected — confusing UX.
+
+**Implementation:** A form-local `type InviteRole = "admin" | "reviewer" | "candidate"` (the file-level `UserRole` is used by filter chips/manage menus and was left untouched). Error display switched from the email `Field`'s `error` prop to a shared `role="alert"` danger-coloured div below the fields (covers both email + name validation). Help: `data-help-id="admin.users.candidate.fields"` → content in `modules/16-help-system/content/en/admin.yml` + seed migration `0099_seed_candidate_fields_help.sql`.
+
+**Not included:** No bulk CSV add (still the `/admin/users/import` 501 stub). No reverse "assign assessment from the user row" flow — assignment stays on the assessment-detail page (single source of truth). No new component in the kit — composed from existing `Field`/`Button`/`Card`/`Chip` atoms.

@@ -71,6 +71,8 @@ interface UserItem {
   id: string;
   email: string;
   name?: string;
+  role?: string;
+  status?: string;
 }
 
 interface UsersResponse {
@@ -239,7 +241,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
   }
 
   const invitedUserIds = new Set(invitations.map((inv) => inv.user_id));
-  const uninvitedUsers = users.filter((u) => !invitedUserIds.has(u.id));
+  const uninvitedUsers = users.filter((u) => u.role === "candidate" && u.status === "active" && !invitedUserIds.has(u.id));
 
   const invitationColumns: ColumnDef<Invitation>[] = [
     {

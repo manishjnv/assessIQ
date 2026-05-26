@@ -167,6 +167,12 @@ const INV_GRID = "120px 2fr 1fr 110px 110px 120px";
 
 // ── Invite drawer (fixed-position centred Card, matches screens/admin-list.jsx) ─
 
+// Local role type for the form — extends the file-level UserRole with candidate.
+// The file-level `type UserRole = "admin" | "reviewer"` is used elsewhere (e.g.
+// filter chips, manage menus) and must not change. The form uses InviteRole so
+// "candidate" is only in scope here.
+type InviteRole = "admin" | "reviewer" | "candidate";
+
 function InviteForm({
   onSuccess,
   onCancel,
@@ -175,28 +181,53 @@ function InviteForm({
   onCancel: () => void;
 }): React.ReactElement {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("reviewer");
+  const [role, setRole] = useState<InviteRole>("reviewer");
+  const [name, setName] = useState("");
+  const [designation, setDesignation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState(false);
+
+  const isCandidate = role === "candidate";
 
   const submit = async (): Promise<void> => {
     if (!email.trim()) {
       setError("Email is required.");
       return;
     }
+    if (isCandidate && !name.trim()) {
+      setError("Name is required for candidates.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      await adminApi("/admin/invitations", {
-        method: "POST",
-        body: JSON.stringify({ email: email.trim(), role }),
-      });
-      setToast(true);
-      setTimeout(() => {
-        setToast(false);
-        onSuccess();
-      }, 1500);
+      if (isCandidate) {
+        await adminApi("/admin/users", {
+          method: "POST",
+          body: JSON.stringify({
+            email: email.trim(),
+            name: name.trim(),
+            role: "candidate",
+            metadata: designation.trim() ? { designation: designation.trim() } : {},
+          }),
+        });
+        setToast(true);
+        setTimeout(() => {
+          setToast(false);
+          onSuccess();
+        }, 1500);
+      } else {
+        await adminApi("/admin/invitations", {
+          method: "POST",
+          body: JSON.stringify({ email: email.trim(), role }),
+        });
+        setToast(true);
+        setTimeout(() => {
+          setToast(false);
+          onSuccess();
+        }, 1500);
+      }
     } catch (err) {
       if (err instanceof AdminApiError) {
         setError(err.apiError.message);
@@ -230,7 +261,7 @@ function InviteForm({
             className="aiq-serif"
             style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
           >
-            Invite teammate
+            {isCandidate ? "Add candidate" : "Invite teammate"}
           </h2>
           <span style={{ flex: 1 }} />
           <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close">
@@ -245,12 +276,14 @@ function InviteForm({
             lineHeight: 1.5,
           }}
         >
-          They will receive a one-time sign-in link, valid for 72 hours.
+          {isCandidate
+            ? "Candidates are added directly — no email is sent now. They'll receive a secure assessment link when you assign one."
+            : "They will receive a one-time sign-in link, valid for 72 hours."}
         </p>
 
         {toast && (
           <div style={{ marginBottom: 16 }}>
-            <Chip variant="success">Invitation sent.</Chip>
+            <Chip variant="success">{isCandidate ? "Candidate added." : "Invitation sent."}</Chip>
           </div>
         )}
 
@@ -261,29 +294,54 @@ function InviteForm({
             placeholder="name@company.com"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(null); }}
-            {...(error ? { error } : {})}
           />
           <div data-help-id="admin.users.role">
             <span style={{ ...META_LABEL, display: "block", marginBottom: 6 }}>Role</span>
             <div style={{ display: "flex", gap: 8 }}>
-              {(["admin", "reviewer"] as UserRole[]).map((r) => (
+              {(["admin", "reviewer", "candidate"] as InviteRole[]).map((r) => (
                 <Button
                   key={r}
                   size="sm"
                   variant={role === r ? "primary" : "outline"}
-                  onClick={() => setRole(r)}
+                  onClick={() => { setRole(r); setError(null); }}
                 >
                   {r}
                 </Button>
               ))}
             </div>
           </div>
+          {isCandidate && (
+            <div data-help-id="admin.users.candidate.fields" style={{ display: "grid", gap: 16 }}>
+              <Field
+                label="Name"
+                type="text"
+                placeholder="Jane Smith"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setError(null); }}
+              />
+              <Field
+                label="Designation (optional)"
+                type="text"
+                placeholder="SOC Analyst L1"
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+              />
+            </div>
+          )}
+          {error && (
+            <div
+              role="alert"
+              style={{ color: "var(--aiq-color-danger)", fontSize: 13, lineHeight: 1.4 }}
+            >
+              {error}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 24 }}>
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
           <Button onClick={submit} loading={loading} disabled={toast} rightIcon="arrow">
-            Send invite
+            {isCandidate ? "Add candidate" : "Send invite"}
           </Button>
         </div>
       </Card>

@@ -139,7 +139,12 @@ export async function createUser(
         email: normalizedEmail,
         name: input.name,
         role: input.role,
-        status: 'pending', // Default per addendum § 3: createUser does NOT activate
+        // Candidates authenticate via per-assessment magic links (no invite-accept
+        // flow), so they are created active immediately. Admins and reviewers
+        // remain pending until they accept their invitation email. There is
+        // deliberately no `status` input field on CreateUserInput, which means
+        // an active admin/reviewer cannot be minted through this path.
+        status: input.role === 'candidate' ? 'active' : 'pending',
         metadata: input.metadata ?? {},
       });
       await auditInTx(client, {

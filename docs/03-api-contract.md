@@ -190,7 +190,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `GET`  | `/admin/tenant`        | Current tenant settings + branding | Phase 1 |
 | `PATCH`| `/admin/tenant`        | Update tenant name, branding, settings | Phase 1 |
 | `GET`  | `/admin/users`         | List users (filter by role, status, search; pageSize cap 100 — stricter than the global 200 cap per `03-users` SKILL § 9) | live |
-| `POST` | `/admin/users`         | Create user record (status defaults to `pending`; no email sent — see `inviteUser` for the happy path) | live |
+| `POST` | `/admin/users`         | Create user record (no email sent). **Status is role-derived:** `role:'candidate'` → `active` immediately (candidates have no invite/login flow — they authenticate only via per-assessment magic links); `admin`/`reviewer` → `pending` (must accept an emailed invite, see `inviteUser`). No `status` field is accepted, so an active admin/reviewer cannot be minted here. Optional candidate `designation` rides in `metadata.designation` (free-text, no schema column). | live |
 | `GET`  | `/admin/users/:id`     | Get user detail | live |
 | `PATCH`| `/admin/users/:id`     | Update role, status, name, metadata; enforces last-admin invariant (HTTP 409 `LAST_ADMIN`) and status-state-machine (HTTP 422 `INVALID_STATUS_TRANSITION`); sweeps Redis sessions on disable | live |
 | `DELETE` | `/admin/users/:id`   | Soft delete; cascades to pending invitations for the user's email; sweeps Redis sessions; enforces last-admin invariant | live |
