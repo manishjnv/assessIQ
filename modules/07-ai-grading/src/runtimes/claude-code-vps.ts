@@ -42,6 +42,8 @@ import type {
   GeneratedQuestionDraft,
   GenerateRubricInput,
   GenerateRubricOutput,
+  GenerateAnswerGuidanceInput,
+  GenerateAnswerGuidanceOutput,
   GradingInput,
   GradingProposal,
 } from "../types.js";
@@ -906,6 +908,116 @@ export async function generateRubricDraft(
 }
 
 // ---------------------------------------------------------------------------
+// generateAnswerGuidanceDraft — candidate answer-format hint (feature #4, Phase B)
+// ---------------------------------------------------------------------------
+
+const SKILL_ANSWER_GUIDANCE = "generate-answer-guidance";
+const TOOL_SUBMIT_ANSWER_GUIDANCE = "submit_answer_guidance";
+const MCP_SUBMIT_ANSWER_GUIDANCE = "mcp__assessiq__submit_answer_guidance";
+// Short, single-tool output — far smaller than rubric/question generation.
+const ANSWER_GUIDANCE_TIMEOUT_MS = 90_000;
+
+// Local schema mirror of the submit_answer_guidance MCP tool input. Caps at 280
+// to match the DB column / route bound; the skill targets ≤140.
+const SubmitAnswerGuidanceOutputSchema = z.object({
+  answer_guidance: z.string().min(1).max(280),
+}).strict();
+
+/**
+ * Generate a candidate-facing answer-format hint using the
+ * generate-answer-guidance skill. Returns a proposal WITHOUT persisting — the
+ * admin reviews it and saves via the answer_guidance PATCH (admin-in-the-loop).
+ *
+ * SAFETY: `input.questionText` is the candidate-visible stem ONLY — the
+ * question-bank service strips the answer key before calling here, so the
+ * generator never receives `correct`/`rationale`/`expected_findings`/
+ * `sample_solution`/`steps[].expected`. The skill is additionally instructed to
+ * emit format-only guidance and never reveal the answer.
+ *
+ * NOTE (D2): lives in claude-code-vps.ts — the only file allowed to spawn the
+ * claude subprocess (via the shared runSkill helper). The question-bank service
+ * calls through runtime-selector → here, admin-click-only, never ambient.
+ */
+export async function generateAnswerGuidanceDraft(
+  input: GenerateAnswerGuidanceInput,
+): Promise<GenerateAnswerGuidanceOutput> {
+  const guidanceSkillSha = await skillSha(SKILL_ANSWER_GUIDANCE);
+
+  const promptVars = {
+    questionType: input.questionType,
+    topic: input.topic,
+    questionText: input.questionText,
+  };
+  const promptSha = hashString8(JSON.stringify(promptVars));
+
+  const events = await runSkill({
+    skill: SKILL_ANSWER_GUIDANCE,
+    promptVars,
+    allowedTools: [MCP_SUBMIT_ANSWER_GUIDANCE],
+    attemptId: "answer-guidance-generation",
+    questionId: input.questionId,
+    timeoutMs: ANSWER_GUIDANCE_TIMEOUT_MS,
+    model: guidanceSkillSha.model,
+  });
+
+  const raw = parseToolInput(events, TOOL_SUBMIT_ANSWER_GUIDANCE);
+  if (raw === null) {
+    log.error(
+      {
+        skill: SKILL_ANSWER_GUIDANCE,
+        questionId: input.questionId,
+        expectedTool: TOOL_SUBMIT_ANSWER_GUIDANCE,
+        rawStreamTruncated: JSON.stringify(events).slice(0, 2048),
+      },
+      "generation.submit_tool.missing",
+    );
+    throw new AppError(
+      `expected ${TOOL_SUBMIT_ANSWER_GUIDANCE} tool use in stream-json output`,
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { skill: SKILL_ANSWER_GUIDANCE, questionId: input.questionId } },
+    );
+  }
+
+  const parsed = SubmitAnswerGuidanceOutputSchema.safeParse(raw);
+  if (!parsed.success) {
+    log.error(
+      {
+        skill: SKILL_ANSWER_GUIDANCE,
+        questionId: input.questionId,
+        expectedTool: TOOL_SUBMIT_ANSWER_GUIDANCE,
+        rawPayloadTruncated: JSON.stringify(raw).slice(0, 2048),
+        issues: parsed.error.issues,
+      },
+      "generation.submit_tool.schema_failed",
+    );
+    throw new AppError(
+      "submit_answer_guidance payload failed schema validation",
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { issues: parsed.error.issues, questionId: input.questionId } },
+    );
+  }
+
+  log.info(
+    {
+      questionId: input.questionId,
+      questionType: input.questionType,
+      skillSha: guidanceSkillSha.short,
+      promptSha,
+    },
+    "answer-guidance-generation.skill.complete",
+  );
+
+  return {
+    answerGuidance: parsed.data.answer_guidance.trim(),
+    skillSha: guidanceSkillSha.short,
+    promptSha,
+    model: guidanceSkillSha.model,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // runSkill — single `claude -p` subprocess, returns parsed stream-json events
 // ---------------------------------------------------------------------------
 
@@ -965,6 +1077,7 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
     const isGenerationSkill =
       opts.skill === "generate-questions" ||
       opts.skill === "generate-rubric" ||
+      opts.skill === "generate-answer-guidance" ||
       opts.skill === "generate-mcq" ||
       opts.skill === "generate-log-analysis" ||
       opts.skill === "generate-scenario" ||

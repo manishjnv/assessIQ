@@ -12,6 +12,10 @@ import {
 import { submitBandTool, handleSubmitBand } from "./tools/submit-band.js";
 import { submitQuestionsTool, handleSubmitQuestions } from "./tools/submit-questions.js";
 import { submitRubricTool, handleSubmitRubric } from "./tools/submit-rubric.js";
+import {
+  submitAnswerGuidanceTool,
+  handleSubmitAnswerGuidance,
+} from "./tools/submit-answer-guidance.js";
 
 const server = new Server(
   { name: "assessiq-mcp", version: "1.0.0" },
@@ -19,7 +23,13 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [submitAnchorsTool, submitBandTool, submitQuestionsTool, submitRubricTool],
+  tools: [
+    submitAnchorsTool,
+    submitBandTool,
+    submitQuestionsTool,
+    submitRubricTool,
+    submitAnswerGuidanceTool,
+  ],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
@@ -33,6 +43,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return handleSubmitQuestions(args);
     case "submit_rubric":
       return handleSubmitRubric(args);
+    case "submit_answer_guidance":
+      return handleSubmitAnswerGuidance(args);
     default:
       throw new Error(`unknown tool: ${name}`);
   }

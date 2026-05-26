@@ -333,6 +333,41 @@ export interface GenerateRubricOutput {
 }
 
 // ---------------------------------------------------------------------------
+// GenerateAnswerGuidance — input / output for the AI answer-format hint
+// generator (feature #4, Phase B). Distinct from rubric generation: the hint
+// is candidate-facing and instructional, applies to ALL question types, and
+// the generator is handed an answer-key-FREE question stem so it cannot leak
+// the answer. The proposal is NOT persisted by the generator — the admin
+// reviews it and saves via the existing answer_guidance PATCH (admin-in-the-
+// loop gate before any candidate sees it).
+// ---------------------------------------------------------------------------
+
+/** Input to generateAnswerGuidanceDraft() via the runtime selector. */
+export interface GenerateAnswerGuidanceInput {
+  /** Candidate-visible question stem ONLY — never the answer key. Built by the
+   *  question-bank service's answer-key-free deriver. */
+  questionText: string;
+  /** Question type — drives the per-type baseline hint (all 5 types supported). */
+  questionType: "mcq" | "subjective" | "kql" | "scenario" | "log_analysis";
+  /** Short topic label for light context (e.g. "alert-triage"). */
+  topic: string;
+  /** For structured logging only — not sent to the model. */
+  questionId: string;
+}
+
+/** Output of generateAnswerGuidanceDraft(): the proposal + audit metadata. */
+export interface GenerateAnswerGuidanceOutput {
+  /** The generated candidate-facing hint (1..280 chars). NOT persisted here. */
+  answerGuidance: string;
+  /** Skill file SHA (8 hex chars). */
+  skillSha: string;
+  /** Prompt SHA (SHA256 of JSON.stringify(promptVars), first 8 hex chars). */
+  promptSha: string;
+  /** Model identifier from skill frontmatter. */
+  model: string;
+}
+
+// ---------------------------------------------------------------------------
 // Error codes
 // ---------------------------------------------------------------------------
 

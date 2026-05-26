@@ -1057,6 +1057,41 @@ Before commit `b7e5552`, `generation_attempts.stderr_tail` was populated only wh
 
 ---
 
+## Answer-format hint generation (feature #4 Phase B, 2026-05-26)
+
+Each question carries a candidate-facing **answer-format hint** (`questions.answer_guidance`, migration 0098) — a short instruction on HOW to answer ("Write a focused answer — about 3–6 sentences."). Phase A shipped the column + per-type defaults (resolved candidate-side in module 06's `answerGuidanceFor`). Phase B adds an admin-triggered AI generator that authors the hint.
+
+**Flow (admin-click-only, never ambient):**
+```
+super_admin clicks "Generate with AI" (question editor)
+  → POST /api/admin/questions/:id/generate-answer-guidance   (super_admin only)
+    → 04 service generateAnswerGuidanceForQuestion
+        → deriveQuestionTextForGuidance(question)   ← ANSWER-KEY-FREE stem
+        → dynamic import("@assessiq/ai-grading")
+          → runtime-selector generateAnswerGuidanceDraft (claude-code-vps only)
+            → claude-code-vps generateAnswerGuidanceDraft
+              → runSkill({ skill: "generate-answer-guidance" })  ← spawns `claude -p`
+                → prompts/skills/generate-answer-guidance/SKILL.md (model: haiku)
+                  → submit_answer_guidance MCP tool ({ answer_guidance: string 1..280 })
+  → returns a PROPOSAL (not saved)
+super_admin reviews it in the editable field → clicks "Save guidance"
+  → PATCH /api/admin/questions/:id { answer_guidance }   (metadata-only, no version bump)
+```
+
+**Why it cannot leak the answer (defense-in-depth):**
+1. **The generator never receives the answer key.** `deriveQuestionTextForGuidance` (`modules/04-question-bank/src/answer-guidance-derive.ts`) passes only the candidate-visible stem per type and strips mcq `options`/`correct`/`rationale`, log_analysis `expected_findings`/`sample_solution`/`log_excerpt`, and scenario `steps[].expected`. (Contrast `deriveQuestionTextForRubric`, which intentionally passes full content because a rubric needs the reference answer.) Unit-tested in `modules/04-question-bank/src/__tests__/answer-guidance-derive.test.ts`.
+2. **The skill is format-only** with a hard "never reveal the answer" rule and a ≤140-char target.
+3. **Admin review before save** — the proposal fills an editable field; nothing persists or reaches candidates until the admin clicks Save (the Phase A `answer_guidance` PATCH).
+4. **Output bounded** at 280 chars, validated twice: the `submit_answer_guidance` MCP tool (`tools/assessiq-mcp/src/tools/submit-answer-guidance.ts`, `.strict()` Zod) and again in the runtime (`SubmitAnswerGuidanceOutputSchema`).
+
+**Skill:** `prompts/skills/generate-answer-guidance/SKILL.md` (in-repo; bind-mounted to `~/.claude/skills/` on the VPS; model `claude-haiku-4-5-20251001`). It is a NEW skill — it does NOT touch the existing `generate-*` question skills or their eval baseline (project rule #6). No eval re-baseline: answer-guidance has no golden set; the admin-review-before-save gate is the quality control.
+
+**No-ambient-AI:** the only new `claude` spawn is inside the allow-listed `claude-code-vps.ts`; the dynamic import lives in non-banned `04 service.ts`. The sentinel (`lint-no-ambient-claude.ts`) was hardened to add `generateAnswerGuidanceDraft` to its banned-symbol set (with two self-test fixtures), matching `generateRubricDraft`. Adversarial sign-off (Sonnet takeover; codex companion down) = ACCEPT on both the feature and the lint hardening.
+
+**Deferred:** a bulk backfill of the 323 existing NULL-guidance questions — a 323-question AI run would break the single-admin-in-the-loop frame; existing questions serve per-type defaults and are upgradable per-question on demand.
+
+---
+
 ## Phase 2 — Stage 3 promotion: per-tenant `ai_generate_mode` (2026-05-10)
 
 ### Per-tenant column + handler precedence

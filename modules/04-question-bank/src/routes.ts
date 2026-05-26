@@ -61,6 +61,7 @@ import {
   generateQuestions,
   findOrCreatePackForDomain,
   generateRubricForQuestion,
+  generateAnswerGuidanceForQuestion,
   saveRubric,
   bulkGenerateMissingRubrics,
 } from "./service.js";
@@ -859,6 +860,22 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
       return generateRubricForQuestion(tenantId, id);
+    },
+  );
+
+  // POST /api/admin/questions/:id/generate-answer-guidance
+  // Super-admin only. AI candidate answer-format hint generation (feature #4).
+  // Returns a proposal { proposal, skillSha, promptSha, model } — NOT saved.
+  // The admin reviews it and PATCHes { answer_guidance } to persist. The
+  // generator receives only an answer-key-free question stem (service layer).
+  // D2 compliant: admin-click-only, no BullMQ/cron/webhook path.
+  app.post(
+    "/api/admin/questions/:id/generate-answer-guidance",
+    { preHandler: superAdminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const { id } = req.params as { id: string };
+      return generateAnswerGuidanceForQuestion(tenantId, id);
     },
   );
 

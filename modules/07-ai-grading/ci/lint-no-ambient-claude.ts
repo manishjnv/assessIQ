@@ -220,7 +220,7 @@ const RE_AGENT_SDK_IMPORT =
  * reason to reach into the grading runtime, even for types.
  */
 const RE_GRADING_RUNTIME_IMPORT =
-  /(?:from\s+["'](?:[^"']*\/modules\/07-ai-grading\/runtimes\/[^"']+|@assessiq\/ai-grading)["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b|\bgenerateQuestions\b|\bgenerateRubricDraft\b)/;
+  /(?:from\s+["'](?:[^"']*\/modules\/07-ai-grading\/runtimes\/[^"']+|@assessiq\/ai-grading)["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b|\bgenerateQuestions\b|\bgenerateRubricDraft\b|\bgenerateAnswerGuidanceDraft\b)/;
 
 /**
  * Banned-path globs for patterns 3-7. A file matching ANY of these AND
@@ -411,6 +411,20 @@ function runSelfTest(): void {
     content: `// service layer: calls generateRubricDraft from ai-grading\nconst output = await generateRubricDraft(input);`,
   };
 
+  // --- Fixture 13: generateAnswerGuidanceDraft in banned worker path → violation ---
+  // (2026-05-26 feature #4 Phase B — covers generateAnswerGuidanceDraft in RE_GRADING_RUNTIME_IMPORT)
+  const workerGuidanceViolation = {
+    path: "apps/worker/src/guidance-handler.ts",
+    content: `import { generateAnswerGuidanceDraft } from "@assessiq/ai-grading";`,
+  };
+
+  // --- Fixture 14: generateAnswerGuidanceDraft in non-banned service path → no violation ---
+  // (question-bank service.ts is the authorised caller; not a banned path)
+  const serviceGuidanceAllowed = {
+    path: "modules/04-question-bank/src/service.ts",
+    content: `// service layer: calls generateAnswerGuidanceDraft from ai-grading\nconst output = await generateAnswerGuidanceDraft(input);`,
+  };
+
   const results = [
     { fixture: "ok", actual: validateFile(okFile.path, okFile.content), expectViolations: 0 },
     { fixture: "spawn-violation", actual: validateFile(spawnViolation.path, spawnViolation.content), expectViolations: 1 },
@@ -424,6 +438,8 @@ function runSelfTest(): void {
     { fixture: "handler-generateQuestions-allowed", actual: validateFile(handlerGenerateAllowed.path, handlerGenerateAllowed.content), expectViolations: 0 },
     { fixture: "worker-generateRubricDraft-violation", actual: validateFile(workerRubricViolation.path, workerRubricViolation.content), expectViolations: 1 },
     { fixture: "service-generateRubricDraft-allowed", actual: validateFile(serviceRubricAllowed.path, serviceRubricAllowed.content), expectViolations: 0 },
+    { fixture: "worker-generateAnswerGuidanceDraft-violation", actual: validateFile(workerGuidanceViolation.path, workerGuidanceViolation.content), expectViolations: 1 },
+    { fixture: "service-generateAnswerGuidanceDraft-allowed", actual: validateFile(serviceGuidanceAllowed.path, serviceGuidanceAllowed.content), expectViolations: 0 },
   ];
 
   let passed = true;
