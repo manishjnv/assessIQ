@@ -299,13 +299,17 @@ export function AdminAttemptDetail(): React.ReactElement {
     }
   }
 
-  async function handleAccept(questionId: string, _proposal: GradingProposal) {
+  // Bug A fix (2026-05-28): the backend ACCEPT_BODY_SCHEMA (routes.ts:116-118)
+  // requires `{ proposals: [ …full GradingProposal objects… ] }`. The previous
+  // body `{ question_id }` silently 422'd and grades never persisted —
+  // RCA_LOG entry "Accept never persisted grades".
+  async function handleAccept(questionId: string, proposal: GradingProposal) {
     if (!id) return;
     setAccepting(true);
     try {
       await adminApi(`/admin/attempts/${id}/accept`, {
         method: "POST",
-        body: JSON.stringify({ question_id: questionId }),
+        body: JSON.stringify({ proposals: [proposal] }),
       });
       await load();
       setProposals((prev) => {
@@ -315,6 +319,47 @@ export function AdminAttemptDetail(): React.ReactElement {
       });
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Accept failed.");
+    } finally {
+      setAccepting(false);
+    }
+  }
+
+  // AI-failure detection: proposals built by the failed-proposal branch in
+  // admin-grade.ts:413-432 carry these tells. We skip them in Accept-all so
+  // a runtime failure never auto-commits a score-0 row; the admin must
+  // explicitly Re-run or Override each one.
+  function isAiFailure(p: GradingProposal): boolean {
+    if (p.model === "none") return true;
+    if (p.prompt_version_sha === "error:no-sha") return true;
+    const ec = p.band.error_class;
+    if (typeof ec === "string" && ec.startsWith("AIG_")) return true;
+    return false;
+  }
+
+  async function handleAcceptAll() {
+    if (!id) return;
+    const all = Object.values(proposals);
+    const acceptable = all.filter((p) => !isAiFailure(p));
+    if (acceptable.length === 0) {
+      setError(
+        "No proposals ready to accept — all are AI failures. Re-run or override each one.",
+      );
+      return;
+    }
+    setAccepting(true);
+    try {
+      await adminApi(`/admin/attempts/${id}/accept`, {
+        method: "POST",
+        body: JSON.stringify({ proposals: acceptable }),
+      });
+      await load();
+      setProposals((prev) => {
+        const next = { ...prev };
+        for (const p of acceptable) delete next[p.question_id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof AdminApiError ? err.apiError.message : "Accept all failed.");
     } finally {
       setAccepting(false);
     }
@@ -428,6 +473,19 @@ export function AdminAttemptDetail(): React.ReactElement {
                 {grading ? "Grading…" : "Grade all"}
               </button>
             )}
+            {isGradeable && Object.values(proposals).some((p) => !isAiFailure(p)) && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary"
+                data-help-id="admin.attempts.accept_all"
+                disabled={accepting}
+                onClick={() => void handleAcceptAll()}
+              >
+                {accepting
+                  ? "Accepting…"
+                  : `Accept all (${Object.values(proposals).filter((p) => !isAiFailure(p)).length})`}
+              </button>
+            )}
             {attempt.status === "graded" && (
               <button
                 type="button"
@@ -461,6 +519,91 @@ export function AdminAttemptDetail(): React.ReactElement {
             </button>
           </div>
         )}
+
+        {/* Grading summary — Bug A Phase 1: surface gate progress + per-question
+            status so the admin knows why an attempt isn't completing. */}
+        {(Object.keys(proposals).length > 0 || gradings.length > 0) && (() => {
+          const aiGradeableTypes = new Set(["subjective", "scenario", "log_analysis"]);
+          const aiGradeableCount = frozen_questions.filter((q) => aiGradeableTypes.has(q.type)).length;
+          const acceptedDistinct = new Set(
+            gradings.filter((g) => !g.override_of).map((g) => g.question_id),
+          ).size;
+          const scoreEarned = gradings
+            .filter((g) => !g.override_of)
+            .reduce((s, g) => s + Number(g.score_earned ?? 0), 0);
+          const scoreMax = gradings
+            .filter((g) => !g.override_of)
+            .reduce((s, g) => s + Number(g.score_max ?? 0), 0);
+          return (
+            <div className="aiq-card" data-help-id="admin.attempts.grading_summary" style={{ padding: "var(--aiq-space-md) var(--aiq-space-xl)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--aiq-space-xl)", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "var(--aiq-space-xl)", flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
+                      Graded
+                    </div>
+                    <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-md)" }}>
+                      {acceptedDistinct} of {frozen_questions.length} ({aiGradeableCount} AI-gradeable)
+                    </div>
+                  </div>
+                  {scoreMax > 0 && (
+                    <div>
+                      <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
+                        Score
+                      </div>
+                      <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-md)" }}>
+                        {scoreEarned} / {scoreMax}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+                  {frozen_questions.map((q, idx) => {
+                    const g = gradings.find((gg) => gg.question_id === q.id && !gg.override_of);
+                    const p = proposals[q.id];
+                    let label: string;
+                    let bg: string;
+                    let fg: string;
+                    if (g) {
+                      label = `Q${idx + 1} graded`;
+                      bg = "var(--aiq-color-success-subtle, #e8f5ec)";
+                      fg = "var(--aiq-color-success, #2a8a4a)";
+                    } else if (p && isAiFailure(p)) {
+                      label = `Q${idx + 1} needs review`;
+                      bg = "var(--aiq-color-danger-subtle, #fff0f0)";
+                      fg = "var(--aiq-color-danger)";
+                    } else if (p) {
+                      label = `Q${idx + 1} ready`;
+                      bg = "var(--aiq-color-warning-subtle, #fff8e0)";
+                      fg = "var(--aiq-color-warning, #b08000)";
+                    } else {
+                      label = `Q${idx + 1} pending`;
+                      bg = "transparent";
+                      fg = "var(--aiq-color-fg-muted)";
+                    }
+                    return (
+                      <span
+                        key={q.id}
+                        title={label}
+                        style={{
+                          fontFamily: "var(--aiq-font-mono)",
+                          fontSize: "var(--aiq-text-xs)",
+                          padding: "2px 8px",
+                          borderRadius: "var(--aiq-radius-pill, 999px)",
+                          border: `1px solid ${fg}`,
+                          backgroundColor: bg,
+                          color: fg,
+                        }}
+                      >
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Questions */}
         {frozen_questions.map((q) => {
@@ -556,12 +699,24 @@ export function AdminAttemptDetail(): React.ReactElement {
                     stageTwo={proposal}
                     stageThree={escalation}
                     onReconcile={(stage, note) => {
-                      const _chosenProposal = stage === "3" ? escalation : proposal;
+                      // Bug A escalation-accept fix: send {proposals: [chosen]}
+                      // with edits carrying the reconcile note. The chosen
+                      // proposal's own escalation_chosen_stage carries the
+                      // stage marker (the edits schema doesn't carry that
+                      // field — it lives on the proposal itself).
+                      const chosenProposal = {
+                        ...(stage === "3" ? escalation : proposal),
+                        escalation_chosen_stage: stage,
+                      };
                       void adminApi(`/admin/attempts/${id}/accept`, {
                         method: "POST",
                         body: JSON.stringify({
-                          question_id: q.id,
-                          edits: { escalation_chosen_stage: stage, ai_justification: note + "\n\n[Reconciled: " + note + "]" },
+                          proposals: [{
+                            ...chosenProposal,
+                            edits: {
+                              ai_justification: note + "\n\n[Reconciled: " + note + "]",
+                            },
+                          }],
                         }),
                       }).then(() => void load());
                     }}

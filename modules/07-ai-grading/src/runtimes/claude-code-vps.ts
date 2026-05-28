@@ -100,6 +100,84 @@ const SubmitAnchorsInputSchema = z.object({
   findings: z.array(AnchorFindingSchema),
 });
 
+/**
+ * Tolerant coerce for the submit_anchors MCP-tool payload (Phase 3 fix
+ * 2026-05-28, Bug B). Targets the drift classes most likely to slip past
+ * the bare `safeParse` at the seam:
+ *   - raw is a top-level array of findings → wrap as `{findings: [...]}`
+ *   - findings keyed as an object `{0: {...}, 1: {...}}` instead of an array
+ *   - hit emitted as string `"true"` / `"false"` instead of boolean
+ *   - confidence emitted as string `"0.8"` instead of number
+ *   - anchor_id emitted as number instead of string
+ *
+ * Mirrors the precedent established by coerceQuestionsPayload for the
+ * question-generation runtime (commit 4242e..., 2026-05-24 schema-drift
+ * incident). Best-effort: if it can't recognise the shape, returns the
+ * input unchanged so the caller falls through to the degrade path.
+ */
+export function coerceSubmitAnchorsPayload(raw: unknown): unknown {
+  if (raw === null || typeof raw !== "object") return raw;
+
+  let obj: Record<string, unknown>;
+  if (Array.isArray(raw)) {
+    // Case A: top-level array of findings.
+    obj = { findings: raw };
+  } else {
+    obj = { ...(raw as Record<string, unknown>) };
+    const f = obj.findings;
+    if (
+      f !== undefined &&
+      f !== null &&
+      !Array.isArray(f) &&
+      typeof f === "object"
+    ) {
+      // Case B: findings as numeric-keyed object.
+      const fObj = f as Record<string, unknown>;
+      const keys = Object.keys(fObj);
+      if (keys.length > 0 && keys.every((k) => /^\d+$/.test(k))) {
+        const arr = keys
+          .sort((a, b) => Number(a) - Number(b))
+          .map((k) => fObj[k]);
+        obj.findings = arr;
+      }
+    }
+  }
+
+  if (!Array.isArray(obj.findings)) return obj;
+
+  // Bound the array before per-item coercion. Defends against a malformed or
+  // hostile model emitting an unbounded findings array — without this cap the
+  // .map() would allocate proportional memory before zod's safeParse rejects.
+  // Real grade-anchors skills emit ≤ ~12 findings (one per rubric anchor); 500
+  // is generous headroom. Sonnet adversarial revision 2026-05-28.
+  const MAX_FINDINGS = 500;
+  const bounded = (obj.findings as unknown[]).slice(0, MAX_FINDINGS);
+
+  // Per-finding field coercion.
+  const coerced = bounded.map((f) => {
+    if (f === null || typeof f !== "object" || Array.isArray(f)) return f;
+    const out: Record<string, unknown> = { ...(f as Record<string, unknown>) };
+
+    if (typeof out.anchor_id === "number") {
+      out.anchor_id = String(out.anchor_id);
+    }
+    if (typeof out.hit === "string") {
+      const s = out.hit.toLowerCase().trim();
+      if (s === "true") out.hit = true;
+      else if (s === "false") out.hit = false;
+    }
+    if (typeof out.confidence === "string") {
+      const n = parseFloat(out.confidence);
+      if (!Number.isNaN(n) && Number.isFinite(n)) {
+        out.confidence = n;
+      }
+    }
+    return out;
+  });
+
+  return { ...obj, findings: coerced };
+}
+
 // ---------------------------------------------------------------------------
 // Public entry
 // ---------------------------------------------------------------------------
@@ -128,6 +206,14 @@ export async function gradeSubjective(
   // REASONING_ONLY fallback for questions with no usable anchors). When anchors
   // ARE present, run Stage 1 exactly as before.
   let anchors: AnchorFinding[] = [];
+  // Phase 3 (Bug B) tracking: when Stage 1 degrades (coerce+safeParse fail
+  // on an anchored rubric), this flag is set and Stage 2 still runs holistic.
+  // After all stages, we tag band.error_class = AIG_STAGE1_DEGRADED so:
+  //   - FE isAiFailure() filters it out of Accept-all (admin must Re-run/Override)
+  //   - admin-accept deriveStatus() returns "review_needed"
+  // This prevents silently committing an under-scored verdict (anchor weight ×
+  // zero hits) when Stage-1 evidence was actually lost to drift.
+  let stage1Degraded = false;
   if (rubric.anchors.length > 0) {
     const anchorsEvents = await runSkill({
       skill: SKILL_ANCHORS,
@@ -150,16 +236,38 @@ export async function gradeSubjective(
         { details: { stage: 1, attemptId: input.attempt_id } },
       );
     }
-    const anchorsParsed = SubmitAnchorsInputSchema.safeParse(anchorsRaw);
+    // Phase 3 (Bug B fix, 2026-05-28): tolerant coerce + degrade-to-reasoning-
+    // only. The previous bare-safeParse threw AIG_SCHEMA_VIOLATION on any drift,
+    // turning whole attempts into failed proposals for the affected questions
+    // (prod-confirmed for 019dedd9-a7bd, 019dedd9-a7e6 on attempt 019e0dd8…).
+    // The 943a41a reasoning-only fallback in admin-grade.ts only catches rubrics
+    // with ZERO authored anchors; anchored questions with a drifted Stage-1
+    // payload slipped past it. Extending that philosophy here: if the payload
+    // still won't parse after coercion, log the issue class and degrade to
+    // anchors=[]. Stage 2 still runs holistically; the score is band-only
+    // (the rubric's anchor weighting falls to zero hits). This matches the
+    // behaviour of authored anchor-less rubrics — admin still sees a verdict
+    // and can Re-run if they want full Stage-1 anchor evidence.
+    const anchorsCoerced = coerceSubmitAnchorsPayload(anchorsRaw);
+    const anchorsParsed = SubmitAnchorsInputSchema.safeParse(anchorsCoerced);
     if (!anchorsParsed.success) {
-      throw new AppError(
-        "submit_anchors payload failed schema validation",
-        AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
-        503,
-        { details: { stage: 1, issues: anchorsParsed.error.issues } },
+      log.warn(
+        {
+          attemptId: input.attempt_id,
+          questionId: input.question_id,
+          stage: 1,
+          // Cap to first 5 issues — zod can emit a long list and we never want
+          // a runaway log line. Issues are structural (path, code, message), no
+          // candidate-answer content.
+          issues: anchorsParsed.error.issues.slice(0, 5),
+        },
+        "grading.stage1.coerce_failed_degrade_to_reasoning_only",
       );
+      anchors = [];
+      stage1Degraded = true;
+    } else {
+      anchors = anchorsParsed.data.findings;
     }
-    anchors = anchorsParsed.data.findings;
   }
 
   // ----- Stage 2 — band ----------------------------------------------------
@@ -270,6 +378,28 @@ export async function gradeSubjective(
       };
       escalationStage = "2";
     }
+  }
+
+  // ----- Stage-1 degrade tagging ------------------------------------------
+  // Sonnet adversarial revision (2026-05-28): when Stage 1 degraded to
+  // anchors=[] on an anchored rubric, the score below will be band-only
+  // (anchor-weight × zero hits = under-scoring vs the rubric's intended
+  // ceiling). Surface that to the admin via the band.error_class — the FE
+  // isAiFailure() filter excludes AIG_-prefixed proposals from Accept-all,
+  // and admin-accept.ts:deriveStatus() routes AIG_-prefixed proposals to
+  // "review_needed". Net effect: a Stage-1-degraded proposal becomes a
+  // visible "needs review" item rather than a silent under-score.
+  // Existing escalation_failure tagging (above) takes precedence — that's a
+  // more specific signal; AIG_STAGE1_DEGRADED only sets if no AIG_ class is
+  // already present.
+  if (
+    stage1Degraded &&
+    !(typeof band.error_class === "string" && band.error_class.startsWith("AIG_"))
+  ) {
+    band = {
+      ...band,
+      error_class: AI_GRADING_ERROR_CODES.STAGE1_DEGRADED,
+    };
   }
 
   // ----- Score computation -------------------------------------------------

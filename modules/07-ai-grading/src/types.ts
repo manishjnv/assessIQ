@@ -382,6 +382,16 @@ export const AI_GRADING_ERROR_CODES = {
   SKILL_NOT_FOUND: "AIG_SKILL_NOT_FOUND",
   /** Schema-violation in `claude` stream-json output */
   SCHEMA_VIOLATION: "AIG_SCHEMA_VIOLATION",
+  /**
+   * Stage 1 (`submit_anchors`) payload failed validation even after tolerant
+   * coercion — the runtime degraded to `anchors=[]` and let Stage 2 run
+   * holistically (rather than hard-failing the whole question). The resulting
+   * proposal has anchor-weight × 0 in its score, so the band verdict alone
+   * carries the grade. Admin must Re-run or Override to recover full anchor
+   * evidence. Set by claude-code-vps.ts after Stage 2 produces a band.
+   * Phase 3 Bug B fix, 2026-05-28.
+   */
+  STAGE1_DEGRADED: "AIG_STAGE1_DEGRADED",
   /** `claude` subprocess exited non-zero or timed out */
   RUNTIME_FAILURE: "AIG_RUNTIME_FAILURE",
   /** Stage 2 returned needs_escalation=true and escalate path failed too */

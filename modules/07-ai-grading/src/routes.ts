@@ -113,7 +113,11 @@ const PROPOSAL_WITH_EDITS_SCHEMA = z.object({
   edits: ACCEPT_EDITS_SCHEMA.optional(),
 });
 
-const ACCEPT_BODY_SCHEMA = z.object({
+// Exported so the FE accept-contract regression test
+// (__tests__/accept-contract.test.ts) can validate FE-shape payloads against
+// the exact backend schema. Prevents recurrence of the 2026-05-26 contract
+// drift where the UI sent `{question_id}` and silently 422'd.
+export const ACCEPT_BODY_SCHEMA = z.object({
   proposals: z.array(PROPOSAL_WITH_EDITS_SCHEMA).min(1),
 });
 
