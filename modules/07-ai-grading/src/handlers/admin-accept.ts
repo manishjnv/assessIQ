@@ -55,7 +55,14 @@ export interface HandleAdminAcceptInput {
 
 export interface HandleAdminAcceptOutput {
   gradings: GradingsRow[];
-  attempt: { id: string; status: "graded" };
+  /**
+   * Phase 2 completion-gate (2026-05-28): `status` is now `"graded"` only when
+   * every AI-gradeable question (subjective | scenario | log_analysis) has a
+   * non-overridden gradings row. Partial accepts return
+   * `"pending_admin_grading"` so the attempt is NOT marked complete until
+   * every AI-failure is re-run or overridden.
+   */
+  attempt: { id: string; status: "graded" | "pending_admin_grading" };
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +111,7 @@ async function acceptProposals(
   userId: string,
   attemptId: string,
   proposals: HandleAdminAcceptInput["proposals"],
-): Promise<GradingsRow[]> {
+): Promise<{ gradings: GradingsRow[]; flipped: boolean }> {
   // Phase 3 critique #3 (sonnet rescue): validate each proposal.question_id
   // belongs to this attempt's frozen question set. Without this guard, an
   // admin could submit a body with a question_id from a different attempt
@@ -188,17 +195,46 @@ async function acceptProposals(
     gradings.push(grading);
   }
 
-  // Idempotent attempt status update — only transitions from gradeable states
-  await client.query(
+  // Phase 2 completion-gate (2026-05-28, Bug A fix):
+  // Flip `attempts.status` to 'graded' ONLY when every AI-gradeable question
+  // (subjective | scenario | log_analysis) has a non-overridden gradings row.
+  // MCQ/KQL are scored deterministically by module 09 (computeAttemptScore)
+  // and produce NO gradings row, so they are excluded from the denominator.
+  //
+  // Previously: any single accept flipped status='graded' + fired billing,
+  // even when N-1 of N questions were still pending. With Accept-all skipping
+  // AI-failures (Phase 1 FE), this meant a single accepted question silently
+  // claimed the whole attempt was done. Revenue-leak invariant
+  // (memory: billing-events-grade-commit-critical-path) requires billing be
+  // tied to a TRUE completion, not a partial one — so billing now fires
+  // ONLY when the gate actually transitions the row.
+  const flipResult = await client.query<{ id: string }>(
     `UPDATE attempts
-     SET status = 'graded'
-     WHERE id = $1
-       AND status IN ('submitted', 'pending_admin_grading')`,
+        SET status = 'graded'
+      WHERE id = $1
+        AND status IN ('submitted', 'pending_admin_grading')
+        AND (
+          SELECT COUNT(*)
+            FROM attempt_questions aq
+            JOIN questions q ON q.id = aq.question_id
+           WHERE aq.attempt_id = $1
+             AND q.type IN ('subjective', 'scenario', 'log_analysis')
+        ) = (
+          SELECT COUNT(DISTINCT g.question_id)
+            FROM gradings g
+           WHERE g.attempt_id = $1
+             AND g.override_of IS NULL
+             AND g.grader IN ('ai', 'admin_override')
+        )
+      RETURNING id`,
     [attemptId],
   );
+  const flipped = (flipResult.rowCount ?? 0) > 0;
 
-  // One summary audit row for the whole accept batch (mirrors help.content.imported
-  // precedent — N inserts, one audit row summarising the batch, not N rows).
+  // One summary audit row for the whole accept batch (mirrors
+  // help.content.imported precedent — N inserts, one audit row summarising
+  // the batch). `attempt_status_now` reflects the actual post-gate state so
+  // partial accepts are honestly recorded as `pending_admin_grading`.
   await auditInTx(client, {
     action: "grading.accepted",
     actorKind: "user",
@@ -210,16 +246,19 @@ async function acceptProposals(
       attempt_id: attemptId,
       grading_count: gradings.length,
       grading_ids: gradings.map((g) => g.id).slice(0, 50),
-      attempt_status_now: "graded",
+      attempt_status_now: flipped ? "graded" : "pending_admin_grading",
     },
   });
 
-  // Revenue metering — same transaction as the grade commit (mirrors the
-  // auditInTx same-tx invariant). Idempotent via UNIQUE(tenant_id,attempt_id);
-  // any non-conflict db error rolls back the grade too (revenue-leak invariant).
-  await recordGradedAttempt(client, tenantId, attemptId);
+  // Revenue metering — fires ONLY on the actual transition to 'graded', NOT
+  // on partial accepts. Same transaction as the grade commit (auditInTx
+  // same-tx invariant). Idempotent via UNIQUE(tenant_id,attempt_id); any
+  // non-conflict db error rolls back the grade too (revenue-leak invariant).
+  if (flipped) {
+    await recordGradedAttempt(client, tenantId, attemptId);
+  }
 
-  return gradings;
+  return { gradings, flipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -239,18 +278,24 @@ export async function handleAdminAccept(
     );
   }
 
-  const gradings = await withTenant(tenantId, (client) =>
+  const { gradings, flipped } = await withTenant(tenantId, (client) =>
     acceptProposals(client, tenantId, userId, attemptId, proposals),
   );
 
   log.info(
-    { attemptId, gradingCount: gradings.length },
+    {
+      attemptId,
+      gradingCount: gradings.length,
+      attemptStatusFlipped: flipped,
+    },
     "grading.accept.complete",
   );
 
-  // Kick off scoring rollup now that gradings are committed.
-  // Non-fatal: a scoring failure must not roll back the already-committed
-  // gradings. Admin can recompute via GET /api/admin/attempts/:id/score.
+  // Kick off scoring rollup. Idempotent (UPSERT) and meaningful even on
+  // partial accepts (the scoring rollup updates running totals + sets
+  // pending_review when not all questions are graded). Non-fatal: a scoring
+  // failure must not roll back the already-committed gradings. Admin can
+  // recompute via GET /api/admin/attempts/:id/score.
   try {
     await computeAttemptScore(tenantId, attemptId);
     log.info({ attemptId }, "grading.scoring.complete");
@@ -260,6 +305,9 @@ export async function handleAdminAccept(
 
   return {
     gradings,
-    attempt: { id: attemptId, status: "graded" },
+    attempt: {
+      id: attemptId,
+      status: flipped ? "graded" : "pending_admin_grading",
+    },
   };
 }
