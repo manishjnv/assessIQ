@@ -611,6 +611,22 @@ Any admin surface that displays a frozen question or a candidate's submitted ans
 
 **History (2026-05-22):** until this date the attempt-detail page used a local `QuestionContent`/`AnswerContent` pair that did `typeof x === "string" ? x : JSON.stringify(x, null, 2)`. Question `content` and every answer shape are objects, so the JSON branch always fired — every question and answer rendered as a raw `{ "correct": 0, "options": [...] }` blob (the reported bug). The page now delegates the question to the shared `QuestionContentView` and the answer to `AttemptAnswerView`. The candidate take-flow was never affected (it renders field-by-field) and answer-key fields are stripped server-side before reaching candidates (`sanitizeContentForCandidate`, see `docs/RCA_LOG.md` 2026-05-16). The correct-option/rationale display in `QuestionContentView` is therefore **admin-only and intentional** — do not reuse it on a candidate-facing surface without re-gating those fields.
 
+### Attempt-detail — grading summary + Accept-all (2026-05-28, commit `defb9f9`)
+
+The attempt-detail page now surfaces grading progress at the top, between the header and the per-question cards, whenever there is at least one fresh proposal OR at least one accepted gradings row. The panel is hard-tied to the backend completion-gate (see `docs/05-ai-pipeline.md` § Accept-all + completion-gate, and `docs/03-api-contract.md` `/admin/attempts/:id/accept`).
+
+| Element | Purpose |
+| --- | --- |
+| `Graded` line | `{acceptedDistinct} of {N} ({M} AI-gradeable)` — N = frozen question count; M = subset whose `type ∈ {subjective, scenario, log_analysis}`. acceptedDistinct counts non-overridden rows. Drives the admin's mental model of "why isn't this attempt finishing." |
+| `Score` line | Sum of `score_earned / score_max` across non-overridden gradings. Hidden when no gradings exist yet. |
+| Per-question status chips | One chip per frozen question, labelled `Q{idx} graded` / `Q{idx} needs review` / `Q{idx} ready` / `Q{idx} pending`. `needs review` is set when a fresh proposal has `isAiFailure()` true (model=`"none"` / `prompt_version_sha="error:no-sha"` / `band.error_class` starting `AIG_` — incl. new `AIG_STAGE1_DEGRADED`). Tokens use existing `aiq-color-{success,warning,danger,fg-muted}` pairs. |
+
+**Header buttons.** `Grade all` is unchanged. A new `Accept all (N)` button renders next to it whenever there is at least one proposal `p` with `!isAiFailure(p)` — `N` shows the count that will actually post. The button posts every acceptable proposal in a single `{proposals: […]}` body to `/admin/attempts/:id/accept`. AI-failures stay in their per-question cards for manual Re-run / Override; the user-locked decision (2026-05-26) is that the system NEVER auto-commits a score-0 / `AIG_*` row.
+
+**Help IDs.** New `admin.attempts.accept_all` (button) and `admin.attempts.grading_summary` (panel) — wire content via `modules/16-help-system` when copy is finalised. Existing `admin.attempts.grading_dispatch` (Grade all) is unchanged.
+
+**History.** Pre-2026-05-28 the page had only a single per-question Accept button that posted `{question_id}` — the backend required `{proposals: […]}`, so every Accept silently 422'd and no attempt ever reached `graded` status. See `docs/RCA_LOG.md` 2026-05-28 entries (Bug A + Bug B) for the full incident.
+
 ### Row-overflow menu pattern (currently page-local)
 
 Question-Bank's destructive `Archive` action moved into a `⋯` row-level menu (`useRef` + click-outside listener + `Esc` to close) so destructive verbs don't crowd a list row. Implementation lives inline at [`modules/10-admin-dashboard/src/pages/question-bank.tsx`](../modules/10-admin-dashboard/src/pages/question-bank.tsx) as `RowOverflowMenu`. **Promote to `@assessiq/ui-system` when a second admin list needs it** (likely soon — assessments + users + certificates all have row-level destructive actions today).
