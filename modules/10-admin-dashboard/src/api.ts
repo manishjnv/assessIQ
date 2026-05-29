@@ -1093,6 +1093,44 @@ export async function softDeleteUserApi(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Typed helpers — DPDP data-rights (S1)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/admin/users/:userId/data-export
+ *
+ * Returns a JSON export bundle of all platform data held for this candidate.
+ * Treat the response as `unknown`; the caller stringifies it for download.
+ */
+export async function exportUserDataApi(userId: string): Promise<unknown> {
+  return adminApi<unknown>(`/admin/users/${encodeURIComponent(userId)}/data-export`);
+}
+
+export interface ErasureReceipt {
+  userId: string;
+  erasedAt: string;
+  alreadyErased: boolean;
+  tombstone: { name: string; email: string };
+  attemptAnswersErased: number;
+  sessionsRedacted: number;
+  certificatesPreserved: number;
+}
+
+/**
+ * POST /api/admin/users/:userId/erase
+ *
+ * Tombstones the candidate's name, email, free-text answers, and IP/device
+ * info. Irreversible. Certificates are preserved for public verification.
+ * Body: { reason: string } (non-empty required).
+ */
+export async function eraseUserPiiApi(userId: string, reason: string): Promise<ErasureReceipt> {
+  return adminApi<ErasureReceipt>(
+    `/admin/users/${encodeURIComponent(userId)}/erase`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
+}
+
 /**
  * POST /api/admin/users/:userId/restore
  * Tenant-admin only. Restores a soft-deleted user (re-enables separately).

@@ -183,6 +183,15 @@ export const ACTION_CATALOG = [
   'domain.created',
   'domain.archived',
   'domain.reactivated',
+  // DPDP data-rights (2026-05-29, module 20 S2) — admin-mediated PII erasure
+  // and data-export operations.
+  // user.pii.erased: fired (auditInTx) when a candidate's PII is tombstoned;
+  //   after payload contains counts only (no raw name/email), never before.
+  // user.data.exported: fired (audit) when an admin downloads a candidate's
+  //   full data bundle; no before/after payload — presence of the row is the
+  //   evidence.
+  'user.pii.erased',
+  'user.data.exported',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

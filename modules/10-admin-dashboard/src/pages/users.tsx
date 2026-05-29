@@ -53,6 +53,8 @@ import {
   softDeleteUserApi,
   restoreUserApi,
   cancelInvitationApi,
+  exportUserDataApi,
+  eraseUserPiiApi,
 } from "../api.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -93,7 +95,8 @@ type UserLifecycleAction =
   | "reenable"
   | "softDelete"
   | "restore"
-  | "cancelInvitation";
+  | "cancelInvitation"
+  | "erasePii";
 
 interface UserLifecycleTarget {
   action: UserLifecycleAction;
@@ -421,6 +424,8 @@ interface UserModalCopy {
   extraWarning?: string | undefined;
   /** When true, render a "I understand" checkbox that must be ticked */
   requireAcknowledge?: boolean | undefined;
+  /** Custom label for the acknowledge checkbox; falls back to the default last-admin text */
+  acknowledgeLabel?: string | undefined;
 }
 
 function buildModalCopy(
@@ -470,6 +475,16 @@ function buildModalCopy(
         verb: "Cancel invitation",
         reasonLabel: "Reason (optional)",
       };
+    case "erasePii":
+      return {
+        title: `Erase ${name}'s personal data?`,
+        body: `This will tombstone ${name}'s name, email address, free-text answers, and IP/device information. Issued certificates remain valid — the name snapshot on each certificate is preserved so public verification keeps working. This action is irreversible.`,
+        verb: "Erase data",
+        reasonLabel: "Reason (required — recorded in the audit log)",
+        reasonRequired: true,
+        requireAcknowledge: true,
+        acknowledgeLabel: "I understand this permanently erases the candidate's personal data",
+      };
   }
 }
 
@@ -494,7 +509,9 @@ export function UserLifecycleConfirmModal({
   const [loading, setLoading] = useState(false);
   const copy = buildModalCopy(action, user, invitation, extraWarning);
 
-  const canConfirm = !copy.requireAcknowledge || acknowledged;
+  const canConfirm =
+    (!copy.requireAcknowledge || acknowledged) &&
+    (!copy.reasonRequired || reason.trim().length > 0);
 
   const handleConfirm = async (): Promise<void> => {
     setLoading(true);
@@ -625,7 +642,7 @@ export function UserLifecycleConfirmModal({
               disabled={loading}
               style={{ marginTop: 2, cursor: "pointer" }}
             />
-            I understand this is the last active admin
+            {copy.acknowledgeLabel ?? "I understand this is the last active admin"}
           </label>
         )}
 
@@ -654,12 +671,14 @@ function UserManageMenu({
   isLastActiveAdmin,
   readOnly,
   onAction,
+  onExport,
 }: {
   user: AdminUser;
   currentUserId?: string;
   isLastActiveAdmin: boolean;
   readOnly: boolean;
   onAction: (action: UserLifecycleAction, extraWarning?: string) => void;
+  onExport: (user: AdminUser) => void;
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const triggerRef = React.useRef<HTMLDivElement>(null);
@@ -777,6 +796,72 @@ function UserManageMenu({
   if (user.deleted_at) {
     items.length = 0; // clear status-based items — deleted overrides
     items.push(menuItem("Restore user", () => onAction("restore")));
+  }
+
+  // Candidate-only DPDP data-rights actions (always shown for candidate rows,
+  // regardless of the lifecycle status items above).
+  if (user.role === "candidate") {
+    items.push(
+      <div key="dpdp-divider" style={{ height: 1, background: "var(--aiq-color-border)", margin: "4px 0" }} />,
+    );
+    items.push(
+      <button
+        key="data-export"
+        type="button"
+        data-help-id="admin.user.data_export"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(false);
+          onExport(user);
+        }}
+        style={{
+          display: "block",
+          width: "100%",
+          textAlign: "left",
+          padding: "7px 14px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: 13,
+          color: "var(--aiq-color-fg-primary)",
+          whiteSpace: "nowrap",
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--aiq-color-bg-sunken)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+      >
+        Download data
+      </button>,
+    );
+    items.push(
+      <button
+        key="erase-pii"
+        type="button"
+        data-help-id="admin.user.erase"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(false);
+          onAction("erasePii");
+        }}
+        style={{
+          display: "block",
+          width: "100%",
+          textAlign: "left",
+          padding: "7px 14px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: 13,
+          color: "var(--aiq-color-danger, #dc2626)",
+          whiteSpace: "nowrap",
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--aiq-color-bg-sunken)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+      >
+        Erase personal data
+      </button>,
+    );
   }
 
   if (readOnly || items.length === 0) {
@@ -1074,6 +1159,10 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
           // disabled; surface the disabled view so the row stays visible.
           setShowRemoved(false);
           setShowDisabled(true);
+        } else if (action === "erasePii") {
+          await eraseUserPiiApi(user.id, reason ?? "");
+          setActionToast(`${displayName}'s personal data erased.`);
+          // Stay on current view — the row persists as a tombstone.
         }
       }
       setLifecycleTarget(null);
@@ -1097,10 +1186,38 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
       else if (code === "LAST_ADMIN") displayMessage = "Cannot disable the last active admin of this tenant.";
       else if (code === "INVITATION_ALREADY_ACCEPTED") displayMessage = "This invitation has already been accepted.";
       else if (code === "INVITATION_NOT_FOUND") displayMessage = "Invitation not found — it may have already been cancelled.";
+      else if (code === "ERASE_NOT_CANDIDATE") displayMessage = "Only candidate accounts can be erased.";
+      else if (code === "REASON_REQUIRED") displayMessage = "A reason is required to erase data.";
 
       setActionError(displayMessage);
       setLifecycleTarget(null);
       setLifecycleExtraWarning(undefined);
+    }
+  };
+
+  // ── DPDP data-rights handlers ─────────────────────────────────────────────
+
+  const handleExport = async (user: AdminUser): Promise<void> => {
+    setActionError(null);
+    const displayName = user.name ?? user.email;
+    try {
+      const data = await exportUserDataApi(user.id);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `assessiq-data-export-${user.id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setActionToast(`Data export for ${displayName} downloaded.`);
+      setTimeout(() => setActionToast(null), 4000);
+    } catch (err) {
+      const message = err instanceof AdminApiError
+        ? err.apiError.message
+        : "Failed to export data — please try again.";
+      setActionError(message);
     }
   };
 
@@ -1442,6 +1559,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                           }
                           setActionError(null);
                         }}
+                        onExport={handleExport}
                       />
                     </div>
                   </div>

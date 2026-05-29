@@ -2406,3 +2406,57 @@ admin.shell.nav.mobile_menu:
     cycles backwards. Focus returns to the hamburger button when the drawer
     closes.
 
+# ─── DPDP data-rights actions (S1, 2026-05-29) ───
+
+admin.user.data_export:
+  audience: admin
+  short_text: "Download a JSON copy of everything AssessIQ holds about this candidate — for fulfilling a data-access request."
+  long_md: |
+    ## Download candidate data
+
+    Produces a JSON file containing every piece of data the platform holds for
+    this candidate, including:
+
+    - **Profile** — name, email, role, account status, created date.
+    - **Attempts** — each assessment attempt with start/end times, status, and
+      the candidate's submitted answers for each question.
+    - **Certificates** — any issued certificates, including the name snapshot
+      recorded at issuance (even if the profile has since been erased).
+    - **Consents** — any recorded consent or terms-acceptance events.
+    - **Audit events** — platform-generated events tied to this user ID
+      (logins, role changes, lifecycle actions).
+
+    Use this action to fulfil a **Data-Access Request (DAR)** under the Digital
+    Personal Data Protection Act (DPDP) or equivalent legislation. The file is
+    downloaded directly to your browser — it is not stored on the AssessIQ
+    servers after download.
+
+admin.user.erase:
+  audience: admin
+  short_text: "Permanently erase this candidate's personal data (DPDP right to erasure). Certificates are preserved for verification."
+  long_md: |
+    ## Erase candidate data
+
+    Fulfils the **Right to Erasure** (also known as the right to be forgotten)
+    under the Digital Personal Data Protection Act (DPDP) and similar laws.
+
+    **What is erased — irreversibly:**
+
+    - Name and email address (replaced with a tombstone placeholder).
+    - Free-text answers submitted during assessments.
+    - IP address and device-fingerprint data from session records.
+
+    **What is preserved:**
+
+    - **Issued certificates** remain valid. The candidate's name was snapshotted
+      at the moment of issuance and is retained on the certificate record so
+      that public certificate-verification links continue to work. The live
+      profile name is erased; the certificate snapshot is not.
+    - Aggregate scoring rows (band, level) are retained without PII for
+      platform analytics.
+    - The audit log entry recording this erasure action is preserved (required
+      for regulatory accountability).
+
+    **This action is irreversible.** You must enter a reason and acknowledge
+    the action before it is applied. The reason is recorded in the audit log.
+

@@ -1052,6 +1052,68 @@ Cancels a pending (unaccepted) invitation. Deletes the `user_invitations` row an
 
 ---
 
+#### DPDP data-rights endpoints (Module 20, 2026-05-29)
+
+Admin-mediated data-subject rights for **candidates** (who never log in — they are reached only via single-purpose magic links, so there is no candidate-facing portal). Both endpoints are gated `admin` role: under the DPDP the tenant is the **data fiduciary** for its own candidates, and Postgres RLS confines every statement to the caller's tenant, so a cross-tenant `userId` resolves to `USER_NOT_FOUND`. (This deliberately widens the originally-planned `super_admin`-only erase gate; see `modules/20-data-rights/SKILL.md` D-route note.)
+
+##### `GET /api/admin/users/:userId/data-export`
+
+Right of access / portability. Returns a JSON bundle of everything the platform holds for the candidate, assembled synchronously (no S3, no worker — the narrow candidate PII surface does not warrant async generation). The admin's browser downloads it as `assessiq-data-export-<userId>.json`; nothing is stored server-side.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Response 200:** `DataExportBundle`
+```json
+{
+  "manifest": { "schemaVersion": 1, "generatedAt": "ISO", "userId": "uuid" },
+  "profile": { "id", "name", "email", "role", "createdAt", "erasedAt": null },
+  "attempts": [ { "id", "assessmentId", "status", "startedAt", "submittedAt", "total_earned", "total_max", "auto_pct" } ],
+  "answers": [ { "questionId", "type", "answer", "savedAt" } ],
+  "certificates": [ { "credentialId", "issuedAt" } ],
+  "consents": [ { "purpose", "policyVersion", "grantedAt", "withdrawnAt", "lawfulBasis", "createdAt" } ],
+  "auditEvents": [ { "action", "entityType", "at", "before", "after" } ]
+}
+```
+`auditEvents` are the rows where the candidate is the **entity**; PII in `before`/`after` was already redacted at write time (14-audit-log `redact.ts`), so the bundle carries no raw audit PII.
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `USER_NOT_FOUND` | 404 | No user with this id in the caller's tenant (RLS-invisible cross-tenant ids included) |
+
+**Audit action emitted:** `user.data.exported` (best-effort access log, written after the read).
+
+**Source:** `apps/api/src/routes/admin-users.ts` (route), `modules/20-data-rights/src/export.ts` (`exportCandidateData`).
+
+##### `POST /api/admin/users/:userId/erase`
+
+Right to erasure. Tombstones the candidate's PII in a single transaction: `users.name`/`email` → deterministic `sha256(id)`-derived pseudonyms + `erased_at = now()`; `attempt_answers.answer` → `"[erased]"` for every answer **not positively confirmed MCQ**; `sessions.ip`/`user_agent` → NULL. Never DELETEs rows. **Certificates are never mutated** — the issued name snapshot is part of the HMAC payload, so public `/verify/:credentialId` keeps working (D5). Idempotent: re-erasing an already-erased candidate is a no-op returning `alreadyErased: true`.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason: string }` — **required** (non-empty, ≤500 chars, no control chars). Recorded in the audit `after` payload.
+
+**Response 200:** `ErasureReceipt`
+```json
+{ "userId", "erasedAt", "alreadyErased": false,
+  "tombstone": { "name": "deleted_user_…", "email": "deleted+…@erased.assessiq.local" },
+  "attemptAnswersErased": 0, "sessionsRedacted": 0, "certificatesPreserved": 0 }
+```
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `REASON_REQUIRED` | 400 | body had no `reason` |
+| `INVALID_REASON` | 400 | reason wrong type / too long / control chars |
+| `ERASE_NOT_CANDIDATE` | 400 | target user's role is not `candidate` (admin/reviewer/super_admin erasure is out of scope — handled manually) |
+| `USER_NOT_FOUND` | 404 | No candidate with this id in the caller's tenant |
+
+**Audit action emitted:** `user.pii.erased` (`auditInTx`, same transaction as the tombstone; `after` carries counts + reason only, never raw name/email).
+
+**Source:** `apps/api/src/routes/admin-users.ts` (route), `modules/20-data-rights/src/erasure.ts` (`eraseCandidatePii`).
+
+---
+
 #### Super-admin user lifecycle override endpoints (Phase C)
 
 Gated by `superAdminFreshMfa` (`super_admin` + TOTP within **15 minutes**). These are the cross-tenant counterparts to the tenant-admin endpoints above. Key differences:

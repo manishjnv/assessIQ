@@ -64,13 +64,38 @@ export type DsrTokenClaims = z.infer<typeof DsrTokenClaimsSchema>;
 export const ErasureReceiptSchema = z.object({
   userId: z.string().uuid(),
   erasedAt: z.string().datetime(),
-  tombstone: z.object({
-    name: z.string(),
-    email: z.string(),
-  }),
-  attemptResponsesErased: z.number().int().nonnegative(),
-  attemptEventsRedacted: z.number().int().nonnegative(),
+  alreadyErased: z.boolean(),              // true if no-op (idempotent re-run)
+  tombstone: z.object({ name: z.string(), email: z.string() }),
+  attemptAnswersErased: z.number().int().nonnegative(),
+  sessionsRedacted: z.number().int().nonnegative(),
   certificatesPreserved: z.number().int().nonnegative(),
 });
 
 export type ErasureReceipt = z.infer<typeof ErasureReceiptSchema>;
+
+// ---------------------------------------------------------------------------
+// Data export bundle — full DSAR package returned to the admin route.
+// ---------------------------------------------------------------------------
+
+export const DataExportBundleSchema = z.object({
+  manifest: z.object({
+    schemaVersion: z.literal(1),
+    generatedAt: z.string(),
+    userId: z.string().uuid(),
+  }),
+  profile: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    role: z.string(),
+    createdAt: z.string(),
+    erasedAt: z.string().nullable(),
+  }),
+  attempts: z.array(z.record(z.unknown())),
+  answers: z.array(z.record(z.unknown())),
+  certificates: z.array(z.record(z.unknown())),
+  consents: z.array(z.record(z.unknown())),
+  auditEvents: z.array(z.record(z.unknown())),
+});
+
+export type DataExportBundle = z.infer<typeof DataExportBundleSchema>;

@@ -9,3 +9,5 @@
 // pinned architecture decisions D1–D9.
 
 export * from './types.js';
+export * from './erasure.js';
+export * from './export.js';
