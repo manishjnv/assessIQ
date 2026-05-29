@@ -333,6 +333,20 @@ export async function handleAdminGrade(
       );
     }
 
+    // Phase 2 cache (Bug A robustness, 2026-05-29): mark this attempt as
+    // "grading in progress" so the FE can show a banner + auto-poll, and
+    // so a tab-navigation/refresh after Grade-all doesn't lose the
+    // in-flight state. Cleared at the cache write below (success path) or
+    // the catch block (error path). Compliance frame UNCHANGED: this is
+    // not an async worker — the grading still runs synchronously inside
+    // this admin-triggered request handler.
+    await withTenant(tenantId, async (client) => {
+      await client.query(
+        `UPDATE attempts SET grading_started_at = NOW() WHERE id = $1`,
+        [attemptId],
+      );
+    });
+
     // Grade each AI-gradeable question; collect proposals
     const proposals: GradingProposal[] = [];
     let questionCount = 0;
@@ -440,7 +454,46 @@ export async function handleAdminGrade(
       "grading.proposal.batch",
     );
 
+    // Phase 2 cache: persist proposals + clear the in-flight marker
+    // atomically. This is the resilience fix — Cloudflare's ~100s edge
+    // timeout was dropping the synchronous POST response on attempts that
+    // grade for > 100s. With the cache, the next GET /admin/attempts/:id
+    // returns the proposals so the FE can hydrate state regardless of
+    // whether the original POST response made it back. NOT a committed
+    // grade — D8 admin Accept click is still required for any gradings
+    // row write (admin-accept.ts is the only insertGrading caller for AI
+    // proposals; this cache is purely review-state).
+    await withTenant(tenantId, async (client) => {
+      await client.query(
+        `UPDATE attempts
+            SET ai_proposals = $1::jsonb,
+                grading_started_at = NULL
+          WHERE id = $2`,
+        [JSON.stringify(proposals), attemptId],
+      );
+    });
+
     return { proposals };
+  } catch (err) {
+    // Phase 2 cache robustness: any thrown error inside the try block
+    // (including pre-marker errors that are harmless no-ops here) must
+    // clear the in-flight marker so the FE banner doesn't stick on a
+    // permanently failed grading run. Best-effort — never mask the
+    // original error.
+    try {
+      await withTenant(tenantId, async (client) => {
+        await client.query(
+          `UPDATE attempts SET grading_started_at = NULL WHERE id = $1`,
+          [attemptId],
+        );
+      });
+    } catch (clearErr) {
+      log.warn(
+        { attemptId, err: (clearErr as Error).message },
+        "grading.marker_clear_failed",
+      );
+    }
+    throw err;
   } finally {
     slot.release();
   }

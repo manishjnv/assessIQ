@@ -65,6 +65,21 @@ interface AttemptDetailResponse {
   answers: AttemptAnswer[];
   frozen_questions: FrozenQuestion[];
   gradings: GradingsRow[];
+  /**
+   * Phase 2 cache (Bug A robustness, 2026-05-29). Server-side persisted
+   * proposals from the last handleAdminGrade run. Hydrated into local
+   * `proposals` state on load so a Grade-all whose response was dropped
+   * by a CF/proxy timeout (or by tab navigation) is recoverable on the
+   * next page open. Null if no run yet OR if the gate-flip accept
+   * cleared the cache.
+   */
+  ai_proposals: GradingProposal[] | null;
+  /**
+   * Phase 2 cache: ISO-8601 timestamp set when handleAdminGrade started
+   * a batch. Nulled at batch completion (success or error). Drives the
+   * "Grading in progress" banner and the 15s auto-poll cadence.
+   */
+  grading_started_at: string | null;
 }
 
 interface OverrideFormState {
@@ -270,6 +285,22 @@ export function AdminAttemptDetail(): React.ReactElement {
     try {
       const data = await adminApi<AttemptDetailResponse>(`/admin/attempts/${id}`);
       setDetail(data);
+      // Phase 2 cache hydration (Bug A robustness, 2026-05-29): if the
+      // server has cached proposals from a previous Grade-all whose POST
+      // response was lost to a CF/proxy timeout (or to a tab navigation),
+      // pick them up here so the admin can review + Accept-all without
+      // re-grading. Server clears the cache on a successful gate-flip
+      // accept, so a freshly-graded attempt with no pending proposals
+      // returns `ai_proposals: null` and this block is a no-op.
+      if (Array.isArray(data.ai_proposals) && data.ai_proposals.length > 0) {
+        const map: Record<string, GradingProposal> = {};
+        for (const p of data.ai_proposals) map[p.question_id] = p;
+        setProposals(map);
+      } else {
+        // Explicit reset prevents stale proposals from a previous attempt
+        // bleeding into this one when the admin navigates between attempts.
+        setProposals({});
+      }
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load attempt.");
     } finally {
@@ -278,6 +309,28 @@ export function AdminAttemptDetail(): React.ReactElement {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Phase 2 cache auto-poll (Bug A robustness, 2026-05-29): while the
+  // server reports `grading_started_at` is set (a batch is in flight),
+  // re-fetch the attempt detail every 15s so the admin sees proposals
+  // land without having to manually refresh. Polling stops as soon as
+  // the marker clears (set to null by handleAdminGrade at batch
+  // completion). 15s is a balance between perceived responsiveness and
+  // request volume — a typical 3-question batch is ~3-4 min so we
+  // expect ~12-16 polls per batch worst-case. The pollerId guard
+  // prevents overlap if a poll takes longer than 15s.
+  useEffect(() => {
+    if (detail?.grading_started_at == null) return;
+    // Cap polling at POLL_CAP_SEC (12 min) to defeat a permanently-stuck
+    // marker (e.g. API container SIGKILL mid-batch). After the cap, the
+    // FE shows the "stalled" banner and the admin can click Re-grade to
+    // recover — the backend's fresh single-flight mutex will accept it.
+    const startedAt = new Date(detail.grading_started_at).getTime();
+    const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
+    if (elapsedSec > 720) return;
+    const interval = setInterval(() => { void load(); }, 15_000);
+    return () => clearInterval(interval);
+  }, [detail?.grading_started_at, load]);
 
   async function handleGrade() {
     if (!id) return;
@@ -291,9 +344,33 @@ export function AdminAttemptDetail(): React.ReactElement {
       for (const p of res.proposals) map[p.question_id] = p;
       setError(null);
       setProposals(map);
+      // Reload to pick up the updated grading_started_at (cleared by the
+      // backend's batch-completion write) so the banner disappears in the
+      // same tick as proposals appear.
+      void load();
     } catch (err) {
-      const msg = err instanceof AdminApiError ? err.apiError.message : "Grade request failed.";
-      setError(msg);
+      // Bug A robustness (2026-05-29): a CF/proxy timeout (504/524/408)
+      // on a slow Grade-all is now non-fatal — the backend persists the
+      // batch result via the ai_proposals cache. We reload the detail
+      // (which surfaces the in-flight marker → banner appears) and let
+      // the 15s auto-poll pick up the proposals when the batch lands.
+      // For non-timeout errors (e.g. 422 status mismatch), keep the
+      // existing error banner behaviour so the admin sees the real
+      // failure rather than a misleading "still running" message.
+      const isTimeout =
+        err instanceof AdminApiError &&
+        (err.status === 504 || err.status === 524 || err.status === 408);
+      if (isTimeout) {
+        setError(
+          "Grading is taking longer than the connection timeout — it continues on the server. This page will refresh automatically when proposals arrive.",
+        );
+      } else {
+        const msg = err instanceof AdminApiError ? err.apiError.message : "Grade request failed.";
+        setError(msg);
+      }
+      // Either way reload — for timeouts to start polling; for real
+      // errors so the error banner has fresh state.
+      void load();
     } finally {
       setGrading(false);
     }
@@ -445,6 +522,31 @@ export function AdminAttemptDetail(): React.ReactElement {
   const { attempt, answers, frozen_questions, gradings } = detail;
   const isGradeable = attempt.status === "submitted" || attempt.status === "pending_admin_grading";
 
+  // Phase 2 cache: server-driven "grading in progress" derived from the
+  // last detail fetch. While truthy, the UI disables Grade-all (the
+  // backend's single-flight mutex would 409 anyway, but disabling is
+  // friendlier UX) and shows the banner below the header. The marker is
+  // cleared by the backend at batch completion → next poll picks up the
+  // proposals → banner disappears.
+  //
+  // Sonnet adversarial revision (V1+V4, 2026-05-29): stuck-marker recovery.
+  // If the API container restarts or SIGKILLs mid-batch, the catch-block
+  // marker-clear in admin-grade.ts doesn't run → the marker stays set
+  // forever → Grade-all would be permanently disabled. Mitigation entirely
+  // on the FE: after STALE_MARKER_SEC (10 min), treat the marker as
+  // stalled — re-enable Grade-all (the backend's single-flight mutex is
+  // fresh after a restart, so a new click WILL succeed and overwrite the
+  // stale marker). Also cap polling at POLL_CAP_SEC (12 min) so we don't
+  // poll forever on a permanently-stuck marker.
+  const STALE_MARKER_SEC = 600; // 10 min
+  const POLL_CAP_SEC = 720; // 12 min
+  const gradingInProgress = detail.grading_started_at != null;
+  const gradingElapsedSec = gradingInProgress
+    ? Math.max(0, Math.floor((Date.now() - new Date(detail.grading_started_at!).getTime()) / 1000))
+    : 0;
+  const gradingStalled = gradingInProgress && gradingElapsedSec > STALE_MARKER_SEC;
+  const gradingActive = gradingInProgress && !gradingStalled;
+
   return (
     <AdminShell breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, attempt.id.slice(0, 8)]} helpPage="admin.attempts.detail">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
@@ -467,10 +569,21 @@ export function AdminAttemptDetail(): React.ReactElement {
                 type="button"
                 className="aiq-btn aiq-btn-primary"
                 data-help-id="admin.attempts.grading_dispatch"
-                disabled={grading}
+                disabled={grading || gradingActive}
                 onClick={() => void handleGrade()}
+                title={
+                  gradingActive
+                    ? "A grading run is already in progress on the server — wait for it to finish."
+                    : gradingStalled
+                      ? "Previous grading appears to have stalled (>10 min). Click to retry — the backend single-flight is fresh after a restart."
+                      : undefined
+                }
               >
-                {grading ? "Grading…" : "Grade all"}
+                {grading || gradingActive
+                  ? "Grading…"
+                  : gradingStalled
+                    ? "Re-grade (previous stalled)"
+                    : "Grade all"}
               </button>
             )}
             {isGradeable && Object.values(proposals).some((p) => !isAiFailure(p)) && (
@@ -517,6 +630,73 @@ export function AdminAttemptDetail(): React.ReactElement {
             >
               Dismiss
             </button>
+          </div>
+        )}
+
+        {/* Phase 2 cache: server-driven "Grading in progress" banner. Bug A
+            robustness, 2026-05-29 — Cloudflare's ~100s edge timeout was
+            dropping the synchronous POST /grade response on attempts that
+            grade for > 100s. The backend now persists proposals when the
+            batch completes; this banner tells the admin the batch is still
+            running and that they can safely navigate away (it'll pick up
+            on return). The page auto-polls every 15s while the marker is
+            set; the banner clears automatically when proposals arrive. */}
+        {gradingActive && (
+          <div
+            className="aiq-banner"
+            data-help-id="admin.attempts.grading_in_progress"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--aiq-space-md)",
+              padding: "var(--aiq-space-md) var(--aiq-space-xl)",
+              backgroundColor: "var(--aiq-color-info-subtle, #eef4ff)",
+              border: "1px solid var(--aiq-color-info, #3177dc)",
+              borderRadius: "var(--aiq-radius-sm, 4px)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              color: "var(--aiq-color-info, #3177dc)",
+            }}
+          >
+            <Spinner aria-label="Grading in progress" />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500 }}>Grading in progress on the server.</div>
+              <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", opacity: 0.85, marginTop: 2 }}>
+                Started {gradingElapsedSec}s ago · polling every 15s · safe to navigate away — proposals will be here when you return.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-sm aiq-btn-outline"
+              onClick={() => void load()}
+            >
+              Check now
+            </button>
+          </div>
+        )}
+        {gradingStalled && (
+          <div
+            className="aiq-banner aiq-banner-warning"
+            data-help-id="admin.attempts.grading_stalled"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--aiq-space-md)",
+              padding: "var(--aiq-space-md) var(--aiq-space-xl)",
+              backgroundColor: "var(--aiq-color-warning-subtle, #fff8e0)",
+              border: "1px solid var(--aiq-color-warning, #b08000)",
+              borderRadius: "var(--aiq-radius-sm, 4px)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              color: "var(--aiq-color-warning, #b08000)",
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500 }}>Previous grading appears to have stalled.</div>
+              <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", opacity: 0.85, marginTop: 2 }}>
+                Started {Math.floor(gradingElapsedSec / 60)} min ago — the API likely restarted mid-batch. Click <strong>Re-grade</strong> above to retry; the server's single-flight is fresh.
+              </div>
+            </div>
           </div>
         )}
 

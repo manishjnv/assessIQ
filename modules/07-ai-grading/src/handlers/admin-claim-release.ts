@@ -67,6 +67,28 @@ export interface HandleAdminClaimAttemptOutput {
   answers: AttemptAnswerRow[];
   frozen_questions: FrozenQuestionRow[];
   gradings: GradingsRow[];
+  /**
+   * Phase 2 cache (Bug A robustness, 2026-05-29): the most-recent batch of
+   * `GradingProposal[]` written by handleAdminGrade. Lets the FE hydrate
+   * its proposals state on page load even if the original POST /grade
+   * response was lost to a CF/proxy timeout. NOT committed grades — these
+   * are review-state artifacts that still require admin Accept click
+   * before any gradings row is written. Null when no grading has run or
+   * after a successful gate-flip accept.
+   *
+   * Shape matches the runtime's `GradingProposal` shape exactly. Type left
+   * `unknown` here to avoid pulling the runtime types into the handler
+   * surface; the FE narrows it via the shared GradingProposal type from
+   * `@assessiq/admin-api-types` (or equivalent).
+   */
+  ai_proposals: unknown[] | null;
+  /**
+   * Phase 2 cache: ISO-8601 timestamp set when handleAdminGrade started a
+   * batch, nulled when the batch finishes (success or error path). Drives
+   * the FE "Grading in progress" banner + 15s auto-poll cadence. Null
+   * when no grading is running.
+   */
+  grading_started_at: string | null;
 }
 
 export interface HandleAdminReleaseAttemptOutput {
@@ -149,9 +171,19 @@ export async function handleAdminClaimAttempt(input: {
     );
     const wasClaimed = (claimResult.rowCount ?? 0) > 0;
 
-    // Read current status
-    const statusResult = await client.query<{ status: string }>(
-      `SELECT status FROM attempts WHERE id = $1 LIMIT 1`,
+    // Read current status + Phase 2 cache fields.
+    // Phase 2 cache (2026-05-29 Bug A robustness): `ai_proposals` carries
+    // the latest GradingProposal[] from handleAdminGrade (or null if no
+    // grading run / cleared after gate-flip accept). `grading_started_at`
+    // is the in-flight marker. Both feed the FE's hydration + banner +
+    // 15s auto-poll logic so a Grade-all whose response was lost to a
+    // CF/proxy timeout can still be picked up by the admin on return.
+    const statusResult = await client.query<{
+      status: string;
+      ai_proposals: unknown[] | null;
+      grading_started_at: Date | null;
+    }>(
+      `SELECT status, ai_proposals, grading_started_at FROM attempts WHERE id = $1 LIMIT 1`,
       [attemptId],
     );
     const statusRow = statusResult.rows[0];
@@ -189,6 +221,11 @@ export async function handleAdminClaimAttempt(input: {
       answers,
       frozen_questions,
       gradings,
+      ai_proposals: statusRow.ai_proposals,
+      grading_started_at:
+        statusRow.grading_started_at !== null
+          ? statusRow.grading_started_at.toISOString()
+          : null,
     };
   });
 }
