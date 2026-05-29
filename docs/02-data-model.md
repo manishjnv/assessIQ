@@ -1392,3 +1392,85 @@ The `audit_log.action` column (`TEXT NOT NULL` — see § Audit, notifications, 
 | `tenant.plan_updated` | `updateTenantPlan` | `modules/19-billing` |
 | `tenant.entitlement_granted` | `grantTenantEntitlement` | `modules/19-billing` |
 | `tenant.entitlement_revoked` | `revokeTenantEntitlement` | `modules/19-billing` |
+
+---
+
+## Module 20 — data-rights (S1 — 2026-05-29)
+
+### `consent_events` (migration `modules/20-data-rights/migrations/0101_consent_events.sql`)
+
+Per-user, per-purpose consent ledger. **Append-only** — same RLS + REVOKE
+posture as `audit_log` (two-policy: SELECT + INSERT; `assessiq_app` REVOKE'd
+UPDATE/DELETE/TRUNCATE). Withdrawal is a NEW row with `withdrawn_at` set
+and `granted_at` NULL; the ledger reconstructs by chronological ordering.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | default `gen_random_uuid()` |
+| `tenant_id` | UUID NOT NULL | FK `tenants(id)`; RLS keyed on this |
+| `user_id` | UUID NOT NULL | FK `users(id)` |
+| `purpose` | TEXT NOT NULL | CHECK IN (`data_processing`, `marketing`, `benchmarking`) |
+| `policy_version` | TEXT NOT NULL | e.g. `dpdp-v1-2026-05-01` |
+| `granted_at` | TIMESTAMPTZ | NULL iff withdrawn-without-grant |
+| `withdrawn_at` | TIMESTAMPTZ | NULL iff still active |
+| `ip` | INET | captured at write; redacted in exports via SKILL.md D2 |
+| `user_agent` | TEXT | captured at write; redacted in exports |
+| `lawful_basis` | TEXT NOT NULL | CHECK IN (`consent`, `legitimate_interest`, `contract`, `legal_obligation`) |
+| `created_at` | TIMESTAMPTZ NOT NULL | default `now()` |
+
+Row-level CHECK: `granted_at IS NOT NULL OR withdrawn_at IS NOT NULL` — a
+row with both NULL is meaningless.
+
+Indexes:
+- `consent_events_user_purpose_idx` — `(tenant_id, user_id, purpose, created_at DESC)` for "what is this user's current consent for X?"
+- `consent_events_tenant_created_idx` — `(tenant_id, created_at DESC)` for admin ledger view.
+
+### `users.erased_at` (migration `0102_users_erased_at.sql`)
+
+DPDP / GDPR erasure marker. **Distinct from `users.deleted_at`** — see
+`modules/20-data-rights/SKILL.md` D1. When set, the row's `name` + `email`
+columns hold tombstone values:
+
+- `name → 'deleted_user_' || substring(sha256(id::text), 1, 12)`
+- `email → 'deleted+' || <same hash> || '@erased.assessiq.local'`
+
+Partial index for the S5 retention purge cron:
+`users_tenant_candidate_not_erased_idx ON users (tenant_id, created_at) WHERE role = 'candidate' AND erased_at IS NULL AND deleted_at IS NULL`.
+
+### `tenant_settings.retention_days` (migration `0103_tenant_retention_days.sql`)
+
+Per-tenant candidate-data retention window in DAYS. CHECK `BETWEEN 1 AND 3650`.
+Default `730` (2 years HR-grade). **Distinct from
+`tenant_settings.audit_retention_years`** (added by `14-audit-log` migration
+0050, default 7 years for audit forensic chain). The two windows are
+intentionally different: PII gets minimized at 2y; audit retains 7y for
+compliance forensics.
+
+### Historical `audit_log` PII redaction (migration `0104_audit_log_pii_redact_backfill.sql`)
+
+One-shot recursive redaction of every existing `audit_log` row's
+`before` / `after` JSONB. Runs as `assessiq_system` per the documented
+exception path in `0050_audit_log.sql` § IRREVERSIBILITY NOTE. Not
+schema-altering; included here for the data-model audit trail. See
+`docs/RCA_LOG.md` 2026-05-29 entry for the D7 finding that triggered it
+and `modules/20-data-rights/SKILL.md` D7 for the rationale.
+
+### Forward-protection extension to `14-audit-log/src/redact.ts`
+
+PII field-name patterns added 2026-05-29 (forward protection — every
+future `audit()` / `auditInTx()` write recursively redacts at any depth):
+
+- Identity: `email`, `_email$`, `name`, `_name$`, `display_name`, `full_name`
+- Contact: `phone`, `_phone$`, `phone_number`, `phone_number_e164`, `mobile`, `whatsapp`
+- URLs: `linkedin_url`, `resume_url`
+- Free-text: `answer_text`, `_answer_text$`, `candidate_answer`, `feedback_text`, `comment_text`, `notes_text`
+- Network: `ip`, `_ip$`, `ip_address`, `user_agent`, `_user_agent$`
+
+The patterns are intentionally broad on suffixes so future call sites
+that add new field names (e.g. `recipient_email`, `candidate_name`) are
+covered without re-editing `redact.ts`. Over-redaction of non-PII
+suffixes (`tenant_name`, `pack_name`, `course_name`) is acceptable:
+audit_log is for "did this change?" forensics, not "what was the name
+called?". The `correct_answer` rubric ground-truth (NOT candidate PII)
+is intentionally NOT covered by any of these patterns and remains in
+audit JSONB for grading-event forensics.
