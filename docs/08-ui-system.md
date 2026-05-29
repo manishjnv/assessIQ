@@ -644,6 +644,37 @@ Operator-observed after the Bug-A fix deployed: even when the admin stayed on th
 
 **Compliance frame UNCHANGED.** The cache is review-state only. `Accept all` still runs the Phase-1 completion gate. Billing still fires same-tx with the gate flip. The admin still clicks Accept on visible proposals before any `gradings` row is written. See `docs/05-ai-pipeline.md` § "Proposals cache + navigate-away robustness" for the full compliance argument.
 
+### Attempt-detail — pre-Release review UX bundle (2026-05-29, commit `d5ad835`)
+
+Replaces the prior `window.confirm()` Release flow with a richer evaluation-review surface so the admin can verify **what was evaluated and why this score** before publishing results to the candidate (Release is the publish step — best-effort result-released email + cert if eligible, candidate sees results immediately on next reload).
+
+| Affordance | Lives in | Renders |
+| --- | --- | --- |
+| **`ReleaseConfirmModal`** | [components/ReleaseConfirmModal.tsx](../modules/10-admin-dashboard/src/components/ReleaseConfirmModal.tsx) | Centered modal triggered by clicking **Release to candidate** (replaces `window.confirm`). Header: candidate email + assessment name + level label. Three stat cards: **Total score** (`scoreEarned/scoreMax` + percentage in serif lining-nums), **Questions graded** (`graded/total`), **Average band** (rounded avg → 0/25/50/75/100). **AI-failure callout** (only when count > 0): yellow `aiq-banner-warning` explaining flagged-for-review questions are excluded. **Per-question table**: Q-position chip + type + topic (40-char trunc) + band/score + status chip (`graded` green, `needs review` yellow, `ungraded` muted). Footer: **Release** (disabled + "Releasing…" while POST in flight) + **Cancel**. ESC and click-outside both cancel. Help id `admin.attempts.release_confirm`. |
+| **`AnchorChip` enrichment** | [components/AnchorChip.tsx](../modules/10-admin-dashboard/src/components/AnchorChip.tsx) | New optional `anchorDef?: { concept, weight, synonyms? }` prop. When provided, chip text becomes `✓ concept · Npts` (40-char trunc); tooltip carries three blocks: full concept (medium weight), `Weight: Npts · Confidence: NN%` (confidence shown only if `finding.confidence` set), `as the model cited: "<evidence>"`. When omitted, falls back to existing `label ?? anchor_id` chip + evidence-only tooltip. |
+| **`ConceptCoverageView`** | [components/ConceptCoverageView.tsx](../modules/10-admin-dashboard/src/components/ConceptCoverageView.tsx) | Collapsible card under each question's candidate answer (left column). Header: `{hitCount}/{anchors.length} concepts found · {hitWeight}/{totalWeight} weight` + chevron toggle. Expanded body highlights HIT-anchor concepts and their explicit synonyms inline in the answer text using **case-insensitive whole-word match** (no stemming — admins author synonyms deliberately per Sonnet V2 adversarial revision). Each match is a green ✓ pill with the concept as `title=` tooltip. Below the answer: **Missed concepts** block — muted ✗ pills for any anchor `hit=false`. **Truncation** with "Show all" when `answerText.length > maxChars` (default 800). Only renders for narrative answer types: `subjective`, `scenario`, `log_analysis` — `mcq` / `kql` / unknown suppress the view via empty `serializeAnswerForCoverage()`. |
+| **Print review** | header button + inline `@media print` `<style>` block in [pages/attempt-detail.tsx](../modules/10-admin-dashboard/src/pages/attempt-detail.tsx) | New **Print review** button (header, `aiq-no-print` class) — rendered when `gradings.length > 0`, calls `window.print()`. Print stylesheet hides `.aiq-no-print, .aiq-banner:not(.aiq-error-banner), .aiq-shell-nav, .aiq-shell-sidebar, nav`, the grading-in-progress + grading-stalled banners; flattens the 2-col `.aiq-admin-detail-two-col` grid; removes card shadows; whitewashes background. **Error banner** carries a new `aiq-error-banner` class and is INTENTIONALLY exempted from the hide (Sonnet V5 adversarial revision — operational errors are part of audit context if the admin chose to print mid-error). |
+
+**Backend dependency.** Both `AnchorChip` enrichment and `ConceptCoverageView` require the question's rubric to be present in the GET `/admin/attempts/:id` response. The 07-ai-grading `loadFrozenQuestions` SELECT was extended to include `qv.rubric` in commit `d5ad835` — the prior "rubric column intentionally excluded — this read is for display" comment was over-conservative (the loader IS the display read for the admin grading review surface, and the route is `adminOnly`-gated; candidates never reach it). See `docs/03-api-contract.md` for the response shape.
+
+**Data plumbing in `attempt-detail.tsx`.**
+- `FrozenQuestion` interface gained `topic?`, `position?`, `rubric?: RubricForReview | null`.
+- `serializeAnswerForCoverage(type, answer)` produces a plain-text serialisation per type for the coverage matcher (returns `""` for non-narrative types → coverage view suppressed).
+- `<ScoreDetail>` receives `rubricAnchors={q.rubric.anchors}` (when present) and looks up each `anchor_hit.anchor_id` to build a chip `anchorDef`.
+- `<ConceptCoverageView>` receives the paired `{rubric anchors × anchor_hits}` array so it knows which rubric concepts were hit vs missed.
+- `handleRelease` is now sync (`function`, not `async`) — opens the modal; the actual POST runs in `handleReleaseConfirm()` after the admin clicks Release inside the modal.
+
+**Adversarial review** (Sonnet takeover, REVISE → addressed):
+- V1 rubric-PII-leak: ACCEPT (same admin authors rubric + views attempt; admin-only route).
+- V2 stemming false positives → fixed (literal whole-word match only — no `s` / `ing` suffix-strip).
+- V3 malformed `log_analysis.findings`: ACCEPT (`filter(typeof === "string")` catches it).
+- V4 250KB rubric payload at 50-question packs: ACCEPT-noted.
+- V5 print over-hides error banner → fixed (`.aiq-error-banner` class + `:not()` selector).
+- V6 modal live-prop updates during 15s poll: ACCEPT (fresher data preferred).
+- V7 `handleRelease` sync-not-async: ACCEPT (call site is sync dispatch).
+
+**Compliance frame UNCHANGED.** ReleaseConfirmModal does NOT bypass any backend check — the POST `/release` route still validates `attempts.status === 'graded'`. No new `gradings` write path. No `dangerouslySetInnerHTML` anywhere (rubric content is admin-authored, but still rendered through React text nodes).
+
 ### Row-overflow menu pattern (currently page-local)
 
 Question-Bank's destructive `Archive` action moved into a `⋯` row-level menu (`useRef` + click-outside listener + `Esc` to close) so destructive verbs don't crowd a list row. Implementation lives inline at [`modules/10-admin-dashboard/src/pages/question-bank.tsx`](../modules/10-admin-dashboard/src/pages/question-bank.tsx) as `RowOverflowMenu`. **Promote to `@assessiq/ui-system` when a second admin list needs it** (likely soon — assessments + users + certificates all have row-level destructive actions today).
