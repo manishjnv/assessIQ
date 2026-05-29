@@ -243,7 +243,7 @@ fi
 
 **Staged rollout (order matters — see `infra/caddyfile/assessiq.snippet` header):** Phase 1 add the `assessiq.in` Caddy block alongside the still-serving old block (zero impact); Phase 2 flip the two env vars + redeploy api/worker/frontend; Phase 3 swap the old block to the `redir … permanent` form. Each phase has a smoke gate; the snippet's 4-probe curl set includes the AOP direct-origin-spoof check (must NOT return 200).
 
-**Explicitly NOT included.** (a) `EMAIL_FROM` stays `noreply@automateedge.cloud` — the mail-sender domain move to `noreply@assessiq.in` is a separate workstream (needs SPF/DKIM/DMARC DNS on assessiq.in) and bundling it would risk deliverability. (b) No per-tenant custom-domain mapping (still a v2 item). (c) Historical references in PROJECT_BRAIN's decision log and prior session docs are left as-is (record of what was true then).
+**Explicitly NOT included.** (a) `EMAIL_FROM` stays `noreply@automateedge.cloud` — the mail-sender domain move to `noreply@assessiq.in` is a separate workstream (needs SPF/DKIM/DMARC DNS on assessiq.in) and bundling it would risk deliverability. **[Superseded 2026-05-24: that workstream was completed — production now sends from `noreply@assessiq.in`. See "Platform email sender → Resend (2026-05-24)" below.]** (b) No per-tenant custom-domain mapping (still a v2 item). (c) Historical references in PROJECT_BRAIN's decision log and prior session docs are left as-is (record of what was true then).
 
 **Downstream impact.** Embed customers using the CDN `<script src>` must update to `assessiq.in` (embed JWT `allowedOrigins` are tenant-configured separately and unaffected). Any external monitor / uptime check pointed at the old host keeps working via the 301. The `tests/load` PROD_PATTERNS guard now lists `assessiq.in` so load tests stay blocked against the new prod host.
 
@@ -793,7 +793,7 @@ GOOGLE_OAUTH_REDIRECT=https://assessiq.in/api/auth/google/cb
 # Provision: create an API key at resend.com → Sending → API Keys (SMTP scope),
 # then set SMTP_URL=smtps://apikey:<key>@smtp.resend.com:465 and restart assessiq-api + assessiq-worker.
 SMTP_URL=
-EMAIL_FROM="AssessIQ <noreply@automateedge.cloud>"
+EMAIL_FROM="AssessIQ <noreply@assessiq.in>"
 
 # Observability
 LOG_LEVEL=info
@@ -819,6 +819,13 @@ AI_PIPELINE_MODE=claude-code-vps
 **Local development:** the same keys live in `.env.local` at the repo root (gitignored — `.gitignore` covers `.env.*` with `!.env.example` allowlist). Never commit values; only `.env.example` is in the repo.
 
 ## Email sender (Resend cutover)
+
+> **SUPERSEDED (2026-05-24).** This is the original 2026-05-21 *plan*, which targeted
+> `automateedge.cloud`. The cutover was actually executed on 2026-05-24 against
+> **`assessiq.in`** (verified in Resend via Cloudflare DNS) with sender
+> `AssessIQ <noreply@assessiq.in>` — see **"Platform email sender → Resend (2026-05-24)"**
+> above for the as-built record. The steps below are retained for reference; substitute
+> `assessiq.in` for `automateedge.cloud` throughout.
 
 Production should send mail through Resend, not a personal Gmail. As of 2026-05-21 the live `.env` was still set to `smtps://manishjnvk@gmail.com:<app-password>@smtp.gmail.com:465` — this leaks the operator's personal Gmail in the From: header AND fails DMARC against `assessiq.automateedge.cloud`, pushing transactional mail toward spam.
 
