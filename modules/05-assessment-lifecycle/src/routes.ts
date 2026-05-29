@@ -39,6 +39,7 @@ import {
   importLicensedSet,
   resyncLicensedSet,
   getAssessment,
+  getAssessmentDetail,
   updateAssessment,
   publishAssessment,
   closeAssessment,
@@ -313,13 +314,15 @@ export async function registerAssessmentLifecycleRoutes(
   // -------------------------------------------------------------------------
 
   // GET /api/admin/assessments/:id
+  // Uses getAssessmentDetail (instead of getAssessment) to also return
+  // level_label and pack_name for the admin detail page header.
   app.get(
     "/api/admin/assessments/:id",
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
-      return getAssessment(tenantId, id);
+      return getAssessmentDetail(tenantId, id);
     },
   );
 
