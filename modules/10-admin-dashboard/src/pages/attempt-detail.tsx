@@ -31,6 +31,8 @@ import { EscalationDiff } from "../components/EscalationDiff.js";
 import { ScoreDetail } from "../components/ScoreDetail.js";
 import { BandPicker } from "../components/BandPicker.js";
 import { QuestionContentView } from "../components/QuestionContentView.js";
+import { ReleaseConfirmModal } from "../components/ReleaseConfirmModal.js";
+import { ConceptCoverageView } from "../components/ConceptCoverageView.js";
 import { adminApi, AdminApiError } from "../api.js";
 import type { GradingProposal, GradingsRow } from "@assessiq/ai-grading";
 
@@ -44,12 +46,30 @@ interface AttemptAnswer {
   edits_count?: number;
 }
 
+/**
+ * Rubric shape carried per frozen question (added 2026-05-29). Only the
+ * fields the review UI needs are typed; the full RubricSchema lives in
+ * `@assessiq/rubric-engine` and the backend column is JSONB so other fields
+ * pass through opaquely.
+ */
+interface RubricForReview {
+  anchors?: Array<{
+    id: string;
+    concept: string;
+    weight: number;
+    synonyms?: string[];
+  }>;
+  // anchor_weight_total, reasoning_weight_total, reasoning_bands left opaque.
+}
+
 interface FrozenQuestion {
   id: string;
   type: string;
+  topic?: string;          // added 2026-05-29: needed for ReleaseConfirmModal table row labels
+  position?: number;       // added 2026-05-29: needed for ReleaseConfirmModal sort order
   content: unknown;
   points: number;
-  rubric?: unknown;
+  rubric?: RubricForReview | null;
 }
 
 interface AttemptDetailResponse {
@@ -135,6 +155,44 @@ function NoAnswer({ label }: { label: string }): React.ReactElement {
       {label}
     </p>
   );
+}
+
+/**
+ * Plain-text serialisation of a candidate answer, used ONLY for
+ * ConceptCoverageView's match-highlighting. Returns "" for question types
+ * whose answers are non-narrative (mcq/kql) so coverage view is suppressed
+ * for those types. Phase 3 review UX (2026-05-29).
+ */
+function serializeAnswerForCoverage(type: string, answer: unknown): string {
+  if (typeof answer === "string") return answer;
+  if (answer === null || answer === undefined) return "";
+  if (typeof answer !== "object") return "";
+  const a = answer as Record<string, unknown>;
+  switch (type) {
+    case "subjective":
+      return typeof a.response === "string" ? a.response : "";
+    case "log_analysis": {
+      const findings = Array.isArray(a.findings)
+        ? a.findings.filter((f) => typeof f === "string").join("\n")
+        : "";
+      const explanation = typeof a.explanation === "string" ? a.explanation : "";
+      return [findings, explanation].filter(Boolean).join("\n\n");
+    }
+    case "scenario": {
+      if (!Array.isArray(a.steps)) return "";
+      return a.steps
+        .map((s, i) => {
+          const obj = s as Record<string, unknown> | null;
+          const resp = obj && typeof obj.response === "string" ? obj.response : "";
+          return resp ? `Step ${i + 1}: ${resp}` : "";
+        })
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    default:
+      // mcq, kql, unknown types — return "" so the coverage view is omitted
+      return "";
+  }
 }
 
 function AttemptAnswerView({ type, content, answer }: { type: string; content: unknown; answer: unknown }): React.ReactElement {
@@ -277,6 +335,11 @@ export function AdminAttemptDetail(): React.ReactElement {
   const [overrideForm, setOverrideForm] = useState<OverrideFormState>({ questionId: null, gradingId: null, band: null, justification: "", reason: "" });
   const [accepting, setAccepting] = useState(false);
   const [overriding, setOverriding] = useState(false);
+  // Phase 3 review UX (2026-05-29): replace window.confirm() Release flow
+  // with a one-page summary modal so the admin reviews the full evaluation
+  // BEFORE publishing to the candidate.
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [releasing, setReleasing] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -490,14 +553,24 @@ export function AdminAttemptDetail(): React.ReactElement {
     }
   }
 
-  async function handleRelease() {
-    if (!id || !detail) return;
-    if (!window.confirm(`Release attempt to candidate ${detail.attempt.candidate_email}?`)) return;
+  function handleRelease() {
+    // 2026-05-29: open the review-summary modal instead of window.confirm.
+    // The actual POST runs in handleReleaseConfirm only after the admin
+    // sees and approves the per-question breakdown + total score.
+    setShowReleaseModal(true);
+  }
+
+  async function handleReleaseConfirm() {
+    if (!id) return;
+    setReleasing(true);
     try {
       await adminApi(`/admin/attempts/${id}/release`, { method: "POST" });
+      setShowReleaseModal(false);
       await load();
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Release failed.");
+    } finally {
+      setReleasing(false);
     }
   }
 
@@ -599,11 +672,26 @@ export function AdminAttemptDetail(): React.ReactElement {
                   : `Accept all (${Object.values(proposals).filter((p) => !isAiFailure(p)).length})`}
               </button>
             )}
+            {/* Phase 3 review UX (2026-05-29): Print review opens a clean
+                print-styled view of the full evaluation. Uses window.print()
+                + an inline @media print stylesheet that hides nav, expands
+                cards to full width, suppresses interactive controls. */}
+            {gradings.length > 0 && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-no-print"
+                data-help-id="admin.attempts.print_review"
+                onClick={() => window.print()}
+              >
+                Print review
+              </button>
+            )}
             {attempt.status === "graded" && (
               <button
                 type="button"
-                className="aiq-btn aiq-btn-outline"
-                onClick={() => void handleRelease()}
+                className="aiq-btn aiq-btn-outline aiq-no-print"
+                data-help-id="admin.attempts.release_button"
+                onClick={() => handleRelease()}
               >
                 Release to candidate
               </button>
@@ -612,7 +700,7 @@ export function AdminAttemptDetail(): React.ReactElement {
         </div>
 
         {error && (
-          <div className="aiq-banner aiq-banner-error" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-danger-subtle, #fff0f0)", border: "1px solid var(--aiq-color-danger)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
+          <div className="aiq-banner aiq-banner-error aiq-error-banner" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-danger-subtle, #fff0f0)", border: "1px solid var(--aiq-color-danger)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
             <span style={{ flex: 1 }}>{error}</span>
             <button
               type="button"
@@ -810,17 +898,51 @@ export function AdminAttemptDetail(): React.ReactElement {
                       Candidate answer
                     </div>
                     <AttemptAnswerView type={q.type} content={q.content} answer={answer.answer} />
+                    {/* Phase 3 review UX (2026-05-29): show rubric-concept
+                        coverage of the candidate's answer so the admin can
+                        verify hits with one glance. Only render when (a) the
+                        question type produces narrative text, (b) there's a
+                        rubric with anchors, and (c) there's a committed
+                        grading row whose anchor_hits can be paired with the
+                        rubric anchors. */}
+                    {existingGrading?.anchor_hits && q.rubric?.anchors && q.rubric.anchors.length > 0 && (() => {
+                      const answerText = serializeAnswerForCoverage(q.type, answer.answer);
+                      if (!answerText) return null;
+                      const hitById = new Map(
+                        (existingGrading.anchor_hits ?? []).map((a) => [a.anchor_id, a]),
+                      );
+                      const anchors = q.rubric.anchors.map((rA) => {
+                        const finding = hitById.get(rA.id);
+                        return {
+                          id: rA.id,
+                          concept: rA.concept,
+                          weight: rA.weight,
+                          ...(rA.synonyms ? { synonyms: rA.synonyms } : {}),
+                          hit: finding?.hit === true,
+                          ...(finding?.evidence_quote ? { evidence_quote: finding.evidence_quote } : {}),
+                        };
+                      });
+                      return (
+                        <ConceptCoverageView
+                          answerText={answerText}
+                          anchors={anchors}
+                          data-test-id={`coverage-${q.id}`}
+                        />
+                      );
+                    })()}
                   </>
                 )}
               </div>
 
               {/* Right: grading panel */}
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
-                {/* Existing grading */}
+                {/* Existing grading — enriched with the question's rubric so
+                    anchor chips render concept+weight + hover tooltips */}
                 {existingGrading && (
                   <ScoreDetail
                     grading={existingGrading}
                     questionLabel="Current grade"
+                    {...(q.rubric?.anchors ? { rubricAnchors: q.rubric.anchors } : {})}
                   />
                 )}
 
@@ -907,6 +1029,61 @@ export function AdminAttemptDetail(): React.ReactElement {
           );
         })}
       </div>
+      {/* Phase 3 review UX (2026-05-29): Release-confirm summary modal.
+          Replaces the prior window.confirm() so admins see a one-page
+          breakdown (total score / per-question status / AI-failure callout)
+          BEFORE publishing results to the candidate. */}
+      <ReleaseConfirmModal
+        open={showReleaseModal}
+        onConfirm={() => void handleReleaseConfirm()}
+        onCancel={() => setShowReleaseModal(false)}
+        releasing={releasing}
+        candidateEmail={attempt.candidate_email}
+        assessmentName={attempt.assessment_name}
+        levelLabel={attempt.level_label}
+        frozenQuestions={frozen_questions.map((q, idx) => ({
+          id: q.id,
+          type: q.type,
+          topic: q.topic ?? "",
+          points: q.points,
+          position: q.position ?? idx + 1,
+        }))}
+        gradings={gradings}
+      />
+      {/* Phase 3 review UX: print stylesheet. Hides nav / breadcrumbs /
+          buttons / banners / proposals while preserving question content,
+          candidate answers, score details, and the grading-summary panel.
+          Keeps the cache + nav-away state hidden from the printed audit
+          artifact. */}
+      <style>{`
+        @media print {
+          /* Phase 3 review UX adversarial revision (Sonnet V5, 2026-05-29):
+             error banner is NOT hidden — operational errors are part of the
+             audit context if the admin chose to print mid-error state. */
+          .aiq-no-print,
+          .aiq-banner:not(.aiq-error-banner),
+          .aiq-shell-nav,
+          .aiq-shell-sidebar,
+          nav,
+          [data-help-id="admin.attempts.grading_in_progress"],
+          [data-help-id="admin.attempts.grading_stalled"] {
+            display: none !important;
+          }
+          .aiq-admin-detail-two-col {
+            grid-template-columns: 1fr !important;
+            page-break-inside: avoid;
+          }
+          .aiq-card {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            page-break-inside: avoid;
+          }
+          body, .aiq-shell-main {
+            background: white !important;
+            color: black !important;
+          }
+        }
+      `}</style>
     </AdminShell>
   );
 }
