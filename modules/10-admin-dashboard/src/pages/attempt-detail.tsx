@@ -64,7 +64,19 @@ interface RubricForReview {
 }
 
 interface FrozenQuestion {
+  /**
+   * Canonical question id. The backend (handleAdminClaimAttempt →
+   * loadFrozenQuestions) returns this field as `question_id`; we normalise it
+   * to `id` at the load() boundary so the rest of the component can key
+   * answers / gradings / proposals off `q.id`. Before this normalisation the
+   * per-question lookups silently missed (every card showed "No answer
+   * submitted" / "Not yet graded" even though answers + gradings existed) —
+   * the bug surfaced 2026-05-29 when the four-zone audit layout started
+   * rendering explicit fallbacks instead of empty blocks.
+   */
   id: string;
+  /** Raw field name as returned by the backend; normalised into `id`. */
+  question_id?: string;
   type: string;
   topic?: string;          // added 2026-05-29: needed for ReleaseConfirmModal table row labels
   position?: number;       // added 2026-05-29: needed for ReleaseConfirmModal sort order
@@ -398,7 +410,18 @@ export function AdminAttemptDetail(): React.ReactElement {
     setError(null);
     try {
       const data = await adminApi<AttemptDetailResponse>(`/admin/attempts/${id}`);
-      setDetail(data);
+      // Normalise the backend's `question_id` onto `id` so per-question
+      // lookups (answers / gradings / proposals, keyed off q.id) match.
+      // Without this, frozen_questions[].id is undefined and every card
+      // falls back to "No answer submitted" / "Not yet graded".
+      const normalized: AttemptDetailResponse = {
+        ...data,
+        frozen_questions: (data.frozen_questions ?? []).map((q) => ({
+          ...q,
+          id: q.id ?? q.question_id ?? "",
+        })),
+      };
+      setDetail(normalized);
       // Phase 2 cache hydration (Bug A robustness, 2026-05-29): if the
       // server has cached proposals from a previous Grade-all whose POST
       // response was lost to a CF/proxy timeout (or to a tab navigation),
@@ -681,10 +704,14 @@ export function AdminAttemptDetail(): React.ReactElement {
               <Chip>{attempt.status.replace(/_/g, " ")}</Chip>
             </div>
             <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-              {attempt.assessment_name}.
+              {attempt.assessment_name || `Attempt ${attempt.id.slice(0, 8)}`}
             </h1>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)" }}>
-              {attempt.candidate_email} · {attempt.level_label}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString()}` : ""}
+              {[
+                attempt.candidate_email,
+                attempt.level_label,
+                attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : null,
+              ].filter(Boolean).join(" · ") || "Candidate / assessment details pending backend enrichment"}
             </div>
           </div>
           <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
