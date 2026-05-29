@@ -16,6 +16,20 @@ export interface ScoreDetailProps {
   grading: GradingsRow;
   /** Human-readable question label. */
   questionLabel?: string;
+  /**
+   * Optional rubric anchors (id + concept + weight + synonyms) from the
+   * frozen question's rubric snapshot — when provided, each AnchorChip
+   * renders with the human-readable concept + weight ("✓ pivot to identity
+   * · 20pts") instead of the raw anchor_id. Phase 3 review UX, 2026-05-29.
+   * Lookup is by anchor_id; unmatched findings fall back to the prior
+   * label-or-id behaviour.
+   */
+  rubricAnchors?: Array<{
+    id: string;
+    concept: string;
+    weight: number;
+    synonyms?: string[];
+  }>;
   "data-test-id"?: string;
 }
 
@@ -24,10 +38,22 @@ const BAND_PCT: Record<number, number> = { 0: 0, 1: 25, 2: 50, 3: 75, 4: 100 };
 export function ScoreDetail({
   grading,
   questionLabel,
+  rubricAnchors,
   "data-test-id": testId,
 }: ScoreDetailProps): React.ReactElement {
   const band = grading.reasoning_band;
   const bandPct = band !== null ? (BAND_PCT[band] ?? 0) : null;
+  // Build an id→anchor-def lookup once per render so chip enrichment is O(1).
+  // Empty map when no rubricAnchors provided → chips fall back to id label.
+  const anchorDefById = React.useMemo(() => {
+    const map = new Map<string, { concept: string; weight: number; synonyms?: string[] }>();
+    if (rubricAnchors) {
+      for (const a of rubricAnchors) {
+        map.set(a.id, { concept: a.concept, weight: a.weight, ...(a.synonyms ? { synonyms: a.synonyms } : {}) });
+      }
+    }
+    return map;
+  }, [rubricAnchors]);
 
   return (
     <div
@@ -73,12 +99,19 @@ export function ScoreDetail({
         </div>
       </div>
 
-      {/* Anchors */}
+      {/* Anchors — enriched with concept + weight when rubricAnchors prop is provided. */}
       {grading.anchor_hits && grading.anchor_hits.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-xs)" }}>
-          {grading.anchor_hits.map((a) => (
-            <AnchorChip key={a.anchor_id} finding={a} />
-          ))}
+          {grading.anchor_hits.map((a) => {
+            const def = anchorDefById.get(a.anchor_id);
+            return (
+              <AnchorChip
+                key={a.anchor_id}
+                finding={a}
+                {...(def ? { anchorDef: def } : {})}
+              />
+            );
+          })}
         </div>
       )}
 
