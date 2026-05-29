@@ -256,6 +256,21 @@ async function acceptProposals(
   // non-conflict db error rolls back the grade too (revenue-leak invariant).
   if (flipped) {
     await recordGradedAttempt(client, tenantId, attemptId);
+
+    // Phase 2 cache (2026-05-29 Bug A robustness): clear the proposals
+    // cache once the gate flips — the proposals now live in the gradings
+    // table where they belong. Same transaction as the status flip so
+    // either both happen or neither does. attempts.grading_started_at is
+    // already null at this point (cleared by admin-grade.ts at batch
+    // completion); we null it again defensively in case a partial state
+    // ever leaks in.
+    await client.query(
+      `UPDATE attempts
+          SET ai_proposals = NULL,
+              grading_started_at = NULL
+        WHERE id = $1`,
+      [attemptId],
+    );
   }
 
   return { gradings, flipped };
