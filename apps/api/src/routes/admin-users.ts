@@ -10,6 +10,8 @@ import {
   cancelInvitation,
 } from '@assessiq/users';
 import { logLifecycleEvent } from '@assessiq/auth';
+import { audit } from '@assessiq/audit-log';
+import { eraseCandidatePii, exportCandidateData } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
 
 // ---------------------------------------------------------------------------
@@ -327,6 +329,72 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
       });
 
       return reply.code(200).send({ userId, deleted: true });
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Module 20 — DPDP data-rights endpoints (S2, 2026-05-29)
+  //
+  // GET  /api/admin/users/:userId/data-export  — full DSAR bundle (read-only)
+  // POST /api/admin/users/:userId/erase        — candidate PII tombstone
+  //
+  // Both are /:userId sub-paths, same shape as /:userId/disable above.
+  // Static-segment routes (import, invitations) are registered earlier and
+  // are never confused by Fastify's static-segment-first matching.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // GET /api/admin/users/:userId/data-export
+  app.get(
+    '/api/admin/users/:userId/data-export',
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const session = req.session!;
+      const { userId } = req.params as { userId: string };
+
+      const bundle = await exportCandidateData(session.tenantId, userId);
+
+      // Emit audit AFTER the export is assembled — if the DB read fails the
+      // audit is never written, keeping the trail accurate.
+      await audit({
+        tenantId: session.tenantId,
+        actorUserId: session.userId,
+        actorKind: 'user',
+        action: 'user.data.exported',
+        entityType: 'user',
+        entityId: userId,
+      });
+
+      return reply.code(200).send(bundle);
+    },
+  );
+
+  // POST /api/admin/users/:userId/erase
+  app.post(
+    '/api/admin/users/:userId/erase',
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const session = req.session!;
+      const { userId } = req.params as { userId: string };
+      const { reason } = parseLifecycleBody(req.body);
+
+      // reason is required for erasure (differs from other lifecycle routes
+      // where it is optional). Throw early so the error code is precise.
+      if (reason === undefined) {
+        throw new ValidationError('reason is required for PII erasure', {
+          details: { code: 'REASON_REQUIRED' },
+        });
+      }
+
+      // ValidationError codes ERASE_NOT_CANDIDATE and USER_NOT_FOUND propagate
+      // as-is; the global Fastify error handler maps them to 400/404.
+      const receipt = await eraseCandidatePii(
+        session.tenantId,
+        userId,
+        reason,
+        session.userId,
+      );
+
+      return reply.code(200).send(receipt);
     },
   );
 }

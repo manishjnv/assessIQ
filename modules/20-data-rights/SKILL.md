@@ -2,10 +2,34 @@
 
 ## Status
 
-**S1 IN FLIGHT (2026-05-29)** — D7 audit + migrations 0101–0103 (+ conditional
-0104 backfill) + `redact.ts` PII extension + module scaffold. Decision pins
-below are the v2 set, written at S1 start per the [consolidated skill
-plan](../../assessiq-skill-plan.md) §11.1.
+**S1 SHIPPED (2026-05-29, `1f737a8`)** — D7 audit + migrations 0101–0104 +
+`redact.ts` PII extension + module scaffold.
+
+**S2/S3-lite SHIPPED (2026-05-29)** — admin-mediated **right of access**
+(synchronous JSON export) + **right to erasure** (PII tombstone), wired to the
+existing admin Users page. **Descoped from the original S2/S3 spec** because
+candidates never log in and the candidate PII surface is tiny (name, email,
+free-text answers, IP/UA): the BullMQ-worker + S3-signed-URL + magic-link
+pipeline was solving a self-service-portal problem this product does not have.
+Delivered instead as two small admin-mediated, RLS-confined, synchronous
+operations. The candidate-facing `/dsr/:token` page, consent-withdraw, and
+retention cron remain deferred (see Session plan).
+
+- `eraseCandidatePii` (`src/erasure.ts`), `exportCandidateData` (`src/export.ts`)
+- Routes `GET /api/admin/users/:userId/data-export`, `POST /api/admin/users/:userId/erase`
+  (`apps/api/src/routes/admin-users.ts`)
+- Admin UI: per-row "Download data" + "Erase personal data" on candidate rows
+  (`modules/10-admin-dashboard/src/pages/users.tsx`); help seed
+  `16-help-system/migrations/0105`
+- Audit actions `user.data.exported`, `user.pii.erased`
+- **Auth-gate decision:** erase is gated tenant `admin`, NOT super_admin as the
+  route plan below originally drafted. Rationale: under DPDP the tenant is the
+  data fiduciary for its own candidates and RLS confines the blast radius to the
+  caller's tenant. Adversarial review (Opus takeover; codex quota-blocked)
+  verdict = ACCEPT.
+
+Decision pins below are the v2 set, written at S1 start per the
+[consolidated skill plan](../../assessiq-skill-plan.md) §11.1.
 
 **Prior gate cleared:** the
 [grading-completion-fix-plan](../../docs/design/grading-completion-fix-plan.md)
@@ -77,16 +101,22 @@ Three load-bearing invariants forbid DELETE:
 
 **Tombstone scheme** (live tables; audit_log untouched by erasure):
 
+**Schema corrected 2026-05-29 (verified against migrations at implementation).**
+The original table below named `attempt_responses` and `attempt_events.ip` —
+neither exists. Real surface: answers live in `attempt_answers.answer` (JSONB);
+candidate IP/UA live in `sessions` (candidates DO get a row via
+`mintCandidateSession`); `attempt_events` has only `payload JSONB` + `at`, no
+IP/UA columns.
+
 | Table | Column | Tombstone value |
 |---|---|---|
-| `users` | `name` | `'deleted_user_' \|\| substring(sha256(id::text), 1, 12)` |
+| `users` | `name` | `'deleted_user_' \|\| substr(encode(sha256(id::text::bytea),'hex'),1,12)` |
 | `users` | `email` | `'deleted+' \|\| <same hash> \|\| '@erased.assessiq.local'` |
 | `users` | `erased_at` | `now()` (new column, migration 0102) |
-| `attempt_responses` | free-text `answer_text` columns | `'[erased]'` for free-text types only; MCQ/numeric stay |
-| `attempt_events` | `ip` | NULL |
-| `attempt_events` | `user_agent` | NULL |
-| `attempt_events` | `metadata` JSONB | recursive redaction via extended `redact.ts` patterns |
-| `certificates` | (none) | snapshot stays verbatim per D5 of 18-certification |
+| `attempt_answers` | `answer` (JSONB) | `'"[erased]"'::jsonb` for every answer NOT positively confirmed `mcq` (question type resolved via correlated subquery; an RLS-invisible/missing question defaults to free-text so its PII is still erased — closes a right-to-erasure gap caught in review) |
+| `sessions` | `ip` | NULL (for the candidate's session rows) |
+| `sessions` | `user_agent` | NULL |
+| `certificates` | (none) | snapshot stays verbatim per D5 of 18-certification (keyed on `candidate_id`, `ON DELETE SET NULL` — tombstoning the user, not deleting, leaves it intact) |
 
 **`users.deleted_at` vs `users.erased_at` (distinct purposes):**
 `deleted_at` is admin soft-delete (row exists but hidden — used for "removed
