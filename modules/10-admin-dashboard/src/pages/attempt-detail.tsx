@@ -30,7 +30,8 @@ import { GradingProposalCard } from "../components/GradingProposalCard.js";
 import { EscalationDiff } from "../components/EscalationDiff.js";
 import { ScoreDetail } from "../components/ScoreDetail.js";
 import { BandPicker } from "../components/BandPicker.js";
-import { QuestionContentView } from "../components/QuestionContentView.js";
+import { QuestionPromptView } from "../components/QuestionPromptView.js";
+import { ExpectedAnswerView } from "../components/ExpectedAnswerView.js";
 import { ReleaseConfirmModal } from "../components/ReleaseConfirmModal.js";
 import { ConceptCoverageView } from "../components/ConceptCoverageView.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -116,9 +117,11 @@ interface OverrideFormState {
 // Maps each canonical answer shape (mirrors the take-flow shapes in
 // modules/11-candidate-ui Attempt.tsx) to a human-readable layout. It must
 // NEVER dump raw JSON to the admin — unrecognised shapes fall back to a plain
-// "no preview" message rather than brace-and-quote text. The question content
-// itself is rendered by the shared <QuestionContentView>, which already
-// strips JSON-escape + markdown noise and shows the correct option / rationale.
+// "no preview" message rather than brace-and-quote text. The question prompt
+// is rendered by <QuestionPromptView> (candidate-facing stimulus, no answer
+// key) and the answer key + rubric by <ExpectedAnswerView>, so the audit card
+// keeps the four zones — Question / Expected / Candidate answer / AI
+// evaluation — strictly demarcated.
 // ---------------------------------------------------------------------------
 
 const ANSWER_TEXT_STYLE: React.CSSProperties = {
@@ -317,6 +320,54 @@ function AttemptAnswerView({ type, content, answer }: { type: string; content: u
 
   // Unrecognised / malformed shape — readable message, never raw JSON.
   return <NoAnswer label="Answer recorded — no readable preview available." />;
+}
+
+// ---------------------------------------------------------------------------
+// AuditZone — one labelled, colour-accented block of the per-question audit
+// card. The four zones (Question / Expected answer / Candidate answer / AI
+// evaluation) give the admin a clear, consistent demarcation between what was
+// asked, what was expected, what the candidate wrote, and how the AI scored it.
+// ---------------------------------------------------------------------------
+
+const ZONE_LABEL_STYLE: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--aiq-space-xs)",
+  fontFamily: "var(--aiq-font-mono)",
+  fontSize: "var(--aiq-text-xs)",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  marginBottom: "var(--aiq-space-sm)",
+};
+
+function AuditZone({
+  label,
+  icon,
+  accent,
+  children,
+}: {
+  label: string;
+  icon: string;
+  accent: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <section
+      style={{
+        border: "1px solid var(--aiq-color-border)",
+        borderLeft: `3px solid ${accent}`,
+        borderRadius: "var(--aiq-radius-md, 6px)",
+        padding: "var(--aiq-space-md)",
+        background: "var(--aiq-color-bg-base, #fff)",
+      }}
+    >
+      <div style={{ ...ZONE_LABEL_STYLE, color: accent }}>
+        <span aria-hidden="true">{icon}</span>
+        <span>{label}</span>
+      </div>
+      {children}
+    </section>
+  );
 }
 
 export function AdminAttemptDetail(): React.ReactElement {
@@ -873,38 +924,90 @@ export function AdminAttemptDetail(): React.ReactElement {
           );
         })()}
 
-        {/* Questions */}
-        {frozen_questions.map((q) => {
+        {/* Questions — each rendered as a four-zone audit card:
+            Question (prompt only) / Expected answer + rubric / Candidate
+            answer / AI evaluation. The strict demarcation lets the admin
+            audit what was asked, what was expected, what the candidate wrote,
+            and how the AI scored it without any of those bleeding together. */}
+        {frozen_questions.map((q, idx) => {
           const answer = answers.find((a) => a.question_id === q.id);
           const proposal = proposals[q.id];
           const escalation = escalationProposals[q.id];
           const existingGrading = gradings.find((g) => g.question_id === q.id && !g.override_of);
 
+          // Per-question status pill for the card header.
+          let stLabel: string;
+          let stBg: string;
+          let stFg: string;
+          if (existingGrading) {
+            stLabel = "graded";
+            stBg = "var(--aiq-color-success-subtle, #e8f5ec)";
+            stFg = "var(--aiq-color-success, #2a8a4a)";
+          } else if (proposal && isAiFailure(proposal)) {
+            stLabel = "needs review";
+            stBg = "var(--aiq-color-danger-subtle, #fff0f0)";
+            stFg = "var(--aiq-color-danger)";
+          } else if (proposal) {
+            stLabel = "ready to accept";
+            stBg = "var(--aiq-color-warning-subtle, #fff8e0)";
+            stFg = "var(--aiq-color-warning, #b08000)";
+          } else {
+            stLabel = "not graded";
+            stBg = "transparent";
+            stFg = "var(--aiq-color-fg-muted)";
+          }
+
           return (
             <div
               key={q.id}
-              className="aiq-card aiq-admin-detail-two-col"
-              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-xl)", padding: "var(--aiq-space-xl)" }}
+              className="aiq-card aiq-admin-detail-question"
+              style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}
             >
-              {/* Left: question + answer */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+              {/* Header: question index + type + points + status pill */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
                 <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                  {q.type} · {q.points} pts
+                  Q{idx + 1} · {q.type} · {q.points} pts
                 </div>
-                <QuestionContentView type={q.type} content={q.content} />
-                {answer && (
-                  <>
-                    <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                      Candidate answer
-                    </div>
+                <span
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    padding: "2px 8px",
+                    borderRadius: "var(--aiq-radius-pill, 999px)",
+                    border: `1px solid ${stFg}`,
+                    backgroundColor: stBg,
+                    color: stFg,
+                  }}
+                >
+                  {stLabel}
+                </span>
+              </div>
+
+              {/* ZONE 1 — Question (candidate-facing prompt only, no answer key) */}
+              <div>
+                <div style={{ ...ZONE_LABEL_STYLE, color: "var(--aiq-color-fg-muted)" }}>
+                  <span aria-hidden="true">❓</span>
+                  <span>Question</span>
+                </div>
+                <QuestionPromptView type={q.type} content={q.content} />
+              </div>
+
+              {/* ZONE 2 — Expected answer / rubric (the grading ground-truth) */}
+              <AuditZone label="Expected answer / rubric" icon="✦" accent="var(--aiq-color-info, #3177dc)">
+                <ExpectedAnswerView type={q.type} content={q.content} rubric={q.rubric ?? null} />
+              </AuditZone>
+
+              {/* ZONE 3 — Candidate answer (what was submitted) */}
+              <AuditZone label="Candidate answer" icon="✎" accent="var(--aiq-color-fg-secondary)">
+                {answer ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
                     <AttemptAnswerView type={q.type} content={q.content} answer={answer.answer} />
-                    {/* Phase 3 review UX (2026-05-29): show rubric-concept
-                        coverage of the candidate's answer so the admin can
-                        verify hits with one glance. Only render when (a) the
-                        question type produces narrative text, (b) there's a
-                        rubric with anchors, and (c) there's a committed
-                        grading row whose anchor_hits can be paired with the
-                        rubric anchors. */}
+                    {/* Rubric-concept coverage highlighting — only when (a) the
+                        type produces narrative text, (b) there's a rubric with
+                        anchors, (c) there's a committed grading whose
+                        anchor_hits pair with the rubric anchors. */}
                     {existingGrading?.anchor_hits && q.rubric?.anchors && q.rubric.anchors.length > 0 && (() => {
                       const answerText = serializeAnswerForCoverage(q.type, answer.answer);
                       if (!answerText) return null;
@@ -930,20 +1033,31 @@ export function AdminAttemptDetail(): React.ReactElement {
                         />
                       );
                     })()}
-                  </>
+                  </div>
+                ) : (
+                  <NoAnswer label="No answer submitted." />
                 )}
-              </div>
+              </AuditZone>
 
-              {/* Right: grading panel */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+              {/* ZONE 4 — AI evaluation (band, anchor evidence, justification, controls) */}
+              <AuditZone label="AI evaluation" icon="🤖" accent="var(--aiq-color-accent, #3177dc)">
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
                 {/* Existing grading — enriched with the question's rubric so
-                    anchor chips render concept+weight + hover tooltips */}
+                    anchor chips + the inline evidence list render concept+weight */}
                 {existingGrading && (
                   <ScoreDetail
                     grading={existingGrading}
                     questionLabel="Current grade"
+                    showAnchorEvidence
                     {...(q.rubric?.anchors ? { rubricAnchors: q.rubric.anchors } : {})}
                   />
+                )}
+
+                {/* Not-yet-graded placeholder */}
+                {!existingGrading && !proposal && (
+                  <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontStyle: "italic", color: "var(--aiq-color-fg-muted)" }}>
+                    Not yet graded{isGradeable ? " — click “Grade all” above to generate a proposal." : "."}
+                  </p>
                 )}
 
                 {/* Override form */}
@@ -1024,7 +1138,8 @@ export function AdminAttemptDetail(): React.ReactElement {
                     }}
                   />
                 )}
-              </div>
+                </div>
+              </AuditZone>
             </div>
           );
         })}
@@ -1069,8 +1184,7 @@ export function AdminAttemptDetail(): React.ReactElement {
           [data-help-id="admin.attempts.grading_stalled"] {
             display: none !important;
           }
-          .aiq-admin-detail-two-col {
-            grid-template-columns: 1fr !important;
+          .aiq-admin-detail-question {
             page-break-inside: avoid;
           }
           .aiq-card {

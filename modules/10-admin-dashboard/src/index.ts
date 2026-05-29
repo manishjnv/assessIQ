@@ -32,6 +32,12 @@ export type { AdminShellProps } from "./components/AdminShell.js";
 export { QuestionContentView } from "./components/QuestionContentView.js";
 export type { QuestionContentViewProps } from "./components/QuestionContentView.js";
 
+export { QuestionPromptView } from "./components/QuestionPromptView.js";
+export type { QuestionPromptViewProps } from "./components/QuestionPromptView.js";
+
+export { ExpectedAnswerView } from "./components/ExpectedAnswerView.js";
+export type { ExpectedAnswerViewProps } from "./components/ExpectedAnswerView.js";
+
 // ── Pages ──────────────────────────────────────────────────────────────────
 export { AdminDashboard } from "./pages/dashboard.js";
 export { AdminAttempts } from "./pages/attempts.js";

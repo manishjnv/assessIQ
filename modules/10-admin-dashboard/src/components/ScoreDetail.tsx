@@ -30,6 +30,15 @@ export interface ScoreDetailProps {
     weight: number;
     synonyms?: string[];
   }>;
+  /**
+   * When true, render an always-visible per-anchor evidence list below the
+   * chips: each anchor shown as `✓/✗ concept — "the quote the model cited"`.
+   * Used in the attempt-audit "AI evaluation" zone so a reviewer can verify
+   * each hit/miss decision against the AI's own cited evidence without having
+   * to hover every chip. Default false to leave other ScoreDetail usages
+   * (e.g. compact summaries) unchanged. Phase: attempt-audit demarcation.
+   */
+  showAnchorEvidence?: boolean;
   "data-test-id"?: string;
 }
 
@@ -39,6 +48,7 @@ export function ScoreDetail({
   grading,
   questionLabel,
   rubricAnchors,
+  showAnchorEvidence = false,
   "data-test-id": testId,
 }: ScoreDetailProps): React.ReactElement {
   const band = grading.reasoning_band;
@@ -113,6 +123,41 @@ export function ScoreDetail({
             );
           })}
         </div>
+      )}
+
+      {/* Always-visible per-anchor evidence — audit view. Each anchor shown
+          with hit/miss + concept + the model's cited evidence quote so a
+          reviewer can verify the scoring decision at a glance. */}
+      {showAnchorEvidence && grading.anchor_hits && grading.anchor_hits.length > 0 && (
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+          {grading.anchor_hits.map((a) => {
+            const def = anchorDefById.get(a.anchor_id);
+            const concept = def?.concept ?? a.anchor_id;
+            const color = a.hit ? "var(--aiq-color-success)" : "var(--aiq-color-fg-muted)";
+            return (
+              <li key={a.anchor_id} style={{ display: "flex", gap: "var(--aiq-space-xs)", alignItems: "flex-start", fontSize: "var(--aiq-text-sm)", lineHeight: 1.5 }}>
+                <span aria-hidden="true" style={{ color, fontWeight: 700, flexShrink: 0 }}>{a.hit ? "✓" : "✗"}</span>
+                <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-primary)" }}>
+                  <span style={{ fontWeight: 500 }}>{concept}</span>
+                  {def?.weight != null && (
+                    <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginLeft: "var(--aiq-space-xs)" }}>
+                      ({def.weight} pts)
+                    </span>
+                  )}
+                  {a.evidence_quote ? (
+                    <span style={{ display: "block", fontStyle: "italic", color: "var(--aiq-color-fg-secondary)", marginTop: 2, whiteSpace: "pre-wrap" }}>
+                      “{a.evidence_quote}”
+                    </span>
+                  ) : (
+                    <span style={{ display: "block", fontStyle: "italic", color: "var(--aiq-color-fg-muted)", marginTop: 2 }}>
+                      {a.hit ? "matched (no quote cited)" : "not found in answer"}
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {/* AI justification — plain text */}
