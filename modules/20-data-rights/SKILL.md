@@ -40,7 +40,7 @@ on 2026-05-29 (`96b71a6`). Both LIVE.
 
 Own every data-subject right the platform must honor for **candidates**, whose
 PII surface is intentionally narrow: `users.name`, `users.email`,
-`attempt_responses.answer_text`, and `attempt_events.ip` + user-agent.
+`attempt_answers.answer` (free-text JSONB), and `sessions.ip` + user-agent.
 Candidates do **not** log in to AssessIQ — they authenticate only via
 single-purpose magic links. This module therefore has no "candidate
 portal"; the candidate-facing surface is a token-authenticated DSR page
@@ -79,7 +79,8 @@ Out of scope (defer):
 | `00-core` | `config`, `ValidationError`, `streamLogger`, `RequestContext` |
 | `02-tenancy` | `withTenant` for RLS; owns `tenant_settings` (S1 adds `retention_days`) |
 | `03-users` | `users` table (S1 adds `erased_at`); primary tombstone target |
-| `06-attempt-engine` | `attempt_responses` free-text + `attempt_events` IP/UA (erasure target) |
+| `06-attempt-engine` | `attempt_answers.answer` free-text JSONB (erasure target; question-type filter excludes `mcq`) |
+| `01-auth` | `sessions.ip` / `sessions.user_agent` — candidate IP/UA (erasure target; candidates get a session row via `mintCandidateSession`) |
 | `14-audit-log` | `auditInTx()` for every DSR action; **immutability is a hard constraint** (D1, D7); S1 extends `redact.ts` |
 | `13-notifications` | Email export-ready, erasure-confirmation, consent receipts (S2+) |
 | `18-certification` | Snapshot HMAC payload includes `name` — erasure must not touch it (D1, see [18-certification SKILL.md D4](../18-certification/SKILL.md#d4--signed_hash-payload-spans-11-identity-fields)) |
@@ -381,9 +382,10 @@ S2-S5 land in subsequent sessions. **No work past S1 happens in this session.**
    does the candidate's on-file email also need to confirm? Lean: candidate
    email confirmation required unless candidate is provably
    deceased/incapacitated. Pin in S4.
-4. **`attempt_events.ip` retention** — strictly speaking not PII alone but
+4. **`sessions.ip` retention** — strictly speaking not PII alone but
    coupled with `user_id` becomes identifying. Lean: redact on erasure to
-   stay safe. Pinned in D1 already; flagging for S3 verification.
+   stay safe. Pinned in D1 already; implemented in `erasure.ts` (NULLed on
+   erasure).
 5. **S3 bucket region** — Mumbai (`ap-south-1`) for Indian candidates;
    coupled to D9 / 31-white-label. Defer to S2 deploy planning.
 
