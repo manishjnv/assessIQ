@@ -558,6 +558,8 @@ CREATE TABLE attempts (
   submitted_at    TIMESTAMPTZ,
   duration_seconds INT,                                    -- snapshot of level.duration_minutes * 60
   embed_origin    BOOLEAN NOT NULL DEFAULT FALSE,          -- Phase 4 (2026-05-03): TRUE when attempt was started via embed JWT flow (D2); used in analytics and admin filters
+  ai_proposals    JSONB,                                   -- Migration 0100 (2026-05-29, Bug A robustness): server-side cache of latest GradingProposal[] from handleAdminGrade. Review buffer ONLY — D8 unchanged, no gradings row is written without admin Accept click. Cleared in same tx as the gate-flip status='graded' in admin-accept.ts (true completion). Lets the FE hydrate proposals state on page load even if the original synchronous POST /grade response was dropped by Cloudflare's ~100s edge timeout. Null when no run yet or after a successful accept.
+  grading_started_at TIMESTAMPTZ,                          -- Migration 0100 (2026-05-29): in-flight marker. SET by handleAdminGrade on entry (after status + heartbeat + single-flight checks), nulled at batch completion (success or thrown-error catch path). Drives the FE "Grading in progress" banner + 15s auto-poll. FE treats marker > 10 min as stalled (likely API restart mid-batch) — shows "Re-grade (previous stalled)" + caps polling at 12 min. A fresh Grade-all click overwrites a stale marker (no DB-level lock needed; the single-flight mutex is the real lock).
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (assessment_id, user_id)                         -- one attempt per user per assessment v1
 );
@@ -566,6 +568,8 @@ CREATE INDEX attempts_timer_sweep_idx ON attempts (ends_at) WHERE status = 'in_p
 CREATE INDEX attempts_assessment_status_idx ON attempts (assessment_id, status);
 -- Phase 4 partial index for embed attempt queries (sparse — most attempts are non-embed)
 CREATE INDEX attempts_embed_origin_idx ON attempts (tenant_id, embed_origin) WHERE embed_origin = TRUE;
+-- Migration 0100 partial index for the rare "find attempts currently grading" query
+CREATE INDEX attempts_grading_started_at_idx ON attempts (grading_started_at) WHERE grading_started_at IS NOT NULL;
 
 CREATE TABLE attempt_questions (
   attempt_id      UUID NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,

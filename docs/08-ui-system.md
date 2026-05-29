@@ -627,6 +627,23 @@ The attempt-detail page now surfaces grading progress at the top, between the he
 
 **History.** Pre-2026-05-28 the page had only a single per-question Accept button that posted `{question_id}` — the backend required `{proposals: […]}`, so every Accept silently 422'd and no attempt ever reached `graded` status. See `docs/RCA_LOG.md` 2026-05-28 entries (Bug A + Bug B) for the full incident.
 
+### Attempt-detail — navigate-away robustness (2026-05-29, commit `96b71a6`)
+
+Operator-observed after the Bug-A fix deployed: even when the admin stayed on the attempt page after Grade-all, the proposals never appeared. Root cause was a Cloudflare ~100s edge timeout killing the 4-minute synchronous POST `/grade` response mid-flight (`docs/RCA_LOG.md` 2026-05-29). The fix persists proposals server-side as a review cache and adds two new UI affordances so the admin can navigate away during a batch and pick up proposals on return.
+
+| Element | Purpose |
+| --- | --- |
+| **"Grading in progress" banner** (`admin.attempts.grading_in_progress`) | Blue info banner, rendered between the header and the grading-summary panel when `detail.grading_started_at != null`. Shows a Spinner + "Started Ns ago · polling every 15s · safe to navigate away" + a **Check now** button (manual `load()` trigger). Disappears the moment the marker is nulled by the backend's batch-completion write. |
+| **"Previous grading stalled" banner** (`admin.attempts.grading_stalled`) | Yellow warning banner, replaces the in-progress banner once the elapsed time exceeds `STALE_MARKER_SEC = 600` (10 min). Indicates likely API container SIGKILL mid-batch — the `handleAdminGrade` catch-block marker-clear didn't run. Coaches the admin to click **Re-grade**, which is enabled in this state because the server's in-process single-flight is fresh after a restart. |
+| **Grade-all button — three states** | (a) Disabled "Grading…" while a local `handleGrade()` call is in flight OR while `gradingActive` is server-reported. (b) Enabled "Re-grade (previous stalled)" when `gradingStalled`. (c) Enabled "Grade all" otherwise. Title attribute carries hover-hint per state. |
+| **Auto-poll** | A `useEffect` polls `load()` every 15s while `detail.grading_started_at != null`. Hard cap at `POLL_CAP_SEC = 720` (12 min) — beyond that the FE stops polling and shows the stalled banner. Adjusts to `gradingElapsedSec` so even a stalled marker that was set, say, 11 minutes before page load still polls for ~60s before giving up. |
+
+**Hydration on mount.** `load()` reads `detail.ai_proposals` (a `GradingProposal[] \| null` from the new GET endpoint contract) and seeds the local `proposals` state. Explicit reset to `{}` when null so a stale proposal from a previous attempt doesn't bleed into a freshly-navigated-to one. The same `load()` call powers the auto-poll, so when proposals land in the cache the FE picks them up within at most 15 seconds.
+
+**Timeout-resilient `handleGrade()`.** The synchronous POST `/grade` still fires on click, but a thrown 504/524/408 (proxy timeout) is now non-fatal — the FE shows "Grading is taking longer than the connection timeout — it continues on the server. This page will refresh automatically when proposals arrive." and calls `load()` to start the poll. Real errors (e.g. 422 contract violation, 503 mode mismatch) still bubble through the existing error banner.
+
+**Compliance frame UNCHANGED.** The cache is review-state only. `Accept all` still runs the Phase-1 completion gate. Billing still fires same-tx with the gate flip. The admin still clicks Accept on visible proposals before any `gradings` row is written. See `docs/05-ai-pipeline.md` § "Proposals cache + navigate-away robustness" for the full compliance argument.
+
 ### Row-overflow menu pattern (currently page-local)
 
 Question-Bank's destructive `Archive` action moved into a `⋯` row-level menu (`useRef` + click-outside listener + `Esc` to close) so destructive verbs don't crowd a list row. Implementation lives inline at [`modules/10-admin-dashboard/src/pages/question-bank.tsx`](../modules/10-admin-dashboard/src/pages/question-bank.tsx) as `RowOverflowMenu`. **Promote to `@assessiq/ui-system` when a second admin list needs it** (likely soon — assessments + users + certificates all have row-level destructive actions today).
