@@ -384,6 +384,26 @@ export async function getAssessment(
   return assessment;
 }
 
+/**
+ * Admin detail view variant — same as getAssessment but also returns
+ * level_label (from levels.label) and pack_name (from question_packs.name)
+ * as optional fields, used by the assessment-detail page header.
+ */
+export async function getAssessmentDetail(
+  tenantId: string,
+  id: string,
+): Promise<Assessment> {
+  const assessment = await withTenant(tenantId, (client) =>
+    repo.findAssessmentByIdWithMeta(client, id),
+  );
+  if (assessment === null) {
+    throw new NotFoundError(`Assessment not found: ${id}`, {
+      details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+    });
+  }
+  return assessment;
+}
+
 // ---------------------------------------------------------------------------
 // createAssessment
 // ---------------------------------------------------------------------------

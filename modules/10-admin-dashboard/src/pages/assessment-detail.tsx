@@ -50,16 +50,26 @@ interface Assessment {
   opens_at: string | null;
   closes_at: string | null;
   created_at: string;
+  level_label?: string | null;
+  pack_name?: string | null;
 }
 
 interface Invitation {
   id: string;
   user_id: string;
-  user_email?: string;
-  user_name?: string;
+  user_email?: string | null;
+  user_name?: string | null;
   status: InvitationStatus;
   created_at: string;
   expires_at: string | null;
+  attempt_id?: string | null;
+  attempt_status?: string | null;
+  started_at?: string | null;
+  submitted_at?: string | null;
+  total_earned?: number | null;
+  total_max?: number | null;
+  auto_pct?: number | null;
+  pending_review?: boolean | null;
 }
 
 interface InvitationsResponse {
@@ -245,15 +255,28 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   const invitationColumns: ColumnDef<Invitation>[] = [
     {
-      key: "user_email",
+      key: "user_name",
       label: "Candidate",
       sortable: true,
       render: (row: Invitation) => (
-        <span
-          style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}
-        >
-          {row.user_email ?? row.user_id}
-        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <span
+            style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}
+          >
+            {row.user_name ?? row.user_email ?? row.user_id}
+          </span>
+          {row.user_email != null && (
+            <span
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-fg-muted)",
+              }}
+            >
+              {row.user_email}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -297,8 +320,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
       ),
     },
     {
-      key: "expires_at",
-      label: "Expires",
+      key: "started_at",
+      label: "Started",
       sortable: true,
       render: (row: Invitation) => (
         <span
@@ -308,9 +331,108 @@ export function AdminAssessmentDetail(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {row.expires_at ? new Date(row.expires_at).toLocaleDateString() : "—"}
+          {row.started_at != null ? new Date(row.started_at).toLocaleDateString() : "—"}
         </span>
       ),
+    },
+    {
+      key: "submitted_at",
+      label: "Submitted",
+      sortable: true,
+      render: (row: Invitation) => (
+        <span
+          style={{
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: "var(--aiq-text-xs)",
+            color: "var(--aiq-color-fg-muted)",
+          }}
+        >
+          {row.submitted_at != null ? new Date(row.submitted_at).toLocaleDateString() : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "auto_pct",
+      label: "Score",
+      sortable: true,
+      render: (row: Invitation) => {
+        if (row.auto_pct == null) {
+          return (
+            <span
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-fg-muted)",
+              }}
+            >
+              —
+            </span>
+          );
+        }
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                  fontWeight: 500,
+                }}
+              >
+                {Math.round(row.auto_pct)}%
+              </span>
+              {row.pending_review === true && (
+                <span
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    padding: "1px 6px",
+                    borderRadius: "var(--aiq-radius-pill)",
+                    background: "var(--aiq-color-bg-sunken)",
+                    color: "var(--aiq-color-fg-muted)",
+                  }}
+                >
+                  review pending
+                </span>
+              )}
+            </div>
+            {row.total_earned != null && row.total_max != null && (
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "var(--aiq-text-xs)",
+                  color: "var(--aiq-color-fg-muted)",
+                }}
+              >
+                {row.total_earned} / {row.total_max}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "attempt_id",
+      label: "Action",
+      sortable: false,
+      render: (row: Invitation) => {
+        if (row.attempt_id == null) return <span>—</span>;
+        return (
+          <Link
+            to={`/admin/attempts/${row.attempt_id}`}
+            style={{
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              color: "var(--aiq-color-accent)",
+              textDecoration: "none",
+            }}
+          >
+            View attempt →
+          </Link>
+        );
+      },
     },
   ];
 
@@ -412,6 +534,23 @@ export function AdminAssessmentDetail(): React.ReactElement {
               >
                 {assessment.status}
               </span>
+              {assessment.level_label != null && (
+                <span
+                  style={{
+                    fontFamily: "var(--aiq-font-mono)",
+                    fontSize: "var(--aiq-text-xs)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    padding: "1px 8px",
+                    borderRadius: "var(--aiq-radius-pill)",
+                    background: "var(--aiq-color-bg-sunken)",
+                    color: "var(--aiq-color-fg-muted)",
+                    flexShrink: 0,
+                  }}
+                >
+                  LEVEL {assessment.level_label}
+                </span>
+              )}
             </div>
             <p
               style={{
@@ -431,6 +570,9 @@ export function AdminAssessmentDetail(): React.ReactElement {
                 ? `Closes ${new Date(assessment.closes_at).toLocaleDateString()}`
                 : "No close date"}{" "}
               · Created {new Date(assessment.created_at).toLocaleDateString()}
+              {assessment.pack_name != null && (
+                <>{" · Pack "}{assessment.pack_name}</>
+              )}
             </p>
           </div>
           <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexShrink: 0 }}>

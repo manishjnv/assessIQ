@@ -127,6 +127,10 @@ export interface Assessment {
   created_by: string;
   created_at: Date;
   updated_at: Date;
+  /** Optional — populated by findAssessmentByIdWithMeta (detail view only). */
+  level_label?: string | null;
+  /** Optional — populated by findAssessmentByIdWithMeta (detail view only). */
+  pack_name?: string | null;
 }
 
 export interface AssessmentInvitation {
@@ -143,6 +147,17 @@ export interface AssessmentInvitation {
   status: InvitationStatus;
   invited_by: string;
   created_at: Date;
+  /** Optional — populated by listInvitationRows (list view only, not single-row reads). */
+  user_name?: string | null;
+  user_email?: string | null;
+  attempt_id?: string | null;
+  attempt_status?: string | null;
+  started_at?: Date | null;
+  submitted_at?: Date | null;
+  total_earned?: number | null;
+  total_max?: number | null;
+  auto_pct?: number | null;
+  pending_review?: boolean | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -84,6 +84,26 @@ interface InvitationRow {
   created_at: Date;
 }
 
+/** Extended row returned by the list query (includes JOINed user + attempt data). */
+interface InvitationRowWithMeta extends InvitationRow {
+  user_name: string | null;
+  user_email: string | null;
+  attempt_id: string | null;
+  attempt_status: string | null;
+  started_at: Date | null;
+  submitted_at: Date | null;
+  total_earned: string | null;   // NUMERIC comes back as string from pg
+  total_max: string | null;
+  auto_pct: string | null;
+  pending_review: boolean | null;
+}
+
+/** AssessmentRow extended with level_label + pack_name (detail view). */
+interface AssessmentRowWithMeta extends AssessmentRow {
+  level_label: string | null;
+  pack_name: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Mapper functions
 // ---------------------------------------------------------------------------
@@ -124,6 +144,22 @@ function mapInvitationRow(row: InvitationRow): AssessmentInvitation {
   };
 }
 
+function mapInvitationRowWithMeta(row: InvitationRowWithMeta): AssessmentInvitation {
+  return {
+    ...mapInvitationRow(row),
+    user_name: row.user_name,
+    user_email: row.user_email,
+    attempt_id: row.attempt_id,
+    attempt_status: row.attempt_status,
+    started_at: row.started_at,
+    submitted_at: row.submitted_at,
+    total_earned: row.total_earned !== null ? Number(row.total_earned) : null,
+    total_max: row.total_max !== null ? Number(row.total_max) : null,
+    auto_pct: row.auto_pct !== null ? Number(row.auto_pct) : null,
+    pending_review: row.pending_review,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Assessment queries
 // ---------------------------------------------------------------------------
@@ -138,6 +174,35 @@ export async function findAssessmentById(
   );
   const row = result.rows[0];
   return row !== undefined ? mapAssessmentRow(row) : null;
+}
+
+/**
+ * Like findAssessmentById but also JOINs levels.label and question_packs.name
+ * for the admin detail view. Returns level_label and pack_name as optional
+ * fields on the Assessment object.
+ */
+export async function findAssessmentByIdWithMeta(
+  client: PoolClient,
+  id: string,
+): Promise<Assessment | null> {
+  const result = await client.query<AssessmentRowWithMeta>(
+    `SELECT a.${ASSESSMENT_COLUMNS.split(", ").join(", a.")},
+            l.label   AS level_label,
+            qp.name   AS pack_name
+     FROM   assessments a
+     LEFT JOIN levels         l  ON l.id  = a.level_id
+     LEFT JOIN question_packs qp ON qp.id = a.pack_id
+     WHERE  a.id = $1
+     LIMIT 1`,
+    [id],
+  );
+  const row = result.rows[0];
+  if (row === undefined) return null;
+  return {
+    ...mapAssessmentRow(row),
+    level_label: row.level_label,
+    pack_name: row.pack_name,
+  };
 }
 
 export async function listAssessmentRows(
@@ -450,20 +515,21 @@ export async function listInvitationRows(
   assessmentId: string,
   filters: ListInvitationsInput,
 ): Promise<{ items: AssessmentInvitation[]; total: number }> {
-  const conditions: string[] = [`assessment_id = $1`];
+  const conditions: string[] = [`ai.assessment_id = $1`];
   const values: unknown[] = [assessmentId];
   let i = 2;
 
   if (filters.status !== undefined) {
-    conditions.push(`status = $${i}`);
+    conditions.push(`ai.status = $${i}`);
     values.push(filters.status);
     i++;
   }
 
   const where = `WHERE ${conditions.join(" AND ")}`;
 
+  // Count query stays simple — no JOINs needed for pagination total.
   const countResult = await client.query<{ count: string }>(
-    `SELECT count(*) FROM assessment_invitations ${where}`,
+    `SELECT count(*) FROM assessment_invitations ai ${where}`,
     values,
   );
   const total = parseInt(countResult.rows[0]?.count ?? "0", 10);
@@ -472,14 +538,46 @@ export async function listInvitationRows(
   const pageSize = filters.pageSize ?? 20;
   const offset = (page - 1) * pageSize;
 
-  const dataResult = await client.query<InvitationRow>(
-    `SELECT ${INVITATION_COLUMNS} FROM assessment_invitations ${where}
-     ORDER BY created_at DESC, id DESC
+  // Extended SELECT with LEFT JOINs for the list view.
+  // - users: candidate name + email.
+  // - attempts: one attempt per (assessment_id, user_id) pair — LEFT JOIN
+  //   matches on both axes so a user with no attempt returns NULLs.
+  // - attempt_scores: scoring summary for completed attempts.
+  //
+  // INVITATION_COLUMNS is NOT reused here (no alias prefix); the single-row
+  // read functions (findInvitationById etc.) remain unchanged.
+  const dataResult = await client.query<InvitationRowWithMeta>(
+    `SELECT
+       ai.id,
+       ai.assessment_id,
+       ai.user_id,
+       ai.token_hash,
+       ai.expires_at,
+       ai.status,
+       ai.invited_by,
+       ai.created_at,
+       u.name               AS user_name,
+       u.email              AS user_email,
+       a.id                 AS attempt_id,
+       a.status             AS attempt_status,
+       a.started_at,
+       a.submitted_at,
+       s.total_earned,
+       s.total_max,
+       s.auto_pct,
+       s.pending_review
+     FROM  assessment_invitations ai
+     LEFT JOIN users         u  ON u.id  = ai.user_id
+     LEFT JOIN attempts      a  ON a.assessment_id = ai.assessment_id
+                                AND a.user_id      = ai.user_id
+     LEFT JOIN attempt_scores s ON s.attempt_id = a.id
+     ${where}
+     ORDER BY ai.created_at DESC, ai.id DESC
      LIMIT $${i} OFFSET $${i + 1}`,
     [...values, pageSize, offset],
   );
 
-  return { items: dataResult.rows.map(mapInvitationRow), total };
+  return { items: dataResult.rows.map(mapInvitationRowWithMeta), total };
 }
 
 export async function countInvitationsForAssessment(
