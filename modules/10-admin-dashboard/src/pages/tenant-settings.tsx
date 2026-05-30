@@ -63,7 +63,17 @@ const META_LABEL: CSSProperties = {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export function TenantSettings(): React.ReactElement {
+export interface TenantSettingsProps {
+  /**
+   * When true, render the inner sections only (no AdminShell wrapper, no
+   * page header). Used to embed the retention controls as a section inside
+   * another settings page (e.g. /admin/settings/billing). When false
+   * (default), render as the standalone /admin/tenant-settings page.
+   */
+  embedded?: boolean;
+}
+
+export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): React.ReactElement {
   // ── Load state ────────────────────────────────────────────────────────────
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -378,40 +388,46 @@ export function TenantSettings(): React.ReactElement {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  return (
-    <AdminShell breadcrumbs={["Settings"]} helpPage="admin.tenant-settings">
+  // When embedded, render only the inner DPDP sections (no AdminShell, no
+  // page-header chip/title — the parent page owns those). When standalone,
+  // wrap with AdminShell + render the page header. Both paths share the
+  // same retention + purge JSX below.
+  const inner = (
+    <>
       {showRunConfirm && <RunConfirmModal />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
-        {/* Page header */}
-        <div>
-          <div style={{ marginBottom: 12 }}>
-            <Chip leftIcon="settings">Tenant settings</Chip>
+        {!embedded && (
+          /* Page header */
+          <div>
+            <div style={{ marginBottom: 12 }}>
+              <Chip leftIcon="settings">Tenant settings</Chip>
+            </div>
+            <h1
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: "var(--aiq-text-3xl)",
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Settings.
+            </h1>
+            <p
+              style={{
+                fontSize: 14,
+                color: "var(--aiq-color-fg-secondary)",
+                margin: "8px 0 0",
+                maxWidth: 520,
+                lineHeight: 1.5,
+              }}
+            >
+              Tenant-level configuration for data retention and compliance controls.
+            </p>
           </div>
-          <h1
-            style={{
-              fontFamily: "var(--aiq-font-serif)",
-              fontSize: "var(--aiq-text-3xl)",
-              fontWeight: 400,
-              margin: 0,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Settings.
-          </h1>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--aiq-color-fg-secondary)",
-              margin: "8px 0 0",
-              maxWidth: 520,
-              lineHeight: 1.5,
-            }}
-          >
-            Tenant-level configuration for data retention and compliance controls.
-          </p>
-        </div>
+        )}
 
         {/* ── DPDP Data Retention section ─────────────────────────────────── */}
         <section aria-labelledby="dpdp-retention-heading">
@@ -623,6 +639,15 @@ export function TenantSettings(): React.ReactElement {
         </section>
 
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return inner;
+  }
+  return (
+    <AdminShell breadcrumbs={["Settings"]} helpPage="admin.tenant-settings">
+      {inner}
     </AdminShell>
   );
 }
