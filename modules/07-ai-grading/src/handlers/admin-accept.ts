@@ -85,6 +85,7 @@ function deriveStatus(
   scoreEarned: number,
   scoreMax: number,
   errorClass: string | null | undefined,
+  escalationChosenStage?: "2" | "3" | "manual" | null,
 ): GradingsRow["status"] {
   // AI runtime failure → admin must review manually
   if (
@@ -93,6 +94,13 @@ function deriveStatus(
   ) {
     return "review_needed";
   }
+  // Two-model vote disagreed by ≥2 bands (B / feature #3): the runtime tagged
+  // escalation_chosen_stage='manual' and kept Stage 2's band as primary WITHOUT
+  // picking a winner — the admin must adjudicate. Route to review_needed so a
+  // sharp Stage-2-vs-Stage-3 disagreement can never be swept through Accept-all
+  // as a silently-committed verdict. (Stage 3 agreeing → '3'; no escalation →
+  // '2'; both are legitimate auto-commits.)
+  if (escalationChosenStage === "manual") return "review_needed";
   // Score column missing/zero → admin must review manually
   if (scoreMax === 0) return "review_needed";
   const ratio = scoreEarned / scoreMax;
@@ -178,7 +186,7 @@ async function acceptProposals(
       grader: "ai",
       score_earned: scoreEarned,
       score_max: scoreMax,
-      status: deriveStatus(scoreEarned, scoreMax, errorClass),
+      status: deriveStatus(scoreEarned, scoreMax, errorClass, proposal.escalation_chosen_stage),
       anchor_hits: edits?.anchor_hits ?? proposal.anchors,
       reasoning_band: edits?.reasoning_band ?? proposal.band.reasoning_band,
       ai_justification: edits?.ai_justification ?? proposal.band.ai_justification,

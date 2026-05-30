@@ -549,6 +549,11 @@ export function AdminAttemptDetail(): React.ReactElement {
     if (p.prompt_version_sha === "error:no-sha") return true;
     const ec = p.band.error_class;
     if (typeof ec === "string" && ec.startsWith("AIG_")) return true;
+    // Two-model vote disagreed by ≥2 bands (B / feature #3): the runtime kept
+    // Stage 2's band but did NOT pick a winner (escalation_chosen_stage='manual').
+    // Exclude from Accept-all so the admin must adjudicate the disagreement
+    // explicitly — matches the backend deriveStatus() → review_needed routing.
+    if (p.escalation_chosen_stage === "manual") return true;
     return false;
   }
 
