@@ -821,6 +821,13 @@ export function AdminGenerateWizard(): React.ReactElement {
           </section>
         )}
 
+        {/* D2: Fan-out info line — makes per-category runs + total + level explicit */}
+        {grandTotal > 0 && (
+          <p style={{ marginBottom: "var(--aiq-space-sm)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+            This runs {checkedConfigs.length} generation{checkedConfigs.length !== 1 ? "s" : ""} — one per category — producing ≈{grandTotal} question{grandTotal !== 1 ? "s" : ""} total at level {selectedLevel}. Each category appears as its own row in Generation history.
+          </p>
+        )}
+
         {/* D2: Generate button with grand total */}
         <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
           <button
