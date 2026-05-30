@@ -774,7 +774,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                 Print review
               </button>
             )}
-            {attempt.status === "graded" && (
+            {attempt.status === "graded" && !attempt.isErased && (
               <button
                 type="button"
                 className="aiq-btn aiq-btn-outline aiq-no-print"
