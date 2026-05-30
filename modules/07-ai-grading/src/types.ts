@@ -402,6 +402,13 @@ export const AI_GRADING_ERROR_CODES = {
   BUDGET_EXHAUSTED: "AIG_BUDGET_EXHAUSTED",
   /** Attempt is not in a gradeable status (must be submitted | pending_admin_grading) */
   ATTEMPT_NOT_GRADEABLE: "AIG_ATTEMPT_NOT_GRADEABLE",
+  /**
+   * Release blocked: the attempt's candidate has been DPDP/GDPR-erased
+   * (users.erased_at IS NOT NULL). Releasing would email a dead tombstone
+   * address and — via issueCertificateOnRelease — mint a fresh certificate
+   * for a "forgotten" candidate. Fail-closed at the release gate. 2026-05-30.
+   */
+  ATTEMPT_NOT_RELEASABLE_ERASED: "AIG_ATTEMPT_NOT_RELEASABLE_ERASED",
   /** Idempotency: row already exists for (attempt, question, sha) */
   ALREADY_GRADED: "AIG_ALREADY_GRADED",
   /** Override requires fresh MFA; session.lastTotpAt > 5min ago */

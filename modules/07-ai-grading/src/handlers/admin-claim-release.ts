@@ -324,6 +324,39 @@ export async function handleAdminReleaseAttempt(input: {
   const { tenantId, userId, attemptId } = input;
 
   await withTenant(tenantId, async (client) => {
+    // DPDP/GDPR erasure gate (2026-05-30): refuse to release results for an
+    // erased candidate. Display-layer masking (displayCandidate) hides the
+    // identity but does NOT gate this action, so without this check the FE
+    // could be bypassed and a release would (a) email the tombstone address
+    // and (b) mint a fresh certificate via issueCertificateOnRelease below.
+    // Fail-closed and precise: 404 if the attempt is invisible/missing, 422
+    // if the candidate is erased. The check runs inside the same tx as the
+    // transition; erasure is a one-way monotonic state so the TOCTOU window
+    // is negligible and safe either way.
+    const candidateCheck = await client.query<{ erased_at: string | null }>(
+      `SELECT u.erased_at
+         FROM attempts a
+         LEFT JOIN users u ON u.id = a.user_id
+        WHERE a.id = $1
+        LIMIT 1`,
+      [attemptId],
+    );
+    const candidateRow = candidateCheck.rows[0];
+    if (candidateRow === undefined) {
+      throw new AppError(
+        `Attempt ${attemptId} not found`,
+        AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
+        404,
+      );
+    }
+    if (candidateRow.erased_at !== null) {
+      throw new AppError(
+        `Attempt ${attemptId} belongs to an erased candidate — results cannot be released`,
+        AI_GRADING_ERROR_CODES.ATTEMPT_NOT_RELEASABLE_ERASED,
+        422,
+      );
+    }
+
     const result = await client.query<{ id: string }>(
       `UPDATE attempts
        SET status = 'released'
