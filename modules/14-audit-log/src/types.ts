@@ -46,6 +46,8 @@ export const ACTION_CATALOG = [
   'assessment.updated',
   'assessment.published',
   'assessment.closed',
+  'assessment.cancelled',
+  'assessment.deleted',
   'assessment.invite',
   // Attempt
   'attempt.started',

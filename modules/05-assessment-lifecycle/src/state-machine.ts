@@ -29,10 +29,18 @@
 //                            AND a time check: now < closes_at
 //   * unpublishAssessment  → enforces canTransition('published','draft')
 //                            AND a no-invitations precondition (service-side)
-//   * cancelAssessment     → not in v1 surface (out of Phase 1 scope per
-//                            modules/05-assessment-lifecycle/SKILL.md), but
-//                            the machine recognises the edge so the boundary
-//                            cron can never accidentally arrive at it.
+//   * cancelAssessment     → enforces canTransition(<any non-terminal>,'cancelled')
+//                            (legal from draft/published/active/closed). Soft
+//                            retirement: preserves attempts + audit; the row
+//                            stays, hidden from the default list. Added 2026-05-30
+//                            as the soft counterpart to deleteAssessment (hard,
+//                            zero-attempts-only). cancelled is terminal; the
+//                            boundary cron never advances it.
+//   * deleteAssessment     → NOT a state transition — hard-deletes the row
+//                            (cascades invitations + frozen_pool) only when the
+//                            assessment has zero attempts; the attempts FK is
+//                            ON DELETE RESTRICT, the DB backstop behind the
+//                            service-level count guard.
 //   * boundary cron        → invokes nextStateOnTimeBoundary() per row;
 //                            applies the returned state via canTransition.
 //
@@ -66,8 +74,13 @@ import {
 const LEGAL_TRANSITIONS = {
   draft: new Set<AssessmentStatus>(["published", "cancelled"]),
   published: new Set<AssessmentStatus>(["draft", "active", "cancelled"]),
-  active: new Set<AssessmentStatus>(["closed"]),
-  closed: new Set<AssessmentStatus>(["published"]),  // reopen edge
+  // active/closed → cancelled added 2026-05-30: an admin can call off (cancel)
+  // a running or finished assessment to retire it from the active list. cancel
+  // does NOT delete attempts/audit (that history is preserved); it is the soft
+  // counterpart to hard-delete, which is only allowed when zero attempts exist.
+  // cancelled stays terminal and the boundary cron never advances it.
+  active: new Set<AssessmentStatus>(["closed", "cancelled"]),
+  closed: new Set<AssessmentStatus>(["published", "cancelled"]),  // reopen | cancel
   cancelled: new Set<AssessmentStatus>(),            // terminal
 } as const satisfies Record<AssessmentStatus, ReadonlySet<AssessmentStatus>>;
 

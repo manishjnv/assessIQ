@@ -83,6 +83,29 @@ export async function generateQuestionsApi(
 }
 
 // ---------------------------------------------------------------------------
+// Typed helpers — assessment lifecycle actions (cancel / delete)
+// ---------------------------------------------------------------------------
+
+/**
+ * Soft-retire an assessment (→ cancelled). The row + its attempts + audit
+ * history are preserved; it just drops out of the default list view. Use this
+ * for assessments that already have candidate attempts.
+ */
+export async function cancelAssessmentApi(id: string): Promise<void> {
+  await adminApi(`/admin/assessments/${id}/cancel`, { method: "POST" });
+}
+
+/**
+ * Hard-delete an assessment. The server permits this ONLY when the assessment
+ * has zero attempts; otherwise it throws AdminApiError 422 with code
+ * ASSESSMENT_HAS_ATTEMPTS (the caller should fall back to cancel). Invitations
+ * and the frozen question pool cascade away with the row.
+ */
+export async function deleteAssessmentApi(id: string): Promise<void> {
+  await adminApi(`/admin/assessments/${id}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
 // Typed helpers — bulk question status update endpoint
 // ---------------------------------------------------------------------------
 

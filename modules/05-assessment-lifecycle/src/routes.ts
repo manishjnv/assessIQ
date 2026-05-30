@@ -43,6 +43,8 @@ import {
   updateAssessment,
   publishAssessment,
   closeAssessment,
+  cancelAssessment,
+  deleteAssessment,
   reopenAssessment,
   previewAssessment,
   listInvitations,
@@ -404,6 +406,35 @@ export async function registerAssessmentLifecycleRoutes(
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
       return reopenAssessment(tenantId, id, userId);
+    },
+  );
+
+  // POST /api/admin/assessments/:id/cancel  — extension; soft-retire (→ cancelled).
+  // Legal from draft/published/active/closed; preserves attempts + audit.
+  app.post(
+    "/api/admin/assessments/:id/cancel",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      return cancelAssessment(tenantId, id, userId);
+    },
+  );
+
+  // DELETE /api/admin/assessments/:id  — extension; hard delete, returns 204.
+  // Allowed only when the assessment has zero attempts (else 422
+  // ASSESSMENT_HAS_ATTEMPTS — caller should cancel instead). RLS confines the
+  // delete to the caller's tenant; invitations + frozen pool cascade.
+  app.delete(
+    "/api/admin/assessments/:id",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      await deleteAssessment(tenantId, id, userId);
+      return reply.code(204).send();
     },
   );
 

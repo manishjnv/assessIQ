@@ -36,10 +36,11 @@ import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, getCompanyEntitlements } from "../api.js";
+import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
+import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
 
-type AssessmentStatus = "draft" | "published" | "active" | "closed";
+type AssessmentStatus = "draft" | "published" | "active" | "closed" | "cancelled";
 type InvitationStatus = "pending" | "accepted" | "expired" | "submitted";
 
 interface Assessment {
@@ -154,6 +155,14 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
+  // Delete / Cancel confirm-modal state. confirmMode drives the single shared
+  // DangerConfirmModal: "delete" = hard delete (zero-attempts), "cancel" = soft
+  // retire (→ cancelled). Both outcomes remove the row from the default list,
+  // so a success navigates back to the list.
+  const [confirmMode, setConfirmMode] = useState<null | "delete" | "cancel">(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const [sortBy, setSortBy] = useState<string>("");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -214,6 +223,27 @@ export function AdminAssessmentDetail(): React.ReactElement {
     }
   }
 
+  async function handleConfirmAction() {
+    if (!id || confirmMode === null) return;
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      if (confirmMode === "delete") {
+        await deleteAssessmentApi(id);
+      } else {
+        await cancelAssessmentApi(id);
+      }
+      // Deleted rows are gone; cancelled rows drop out of the default list.
+      // Either way, return to the list rather than re-render a stale detail.
+      navigate("/admin/assessments");
+    } catch (err) {
+      setActionError(
+        err instanceof AdminApiError ? err.apiError.message : "Action failed. Please try again.",
+      );
+      setActionBusy(false);
+    }
+  }
+
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     if (!id || selectedUserIds.size === 0) {
@@ -252,6 +282,14 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   const invitedUserIds = new Set(invitations.map((inv) => inv.user_id));
   const uninvitedUsers = users.filter((u) => u.role === "candidate" && u.status === "active" && !invitedUserIds.has(u.id));
+
+  // An assessment "has attempts" if any invitation has progressed to an attempt
+  // (attempt row created or started). Hard-delete is blocked server-side when
+  // attempts exist; we mirror that here to disable the Delete button + steer to
+  // Cancel. The server stays authoritative (returns 422 ASSESSMENT_HAS_ATTEMPTS).
+  const hasAttempts = invitations.some(
+    (inv) => inv.attempt_id != null || inv.started_at != null,
+  );
 
   const invitationColumns: ColumnDef<Invitation>[] = [
     {
@@ -583,6 +621,30 @@ export function AdminAssessmentDetail(): React.ReactElement {
             >
               ← Back
             </button>
+            {assessment.status !== "cancelled" && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                onClick={() => { setActionError(null); setConfirmMode("cancel"); }}
+                title="Retire this assessment — keeps attempts + history, hides it from the list"
+              >
+                Cancel assessment
+              </button>
+            )}
+            {assessment.status !== "cancelled" && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                style={hasAttempts ? undefined : { color: "var(--aiq-color-danger)", borderColor: "var(--aiq-color-danger)" }}
+                disabled={hasAttempts}
+                onClick={() => { setActionError(null); setConfirmMode("delete"); }}
+                title={hasAttempts
+                  ? "This assessment has candidate attempts — cancel it instead of deleting"
+                  : "Permanently delete this assessment"}
+              >
+                Delete
+              </button>
+            )}
             {assessment.status === "draft" && (
               <div data-help-id="admin.assessments.content_source" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--aiq-space-xs)" }}>
                 <HelpTip helpId="admin.assessments.publish">
@@ -856,6 +918,35 @@ export function AdminAssessmentDetail(): React.ReactElement {
           )}
         </div>
       </div>
+
+      <DangerConfirmModal
+        open={confirmMode !== null}
+        title={confirmMode === "delete" ? "Delete this assessment?" : "Cancel this assessment?"}
+        body={
+          confirmMode === "delete" ? (
+            <>
+              Permanently delete <strong>{assessment.name}</strong>. Its invitations and
+              frozen question set are removed with it. This cannot be undone.
+            </>
+          ) : (
+            <>
+              Retire <strong>{assessment.name}</strong> — it moves to <em>cancelled</em> and
+              drops out of the list. Attempts and history are kept. It can&rsquo;t be un-cancelled.
+            </>
+          )
+        }
+        confirmLabel={confirmMode === "delete" ? "Delete permanently" : "Cancel assessment"}
+        busyLabel={confirmMode === "delete" ? "Deleting…" : "Cancelling…"}
+        busy={actionBusy}
+        error={actionError}
+        onConfirm={() => void handleConfirmAction()}
+        onCancel={() => {
+          if (!actionBusy) {
+            setConfirmMode(null);
+            setActionError(null);
+          }
+        }}
+      />
     </AdminShell>
   );
 }
