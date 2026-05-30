@@ -58,6 +58,7 @@ export { AdminGenerationAttempts } from "./pages/generation-attempts.js";
 export { AdminCertificates } from "./pages/certificates.js";
 export { AdminActivity } from "./pages/activity.js";
 export { AdminUsers } from "./pages/users.js";
+export { TenantSettings as AdminTenantSettings } from "./pages/tenant-settings.js";
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
 export { SuperAdminUsers } from "./pages/super-admin-users.js";
