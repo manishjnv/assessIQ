@@ -51,6 +51,24 @@ interface RetentionReport {
   durationMs: number;
 }
 
+interface ErasedCandidateRow {
+  userId: string;
+  erasedAt: string;
+  erasedById: string | null;
+  erasedByName: string | null;
+  erasedByEmail: string | null;
+  reason: string | null;
+  attemptsKept: number;
+  certsKept: number;
+}
+
+interface ErasedListResponse {
+  items: ErasedCandidateRow[];
+  total: number;
+}
+
+type ErasedSinceWindow = "30d" | "90d" | "365d" | "all";
+
 // ── Shared style constants (mirrors users.tsx) ────────────────────────────────
 
 const META_LABEL: CSSProperties = {
@@ -96,11 +114,52 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
   const [runReport, setRunReport] = useState<RetentionReport | null>(null);
   const [showRunConfirm, setShowRunConfirm] = useState(false);
 
+  // ── Erased candidates list state ──────────────────────────────────────────
+  const [erasedRows, setErasedRows] = useState<ErasedCandidateRow[]>([]);
+  const [erasedTotal, setErasedTotal] = useState<number>(0);
+  const [erasedLoading, setErasedLoading] = useState<boolean>(true);
+  const [erasedError, setErasedError] = useState<string | null>(null);
+  const [erasedSince, setErasedSince] = useState<ErasedSinceWindow>("365d");
+
   // ── Load on mount ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     void loadSettings();
   }, []);
+
+  useEffect(() => {
+    void loadErasedCandidates(erasedSince);
+  }, [erasedSince]);
+
+  const loadErasedCandidates = async (window: ErasedSinceWindow): Promise<void> => {
+    setErasedLoading(true);
+    setErasedError(null);
+    try {
+      const params = new URLSearchParams();
+      if (window !== "all") {
+        const days = window === "30d" ? 30 : window === "90d" ? 90 : 365;
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+        params.set("since", since);
+      } else {
+        // "all" → since the epoch start of UNIX time keeps the filter inert
+        params.set("since", new Date(0).toISOString());
+      }
+      params.set("limit", "500");
+      const data = await adminApi<ErasedListResponse>(
+        `/admin/erased-candidates?${params.toString()}`,
+      );
+      setErasedRows(data.items);
+      setErasedTotal(data.total);
+    } catch (err) {
+      const msg =
+        err instanceof AdminApiError
+          ? err.apiError.message
+          : "Failed to load erased candidates.";
+      setErasedError(msg);
+    } finally {
+      setErasedLoading(false);
+    }
+  };
 
   const loadSettings = async (): Promise<void> => {
     setLoadingSettings(true);
@@ -633,6 +692,203 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                   <Chip variant="success">Purge complete</Chip>
                 </div>
                 <ReportTable report={runReport} />
+              </div>
+            )}
+          </Card>
+        </section>
+
+        {/* ── Erased candidates section ──────────────────────────────────── */}
+        <section aria-labelledby="erased-candidates-heading">
+          <div
+            style={{
+              paddingBottom: 16,
+              borderBottom: "1px solid var(--aiq-color-border)",
+              marginBottom: 24,
+            }}
+          >
+            <h2
+              id="erased-candidates-heading"
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: 22,
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Erased candidates.
+            </h2>
+            <p
+              style={{
+                marginTop: 8,
+                fontSize: 13,
+                color: "var(--aiq-color-fg-secondary)",
+                lineHeight: 1.5,
+                maxWidth: 640,
+              }}
+            >
+              Candidates in this tenant whose PII has been tombstoned (via
+              admin action or the nightly retention cron). Names and emails
+              are not retrievable. Attempts and certificates are preserved
+              as required for billing reconciliation and certificate
+              signature verification.
+            </p>
+          </div>
+
+          <Card padding="lg">
+            {/* Filter bar */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 16,
+                flexWrap: "wrap",
+              }}
+            >
+              <span style={{ ...META_LABEL, fontSize: 10 }}>Window</span>
+              <select
+                value={erasedSince}
+                onChange={(e) => setErasedSince(e.target.value as ErasedSinceWindow)}
+                disabled={erasedLoading}
+                style={{
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: 13,
+                  padding: "8px 10px",
+                  borderRadius: "var(--aiq-radius-md)",
+                  border: "1px solid var(--aiq-color-border-strong)",
+                  background: "var(--aiq-color-bg-raised)",
+                  color: "var(--aiq-color-fg-primary)",
+                }}
+              >
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+                <option value="365d">Last 365 days</option>
+                <option value="all">All time</option>
+              </select>
+              <span style={{ flex: 1 }} />
+              <span style={{ ...META_LABEL, fontSize: 10 }}>
+                {erasedLoading ? "Loading…" : `${erasedTotal} total`}
+              </span>
+            </div>
+
+            {erasedError && (
+              <div role="alert" style={{ marginBottom: 16 }}>
+                <Chip>{erasedError}</Chip>
+              </div>
+            )}
+
+            {erasedLoading ? (
+              <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-xl) 0" }}>
+                <Spinner aria-label="Loading erased candidates" />
+              </div>
+            ) : erasedRows.length === 0 ? (
+              <div
+                style={{
+                  padding: "32px 16px",
+                  textAlign: "center",
+                  fontSize: 13,
+                  color: "var(--aiq-color-fg-secondary)",
+                  background: "var(--aiq-color-bg-raised)",
+                  borderRadius: "var(--aiq-radius-md)",
+                  border: "1px dashed var(--aiq-color-border)",
+                }}
+              >
+                No erased candidates in this window.
+              </div>
+            ) : (
+              <div
+                style={{
+                  border: "1px solid var(--aiq-color-border)",
+                  borderRadius: "var(--aiq-radius-md)",
+                  overflow: "hidden",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: 13,
+                    fontFamily: "var(--aiq-font-sans)",
+                  }}
+                >
+                  <thead>
+                    <tr style={{ background: "var(--aiq-color-bg-raised)" }}>
+                      {["Erased on", "Tombstone", "Erased by", "Reason", "Attempts", "Certs"].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            textAlign: "left",
+                            padding: "10px 14px",
+                            borderBottom: "1px solid var(--aiq-color-border)",
+                            ...META_LABEL,
+                            fontSize: 10,
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {erasedRows.map((row) => (
+                      <tr key={row.userId} style={{ borderBottom: "1px solid var(--aiq-color-border)" }}>
+                        <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
+                          {formatDate(row.erasedAt)}
+                        </td>
+                        <td
+                          style={{
+                            padding: "10px 14px",
+                            fontFamily: "var(--aiq-font-mono)",
+                            fontSize: 12,
+                            color: "var(--aiq-color-fg-secondary)",
+                          }}
+                          title={row.userId}
+                        >
+                          {row.userId.slice(0, 8)}…
+                        </td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {row.erasedById === null ? (
+                            <span style={{ color: "var(--aiq-color-fg-secondary)", fontStyle: "italic" }}>
+                              system (retention cron)
+                            </span>
+                          ) : (
+                            <span>
+                              {row.erasedByName ?? "Unknown"}
+                              {row.erasedByEmail && (
+                                <span
+                                  style={{
+                                    display: "block",
+                                    fontSize: 11,
+                                    color: "var(--aiq-color-fg-secondary)",
+                                  }}
+                                >
+                                  {row.erasedByEmail}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </td>
+                        <td
+                          style={{
+                            padding: "10px 14px",
+                            color: row.reason ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-secondary)",
+                            fontStyle: row.reason ? "normal" : "italic",
+                            maxWidth: 320,
+                          }}
+                        >
+                          {row.reason ?? "—"}
+                        </td>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "var(--aiq-font-mono)" }}>
+                          {row.attemptsKept}
+                        </td>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "var(--aiq-font-mono)" }}>
+                          {row.certsKept}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </Card>

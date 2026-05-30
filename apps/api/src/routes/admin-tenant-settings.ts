@@ -24,7 +24,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ValidationError } from '@assessiq/core';
 import { updateRetentionDays } from '@assessiq/tenancy';
-import { runRetentionPurgeForTenant } from '@assessiq/data-rights';
+import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
 
 // ---------------------------------------------------------------------------
@@ -46,6 +46,12 @@ const adminFreshMfa = authChain({
 const adminFreshMfaStrict = authChain({
   roles: ['admin'],
   freshMfaWithinMinutes: 5,
+});
+// Read-only admin chain — no freshMfa requirement. Used by GET endpoints
+// that return existing audit-recorded state (no mutation, no irreversible
+// action) such as the erased-candidates compliance list.
+const adminReadOnly = authChain({
+  roles: ['admin'],
 });
 
 const MAX_PER_TENANT_HARD_CAP = 5000;
@@ -143,6 +149,81 @@ export async function registerAdminTenantSettingsRoutes(
       });
 
       return reply.code(200).send(report);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/erased-candidates
+  //
+  // Compliance / operational visibility list of candidates in the caller's
+  // tenant whose PII has been tombstoned (S3-display follow-up, 2026-05-30).
+  // After S3-display hides erased candidates from /admin/users, this is the
+  // single place an admin (DPDP data fiduciary) can see WHO has been erased,
+  // WHEN, by WHICH admin, with what REASON, and the COUNT of preserved
+  // attempts + certificates that survive the tombstone per D5 invariant.
+  //
+  // Read-only. No freshMfa. RLS-confined to caller's tenant via withTenant.
+  //
+  // Query:
+  //   ?since=<iso>     — default: 365 days ago
+  //   ?adminId=<uuid>  — filter to erasures performed by this admin
+  //   ?limit=N         — 1..500, default 100
+  //
+  // 200: { items: ErasedCandidateRow[], total: number }
+  // 400: INVALID_SINCE | INVALID_ADMIN_ID | INVALID_LIMIT
+  // 403: caller not 'admin'
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get(
+    '/api/admin/erased-candidates',
+    { preHandler: adminReadOnly },
+    async (req, reply) => {
+      const session = req.session!;
+      const q = (req.query ?? {}) as {
+        since?: string;
+        adminId?: string;
+        limit?: string;
+      };
+
+      let since: string | undefined;
+      if (q.since !== undefined && q.since !== '') {
+        const t = Date.parse(q.since);
+        if (Number.isNaN(t)) {
+          throw new ValidationError('since must be a valid ISO-8601 timestamp', {
+            details: { code: 'INVALID_SINCE', received: q.since },
+          });
+        }
+        since = new Date(t).toISOString();
+      }
+
+      let adminId: string | null | undefined;
+      if (q.adminId !== undefined && q.adminId !== '') {
+        // Cheap UUID v4-ish guard. Service layer also takes uuid via $::uuid cast.
+        if (!/^[0-9a-fA-F-]{36}$/.test(q.adminId)) {
+          throw new ValidationError('adminId must be a UUID', {
+            details: { code: 'INVALID_ADMIN_ID', received: q.adminId },
+          });
+        }
+        adminId = q.adminId;
+      }
+
+      let limit: number | undefined;
+      if (q.limit !== undefined && q.limit !== '') {
+        const parsed = Number.parseInt(q.limit, 10);
+        if (!Number.isInteger(parsed) || parsed < 1 || parsed > 500) {
+          throw new ValidationError('limit must be an integer 1..500', {
+            details: { code: 'INVALID_LIMIT', received: q.limit },
+          });
+        }
+        limit = parsed;
+      }
+
+      const result = await listErasedCandidates(session.tenantId, {
+        ...(since !== undefined ? { since } : {}),
+        ...(adminId !== undefined ? { adminId } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      });
+
+      return reply.code(200).send(result);
     },
   );
 }
