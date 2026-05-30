@@ -31,6 +31,7 @@ import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi, getCompanyEntitlements, getCompanyUsage, getAvailableSets, createAssessmentFromSet } from "../api.js";
+import { domainLabel } from "../lib/domains.js";
 import type { DomainItem, CategoryItem, TenantEntitlement, CompanyUsage, AvailableSet } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { UsageBanner } from "../components/UsageBanner.js";
@@ -52,6 +53,10 @@ interface AssessmentListItem {
   name: string;
   status: AssessmentStatus;
   pack_id: string | null;
+  /** levels.label for the bound level (e.g. "Level 2"). null if FK dangling. */
+  level_label?: string | null;
+  /** question_packs.domain slug; rendered via domainLabel(). null if FK dangling. */
+  domain?: string | null;
   opens_at: string | null;
   closes_at: string | null;
   created_at: string;
@@ -1043,6 +1048,42 @@ export function AdminAssessments(): React.ReactElement {
           }}
         >
           {row.name}
+        </span>
+      ),
+    },
+    {
+      key: "level_label",
+      label: "Level",
+      sortable: true,
+      render: (row: AssessmentListItem) => (
+        <span
+          style={{
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: "var(--aiq-text-xs)",
+            color: row.level_label
+              ? "var(--aiq-color-fg-default)"
+              : "var(--aiq-color-fg-muted)",
+          }}
+        >
+          {row.level_label ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "domain",
+      label: "Domain",
+      sortable: true,
+      render: (row: AssessmentListItem) => (
+        <span
+          style={{
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: "var(--aiq-text-xs)",
+            color: row.domain
+              ? "var(--aiq-color-fg-default)"
+              : "var(--aiq-color-fg-muted)",
+          }}
+        >
+          {row.domain ? domainLabel(row.domain) : "—"}
         </span>
       ),
     },
