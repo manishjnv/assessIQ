@@ -12,8 +12,28 @@ candidates never log in and the candidate PII surface is tiny (name, email,
 free-text answers, IP/UA): the BullMQ-worker + S3-signed-URL + magic-link
 pipeline was solving a self-service-portal problem this product does not have.
 Delivered instead as two small admin-mediated, RLS-confined, synchronous
-operations. The candidate-facing `/dsr/:token` page, consent-withdraw, and
-retention cron remain deferred (see Session plan).
+operations.
+
+**S5 SHIPPED (2026-05-30, `7739842`)** — DPDP retention cron + tenant-admin
+controls. BullMQ `dsr-retention-cron` registered at `0 3 * * *` (03:00 UTC
+daily, after MV refresh at 02:00). Per-tenant `tenant_settings.retention_days`
+flippable by tenant admin (DPDP data fiduciary) via
+`PATCH /api/admin/tenant-settings/retention-days` (freshMfa 15min). Manual
+trigger via `POST /api/admin/retention/run-now?dryRun=true&maxPerTenant=N`
+(freshMfa 5min — irreversible bulk-erasure tightened per adversarial review
+V6). Per-candidate erasure goes through the existing `eraseCandidatePii`
+with new `actorKind='system'` param; per-tenant run-summary emits
+`system.dsr.retention.run`. Admin UI page at
+`modules/10-admin-dashboard/src/pages/tenant-settings.tsx` (Sonnet-delegated
+following `users.tsx` style). Adversarial gate = Sonnet takeover (codex
+quota-blocked until 2026-05-31); REVISE → applied 2 vectors (V4
+`maxPerTenant=0` route bypass, V6 MFA freshness split). Cron registered
+live (Redis ZRANGE confirms next tick at 2026-05-31 03:00 UTC).
+
+The candidate-facing `/dsr/:token` page (S3 full) and consent-ledger
+surfaces (S6) remain deferred — they require a magic-link DSR portal that
+may not be needed given admins are the DPDP data fiduciary for their
+candidates.
 
 **S3-display SHIPPED (2026-05-30)** — display-layer pass so erased candidates
 no longer surface as `deleted_user_<hash>` / `deleted+<hash>@erased.assessiq.local`
