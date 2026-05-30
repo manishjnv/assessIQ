@@ -282,8 +282,9 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
   const accountEntries: NavEntry[] = [
     { label: "Help guide", href: "/admin/guide", icon: "book" },
-    { label: "Tenant settings", href: "/admin/tenant-settings", icon: "settings", adminOnly: true },
-    { label: "Billing", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
+    // Settings hosts billing + DPDP retention controls (tenant-settings is
+    // embedded as a section at the bottom of the billing page).
+    { label: "Settings", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
     // Platform provisioning — visible to super_admin only; tenant admins must not see this.
     { label: "Platform", href: "/admin/platform", icon: "settings", superAdminOnly: true },
   ];

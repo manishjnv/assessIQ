@@ -30,6 +30,7 @@ import { HelpTip } from "@assessiq/help-system/components";
 import { useAdminSession } from "../session.js";
 import { updateTenantAiGenerateMode, getCompanyUsage, type AiGenerateMode, type CompanyUsage } from "../api.js";
 import { usageMessage } from "../components/UsageBanner.js";
+import { TenantSettings } from "./tenant-settings.js";
 
 // ── Shared style objects ──────────────────────────────────────────────────────
 
@@ -434,6 +435,13 @@ export function AdminBilling(): React.ReactElement {
             </p>
           </div>
         </details>
+
+        {/* ── DPDP Data Retention (embedded from tenant-settings.tsx) ──────
+            Merged into the Settings page to keep the admin nav minimal —
+            tenant-level controls live under one Settings entry. The
+            standalone /admin/tenant-settings route is retained as an
+            alias for direct URL access. */}
+        <TenantSettings embedded />
 
       </div>
     </AdminShell>
