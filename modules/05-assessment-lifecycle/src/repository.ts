@@ -227,6 +227,11 @@ export async function listAssessmentRows(
     conditions.push(`a.status = $${i}`);
     values.push(filters.status);
     i++;
+  } else {
+    // Default list view hides cancelled (soft-retired) assessments. There is no
+    // "Cancelled" filter tab, so the only way to see them is an explicit
+    // ?status=cancelled query — which the branch above honours. Literal, no param.
+    conditions.push(`a.status <> 'cancelled'`);
   }
 
   if (filters.packId !== undefined) {
@@ -283,6 +288,40 @@ export async function listAssessmentRows(
     })),
     total,
   };
+}
+
+/**
+ * Count attempts bound to an assessment. RLS-scoped (attempts carries tenant_id
+ * + a tenant_isolation policy), so this counts only the caller-tenant's attempts
+ * — which is exactly the set, since an attempt's assessment is same-tenant by FK.
+ * Used by deleteAssessment's zero-attempts guard. Returns a JS number.
+ */
+export async function countAttemptsForAssessment(
+  client: PoolClient,
+  assessmentId: string,
+): Promise<number> {
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*) FROM attempts WHERE assessment_id = $1`,
+    [assessmentId],
+  );
+  return parseInt(result.rows[0]?.count ?? "0", 10);
+}
+
+/**
+ * Hard-delete an assessment row. RLS (assessments.tenant_isolation has no FOR
+ * clause, so USING covers DELETE) confines this to the caller's tenant. The
+ * assessment_invitations and assessment_frozen_pool FKs are ON DELETE CASCADE
+ * (they vanish with the row); the attempts FK is ON DELETE RESTRICT — if any
+ * attempt still references this assessment the DELETE raises a foreign-key
+ * violation, the LAST-LINE backstop behind deleteAssessment's count guard.
+ * audit_log rows are untouched (append-only, no FK cascade) — history survives.
+ * Caller is responsible for the zero-attempts guard + audit write in the same tx.
+ */
+export async function deleteAssessmentRow(
+  client: PoolClient,
+  id: string,
+): Promise<void> {
+  await client.query(`DELETE FROM assessments WHERE id = $1`, [id]);
 }
 
 export async function insertAssessment(

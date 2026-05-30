@@ -1024,6 +1024,140 @@ export async function closeAssessment(
 }
 
 // ---------------------------------------------------------------------------
+// cancelAssessment — <any non-terminal> → cancelled (soft retire)
+// ---------------------------------------------------------------------------
+//
+// Soft counterpart to deleteAssessment. Moves the assessment to the terminal
+// `cancelled` state, which the default list view hides. Unlike delete it does
+// NOT remove the row — attempts, invitations, frozen pool and audit history all
+// survive. This is the path for retiring an assessment that already has
+// candidate attempts (which hard-delete refuses).
+//
+// In-flight semantics (DELIBERATE, consistent with active→closed): cancelling an
+// `active` assessment blocks NEW attempts (06-attempt-engine start() requires
+// status='active', service.ts:141) but lets already-in_progress attempts finish
+// (submission gates on attempt.status, not assessment.status — identical to how
+// the boundary cron auto-closes an active assessment under in-flight candidates).
+// No in-progress guard is added: that would defeat the "retire a running test
+// assessment" use case and would diverge from existing close behaviour.
+
+export async function cancelAssessment(
+  tenantId: string,
+  id: string,
+  cancelledByUserId: string,
+): Promise<Assessment> {
+  log.info({ tenantId, id }, "cancelAssessment");
+
+  return withTenant(tenantId, async (client) => {
+    const assessment = await repo.findAssessmentById(client, id);
+    if (assessment === null) {
+      throw new NotFoundError(`Assessment not found: ${id}`, {
+        details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+      });
+    }
+
+    // Legal from draft/published/active/closed → cancelled (terminal).
+    // cancelled → cancelled is rejected → 422, so a double-cancel is a no-op
+    // surfaced to the caller rather than a silent re-write.
+    assertCanTransition(assessment.status, "cancelled");
+
+    const updated = await repo.updateAssessmentRow(client, id, { status: "cancelled" });
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: cancelledByUserId,
+      action: "assessment.cancelled",
+      entityType: "assessment",
+      entityId: id,
+      before: { status: assessment.status },
+      after: { status: updated.status },
+    });
+
+    return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// deleteAssessment — hard delete (zero-attempts only)
+// ---------------------------------------------------------------------------
+//
+// Removes the assessment row entirely. Allowed ONLY when the assessment has no
+// attempts (dev/test/incomplete cleanup). assessment_invitations and
+// assessment_frozen_pool cascade away (ON DELETE CASCADE); audit_log is
+// append-only and untouched. For assessments that DO have attempts, callers
+// must use cancelAssessment instead.
+
+export async function deleteAssessment(
+  tenantId: string,
+  id: string,
+  deletedByUserId: string,
+): Promise<void> {
+  log.info({ tenantId, id }, "deleteAssessment");
+
+  return withTenant(tenantId, async (client) => {
+    const assessment = await repo.findAssessmentById(client, id);
+    if (assessment === null) {
+      throw new NotFoundError(`Assessment not found: ${id}`, {
+        details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+      });
+    }
+
+    // Zero-attempts guard. The attempts FK is ON DELETE RESTRICT, so the DB
+    // would block the delete regardless — but counting first lets us return a
+    // friendly 422 that steers the admin to cancel, instead of a raw FK error.
+    // Count + delete share this withTenant tx: a racing attempt insert between
+    // them is still caught by the FK at DELETE time and rolls the whole tx back.
+    const attemptCount = await repo.countAttemptsForAssessment(client, id);
+    if (attemptCount > 0) {
+      throw new ValidationError(
+        `Cannot delete assessment '${id}': it has ${attemptCount} candidate attempt(s). Cancel it instead to retire it without losing attempt history.`,
+        { details: { code: AL_ERROR_CODES.ASSESSMENT_HAS_ATTEMPTS, attemptCount } },
+      );
+    }
+
+    // Audit BEFORE the delete, same tx, so the forensic record is written even
+    // as the row disappears. If the DELETE then fails (FK race) the tx rolls
+    // back, including this audit row — no orphaned "deleted" record. `name` is
+    // omitted on purpose: the audit redactor strips any `name` key, so logging
+    // it yields "[REDACTED]"; pack_id/level_id/status are the useful forensics.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: deletedByUserId,
+      action: "assessment.deleted",
+      entityType: "assessment",
+      entityId: id,
+      before: {
+        status: assessment.status,
+        pack_id: assessment.pack_id,
+        level_id: assessment.level_id,
+      },
+    });
+
+    // Cascades invitations + frozen pool. The count guard above covers the
+    // common case, but at READ COMMITTED a candidate could insert an attempt
+    // between the count and this DELETE (only possible for an `active`
+    // assessment — drafts can't be attempted). The attempts FK (ON DELETE
+    // RESTRICT) is the hard backstop: such a race makes this DELETE raise
+    // foreign_key_violation (23503), which we catch and re-throw as the same
+    // friendly guard error so the client never sees a raw Postgres 500. The tx
+    // rolls back (the audit row with it), leaving the assessment + attempt intact.
+    try {
+      await repo.deleteAssessmentRow(client, id);
+    } catch (err) {
+      if (err && typeof err === "object" && (err as { code?: string }).code === "23503") {
+        throw new ValidationError(
+          `Cannot delete assessment '${id}': a candidate attempt was created during deletion. Cancel it instead to retire it without losing attempt history.`,
+          { details: { code: AL_ERROR_CODES.ASSESSMENT_HAS_ATTEMPTS } },
+        );
+      }
+      throw err;
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // reopenAssessment — closed → published (requires now < closes_at)
 // ---------------------------------------------------------------------------
 

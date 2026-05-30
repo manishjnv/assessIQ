@@ -610,13 +610,14 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
   // -------------------------------------------------------------------------
   // Coverage assertion: service.ts contains exactly N auditInTx call-sites.
   // -------------------------------------------------------------------------
-  it("service.ts contains exactly 7 auditInTx call-sites (one per wired admin-mutating function)", async () => {
+  it("service.ts contains exactly 9 auditInTx call-sites (one per wired admin-mutating function)", async () => {
     const servicePath = join(AL_MODULE_ROOT, "src", "service.ts");
     const source = await readFile(servicePath, "utf-8");
     const matches = source.match(/auditInTx\(/g) ?? [];
-    // 7 wired admin-mutating functions:
+    // 9 wired admin-mutating functions:
     // createAssessment, updateAssessment, publishAssessment, closeAssessment,
-    // reopenAssessment, inviteUsers, revokeInvitation.
-    expect(matches.length).toBe(7);
+    // cancelAssessment, deleteAssessment, reopenAssessment, inviteUsers,
+    // revokeInvitation.
+    expect(matches.length).toBe(9);
   });
 });

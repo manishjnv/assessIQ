@@ -28,6 +28,8 @@ export {
   updateAssessment,
   publishAssessment,
   closeAssessment,
+  cancelAssessment,
+  deleteAssessment,
   reopenAssessment,
   inviteUsers,
   listInvitations,

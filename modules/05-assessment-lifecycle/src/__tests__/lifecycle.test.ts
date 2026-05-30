@@ -388,7 +388,9 @@ describe("State machine — canTransition illegal edges", () => {
     "published->active",
     "published->cancelled",
     "active->closed",
+    "active->cancelled",   // 2026-05-30: cancel a running assessment
     "closed->published",
+    "closed->cancelled",   // 2026-05-30: cancel a finished assessment
   ]);
 
   const illegalCases: Array<[AssessmentStatus, AssessmentStatus]> = [];
@@ -430,8 +432,8 @@ describe("State machine — canTransition illegal edges", () => {
     expect(canTransition("closed", "active")).toBe(false);
   });
 
-  it("closed → cancelled is illegal", () => {
-    expect(canTransition("closed", "cancelled")).toBe(false);
+  it("closed → cancelled is legal (cancel a finished assessment)", () => {
+    expect(canTransition("closed", "cancelled")).toBe(true);
   });
 
   it("cancelled → draft is illegal", () => {
@@ -442,8 +444,8 @@ describe("State machine — canTransition illegal edges", () => {
     expect(canTransition("active", "published")).toBe(false);
   });
 
-  it("active → cancelled is illegal", () => {
-    expect(canTransition("active", "cancelled")).toBe(false);
+  it("active → cancelled is legal (cancel a running assessment)", () => {
+    expect(canTransition("active", "cancelled")).toBe(true);
   });
 
   it("cancelled → active is illegal", () => {
