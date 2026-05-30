@@ -105,7 +105,7 @@ export function AdminBilling(): React.ReactElement {
   }, []);
 
   return (
-    <AdminShell breadcrumbs={["Settings", "Billing"]} helpPage="admin.settings.billing">
+    <AdminShell breadcrumbs={["Settings"]} helpPage="admin.settings.billing">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
         {/* Page header */}
