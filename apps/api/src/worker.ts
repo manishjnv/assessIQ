@@ -46,6 +46,7 @@ import {
   processRefreshMvJob,
   ANALYTICS_REFRESH_MV_JOB_NAME,
 } from "@assessiq/analytics";
+import { runRetentionPurgeAllTenants } from "@assessiq/data-rights";
 
 const log = streamLogger("worker");
 
@@ -62,6 +63,11 @@ const WEBHOOK_DELIVER_JOB_NAME = "webhook.deliver";
 const MV_REFRESH_JOB_NAME = ANALYTICS_REFRESH_MV_JOB_NAME; // 'analytics:refresh_mv'
 // 02:00 UTC daily, expressed as a cron string (BullMQ uses cron-parser)
 const MV_REFRESH_CRON = "0 2 * * *";
+// Module 20 S5 — nightly DPDP / GDPR candidate-data retention purge at 03:00 UTC.
+// Runs AFTER the MV refresh to keep the windows clean. Idempotent per-candidate
+// via eraseCandidatePii's alreadyErased short-circuit; safe to retry.
+const RETENTION_JOB_NAME = "dsr-retention-cron";
+const RETENTION_CRON = "0 3 * * *";
 
 const BOUNDARY_INTERVAL_MS = 60_000;
 const TIMER_SWEEP_INTERVAL_MS = 30_000;
@@ -92,6 +98,12 @@ export const JOB_RETRY_POLICY: Record<
   // analytics:refresh_mv — 3 attempts, exponential base 60s.
   // CONCURRENTLY refresh is idempotent; retry on transient DB errors is safe.
   [MV_REFRESH_JOB_NAME]: { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
+  // dsr-retention-cron — 2 attempts, exponential base 60s.
+  // Per-candidate erasure is idempotent (alreadyErased short-circuit). One retry
+  // is enough — if it fails twice, ops triage is the right next step. Lower
+  // attempts than other crons because a misfire could erase additional PII on
+  // re-run (it won't — alreadyErased guards — but conservative is fine).
+  [RETENTION_JOB_NAME]: { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
 };
 
 // ---------------------------------------------------------------------------
@@ -236,6 +248,32 @@ async function processBoundaryTick(): Promise<{
   return { tenants: tenants.length, activated, closed };
 }
 
+/**
+ * Module 20 S5 — nightly DPDP / GDPR candidate-data retention purge.
+ * Iterates active tenants via runRetentionPurgeAllTenants. Returns the
+ * aggregate counts so the cron's job-result log line shows what actually
+ * happened. Per-tenant errors are isolated inside the service (best-effort
+ * sweep — one bad tenant must not abort the whole tick).
+ */
+async function processRetentionTick(): Promise<{
+  tenants: number;
+  totalErased: number;
+  totalSkipped: number;
+  errorCount: number;
+}> {
+  const reports = await runRetentionPurgeAllTenants({ dryRun: false });
+  const totalErased = reports.reduce((s, r) => s + r.candidatesErased, 0);
+  const totalSkipped = reports.reduce((s, r) => s + r.candidatesSkipped, 0);
+  const errorCount = reports.reduce((s, r) => s + r.errors.length, 0);
+  if (totalErased > 0 || errorCount > 0) {
+    log.info(
+      { tenants: reports.length, totalErased, totalSkipped, errorCount },
+      "dsr-retention-cron tick",
+    );
+  }
+  return { tenants: reports.length, totalErased, totalSkipped, errorCount };
+}
+
 async function processTimerSweepTick(): Promise<{
   tenants: number;
   autoSubmitted: number;
@@ -285,7 +323,12 @@ async function start(): Promise<void> {
   // because the old repeatable is still ticking on the old cadence".
   const existing = await queue.getRepeatableJobs();
   for (const r of existing) {
-    if (r.name === BOUNDARY_JOB_NAME || r.name === TIMER_SWEEP_JOB_NAME || r.name === MV_REFRESH_JOB_NAME) {
+    if (
+      r.name === BOUNDARY_JOB_NAME ||
+      r.name === TIMER_SWEEP_JOB_NAME ||
+      r.name === MV_REFRESH_JOB_NAME ||
+      r.name === RETENTION_JOB_NAME
+    ) {
       await queue.removeRepeatableByKey(r.key);
     }
   }
@@ -339,6 +382,21 @@ async function start(): Promise<void> {
     },
   );
 
+  // Module 20 S5 — nightly DPDP retention purge at 03:00 UTC.
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const retentionPolicy = JOB_RETRY_POLICY[RETENTION_JOB_NAME]!;
+  await queue.add(
+    RETENTION_JOB_NAME,
+    {},
+    {
+      repeat: { pattern: RETENTION_CRON },
+      attempts: retentionPolicy.attempts,
+      backoff: retentionPolicy.backoff,
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  );
+
   // Consumer: processes any job that lands on the queue.
   // Concurrency: cron jobs run at 1 (never two boundary/timer ticks simultaneously
   // — would race on the bulk UPDATE). Email + webhook jobs can run at higher
@@ -361,6 +419,8 @@ async function start(): Promise<void> {
           );
         case MV_REFRESH_JOB_NAME:
           return runJobWithLogging(job, processRefreshMvJob);
+        case RETENTION_JOB_NAME:
+          return runJobWithLogging(job, processRetentionTick);
         default:
           throw new Error(`Unknown job name: ${job.name}`);
       }

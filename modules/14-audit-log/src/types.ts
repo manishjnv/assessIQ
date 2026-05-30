@@ -192,6 +192,18 @@ export const ACTION_CATALOG = [
   //   evidence.
   'user.pii.erased',
   'user.data.exported',
+  // ---- Module 20 S5 (DPDP retention cron) — 2026-05-30 -------------------
+  // tenant_settings.retention_days.updated: fired when an admin changes the
+  //   per-tenant candidate-data retention window via the dedicated
+  //   updateRetentionDays service (isolated from updateTenantSettingsRow).
+  // system.dsr.retention.run: one row per (tenantId, run) summarising the
+  //   nightly retention cron OR an admin-triggered run-now. Carries
+  //   { retentionDays, candidatesScanned, candidatesErased, candidatesSkipped,
+  //     dryRun, errors } in `after`. Per-candidate erasure is still recorded
+  //   under 'user.pii.erased' by eraseCandidatePii (actorKind='system' for
+  //   cron-triggered, 'user' for admin-triggered) so the forensic chain joins.
+  'tenant_settings.retention_days.updated',
+  'system.dsr.retention.run',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];
