@@ -99,3 +99,27 @@ export const DataExportBundleSchema = z.object({
 });
 
 export type DataExportBundle = z.infer<typeof DataExportBundleSchema>;
+
+// ---------------------------------------------------------------------------
+// Erased-candidates list (admin compliance view) — wired in S3-display followup.
+// ---------------------------------------------------------------------------
+
+export interface ListErasedCandidatesOpts {
+  /** ISO-8601 timestamp; only return candidates erased at or after this time. Default: 365d ago. */
+  since?: string;
+  /** UUID; only return candidates erased by this admin (audit_log.actor_user_id). */
+  adminId?: string | null;
+  /** 1–500; default 100. */
+  limit?: number;
+}
+
+export interface ErasedCandidateRow {
+  userId: string;
+  erasedAt: string;
+  erasedById: string | null;
+  erasedByName: string | null;
+  erasedByEmail: string | null;
+  reason: string | null;
+  attemptsKept: number;
+  certsKept: number;
+}
