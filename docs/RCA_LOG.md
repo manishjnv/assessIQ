@@ -4,6 +4,13 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-05-30 — Assessment-list Level/Domain columns shipped but rendered blank ("—") for every row
+
+**Symptom:** After deploying the new Level + Domain columns to `/admin/assessments`, the columns appeared (headers + cells) but every cell showed "—". The *detail* page for the same assessments correctly showed Level L1 + the pack/domain, proving the underlying data existed.
+**Cause:** Partial deploy. The change spanned the FE (`modules/10-admin-dashboard` — the columns) and the BE data source (`modules/05-assessment-lifecycle/src/repository.ts` `listAssessmentRows` — the JOIN that *produces* `level_label`/`domain`). The repository runs inside the **`assessiq-api`** container, but the deploy only rebuilt **`assessiq-frontend`** (mistaken assumption "API route unchanged → API needs no rebuild" — true for the route handler, false for the repository query it calls). The live API kept returning rows without the two fields, so the new columns read `undefined` → "—". Not a code bug; a deploy-scoping error.
+**Fix:** Rebuilt + recreated `assessiq-api` (commit `615c815` deploy round 2). Columns then populated. DB-verified the query yields the values pre-deploy. (Same commit also resolved `domain` slug → `domains.name` human label, an unrelated polish.)
+**Prevention:** manual discipline + durable rule: **when a change touches a module that compiles into the API bundle (anything under `modules/**/src` that the API imports), the deploy MUST rebuild `assessiq-api` — not just the service whose "obvious" surface changed.** A FE-visible feature whose data comes from a BE query is a two-service deploy (`assessiq-frontend` + `assessiq-api`). Cheap check: `git diff --name-only <prev>..<head> | grep -E '^modules/(0[0-9]|1[0-9])-.*/src'` → if any non-`10-admin-dashboard`/non-`17-ui-system` module changed, rebuild the API too. Echoes the standing lesson that bundle/route presence ≠ served behavior (`feedback-verify-behavior-not-bundle`): had I checked the live API JSON (not just the FE bundle) the gap would have shown immediately.
+
 ## 2026-05-29 — Admin attempt-detail showed "No answer / Not yet graded" for every question despite a real score
 
 **Symptom:** On `/admin/attempts/:id` (verified on `019e60bb`), every question's Candidate-answer box read "No answer submitted" and every AI-evaluation box read "Not yet graded", yet the summary card showed a real score (202.5/300, "3 of 5 graded"). Surfaced when the new four-zone audit layout started rendering explicit empty-state fallbacks instead of silently-empty blocks.
