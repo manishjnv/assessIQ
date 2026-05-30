@@ -38,6 +38,8 @@ import {
   bulkUpdateQuestionStatus,
   listQuestionsApi,
   listGenerationAttempts,
+  generateRubricApi,
+  saveRubricApi,
 } from "../api.js";
 import type { DomainItem, CategoryItem, QuestionListItem, GenerationAttemptSummary } from "../api.js";
 
@@ -358,6 +360,11 @@ export function AdminGenerateWizard(): React.ReactElement {
   const [genResults, setGenResults] = useState<CategoryGenResult[]>([]);
   const [genCurrentIdx, setGenCurrentIdx] = useState<number>(0);
 
+  // A2: rubric auto-generation progress (subjective drafts lacking a rubric).
+  // Runs after question generation; each rubric is a separate single-flight
+  // admin request (generate-rubric → save-rubric), so this is a sequential pass.
+  const [rubricGenStatus, setRubricGenStatus] = useState<{ done: number; total: number } | null>(null);
+
   // Review state (D5 — durable)
   const [drafts, setDrafts] = useState<QuestionListItem[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
@@ -577,6 +584,48 @@ export function AdminGenerateWizard(): React.ReactElement {
         results[i] = { ...results[i]!, status: "failed", error: msg };
       }
       setGenResults([...results]);
+    }
+
+    // A2: auto-generate a rubric for every subjective draft that lacks one,
+    // before landing on Review. Each rubric is a separate admin request
+    // (generate-rubric → save-rubric); they MUST run sequentially because the
+    // server enforces a single-flight mutex on the AI subprocess and one spawn
+    // per request avoids the ~100s Cloudflare edge timeout. Best-effort: a
+    // failure on one subjective never blocks the others or the Review landing —
+    // an un-rubric'd subjective still falls back to reasoning-only grading.
+    try {
+      // Scope to the categories generated in THIS run (adversarial review nit:
+      // an unscoped status='ai_draft' query would also pick up orphaned
+      // unrubric'd subjectives from prior sessions, inflating the count + AI
+      // cost). Pre-existing drafts in OTHER categories are left untouched; a
+      // pre-existing draft in a category we just generated for is still in
+      // scope (same workspace, genuinely needs a rubric).
+      const categoryIdsThisRun = new Set(checkedConfigs.map((c) => c.category.id));
+      const draftList = await listQuestionsApi({ status: "ai_draft", pageSize: 500 });
+      const needRubric = draftList.items.filter(
+        (d) =>
+          d.type === "subjective" &&
+          (d.rubric === null || d.rubric === undefined) &&
+          d.category_id !== null &&
+          categoryIdsThisRun.has(d.category_id),
+      );
+      if (needRubric.length > 0) {
+        setRubricGenStatus({ done: 0, total: needRubric.length });
+        for (let i = 0; i < needRubric.length; i++) {
+          const q = needRubric[i]!;
+          try {
+            const { proposal } = await generateRubricApi(q.id);
+            await saveRubricApi(q.id, proposal);
+          } catch {
+            // Per-question failure isolated — leave this subjective rubric-less.
+          }
+          setRubricGenStatus({ done: i + 1, total: needRubric.length });
+        }
+        setRubricGenStatus(null);
+      }
+    } catch {
+      // Non-fatal — fall through to Review regardless.
+      setRubricGenStatus(null);
     }
 
     // Load all drafts for the review screen after generation
@@ -870,6 +919,13 @@ export function AdminGenerateWizard(): React.ReactElement {
         {currentResult?.status === "generating" && currentCfg && (
           <div style={{ marginBottom: "var(--aiq-space-lg)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-accent-soft)", border: "1px solid var(--aiq-color-accent)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}>
             Generating category {genCurrentIdx + 1} of {total}: <strong>{currentCfg.category.name}</strong> ({currentCfg.selectedTypes.join(", ")})…
+          </div>
+        )}
+
+        {/* A2: rubric auto-generation progress (subjective drafts) */}
+        {rubricGenStatus && (
+          <div style={{ marginBottom: "var(--aiq-space-lg)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-accent-soft)", border: "1px solid var(--aiq-color-accent)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}>
+            Generating answer-key rubrics for subjective questions: {rubricGenStatus.done} of {rubricGenStatus.total}…
           </div>
         )}
 

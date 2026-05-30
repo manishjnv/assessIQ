@@ -714,6 +714,33 @@ export interface QuestionListItem {
 }
 
 /**
+ * POST /api/admin/questions/:id/generate-rubric — AI rubric proposal (NOT saved).
+ * Returns { proposal, skillSha, promptSha, levelDefaultsHash, model }.
+ */
+export async function generateRubricApi(
+  questionId: string,
+): Promise<{ proposal: unknown; skillSha: string; promptSha: string; levelDefaultsHash: string; model: string }> {
+  return adminApi(`/admin/questions/${encodeURIComponent(questionId)}/generate-rubric`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+/**
+ * POST /api/admin/questions/:id/save-rubric — persist a rubric as a new version.
+ * Server re-validates the weight=100 invariant.
+ */
+export async function saveRubricApi(
+  questionId: string,
+  rubric: unknown,
+): Promise<unknown> {
+  return adminApi(`/admin/questions/${encodeURIComponent(questionId)}/save-rubric`, {
+    method: "POST",
+    body: JSON.stringify({ rubric }),
+  });
+}
+
+/**
  * GET /api/admin/questions with filters.
  * Returns items for the durable Review screen (Slice 2.2/D5).
  */
