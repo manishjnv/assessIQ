@@ -87,7 +87,9 @@ export function App(): JSX.Element {
           <Route path="/admin/reports/cohort/:assessmentId" element={<RequireSession role="admin"><AdminCohortReport /></RequireSession>} />
           <Route path="/admin/reports/individual/:userId" element={<RequireSession role="admin"><AdminIndividualReport /></RequireSession>} />
           <Route path="/admin/question-bank/questions/:id" element={<RequireSession role="admin"><AdminQuestionEditor /></RequireSession>} />
-          <Route path="/admin/settings/billing" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
+          <Route path="/admin/settings" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
+          {/* Back-compat: old /admin/settings/billing bookmarks → /admin/settings */}
+          <Route path="/admin/settings/billing" element={<Navigate to="/admin/settings" replace />} />
           <Route path="/admin/settings/help-content" element={<RequireSession role="admin"><AdminHelpContent /></RequireSession>} />
           <Route path="/admin/guide" element={<RequireSession role="admin"><AdminShell breadcrumbs={["Help guide"]}><AdminGuide /></AdminShell></RequireSession>} />
           {/* Question Bank pages (session 2026-05-04) */}

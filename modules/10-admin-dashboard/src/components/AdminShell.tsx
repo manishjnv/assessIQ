@@ -284,7 +284,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Help guide", href: "/admin/guide", icon: "book" },
     // Settings hosts billing + DPDP retention controls (tenant-settings is
     // embedded as a section at the bottom of the billing page).
-    { label: "Settings", href: "/admin/settings/billing", icon: "settings", adminOnly: true },
+    { label: "Settings", href: "/admin/settings", icon: "settings", adminOnly: true },
     // Platform provisioning — visible to super_admin only; tenant admins must not see this.
     { label: "Platform", href: "/admin/platform", icon: "settings", superAdminOnly: true },
   ];
