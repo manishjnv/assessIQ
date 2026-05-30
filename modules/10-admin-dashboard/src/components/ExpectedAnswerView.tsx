@@ -31,6 +31,9 @@ export interface RubricAnchorForReview {
   concept: string;
   weight: number;
   synonyms?: string[];
+  /** A3 self-certifying fields: KB source backing the concept + one-line why. */
+  citation?: string;
+  rationale?: string;
 }
 
 export interface ExpectedAnswerViewProps {
@@ -75,6 +78,30 @@ function RubricBlock({ anchors, heading }: { anchors: RubricAnchorForReview[]; h
               <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginLeft: "var(--aiq-space-xs)" }}>
                 — also: {a.synonyms.join(", ")}
               </span>
+            )}
+            {/* A3: self-certifying review aids — give a non-expert reviewer a
+                concrete source + reason to LOOK UP, not a guarantee. The model
+                that wrote the anchor also wrote these, so they are NOT
+                independent verification (adversarial review vector 4): labelled
+                "AI-suggested · unverified" so they read as a starting point for
+                checking, never as authority. Honest-claim boundary per the
+                no-expert accuracy model. Rendered only when present. */}
+            {(a.citation || a.rationale) && (
+              <div style={{ marginTop: "var(--aiq-space-2xs)", paddingLeft: "var(--aiq-space-sm)", borderLeft: "2px solid var(--aiq-color-border)", display: "flex", flexDirection: "column", gap: "2px" }}>
+                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", opacity: 0.8 }}>
+                  AI-suggested · unverified
+                </span>
+                {a.rationale && (
+                  <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.4 }}>
+                    {cleanText(a.rationale)}
+                  </span>
+                )}
+                {a.citation && (
+                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                    Source: {cleanText(a.citation)}
+                  </span>
+                )}
+              </div>
             )}
           </li>
         ))}

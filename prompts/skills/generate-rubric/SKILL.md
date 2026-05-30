@@ -88,13 +88,17 @@ You MUST call `submit_rubric` exactly once with a JSON object satisfying:
       "id": "a1",
       "concept": "Candidate identifies the alert as a brute-force login attempt via repeated 4625 event codes",
       "weight": 30,
-      "synonyms": ["brute force", "repeated failed logins", "EventID 4625"]
+      "synonyms": ["brute force", "repeated failed logins", "EventID 4625"],
+      "citation": "MITRE ATT&CK T1110 — Brute Force; Windows Security log EventID 4625",
+      "rationale": "Repeated 4625 (failed logon) events from one source is the defining signature of a brute-force attempt; naming it is the core diagnostic skill at this level."
     },
     {
       "id": "a2",
       "concept": "Candidate recommends isolating the affected account and enabling MFA enforcement",
       "weight": 30,
-      "synonyms": ["account lockout", "isolate account", "MFA", "multi-factor"]
+      "synonyms": ["account lockout", "isolate account", "MFA", "multi-factor"],
+      "citation": "NIST SP 800-61r2 §3.2 Containment; CIS Control 6 (MFA)",
+      "rationale": "Containment-before-eradication is standard IR doctrine; MFA directly defeats the credential-guessing vector, so both are expected remediations."
     }
   ],
   "reasoning_bands": {
@@ -121,6 +125,27 @@ You MUST call `submit_rubric` exactly once with a JSON object satisfying:
 6. Synonyms MUST be an array of at least 1 string per anchor.
 7. Do NOT include any text outside the `submit_rubric` tool call. No prose
    explanations, no commentary, no preamble.
+
+## Self-certifying review fields (A3 — REQUIRED on every anchor)
+
+Each anchor MUST carry two extra string fields so a non-domain-expert reviewer
+can verify the anchor by checking its source, rather than recalling the domain:
+
+8. **`citation`** — the authoritative source that backs this concept: a
+   standard/framework reference (e.g. "NIST SP 800-61r2 §3.2", "MITRE ATT&CK
+   T1110", "RFC 5424"), a named control, or a documented log signature. Be
+   specific (section/technique ID where one exists). Never invent a citation —
+   if no specific standard applies, cite the general doctrine area
+   (e.g. "SOC triage best practice — alert correlation"). One concise line.
+9. **`rationale`** — one sentence (≤ 30 words) stating WHY this concept is a
+   correct, expected part of a strong answer at this level. Plain language a
+   non-expert can sanity-check. Not a restatement of the concept — the *reason*
+   it matters.
+
+Both are non-empty strings on EVERY anchor. The server schema accepts them as
+optional for backward compatibility, but THIS skill must always emit them.
+NEVER copy reference-answer text (sample_solution / hint / expected_findings)
+verbatim into `citation` or `rationale` — same solution-leak rule as `concept`.
 
 ## Quality standards
 
