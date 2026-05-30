@@ -1024,17 +1024,23 @@ export async function registerQuestionBankRoutes(
           chunks_planned: number | null;
           chunks_failed: number | null;
           dedupe_dropped: number | null;
+          citation_dropped: number | null;
+          difficulty_dropped: number | null;
           duration_ms: number | null;
           started_at: string;
           finished_at: string | null;
           pack_id: string;
           level_id: string;
+          level_label: string | null;
           user_id: string | null;
         }>(
           `SELECT id, status, count_requested, count_inserted,
                   error_code, error_message, stderr_tail, skill_sha,
                   model, chunks_planned, chunks_failed, dedupe_dropped,
-                  duration_ms, started_at, finished_at, pack_id, level_id, user_id
+                  citation_dropped, difficulty_dropped,
+                  duration_ms, started_at, finished_at, pack_id, level_id,
+                  (SELECT label FROM levels WHERE levels.id = generation_attempts.level_id) AS level_label,
+                  user_id
            FROM generation_attempts
            ${where}
            ORDER BY ${sortCol} ${sortDirSql}, id

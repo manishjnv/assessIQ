@@ -44,6 +44,9 @@ interface GenerationAttempt {
   chunks_planned: number | null;
   chunks_failed: number | null;
   dedupe_dropped: number | null;
+  citation_dropped: number | null;
+  difficulty_dropped: number | null;
+  level_label: string | null;
   duration_ms: number | null;
   started_at: string;
   finished_at: string | null;
@@ -394,6 +397,20 @@ function AttemptDetails({ attempt, packName, levelLabel, scoreResult, scoreLoadi
           <>
             <dt style={{ color: "var(--aiq-color-fg-muted)" }}>Dedupe dropped</dt>
             <dd style={{ margin: 0, color: "var(--aiq-color-fg-secondary)" }}>{attempt.dedupe_dropped}</dd>
+          </>
+        )}
+
+        {attempt.citation_dropped != null && attempt.citation_dropped > 0 && (
+          <>
+            <dt style={{ color: "var(--aiq-color-fg-muted)" }}>Citation dropped</dt>
+            <dd style={{ margin: 0, color: "var(--aiq-color-fg-secondary)" }}>{attempt.citation_dropped}</dd>
+          </>
+        )}
+
+        {attempt.difficulty_dropped != null && attempt.difficulty_dropped > 0 && (
+          <>
+            <dt style={{ color: "var(--aiq-color-fg-muted)" }}>Difficulty dropped</dt>
+            <dd style={{ margin: 0, color: "var(--aiq-color-fg-secondary)" }}>{attempt.difficulty_dropped}</dd>
           </>
         )}
       </dl>
@@ -923,7 +940,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
                 const isExpanded = expandedId === attempt.id;
                 const pack = packById(attempt.pack_id);
                 const packName = pack?.name ?? attempt.pack_id.slice(0, 8);
-                const levelLabel = levelLabelById(attempt.pack_id, attempt.level_id);
+                const levelLabel = attempt.level_label ?? levelLabelById(attempt.pack_id, attempt.level_id);
 
                 const hasChunks =
                   attempt.chunks_planned != null && attempt.chunks_planned > 0;
@@ -936,7 +953,10 @@ export function AdminGenerationAttempts(): React.ReactElement {
                   attempt.error_code ||
                   attempt.error_message ||
                   attempt.stderr_tail ||
-                  attempt.skill_sha;
+                  attempt.skill_sha ||
+                  (attempt.dedupe_dropped ?? 0) > 0 ||
+                  (attempt.citation_dropped ?? 0) > 0 ||
+                  (attempt.difficulty_dropped ?? 0) > 0;
 
                 return (
                   <React.Fragment key={attempt.id}>
