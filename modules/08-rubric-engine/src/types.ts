@@ -29,6 +29,18 @@ export const AnchorSchema = z.object({
   concept: z.string().min(1),
   weight: z.number().int().min(0).max(100),
   synonyms: z.array(z.string().min(1)).min(1),
+  // Self-certifying review fields (Phase A / feature #2, 2026-05-30). OPTIONAL +
+  // .strict()-compatible so every pre-existing rubric (and the grade-time
+  // synthesised rubrics in 07-ai-grading, which omit them) stays valid. They let
+  // a non-domain-expert reviewer sanity-check an anchor by verifying its source
+  // citation + a one-line rationale rather than recalling domain doctrine.
+  // Display/review-only — NOT read by the scoring math in score.ts (which uses
+  // id/weight/synonyms). Emitted by the VPS grade-rubric skill; a missing value
+  // simply renders nothing.
+  /** KB source citation backing this concept, e.g. "NIST SP 800-61r2 §3.2". */
+  citation: z.string().min(1).optional(),
+  /** One-line "why this is the correct concept" for non-expert review. */
+  rationale: z.string().min(1).optional(),
 }).strict();
 
 export type Anchor = z.infer<typeof AnchorSchema>;
