@@ -1017,6 +1017,16 @@ export function AdminGenerateWizard(): React.ReactElement {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: 4, flexWrap: "wrap" }}>
                                 <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{draft.type}</span>
+                                {draft.level_label && (
+                                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-accent-soft)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-accent)", flexShrink: 0 }}>{draft.level_label}</span>
+                                )}
+                                {(() => {
+                                  const domainName = domains.find((d) => d.id === draft.domain_id)?.name;
+                                  return domainName ? (
+                                    <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-secondary)", flexShrink: 0 }}>{domainName}</span>
+                                  ) : null;
+                                })()}
+                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{draft.points} pt{draft.points === 1 ? "" : "s"}</span>
                               </div>
 
                               {/* Topic (inline edit) */}

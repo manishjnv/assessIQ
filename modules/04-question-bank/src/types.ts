@@ -259,6 +259,13 @@ export interface Question {
   answer_guidance: string | null;
   /** Sources from the SOC KB used when generating this question. Empty for human-authored questions. */
   knowledge_base_sources: KnowledgeBaseSource[];
+  /**
+   * Human-readable level code (e.g. "L1"/"L2"/"L3"), resolved from the parent
+   * level row. Populated only by list projections that join it (listQuestionRows);
+   * undefined on single-question reads that do not select it. Read-only display
+   * convenience — not a stored column on `questions`.
+   */
+  level_label?: string | null;
   created_by: string;
   created_at: Date;
   updated_at: Date;
