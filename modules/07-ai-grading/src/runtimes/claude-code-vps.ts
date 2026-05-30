@@ -910,6 +910,12 @@ const SubmitRubricAnchorSchema = z.object({
   concept: z.string().min(1),
   weight: z.number().int().min(0).max(100),
   synonyms: z.array(z.string().min(1)).min(1),
+  // Self-certifying review fields (A3, 2026-05-30). OPTIONAL so this widen is
+  // backward-compatible: rubrics from the pre-A3 skill (no citation/rationale)
+  // still validate. Mirrors the optional fields on @assessiq/rubric-engine
+  // AnchorSchema (commit e482db0). Display/review-only — never read by scoring.
+  citation: z.string().min(1).optional(),
+  rationale: z.string().min(1).optional(),
 }).strict();
 
 const SubmitRubricOutputSchema = z.object({
