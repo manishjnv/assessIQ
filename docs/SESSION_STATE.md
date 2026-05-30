@@ -1,3 +1,23 @@
+# Session — 2026-05-30 (Assessment list — Level + Domain columns — SHIPPED + LIVE)
+
+**Headline:** The admin assessment list (`/admin/assessments`) showed Name/Status/Invited/Opens/Closes/Created but not Level or Domain — an admin couldn't tell "App Sec L2" from "Phishing L1" without opening each row (the *detail* page already showed them). Added two sortable columns, Level + Domain, between Name and Status. Also explained the draft/published/active/closed status model to the user (only draft→published is a human action; published→active→closed are time-driven by the 60s boundary worker).
+**Commit (main):** `f1de2e4` — feat(10-admin-dashboard,05-assessment-lifecycle): Level + Domain columns on assessment list. 3 files, +85/−9.
+**Tests/verify:** `tsc --noEmit` clean on `@assessiq/assessment-lifecycle` + `@assessiq/admin-dashboard`. Full lifecycle suite: 97 pass / 5 fail — the 5 fails are **pre-existing** (verified identical on a clean stashed tree: 3× Dev-email-log infra + audit-writes + revokeInvitation; none touch `listAssessmentRows`). Diff secret/TODO scan clean.
+**Adversarial gate:** **n/a** — non-load-bearing (module 05 + 10, neither on the load-bearing list); read-only display query. The new LEFT JOINs (`levels`, `question_packs`) run inside the existing `withTenant` RLS scope and mirror the already-shipped `findAssessmentByIdWithMeta` pattern; no auth/tenancy/grading/classifier surface.
+**Deploy (LIVE):** `/srv/assessiq` git-pulled to `f1de2e4`. Rebuilt + recreated `assessiq-frontend` only (FE-only change; API route unchanged — it spreads `...a`); `(healthy)`. New bundle `index-CXA1K15L.js` confirmed to contain `level_label`+`Domain`. Neighbors + assessiq postgres/redis/api/worker/marketing untouched.
+**Behavioral verify PENDING OPERATOR:** hard-refresh `/admin/assessments` (cache-bust) → confirm Level + Domain columns appear between Name and Status, populated (e.g. "L1" / "Security"), "—" where a FK is missing.
+**Next:** none required. Optional follow-up offered but not started: status-model UI simplification (collapse 5 filter tabs → 3, derive a human status phrase folding in opens/closes dates).
+**Open questions:** none.
+**Detail:** Domain is sourced from the bound pack's `question_packs.domain` slug (TEXT NOT NULL, uniform for blueprint + non-blueprint) — NOT `settings.blueprint.domain_id` — so one join covers all assessments; FE maps the slug via existing `lib/domains.domainLabel()`. WHERE conditions qualified with `a.` alias because `question_packs` also has a `status` column (ambiguity). `docs/03-api-contract.md` GET /admin/assessments row updated.
+
+## Agent utilization (Assessment list Level+Domain)
+- Opus 4.8: read the status model (state-machine + service + repository) to answer the user's conceptual question; traced the list data path; authored the 3-file diff; typecheck; stash-verified the 5 test fails are pre-existing; commit/push; VPS pull→build→recreate→bundle+health verify; docs + handoff. `Opus · explain + build + deploy + docs · reworked: N`.
+- Sonnet/Haiku: n/a — single-context hot-cached edits across 3 files; self-execute beat subagent cold-start (`feedback-deliver-functionality-over-ceremony`).
+- codex:rescue: n/a — non-load-bearing display-only read query.
+- claude-mem: honored `vps-shared-host`, `implementation-definition-of-done`, `feedback-verify-behavior-not-bundle` (bundle grep done; browser verify operator-pending), `parallel-session-shared-working-tree` (committed only my 3 files; left an unrelated `ExpectedAnswerView.tsx` change untouched), noreply push.
+
+---
+
 # Session — 2026-05-30 (A2 — auto-generate subjective rubric at generation time — SHIPPED + LIVE)
 
 **Headline:** Subjective AI-draft questions now get their answer-key rubric generated automatically at question-generation time (was: no rubric → reasoning-only fallback at grade time, the weakest grading path). Wizard auto-runs the existing generate-rubric → save-rubric endpoints for every rubric-less subjective in the just-generated categories, before landing on Review. Part of the grading-accuracy plan (feature #2). A1 (display) folded forward; **A3 (per-anchor citation+rationale emission) is the separate next step** — its schema groundwork shipped this session (`e482db0`).
