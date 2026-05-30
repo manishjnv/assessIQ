@@ -130,6 +130,8 @@ interface QuestionRow {
   updated_at: Date;
   domain_id: string | null;
   category_id: string | null;
+  /** Resolved from the parent level row by list projections; absent on single reads. */
+  level_label?: string | null;
 }
 
 interface QuestionVersionRow {
@@ -195,6 +197,7 @@ function mapQuestionRow(row: QuestionRow): Question {
     version: row.version,
     content: row.content,
     rubric: row.rubric,
+    level_label: row.level_label ?? null,
     answer_guidance: row.answer_guidance ?? null,
     knowledge_base_sources: Array.isArray(row.knowledge_base_sources)
       ? (row.knowledge_base_sources as KnowledgeBaseSource[])
@@ -692,7 +695,8 @@ export async function listQuestionRows(
     `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic, q.points, q.status,
             q.version, q.content, q.rubric, q.answer_guidance, q.knowledge_base_sources,
             q.created_by, q.created_at, q.updated_at,
-            q.domain_id, q.category_id
+            q.domain_id, q.category_id,
+            (SELECT label FROM levels WHERE levels.id = q.level_id) AS level_label
      FROM questions q
      ${joinClause}
      ${where}

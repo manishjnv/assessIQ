@@ -703,8 +703,12 @@ export interface QuestionListItem {
   type: string;
   topic: string | null;
   status: string;
+  points: number;
   content: Record<string, unknown>;
   rubric: Record<string, unknown> | null;
+  level_id: string;
+  /** Human-readable level code (e.g. "L1"); resolved server-side from the level row. */
+  level_label: string | null;
   domain_id: string | null;
   category_id: string | null;
 }
