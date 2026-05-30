@@ -31,6 +31,7 @@ const AdminGenerationAttempts = lazy(() => import('@assessiq/admin-dashboard').t
 const AdminCertificates = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminCertificates })));
 const AdminActivity = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminActivity })));
 const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminUsers })));
+const AdminTenantSettings = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminTenantSettings })));
 const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
 const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminPlatform })));
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
@@ -78,6 +79,7 @@ export function App(): JSX.Element {
           <Route path="/admin/login/email" element={<AdminEmailOtp />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
           <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
+          <Route path="/admin/tenant-settings" element={<RequireSession role="admin"><AdminTenantSettings /></RequireSession>} />
           <Route path="/admin" element={<RequireSession role="admin"><AdminDashboard /></RequireSession>} />
           <Route path="/admin/attempts" element={<RequireSession role="admin"><AdminAttempts /></RequireSession>} />
           <Route path="/admin/attempts/:id" element={<RequireSession role="admin"><AdminAttemptDetail /></RequireSession>} />
