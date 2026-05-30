@@ -1,3 +1,25 @@
+# Session — 2026-05-30 (AI generation history — legible level + drop reasons — SHIPPED + LIVE)
+
+**Headline:** Reviewed the L1–L3 question-generation flow at the user's request; diagnosed a "2/2" history row (Phishing/L1, expected ~10) as a **count-UX issue, not an engine bug** — the wizard's per-type×per-category count fanned out to a 2-MCQ request and the live Score panel confirmed it generated exactly 2 valid L1 MCQs. Shipped a legibility pass: generation history now shows the real **L1/L2/L3 level label** (was a raw UUID fragment), surfaces **all three** drop-reason counts (dedupe + citation + difficulty) in Details, and the wizard shows an explicit "runs N generations, one per category, ≈M total at level Lx" line.
+**Commit (main):** `31261c2` — feat(10-admin-dashboard,04-question-bank): legible level + drop reasons in AI generation history. 3 files, +36/−3.
+**Tests/verify:** `tsc --noEmit` clean on `@assessiq/question-bank` + `@assessiq/admin-dashboard`. Diff TODO/secret scan clean. No unit tests added — read-only SQL projection + presentational UI; typecheck is the floor (`feedback-deliver-functionality-over-ceremony`).
+**Adversarial gate:** **n/a** — non-load-bearing admin UI + read-only API projection; no auth/tenancy/RLS/grading/classifier logic touched. The new SQL is a correlated subselect inside the existing `withTenant` RLS scope; `levels` carries no tenant_id (FK-chain tenancy), no new exposure.
+**Deploy (LIVE):** `/srv/assessiq` fast-forwarded `310ea58 → 31261c2`. Rebuilt + recreated `assessiq-api` + `assessiq-frontend` (`--no-deps --force-recreate`); both `(healthy)`. Neighbors (accessbridge-*/roadmap-*/ti-platform-*) and assessiq postgres/redis/marketing/worker untouched per `vps-shared-host`. `/api/health` → 200; `/api/admin/generation-attempts` (unauth) → 401 (route + new projection live, super-admin-gated).
+**Behavioral verify PENDING OPERATOR:** open `/admin/generation-attempts` → confirm the PACK/LEVEL column now shows **L1** (not `019e579f`); expand a run with drops → confirm Citation/Difficulty dropped rows appear; in `/admin/generate-wizard` tick a category → confirm the "runs N generations … ≈M total at level Lx" line shows above Generate.
+**Next:** optional follow-ups (not done) — (a) harden the scorer's `?? "L2"` level fallback in `04 routes.ts:~1209` to explicit-null (latent wrong-level grading risk if a label ever lacks L1/L2/L3); (b) add a hard structural difficulty gate for `log_analysis` (and rubric-deferred `subjective`), which today rely on prompt-only L-separation.
+**Open questions:** none blocking.
+
+---
+
+## Agent utilization (AI generation history legibility)
+- Opus 4.8: full read-only review across modules 04/07/10 (wizard → route → service → handler → difficulty-spec → history UI); diagnosed the 2/2 row against the live Score panel; authored + self-reviewed the 6-edit diff; typecheck; commit/push; VPS enumerate → pull → build → recreate → curl verify; docs + handoff. `Opus · review + build + deploy + docs · reworked: N`.
+- Sonnet: n/a — a delegation was drafted but the user opted for Opus self-execute; edits were hot-cached, ≤30 lines/file, so self-execute beat subagent cold-start. `Sonnet · n/a — self-execute faster on hot-cached small edits`.
+- Haiku: n/a — single-context targeted reads; no bulk sweep.
+- codex:rescue: n/a — non-load-bearing UI + read-only projection; no security-adjacent surface. `codex:rescue · n/a — read-only admin observability`.
+- claude-mem: surfaced obs 2997/5111 (type_counts-sum validator), 4226 (three gen modes), 5106 (file map), 2438 (KB is file-based) corroborating the trace; honored `vps-shared-host` (enumerate-before-build, additive, namespaced), `implementation-definition-of-done` (commit→deploy→document→handoff), `feedback-verify-behavior-not-bundle` (curl 401-not-404; browser verify flagged operator-pending), noreply push.
+
+---
+
 # Session — 2026-05-30 (Module 20 data-rights — Erased candidates list in Tenant Settings — SHIPPED + LIVE)
 
 **Headline:** SHIPPED + LIVE. Follow-on to S3-display: after the display layer hid erased candidates from `/admin/users`, an admin (DPDP data fiduciary) had no consolidated way to see WHO they (or the retention cron) had erased. Added a read-only "Erased candidates" section to the **Tenant Settings** page (not a new page, per scope) below DPDP Data Retention. Window dropdown (30/90/365d/all) + total count + 6-column table: Erased on, Tombstone ID (8-char prefix, full UUID in `title`), Erased by (admin name+email or "system (retention cron)" for null actor), Reason, Attempts kept, Certs kept. List-only — no drawer/audit-trail this iteration.
