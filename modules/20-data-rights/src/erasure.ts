@@ -51,11 +51,19 @@ interface TombstoneRow {
  *   6. SELECT count(*) from certificates (preserved, never mutated).
  *   7. auditInTx: action = 'user.pii.erased', after = counts only.
  */
+/**
+ * Optional erasure actor kind. The retention cron passes 'system' so the
+ * resulting 'user.pii.erased' audit row reflects an automated origin rather
+ * than an admin click. Default 'user' preserves the S2/S3-lite contract.
+ * When 'system' is passed, actorUserId may be null (audit_log allows NULL
+ * actor_user_id under actor_kind='system').
+ */
 export async function eraseCandidatePii(
   tenantId: string,
   userId: string,
   reason: string,
-  actorUserId: string,
+  actorUserId: string | null,
+  actorKind: 'user' | 'system' = 'user',
 ): Promise<ErasureReceipt> {
   return withTenant(tenantId, async (client: PoolClient) => {
     // ── 1. Fetch user ───────────────────────────────────────────────────────
@@ -162,10 +170,13 @@ export async function eraseCandidatePii(
     const certificatesPreserved: number = certRes.rows[0]?.n ?? 0;
 
     // ── 7. Audit (inside tx) ────────────────────────────────────────────────
+    // actorKind defaults to 'user' (admin-triggered). The S5 retention cron
+    // passes 'system' + null actorUserId so the audit row carries automated
+    // provenance. auditInTx accepts both shapes via AuditInput.actorUserId?.
     await auditInTx(client, {
       tenantId,
-      actorUserId,
-      actorKind: 'user',
+      ...(actorUserId !== null ? { actorUserId } : {}),
+      actorKind,
       action: 'user.pii.erased',
       entityType: 'user',
       entityId: userId,

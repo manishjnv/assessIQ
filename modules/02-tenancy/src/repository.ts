@@ -4,7 +4,7 @@ import type { Tenant, TenantSettings } from "./types.js";
 
 const TENANT_COLUMNS = `id, slug, name, domain, branding, status, created_at, updated_at`;
 
-const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, updated_at`;
+const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, retention_days, updated_at`;
 
 interface TenantRow {
   id: string;
@@ -26,6 +26,7 @@ interface SettingsRow {
   webhook_secret: string | null;
   data_region: string;
   ai_generate_mode: string | null;
+  retention_days: number | string;   // pg may return INT as number or string depending on version
   updated_at: Date;
 }
 
@@ -52,6 +53,9 @@ function mapSettingsRow(row: SettingsRow): TenantSettings {
     webhook_secret: row.webhook_secret,
     data_region: row.data_region,
     ai_generate_mode: (row.ai_generate_mode as TenantSettings["ai_generate_mode"]) ?? null,
+    retention_days: typeof row.retention_days === "number"
+      ? row.retention_days
+      : Number.parseInt(String(row.retention_days), 10),
     updated_at: row.updated_at,
   };
 }

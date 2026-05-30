@@ -1,4 +1,4 @@
-import { NotFoundError, ConflictError, streamLogger, uuidv7 } from "@assessiq/core";
+import { NotFoundError, ConflictError, ValidationError, streamLogger, uuidv7 } from "@assessiq/core";
 import { withTenant } from "./with-tenant.js";
 import { getPool } from "./pool.js";
 import * as repo from "./repository.js";
@@ -521,6 +521,126 @@ export async function updateAiGenerateMode(
     return {
       tenantId: targetTenantId,
       ai_generate_mode: (updatedRow.ai_generate_mode as "omnibus" | "sharded" | null) ?? null,
+      previous,
+      updatedAt: updatedRow.updated_at,
+      auditId: auditRow.id,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tenant-admin: per-tenant DPDP retention window flip.
+// ---------------------------------------------------------------------------
+//
+// Mirrors updateAiGenerateMode: intentionally isolated from
+// updateTenantSettings / updateTenantSettingsRow. The patch Pick<> in the
+// generic update path MUST NOT include retention_days; this is the only
+// path that may mutate it. Tenant admins are the DPDP data fiduciary for
+// their own candidates per the SKILL.md S2/S3-lite auth-gate decision.
+//
+// Range constraint (1–3650) is enforced both at the SQL level (CHECK in
+// migration 0103) AND here at the service boundary so bad input surfaces
+// as a typed ValidationError before reaching Postgres.
+//
+// Atomicity: UPDATE + auditInTx in the same withTenant transaction.
+
+export interface UpdateRetentionDaysResult {
+  tenantId: string;
+  retention_days: number;
+  previous: number;
+  updatedAt: Date;
+  auditId: string;
+}
+
+const MIN_RETENTION_DAYS = 1;
+const MAX_RETENTION_DAYS = 3650;
+
+export async function updateRetentionDays(
+  adminUserId: string,
+  targetTenantId: string,
+  newRetentionDays: number,
+): Promise<UpdateRetentionDaysResult> {
+  if (!Number.isInteger(newRetentionDays)) {
+    throw new ValidationError("retention_days must be an integer", {
+      details: { code: "INVALID_RETENTION_DAYS", received: newRetentionDays },
+    });
+  }
+  if (newRetentionDays < MIN_RETENTION_DAYS || newRetentionDays > MAX_RETENTION_DAYS) {
+    throw new ValidationError(
+      `retention_days must be between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS}`,
+      {
+        details: {
+          code: "RETENTION_DAYS_OUT_OF_RANGE",
+          min: MIN_RETENTION_DAYS,
+          max: MAX_RETENTION_DAYS,
+          received: newRetentionDays,
+        },
+      },
+    );
+  }
+
+  log.info({ targetTenantId, newRetentionDays }, "updateRetentionDays");
+
+  return await withTenant(targetTenantId, async (client) => {
+    const current = await repo.findTenantSettings(client);
+    if (current === null) {
+      throw new NotFoundError(`tenant_settings not found for tenant ${targetTenantId}`);
+    }
+    const previous = current.retention_days;
+
+    if (previous === newRetentionDays) {
+      // Idempotent no-op — still emit an audit row so the no-op intent is
+      // observable in the forensic chain.
+      const auditRow = await auditInTx(client, {
+        tenantId: targetTenantId,
+        actorKind: "user",
+        actorUserId: adminUserId,
+        action: "tenant_settings.retention_days.updated",
+        entityType: "tenant_settings",
+        entityId: targetTenantId,
+        before: { retention_days: previous },
+        after: { retention_days: newRetentionDays, noOp: true },
+      });
+      return {
+        tenantId: targetTenantId,
+        retention_days: previous,
+        previous,
+        updatedAt: current.updated_at,
+        auditId: auditRow.id,
+      };
+    }
+
+    const updateResult = await client.query<{ retention_days: number | string; updated_at: Date }>(
+      `UPDATE tenant_settings
+         SET retention_days = $1, updated_at = now()
+       RETURNING retention_days, updated_at`,
+      [newRetentionDays],
+    );
+    const updatedRow = updateResult.rows[0];
+    if (updatedRow === undefined) {
+      throw new NotFoundError(
+        `tenant_settings row missing after UPDATE for tenant ${targetTenantId}`,
+      );
+    }
+    const updatedValue =
+      typeof updatedRow.retention_days === "number"
+        ? updatedRow.retention_days
+        : Number.parseInt(String(updatedRow.retention_days), 10);
+
+    const auditRow = await auditInTx(client, {
+      tenantId: targetTenantId,
+      actorKind: "user",
+      actorUserId: adminUserId,
+      action: "tenant_settings.retention_days.updated",
+      entityType: "tenant_settings",
+      entityId: targetTenantId,
+      before: { retention_days: previous },
+      after: { retention_days: updatedValue },
+    });
+
+    return {
+      tenantId: targetTenantId,
+      retention_days: updatedValue,
       previous,
       updatedAt: updatedRow.updated_at,
       auditId: auditRow.id,

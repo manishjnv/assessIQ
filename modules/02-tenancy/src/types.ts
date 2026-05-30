@@ -68,5 +68,14 @@ export interface TenantSettings {
    * See docs/design/2026-05-10-stage-3-promotion-rollout.md §3.
    */
   ai_generate_mode: "omnibus" | "sharded" | null;
+  /**
+   * DPDP / GDPR per-tenant candidate-data retention window in DAYS.
+   * Added by modules/20-data-rights migration 0103 (default 730 = 2 years).
+   * The nightly retention cron (apps/api/src/worker.ts dsr-retention-cron)
+   * uses this to tombstone PII for candidates past the window. Distinct from
+   * audit_retention_years (audit_log forensic-chain). Range 1–3650 enforced
+   * by SQL CHECK.
+   */
+  retention_days: number;
   updated_at: Date;
 }
