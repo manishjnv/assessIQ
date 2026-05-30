@@ -104,6 +104,12 @@ interface AssessmentRowWithMeta extends AssessmentRow {
   pack_name: string | null;
 }
 
+/** AssessmentRow extended with level_label + domain slug (list view). */
+interface AssessmentRowListMeta extends AssessmentRow {
+  level_label: string | null;
+  domain: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Mapper functions
 // ---------------------------------------------------------------------------
@@ -213,23 +219,28 @@ export async function listAssessmentRows(
   const values: unknown[] = [];
   let i = 1;
 
+  // Conditions are qualified with the `a.` alias: the data query JOINs
+  // question_packs, which ALSO has a `status` column — an unqualified
+  // `status = $1` would be ambiguous. `pack_id` is assessments-only but is
+  // qualified too for consistency.
   if (filters.status !== undefined) {
-    conditions.push(`status = $${i}`);
+    conditions.push(`a.status = $${i}`);
     values.push(filters.status);
     i++;
   }
 
   if (filters.packId !== undefined) {
-    conditions.push(`pack_id = $${i}`);
+    conditions.push(`a.pack_id = $${i}`);
     values.push(filters.packId);
     i++;
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  // Separate count query against the same WHERE clause.
+  // Separate count query against the same WHERE clause. Aliased `assessments a`
+  // so the `a.`-qualified conditions resolve; no JOIN needed for the count.
   const countResult = await client.query<{ count: string }>(
-    `SELECT count(*) FROM assessments ${where}`,
+    `SELECT count(*) FROM assessments a ${where}`,
     values,
   );
   const total = parseInt(countResult.rows[0]?.count ?? "0", 10);
@@ -238,14 +249,30 @@ export async function listAssessmentRows(
   const pageSize = filters.pageSize ?? 20;
   const offset = (page - 1) * pageSize;
 
-  const dataResult = await client.query<AssessmentRow>(
-    `SELECT ${ASSESSMENT_COLUMNS} FROM assessments ${where}
-     ORDER BY created_at DESC, id DESC
+  // LEFT JOIN levels (label) + question_packs (domain slug) so the admin list
+  // can show Level + Domain without an N+1. Mirrors findAssessmentByIdWithMeta.
+  // LEFT (not INNER) so a row with a dangling level/pack FK still lists.
+  const dataResult = await client.query<AssessmentRowListMeta>(
+    `SELECT a.${ASSESSMENT_COLUMNS.split(", ").join(", a.")},
+            l.label  AS level_label,
+            qp.domain AS domain
+     FROM   assessments a
+     LEFT JOIN levels         l  ON l.id  = a.level_id
+     LEFT JOIN question_packs qp ON qp.id = a.pack_id
+     ${where}
+     ORDER BY a.created_at DESC, a.id DESC
      LIMIT $${i} OFFSET $${i + 1}`,
     [...values, pageSize, offset],
   );
 
-  return { items: dataResult.rows.map(mapAssessmentRow), total };
+  return {
+    items: dataResult.rows.map((row) => ({
+      ...mapAssessmentRow(row),
+      level_label: row.level_label,
+      domain: row.domain,
+    })),
+    total,
+  };
 }
 
 export async function insertAssessment(

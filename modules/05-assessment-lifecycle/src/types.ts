@@ -127,10 +127,18 @@ export interface Assessment {
   created_by: string;
   created_at: Date;
   updated_at: Date;
-  /** Optional — populated by findAssessmentByIdWithMeta (detail view only). */
+  /** Optional — populated by findAssessmentByIdWithMeta (detail) + listAssessmentRows (list). */
   level_label?: string | null;
   /** Optional — populated by findAssessmentByIdWithMeta (detail view only). */
   pack_name?: string | null;
+  /**
+   * Optional — the bound pack's domain slug (question_packs.domain, TEXT NOT NULL).
+   * Populated by listAssessmentRows (list view). The frontend maps the slug to a
+   * display name via lib/domains.domainLabel(). Uniform across blueprint and
+   * non-blueprint assessments because every assessment is bound to a pack and
+   * every pack carries a domain slug.
+   */
+  domain?: string | null;
 }
 
 export interface AssessmentInvitation {
