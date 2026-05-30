@@ -249,13 +249,23 @@ export async function listAssessmentRows(
   const pageSize = filters.pageSize ?? 20;
   const offset = (page - 1) * pageSize;
 
-  // LEFT JOIN levels (label) + question_packs (domain slug) so the admin list
-  // can show Level + Domain without an N+1. Mirrors findAssessmentByIdWithMeta.
+  // LEFT JOIN levels (label) + question_packs so the admin list can show
+  // Level + Domain without an N+1. Mirrors findAssessmentByIdWithMeta.
   // LEFT (not INNER) so a row with a dangling level/pack FK still lists.
+  // `domain` resolves the pack's domain slug to the human name via the
+  // tenant-scoped `domains` table (authoritative, super-admin managed) — a
+  // correlated subselect (LIMIT 1) NOT a JOIN, so it can never multiply the
+  // assessment row even if a tenant somehow had duplicate domain rows. Falls
+  // back to the raw slug when no domains row matches. Resolving here (rather
+  // than via the FE's static DOMAIN_LABELS map) keeps the label correct as
+  // super-admin renames domains, instead of drifting against a hardcoded map.
   const dataResult = await client.query<AssessmentRowListMeta>(
     `SELECT a.${ASSESSMENT_COLUMNS.split(", ").join(", a.")},
-            l.label  AS level_label,
-            qp.domain AS domain
+            l.label AS level_label,
+            COALESCE(
+              (SELECT d.name FROM domains d WHERE d.slug = qp.domain LIMIT 1),
+              qp.domain
+            ) AS domain
      FROM   assessments a
      LEFT JOIN levels         l  ON l.id  = a.level_id
      LEFT JOIN question_packs qp ON qp.id = a.pack_id

@@ -132,11 +132,13 @@ export interface Assessment {
   /** Optional — populated by findAssessmentByIdWithMeta (detail view only). */
   pack_name?: string | null;
   /**
-   * Optional — the bound pack's domain slug (question_packs.domain, TEXT NOT NULL).
-   * Populated by listAssessmentRows (list view). The frontend maps the slug to a
-   * display name via lib/domains.domainLabel(). Uniform across blueprint and
-   * non-blueprint assessments because every assessment is bound to a pack and
-   * every pack carries a domain slug.
+   * Optional — the bound pack's domain as a human-readable NAME, resolved from
+   * the tenant-scoped `domains` table (domains.name, e.g. "SOC", "Application
+   * Security"), falling back to the raw question_packs.domain slug when no
+   * domains row matches. Populated by listAssessmentRows (list view). Uniform
+   * across blueprint and non-blueprint assessments because every assessment is
+   * bound to a pack and every pack carries a domain slug. Resolved server-side
+   * (not via the FE static map) so it tracks super-admin domain renames.
    */
   domain?: string | null;
 }
