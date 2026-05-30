@@ -1,3 +1,23 @@
+# Session — 2026-05-30 (Generate-wizard Review cards — Level/Domain/Points — SHIPPED + LIVE)
+
+**Headline:** On the Generate-wizard Review screen, each AI-draft card showed only the type chip + topic — an admin couldn't see the question's level, domain, or point value without bouncing to the config screen. Added L1/L2/L3 + domain + "N pts" chips to each card header.
+**Commit (main):** `11d4597` — feat(10,04): show Level/Domain/Points on Review AI Drafts cards. 4 files, +26/−1.
+**Tests/verify:** `tsc --noEmit` clean on `@assessiq/question-bank` + `@assessiq/admin-dashboard`. Diff secret/TODO scan clean.
+**Adversarial gate:** **n/a** — read-only `GET /admin/questions` projection widening + presentational UI; no auth/RLS/grading/classifier change. The new SQL is a correlated subselect inside the existing `withTenant` RLS scope (mirrors `31261c2`); `levels` has no tenant_id (FK-chain tenancy).
+**Deploy (LIVE):** `/srv/assessiq` fast-forwarded `2b8e309 → 11d4597`. Rebuilt + recreated `assessiq-api` (new `level_label` projection) + `assessiq-frontend` (card render); both `(healthy)`. Neighbors (accessbridge-*/roadmap-*/ti-platform-*) + assessiq postgres/redis/marketing/worker untouched. `/api/health` → 200.
+**Behavioral verify PENDING OPERATOR:** `/admin/generate-wizard` → Review (or the resume banner) → each draft card now shows an L1/L2/L3 chip, the domain name, and an "N pts" chip beside the type chip.
+**Next:** none required. Optional follow-ups from the prior session still open (scorer `?? "L2"` fallback hardening; hard difficulty gate for log_analysis/subjective).
+**Open questions:** none.
+**Detail:** `points`/`level_id`/`domain_id` already flowed to the FE via `mapQuestionRow`; only `level_label` was newly projected (correlated subselect in `listQuestionRows`, carried on the `Question` type + `QuestionRow` as optional display-only, not a stored column). Domain name resolves client-side from the wizard's already-loaded `domains` state — no extra fetch. `docs/03-api-contract.md` GET /admin/questions row updated.
+
+## Agent utilization (Review-card Level/Domain/Points)
+- Opus 4.8: traced the data path (wizard card → listQuestionsApi → GET /admin/questions → service.listQuestions → repo.listQuestionRows → mapQuestionRow → Question type), confirmed points/level_id/domain_id already present and only level_label missing; authored the 6-edit diff; typecheck; commit/push; VPS enumerate→pull→build→recreate→health verify; docs + handoff. `Opus · trace + build + deploy + docs · reworked: N`.
+- Sonnet/Haiku: n/a — single-context hot-cached edits, ≤10 lines/file; self-execute beat subagent cold-start.
+- codex:rescue: n/a — read-only projection + presentational UI.
+- claude-mem: surfaced obs 5108 (K×C count semantics), 5110 (socLevel from DB label), 4088 (dedicated generate-wizard component) + the repo/service file map; honored `vps-shared-host`, `implementation-definition-of-done`, noreply push.
+
+---
+
 # Session — 2026-05-30 (AI generation history — legible level + drop reasons — SHIPPED + LIVE)
 
 **Headline:** Reviewed the L1–L3 question-generation flow at the user's request; diagnosed a "2/2" history row (Phishing/L1, expected ~10) as a **count-UX issue, not an engine bug** — the wizard's per-type×per-category count fanned out to a 2-MCQ request and the live Score panel confirmed it generated exactly 2 valid L1 MCQs. Shipped a legibility pass: generation history now shows the real **L1/L2/L3 level label** (was a raw UUID fragment), surfaces **all three** drop-reason counts (dedupe + citation + difficulty) in Details, and the wizard shows an explicit "runs N generations, one per category, ≈M total at level Lx" line.
