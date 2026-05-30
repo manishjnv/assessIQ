@@ -436,7 +436,7 @@ export async function listForUser(
 export async function adminListCertificates(
   tenantId: string,
   query: ListCertificatesQuery,
-): Promise<{ items: Array<Certificate & { user_email: string | null }>; total: number }> {
+): Promise<{ items: Array<Certificate & { user_email: string | null; isErased: boolean }>; total: number }> {
   return withTenant(tenantId, async (client) => {
     return repo.listCertificatesAdmin(client, tenantId, query);
   });

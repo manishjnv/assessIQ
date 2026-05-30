@@ -71,6 +71,18 @@ import type {
   LeaderboardPeriod,
 } from './leaderboard.js';
 
+import {
+  ActivityFeedQuerySchema,
+  getActivityFeed,
+  queryActivityFeed,
+  registerActivityFeedRoute,
+} from './feed.js';
+import type {
+  ActivityFeedQuery,
+  ActivityFeedResponse,
+  FeedItem,
+} from './feed.js';
+
 // ---------------------------------------------------------------------------
 // Re-exports (service layer)
 // ---------------------------------------------------------------------------
@@ -81,12 +93,14 @@ export {
   getActivityHeatmap,
   getActivityTimeline,
   getActivityLeaderboard,
+  getActivityFeed,
   // repository helpers (exported for testing)
   queryActivityStats,
   queryActivityHeatmapCounts,
   queryActivityTimelineRows,
   queryActivityLeaderboardRows,
   queryActivityLeaderboardTotal,
+  queryActivityFeed,
   // pure helpers (exported for testing)
   computeStreaks,
   zeroFillRange,
@@ -99,6 +113,7 @@ export {
   ActivityHeatmapQuerySchema,
   ActivityTimelineQuerySchema,
   ActivityLeaderboardQuerySchema,
+  ActivityFeedQuerySchema,
 };
 
 export type {
@@ -120,6 +135,10 @@ export type {
   LeaderboardDirection,
   LeaderboardItem,
   LeaderboardPeriod,
+  // feed
+  ActivityFeedQuery,
+  ActivityFeedResponse,
+  FeedItem,
 };
 
 // ---------------------------------------------------------------------------
@@ -139,6 +158,7 @@ export type {
  *   GET /api/admin/activity/heatmap
  *   GET /api/admin/activity/timeline
  *   GET /api/admin/activity/leaderboard
+ *   GET /api/admin/activity/feed
  */
 export function registerActivityRoutes(
   app: FastifyInstance,
@@ -148,4 +168,5 @@ export function registerActivityRoutes(
   registerActivityHeatmapRoute(app, preHandler);
   registerActivityTimelineRoute(app, preHandler);
   registerActivityLeaderboardRoute(app, preHandler);
+  registerActivityFeedRoute(app, preHandler);
 }

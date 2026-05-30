@@ -10,6 +10,9 @@ export type { FieldProps, InputProps, LabelProps, FieldHelpProps } from "./compo
 export { Chip } from "./components/Chip.js";
 export type { ChipProps, ChipVariant } from "./components/Chip.js";
 
+export { ErasedChip } from "./components/ErasedChip.js";
+export type { ErasedChipProps } from "./components/ErasedChip.js";
+
 export { Icon } from "./components/Icon.js";
 export type { IconProps, IconName } from "./components/Icon.js";
 

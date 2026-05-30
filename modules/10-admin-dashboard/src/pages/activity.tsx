@@ -1,6 +1,7 @@
 // AssessIQ — Admin Activity page.
 //
 // /admin/activity — shows 52-week activity overview:
+//   - ActivityFeedSection (NEW — chronological role-filterable event feed, rendered FIRST)
 //   - 3 StatCards with breakdown (completions by domain, active candidates by domain, avg score by quartile)
 //   - ActivityHeatmap (365-day rolling, counts bucketed to 0–4 intensity bands)
 //   - StackedBarChart (52-week timeline by domain from timeline endpoint)
@@ -10,6 +11,8 @@
 //   - No "Filter" / "By model" / "View logs" buttons — those are OpenRouter-specific, not applicable here
 //   - Period toggle (week/month/quarter) controls stats + leaderboard only;
 //     heatmap + timeline always show the rolling 52-week/365-day window
+//   - ActivityFeedSection added above stat cards: role-filterable event feed backed by
+//     GET /api/admin/activity/feed; mirrors leaderboard row idiom + kit btn-sm filter tabs
 //
 // Data fetch pattern: adminApi() with useEffect/useState (matches dashboard.tsx in this package).
 // No TanStack Query — consistent with existing admin pages.
@@ -26,6 +29,8 @@ import {
   ActivityHeatmap,
   StackedBarChart,
   LeaderboardList,
+  Chip,
+  ErasedChip,
   useViewport,
 } from "@assessiq/ui-system";
 import type {
@@ -108,6 +113,369 @@ interface ActivityLeaderboardResponse {
 }
 
 type LeaderboardPeriod = 'week' | 'month' | 'quarter';
+
+// ---------------------------------------------------------------------------
+// Activity feed — API response shapes (duplicated intentionally; no cross-module import)
+// ---------------------------------------------------------------------------
+
+type FeedRole = 'admin' | 'reviewer' | 'candidate' | 'system';
+type FeedRoleFilter = 'all' | FeedRole;
+
+interface ActivityFeedItem {
+  id: string;
+  source: 'audit' | 'attempt';
+  at: string; // ISO-8601
+  actorRole: FeedRole;
+  actorLabel: string;
+  /** True when the actor candidate has been erased. Defensive: server-side
+   *  already drops erased-candidate rows but we render safely if any slip through. */
+  isErased?: boolean;
+  action: string;
+  actionLabel: string;
+  targetType: string | null;
+  targetId: string | null;
+  targetLabel: string | null;
+}
+
+interface ActivityFeedResponse {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: ActivityFeedItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Activity feed — pure helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a human-readable relative time string for an ISO timestamp.
+ * UTC-safe: uses getTime() arithmetic, not locale-dependent formatting.
+ * Examples: "just now", "5m ago", "2h ago", "3d ago", "May 28"
+ */
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const nowMs = Date.now();
+  const diffMs = nowMs - then;
+  if (diffMs < 0) return "just now"; // future-proof / clock skew
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  // Older than a week: show "Mon DD" UTC
+  const d = new Date(iso);
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] as const;
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+// Role badge color map (reuses chart palette via CSS custom properties for tokens)
+const ROLE_CHIP_VARIANT: Record<FeedRole, "default" | "accent" | "success" | "warn"> = {
+  admin:     "accent",
+  reviewer:  "warn",
+  candidate: "success",
+  system:    "default",
+};
+
+const ROLE_LABEL: Record<FeedRole, string> = {
+  admin:     "Admin",
+  reviewer:  "Reviewer",
+  candidate: "Candidate",
+  system:    "System",
+};
+
+const FEED_ROLE_FILTERS: { value: FeedRoleFilter; label: string }[] = [
+  { value: "all",       label: "All" },
+  { value: "admin",     label: "Admin" },
+  { value: "reviewer",  label: "Reviewer" },
+  { value: "candidate", label: "Candidate" },
+];
+
+const FEED_PAGE_SIZE = 20;
+
+// ---------------------------------------------------------------------------
+// ActivityFeedSection sub-component
+// ---------------------------------------------------------------------------
+
+function ActivityFeedSection(): React.ReactElement {
+  const [roleFilter, setRoleFilter] = useState<FeedRoleFilter>("all");
+  const [items, setItems]           = useState<ActivityFeedItem[]>([]);
+  const [total, setTotal]           = useState<number>(0);
+  const [page, setPage]             = useState<number>(1);
+  const [loading, setLoading]       = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+
+  // Fetch page 1 whenever the role filter changes (reset list)
+  const fetchFeed = useCallback(async (role: FeedRoleFilter, nextPage: number, append: boolean) => {
+    if (nextPage === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        role,
+        page:     String(nextPage),
+        pageSize: String(FEED_PAGE_SIZE),
+      });
+      const res = await adminApi<ActivityFeedResponse>(`/admin/activity/feed?${params.toString()}`);
+      setTotal(res.total);
+      setPage(nextPage);
+      setItems((prev) => append ? [...prev, ...res.items] : res.items);
+    } catch (err) {
+      setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load activity feed.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchFeed(roleFilter, 1, false);
+  }, [roleFilter]);
+
+  const handleLoadMore = () => {
+    void fetchFeed(roleFilter, page + 1, true);
+  };
+
+  const hasMore = items.length < total;
+
+  return (
+    <div
+      className="aiq-card"
+      style={{ padding: "var(--aiq-space-xl)" }}
+      data-help-id="admin.activity.feed"
+    >
+      {/* Section heading */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "var(--aiq-space-md)",
+          marginBottom: "var(--aiq-space-lg)",
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              fontFamily: "var(--aiq-font-serif)",
+              fontSize: "var(--aiq-text-2xl)",
+              fontWeight: 400,
+              margin: 0,
+              letterSpacing: "-0.01em",
+              color: "var(--aiq-color-fg-primary)",
+            }}
+          >
+            Activity.
+          </h2>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              color: "var(--aiq-color-fg-muted)",
+            }}
+          >
+            Everything happening across your workspace — admins, reviewers, and candidates.
+          </p>
+        </div>
+
+        {/* Role filter tabs — kit btn-sm pill pattern (activity.jsx header) */}
+        <div
+          className="aiq-admin-filter-strip"
+          style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}
+          role="group"
+          aria-label="Filter activity by role"
+        >
+          {FEED_ROLE_FILTERS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              className={
+                roleFilter === value
+                  ? "aiq-btn aiq-btn-primary aiq-btn-sm"
+                  : "aiq-btn aiq-btn-outline aiq-btn-sm"
+              }
+              onClick={() => setRoleFilter(value)}
+              aria-pressed={roleFilter === value}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Loading state — per-section "Loading…" pattern matching existing sections */}
+      {loading && (
+        <div
+          style={{
+            fontFamily: "var(--aiq-font-sans)",
+            fontSize: "var(--aiq-text-sm)",
+            color: "var(--aiq-color-fg-muted)",
+          }}
+        >
+          Loading…
+        </div>
+      )}
+
+      {/* Inline error — matches existing per-section error pattern */}
+      {!loading && error && (
+        <div
+          style={{
+            fontFamily: "var(--aiq-font-sans)",
+            fontSize: "var(--aiq-text-sm)",
+            color: "var(--aiq-color-danger)",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && items.length === 0 && (
+        <div
+          style={{
+            fontFamily: "var(--aiq-font-sans)",
+            fontSize: "var(--aiq-text-sm)",
+            color: "var(--aiq-color-fg-muted)",
+            padding: "var(--aiq-space-xl) 0",
+            textAlign: "center",
+          }}
+        >
+          No activity yet.
+        </div>
+      )}
+
+      {/* Feed rows — kit leaderboard row idiom: `<div className="row" style={{ padding:"12px 0", borderBottom:... }}>`  */}
+      {!loading && !error && items.length > 0 && (
+        <>
+          <div role="list" aria-label="Activity feed">
+            {items.map((item, idx) => {
+              const isLast = idx === items.length - 1;
+              return (
+                <div
+                  key={item.id}
+                  role="listitem"
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "var(--aiq-space-md)",
+                    padding: "12px 0",
+                    borderBottom: isLast ? "none" : "1px solid var(--aiq-color-border)",
+                  }}
+                >
+                  {/* Role badge — Chip from @assessiq/ui-system */}
+                  <div style={{ flexShrink: 0, paddingTop: 1 }}>
+                    <Chip variant={ROLE_CHIP_VARIANT[item.actorRole]}>
+                      {ROLE_LABEL[item.actorRole]}
+                    </Chip>
+                  </div>
+
+                  {/* Main content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: "var(--aiq-text-sm)",
+                        color: item.isErased ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-primary)",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "var(--aiq-space-xs)",
+                      }}
+                    >
+                      {item.actorLabel}
+                      {item.isErased && <ErasedChip />}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: "var(--aiq-text-sm)",
+                        color: "var(--aiq-color-fg-muted)",
+                        marginTop: 2,
+                      }}
+                    >
+                      {item.actionLabel}
+                      {item.targetLabel ? (
+                        <span style={{ color: "var(--aiq-color-fg-secondary)" }}>
+                          {" · "}
+                          {item.targetLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Relative timestamp — right-aligned, mono microcopy */}
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      fontFamily: "var(--aiq-font-mono)",
+                      fontSize: 11,
+                      color: "var(--aiq-color-fg-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      paddingTop: 2,
+                      whiteSpace: "nowrap",
+                    }}
+                    title={item.at}
+                  >
+                    {relativeTime(item.at)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Count + load more */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: "var(--aiq-space-md)",
+              flexWrap: "wrap",
+              gap: "var(--aiq-space-sm)",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: 11,
+                color: "var(--aiq-color-fg-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Showing {items.length} of {total}
+            </span>
+
+            {hasMore && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                style={{ color: "var(--aiq-color-fg-muted)" }}
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -340,6 +708,9 @@ export function AdminActivity(): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Activity"]} helpPage="admin.activity">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
+
+        {/* Activity feed — rendered FIRST, above all existing sections */}
+        <ActivityFeedSection />
 
         {/* Page header + period toggle */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--aiq-space-md)" }}>

@@ -1162,6 +1162,10 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
         if (!includeDisabled) {
           userConditions.push("u.status <> 'disabled'");
         }
+        // DPDP erasure: always hide erased candidates from this listing surface.
+        // This is an action surface (super-admin managing tenant users), so erased
+        // candidates must not appear per the HIDE display rule.
+        userConditions.push('u.erased_at IS NULL');
         const userWhere = userConditions.join(' AND ');
 
         const usersResult = await client.query<{

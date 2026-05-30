@@ -37,8 +37,8 @@
 
 import { Resvg } from '@resvg/resvg-js';
 import type { FastifyInstance } from 'fastify';
-
 import { withTenant, getTenantById } from '@assessiq/tenancy';
+import { ERASED_CANDIDATE_LABEL } from '@assessiq/core';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
 import {
@@ -48,6 +48,24 @@ import {
 } from './repository.js';
 import type { Certificate } from './types.js';
 import { CREDENTIAL_ID_REGEX } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Erasure helper — looks up users.erased_at for a candidate using the cert's
+// tenant context (withTenant sets app.current_tenant, satisfying RLS). The
+// tenantId comes from cert.tenant_id at the call site. Returns false when
+// the user row is not found (tolerate orphaned certs gracefully).
+// ---------------------------------------------------------------------------
+
+async function isCandidateErased(tenantId: string, candidateId: string): Promise<boolean> {
+  return withTenant(tenantId, async (client) => {
+    const result = await client.query<{ erased_at: string | null }>(
+      `SELECT erased_at FROM users WHERE id = $1 LIMIT 1`,
+      [candidateId],
+    );
+    const row = result.rows[0];
+    return row !== undefined && row.erased_at !== null;
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Rate limiter (fixed window, in-memory)
@@ -137,10 +155,12 @@ interface VerifyPageData {
   cert: Certificate;
   /** Issuing organization (tenant/company) name. AssessIQ is the platform. */
   orgName?: string | undefined;
+  /** True when the certificate holder has exercised DPDP right to erasure. */
+  isErased?: boolean | undefined;
 }
 
 function renderVerifyPage(data: VerifyPageData): string {
-  const { status, cert, orgName } = data;
+  const { status, cert, orgName, isErased } = data;
   const issuedBy =
     orgName !== undefined && orgName.trim().length > 0
       ? `${escHtml(orgName.trim())} &middot; via AssessIQ`
@@ -153,6 +173,9 @@ function renderVerifyPage(data: VerifyPageData): string {
         ? '✗ Revoked'
         : '✗ Invalid Signature';
 
+  // DPDP: when erased, set JSON-LD about.name to ERASED_CANDIDATE_LABEL
+  // ("Erased candidate") rather than omitting the field entirely — omission
+  // would break the schema type contract for EducationalOccupationalCredential.
   const jsonLd =
     status === 'valid'
       ? `<script type="application/ld+json">${JSON.stringify({
@@ -162,7 +185,7 @@ function renderVerifyPage(data: VerifyPageData): string {
           credentialCategory: cert.tier,
           identifier: cert.credential_id,
           issuedBy: { '@type': 'Organization', name: 'AssessIQ' },
-          about: { '@type': 'Person', name: cert.display_name },
+          about: { '@type': 'Person', name: isErased ? ERASED_CANDIDATE_LABEL : cert.display_name },
           dateCreated: cert.issued_at,
         })}</script>`
       : '';
@@ -209,7 +232,10 @@ function renderVerifyPage(data: VerifyPageData): string {
     </div>
     <div class="field">
       <p class="label">Name</p>
-      <p class="value">${escHtml(cert.display_name)}</p>
+      ${isErased
+        ? `<p class="value" style="color:#6b7280;font-style:italic;">Holder has exercised right to erasure; name withheld.</p>`
+        : `<p class="value">${escHtml(cert.display_name)}</p>`
+      }
     </div>
     <div class="field">
       <p class="label">Course</p>
@@ -527,11 +553,23 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         orgName = undefined;
       }
 
+      // DPDP erasure: check whether the certificate holder has been erased.
+      // The HMAC snapshot (signed_hash payload) is NOT altered — verification
+      // still works on the stored display_name. Only the rendered card changes.
+      // Best-effort: if the lookup fails, treat as not erased (safe default —
+      // the name shown is what was already public on the cert).
+      let isErased = false;
+      try {
+        isErased = await isCandidateErased(cert.tenant_id, cert.candidate_id);
+      } catch {
+        isErased = false;
+      }
+
       return reply
         .code(200)
         .header('content-type', 'text/html; charset=utf-8')
         .header('cache-control', 'no-cache')
-        .send(renderVerifyPage({ status, cert, orgName }));
+        .send(renderVerifyPage({ status, cert, orgName, isErased }));
     },
   );
 

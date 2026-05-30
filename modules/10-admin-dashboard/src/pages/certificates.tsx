@@ -18,7 +18,7 @@
 //  - No new npm dependencies — mirrors generation-attempts.tsx in all patterns.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Chip, Drawer, Spinner } from "@assessiq/ui-system";
+import { Chip, Drawer, Spinner, ErasedChip } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -36,6 +36,7 @@ interface CertAdminRow {
   credential_id: string;
   candidate_id: string;
   user_email: string | null;
+  isErased: boolean;
   tier: CertTier;
   course_title: string;
   issued_at: string;
@@ -645,14 +646,17 @@ export function AdminCertificates(): React.ReactElement {
                         padding: "var(--aiq-space-sm) var(--aiq-space-md)",
                         fontFamily: "var(--aiq-font-mono)",
                         fontSize: "var(--aiq-text-xs)",
-                        color: "var(--aiq-color-fg-secondary)",
+                        color: cert.isErased ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)",
                         maxWidth: "200px",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {cert.user_email ?? "—"}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                        {cert.isErased ? "—" : (cert.user_email ?? "—")}
+                        {cert.isErased && <ErasedChip />}
+                      </span>
                     </td>
 
                     {/* Tier */}
@@ -1056,10 +1060,14 @@ export function AdminCertificates(): React.ReactElement {
                 style={{
                   fontFamily: "var(--aiq-font-sans)",
                   fontSize: "var(--aiq-text-sm)",
-                  color: "var(--aiq-color-fg-primary)",
+                  color: selectedCert.isErased ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-primary)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "var(--aiq-space-xs)",
                 }}
               >
                 {selectedCert.display_name || "—"}
+                {selectedCert.isErased && <ErasedChip />}
               </span>
             </div>
 
@@ -1083,10 +1091,14 @@ export function AdminCertificates(): React.ReactElement {
                 style={{
                   fontFamily: "var(--aiq-font-mono)",
                   fontSize: "var(--aiq-text-xs)",
-                  color: "var(--aiq-color-fg-secondary)",
+                  color: selectedCert.isErased ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "var(--aiq-space-xs)",
                 }}
               >
-                {selectedCert.user_email ?? "—"}
+                {selectedCert.isErased ? "—" : (selectedCert.user_email ?? "—")}
+                {selectedCert.isErased && <ErasedChip />}
               </span>
             </div>
 

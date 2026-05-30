@@ -15,6 +15,18 @@ Delivered instead as two small admin-mediated, RLS-confined, synchronous
 operations. The candidate-facing `/dsr/:token` page, consent-withdraw, and
 retention cron remain deferred (see Session plan).
 
+**S3-display SHIPPED (2026-05-30)** — display-layer pass so erased candidates
+no longer surface as `deleted_user_<hash>` / `deleted+<hash>@erased.assessiq.local`
+on admin pages. Rule: **hide** where the candidate is the subject of an
+action (Admin Users list, super-admin Users list, Activity feed actor),
+**show with identity collapsed** where the row is a record of a transaction
+(Attempts list/detail, Certificates list/detail, public `/verify/:credentialId`).
+Substitution happens server-side via `displayCandidate()` in `@assessiq/core`;
+FE renders `<ErasedChip />` from `@assessiq/ui-system` when the API returns
+`isErased: true`. Public verify card shows "Holder has exercised right to
+erasure; name withheld." while HMAC signature verification continues to work
+against the verbatim `cert.display_name` snapshot (D5 invariant unchanged).
+
 - `eraseCandidatePii` (`src/erasure.ts`), `exportCandidateData` (`src/export.ts`)
 - Routes `GET /api/admin/users/:userId/data-export`, `POST /api/admin/users/:userId/erase`
   (`apps/api/src/routes/admin-users.ts`)

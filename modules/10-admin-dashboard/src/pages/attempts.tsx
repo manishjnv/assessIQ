@@ -9,7 +9,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Chip, Table } from "@assessiq/ui-system";
+import { Chip, Table, ErasedChip } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -21,6 +21,8 @@ type AttemptStatus = "submitted" | "pending_admin_grading" | "graded" | "release
 interface AttemptListItem {
   id: string;
   candidate_email: string;
+  candidate_name: string;
+  isErased: boolean;
   assessment_name: string;
   level_label: string;
   status: AttemptStatus;
@@ -99,7 +101,24 @@ export function AdminAttempts(): React.ReactElement {
   }
 
   const columns: ColumnDef<AttemptListItem>[] = [
-    { key: "candidate_email", label: "Candidate", sortable: true },
+    {
+      key: "candidate_email",
+      label: "Candidate",
+      sortable: true,
+      render: (row: AttemptListItem) => (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--aiq-space-xs)",
+            color: row.isErased ? "var(--aiq-color-fg-muted)" : undefined,
+          }}
+        >
+          {row.candidate_name}
+          {row.isErased && <ErasedChip />}
+        </span>
+      ),
+    },
     { key: "assessment_name", label: "Assessment", sortable: true },
     { key: "level_label", label: "Level", sortable: true },
     {

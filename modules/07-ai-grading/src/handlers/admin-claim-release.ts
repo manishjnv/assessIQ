@@ -22,7 +22,7 @@
  *   email is best-effort.
  */
 
-import { AppError, streamLogger } from "@assessiq/core";
+import { AppError, streamLogger, displayCandidate } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { findGradingsForAttempt } from "../repository.js";
@@ -82,7 +82,17 @@ export interface FrozenQuestionRow {
 // ---------------------------------------------------------------------------
 
 export interface HandleAdminClaimAttemptOutput {
-  attempt: { id: string; status: string };
+  attempt: {
+    id: string;
+    status: string;
+    candidate_email: string | null;
+    candidate_name: string;
+    isErased: boolean;
+    assessment_name: string;
+    level_label: string;
+    started_at: string | null;
+    submitted_at: string | null;
+  };
   answers: AttemptAnswerRow[];
   frozen_questions: FrozenQuestionRow[];
   gradings: GradingsRow[];
@@ -196,19 +206,45 @@ export async function handleAdminClaimAttempt(input: {
     );
     const wasClaimed = (claimResult.rowCount ?? 0) > 0;
 
-    // Read current status + Phase 2 cache fields.
+    // Read current status + Phase 2 cache fields + candidate identity.
     // Phase 2 cache (2026-05-29 Bug A robustness): `ai_proposals` carries
     // the latest GradingProposal[] from handleAdminGrade (or null if no
     // grading run / cleared after gate-flip accept). `grading_started_at`
     // is the in-flight marker. Both feed the FE's hydration + banner +
     // 15s auto-poll logic so a Grade-all whose response was lost to a
     // CF/proxy timeout can still be picked up by the admin on return.
+    // DPDP (2026-05-30): LEFT JOIN users/assessments/levels here so that
+    // candidate identity is returned alongside attempt status in one query.
+    // erased_at is included so displayCandidate() can substitute.
     const statusResult = await client.query<{
       status: string;
       ai_proposals: unknown[] | null;
       grading_started_at: Date | null;
+      candidate_email: string | null;
+      candidate_name: string | null;
+      erased_at: string | null;
+      assessment_name: string | null;
+      level_label: string | null;
+      started_at: Date | null;
+      submitted_at: Date | null;
     }>(
-      `SELECT status, ai_proposals, grading_started_at FROM attempts WHERE id = $1 LIMIT 1`,
+      `SELECT
+         a.status,
+         a.ai_proposals,
+         a.grading_started_at,
+         u.email       AS candidate_email,
+         u.name        AS candidate_name,
+         u.erased_at,
+         asm.name      AS assessment_name,
+         lvl.label     AS level_label,
+         a.started_at,
+         a.submitted_at
+       FROM attempts a
+       LEFT JOIN users       u   ON u.id   = a.user_id
+       LEFT JOIN assessments asm ON asm.id = a.assessment_id
+       LEFT JOIN levels      lvl ON lvl.id = asm.level_id
+       WHERE a.id = $1
+       LIMIT 1`,
       [attemptId],
     );
     const statusRow = statusResult.rows[0];
@@ -219,6 +255,14 @@ export async function handleAdminClaimAttempt(input: {
         404,
       );
     }
+
+    // Apply displayCandidate substitution for DPDP erasure
+    const candidateDisplay = displayCandidate({
+      id: attemptId,
+      name: statusRow.candidate_name,
+      email: statusRow.candidate_email,
+      erased_at: statusRow.erased_at,
+    });
 
     // G3.D audit: only on the actual transition. Re-claim of an already-claimed
     // attempt produces no audit row, matching the idempotent UPDATE semantic.
@@ -242,7 +286,17 @@ export async function handleAdminClaimAttempt(input: {
     ]);
 
     return {
-      attempt: { id: attemptId, status: statusRow.status },
+      attempt: {
+        id: attemptId,
+        status: statusRow.status,
+        candidate_email: candidateDisplay.email,
+        candidate_name: candidateDisplay.name,
+        isErased: candidateDisplay.isErased,
+        assessment_name: statusRow.assessment_name ?? '(unknown)',
+        level_label: statusRow.level_label ?? '(unknown)',
+        started_at: statusRow.started_at?.toISOString() ?? null,
+        submitted_at: statusRow.submitted_at?.toISOString() ?? null,
+      },
       answers,
       frozen_questions,
       gradings,
