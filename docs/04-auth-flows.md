@@ -106,6 +106,21 @@ The super-admin logs in through the **normal `/admin/login` page with the Tenant
 
 (`modules/01-auth/src/middleware/require-auth.ts:43-67`, `apps/api/src/routes/auth/{whoami,totp,logout}.ts`; regression suites `super-admin-mfa-bootstrap.test.ts`, `whoami-mfa-status.test.ts`)
 
+### `totpVerified` at mint — rate-limit trust tier (RCA 2026-05-30)
+
+**`totpVerified` is a "all *required* second factors satisfied" flag, not "the user typed a TOTP code".** `mintForIdentity` (customer-tenant branch) computes it live at mint:
+
+```
+totpVerified = user.role === "candidate" || !config.MFA_REQUIRED
+```
+
+- **What changed.** Previously the customer branch always minted `totpVerified=false`. It now mints `true` for `candidate` (parity with magic-link, which hardcodes `true`) and for `admin`/`reviewer` **when `MFA_REQUIRED=false`**. (`modules/01-auth/src/google-sso.ts` ~line 486.) The super_admin branch is unchanged — it always mints `false` and always requires TOTP (Gate-4 above), and is never reached by this line.
+- **Why.** Production runs `MFA_REQUIRED=false` (opt-in MFA, pre-launch). With the old code an SSO admin was `totpVerified=false` for the entire 8h session and there is **no TOTP step to ever flip it true** — so `rate-limit.ts` permanently kept them in the conservative **60/min `aiq:rl:user:<id>`** tier (vs 300/min for verified admins). A normal dashboard page fires >60 authenticated calls/min (`whoami` + `/api/admin/assessments` + `/api/billing/usage` + polling), exhausting the bucket; every subsequent request then `429`s with `scope=user` — including `GET /api/auth/google/start` (the session cookie is still sent), so the admin can't even re-login out of the lockout. Recurring 3× because all three prior fixes raised **IP-scope** caps (anon 30→120, IP-admin 100→500, verified-admin 5000) and never the per-user tier that was actually binding. See `docs/RCA_LOG.md` 2026-05-30.
+- **Why this is safe (adversarial-reviewed, VERDICT accept).** `require-auth.ts` wraps the **entire** TOTP-verified gate *and* the fresh-MFA step-up gate in `if (isSuperAdmin || config.MFA_REQUIRED)` (require-auth.ts:59). So for non-super_admin roles when `MFA_REQUIRED=false`, `totpVerified` is **never read by any auth gate** — flipping it `true` only restores the correct rate-limit tier and relaxes **no** authorization. super_admin is always-MFA on a separate branch. Credential endpoints keep their own 20/min per-route bucket regardless of tier, so brute-force protection is unaffected.
+- **Considered and rejected.** (a) Bumping the hardcoded `60` user cap — that is a 4th whack-a-mole on a symptom; a heavy page can exceed any fixed number, and it leaves the trust-tier semantics wrong. (b) Making the rate-limit tier itself `MFA_REQUIRED`-aware without touching the session field (Option A) — smaller blast radius but leaves `totpVerified` semantically dishonest; rejected in favour of fixing the field at the source.
+- **NOT included / known residual (V3).** A session minted `totpVerified=true` while `MFA_REQUIRED=false` persists ~8h in Redis. If an operator flips `MFA_REQUIRED=true` mid-session, that stale session **bypasses the newly-enabled TOTP gate until it expires** (≤8h). This is a bounded, operator-initiated (config change + redeploy), non-attacker-exploitable risk and is accepted; super_admin is unaffected. If a future deploy enables MFA, treat it as a session-invalidation event (or accept the ≤8h tail).
+- **Downstream impact.** `rate-limit.ts` (tier resolution — no code change, reads the field), the email-OTP login path (reaches the same customer-branch mint, so admin/reviewer email-OTP logins get the same fix). No schema or API-contract change.
+
 ---
 
 ## Flow 1 — Admin login (Google SSO + TOTP)
@@ -114,7 +129,7 @@ The super-admin logs in through the **normal `/admin/login` page with the Tenant
 
 The strict path. Every admin must clear both factors.
 
-> **Post-login redirect contract (updated 2026-05-04, commit `473fef1`):** The canonical post-authentication landing is always `/admin` (the dashboard). Previously `MFA_REQUIRED=false` redirected to `/admin/users` and post-TOTP `nav()` calls in `apps/web/src/pages/admin/mfa.tsx` also targeted `/admin/users`. Both are now `/admin`. The `MFA_REQUIRED=false` path is an unusual dev/test mode; in production `MFA_REQUIRED=true` always so the path is: Google callback → `/admin/mfa` → TOTP verify → `/admin`.
+> **Post-login redirect contract (updated 2026-05-04, commit `473fef1`):** The canonical post-authentication landing is always `/admin` (the dashboard). Previously `MFA_REQUIRED=false` redirected to `/admin/users` and post-TOTP `nav()` calls in `apps/web/src/pages/admin/mfa.tsx` also targeted `/admin/users`. Both are now `/admin`. **Correction (2026-05-30):** the earlier claim that "in production `MFA_REQUIRED=true` always" is **stale** — production currently runs `MFA_REQUIRED=false` (opt-in MFA, pre-launch). With MFA enforced the path is `Google callback → /admin/mfa → TOTP verify → /admin`; with MFA off (current prod) it is `Google callback → /admin` directly, and the session is minted `totpVerified=true` (see "### `totpVerified` at mint" above).
 
 ```
 ┌──────────┐                ┌────────────┐                  ┌────────────┐

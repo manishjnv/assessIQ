@@ -55,6 +55,7 @@ import {
   _resetJwksForTesting,
 } from "../google-sso.js";
 import { sessions } from "../sessions.js";
+import { config } from "@assessiq/core";
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -189,6 +190,10 @@ function mockGoogleFlow(claims: {
       aud: "test-client-id",
       exp: Math.floor(Date.now() / 1000) + 3600,
       iat: Math.floor(Date.now() / 1000),
+      // google-sso.ts rejects unverified emails (AuthnError). Default to verified
+      // so callers needn't set it; a test exercising the unverified path passes
+      // email_verified:false explicitly and this spread lets it override.
+      email_verified: true,
       ...claims,
     },
     protectedHeader: { alg: "RS256" },
@@ -249,6 +254,10 @@ beforeAll(async () => {
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         email       TEXT NOT NULL,
+        -- name added to the shim so 016_super_admin.sql seed INSERT (which
+        -- lists a name column) applies cleanly. 03-users owns the real column;
+        -- the shim drifted behind the migration and silently broke this suite.
+        name        TEXT,
         role        TEXT NOT NULL DEFAULT 'admin'
                     CHECK (role IN ('admin','reviewer','candidate')),
         status      TEXT NOT NULL DEFAULT 'active'
@@ -326,8 +335,11 @@ describe("startGoogleSso", () => {
     const url = new URL(result.redirectUrl);
     expect(url.hostname).toBe("accounts.google.com");
     expect(url.searchParams.get("client_id")).toBe("test-client-id");
+    // Domain migrated to assessiq.in (2026-05-22); assertion updated to match
+    // the live GOOGLE_REDIRECT_URI. Old assessiq.automateedge.cloud value was
+    // stale and only surfaced now that this suite runs again locally.
     expect(url.searchParams.get("redirect_uri")).toBe(
-      "https://assessiq.automateedge.cloud/api/auth/google/cb",
+      "https://assessiq.in/api/auth/google/cb",
     );
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("scope")).toBe("openid email profile");
@@ -682,4 +694,53 @@ it("mints a pre-MFA session with totpVerified=false", async () => {
   expect(session).not.toBeNull();
   expect(session!.totpVerified).toBe(false);
   expect(session!.userId).toBe(userId);
+});
+
+// ---------------------------------------------------------------------------
+// 11b. RCA 2026-05-30 — when MFA_REQUIRED=false an admin SSO session is minted
+// totpVerified=true (and lands on /admin, not /admin/mfa). Regression guard for
+// the recurring RATE_LIMITED scope=user lockout: a totpVerified=false admin is
+// permanently pinned to the 60/min per-user rate bucket. config.MFA_REQUIRED is
+// read live at mint time, so toggling it here exercises the production path
+// (prod runs MFA_REQUIRED=false).
+// ---------------------------------------------------------------------------
+
+it("mints totpVerified=true and redirects /admin for an admin when MFA_REQUIRED=false", async () => {
+  const prevMfaRequired = config.MFA_REQUIRED;
+  (config as { MFA_REQUIRED: boolean }).MFA_REQUIRED = false;
+  try {
+    const email = "mfa-off-admin@example.com";
+    const userId = await insertUser({ email, tenantId, role: "admin" });
+    await insertOauthIdentity({ userId, subject: "google-sub-mfa-off", tenantId });
+
+    const { stateCookieValue, nonceCookieValue } = await buildStateAndNonce();
+
+    mockGoogleFlow({
+      sub: "google-sub-mfa-off",
+      email,
+      nonce: nonceCookieValue,
+    });
+
+    const result = await handleGoogleCallback({
+      code: "auth-code",
+      state: stateCookieValue,
+      stateCookieValue,
+      nonceCookieValue,
+      ip: "10.0.0.8",
+      ua: "Mozilla/5.0",
+    });
+
+    expect(result.kind).toBe("session");
+    if (result.kind !== "session") throw new Error("expected session");
+    // No TOTP step exists in this deployment — admin lands directly on /admin.
+    expect(result.redirectTo).toBe("/admin");
+
+    const session = await sessions.get(result.sessionToken);
+    expect(session).not.toBeNull();
+    // The fix: factor requirement satisfied → totpVerified=true → trusted rate tier.
+    expect(session!.totpVerified).toBe(true);
+    expect(session!.userId).toBe(userId);
+  } finally {
+    (config as { MFA_REQUIRED: boolean }).MFA_REQUIRED = prevMfaRequired;
+  }
 });
