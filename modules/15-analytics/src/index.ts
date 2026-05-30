@@ -82,6 +82,10 @@ export {
   queryActivityTimelineRows,
   queryActivityLeaderboardRows,
   queryActivityLeaderboardTotal,
+  // Feed
+  getActivityFeed,
+  queryActivityFeed,
+  ActivityFeedQuerySchema,
   // Exported pure helpers + Zod schemas (for test reuse)
   computeStreaks,
   zeroFillRange,
@@ -110,6 +114,10 @@ export type {
   LeaderboardDirection,
   LeaderboardItem,
   LeaderboardPeriod,
+  // Feed
+  ActivityFeedQuery,
+  ActivityFeedResponse,
+  FeedItem,
 } from './activity/index.js';
 
 // ---------------------------------------------------------------------------

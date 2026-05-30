@@ -1,5 +1,11 @@
 export { config, loadConfig, type Config } from "./config.js";
 export {
+  ERASED_CANDIDATE_LABEL,
+  displayCandidate,
+  type CandidateIdentityRow,
+  type CandidateDisplay,
+} from "./displayCandidate.js";
+export {
   logger,
   createLogger,
   childLogger,

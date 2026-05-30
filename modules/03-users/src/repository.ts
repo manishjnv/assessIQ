@@ -193,6 +193,14 @@ export async function listUsersRows(
     conditions.push(`deleted_at IS NULL`);
   }
 
+  // DPDP erasure: always hide erased candidates from the user list.
+  // Erased users have users.erased_at set and tombstone name/email values.
+  // This surface is an action surface (admin managing users), so erased
+  // candidates must not appear per the HIDE display rule.
+  // Note: plain erased_at IS NULL is correct — only candidates can be erased
+  // (eraseCandidatePii enforces role='candidate'); no erased admins/reviewers exist.
+  conditions.push(`erased_at IS NULL`);
+
   if (filters.role !== undefined) {
     conditions.push(`role = $${i}`);
     values.push(filters.role);

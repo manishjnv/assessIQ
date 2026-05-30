@@ -24,7 +24,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Chip, Spinner } from "@assessiq/ui-system";
+import { Chip, Spinner, ErasedChip } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { GradingProposalCard } from "../components/GradingProposalCard.js";
 import { EscalationDiff } from "../components/EscalationDiff.js";
@@ -89,9 +89,11 @@ interface AttemptDetailResponse {
   attempt: {
     id: string;
     status: string;
-    started_at: string;
+    started_at: string | null;
     submitted_at: string | null;
-    candidate_email: string;
+    candidate_email: string | null;
+    candidate_name: string;
+    isErased: boolean;
     assessment_name: string;
     level_label: string;
   };
@@ -706,12 +708,15 @@ export function AdminAttemptDetail(): React.ReactElement {
             <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
               {attempt.assessment_name || `Attempt ${attempt.id.slice(0, 8)}`}
             </h1>
-            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)" }}>
-              {[
-                attempt.candidate_email,
-                attempt.level_label,
-                attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : null,
-              ].filter(Boolean).join(" · ") || "Candidate / assessment details pending backend enrichment"}
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)", display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+              <span>
+                {[
+                  attempt.candidate_name,
+                  attempt.level_label,
+                  attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : null,
+                ].filter(Boolean).join(" · ") || "Candidate / assessment details pending backend enrichment"}
+              </span>
+              {attempt.isErased && <ErasedChip />}
             </div>
           </div>
           <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
@@ -1180,7 +1185,7 @@ export function AdminAttemptDetail(): React.ReactElement {
         onConfirm={() => void handleReleaseConfirm()}
         onCancel={() => setShowReleaseModal(false)}
         releasing={releasing}
-        candidateEmail={attempt.candidate_email}
+        candidateEmail={attempt.isErased ? attempt.candidate_name : (attempt.candidate_email ?? attempt.candidate_name)}
         assessmentName={attempt.assessment_name}
         levelLabel={attempt.level_label}
         frozenQuestions={frozen_questions.map((q, idx) => ({

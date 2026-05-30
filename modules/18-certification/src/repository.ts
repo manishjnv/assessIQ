@@ -15,6 +15,7 @@
 import type { PoolClient } from 'pg';
 
 import { getPool } from '@assessiq/tenancy';
+import { displayCandidate } from '@assessiq/core';
 
 import type {
   Certificate,
@@ -455,7 +456,7 @@ export async function listCertificatesAdmin(
   client: PoolClient,
   tenantId: string,
   query: ListCertificatesQuery,
-): Promise<{ items: Array<Certificate & { user_email: string | null }>; total: number }> {
+): Promise<{ items: Array<Certificate & { user_email: string | null; isErased: boolean }>; total: number }> {
   const params: unknown[] = [tenantId];
   const conditions: string[] = ['c.tenant_id = $1'];
 
@@ -504,7 +505,13 @@ export async function listCertificatesAdmin(
   const sortCol = (query.sort && SORT_COLUMNS[query.sort]) || 'c.issued_at';
   const sortDir = query.dir === 'asc' ? 'ASC' : 'DESC';
 
-  const result = await client.query<Certificate & { user_email: string | null }>(
+  interface CertAdminDbRow extends Certificate {
+    user_email: string | null;
+    user_name: string | null;
+    user_erased_at: string | null;
+  }
+
+  const result = await client.query<CertAdminDbRow>(
     `SELECT
        c.id::text,
        c.tenant_id::text,
@@ -527,7 +534,9 @@ export async function listCertificatesAdmin(
        c.verification_views,
        to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
        to_char(c.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at,
-       u.email AS user_email
+       u.email     AS user_email,
+       u.name      AS user_name,
+       u.erased_at AS user_erased_at
      FROM certificates c
      LEFT JOIN users u ON u.id = c.candidate_id
      ${whereClause}
@@ -535,7 +544,22 @@ export async function listCertificatesAdmin(
      LIMIT ${limitParam} OFFSET ${offsetParam}`,
     params,
   );
-  return { items: result.rows, total };
+
+  const items = result.rows.map((r) => {
+    const display = displayCandidate({
+      id: r.candidate_id,
+      name: r.user_name,
+      email: r.user_email,
+      erased_at: r.user_erased_at,
+    });
+    return {
+      ...r,
+      user_email: display.email,
+      isErased: display.isErased,
+    };
+  });
+
+  return { items, total };
 }
 
 /**

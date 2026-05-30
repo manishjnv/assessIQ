@@ -24,6 +24,7 @@
  */
 
 import type { PoolClient } from "pg";
+import { displayCandidate } from "@assessiq/core";
 import type {
   AnchorFinding,
   GradingsRow,
@@ -315,6 +316,8 @@ export interface AttemptListRow {
   started_at: string;
   submitted_at: string | null;
   candidate_email: string;
+  candidate_name: string;
+  isErased: boolean;
   assessment_name: string;
   level_label: string;
 }
@@ -359,7 +362,20 @@ export async function listAttemptsForAdmin(
   params.push(opts.offset);
   const offsetParam = `$${params.length}`;
 
-  const result = await client.query<AttemptListRow>(
+  // Raw DB row before displayCandidate substitution
+  interface AttemptListDbRow {
+    id: string;
+    status: string;
+    started_at: string;
+    submitted_at: string | null;
+    candidate_email: string | null;
+    candidate_name: string | null;
+    erased_at: string | null;
+    assessment_name: string;
+    level_label: string;
+  }
+
+  const result = await client.query<AttemptListDbRow>(
     `SELECT
        a.id::text                                                                   AS id,
        a.status,
@@ -367,7 +383,9 @@ export async function listAttemptsForAdmin(
        CASE WHEN a.submitted_at IS NULL THEN NULL
             ELSE to_char(a.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
        END                                                                           AS submitted_at,
-       COALESCE(u.email,   '(unknown)')                                              AS candidate_email,
+       u.email                                                                       AS candidate_email,
+       u.name                                                                        AS candidate_name,
+       u.erased_at,
        COALESCE(asm.name,  '(unknown)')                                              AS assessment_name,
        COALESCE(lvl.label, '(unknown)')                                              AS level_label
      FROM attempts a
@@ -379,7 +397,28 @@ export async function listAttemptsForAdmin(
      LIMIT ${limitParam} OFFSET ${offsetParam}`,
     params,
   );
-  return { items: result.rows, total };
+
+  const items: AttemptListRow[] = result.rows.map((r) => {
+    const display = displayCandidate({
+      id: r.id,
+      name: r.candidate_name,
+      email: r.candidate_email,
+      erased_at: r.erased_at,
+    });
+    return {
+      id: r.id,
+      status: r.status,
+      started_at: r.started_at,
+      submitted_at: r.submitted_at,
+      candidate_email: display.email ?? '(erased)',
+      candidate_name: display.name,
+      isErased: display.isErased,
+      assessment_name: r.assessment_name,
+      level_label: r.level_label,
+    };
+  });
+
+  return { items, total };
 }
 
 // ---------------------------------------------------------------------------
