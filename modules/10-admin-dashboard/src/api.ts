@@ -220,6 +220,7 @@ export interface GenerationAttemptSummary {
   level_id: string;
   started_at: string;
   finished_at: string | null;
+  batch_id?: string | null;
 }
 
 export interface GenerationAttemptsListResponse {
@@ -426,6 +427,7 @@ export interface GenerateForDomainRequest {
   count: number;
   type_counts?: Partial<Record<GenerateQuestionType, number>>;
   category_id?: string;
+  batch_id?: string;
 }
 
 /**

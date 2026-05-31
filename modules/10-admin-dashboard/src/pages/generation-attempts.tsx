@@ -53,6 +53,7 @@ interface GenerationAttempt {
   pack_id: string;
   level_id: string;
   user_id: string | null;
+  batch_id: string | null;
 }
 
 interface GenerationAttemptsResponse {
@@ -610,8 +611,10 @@ export function AdminGenerationAttempts(): React.ReactElement {
   // Pack list for name resolution (fetched once on mount)
   const [packs, setPacks] = useState<PackItem[]>([]);
 
-  // Expanded row for details panel (attempt id)
+  // Expanded row for details panel (attempt id) — also used for singleton rows.
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Expanded batch group (batch_id string) — controls the child-rows accordion.
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
   // Score state — cached per attempt id so re-expanding doesn't re-fetch.
   // scoreResultMap: attemptId → ScoreAttemptResponse | null (null = not yet scored)
@@ -699,6 +702,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
     setOffset(0);
     setAttempts([]);
     setExpandedId(null);
+    setExpandedGroupId(null);
     void fetchAttempts(0);
   }, [fetchAttempts]);
 
@@ -936,164 +940,334 @@ export function AdminGenerationAttempts(): React.ReactElement {
                   </td>
                 </tr>
               )}
-              {attempts.map((attempt) => {
-                const isExpanded = expandedId === attempt.id;
-                const pack = packById(attempt.pack_id);
-                const packName = pack?.name ?? attempt.pack_id.slice(0, 8);
-                const levelLabel = attempt.level_label ?? levelLabelById(attempt.pack_id, attempt.level_id);
+              {(() => {
+                // ---------------------------------------------------------------------------
+                // Batch grouping — display-only, no API changes.
+                //
+                // Attempts with the same non-null batch_id form one group.
+                // Attempts with batch_id === null are each their own singleton group.
+                // Group order = position of the first-appearing attempt in the already-sorted
+                // `attempts` array. Within a group, attempts keep their sorted order.
+                // ---------------------------------------------------------------------------
 
-                const hasChunks =
-                  attempt.chunks_planned != null && attempt.chunks_planned > 0;
-                const chunksLabel = hasChunks
-                  ? `${attempt.chunks_planned}-${attempt.chunks_failed ?? 0}`
-                  : "—";
-                const chunksFailed = (attempt.chunks_failed ?? 0) > 0;
+                // Build ordered groups
+                interface AttemptGroup {
+                  batchId: string | null; // null = singleton
+                  members: GenerationAttempt[];
+                }
+                const groupMap = new Map<string, AttemptGroup>(); // key = batchId or attempt.id for singletons
+                const groupOrder: string[] = [];
 
-                const hasDetails =
-                  attempt.error_code ||
-                  attempt.error_message ||
-                  attempt.stderr_tail ||
-                  attempt.skill_sha ||
-                  (attempt.dedupe_dropped ?? 0) > 0 ||
-                  (attempt.citation_dropped ?? 0) > 0 ||
-                  (attempt.difficulty_dropped ?? 0) > 0;
+                for (const attempt of attempts) {
+                  if (attempt.batch_id) {
+                    if (!groupMap.has(attempt.batch_id)) {
+                      groupMap.set(attempt.batch_id, { batchId: attempt.batch_id, members: [] });
+                      groupOrder.push(attempt.batch_id);
+                    }
+                    groupMap.get(attempt.batch_id)!.members.push(attempt);
+                  } else {
+                    // Singleton: keyed by attempt.id
+                    groupMap.set(attempt.id, { batchId: null, members: [attempt] });
+                    groupOrder.push(attempt.id);
+                  }
+                }
 
-                return (
-                  <React.Fragment key={attempt.id}>
-                    <tr
-                      style={{
-                        borderBottom: isExpanded ? "none" : "1px solid var(--aiq-color-border)",
-                        background: isExpanded ? "var(--aiq-color-bg-raised)" : "transparent",
-                        transition: "background 0.1s",
-                      }}
-                    >
-                      {/* Started */}
-                      <td
-                        style={{
-                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: "var(--aiq-color-fg-secondary)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {attemptDate(attempt.started_at)}
-                      </td>
+                // Rollup status for a group
+                const rollupStatus = (members: GenerationAttempt[]): GenerationAttemptStatus => {
+                  if (members.some((m) => m.status === "running")) return "running";
+                  if (members.some((m) => m.status === "failed" || m.status === "partial")) return "partial";
+                  return "success";
+                };
 
-                      {/* Pack / Level */}
-                      <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)" }}>
-                        <div style={{ fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>
-                          {packName}
-                        </div>
-                        <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-                          {levelLabel}
-                        </div>
-                      </td>
+                return groupOrder.map((groupKey) => {
+                  const group = groupMap.get(groupKey)!;
+                  const isMulti = group.members.length > 1;
 
-                      {/* Status */}
-                      <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
-                        <StatusPill status={attempt.status as GenerationAttemptStatus} />
-                      </td>
+                  // ── SINGLETON (or group of size 1) — render exactly as before ──
+                  if (!isMulti) {
+                    const attempt = group.members[0]!;
+                    const isExpanded = expandedId === attempt.id;
+                    const pack = packById(attempt.pack_id);
+                    const packName = pack?.name ?? attempt.pack_id.slice(0, 8);
+                    const levelLabel = attempt.level_label ?? levelLabelById(attempt.pack_id, attempt.level_id);
 
-                      {/* Counts: inserted/requested */}
-                      <td
-                        style={{
-                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: "var(--aiq-color-fg-secondary)",
-                        }}
-                      >
-                        {attempt.count_inserted}/{attempt.count_requested}
-                      </td>
+                    const hasChunks = attempt.chunks_planned != null && attempt.chunks_planned > 0;
+                    const chunksLabel = hasChunks ? `${attempt.chunks_planned}-${attempt.chunks_failed ?? 0}` : "—";
+                    const chunksFailed = (attempt.chunks_failed ?? 0) > 0;
 
-                      {/* Duration */}
-                      <td
-                        style={{
-                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: "var(--aiq-color-fg-secondary)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {attempt.duration_ms != null ? formatDuration(attempt.duration_ms) : "—"}
-                      </td>
+                    const hasDetails =
+                      attempt.error_code ||
+                      attempt.error_message ||
+                      attempt.stderr_tail ||
+                      attempt.skill_sha ||
+                      (attempt.dedupe_dropped ?? 0) > 0 ||
+                      (attempt.citation_dropped ?? 0) > 0 ||
+                      (attempt.difficulty_dropped ?? 0) > 0;
 
-                      {/* Model */}
-                      <td
-                        style={{
-                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: "var(--aiq-color-fg-secondary)",
-                          maxWidth: "180px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {attempt.model ?? "—"}
-                      </td>
-
-                      {/* Chunks: planned-failed */}
-                      <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)" }}>
-                        <span
+                    return (
+                      <React.Fragment key={attempt.id}>
+                        <tr
                           style={{
-                            fontFamily: "var(--aiq-font-mono)",
-                            fontSize: "var(--aiq-text-xs)",
-                            color: chunksFailed ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-secondary)",
+                            borderBottom: isExpanded ? "none" : "1px solid var(--aiq-color-border)",
+                            background: isExpanded ? "var(--aiq-color-bg-raised)" : "transparent",
+                            transition: "background 0.1s",
                           }}
                         >
-                          {chunksLabel}
-                        </span>
-                      </td>
+                          {/* Started */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", whiteSpace: "nowrap" }}>
+                            {attemptDate(attempt.started_at)}
+                          </td>
 
-                      {/* Action */}
-                      <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", textAlign: "right" }}>
-                        {hasDetails && (
+                          {/* Pack / Level */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)" }}>
+                            <div style={{ fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>{packName}</div>
+                            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>{levelLabel}</div>
+                          </td>
+
+                          {/* Status */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
+                            <StatusPill status={attempt.status as GenerationAttemptStatus} />
+                          </td>
+
+                          {/* Counts */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
+                            {attempt.count_inserted}/{attempt.count_requested}
+                          </td>
+
+                          {/* Duration */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", whiteSpace: "nowrap" }}>
+                            {attempt.duration_ms != null ? formatDuration(attempt.duration_ms) : "—"}
+                          </td>
+
+                          {/* Model */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {attempt.model ?? "—"}
+                          </td>
+
+                          {/* Chunks */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)" }}>
+                            <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: chunksFailed ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-secondary)" }}>
+                              {chunksLabel}
+                            </span>
+                          </td>
+
+                          {/* Action */}
+                          <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", textAlign: "right" }}>
+                            {hasDetails && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedId(isExpanded ? null : attempt.id)}
+                                style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", whiteSpace: "nowrap" }}
+                              >
+                                {isExpanded ? "Hide ▴" : "Details ▸"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr style={{ borderBottom: "1px solid var(--aiq-color-border)" }}>
+                            <td colSpan={8} style={{ padding: 0 }}>
+                              <AttemptDetails
+                                attempt={attempt}
+                                packName={packName}
+                                levelLabel={levelLabel}
+                                scoreResult={scoreResultMap.get(attempt.id) ?? null}
+                                scoreLoading={scoreLoadingId === attempt.id}
+                                scoreError={scoreErrorMap.get(attempt.id) ?? null}
+                                onScore={() => { void handleScore(attempt.id); }}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  }
+
+                  // ── MULTI-ATTEMPT GROUP — parent summary row + child rows ──
+                  const { batchId, members } = group;
+                  const isGroupExpanded = expandedGroupId === batchId;
+                  const first = members[0]!;
+                  const pack = packById(first.pack_id);
+                  const packName = pack?.name ?? first.pack_id.slice(0, 8);
+                  const levelLabel = first.level_label ?? levelLabelById(first.pack_id, first.level_id);
+
+                  // Rollup values
+                  const groupStatus = rollupStatus(members);
+                  const totalInserted = members.reduce((s, m) => s + m.count_inserted, 0);
+                  const totalRequested = members.reduce((s, m) => s + m.count_requested, 0);
+                  const totalDurationMs = members.reduce((s, m) => s + (m.duration_ms ?? 0), 0);
+                  // Earliest started_at = min
+                  const earliestStartedAt = members.reduce(
+                    (min, m) => (m.started_at < min ? m.started_at : min),
+                    members[0]!.started_at,
+                  );
+                  const groupModel = members.find((m) => m.model != null)?.model ?? null;
+
+                  return (
+                    <React.Fragment key={batchId!}>
+                      {/* Parent/summary row */}
+                      <tr
+                        style={{
+                          borderBottom: isGroupExpanded ? "none" : "1px solid var(--aiq-color-border)",
+                          background: isGroupExpanded ? "var(--aiq-color-bg-raised)" : "transparent",
+                          transition: "background 0.1s",
+                        }}
+                      >
+                        {/* Started — earliest in group */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", whiteSpace: "nowrap" }}>
+                          {attemptDate(earliestStartedAt)}
+                        </td>
+
+                        {/* Pack / Level */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)" }}>
+                          <div style={{ fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>{packName}</div>
+                          <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>{levelLabel}</div>
+                        </td>
+
+                        {/* Status — rolled up */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
+                          <StatusPill status={groupStatus} />
+                        </td>
+
+                        {/* Counts — summed */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
+                          {totalInserted}/{totalRequested}
+                        </td>
+
+                        {/* Duration — summed */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", whiteSpace: "nowrap" }}>
+                          {totalDurationMs > 0 ? formatDuration(totalDurationMs) : "—"}
+                        </td>
+
+                        {/* Model — first non-null */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {groupModel ?? "—"}
+                        </td>
+
+                        {/* Chunks — group size */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)" }}>
+                          <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
+                            {members.length} runs
+                          </span>
+                        </td>
+
+                        {/* Action — expand/collapse child rows */}
+                        <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", textAlign: "right" }}>
                           <button
                             type="button"
-                            onClick={() => setExpandedId(isExpanded ? null : attempt.id)}
-                            style={{
-                              fontFamily: "var(--aiq-font-sans)",
-                              fontSize: "var(--aiq-text-xs)",
-                              color: "var(--aiq-color-accent)",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: "2px 6px",
-                              whiteSpace: "nowrap",
-                            }}
+                            onClick={() => setExpandedGroupId(isGroupExpanded ? null : batchId!)}
+                            style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", whiteSpace: "nowrap" }}
                           >
-                            {isExpanded ? "Hide ▴" : "Details ▸"}
+                            {isGroupExpanded ? "Hide ▴" : `${members.length} cats ▸`}
                           </button>
-                        )}
-                      </td>
-                    </tr>
-
-                    {/* Expanded details row */}
-                    {isExpanded && (
-                      <tr style={{ borderBottom: "1px solid var(--aiq-color-border)" }}>
-                        <td
-                          colSpan={8}
-                          style={{ padding: 0 }}
-                        >
-                          <AttemptDetails
-                            attempt={attempt}
-                            packName={packName}
-                            levelLabel={levelLabel}
-                            scoreResult={scoreResultMap.get(attempt.id) ?? null}
-                            scoreLoading={scoreLoadingId === attempt.id}
-                            scoreError={scoreErrorMap.get(attempt.id) ?? null}
-                            onScore={() => { void handleScore(attempt.id); }}
-                          />
                         </td>
                       </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
+
+                      {/* Child rows — one per member attempt, shown when group expanded */}
+                      {isGroupExpanded && members.map((attempt, childIdx) => {
+                        const isLast = childIdx === members.length - 1;
+                        const isExpanded = expandedId === attempt.id;
+
+                        const hasDetails =
+                          attempt.error_code ||
+                          attempt.error_message ||
+                          attempt.stderr_tail ||
+                          attempt.skill_sha ||
+                          (attempt.dedupe_dropped ?? 0) > 0 ||
+                          (attempt.citation_dropped ?? 0) > 0 ||
+                          (attempt.difficulty_dropped ?? 0) > 0;
+
+                        return (
+                          <React.Fragment key={attempt.id}>
+                            <tr
+                              style={{
+                                borderBottom: (isLast && !isExpanded) ? "1px solid var(--aiq-color-border)" : (isExpanded ? "none" : "1px solid var(--aiq-color-border)"),
+                                background: isExpanded ? "var(--aiq-color-bg-raised)" : "var(--aiq-color-bg-sunken)",
+                              }}
+                            >
+                              {/* Indent + started */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", whiteSpace: "nowrap", paddingLeft: "var(--aiq-space-xl)" }}>
+                                {attemptDate(attempt.started_at)}
+                              </td>
+
+                              {/* Pack / Level (same for all children; shows per-attempt level_label) */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)" }}>
+                                <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                                  {attempt.level_label ?? levelLabelById(attempt.pack_id, attempt.level_id)}
+                                </div>
+                              </td>
+
+                              {/* Status */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
+                                <StatusPill status={attempt.status as GenerationAttemptStatus} />
+                              </td>
+
+                              {/* Counts */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
+                                {attempt.count_inserted}/{attempt.count_requested}
+                              </td>
+
+                              {/* Duration */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", whiteSpace: "nowrap" }}>
+                                {attempt.duration_ms != null ? formatDuration(attempt.duration_ms) : "—"}
+                              </td>
+
+                              {/* Model */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {attempt.model ?? "—"}
+                              </td>
+
+                              {/* Chunks */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)" }}>
+                                {(() => {
+                                  const hasChunks = attempt.chunks_planned != null && attempt.chunks_planned > 0;
+                                  const chunksLabel = hasChunks ? `${attempt.chunks_planned}-${attempt.chunks_failed ?? 0}` : "—";
+                                  const chunksFailed = (attempt.chunks_failed ?? 0) > 0;
+                                  return (
+                                    <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: chunksFailed ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-secondary)" }}>
+                                      {chunksLabel}
+                                    </span>
+                                  );
+                                })()}
+                              </td>
+
+                              {/* Action — individual Details expand */}
+                              <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-md)", textAlign: "right" }}>
+                                {hasDetails && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedId(isExpanded ? null : attempt.id)}
+                                    style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", whiteSpace: "nowrap" }}
+                                  >
+                                    {isExpanded ? "Hide ▴" : "Details ▸"}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+
+                            {isExpanded && (
+                              <tr style={{ borderBottom: (isLast ? "1px solid var(--aiq-color-border)" : "none") }}>
+                                <td colSpan={8} style={{ padding: 0 }}>
+                                  <AttemptDetails
+                                    attempt={attempt}
+                                    packName={packName}
+                                    levelLabel={attempt.level_label ?? levelLabelById(attempt.pack_id, attempt.level_id)}
+                                    scoreResult={scoreResultMap.get(attempt.id) ?? null}
+                                    scoreLoading={scoreLoadingId === attempt.id}
+                                    scoreError={scoreErrorMap.get(attempt.id) ?? null}
+                                    onScore={() => { void handleScore(attempt.id); }}
+                                  />
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         )}

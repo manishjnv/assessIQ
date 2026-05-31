@@ -382,6 +382,7 @@ export async function registerQuestionBankRoutes(
         count?: unknown;
         type_counts?: unknown;
         category_id?: unknown;
+        batch_id?: unknown;
       } | null | undefined;
 
       // Validate domain_id — required UUID
@@ -416,6 +417,15 @@ export async function registerQuestionBankRoutes(
       const categoryId =
         typeof body?.category_id === "string" && UUID_RE.test(body.category_id)
           ? body.category_id
+          : undefined;
+
+      // Parse batch_id — optional UUID grouping all per-category calls of one
+      // wizard "Generate question set" action. Invalid/absent → undefined (the
+      // row gets batch_id=NULL and renders standalone). Purely a display-grouping
+      // tag; never a tenant boundary (tenantId is always from the session).
+      const batchId =
+        typeof body?.batch_id === "string" && UUID_RE.test(body.batch_id)
+          ? body.batch_id
           : undefined;
 
       // Parse type_counts — optional; same validation as parseGenerateBody
@@ -468,6 +478,7 @@ export async function registerQuestionBankRoutes(
         typeCounts,
         domainId,           // domain_id for question tagging
         categoryId,         // category_id for question tagging (may be undefined)
+        batchId,            // batch_id for history grouping (may be undefined)
       );
     },
   );
@@ -1033,6 +1044,7 @@ export async function registerQuestionBankRoutes(
           level_id: string;
           level_label: string | null;
           user_id: string | null;
+          batch_id: string | null;
         }>(
           `SELECT id, status, count_requested, count_inserted,
                   error_code, error_message, stderr_tail, skill_sha,
@@ -1040,7 +1052,7 @@ export async function registerQuestionBankRoutes(
                   citation_dropped, difficulty_dropped,
                   duration_ms, started_at, finished_at, pack_id, level_id,
                   (SELECT label FROM levels WHERE levels.id = generation_attempts.level_id) AS level_label,
-                  user_id
+                  user_id, batch_id
            FROM generation_attempts
            ${where}
            ORDER BY ${sortCol} ${sortDirSql}, id
