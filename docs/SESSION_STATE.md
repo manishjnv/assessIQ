@@ -1,3 +1,24 @@
+# Session — 2026-05-31 (Gen-wizard batch durability + MCQ answer display — SHIPPED + LIVE)
+
+**Headline:** Fixed the recurring "10 requested, only 2 generated" — root cause was the **client-side multi-category generation loop being interrupted mid-run with no way to resume** (proven from prod: one `generation_attempts` row where seven should be; only 2 of 7 Phishing categories had ever produced a question). Added a beforeunload guard + a localStorage batch-plan with a Resume banner. Same commit also fixed the MCQ review panel showing the answer key as a bare 0-based index (e.g. "3" for option D). Corrects my 2026-05-30 "no engine bug" call, which was reasoning-from-code, not from the DB.
+**Commits (main):** `9a9abd2` — fix(10-admin-dashboard): durable multi-category generation + correct-answer display (1 file, +185/−31). `7d8683b` + this — docs(RCA_LOG,SESSION_STATE).
+**Tests/verify:** `tsc --noEmit` clean on `@assessiq/admin-dashboard`. The 2 `attempt-detail-error.test.tsx` failures are pre-existing (reproduced with this change stashed). No e2e (needs a browser-driver harness).
+**Adversarial gate:** n/a — FE-only, module 10 (non-load-bearing); no auth/tenancy/grading/classifier surface. (The generation *engine* in 07-ai-grading was read-only-inspected, not modified.)
+**Deploy (LIVE):** `/srv/assessiq` → `7d8683b`. Rebuilt + recreated **`assessiq-frontend` only** (compose **service** name is `assessiq-frontend` — not `frontend`/`web`; first two build attempts failed on the wrong service name). Image `2026-05-31 18:07 UTC`; container `(healthy)`. Served + publicly-fetched bundle `index-Cp03Imj1.js` (200) **contains the resume code** (`stopped early` marker grep-confirmed). Neighbors + postgres/redis/worker/api/marketing untouched.
+**Behavioral verify PENDING OPERATOR:** run a full **7-category Phishing L1** generation to completion (keep the tab open) → confirm **7** rows appear in AI generation history (not 1) and ~10 drafts land in Review. Then interrupt a run (reload mid-way) and confirm the **Resume** banner appears and finishes the remaining categories. The current Phishing pack still holds only 2 active + 2 draft MCQs — it needs one complete run + publish to reach 10 before wipro-soc can assign.
+**Next:** operator runs the verification above; then publish the Phishing pack.
+**Open questions:**
+- Phishing / SOC / Threat-intel show **no "Licensed sets" card** for wipro-soc because their *platform* packs aren't `published` (`listAvailablePlatformSets` filters `p.status='published'`). Separate finding this session; not yet actioned.
+- Robust durability would be a **server-side batch record** (survives a device/browser change), vs the current localStorage (same-browser only).
+
+## Agent utilization (gen-wizard durability + MCQ display)
+- Opus 4.8: root-caused the truncation from the live DB (one attempt-row ⇒ batch cut short — overturning the 2026-05-30 "no bug" conclusion), verified deploy freshness, Phase-3 diff critique (accept), commit/deploy/docs/handoff, found+fixed the wrong compose-service-name deploy slip. `Opus · diagnose + review + deploy + docs · reworked: N`.
+- Sonnet (Tier 1): implemented the beforeunload guard + localStorage batch-plan + Resume banner in generate-wizard.tsx (contract-specified); typecheck clean. `Sonnet · gen-wizard durability impl · reworked: N`.
+- Haiku: n/a — no bulk sweep. codex:rescue: n/a — non-load-bearing FE.
+- claude-mem: honored `feedback-verify-behavior-not-bundle` (grep-confirmed served bundle + public 200; click-through operator-pending), `vps-shared-host` (additive FE-only deploy, enumerated containers first), `parallel-session-shared-working-tree` (verified branch=main, staged only my files), `implementation-definition-of-done`, `feedback-abort-approach-criterion` (corrected the prior wrong diagnosis instead of looping), noreply push.
+
+---
+
 # Session — 2026-05-31 (Assessment-detail oval-button fix + metadata chip row — SHIPPED + LIVE)
 
 **Headline:** Fixed the differently-sized "oval" action buttons on the draft assessment-detail page (a flex `align-items:stretch` default inflating the outline buttons to match the tall Publish+entitlement-hint column; pill radius → ellipses) and promoted the faint metadata line (Level/Opens/Closes/Created/Pack) to a scannable row of kit Chips per branding §8.2.
