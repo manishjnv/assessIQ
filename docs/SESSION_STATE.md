@@ -1,3 +1,23 @@
+# Session — 2026-05-31 (Assessment-detail oval-button fix + metadata chip row — SHIPPED + LIVE)
+
+**Headline:** Fixed the differently-sized "oval" action buttons on the draft assessment-detail page (a flex `align-items:stretch` default inflating the outline buttons to match the tall Publish+entitlement-hint column; pill radius → ellipses) and promoted the faint metadata line (Level/Opens/Closes/Created/Pack) to a scannable row of kit Chips per branding §8.2.
+**Commit (main):** `ffc69e2` — fix(10-admin-dashboard): stop action buttons stretching into ovals + promote metadata to chip row. 1 file, +38/−38.
+**Tests/verify:** `tsc --noEmit` clean on `@assessiq/admin-dashboard`. Pure FE/presentational; no unit tests added.
+**Adversarial gate:** n/a — non-load-bearing (module 10), CSS-layout + display-only, no auth/tenancy/grading/classifier surface.
+**Deploy (LIVE):** `/srv/assessiq` → `ffc69e2`; rebuilt + recreated **`assessiq-frontend` only** (presentational change in a FE-compiled module; API already serves `level_label`/`pack_name`, so the Level/Domain two-service RCA does NOT apply here). `(healthy)`, `/` → 200. Neighbors + assessiq postgres/redis/worker/api/marketing untouched.
+**Behavioral verify PENDING OPERATOR:** hard-refresh a **draft** assessment detail (e.g. "soc L1 22may") → Back / Cancel assessment / Delete / Publish all render as uniform pills (no ovals); below the title, Level shows as an accent chip and Pack/Opens/Closes/Created as bordered chips with icons. (Can't click headlessly.)
+**Next:** none required. (Standing follow-up from prior session still open: audit other candidate-touching admin actions for the erased-candidate masking-≠-gating gap.)
+**Open questions:** none. Minor design judgement to confirm visually — three "clock"-icon chips (Opens/Closes/Created) in a row; drop the icons if it reads repetitive.
+
+## Agent utilization (oval-button fix)
+- Opus 4.8: root-caused the flex-stretch+pill-radius interaction from the screenshot (CSS was correct — the container `alignItems` default was the bug), authored both edits using existing kit primitives (Chip + aiq-btn), typecheck, single-file commit on the shared tree, FE-only deploy + health verify, RCA + handoff. `Opus · diagnose + fix + deploy + docs · reworked: N`.
+- Sonnet: n/a — single-context hot-cached edit, one file; self-execute beat subagent cold-start (`feedback-deliver-functionality-over-ceremony`).
+- Haiku: n/a — no bulk sweep.
+- codex:rescue: n/a — non-load-bearing CSS/display change.
+- claude-mem: honored `branding-guideline-from-template` + `feedback-ui-template-canonical` (used kit Chip/button primitives, §8.2/§3.3 rules), `vps-shared-host` (additive FE-only deploy), `parallel-session-shared-working-tree` (committed only my file), `feedback-verify-behavior-not-bundle` (health verified; browser eyeball operator-pending), `implementation-definition-of-done`, noreply push.
+
+---
+
 # Session — 2026-05-30 (Delete + Cancel assessments — SHIPPED + LIVE)
 
 **Headline:** Admins can now clear test/dev/incomplete assessments. Two-tier per the DB's own safety shape: **Delete** (hard) for assessments with ZERO attempts (cascades invitations + frozen pool; audit retained), **Cancel** (soft → terminal `cancelled`, hidden from list) for ones that already have attempts. Detail-page actions + a reusable confirm modal; Delete auto-disables when attempts exist and steers to Cancel.
