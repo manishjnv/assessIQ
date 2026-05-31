@@ -66,6 +66,35 @@ interface CategoryGenResult {
 }
 
 // ---------------------------------------------------------------------------
+// localStorage batch-plan helpers (durability fix)
+// ---------------------------------------------------------------------------
+
+const GEN_BATCH_KEY = "aiq.genwizard.batch.v1";
+
+interface GenBatchPlan {
+  domainId: string;
+  level: SelectedLevel;
+  categories: { categoryId: string; categoryName: string; count: number; selectedTypes: string[] }[];
+  completedCategoryIds: string[];
+}
+
+function loadGenBatchPlan(): GenBatchPlan | null {
+  try {
+    const r = localStorage.getItem(GEN_BATCH_KEY);
+    return r ? (JSON.parse(r) as GenBatchPlan) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveGenBatchPlan(p: GenBatchPlan | null): void {
+  try {
+    if (p) localStorage.setItem(GEN_BATCH_KEY, JSON.stringify(p));
+    else localStorage.removeItem(GEN_BATCH_KEY);
+  } catch { /* ignore quota/availability errors */ }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -95,6 +124,10 @@ function categorySubtotal(cfg: CategoryConfig): number {
  * Admin audience — answer/option fields ARE shown.
  * NEVER dumps raw JSON blobs.
  */
+// MCQ option labels. `content.correct` is a 0-BASED index (see submit-questions.ts
+// McqContent: z.number().int().min(0).max(3)), so index 0 → "A", 3 → "D".
+const OPTION_LABELS = ["A", "B", "C", "D", "E", "F"];
+
 function renderQuestionContent(type: string, content: Record<string, unknown>): React.ReactElement {
   const labelStyle: React.CSSProperties = {
     fontFamily: "var(--aiq-font-sans)",
@@ -116,7 +149,22 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
   if (type === "mcq") {
     const question = typeof content["question"] === "string" ? content["question"] : null;
     const options = Array.isArray(content["options"]) ? content["options"] as unknown[] : null;
-    const correct = content["correct_answer"] ?? content["correct"] ?? content["answer"];
+    const correctRaw = content["correct_answer"] ?? content["correct"] ?? content["answer"];
+    // Resolve the answer key to a 0-based option index. The stored value is a
+    // 0-based integer; a numeric string is accepted defensively. Anything else
+    // (a letter, option text) is left as-is and shown verbatim. Showing the bare
+    // index alone is the original bug: an admin reads "3" as 1-based "option C"
+    // when 0-based "3" is actually option D — making a CORRECT key look wrong.
+    const correctIdx =
+      typeof correctRaw === "number" && Number.isInteger(correctRaw)
+        ? correctRaw
+        : typeof correctRaw === "string" && /^\d+$/.test(correctRaw.trim())
+          ? Number(correctRaw.trim())
+          : null;
+    const correctText =
+      correctIdx != null && options && typeof options[correctIdx] === "string"
+        ? (options[correctIdx] as string)
+        : null;
     const rationale = typeof content["rationale"] === "string" ? content["rationale"] : null;
     return (
       <div>
@@ -130,16 +178,25 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
           <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
             <div style={labelStyle}>Options</div>
             <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-lg)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>
-              {options.map((o, idx) => (
-                <li key={idx}>{typeof o === "string" ? o : JSON.stringify(o)}</li>
-              ))}
+              {options.map((o, idx) => {
+                const isCorrect = idx === correctIdx;
+                return (
+                  <li key={idx} style={isCorrect ? { color: "var(--aiq-color-success)", fontWeight: 600 } : undefined}>
+                    {typeof o === "string" ? o : JSON.stringify(o)}{isCorrect ? " ✓" : ""}
+                  </li>
+                );
+              })}
             </ol>
           </div>
         )}
-        {correct !== undefined && correct !== null && (
+        {correctRaw !== undefined && correctRaw !== null && (
           <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
             <div style={labelStyle}>Correct Answer</div>
-            <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>{String(correct)}</div>
+            <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>
+              {correctIdx != null
+                ? `${OPTION_LABELS[correctIdx] ?? `Option ${correctIdx + 1}`}${correctText ? `) ${correctText}` : ""}`
+                : String(correctRaw)}
+            </div>
           </div>
         )}
         {rationale && (
@@ -387,6 +444,9 @@ export function AdminGenerateWizard(): React.ReactElement {
   // it terminates — matching what Generation History shows live.
   const [runningAttempt, setRunningAttempt] = useState<GenerationAttemptSummary | null>(null);
 
+  // localStorage-backed resume banner: a partial batch plan from a prior session.
+  const [resumePlan, setResumePlan] = useState<GenBatchPlan | null>(null);
+
   // Fetch domains on mount
   useEffect(() => {
     setDomainsLoading(true);
@@ -411,6 +471,25 @@ export function AdminGenerateWizard(): React.ReactElement {
       .catch(() => { /* non-critical — fall through to the normal config form */ });
     return () => { cancelled = true; };
   }, []);
+
+  // On mount: restore any partial batch plan from a prior interrupted session.
+  useEffect(() => {
+    const p = loadGenBatchPlan();
+    if (p && p.completedCategoryIds.length < p.categories.length) {
+      setResumePlan(p);
+    }
+  }, []);
+
+  // beforeunload guard: warn the admin before leaving while generation is active.
+  useEffect(() => {
+    if (step !== "generating") return;
+    const handler = (e: BeforeUnloadEvent): void => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => { window.removeEventListener("beforeunload", handler); };
+  }, [step]);
 
   // Fetch categories when domain changes
   useEffect(() => {
@@ -537,51 +616,70 @@ export function AdminGenerateWizard(): React.ReactElement {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [runningAttempt, loadDrafts]);
 
-  // Generate handler — sequential to respect single-flight mutex (D3-FE + D4)
-  const handleGenerate = useCallback(async () => {
-    const checkedConfigs = categoryConfigs.filter(
-      (c) => c.checked && c.selectedTypes.length > 0,
-    );
-    if (!selectedDomainId || !selectedLevel || checkedConfigs.length === 0) return;
-
-    const initial: CategoryGenResult[] = checkedConfigs.map((c) => ({
-      categoryId: c.category.id,
-      status: "pending",
+  // Core batch runner — shared by handleGenerate (fresh) and the resume banner.
+  // Accepts a GenBatchPlan; skips already-completed categories; persists progress
+  // to localStorage after each category so an interrupted run can be resumed.
+  // Sequential awaits preserve the single-flight mutex on the server.
+  const runBatch = useCallback(async (plan: GenBatchPlan): Promise<void> => {
+    // Build the full result list upfront: already-completed categories show as
+    // "done" immediately; the rest start as "pending".
+    const completedSet = new Set(plan.completedCategoryIds);
+    const allResults: CategoryGenResult[] = plan.categories.map((cat) => ({
+      categoryId: cat.categoryId,
+      status: completedSet.has(cat.categoryId) ? "done" : "pending",
       questionCount: 0,
       error: null,
     }));
-    setGenResults(initial);
+    setGenResults(allResults);
     setGenCurrentIdx(0);
     setStep("generating");
 
-    const results = [...initial];
-    for (let i = 0; i < checkedConfigs.length; i++) {
-      const cfg = checkedConfigs[i]!;
-      setGenCurrentIdx(i);
-      results[i] = { ...results[i]!, status: "generating" };
+    // Work items: only categories not yet completed.
+    const pending = plan.categories.filter((cat) => !completedSet.has(cat.categoryId));
+
+    // Track a mutable copy of the plan so we can update completedCategoryIds and
+    // persist after each success without mutating the caller's reference.
+    const livePlan: GenBatchPlan = {
+      ...plan,
+      completedCategoryIds: [...plan.completedCategoryIds],
+    };
+
+    const results = [...allResults];
+
+    for (let pi = 0; pi < pending.length; pi++) {
+      const cat = pending[pi]!;
+      // Find the index of this category in the full results array.
+      const ri = results.findIndex((r) => r.categoryId === cat.categoryId);
+      if (ri === -1) continue; // should never happen
+      setGenCurrentIdx(ri);
+      results[ri] = { ...results[ri]!, status: "generating" };
       setGenResults([...results]);
       try {
         // D3-FE: per-type semantics — count = K×C, type_counts = {type: C each}
         // The server sends this to handleAdminGenerate which honors it in SHARDED mode.
         // In omnibus mode (default) type_counts is ignored server-side; the wizard
         // at least sends the correct count total so the right number of questions generates.
-        const C = cfg.count;
+        const C = cat.count;
         const typeCounts: Partial<Record<"mcq" | "log_analysis" | "scenario" | "kql" | "subjective", number>> = {};
-        for (const t of cfg.selectedTypes) {
+        for (const t of cat.selectedTypes) {
           typeCounts[t as "mcq" | "log_analysis" | "scenario" | "kql" | "subjective"] = C;
         }
-        const totalCount = cfg.selectedTypes.length * C;
+        const totalCount = cat.selectedTypes.length * C;
 
-        const res = await generateForDomainApi(selectedDomainId, selectedLevel, {
+        const res = await generateForDomainApi(plan.domainId, plan.level, {
           count: totalCount,
           type_counts: typeCounts,
-          category_id: cfg.category.id,
+          category_id: cat.categoryId,
         });
-        results[i] = { ...results[i]!, status: "done", questionCount: res.generated };
+        results[ri] = { ...results[ri]!, status: "done", questionCount: res.generated };
+        // Persist progress so a subsequent page reload can resume from here.
+        livePlan.completedCategoryIds.push(cat.categoryId);
+        saveGenBatchPlan(livePlan);
       } catch (err) {
         const msg = err instanceof AdminApiError ? err.apiError.message : String(err);
         // D4: per-category failure — mark failed but continue remaining
-        results[i] = { ...results[i]!, status: "failed", error: msg };
+        results[ri] = { ...results[ri]!, status: "failed", error: msg };
+        // Do NOT add to completedCategoryIds — a failed category stays resumable.
       }
       setGenResults([...results]);
     }
@@ -600,7 +698,7 @@ export function AdminGenerateWizard(): React.ReactElement {
       // cost). Pre-existing drafts in OTHER categories are left untouched; a
       // pre-existing draft in a category we just generated for is still in
       // scope (same workspace, genuinely needs a rubric).
-      const categoryIdsThisRun = new Set(checkedConfigs.map((c) => c.category.id));
+      const categoryIdsThisRun = new Set(plan.categories.map((c) => c.categoryId));
       const draftList = await listQuestionsApi({ status: "ai_draft", pageSize: 500 });
       const needRubric = draftList.items.filter(
         (d) =>
@@ -628,10 +726,37 @@ export function AdminGenerateWizard(): React.ReactElement {
       setRubricGenStatus(null);
     }
 
+    // All categories done — clear the persisted plan so there is no stale resume state.
+    saveGenBatchPlan(null);
+
     // Load all drafts for the review screen after generation
     await loadDrafts();
     setStep("review");
-  }, [categoryConfigs, selectedDomainId, selectedLevel, loadDrafts]);
+  }, [loadDrafts]);
+
+  // Generate handler — sequential to respect single-flight mutex (D3-FE + D4).
+  // Builds a fresh GenBatchPlan from the current wizard config, persists it, then
+  // hands off to runBatch (which also handles resume).
+  const handleGenerate = useCallback(async () => {
+    const checkedConfigs = categoryConfigs.filter(
+      (c) => c.checked && c.selectedTypes.length > 0,
+    );
+    if (!selectedDomainId || !selectedLevel || checkedConfigs.length === 0) return;
+
+    const plan: GenBatchPlan = {
+      domainId: selectedDomainId,
+      level: selectedLevel,
+      categories: checkedConfigs.map((c) => ({
+        categoryId: c.category.id,
+        categoryName: c.category.name,
+        count: c.count,
+        selectedTypes: [...c.selectedTypes],
+      })),
+      completedCategoryIds: [],
+    };
+    saveGenBatchPlan(plan);
+    await runBatch(plan);
+  }, [categoryConfigs, selectedDomainId, selectedLevel, runBatch]);
 
   // Navigate to review — load fresh drafts from DB (D5: durable)
   const navigateToReview = useCallback(async () => {
@@ -696,6 +821,35 @@ export function AdminGenerateWizard(): React.ReactElement {
             </button>
           </div>
         )}
+
+        {/* Interrupted-batch resume banner */}
+        {resumePlan !== null && step === "config" && (() => {
+          const completed = resumePlan.completedCategoryIds.length;
+          const total = resumePlan.categories.length;
+          // Capture plan before state clear so the onClick closure has the right reference.
+          const planSnapshot = resumePlan;
+          return (
+            <div style={{ marginBottom: "var(--aiq-space-lg)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-error-soft, #fee2e2)", border: "1px solid var(--aiq-color-error, #dc2626)", borderRadius: "var(--aiq-radius-md)", display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
+              <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-error, #dc2626)" }}>
+                A previous generation stopped early — <strong>{completed}</strong> of <strong>{total}</strong> categories done.
+              </span>
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                onClick={() => { setResumePlan(null); void runBatch(planSnapshot); }}
+              >
+                Resume
+              </button>
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                onClick={() => { saveGenBatchPlan(null); setResumePlan(null); }}
+              >
+                Discard
+              </button>
+            </div>
+          );
+        })()}
 
         {configError && (
           <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-error-soft, #fee2e2)", color: "var(--aiq-color-error, #dc2626)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
