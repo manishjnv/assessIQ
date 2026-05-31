@@ -76,6 +76,10 @@ interface GenBatchPlan {
   level: SelectedLevel;
   categories: { categoryId: string; categoryName: string; count: number; selectedTypes: string[] }[];
   completedCategoryIds: string[];
+  /** UUID shared across all per-category API calls in one "Generate question set" action.
+   *  Persisted with the resume plan so a resumed batch keeps the same id.
+   *  May be absent on plans saved before this field was added (back-compat). */
+  batchId?: string;
 }
 
 function loadGenBatchPlan(): GenBatchPlan | null {
@@ -639,8 +643,13 @@ export function AdminGenerateWizard(): React.ReactElement {
 
     // Track a mutable copy of the plan so we can update completedCategoryIds and
     // persist after each success without mutating the caller's reference.
+    // Back-compat: plans saved before the batchId field was added won't have one;
+    // derive a fresh UUID here (it won't match any prior rows, but that's fine —
+    // the batch was never grouped before this feature landed).
+    const batchId: string = plan.batchId ?? crypto.randomUUID();
     const livePlan: GenBatchPlan = {
       ...plan,
+      batchId,
       completedCategoryIds: [...plan.completedCategoryIds],
     };
 
@@ -670,6 +679,7 @@ export function AdminGenerateWizard(): React.ReactElement {
           count: totalCount,
           type_counts: typeCounts,
           category_id: cat.categoryId,
+          batch_id: batchId,
         });
         results[ri] = { ...results[ri]!, status: "done", questionCount: res.generated };
         // Persist progress so a subsequent page reload can resume from here.
@@ -753,6 +763,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         selectedTypes: [...c.selectedTypes],
       })),
       completedCategoryIds: [],
+      batchId: crypto.randomUUID(),
     };
     saveGenBatchPlan(plan);
     await runBatch(plan);

@@ -112,6 +112,16 @@ export interface HandleAdminGenerateInput {
    */
   categoryId?: string | undefined;
   /**
+   * Optional client-minted batch UUID shared by every per-category call of one
+   * "Generate question set" wizard action, so the read-only history UI can
+   * collapse them into a single expandable row. Validated as a UUID at the route
+   * layer; persisted verbatim onto generation_attempts.batch_id. NULL when the
+   * caller did not supply one (legacy / single-call) — those rows render
+   * standalone, exactly as before. NOT a tenant boundary; never used for
+   * isolation (RLS on tenant_id is authoritative).
+   */
+  batchId?: string | undefined;
+  /**
    * Difficulty injection (Phase A3). Built by the caller (04 service.ts) which
    * owns difficulty-spec.ts; passed as in-process data + bound closures to
    * preserve the ai-grading → question-bank no-import boundary (04 depends on
@@ -410,8 +420,8 @@ export async function handleAdminGenerate(
     await withTenant(input.tenantId, async (client) => {
       await client.query(
         `INSERT INTO generation_attempts
-           (id, tenant_id, pack_id, level_id, user_id, count_requested, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'running')`,
+           (id, tenant_id, pack_id, level_id, user_id, count_requested, status, batch_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 'running', $7::uuid)`,
         [
           attemptId,
           input.tenantId,
@@ -419,6 +429,7 @@ export async function handleAdminGenerate(
           input.levelId,
           input.userId,
           input.count,
+          input.batchId ?? null,
         ],
       );
     });

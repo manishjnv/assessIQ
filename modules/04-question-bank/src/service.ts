@@ -1640,6 +1640,7 @@ export async function generateQuestions(
   typeCounts?: Partial<Record<string, number>>,
   domainId?: string,
   categoryId?: string,
+  batchId?: string,
 ): Promise<{ questionIds: string[]; generated: number; skillSha: string }> {
   // Dynamic import to break the load-time cycle: at module load time
   // neither package has finished resolving. Dynamic import defers until
@@ -1760,6 +1761,7 @@ export async function generateQuestions(
     ...(typeCounts !== undefined ? { typeCounts } : {}),
     ...(domainId !== undefined ? { domainId } : {}),
     ...(categoryId !== undefined ? { categoryId } : {}),
+    ...(batchId !== undefined ? { batchId } : {}),
   });
 }
 
