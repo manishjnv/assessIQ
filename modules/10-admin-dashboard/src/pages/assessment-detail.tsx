@@ -572,51 +572,51 @@ export function AdminAssessmentDetail(): React.ReactElement {
               >
                 {assessment.status}
               </span>
-              {assessment.level_label != null && (
-                <span
-                  style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    padding: "1px 8px",
-                    borderRadius: "var(--aiq-radius-pill)",
-                    background: "var(--aiq-color-bg-sunken)",
-                    color: "var(--aiq-color-fg-muted)",
-                    flexShrink: 0,
-                  }}
-                >
-                  LEVEL {assessment.level_label}
-                </span>
-              )}
             </div>
-            <p
+            {/* Key attributes as a scannable chip row (branding §8.2). Level is
+                accent-emphasised as the headline attribute; the rest are bordered
+                default chips — far more legible than the prior faint fg-muted meta
+                line, without tinting any background accent (branding §3.3). */}
+            <div
               style={{
-                fontFamily: "var(--aiq-font-mono)",
-                fontSize: "var(--aiq-text-xs)",
-                color: "var(--aiq-color-fg-muted)",
-                margin: 0,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "var(--aiq-space-xs)",
               }}
             >
-              {assessment.opens_at
-                ? `Opens ${new Date(assessment.opens_at).toLocaleDateString()}`
-                : "No open date"}{" "}
-              ·{" "}
-              {assessment.closes_at
-                ? `Closes ${new Date(assessment.closes_at).toLocaleDateString()}`
-                : "No close date"}{" "}
-              · Created {new Date(assessment.created_at).toLocaleDateString()}
-              {assessment.pack_name != null && (
-                <>{" · Pack "}{assessment.pack_name}</>
+              {assessment.level_label != null && (
+                <Chip variant="accent" leftIcon="chart">
+                  Level {assessment.level_label}
+                </Chip>
               )}
-            </p>
+              {assessment.pack_name != null && (
+                <Chip leftIcon="book">Pack {assessment.pack_name}</Chip>
+              )}
+              <Chip leftIcon="clock">
+                {assessment.opens_at
+                  ? `Opens ${new Date(assessment.opens_at).toLocaleDateString()}`
+                  : "No open date"}
+              </Chip>
+              <Chip leftIcon="clock">
+                {assessment.closes_at
+                  ? `Closes ${new Date(assessment.closes_at).toLocaleDateString()}`
+                  : "No close date"}
+              </Chip>
+              <Chip leftIcon="clock">
+                Created {new Date(assessment.created_at).toLocaleDateString()}
+              </Chip>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexShrink: 0 }}>
+          {/* Action cluster. alignItems:flex-start keeps each button at its own
+              natural height — without it the flex default (stretch) inflates the
+              outline buttons to match the tall Publish+entitlement-hint column,
+              and the pill radius renders the stretched buttons as ovals. All four
+              buttons share the default (md) size so the cluster reads uniformly. */}
+          <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexShrink: 0, alignItems: "flex-start" }}>
             <button
               type="button"
-              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+              className="aiq-btn aiq-btn-outline"
               onClick={() => navigate("/admin/assessments")}
             >
               ← Back
@@ -624,7 +624,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             {assessment.status !== "cancelled" && (
               <button
                 type="button"
-                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                className="aiq-btn aiq-btn-outline"
                 onClick={() => { setActionError(null); setConfirmMode("cancel"); }}
                 title="Retire this assessment — keeps attempts + history, hides it from the list"
               >
@@ -634,7 +634,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             {assessment.status !== "cancelled" && (
               <button
                 type="button"
-                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                className="aiq-btn aiq-btn-outline"
                 style={hasAttempts ? undefined : { color: "var(--aiq-color-danger)", borderColor: "var(--aiq-color-danger)" }}
                 disabled={hasAttempts}
                 onClick={() => { setActionError(null); setConfirmMode("delete"); }}
