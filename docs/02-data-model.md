@@ -722,6 +722,8 @@ CREATE TABLE tenant_grading_budgets (
 
 **`stderr_tail` privacy gate.** Persisted only for non-grading skills (`generate-questions`, `generate-rubric`). For grading skills, stderr is captured in memory but never logged or persisted — candidate text must not appear in any durable store. Gate lives in `modules/07-ai-grading/src/runtimes/claude-code-vps.ts`.
 
+**`batch_id` history grouping (migration 0106, 2026-06-01).** Nullable `UUID`. One "Generate question set" wizard action fires one `POST /admin/generate` per category — each writes its own `generation_attempts` row (required for per-category progress, resume, and category tagging) — so an N-category set produced N separate history rows. The wizard now mints one `crypto.randomUUID()` per batch (persisted on the localStorage `GenBatchPlan`, so a *resumed* batch keeps the same id) and sends it on every per-category call; `handleAdminGenerate` persists it (`$7::uuid`, parameterised); the route parses an optional UUID-validated `batch_id` (tenantId still always from session); `GET /admin/generation-attempts` adds it to the SELECT projection only (no new WHERE/ORDER-BY). The history UI collapses equal-non-null-`batch_id` rows into one expandable parent (rollup status running>partial>success, summed counts/duration, "N runs", expand → per-category children); NULL/legacy rows render standalone. **`batch_id` is NOT a tenant/authz boundary** — isolation stays solely on `tenant_id` RLS, and grouping is computed in the app layer over already-tenant-scoped rows. Adversarial-reviewed ACCEPT.
+
 ```sql
 -- modules/07-ai-grading/migrations/0042_generation_attempts.sql +
 --   0043_generation_attempts_citation_dropped.sql +
@@ -747,6 +749,7 @@ CREATE TABLE generation_attempts (
   dedupe_dropped   INT,          -- NULL until Option B parallel fanout ships
   citation_dropped INT,          -- 0043: questions dropped for hallucinated KB citation IDs; NULL if filter not applied
   difficulty_dropped INT,        -- 0087: questions dropped by the structural difficulty gate (Phase A3, difficulty-spec.ts); NULL if not applied
+  batch_id         UUID,         -- 0106: client-minted UUID shared by all per-category rows of ONE "Generate question set" wizard action; NULL = legacy/single-call → renders standalone. NOT a tenant boundary (see note below).
   duration_ms      INT,
   started_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   finished_at      TIMESTAMPTZ
@@ -755,6 +758,11 @@ CREATE TABLE generation_attempts (
 -- Most-recent attempts for a pack+level — drives the pack-detail UI query.
 CREATE INDEX generation_attempts_pack_level_idx
   ON generation_attempts (pack_id, level_id, started_at DESC);
+
+-- 0106: group lookups for the history projection; partial keeps it small (batched runs only).
+CREATE INDEX generation_attempts_batch_idx
+  ON generation_attempts (batch_id, started_at DESC)
+  WHERE batch_id IS NOT NULL;
 
 ALTER TABLE generation_attempts ENABLE ROW LEVEL SECURITY;
 
