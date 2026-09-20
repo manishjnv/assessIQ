@@ -787,6 +787,13 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_OAUTH_REDIRECT=https://assessiq.in/api/auth/google/cb
 
 # Email (SMTP — live Phase 3, 2026-05-03)
+# UPDATE 2026-09-20: production moved from Resend to Brevo. /srv/assessiq/.env now has
+#   SMTP_URL=smtp://<brevo-login with @ written as %40>:<brevo-smtp-key>@smtp-relay.brevo.com:587   (smtp://, STARTTLS; NOT smtps://)
+#   EMAIL_FROM="AssessIQ <connect@assessiq.in>"   (was noreply@assessiq.in; owner's convention is connect@<domain> everywhere)
+# assessiq-api + assessiq-worker recreated with `up -d --no-deps`; verified from inside assessiq-api (nodemailer verify + send, 250 OK).
+# Rollback: /srv/assessiq/.env.bak-20260919-200230. Brevo blocks SMTP from unknown IPs, so a new server must be authorised in
+# Brevo > Settings > Security > Authorized IPs first. Shared 300/day quota across all products. Full reference for every domain:
+# E:\code\Foxfiber\docs\email-setup.md. The Resend notes below are kept as history.
 # SMTP_URL format: smtps://apikey:<RESEND_API_KEY>@smtp.resend.com:465
 # Leave EMPTY to activate stub-fallback: emails written to /var/log/assessiq/dev-emails.log
 # (or ASSESSIQ_DEV_EMAILS_LOG env override). No deploy breakage if unset.
