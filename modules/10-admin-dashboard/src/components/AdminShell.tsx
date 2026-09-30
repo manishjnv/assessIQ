@@ -494,7 +494,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 <button
                   type="button"
                   onClick={() => navigate("/admin")}
-                  aria-label={`${session.tenant.slug} — go to dashboard`}
+                  aria-label={`${session.tenant.name ?? session.tenant.slug} — go to dashboard`}
                   style={{
                     background: "none",
                     border: "none",
@@ -508,7 +508,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                     letterSpacing: "0.06em",
                   }}
                 >
-                  {session.tenant.slug}
+                  {session.tenant.name ?? session.tenant.slug}
                 </button>
               </span>
             )}

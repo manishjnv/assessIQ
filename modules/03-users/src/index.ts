@@ -11,5 +11,6 @@ export {
 } from './service.js';
 export { inviteUser, acceptInvitation, cancelInvitation } from './invitations.js';
 export type { CancelInvitationResult } from './invitations.js';
-export { bulkImport } from './import.js';
+export { importCandidates, parseCandidateCsv, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES } from './import.js';
+export type { ImportCandidatesResult, ImportSkip, ParsedCandidateCsv } from './import.js';
 export { sweepUserSessions } from './redis-sweep.js';

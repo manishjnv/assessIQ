@@ -39,6 +39,7 @@ import {
 } from './service.js';
 import { ExportFilterSchema } from './types.js';
 import { EXPORT_ROW_CAP } from './repository.js';
+import { buildAssessmentResultsCsv } from './results-export.js';
 import { processRefreshMvJob } from './refresh-mv-job.js';
 import { registerActivityRoutes } from './activity/index.js';
 import { registerActivityCandidateRoutes } from './activity-candidate/index.js';
@@ -67,6 +68,8 @@ export interface RegisterAnalyticsRoutesOptions {
    * could be used to mask data-staleness in reports — restrict to platform ops.
    */
   superAdminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
+  /** Admin + reviewer preHandler — authChain({ roles: ['admin','reviewer'] }). Falls back to adminOnly. */
+  adminOrReviewer?: preHandlerHookHandler[] | preHandlerHookHandler;
   /** Candidate-gated preHandler — authChain({ roles: ['candidate'] }) from apps/api. */
   candidateOnly: preHandlerHookHandler[] | preHandlerHookHandler;
 }
@@ -102,6 +105,34 @@ export async function registerAnalyticsRoutes(
   const superAdminHandler = Array.isArray(opts.superAdminOnly)
     ? opts.superAdminOnly
     : [opts.superAdminOnly];
+
+  // -------------------------------------------------------------------------
+  // GET /api/admin/assessments/:id/results.csv — LIVE placement results export
+  // -------------------------------------------------------------------------
+  const resultsPre = opts.adminOrReviewer
+    ? (Array.isArray(opts.adminOrReviewer) ? opts.adminOrReviewer : [opts.adminOrReviewer])
+    : preHandler;
+  app.get('/api/admin/assessments/:id/results.csv', { preHandler: resultsPre }, async (req, reply) => {
+    const id = z.string().uuid().safeParse((req.params as { id: string }).id);
+    if (!id.success) throw new ValidationError('invalid assessment id');
+    const { tenantId, userId } = sess(req);
+    const { csv, filenameBase } = await buildAssessmentResultsCsv(tenantId, id.data);
+    await audit({
+      tenantId,
+      actorUserId: userId,
+      actorKind: 'user',
+      action: 'attempt.exported',
+      entityType: 'assessments',
+      entityId: id.data,
+      after: { format: 'csv', kind: 'results' },
+    });
+    void reply.header('Content-Type', 'text/csv; charset=utf-8');
+    void reply.header(
+      'Content-Disposition',
+      `attachment; filename="${filenameBase}-results-${new Date().toISOString().slice(0, 10)}.csv"`,
+    );
+    return reply.send(csv);
+  });
 
   // -------------------------------------------------------------------------
   // GET /api/admin/reports/topic-heatmap

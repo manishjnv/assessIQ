@@ -17,6 +17,7 @@ export interface AdminSessionInfo {
   tenant: {
     id: string;
     slug: string | null;
+    name?: string | null;
   };
   mfaStatus: "verified" | "pending" | "n/a";
   totpEnrolled?: boolean;
