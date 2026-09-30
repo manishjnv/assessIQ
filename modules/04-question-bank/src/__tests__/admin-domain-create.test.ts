@@ -181,14 +181,14 @@ describe("handleAdminCreateCategory", () => {
     });
   });
 
-  it("(e) happy-path: returns created row with server-generated slug + inherits domain supported_types", async () => {
+  it("(e) happy-path: returns created row with server-generated slug + defaults supported_types to the full set", async () => {
     const { withTenant } = await import("@assessiq/tenancy");
 
-    // Sequence: guard → domain supported_types → MAX(relevance_score) → INSERT RETURNING
+    // Sequence: guard → MAX(relevance_score) → INSERT RETURNING
+    // (the domains table has no supported_types column; handler defaults to the full 5-type set)
     const mockClient = {
       query: vi.fn()
         .mockResolvedValueOnce({ rows: [{ exists: true }] })                // guard
-        .mockResolvedValueOnce({ rows: [{ supported_types: ["mcq", "scenario"] }] }) // domain types
         .mockResolvedValueOnce({ rows: [{ max: 5 }] })                      // MAX(relevance_score)
         .mockResolvedValueOnce({ rows: [{                                   // INSERT RETURNING
           id: "00000000-0000-7000-8000-000000000001",
@@ -198,7 +198,7 @@ describe("handleAdminCreateCategory", () => {
           description: null,
           relevance_score: 6,
           default_selected: true,
-          supported_types: ["mcq", "scenario"],
+          supported_types: ["mcq", "scenario", "subjective", "kql", "log_analysis"],
           default_question_count: 1,
           status: "active",
         }] }),
@@ -237,11 +237,10 @@ describe("handleAdminCreateCategory", () => {
 
     const pgUniqueError = Object.assign(new Error("duplicate key"), { code: "23505" });
 
-    // guard passes, domain types, MAX, INSERT throws unique
+    // guard passes, MAX, INSERT throws unique
     const mockClient = {
       query: vi.fn()
         .mockResolvedValueOnce({ rows: [{ exists: true }] })          // guard
-        .mockResolvedValueOnce({ rows: [{ supported_types: ["mcq"] }] }) // domain types
         .mockResolvedValueOnce({ rows: [{ max: 2 }] })                // MAX
         .mockRejectedValueOnce(pgUniqueError),                         // INSERT
     };

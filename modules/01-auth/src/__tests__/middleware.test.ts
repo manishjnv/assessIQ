@@ -245,14 +245,14 @@ describe("rate-limit (Redis testcontainer)", () => {
       userId,
       tenantId,
       role: "admin",
-      totpVerified: true,
+      totpVerified: false, // pre-MFA admin → 60/min user bucket (verified admins get RATE_LIMIT_USER_VERIFIED_ADMIN=300, 2026-05-20 tiered redesign)
       expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
       lastSeenAt: nowIso(),
       lastTotpAt: nowIso(),
     };
 
     // Non-auth URL so only user+tenant buckets add meaningful assertions; the IP
-    // bucket fires too but admin=100/min so it won't exhaust first.
+    // bucket fires too but pre-MFA admin=100/min so it won't exhaust first.
     const req = () =>
       makeReq({ url: "/api/assessments", headers: { "cf-connecting-ip": "10.3.3.1" }, session });
 
@@ -326,12 +326,12 @@ describe("rate-limit (Redis testcontainer)", () => {
   // -------------------------------------------------------------------------
 
   describe("role-aware IP bucket tiers", () => {
-    it("T1: admin session → IP limit = RATE_LIMIT_IP_ADMIN (100/min)", () => {
+    it("T1: admin session → IP limit = RATE_LIMIT_IP_VERIFIED_ADMIN (5000/min)", () => {
       // We assert resolveIpBucketMax directly rather than via the X-RateLimit-Limit
       // header. The header correctly reports the "most-constrained" bucket: for an
-      // admin session that carries both an IP bucket (100/min) and a user bucket
-      // (60/min), the user bucket is more constrained on the first request (remaining
-      // 59 < 99), so the header shows 60 — which is correct production behaviour but
+      // admin session that carries both an IP bucket (5000/min) and a user bucket
+      // (300/min), the user bucket is more constrained on the first request,
+      // so the header shows 300 — which is correct production behaviour but
       // is not what this test is verifying. resolveIpBucketMax is the source-of-truth
       // for "what IP tier does admin get?" and is exported specifically for this.
       const session: NonNullable<AuthRequest["session"]> = {
@@ -349,10 +349,10 @@ describe("rate-limit (Redis testcontainer)", () => {
         headers: { "cf-connecting-ip": "40.1.1.1" },
         session,
       });
-      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_ADMIN);
+      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_VERIFIED_ADMIN);
     });
 
-    it("T2: reviewer session → IP limit = RATE_LIMIT_IP_ADMIN (admin+reviewer share)", () => {
+    it("T2: reviewer session → IP limit = RATE_LIMIT_IP_VERIFIED_ADMIN (admin+reviewer share)", () => {
       // Same reasoning as T1 — resolveIpBucketMax is the correct assertion surface.
       const session: NonNullable<AuthRequest["session"]> = {
         id: "sess-t2",
@@ -369,7 +369,7 @@ describe("rate-limit (Redis testcontainer)", () => {
         headers: { "cf-connecting-ip": "40.1.1.2" },
         session,
       });
-      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_ADMIN);
+      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_VERIFIED_ADMIN);
     });
 
     it("T3: candidate session → IP limit = RATE_LIMIT_IP_USER (30/min)", async () => {
@@ -435,7 +435,7 @@ describe("rate-limit (Redis testcontainer)", () => {
     //
     // Each iteration uses a unique userId so the per-user 60/min bucket never
     // saturates, isolating this test to IP-tier enforcement only.
-    it("N1: verified admin hits /api/auth/google/start 101x → request 101 returns 429 (bypass removed)", async () => {
+    it("N1: pre-MFA admin hits /api/auth/google/start 101x → request 101 returns 429 (bypass removed)", async () => {
       const handler = rateLimitMiddleware();
       const ip = "50.1.1.1";
       let counter = 0;
@@ -449,7 +449,7 @@ describe("rate-limit (Redis testcontainer)", () => {
             userId: `no-bypass-n1-user-${counter}`,  // unique → user bucket never saturates
             tenantId: `no-bypass-n1-tenant-${counter}`,
             role: "admin" as const,
-            totpVerified: true,
+            totpVerified: false, // pre-MFA: verified admins get 5000/min IP (2026-05-20), so the 100/min cap only applies pre-MFA
             expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
             lastSeenAt: nowIso(),
             lastTotpAt: nowIso(),
