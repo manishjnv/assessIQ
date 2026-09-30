@@ -146,8 +146,15 @@ export async function scoreMcqAndFinalizeIfComplete(
   // (a question missing its frozen question_versions snapshot is skipped by the
   // scoring JOIN — leave that attempt for an admin instead of under-counting max).
   const scored = await client.query<{ n: string }>(
-    `SELECT COUNT(DISTINCT question_id) AS n FROM gradings
-      WHERE attempt_id = $1 AND grader = 'deterministic' AND override_of IS NULL`,
+    `SELECT COUNT(DISTINCT g.question_id) AS n
+       FROM gradings g
+       JOIN attempt_questions aq
+         ON aq.attempt_id = g.attempt_id AND aq.question_id = g.question_id
+       JOIN questions q ON q.id = g.question_id
+      WHERE g.attempt_id = $1
+        AND g.grader = 'deterministic'
+        AND g.override_of IS NULL
+        AND q.type = 'mcq'`,
     [attemptId],
   );
   if (Number(scored.rows[0]?.n ?? 0) < mcq) {
