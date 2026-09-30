@@ -13,12 +13,15 @@ export {
   unarchiveTenant,
   updateAiGenerateMode,
   updateRetentionDays,
+  renameTenant,
+  normalizeTenantName,
   createTenant,
   activateTenant,
 } from "./service.js";
 export type {
   UpdateAiGenerateModeResult,
   UpdateRetentionDaysResult,
+  RenameTenantResult,
   CreateTenantInput,
   CreateTenantResult,
   TenantLifecycleResult,

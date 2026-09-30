@@ -18,6 +18,7 @@ getTenantById(id): Promise<Tenant>
 getTenantBySlug(slug): Promise<Tenant>      // Phase 1 — requires withSystemRole
 updateTenantSettings(id, patch): Promise<TenantSettings>
 suspendTenant(id, reason): Promise<void>
+renameTenant(adminUserId, tenantId, rawName): Promise<RenameTenantResult>  // tenant-admin renames OWN company; normalizeTenantName (2-120, collapse ws, no control chars); UPDATE tenants.name + 1 tenant.renamed auditInTx in one tx; same-name = noOp. Route: PATCH /api/admin/tenant. Display-only: never touches slug/id/status.
 
 // middleware — Fastify hook pair (preHandler + onResponse)
 tenantContextMiddleware(): TenantContextHooks

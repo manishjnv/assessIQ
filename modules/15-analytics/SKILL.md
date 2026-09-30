@@ -68,6 +68,7 @@ GET /api/admin/reports/cost-by-month?year=YYYY
 GET /api/admin/reports/exports/attempts.csv
 GET /api/admin/reports/exports/attempts.jsonl
 GET /api/admin/reports/exports/topic-heatmap.csv
+GET /api/admin/assessments/:id/results.csv   (admin+reviewer; LIVE, per-invited-candidate; src/results-export.ts)
 ```
 All export routes audit to `audit_log` with `action: 'attempt.exported'`.
 
@@ -106,6 +107,7 @@ Each endpoint owns its full vertical slice in `src/activity/<name>.ts` (types + 
 - `admin.audit.export.format`
 - `admin.audit.archives.restore_procedure`
 - `admin.notifications.in_app.short_poll_interval`
+- `admin.assessments.results.download_csv` (migration 16-help-system 0110)
 
 ## Migration
 `modules/15-analytics/migrations/0060_attempt_summary_mv.sql` — creates `attempt_summary_mv` view + 3 indexes (UNIQUE on `(tenant_id, attempt_id)` required for CONCURRENT refresh).
@@ -122,3 +124,5 @@ The activity test file spins up its own postgres container (`aiq_activity_test`)
 - Custom report builder — defer to Phase 4 unless requested
 - Programmatic access via REST (vs CSV download only) — most fields already in API; add explicit endpoints in v2 if needed
 - Phase 4: populate `gradingCostByMonth` when `grading_jobs` table ships
+
+- `src/__tests__/results-export.test.ts` — 4 integration tests for the live results CSV (statuses, override precedence, per-category %, formula escaping, cross-tenant 404, reviewer/candidate gating). Passing score comes from `levels.passing_score_pct` of the assessment level.

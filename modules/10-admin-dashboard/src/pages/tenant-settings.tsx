@@ -23,6 +23,7 @@ import React, { useEffect, useState, type CSSProperties } from "react";
 import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
+import { useAdminSession, fetchAdminWhoami } from "../session.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,52 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
   const [erasedLoading, setErasedLoading] = useState<boolean>(true);
   const [erasedError, setErasedError] = useState<string | null>(null);
   const [erasedSince, setErasedSince] = useState<ErasedSinceWindow>("365d");
+
+  // ── Company name (tenants.name, display only) ─────────────────────────────
+  const { session } = useAdminSession();
+  const currentName = session?.tenant.name ?? "";
+  const [nameInput, setNameInput] = useState<string>("");
+  const [nameTouched, setNameTouched] = useState(false);
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameSuccess, setNameSuccess] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!nameTouched) setNameInput(currentName);
+  }, [currentName, nameTouched]);
+
+  // Mirrors server normalisation (02-tenancy normalizeTenantName).
+  const normalizedName = nameInput.replace(/\s+/g, " ").trim();
+  const nameInvalid =
+    [...nameInput].some((c) => { const n = c.charCodeAt(0); return !/\s/.test(c) && (n < 32 || (n >= 127 && n <= 159)); }) ||
+    normalizedName.length < 2 ||
+    normalizedName.length > 120;
+  const nameDirty = normalizedName !== currentName;
+
+  const handleSaveName = async (): Promise<void> => {
+    if (nameInvalid) {
+      setNameError("Company name must be 2–120 characters, without control characters.");
+      return;
+    }
+    setNameSaving(true);
+    setNameError(null);
+    setNameSuccess(null);
+    try {
+      await adminApi("/admin/tenant", {
+        method: "PATCH",
+        body: JSON.stringify({ name: normalizedName }),
+      });
+      await fetchAdminWhoami(true); // refresh shell/header tenant name
+      setNameTouched(false);
+      setNameSuccess("Company name updated.");
+      setTimeout(() => setNameSuccess(null), 4000);
+    } catch (err) {
+      setNameError(
+        err instanceof AdminApiError ? err.apiError.message : "Unexpected error — please try again.",
+      );
+    } finally {
+      setNameSaving(false);
+    }
+  };
 
   // ── Load on mount ─────────────────────────────────────────────────────────
 
@@ -487,6 +534,108 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
             </p>
           </div>
         )}
+
+        {/* ── Company name section ────────────────────────────────────────── */}
+        <section aria-labelledby="company-name-heading" data-help-id="admin.settings.company_name">
+          <div
+            style={{
+              paddingBottom: 16,
+              borderBottom: "1px solid var(--aiq-color-border)",
+              marginBottom: 24,
+            }}
+          >
+            <h2
+              id="company-name-heading"
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: 22,
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Company name.
+            </h2>
+          </div>
+          <Card padding="lg">
+            <div style={{ maxWidth: 400 }}>
+              <label
+                htmlFor="company-name-input"
+                style={{
+                  display: "block",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "var(--aiq-color-fg-primary)",
+                  marginBottom: 6,
+                }}
+              >
+                Display name
+              </label>
+              <input
+                id="company-name-input"
+                type="text"
+                maxLength={120}
+                value={nameInput}
+                onChange={(e) => {
+                  setNameInput(e.target.value);
+                  setNameTouched(true);
+                  setNameError(null);
+                  setNameSuccess(null);
+                }}
+                disabled={nameSaving || session === null}
+                aria-invalid={nameDirty && nameInvalid}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: 13,
+                  padding: "10px 12px",
+                  borderRadius: "var(--aiq-radius-md)",
+                  border: "1px solid var(--aiq-color-border-strong)",
+                  background: "var(--aiq-color-bg-raised)",
+                  color: "var(--aiq-color-fg-primary)",
+                  boxSizing: "border-box",
+                }}
+              />
+              <p
+                style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: "var(--aiq-color-fg-secondary)",
+                  lineHeight: 1.5,
+                }}
+              >
+                Shown in the app header and in emails to your candidates. 2–120 characters.
+                Your sign-in address and tenant ID do not change.
+              </p>
+              {nameDirty && nameInvalid && (
+                <p role="alert" style={{ fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: "6px 0 0" }}>
+                  Company name must be 2–120 characters, without control characters.
+                </p>
+              )}
+            </div>
+            {nameSuccess && (
+              <div style={{ marginTop: 16 }}>
+                <Chip variant="success">{nameSuccess}</Chip>
+              </div>
+            )}
+            {nameError && (
+              <div role="alert" style={{ marginTop: 16, fontSize: 13, color: "var(--aiq-color-danger, #dc2626)", lineHeight: 1.4 }}>
+                {nameError}
+              </div>
+            )}
+            <div style={{ marginTop: 20 }}>
+              <Button
+                onClick={() => void handleSaveName()}
+                loading={nameSaving}
+                disabled={!nameDirty || nameInvalid || session === null}
+              >
+                Save company name
+              </Button>
+            </div>
+          </Card>
+        </section>
 
         {/* ── DPDP Data Retention section ─────────────────────────────────── */}
         <section aria-labelledby="dpdp-retention-heading">

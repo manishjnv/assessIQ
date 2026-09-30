@@ -647,3 +647,92 @@ export async function updateRetentionDays(
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// renameTenant — tenant-admin edits their OWN company display name.
+// ---------------------------------------------------------------------------
+//
+// Display-only: touches tenants.name ONLY (never slug/id/status). The caller
+// passes session.tenantId — the tenant is never taken from request input.
+// UPDATE + exactly one audit row (tenant.renamed) commit in one withTenant tx.
+// Normalisation: collapse whitespace runs to a single space, trim, reject
+// control characters, 2–120 chars. Same-name submit is an idempotent no-op
+// (no write, no audit). Lifecycle guard (TENANT_NOT_ACTIVE) is enforced by the
+// route via assertTenantActive before calling this.
+
+export interface RenameTenantResult {
+  tenantId: string;
+  name: string;
+  previousName: string;
+  auditId: string | null;
+  noOp: boolean;
+}
+
+const MIN_TENANT_NAME = 2;
+const MAX_TENANT_NAME = 120;
+
+export function normalizeTenantName(raw: unknown): string {
+  if (typeof raw !== "string") {
+    throw new ValidationError("name is required", { details: { code: "MISSING_NAME" } });
+  }
+  // Control chars + invisible/bidi-override chars (display spoofing in emails,
+  // shell header, certificates): ZWSP..RLM, LRE..RLO, WJ..invisible-plus,
+  // LRI..PDI, BOM, soft hyphen.
+  // eslint-disable-next-line no-control-regex, no-misleading-character-class
+  if (/[\u0000-\u001f\u007f-\u009f­​-‏‪-‮⁠-⁤⁦-⁩﻿]/.test(raw.replace(/\s+/g, " "))) {
+    throw new ValidationError("name must not contain control characters", {
+      details: { code: "INVALID_NAME_CHARS" },
+    });
+  }
+  const name = raw.replace(/\s+/g, " ").trim();
+  if (name.length < MIN_TENANT_NAME || name.length > MAX_TENANT_NAME) {
+    throw new ValidationError(
+      `name must be between ${MIN_TENANT_NAME} and ${MAX_TENANT_NAME} characters`,
+      { details: { code: "INVALID_NAME_LENGTH", min: MIN_TENANT_NAME, max: MAX_TENANT_NAME } },
+    );
+  }
+  return name;
+}
+
+export async function renameTenant(
+  actorUserId: string,
+  tenantId: string,
+  rawName: unknown,
+): Promise<RenameTenantResult> {
+  const name = normalizeTenantName(rawName);
+  log.info({ tenantId }, "renameTenant");
+
+  return withTenant(tenantId, async (client) => {
+    // FOR UPDATE: two concurrent renames can't both pass the no-op check.
+    const cur = await client.query<{ name: string }>(
+      `SELECT name FROM tenants WHERE id = $1 FOR UPDATE`,
+      [tenantId],
+    );
+    const row = cur.rows[0];
+    if (row === undefined) {
+      throw new NotFoundError(`tenant not found: ${tenantId}`, {
+        details: { code: "TENANT_NOT_FOUND", tenantId },
+      });
+    }
+    const previousName = row.name;
+    if (previousName === name) {
+      return { tenantId, name, previousName, auditId: null, noOp: true };
+    }
+
+    await client.query(`UPDATE tenants SET name = $1, updated_at = now() WHERE id = $2`, [
+      name,
+      tenantId,
+    ]);
+    const auditRow = await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "tenant.renamed",
+      entityType: "tenant",
+      entityId: tenantId,
+      before: { name: previousName },
+      after: { name },
+    });
+    return { tenantId, name, previousName, auditId: auditRow.id, noOp: false };
+  });
+}

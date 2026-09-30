@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { ValidationError } from '@assessiq/core';
+import { ValidationError, ConflictError } from '@assessiq/core';
 import {
   listUsers,
   getUser,
@@ -8,7 +8,10 @@ import {
   softDelete,
   restore,
   cancelInvitation,
+  importCandidates,
+  parseCandidateCsv,
 } from '@assessiq/users';
+import { getAssessment, inviteUsers } from '@assessiq/assessment-lifecycle';
 import { logLifecycleEvent } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
 import { eraseCandidatePii, exportCandidateData } from '@assessiq/data-rights';
@@ -43,6 +46,13 @@ function parseLifecycleBody(body: unknown): { reason: string | undefined } {
   }
   return { reason: reason.trim() };
 }
+
+// More invite emails than this in one import trips the quota warning.
+const INVITE_EMAIL_WARN_THRESHOLD = 150;
+// Hard cap on invites per import request (shared Brevo quota ~300/day across
+// products; an unbounded import would starve OTP/login mail for every tenant).
+// ponytail: per-request cap only — add a per-tenant daily counter if abuse shows up.
+const INVITE_MAX_PER_IMPORT = 200;
 
 // Admin gate: full @assessiq/auth chain (rateLimit → sessionLoader →
 // apiKeyAuth → syncCtx → requireAuth({roles:['admin']}) → extendOnPass).
@@ -136,20 +146,74 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     },
   );
 
-  // POST /api/admin/users/import — Phase 0 stub, 501 always.
-  // NOTE: registered BEFORE /:id/* so Fastify's static-segment-first matching
-  // never confuses "import" with a userId. Same ordering principle applies to
-  // the Phase C lifecycle sub-paths below.
+  // POST /api/admin/users/import — bulk candidate CSV import (+ optional invite).
+  // Body: { csv: string, assessment_id?: string }. Static segment, registered
+  // BEFORE /:id/* so "import" is never matched as a userId.
   app.post(
     '/api/admin/users/import',
     { preHandler: adminOnly },
-    async (_req, reply) => {
-      return reply.code(501).send({
-        error: {
-          code: 'BULK_IMPORT_PHASE_1',
-          message:
-            'CSV import not implemented in Phase 0 — see modules/03-users/SKILL.md § 1',
-        },
+    async (req, reply) => {
+      const { tenantId, userId } = req.session!;
+      const body = (req.body ?? {}) as { csv?: unknown; assessment_id?: unknown };
+      if (typeof body.csv !== 'string') {
+        throw new ValidationError('csv must be a string', {
+          details: { code: 'INVALID_PARAM', param: 'csv' },
+        });
+      }
+      const assessmentId = body.assessment_id;
+      if (assessmentId !== undefined && (typeof assessmentId !== 'string' || assessmentId === '')) {
+        throw new ValidationError('assessment_id must be a string', {
+          details: { code: 'INVALID_PARAM', param: 'assessment_id' },
+        });
+      }
+      // Fail BEFORE creating users if the assessment can't take invitations
+      // (getAssessment 404s across tenants via RLS).
+      if (assessmentId !== undefined) {
+        // Cap BEFORE creating any user so a rejected file leaves nothing behind.
+        const validRows = parseCandidateCsv(body.csv).valid.length;
+        if (validRows > INVITE_MAX_PER_IMPORT) {
+          throw new ValidationError(
+            `At most ${INVITE_MAX_PER_IMPORT} candidates can be imported and invited at once — split the file`,
+            { details: { code: 'IMPORT_INVITE_CAP', max: INVITE_MAX_PER_IMPORT, rows: validRows } },
+          );
+        }
+        const a = await getAssessment(tenantId, assessmentId);
+        if (a.status !== 'published' && a.status !== 'active') {
+          throw new ConflictError(
+            `Cannot invite to an assessment in '${a.status}' status — must be 'published' or 'active'`,
+            { details: { code: 'INVALID_STATE_TRANSITION', current: a.status } },
+          );
+        }
+      }
+
+      const imp = await importCandidates(tenantId, body.csv, userId);
+      const skipped = [...imp.skipped];
+      let invited = 0;
+      let warning: string | undefined;
+      if (assessmentId !== undefined && imp.candidates.length > 0) {
+        const res = await inviteUsers(
+          tenantId,
+          assessmentId,
+          imp.candidates.map((c) => c.userId),
+          userId,
+        );
+        invited = res.invited.length;
+        const byId = new Map(imp.candidates.map((c) => [c.userId, c]));
+        for (const s of res.skipped) {
+          const c = byId.get(s.userId);
+          if (c !== undefined) skipped.push({ row: c.row, email: c.email, reason: s.reason });
+        }
+        skipped.sort((a, b) => a.row - b.row);
+        if (invited > INVITE_EMAIL_WARN_THRESHOLD) {
+          warning = 'Email plan sends ~300/day shared; some invites may be delayed';
+        }
+      }
+      return reply.code(200).send({
+        created: imp.created,
+        existing: imp.existing,
+        invited,
+        skipped,
+        ...(warning !== undefined ? { warning } : {}),
       });
     },
   );

@@ -12,6 +12,7 @@
 //   GET /admin/users?pageSize=100               → user list for invite picker
 //   GET /api/billing/entitlements               → B2: entitled pack/domain list (fail-open)
 //   POST /admin/assessments/:id/invite          → { user_ids: string[] }
+//   POST /admin/users/import                    → { csv, assessment_id } (CandidateCsvImport)
 //   POST /admin/assessments/:id/publish         → draft → published
 //
 // INVARIANTS:
@@ -37,6 +38,7 @@ import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
+import { CandidateCsvImport } from "../components/CandidateCsvImport.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
 
@@ -754,20 +756,34 @@ export function AdminAssessmentDetail(): React.ReactElement {
             >
               Invitations.
             </h2>
-            <HelpTip helpId="admin.assessments.invite.bulk">
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                onClick={() => {
-                  setShowInviteForm((v) => !v);
-                  setInviteError(null);
-                  setSelectedUserIds(new Set());
-                }}
-              >
-                {showInviteForm ? "Cancel" : "+ Invite candidates"}
-              </button>
-            </HelpTip>
+            <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
+              <HelpTip helpId="admin.assessments.results.download_csv">
+                <a
+                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                  href={`/api/admin/assessments/${id}/results.csv`}
+                  download
+                  data-help-id="admin.assessments.results.download_csv"
+                >
+                  Download results (CSV)
+                </a>
+              </HelpTip>
+              <HelpTip helpId="admin.assessments.invite.bulk">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                  onClick={() => {
+                    setShowInviteForm((v) => !v);
+                    setInviteError(null);
+                    setSelectedUserIds(new Set());
+                  }}
+                >
+                  {showInviteForm ? "Cancel" : "+ Invite candidates"}
+                </button>
+              </HelpTip>
+            </div>
           </div>
+
+          {id && <CandidateCsvImport assessmentId={id} onImported={fetchData} />}
 
           {/* Invite inline form */}
           {showInviteForm && (

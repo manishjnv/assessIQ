@@ -75,8 +75,8 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
             role: sess.role,
           },
           tenant: tenant === null
-            ? { id: sess.tenantId, slug: null }
-            : { id: tenant.id, slug: tenant.slug },
+            ? { id: sess.tenantId, slug: null, name: null }
+            : { id: tenant.id, slug: tenant.slug, name: tenant.name },
           mfaStatus,
           totpEnrolled: enrollStatus.enrolled,
           // Expose session expiry so candidate-facing UI can show the
@@ -97,8 +97,8 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
           role: 'api-key',
         },
         tenant: tenant === null
-          ? { id: ak.tenantId, slug: null }
-          : { id: tenant.id, slug: tenant.slug },
+          ? { id: ak.tenantId, slug: null, name: null }
+          : { id: tenant.id, slug: tenant.slug, name: tenant.name },
         mfaStatus: 'n/a',
         scopes: ak.scopes,
       };

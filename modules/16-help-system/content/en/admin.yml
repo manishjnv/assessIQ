@@ -2460,3 +2460,74 @@ admin.user.erase:
     **This action is irreversible.** You must enter a reason and acknowledge
     the action before it is applied. The reason is recorded in the audit log.
 
+
+admin.settings.company_name:
+  audience: admin
+  short_text: "The company name shown in the app header and in emails to your candidates."
+  long_md: |
+    ## Company name
+
+    This is your organisation's **display name**. It appears in the app header
+    and in emails sent to your candidates (invitations, reminders).
+
+    - Use 2–120 characters; extra spaces are tidied automatically.
+    - Changing it does **not** change your sign-in address, tenant ID, or
+      anything candidates use to log in.
+    - The new name also appears on certificates you issue or view afterwards.
+    - Each change is recorded in the audit log.
+
+admin.assessments.invite.import_csv:
+  audience: admin
+  short_text: "Upload a CSV of names and emails to add candidates and invite them to this assessment in one go."
+  long_md: |
+    ## Import candidates from CSV
+
+    Add many candidates at once instead of one by one.
+
+    1. **Download the sample CSV** to see the format. The first row must be a
+       header with `name` and `email` (any capitalisation). Other columns
+       are ignored.
+    2. **Choose your file.** You will see a preview of the first 10 rows and
+       the total row count before anything is saved.
+    3. **Confirm.** New candidates are created, people who already exist in
+       your company are reused, and everyone is invited to this assessment.
+
+    **Limits:** up to 1,000 rows and about 512 KB per file, UTF-8 text.
+    Duplicate emails in the file are only counted once (the first row wins).
+    A bad row never stops the rest — it is listed afterwards so you can fix it.
+    Invitation emails go out through the normal email queue, so a large import
+    may take a little while to reach everyone.
+
+admin.assessments.invite.import_result:
+  audience: admin
+  short_text: "What happened to each row: created, already existing, invited, or skipped (with the reason)."
+  long_md: |
+    ## Import result
+
+    - **Created** — new candidate accounts added to your company.
+    - **Existing** — the email was already a candidate here, so it was reused.
+    - **Invited** — invitation emails queued for this assessment.
+    - **Skipped** — rows that were not imported or not invited. Each shows the
+      row number (the header is row 1), the email and the reason, for example
+      an invalid email, a missing name, a repeated email in the file, an email
+      that belongs to a non-candidate (admin or reviewer), or a candidate who
+      already has an invitation for this assessment.
+
+    Use **Download skipped rows** to get a CSV you can correct and upload again.
+    If you see an email-volume warning, some invitations may arrive later than
+    usual because the email plan has a shared daily limit.
+
+admin.assessments.results.download_csv:
+  audience: admin
+  short_text: "Download a live spreadsheet of every invited candidate's result for this assessment, ready for a placement cell."
+  long_md: |
+    ## Download results (CSV)
+
+    One row per invited candidate, always up to date (not the nightly report).
+
+    - **Columns:** name, email, status, started and submitted times, score, max
+      score, percent, Pass/Fail, and one percentage column per category.
+    - **Status** shows invited (not started), in_progress, submitted, graded or
+      released. Score, percent and Pass/Fail stay blank until the attempt is graded.
+    - **Pass/Fail** uses the passing score of the assessment's level.
+    - Opens correctly in Excel, including Indian names. Up to 10,000 rows.

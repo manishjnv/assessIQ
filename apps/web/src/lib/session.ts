@@ -16,6 +16,7 @@ export interface SessionInfo {
   tenant: {
     id: string;
     slug: string | null;
+    name?: string | null;
   };
   mfaStatus: 'verified' | 'pending' | 'n/a';
   /** True if the user has completed TOTP enrollment. Absent for API-key sessions. */

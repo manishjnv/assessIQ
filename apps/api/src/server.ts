@@ -239,6 +239,7 @@ export async function buildServer() {
   // All /api/admin/* → covered by Caddy @api matcher.
   await registerAnalyticsRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
+    adminOrReviewer: authChain({ roles: ['admin', 'reviewer'] }),
     superAdminOnly: authChain({ roles: ['super_admin'] }),
     candidateOnly: authChain({ roles: ['candidate'] }),
   });

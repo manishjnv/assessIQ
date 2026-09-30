@@ -34,7 +34,7 @@ cancelInvitation(invitationId, actorUserId, reason?): Promise<CancelInvitationRe
 inviteUser({ email, role, assessmentIds? }): Promise<{ user, invitation }>
 acceptInvitation(token): Promise<{ user, sessionToken }>
 assertUserActive(userId, tenantId): Promise<void>           // Phase A foundation; throws AuthnError { details: { scope: "user", reason } }
-bulkImport(csv: Buffer): Promise<ImportReport>
+importCandidates(tenantId, csv: string, actorUserId): Promise<ImportCandidatesResult>   // live 2026-10-01 — see § 15
 ```
 
 ## Data model touchpoints
@@ -599,7 +599,7 @@ ACTION_CATALOG additions to `modules/14-audit-log/src/types.ts` (3 new entries a
 **Not wired in this slice:**
 
 - `acceptInvitation` — invitee acting on their own pending row. Session minting is audited by 01-auth (the `auth.totp.enrolled` / `session.created` events). Audit duplication would be confusing.
-- `bulkImport` — Phase-1 stub (throws `BULK_IMPORT_PHASE_1`). The Phase-1 implementation will land its own audit wiring.
+- `importCandidates` — bulk CSV import; ONE `user.created` row (`after.kind = 'bulk_import'`, counts only) per request, same tx as the inserts (see § 15).
 - All read-only methods: `listUsers`, `getUser`, `findUserByEmailNormalized`.
 - `sweepUserSessions` — Redis-side housekeeping invoked AFTER the user-state transaction commits. The transaction that flipped `status='disabled'` already wrote the `user.updated kind=status_change` audit row; the Redis sweep is operational not behavioural and would log to `app.log` if logging at all (per § 2 of `docs/11-observability.md`).
 - `assertNotLastAdmin` / `assertValidStatusTransition` — pure validators, no DB write.
@@ -621,3 +621,17 @@ Tests:
 **Excluded.** No bulk CSV add (still the `BULK_IMPORT_PHASE_1` 501 stub, § 1). No candidate self-registration. No change to admin/reviewer onboarding (still invite→accept→active). No `designation` schema column (metadata only).
 
 **Downstream impact.** `05-assessment-lifecycle` invite picker (`assessment-detail.tsx`) now filters to `role==='candidate' && status==='active'` — created candidates appear immediately. Disable/soft-delete lifecycle (Phase C) applies to candidates unchanged. Audit: `createUser` already emits `user.created` with redacted `metadata` (designation is non-credential free-text). Help: `admin.users.candidate.fields` seeded via `16-help-system/migrations/0099_seed_candidate_fields_help.sql`.
+
+### 15. Bulk candidate CSV import (2026-10-01) — supersedes the § 1 stub
+
+**What changed.** `importCandidates(tenantId, csv, actorUserId)` in `src/import.ts` replaces the `bulkImport` stub (export removed). `POST /api/admin/users/import` (JSON `{ csv, assessment_id? }`) parses, validates and persists; with `assessment_id` the **route** hands created+existing candidate ids to 05's `inviteUsers` (03-users does not import 05 — no cycle, invite logic/emails/skip-reasons stay single-sourced). Contract + error codes: `docs/03-api-contract.md` (`/admin/users/import` row). UI: `CandidateCsvImport` on the assessment detail page (help ids `admin.assessments.invite.import_csv`, `admin.assessments.invite.import_result`, migration 0107).
+
+**Why.** Admins were forced to create candidates one by one before inviting. CSV + JSON body (not multipart) because the API has no multipart plugin and 512 KB fits the JSON body limit; the browser reads the file and sends text.
+
+**Design notes.** One tenant tx + SAVEPOINT per insert (a failing row is skipped, never aborts the batch); ONE audit row per import instead of N `user.created` rows (contract: counts only, no PII) — so it inserts via `repo.insertUser` rather than `createUser`, keeping the same defaults (role `candidate`, status `active`). Existing email in tenant: reused if candidate, skipped otherwise (never changes role/status). Soft-deleted/disabled existing candidates count as `existing`; invite then skips them `USER_INACTIVE`.
+
+**Considered & rejected.** Calling `createUser` per row (N audit rows, N txs); multipart upload; reactivating disabled users; 14-audit-log catalog entry `user.bulk_imported` (load-bearing module, out of scope for this change — reuses `user.created` + `kind` marker; a dedicated action is a recommended follow-up).
+
+**Not included.** Custom columns/metadata, update-on-reimport of names, async/background import, resend of candidate assessment-invitation emails (no such action exists today; `/admin/super/tenants/:id/invitations/resend` is admin-invites only). Invite emails are queued by 13-notifications (BullMQ `email.send`, 5 attempts, exponential backoff 5s; status in `email_log`). Import runs invites synchronously inside one request: near the 1000-row cap this may approach the CF ~100s edge timeout.
+
+**Downstream.** `docs/03-api-contract.md` (endpoint), `modules/16-help-system` (2 entries), `modules/10-admin-dashboard` (new component + tests). Tests: `src/__tests__/import.test.ts` (parser + testcontainers: tenant isolation, reuse, one PII-free audit row), `apps/api/src/__tests__/routes/admin-users-import.test.ts`.

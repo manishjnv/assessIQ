@@ -7,6 +7,7 @@
 //
 // Currently exposes the Module 20 S5 surface only:
 //   PATCH /api/admin/tenant-settings/retention-days   — body { retention_days }
+//   PATCH /api/admin/tenant                           — body { name }  (rename own company)
 //   POST  /api/admin/retention/run-now                — query ?dryRun=true
 //
 // Both gated on { roles: ['admin'], freshMfaWithinMinutes: 15 }. Super-admins
@@ -23,7 +24,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { ValidationError } from '@assessiq/core';
-import { updateRetentionDays } from '@assessiq/tenancy';
+import { updateRetentionDays, renameTenant, assertTenantActive } from '@assessiq/tenancy';
 import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
 
@@ -54,11 +55,32 @@ const adminReadOnly = authChain({
   roles: ['admin'],
 });
 
+// Plain admin gate (no fresh-MFA): renaming the display name is low-risk,
+// audited, and does not touch slug / login / routing.
+const adminOnly = authChain({ roles: ['admin'] });
+
 const MAX_PER_TENANT_HARD_CAP = 5000;
 
 export async function registerAdminTenantSettingsRoutes(
   app: FastifyInstance,
 ): Promise<void> {
+  // PATCH /api/admin/tenant — tenant admin renames THEIR OWN company
+  // (tenants.name, display only). Tenant is always session.tenantId; any
+  // tenantId/slug in the body is ignored. Slug/id/status never touched.
+  // UPDATE + one 'tenant.renamed' audit row commit in one tx (renameTenant).
+  //
+  // 200: { tenantId, name, previousName, auditId, noOp }
+  // 400: MISSING_NAME | INVALID_NAME_CHARS | INVALID_NAME_LENGTH (2-120)
+  // 403: caller not 'admin' (reviewer/candidate/super_admin)
+  // 409: TENANT_NOT_ACTIVE (suspended/archived)
+  app.patch('/api/admin/tenant', { preHandler: adminOnly }, async (req, reply) => {
+    const session = req.session!;
+    const body = (req.body ?? {}) as { name?: unknown };
+    await assertTenantActive(session.tenantId);
+    const result = await renameTenant(session.userId, session.tenantId, body.name);
+    return reply.code(200).send(result);
+  });
+
   // ──────────────────────────────────────────────────────────────────────────
   // PATCH /api/admin/tenant-settings/retention-days
   //
