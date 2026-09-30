@@ -370,7 +370,12 @@ describe("gradeSubjective — Stage 1 missing tool_use", () => {
 // ---------------------------------------------------------------------------
 
 describe("gradeSubjective — Stage 1 schema violation", () => {
-  it("throws SCHEMA_VIOLATION when submit_anchors input has findings as a non-array", async () => {
+  // Since defb9f9 (Bug B, 2026-05-28) an undecodable submit_anchors payload no
+  // longer throws: coerceSubmitAnchorsPayload runs, and if the payload still
+  // fails the schema the runtime degrades to anchors=[] (band-only score),
+  // runs Stage 2, and tags band.error_class = AIG_STAGE1_DEGRADED so the admin
+  // sees a "needs review" item. A MISSING tool_use (test e) still throws.
+  it("degrades to reasoning-only (AIG_STAGE1_DEGRADED) when submit_anchors has findings as a non-array", async () => {
     mockSpawn.mockImplementation((_cmd: string, args: readonly string[]) => {
       const skill = skillFromArgs(args);
       if (skill === "grade-anchors") {
@@ -378,20 +383,20 @@ describe("gradeSubjective — Stage 1 schema violation", () => {
           toolUseEvent("submit_anchors", { findings: "not an array" }),
         ]);
       }
+      if (skill === "grade-band") {
+        return makeFakeProc([toolUseEvent("submit_band", bandPayload(3, false))]);
+      }
       throw new Error(`Unexpected skill: ${skill}`);
     });
 
-    let caught: unknown;
-    try {
-      await gradeSubjective(BASE_INPUT);
-    } catch (err) {
-      caught = err;
-    }
+    const proposal = await gradeSubjective(BASE_INPUT);
 
-    expect(caught).toBeInstanceOf(AppError);
-    expect((caught as AppError).code).toBe(AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION);
+    expect(proposal.anchors).toEqual([]);
+    expect(proposal.band.reasoning_band).toBe(3);
+    expect(proposal.band.error_class).toBe(AI_GRADING_ERROR_CODES.STAGE1_DEGRADED);
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // (g) Subprocess non-zero exit → RUNTIME_FAILURE

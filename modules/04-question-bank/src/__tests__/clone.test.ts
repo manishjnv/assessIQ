@@ -186,7 +186,12 @@ describe("clonePackToTenant", () => {
         { id: "q1", level_id: "L1src", type: "mcq", topic: "t1", points: 1, status: "active", content: {}, rubric: null, knowledge_base_sources: [], domain_id: "d_soc", category_id: null },
         { id: "q2", level_id: "L1src", type: "mcq", topic: "t2", points: 1, status: "active", content: {}, rubric: null, knowledge_base_sources: [], domain_id: "d_mystery", category_id: null },
       ] },
-      { rows: [{ id: "d_soc", slug: "soc" }, { id: "d_mystery", slug: "mystery" }] }, // source domain slugs
+      // provisionPlatformTaxonomyForQuestions (78853a4 self-heal): platform domains,
+      // then target domains. 'mystery' is NOT a platform domain (so it is never
+      // provisioned) and 'soc' already exists in the target → no INSERTs.
+      { rows: [{ id: "d_soc", slug: "soc", name: "SOC", description: null }] }, // platform domains
+      { rows: [{ id: "tgt_soc", slug: "soc", source: "platform" }] },            // target domains (provision check)
+      { rows: [{ id: "d_soc", slug: "soc" }] },                      // source domain slugs (no 'mystery')
       // (no source-category query — both questions have null category_id)
       { rows: [{ id: "tgt_soc", slug: "soc" }] },                    // TARGET domains (no 'mystery')
       { rows: [] },                                                  // TARGET categories
@@ -201,7 +206,7 @@ describe("clonePackToTenant", () => {
 
     expect(res.reusedExisting).toBe(false);
     expect(res.questionCount).toBe(1); // q1 cloned
-    expect(res.skippedCount).toBe(1);  // q2 skipped (no 'mystery' domain in target)
+    expect(res.skippedCount).toBe(1);  // q2 skipped (no 'mystery' platform/target domain)
     expect(res.sourceVersion).toBe(3);
 
     // The cloned pack carries provenance: source_pack_id = the platform pack id.
@@ -213,8 +218,8 @@ describe("clonePackToTenant", () => {
     // source 'd_soc'), carrying source_question_id for lineage.
     expect(countCalls(client, "INSERT INTO questions")).toBe(1);
     const qParams = paramsOf(client, "INSERT INTO questions");
-    expect(qParams?.[11]).toBe("tgt_soc"); // $12 domain_id — remapped to target
-    expect(qParams?.[13]).toBe("q1");      // $14 source_question_id
+    expect(qParams?.[12]).toBe("tgt_soc"); // $13 domain_id — remapped to target
+    expect(qParams?.[14]).toBe("q1");      // $15 source_question_id (answer_guidance added at $10, f4a6651)
   });
 });
 
