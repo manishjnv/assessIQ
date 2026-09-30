@@ -38,6 +38,7 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
 import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import * as repo from "./repository.js";
@@ -393,6 +394,9 @@ export async function getAttemptForCandidate(
           kind: "auto_submit",
         },
       });
+      // Same deterministic MCQ scoring as submitAttempt (no AI). After the
+      // event insert so archetype signals see the auto_submit milestone.
+      await scoreMcqAndFinalizeSafely(client, tenantId, attempt.id);
     }
 
     const questions = await repo.listFrozenQuestionsForAttempt(client, attempt.id);
@@ -417,7 +421,9 @@ export async function saveAnswer(
   input: SaveAnswerInput,
 ): Promise<{ client_revision: number }> {
   return withTenant(tenantId, async (client) => {
-    const attempt = await repo.findAttemptById(client, input.attemptId);
+    // Row lock: serialise with submit/auto-submit so a save can't land after
+    // the status flip + MCQ scoring (status is re-read under the lock).
+    const attempt = await repo.findAttemptByIdForUpdate(client, input.attemptId);
     if (attempt === null) {
       throw new NotFoundError(`Attempt not found: ${input.attemptId}`, {
         details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
@@ -680,6 +686,12 @@ export async function submitAttempt(
     });
     await repo.markInvitationSubmitted(client, attempt.assessment_id, attempt.user_id);
 
+    // Deterministic MCQ scoring (no AI call — compliant with the no-ambient-AI
+    // rule). MCQ-only attempts are finalised (graded + billed) in this same tx;
+    // mixed attempts just get their MCQ gradings rows. Nothing is returned to
+    // the candidate about correctness.
+    await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);
+
     return { attempt: updated, status: "submitted" };
   });
 }
@@ -745,6 +757,9 @@ export async function sweepStaleTimersForTenant(
           kind: "auto_submit",
         },
       });
+      // Same deterministic MCQ scoring as submitAttempt (no AI). After the
+      // event insert so archetype signals see the auto_submit milestone.
+      await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);
     }
 
     log.info(

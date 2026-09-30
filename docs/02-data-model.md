@@ -695,6 +695,22 @@ CREATE UNIQUE INDEX gradings_attempt_question_sha_idx
 -- Standard tenant_id-bearing RLS (CREATE POLICY tenant_isolation +
 -- tenant_isolation_insert per the template at the bottom of this doc).
 
+-- grader='deterministic' rows (2026-10-01): written by 09-scoring
+-- scoreMcqForAttempt for every MCQ question of an attempt (no AI). Sentinel
+-- values satisfy the NOT NULL columns: prompt_version_sha = prompt_version_label
+-- = 'deterministic-mcq-v1', model = 'none', escalation_chosen_stage = NULL,
+-- graded_by = NULL. status is 'correct' | 'incorrect'; score_max = questions.points;
+-- score_earned = points or 0. The D7 unique index above (sentinel sha) is the
+-- idempotency guard (INSERT ... ON CONFLICT DO NOTHING). Correctness is judged
+-- against attempt_questions.question_version's question_versions.content.correct
+-- (frozen), not the live question.
+--
+-- attempts.status transitions (2026-10-01): no schema change. submitted |
+-- auto_submitted | pending_admin_grading -> graded is now also performed
+-- directly at submit time for MCQ-only attempts (scoreMcqAndFinalizeIfComplete,
+-- same tx as gradings rows + attempt_scores + billing_events + audit row).
+-- admin-grade / admin-accept now accept auto_submitted as a pre-graded state.
+
 -- Phase 1 live shape — modules/07-ai-grading/migrations/0041_tenant_grading_budgets.sql
 -- D6: per-tenant USD ceiling for Phase 2 anthropic-api runtime. PK = tenant_id
 -- (special-case RLS variant; same shape as `tenants` itself). Phase 1

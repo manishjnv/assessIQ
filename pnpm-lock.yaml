@@ -395,6 +395,9 @@ importers:
       '@assessiq/question-bank':
         specifier: workspace:*
         version: link:../04-question-bank
+      '@assessiq/scoring':
+        specifier: workspace:*
+        version: link:../09-scoring
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:../02-tenancy
@@ -449,6 +452,9 @@ importers:
       '@assessiq/audit-log':
         specifier: workspace:*
         version: link:../14-audit-log
+      '@assessiq/billing':
+        specifier: workspace:*
+        version: link:../19-billing
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core

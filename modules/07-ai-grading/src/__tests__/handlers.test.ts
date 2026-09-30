@@ -108,6 +108,8 @@ const QB_MIGRATIONS_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
 const AL_MIGRATIONS_DIR = join(MODULES_ROOT, "05-assessment-lifecycle", "migrations");
 const AE_MIGRATIONS_DIR = join(MODULES_ROOT, "06-attempt-engine", "migrations");
 const AI_MIGRATIONS_DIR = join(AI_MODULE_ROOT, "migrations");
+const SCORING_MIGRATIONS_DIR = join(MODULES_ROOT, "09-scoring", "migrations");
+const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state — set in beforeAll, read-only in tests
@@ -380,6 +382,9 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, AL_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AE_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AI_MIGRATIONS_DIR);
+    // Deterministic MCQ scoring finalises MCQ-only attempts (attempt_scores + billing_events).
+    await applyMigrationsFromDir(client, SCORING_MIGRATIONS_DIR);
+    await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR);
   });
 
   setPoolForTesting(containerUrl);
@@ -1269,9 +1274,15 @@ describe("Per-type dispatch (handleAdminGrade routes by question type)", () => {
       sessionLastActivity: freshActivity(),
     });
 
-    // MCQ is not in AI_GRADEABLE_TYPES — no proposals, no claude spawn.
+    // MCQ is scored deterministically (no AI): no proposals, no claude spawn,
+    // and an MCQ-only attempt is finalised by the click (2026-10-01 fix).
     expect(result.proposals).toHaveLength(0);
+    expect(result.attempt).toEqual({ id: attemptId, status: "graded" });
     expect(mockGradeSubjective).not.toHaveBeenCalled();
+    const g = await withSuperClient((c) =>
+      c.query(`SELECT grader, status, score_earned::float AS e FROM gradings WHERE attempt_id = $1`, [attemptId]),
+    );
+    expect(g.rows).toEqual([{ grader: "deterministic", status: "correct", e: expect.any(Number) }]);
   });
 
   it("9.2 kql — NOT AI-graded; gradeSubjective is never called", async () => {

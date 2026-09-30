@@ -15,6 +15,7 @@
 //   - No WHERE tenant_id = $1. RLS enforces isolation.
 //   - computeAttemptScore is idempotent: UPSERT on attempt_id PK.
 
+import type { PoolClient } from "pg";
 import { withTenant } from "@assessiq/tenancy";
 import { AppError } from "@assessiq/core";
 import { auditInTx } from "@assessiq/audit-log";
@@ -40,7 +41,24 @@ export async function computeAttemptScore(
   attemptId: string,
   actorUserId?: string,
 ): Promise<AttemptScore> {
-  return withTenant(tenantId, async (client) => {
+  return withTenant(tenantId, (client) =>
+    computeAttemptScoreInTx(client, tenantId, attemptId, actorUserId),
+  );
+}
+
+/**
+ * Same as computeAttemptScore but runs on the caller's open withTenant
+ * transaction, so it sees that transaction's uncommitted gradings rows.
+ * Used by the deterministic MCQ finalisation path (mcq.ts), which must score +
+ * flip to graded + bill atomically.
+ */
+export async function computeAttemptScoreInTx(
+  client: PoolClient,
+  tenantId: string,
+  attemptId: string,
+  actorUserId?: string,
+): Promise<AttemptScore> {
+  {
     // 1. Fetch attempt metadata (status + timing + assessment linkage)
     const attemptRow = await repo.getAttempt(client, attemptId);
     if (attemptRow === null) {
@@ -155,7 +173,7 @@ export async function computeAttemptScore(
     }
 
     return scoreRow;
-  });
+  }
 }
 
 // ---------------------------------------------------------------------------

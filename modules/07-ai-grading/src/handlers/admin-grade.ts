@@ -29,6 +29,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { gradeSubjective } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
+import { scoreMcqAndFinalizeIfComplete } from "@assessiq/scoring";
 import type { GradingProposal } from "../types.js";
 import type { PoolClient } from "pg";
 
@@ -68,11 +69,19 @@ export interface HandleAdminGradeInput {
 
 export interface HandleAdminGradeOutput {
   /**
-   * One proposal per question that required AI grading (subjective + scenario).
-   * MCQ and KQL are deterministic — graded elsewhere (module 09) — and are
-   * excluded from the proposal batch.
+   * One proposal per question that required AI grading (subjective + scenario
+   * + log_analysis). MCQ is scored deterministically (no AI) by
+   * scoreMcqForAttempt in module 09 at submit time — and again at the start of
+   * this handler for pre-fix attempts — and is excluded from the proposal
+   * batch. KQL has no grader yet (known gap) and is also excluded.
    */
   proposals: GradingProposal[];
+  /**
+   * Present (status "graded") only when the attempt had NO non-MCQ questions
+   * and this click finalised it (MCQ gradings + score rollup + graded +
+   * billing + audit, one tx). `proposals` is then empty by design.
+   */
+  attempt?: { id: string; status: "graded" };
 }
 
 // ---------------------------------------------------------------------------
@@ -325,12 +334,29 @@ export async function handleAdminGrade(
     );
 
     // Validate attempt is in a gradeable status
-    if (status !== "submitted" && status !== "pending_admin_grading") {
+    if (
+      status !== "submitted" &&
+      status !== "auto_submitted" &&
+      status !== "pending_admin_grading"
+    ) {
       throw new AppError(
-        `Attempt is in status '${status}' — must be 'submitted' or 'pending_admin_grading' to grade`,
+        `Attempt is in status '${status}' — must be 'submitted', 'auto_submitted' or 'pending_admin_grading' to grade`,
         AI_GRADING_ERROR_CODES.ATTEMPT_NOT_GRADEABLE,
         422,
       );
+    }
+
+    // Deterministic MCQ scoring (NO AI — pure SQL compare; compliant with the
+    // no-ambient-AI rule). Normally already done at submit; this catches
+    // attempts submitted before that wiring existed. An attempt with no
+    // non-MCQ questions is finalised right here (score + graded + billing +
+    // audit, same tx) instead of falling through to an empty AI batch.
+    const mcq = await withTenant(tenantId, (client) =>
+      scoreMcqAndFinalizeIfComplete(client, tenantId, attemptId),
+    );
+    if (mcq.finalized) {
+      log.info({ attemptId }, "grading.mcq_only.finalized");
+      return { proposals: [], attempt: { id: attemptId, status: "graded" } };
     }
 
     // Phase 2 cache (Bug A robustness, 2026-05-29): mark this attempt as
@@ -353,7 +379,8 @@ export async function handleAdminGrade(
 
     for (const q of questions) {
       if (!AI_GRADEABLE_TYPES.has(q.type)) {
-        // MCQ, KQL — deterministic graders in module 09; skip here
+        // MCQ is scored deterministically by scoreMcqForAttempt (module 09, see
+        // above); KQL has no grader yet (known gap). Neither goes to the AI.
         continue;
       }
       questionCount++;

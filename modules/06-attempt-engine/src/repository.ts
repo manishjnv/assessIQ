@@ -163,6 +163,23 @@ export async function findAttemptById(
   return row !== undefined ? mapAttemptRow(row) : null;
 }
 
+/**
+ * Same as findAttemptById but takes a row lock (FOR UPDATE). Used by saveAnswer
+ * so an answer write serialises with submit/auto-submit (which UPDATE the same
+ * row and score MCQ in that tx): the scored answer is always the stored answer.
+ */
+export async function findAttemptByIdForUpdate(
+  client: PoolClient,
+  id: string,
+): Promise<Attempt | null> {
+  const result = await client.query<AttemptRow>(
+    `SELECT ${ATTEMPT_COLUMNS} FROM attempts WHERE id = $1 FOR UPDATE`,
+    [id],
+  );
+  const row = result.rows[0];
+  return row !== undefined ? mapAttemptRow(row) : null;
+}
+
 export async function findAttemptByAssessmentAndUser(
   client: PoolClient,
   assessmentId: string,
