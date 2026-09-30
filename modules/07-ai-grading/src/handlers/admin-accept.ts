@@ -206,8 +206,10 @@ async function acceptProposals(
   // Phase 2 completion-gate (2026-05-28, Bug A fix):
   // Flip `attempts.status` to 'graded' ONLY when every AI-gradeable question
   // (subjective | scenario | log_analysis) has a non-overridden gradings row.
-  // MCQ/KQL are scored deterministically by module 09 (computeAttemptScore)
-  // and produce NO gradings row, so they are excluded from the denominator.
+  // MCQ is scored deterministically (scoreMcqForAttempt, module 09) and its
+  // rows carry grader='deterministic', so they are excluded from both sides of
+  // this gate (the numerator counts only grader IN ('ai','admin_override')).
+  // KQL has no grader yet (known gap) and is not in the denominator either.
   //
   // Previously: any single accept flipped status='graded' + fired billing,
   // even when N-1 of N questions were still pending. With Accept-all skipping
@@ -220,7 +222,7 @@ async function acceptProposals(
     `UPDATE attempts
         SET status = 'graded'
       WHERE id = $1
-        AND status IN ('submitted', 'pending_admin_grading')
+        AND status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
         AND (
           SELECT COUNT(*)
             FROM attempt_questions aq
@@ -228,11 +230,18 @@ async function acceptProposals(
            WHERE aq.attempt_id = $1
              AND q.type IN ('subjective', 'scenario', 'log_analysis')
         ) = (
+          -- Only rows for THIS attempt's AI-gradeable questions count: a
+          -- stray/override row on an MCQ (deterministic path) must never
+          -- satisfy the gate while an AI question is still ungraded.
           SELECT COUNT(DISTINCT g.question_id)
             FROM gradings g
+            JOIN attempt_questions aq2
+              ON aq2.attempt_id = g.attempt_id AND aq2.question_id = g.question_id
+            JOIN questions q2 ON q2.id = g.question_id
            WHERE g.attempt_id = $1
              AND g.override_of IS NULL
              AND g.grader IN ('ai', 'admin_override')
+             AND q2.type IN ('subjective', 'scenario', 'log_analysis')
         )
       RETURNING id`,
     [attemptId],

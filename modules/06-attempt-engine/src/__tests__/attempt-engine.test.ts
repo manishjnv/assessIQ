@@ -258,8 +258,14 @@ beforeAll(async () => {
     // (noop in an empty DB). Use the 'only' param to be surgical.
     await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
       "0078_tenant_plans.sql",
+      "0079_billing_events.sql", // submit now finalises MCQ-only attempts (records billing)
       "0081_tenant_entitlements.sql",
     ]);
+    // Deterministic MCQ scoring at submit writes gradings + attempt_scores.
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "07-ai-grading", "migrations"), [
+      "0040_gradings.sql",
+    ]);
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "09-scoring", "migrations"));
   });
 
   // Wire withTenant to point at the test container.
@@ -719,7 +725,7 @@ describe("submitAttempt", () => {
 
     const r2 = await submitAttempt(tenantA, candidate, attempt.id);
     expect(r2.attempt.id).toBe(r1.attempt.id);
-    expect(r2.attempt.status).toBe("submitted");
+    expect(r2.attempt.status).toBe("graded"); // MCQ-only fixture finalised at submit (2026-10-01)
     expect(r2.attempt.submitted_at).toEqual(r1.attempt.submitted_at);
   });
 

@@ -300,8 +300,14 @@ beforeAll(async () => {
     // run above), but 0080/0082 are backfills and 0090 is a noop UPDATE — skip all.
     await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
       "0078_tenant_plans.sql",
+      "0079_billing_events.sql", // submit now finalises MCQ-only attempts (records billing)
       "0081_tenant_entitlements.sql",
     ]);
+    // Deterministic MCQ scoring at submit writes gradings + attempt_scores.
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "07-ai-grading", "migrations"), [
+      "0040_gradings.sql",
+    ]);
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "09-scoring", "migrations"));
   });
 
   setPoolForTesting(containerUrl);
@@ -373,7 +379,8 @@ describe("T1 valid: in_progress -> submitted via submitAttempt", () => {
     const r2 = await submitAttempt(tenantA, candidateId, attemptId);
 
     expect(r2.attempt.id).toBe(r1.attempt.id);
-    expect(r2.attempt.status).toBe("submitted");
+    // 2026-10-01: fixture is MCQ-only, so deterministic MCQ scoring finalises it in the submit tx.
+    expect(r2.attempt.status).toBe("graded");
     expect(r2.attempt.submitted_at).toEqual(r1.attempt.submitted_at);
 
     const eventsAfter = await withTenant(tenantA, async (client) => {
@@ -400,7 +407,8 @@ describe("T2 valid: in_progress -> auto_submitted via sweepStaleTimersForTenant"
         `SELECT status, submitted_at FROM attempts WHERE id = $1`,
         [attemptId],
       );
-      expect(r.rows[0]!.status).toBe("auto_submitted");
+      // 2026-10-01: fixture is MCQ-only, so deterministic MCQ scoring finalises it in the submit tx.
+      expect(r.rows[0]!.status).toBe("graded");
       expect(r.rows[0]!.submitted_at).not.toBeNull();
     });
 
@@ -466,15 +474,16 @@ describe("T4 valid: CHECK constraint accepts forward-compat statuses; service st
     const { candidateId, attemptId } = await seedAndStart(tenantA, adminA);
     const r = await submitAttempt(tenantA, candidateId, attemptId);
 
+    // Returned row is the post-submit snapshot (status 'submitted'); the MCQ-only
+    // fixture is then finalised to 'graded' in the same tx (2026-10-01 MCQ scoring).
     expect(r.attempt.status).toBe("submitted");
-    expect(["pending_admin_grading", "graded", "released"]).not.toContain(r.attempt.status);
 
     await withSuperClient(async (c) => {
       const row = await c.query<{ status: string }>(
         `SELECT status FROM attempts WHERE id = $1`,
         [attemptId],
       );
-      expect(row.rows[0]!.status).toBe("submitted");
+      expect(row.rows[0]!.status).toBe("graded");
     });
   });
 });
@@ -519,7 +528,8 @@ describe("I2 invalid: submitAttempt no-op from terminal statuses", () => {
         [attemptId],
       ),
     );
-    expect(before.rows[0]!.status).toBe("auto_submitted");
+    // 2026-10-01: fixture is MCQ-only, so deterministic MCQ scoring finalises it in the submit tx.
+    expect(before.rows[0]!.status).toBe("graded");
     const submittedAtBefore = before.rows[0]!.submitted_at;
 
     const r = await submitAttempt(tenantA, candidateId, attemptId);
@@ -527,7 +537,7 @@ describe("I2 invalid: submitAttempt no-op from terminal statuses", () => {
     // literal status='submitted' return shape; the DB row keeps its actual
     // auto_submitted status. Both halves of this contract are pinned.
     expect(r.status).toBe("submitted");
-    expect(r.attempt.status).toBe("auto_submitted");
+    expect(r.attempt.status).toBe("graded");
 
     const after = await withSuperClient((c) =>
       c.query<{ status: string; submitted_at: Date | null }>(
@@ -535,7 +545,7 @@ describe("I2 invalid: submitAttempt no-op from terminal statuses", () => {
         [attemptId],
       ),
     );
-    expect(after.rows[0]!.status).toBe("auto_submitted");
+    expect(after.rows[0]!.status).toBe("graded");
     expect(after.rows[0]!.submitted_at).toEqual(submittedAtBefore);
   });
 
@@ -680,7 +690,7 @@ describe("X2 tenancy: sweepStaleTimersForTenant(A) leaves tenant B's stale attem
         [[aSeed.attemptId, bSeed.attemptId]],
       );
       const byId = new Map(rows.rows.map((row) => [row.id, row.status]));
-      expect(byId.get(aSeed.attemptId)).toBe("auto_submitted");
+      expect(byId.get(aSeed.attemptId)).toBe("graded"); // MCQ-only fixture, finalised by the sweep
       expect(byId.get(bSeed.attemptId)).toBe("in_progress");
     });
   });

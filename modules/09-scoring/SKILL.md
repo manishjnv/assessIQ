@@ -71,8 +71,11 @@ GET  /api/admin/reports/leaderboard/:assessmentId?topN=10&anonymize=false → Le
 ## Integration: 07-ai-grading → 09-scoring
 `handleAdminAccept` (admin-accept.ts) calls `computeAttemptScore(tenantId, attemptId)` after `acceptProposals` returns. Non-fatal try/catch — grading commit is not rolled back on scoring failure. Log key: `grading.scoring.error_after_accept`.
 
+## Deterministic MCQ scoring (2026-10-01)
+`src/mcq.ts`: `scoreMcqForAttempt(client, attemptId)` writes `gradings` rows (`grader='deterministic'`, sentinel sha `deterministic-mcq-v1`, `ON CONFLICT DO NOTHING` on the D7 unique index) for every MCQ question, judged against the FROZEN question version; `scoreMcqAndFinalizeIfComplete(client, tenantId, attemptId)` also finalises MCQ-only attempts in the caller's tx (score rollup -> `graded` -> `recordGradedAttempt` -> system audit row). No AI. Callers: 06-attempt-engine (submit, sweep, read-time auto-submit) and 07-ai-grading `handleAdminGrade`. `computeAttemptScoreInTx(client, ...)` is the tx-sharing variant of `computeAttemptScore`. Depends on `@assessiq/billing`. See docs/05-ai-pipeline.md "Deterministic MCQ scoring path".
+
 ## Data model touchpoints
-Owns: `attempt_scores` (0050_attempt_scores.sql).
+Owns: `attempt_scores` (0050_attempt_scores.sql). Writes `gradings` rows with `grader='deterministic'` (MCQ only).
 Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `attempts`, `assessments`, `users`.
 
 ## Help/tooltip surface

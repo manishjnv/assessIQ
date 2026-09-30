@@ -15,6 +15,7 @@
     "@assessiq/auth": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/question-bank": "workspace:*",
+    "@assessiq/scoring": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "fastify": "^5.0.0",
     "zod": "^3.23.8"

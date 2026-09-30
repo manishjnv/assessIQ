@@ -34,6 +34,7 @@ export {
 // Service (public surface pinned for 10-admin-dashboard and 07-ai-grading)
 export {
   computeAttemptScore,
+  computeAttemptScoreInTx,
   recomputeOnOverride,
   getAttemptScoreRow,
   cohortStats,
@@ -46,3 +47,13 @@ export {
   registerScoringRoutes,
   type RegisterScoringRoutesOptions,
 } from "./routes.js";
+
+// Deterministic MCQ scoring (no AI) — called from 06-attempt-engine submit paths
+// and the 07-ai-grading admin Grade handler.
+export {
+  scoreMcqForAttempt,
+  scoreMcqAndFinalizeIfComplete,
+  scoreMcqAndFinalizeSafely,
+  isMcqAnswerCorrect,
+  MCQ_SENTINEL_SHA,
+} from "./mcq.js";

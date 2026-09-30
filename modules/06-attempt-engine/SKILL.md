@@ -83,6 +83,9 @@ Every HTTP path mounted by this module starts with `/api/` (admin routes ship in
 ## Idempotency
 Submit is idempotent — calling twice returns the same result. Achieved by checking `attempts.status` on entry; if already `submitted/grading/graded/released`, return current state without re-processing.
 
+## MCQ scoring at submit (2026-10-01)
+`submitAttempt`, `sweepStaleTimersForTenant` and the read-time auto-submit in `getAttemptForCandidate` call `@assessiq/scoring`'s `scoreMcqAndFinalizeIfComplete` in the same transaction: MCQ gradings rows are written (deterministic, no AI); an MCQ-only attempt is finalised to `graded` + billed + audited right there. Mixed attempts stay `submitted` for the admin AI flow. The candidate-facing response shape is unchanged (`status: "submitted"`); correctness is never exposed. Tests: `src/__tests__/mcq-submit-scoring.test.ts`.
+
 ## Help/tooltip surface
 - `candidate.attempt.timer` — what happens when timer hits zero
 - `candidate.attempt.flag` — flagging mechanics
