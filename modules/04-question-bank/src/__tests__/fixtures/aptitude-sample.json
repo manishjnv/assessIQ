@@ -1,0 +1,38 @@
+{
+  "pack": {
+    "name": "Campus Placement Aptitude",
+    "description": "MCQ aptitude assessment for campus placement: quantitative aptitude, logical reasoning and verbal ability."
+  },
+  "questions": [
+    {
+      "id": "APT-Q-001",
+      "category": "quantitative",
+      "difficulty": "L1",
+      "topic": "percentages",
+      "stem": "A shirt's price is cut by 20% and then raised by 25%. What is the net change in price? (Use 100% = \"original\" price; note $aq$ is just text.)",
+      "options": ["No change", "5% increase", "5% decrease", "10% increase"],
+      "correct_index": 0,
+      "explanation": "0.8 x 1.25 = 1.0, so the final price equals the original price. Path C:\temp is irrelevant; 100% of 100 is 100."
+    },
+    {
+      "id": "APT-Q-002",
+      "category": "logical",
+      "difficulty": "L2",
+      "topic": "series",
+      "stem": "What comes next in the series 2, 6, 12, 20, 30, ?",
+      "options": ["40", "42", "44", "46"],
+      "correct_index": 1,
+      "explanation": "Differences are 4, 6, 8, 10, so the next difference is 12 and 30 + 12 = 42."
+    },
+    {
+      "id": "APT-Q-003",
+      "category": "verbal",
+      "difficulty": "L1",
+      "topic": "synonyms",
+      "stem": "Choose the word closest in meaning to 'CANDID'.",
+      "options": ["Frank", "Hidden", "Polite", "Nervous"],
+      "correct_index": 0,
+      "explanation": "'Candid' means truthful and straightforward, which is 'Frank'."
+    }
+  ]
+}
