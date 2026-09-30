@@ -1,3 +1,65 @@
+# Session — 2026-10-01 (P0: university aptitude pilot + production safety — SHIPPED + LIVE)
+
+**Headline:** Everything for a university campus-placement pilot (MCQ aptitude tests) is live, and prod now has verified daily backups.
+- **MCQ scoring:** was never implemented. It is now deterministic and runs at submit. MCQ-only attempts auto-grade instantly.
+- **Aptitude pack:** a platform "Aptitude" domain and a 60-question pack, published.
+- **Admin tools:** bulk CSV candidate import plus invite, a live results CSV, and company self-rename.
+- **Backups:** the daily DB backup was doc-only until today. It is now installed, with a restore drill passed.
+
+**Commits (main, pushed `09c2c44..ee9f8b7`):**
+- `714aafe` — docs: backups, restore drill, incident runbook; gitignore docs/
+- `a94117a` — test: 5 stale tests updated (no source bugs)
+- `0c4f75c` — feat(04): platform Aptitude domain and Campus Placement Aptitude pack (migration 0109)
+- `b18562f` — fix(06,09,07): deterministic MCQ scoring (plus codex fixes)
+- `aff53c8` — feat(02,03,15,10): company self-rename, CSV import and invite, live results CSV
+- `ee9f8b7` — fix(09): finalise guard scoped to this attempt's MCQs (codex round 2)
+
+**Tests:**
+- About 75 new tests pass: MCQ 25, import 16, rename 21, results 4, aptitude seed 11, plus the updated suites. Typecheck, `lint:ambient-ai` and `lint:rls` pass.
+- **The full suite still has about 76 pre-existing failures** (test-DB schema drift), and **CI has been red since ≥ 05-31** (Lint blocks Test). See RCA 2026-10-01 and pending D7.
+
+**Deploy (LIVE):**
+- Migrations 0107/0108/0109/0110 applied and recorded with their real sha256.
+- api, worker and frontend rebuilt and recreated. All healthy; health 200; the 3 new routes return 401 (registered).
+- UI strings are present in the served bundle. The pack is `published v2` with 60 active questions; the domain is in 6 tenants.
+
+**Next (owner):**
+1. Grant the `aptitude` domain to a test tenant, then do a dry run: import yourself via CSV, take the test, check it is instantly graded, download the results CSV.
+2. Platform → Create company "University Pilot", admin = the pilot professor's email.
+3. Grant `aptitude` to that company.
+4. Upgrade the Brevo plan before a full class.
+
+**Open questions:**
+- Behavioural (click-through) verification of all new UI is pending the operator.
+- Pending tasks are in the local `docs/PENDING_TASKS_2026-10-01.md`: A9 bulk release + result email + invite resend; D7 CI and test DB; E12 freeze points per attempt; H1 public demo quiz.
+
+---
+
+## Agent utilization (2026-10-01 P0)
+- **Opus 5.5:**
+  - Status review and plan; backups install, restore drill and alert test on the VPS; content blind-check orchestration.
+  - Line-by-line review of all load-bearing diffs; applied the review fixes (SAVEPOINT wrapper, answer-save lock, accept gate scope, invite cap, bidi chars).
+  - Commits, deploy, docs.
+- **Sonnet:**
+  - Built MCQ scoring, CSV import, company rename, pack loader and migration, results CSV, and the 60-question authoring; fixed the stale tests.
+  - Did the blind answer check (60/60) and the safe-wrapper tests.
+  - Did the adversarial review of rename/import/export (revise → fixed).
+- **Haiku:** n/a this phase (the earlier status-review prod check was Haiku; its deploy-lag, header and backup claims were wrong and corrected by Opus).
+- **codex:rescue:** MCQ scoring **revise → revise → accepted after fixes**. The residual (live `questions.points`) is logged as E12.
+- **claude-mem:**
+  - Honoured `vps-shared-host` (additive, namespaced, enumerated first) and `billing-events-grade-commit-critical-path` (billing in the same tx as graded).
+  - Honoured `feedback-verify-behavior-not-bundle` (bundle checked; click-through pending) and `parallel-session-shared-working-tree` (branch=main checked before every commit), with the noreply push.
+- **Routing telemetry:**
+  - `Sonnet · MCQ scoring impl · reworked: Y (codex 2 rounds)`
+  - `Sonnet · CSV import · reworked: Y (review: email cap, chars)`
+  - `Sonnet · tenant rename · reworked: Y (bidi chars)`
+  - `Sonnet · pack loader · reworked: N`
+  - `Sonnet · 60 MCQ authoring · reworked: N (blind 60/60)`
+  - `Sonnet · results CSV · reworked: N`
+  - `Sonnet · stale tests · reworked: N`
+
+---
+
 # Session — 2026-06-01 (AI-gen history batch grouping — SHIPPED + LIVE)
 
 **Headline:** One "Generate question set" action no longer shows N separate rows in AI generation history — per-category runs group under one expandable batch row via a durable client-minted `batch_id`. Also confirmed the prior session's durability fix WORKS: a fresh 7-category Phishing run produced all 10 questions (operator-verified in Review).
