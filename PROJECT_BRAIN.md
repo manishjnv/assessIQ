@@ -138,3 +138,6 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | Type-sharded question generation design | `docs/design/2026-05-09-type-sharded-generation.md` |
 | Stage 3 promotion rollout decisions | `docs/design/2026-05-10-stage-3-promotion-rollout.md` |
 | Credentialing plan + module 18 spec | `docs/CERTIFICATION_PLAN_GENERIC.md` + `docs/14-credentialing.md` |
+
+## Pending task list (2026-10-01)
+Full list of open tasks, each with the reason it is needed: `docs/PENDING_TASKS_2026-10-01.md`. It is a snapshot from a cross-repo review; check each item before starting.

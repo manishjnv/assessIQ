@@ -1167,6 +1167,38 @@ After bootstrap: log in at `https://assessiq.automateedge.cloud/admin/login`, co
 
 ## Backups — `/etc/cron.daily/assessiq-backup`
 
+> **Status (2026-10-01): INSTALLED and verified.** Until this date, the cron described here existed only in this doc. The VPS had no backup job, no `/var/backups/assessiq` and no rclone (see RCA 2026-10-01 "Documented DB backups were never installed").
+
+**What runs (live copy on the VPS; this is the source of truth):**
+- **Schedule and dump:** `/etc/cron.daily/assessiq-backup` runs as root once a day (run-parts, about 06:25 server time). It runs `docker exec assessiq-postgres pg_dump -U assessiq -d assessiq -Fc` to write `/var/backups/assessiq/assessiq-<UTC-ts>.dump`. The custom format is already compressed, so there is no gzip. The directory is 0700 and each file 0600.
+- **Integrity check:** the new archive must pass `pg_restore -l` before it replaces the temp file.
+- **Retention:** 14 days, deleting only `assessiq-*.dump` files inside that directory.
+- **Log:** one line per run in `/var/log/assessiq/backup.log`, `OK <file> <bytes>` or `FAIL rc=… line=…`.
+- **Failure alert:** an `ERR` trap emails `connect@assessiq.in` (which forwards to the owner's Gmail). It uses `curl` with the app's own `SMTP_URL` from `/srv/assessiq/.env` (Brevo), with no extra account. The alert path was tested on 2026-10-01 and delivered.
+- **Offsite:** the owner-enabled **Hostinger weekly VPS backup**, which captures `/var/backups/assessiq`. Worst-case data loss is about 1 day if the disk survives and up to about 7 days if the whole VPS is lost.
+- **Known ceiling (`ponytail`):** if the cron daemon itself stops, nothing alerts. Add an external dead-man ping (healthchecks.io) if that matters. rclone/R2 offsite (the original design below) was not adopted; add it if RPO must be under 7 days for VPS loss.
+
+**Restore drill, 2026-10-01: PASSED.**
+- **Setup:** a throwaway `assessiq-restore-drill` container (`postgres:16-alpine`, `--network none`), `pg_restore --no-owner --no-privileges`.
+- **Result:** 0 errors. Row counts matched live exactly: tenants 6, users 11, questions 337, attempts 5, gradings 8, audit_log 941.
+- **Cleanup:** the container was removed afterwards.
+
+Drill command pattern (read-only against live; only the drill container is created and removed):
+
+```bash
+IMG=$(docker inspect -f '{{.Config.Image}}' assessiq-postgres)
+docker run -d --rm --name assessiq-restore-drill --network none \
+  -e POSTGRES_PASSWORD=drill -e POSTGRES_USER=assessiq -e POSTGRES_DB=assessiq "$IMG"
+DUMP=$(ls -t /var/backups/assessiq/assessiq-*.dump | head -1)
+docker exec -i assessiq-restore-drill pg_restore -U assessiq -d assessiq --no-owner --no-privileges < "$DUMP"
+# compare counts of tenants/users/questions/attempts/gradings/audit_log vs assessiq-postgres, then:
+docker rm -f assessiq-restore-drill
+```
+
+**Secrets are not in the dump.** `MASTER_KEY` and the rest of `/srv/assessiq/.env` must be kept separately (owner's password manager). Without `MASTER_KEY`, encrypted columns can't be read after a restore.
+
+<details><summary>Original (never-installed) design, kept for reference</summary>
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1184,7 +1216,9 @@ find $DEST -name 'assessiq-*.dump.gz' -mtime +14 -delete
 rclone copy $DEST/assessiq-$TS.dump.gz remote:assessiq-backups/ || true
 ```
 
-**Restore drill (run monthly):** `pg_restore -d assessiq_restore_test < assessiq-YYYY...dump.gz`. Log the result in `docs/RCA_LOG.md` if anything wobbles.
+</details>
+
+**Restore drill (run monthly):** use the drill pattern above. Log the result in `docs/RCA_LOG.md` if anything wobbles.
 
 > See § Disaster recovery below for the full backup-contents inventory (including which artefacts are intentionally NOT backed up), the fresh-VPS restore procedure with expected outputs, failure-mode runbooks, recovery-readiness monitoring thresholds, and the secret-rotation procedure. The cron snippet above is the producer; the DR section is the consumer.
 

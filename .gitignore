@@ -35,6 +35,10 @@ pnpm-debug.log*
 .env.*
 !.env.example
 !.env.template
+
+# Internal docs — kept local (public repo). Files already tracked stay tracked
+# until removed with `git rm -r --cached docs`; new docs need `git add -f`.
+docs/
 *.pem
 *.key
 *.crt

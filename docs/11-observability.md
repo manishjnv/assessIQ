@@ -1405,3 +1405,35 @@ The default `pnpm e2e` run (the `chromium` project) has `testIgnore: /visual\.sp
 The CI workflow (`.github/workflows/visual-regression.yml`) is **advisory only** at first. Promote after baselines have been committed and confirmed stable across ~3–5 PRs:
 
 > GitHub repo → Settings → Branches → Branch protection rules for `main` → "Require status checks to pass" → add `Visual regression / visual`.
+
+## 33. Incident runbook and alerting (added 2026-10-01)
+
+**Alert sources, all delivered to `connect@assessiq.in`, which forwards to the owner's Gmail:**
+
+| Signal | Mechanism | Status |
+|---|---|---|
+| DB backup failed | `ERR` trap in `/etc/cron.daily/assessiq-backup` sends mail via Brevo using the app's `SMTP_URL` (see `docs/06-deployment.md` § Backups) | ✅ live, alert path tested 2026-10-01 |
+| Site or API down | External uptime monitor (UptimeRobot free): **HTTP(s)** `https://assessiq.in/api/health`, expect 200, every 5 min, alert after 2 failures. A second monitor on `https://assessiq.in/`. Alert contact: owner Gmail directly, **not** connect@assessiq.in, so a domain or mail outage cannot hide the alert. | ⏳ owner to create (needs an account) |
+| App exceptions | `SENTRY_DSN` exists in `modules/00-core/src/config.ts:85`, but no SDK is wired. | ❌ not wired. Deferred: add only if the log-based triage (§ 6) proves too slow. |
+
+**Known ceiling:** if the VPS cron daemon dies, the backup alert cannot fire. An external dead-man ping (healthchecks.io) is the upgrade path.
+
+### 33.1 First 10 minutes of any incident
+
+1. **Scope.** Run `curl -sS -o /dev/null -w '%{http_code}\n' https://assessiq.in/api/health`. Anything other than 200 means the API is down or the edge is failing.
+2. **Containers.** Run `ssh assessiq-vps 'docker ps --filter name=assessiq --format "{{.Names}} {{.Status}}"'`. You should see 6 containers: api, worker, frontend, marketing, redis, postgres.
+3. **Logs.** Run `docker logs --since 30m assessiq-api 2>&1 | tail -100`, and the same for `assessiq-worker`. App JSONL logs are in `/var/log/assessiq/` (see § 6).
+4. **Disk and memory.** Run `df -h /` and `free -h`. A full disk kills Postgres writes and backups.
+5. **Edge.** Caddy is shared with other apps: `/opt/ti-platform/caddy/`. Never reload shared config without the backup-first pattern in `docs/06-deployment.md`. Also check the Cloudflare dashboard for the zone.
+6. **Mail.** If sign-in codes aren't arriving, check Brevo: the free plan's 300/day is **shared by 5 products**. Also check `docker logs assessiq-worker` for SMTP errors.
+
+### 33.2 Standard fixes, all additive and AssessIQ-only
+
+- **Restart one service:** `cd /srv/assessiq && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <svc>`.
+- **Roll back code:**
+  1. `cd /srv/assessiq && git log --oneline -5` to find the last good SHA.
+  2. `git checkout <sha> -- .` (or `git reset --hard <sha>` on the VPS clone only).
+  3. Rebuild and recreate the affected service.
+  4. Record it in `docs/RCA_LOG.md`.
+- **Restore the database:** use the § Backups drill pattern in `docs/06-deployment.md`. Restore into a throwaway container first, verify, and only then plan a cut-over. Never `pg_restore` straight over the live database without the owner's approval.
+- **Never** run `docker system prune`, `apt autoremove`, or stop or restart any non-`assessiq-*` container or unit. The host is shared (CLAUDE.md rule 8).
