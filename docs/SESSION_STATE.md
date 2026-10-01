@@ -1,3 +1,78 @@
+# Session — 2026-10-01 (d) — five Claude-only tasks: invites, email + webhook hardening, release on last accept, option shuffle — SHIPPED + LIVE
+
+**Headline:** five tasks are live.
+1. **Invites:** links last 7 days and can be resent, to one student or to everyone who hasn't started; re-inviting after a revoke works.
+2. **Email:** bulk mail is retried for about 45 h instead of being lost; sign-in codes go first; SMTP fails fast. Email and webhook statuses finally save (the missing UPDATE RLS policy is fixed).
+3. **Webhooks:** they can't reach internal addresses, and they are signed with a timestamp.
+4. **Evaluation flow:** a result goes to the company the moment the owner accepts its last grade; sent-back results get `Re-run AI`.
+5. **Option shuffle:** each student sees MCQ options in their own order (it follows the assessment's `randomize` setting).
+
+**Commits (pushed `3e57ea2..a86bce2`):**
+- `71b4f04` merge notifications (`def48bb`; `e33f1e6` = migration 0121)
+- `753512a` merge option shuffle (`55023bf`, 0119)
+- `88b3b02` follow-ups: shuffle follows `randomize`; SMTP timeouts; webhook jobs in the bulk lane
+- `842d75f` merge evaluation flow (`809e807`, `23c9f0b`, 0118)
+- `ef5285f` merge invites (`50ebccf`, 0117 + 0120)
+- `a86bce2` codex fix: attempt start locks the invitation row
+- Docs + handoff: this commit
+
+**Tests:**
+- Passing: 07 evaluation + completion gate 80/80; 05 resend 14/14; 06 236/236; 09 90/90; 10 95/95; 13 107/107 here (240/240 in the builder); 16 help 20/20.
+- Typecheck: 11 packages, 0 errors. `lint:ambient-ai` and `lint:rls` OK.
+- The known older failures are unchanged.
+
+**Deploy (LIVE at `a86bce2`):**
+- Migrations 0117–0121 applied and recorded; help rows 159 → 163; the `option_order` and `last_resent_at` columns and both UPDATE policies are present.
+- api, worker and frontend rebuilt and recreated, healthy after about 18 s, with no AI run interrupted.
+- On `assessiq.in`: health 200; the resend routes and super `rerun` give 401 when logged out; the queue page is served.
+- The bundle contains `Resend to everyone who hasn't started`, `Re-run AI`, `Released to` and `re-run ready`.
+- Worker: `result.auto_release` is ticking and all 6 repeatables are scheduled. 0 api errors after the restart. claude 2.1.286.
+**Next (owner):** run the updated Word script `docs/testing/AssessIQ_Scoring_Release_Test_Script.docx` (local). It now has T1–T11, 98 steps, 40 ★:
+- T10 is invite resend;
+- T11 is option shuffle;
+- T3 and T4 follow release-on-last-accept and `Re-run AI`.
+
+**Open questions:**
+- Upgrade the Brevo plan? Emails now retry, but the 300/day cap is shared (A5).
+- The `AI_PIPELINE_MODE` switch is deferred until OD2.
+- Follow-ups:
+  - `in_app_notifications` has no UPDATE policy;
+  - webhook backoff is off by one;
+  - exhausted webhook deliveries stay `pending`;
+  - the invite audit stores `expires_at` as `{}`;
+  - the invitations list shows only 100 rows.
+
+---
+
+## Agent utilization (2026-10-01 d)
+- **Opus:**
+  - picked the 5 Claude-only tasks; wrote 4 builder contracts;
+  - reviewed the risky seams: SSRF guard, RLS policy, D7 supersede vs score row selection, shuffle mapping;
+  - made 3 follow-up fixes and the codex fix;
+  - merged everything, including the help-count conflict;
+  - ran read-only prod checks (`email_log` all stuck `queued`; 0 webhooks);
+  - deployed; wrote the docs (02/03/05/11, 5 RCAs), the test-script update and this handoff.
+- **Sonnet:** 4 parallel builders in worktrees: invites, notifications hardening, release on last accept + Re-run AI, option shuffle.
+- **Haiku:** n/a. The live verification was one inline command; the last Haiku sweep needed Opus re-checks (old-domain 301).
+- **codex:rescue:**
+  - the first attempt failed because the agent wrapper's Git Bash had no `node`;
+  - it was re-run from PowerShell, and the verdict was REVISE: a race between resend and attempt start;
+  - it was fixed exactly as recommended (`a86bce2`) and not re-run (a one-clause fix with tests green).
+- **claude-mem:** honoured these memories:
+  - vps-shared-host (additive, enumerated first);
+  - docs-folder-gitignored (`git add -f`);
+  - parallel-session-shared-working-tree (branch checks; builders in worktrees);
+  - billing-in-same-tx (unchanged);
+  - deliver-functionality (smoke tests plus one adversarial pass).
+- **Routing telemetry:**
+  - Sonnet · invites resend · reworked: Y (codex race → Opus fix in 06)
+  - Sonnet · email + webhook hardening · reworked: N (Opus added SMTP timeouts + webhook priority from its findings)
+  - Sonnet · release on last accept + Re-run AI · reworked: N
+  - Sonnet · option shuffle · reworked: N (Opus tied it to `randomize`)
+  - codex agent wrapper · adversarial review · reworked: Y (no `node` in the subagent shell → re-run from PowerShell)
+
+---
+
 # Session — 2026-10-01 (c) — scoring & result release (SP1–SP4) + platform evaluation queue (SP9–SP11) — SHIPPED + LIVE
 
 **Headline:** Students now get only a complete, final result (on screen, or by email if it takes over a minute). Each company picks auto or manual publishing. Only AssessIQ (the owner) runs AI evaluation, from one cross-tenant queue, before handing results to the company.

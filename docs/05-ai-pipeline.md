@@ -1325,3 +1325,19 @@ Trigger or accept AI grading, re-run, enter a manual first score or retry a grad
 - **Rejected (for the `claude-code-vps` engine):** company admins triggering AI (the compliance problem above); a per-company API key (BYOK: compliant and listed as an option in the product review, but not built; revisit with OD2); background grading after submit (Phase 2 / paid API; breaks the no-ambient-AI rule); a new `attempts.status` value for the hand-over (read by too many modules, so columns instead).
 - **Not included:** async or API-mode grading, per-company AI, two follow-ups the owner decided after this build (release to the company automatically when the super admin accepts the last grade; and an `AI_PIPELINE_MODE` switch that lets companies evaluate once an API budget exists; today the hand-over is an explicit step and the company routes answer 403 in every mode), answer-reuse and rule tiers (SP5), calibration examples and agreement tracking (SP6), more auto-gradable types and a KQL grader (SP7; until then KQL needs a manual score), calibrated auto-commit (SP8).
 - **Impact:** `docs/02-data-model.md` (columns, derived states), `docs/03-api-contract.md` (routes), `docs/11-observability.md` § 34 (jobs, log events), modules 06, 07, 09, 10, 11, 13, 15, 16. CLAUDE.md rule #1 holds: the two new worker jobs never call AI (one publishes a finished result, the other counts rows and sends mail).
+
+---
+
+### Update 2026-10-01 (later): release on the last accept, Re-run AI for sent-back attempts
+
+- **Owner decision, now built** (`809e807`, `23c9f0b`). The platform evaluator's accept, manual score or override that COMPLETES an attempt also releases it to the company in the same transaction: finalize sets `evaluation_released_at` and `_by`.
+  - In Automatic mode the company's sweep then publishes within about 15 s.
+  - It is recorded in the existing audit row (`after.evaluation_released: true`); there is no separate release row.
+  - It is never applied to an erased candidate, or to an attempt that was already graded.
+  - The evaluate page shows "Accepting the last grade releases this result to <company>…" before the last accept, and "Released to <company>." after it.
+- **Release to company** (single and bulk) remains for sent-back attempts after re-evaluation, and as a recovery action.
+- **Re-run AI on a sent-back attempt:** attempt-level, with the same click-only, single-flight and heartbeat rules as Grade all. Proposals are cached; nothing is committed until accept (D8).
+- **D7 refinement:** on an already-graded attempt, a proposal generated after the question's newest grading is written as a NEW row with `override_of` = the superseded same-SHA row. The newest row wins, and the D7 partial unique index stays satisfied. Replays and stale proposals are still skipped. Totals pick the newest row per question (`09-scoring/src/repository.ts` `getGradingsForAttempt`), so these rows count correctly.
+- **Shared rubric resolution:** Re-run uses the same rubric resolution as Grade all (`resolveGradingRubric`, extracted from `admin-grade.ts`, same behaviour).
+- **Compliance frame unchanged:** AI runs only on the super admin's click, and `lint:ambient-ai` passes.
+- **Not included:** the `AI_PIPELINE_MODE` switch that would let companies run AI once a paid API key exists. It has no effect until OD2, because API mode is still a stub.

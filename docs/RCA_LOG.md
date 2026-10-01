@@ -4,6 +4,41 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-01 — Email and webhook delivery statuses were never saved (missing UPDATE RLS policy)
+
+**Symptom:** every `email_log` row in production stayed `queued` (13 of 13 on 2026-10-01), even for emails that were delivered; webhook delivery statuses could not change either.
+**Cause:** migrations 0055 (`email_log`) and 0058 (`webhook_deliveries`) created only SELECT and INSERT policies. With RLS on, an UPDATE as `assessiq_app` matches 0 rows and raises no error, so the worker's status writes were silently dropped.
+**Fix:** migration `modules/13-notifications/migrations/0121_notifications_update_policies.sql` adds `tenant_isolation_update` (USING + WITH CHECK, same tenant predicate as the SELECT policies). Commit `e33f1e6`.
+**Prevention:** `notifications-update-policies.test.ts` runs the UPDATEs as `assessiq_app` on real Postgres. Rule: a table the app UPDATEs under RLS needs an UPDATE policy — a missing one fails silently. Same gap remains on `in_app_notifications` (mark-read), not yet fixed.
+
+## 2026-10-01 — Emails were dropped after about two minutes of retries, and sign-in codes waited behind bulk mail
+
+**Symptom (found while hardening for the campus pilot):** any SMTP failure, including the provider's daily limit (Brevo free: 300/day, shared), lost the email after ~1–2 minutes; a 200-invite CSV import delayed sign-in codes by minutes; a hung SMTP connection could hold the single worker slot (timer sweep, auto-release) for up to 10 minutes.
+**Cause:** one retry policy for all mail (`apps/api/src/worker.ts`, 5 attempts, exponential 5 s), no job priority on the shared queue, nodemailer default timeouts (2 min connect, 10 min socket).
+**Fix:** auth vs bulk classes (`modules/13-notifications/src/email/delivery-policy.ts`): sign-in mail unprioritised (runs first), bulk mail priority 100 with ~45 h of retries, SMTP 5.1.x failed at once; fail-fast SMTP timeouts (`email/transport.ts` `withSmtpTimeouts`); webhook jobs in the bulk lane. Commits `def48bb`, `88b3b02`.
+**Prevention:** `email-delivery-policy.test.ts` (options per class, backoff routing, permanent errors) and `smtp-timeouts.test.ts`; `EMAIL_CLASS` is a `Record<EmailTemplateName, …>` so a new template does not compile until it is classified.
+
+## 2026-10-01 — Webhook delivery could reach internal addresses and signatures were replayable
+
+**Symptom (found in the product review; 0 webhook endpoints existed in production):** a company admin could register a webhook pointing at an internal address on the shared server (our Postgres/Redis, other apps, metadata), and a captured delivery could be replayed because the signature did not cover a timestamp.
+**Cause:** `webhooks/deliver-job.ts` used a plain `fetch(endpoint.url)` (follows redirects, no address check); the HMAC covered only the body.
+**Fix:** create-time URL policy (`webhooks/url-policy.ts`, 400 `WEBHOOK_URL_NOT_ALLOWED`) plus a connect-time address check in a custom `lookup` (`webhooks/safe-post.ts`): any private/loopback/link-local/reserved answer refuses the delivery permanently; no redirects; 10 s timeout; 2 KB response cap. New `X-AssessIQ-Signature-V2` over `"<unix ts>.<body>"`; `X-AssessIQ-Timestamp` is now unix seconds. Commit `def48bb`.
+**Prevention:** `webhook-safety.test.ts` (v4/v6/mapped/NAT64 ranges, rebinding, redirect, V2 verify). Residual: the server's own public IP counts as public — egress firewalling is still advisable.
+
+## 2026-10-01 — Candidate invitation links died after 72 hours while the help promised 7 days, with no way to resend
+
+**Symptom:** a student who opened an invitation after 72 hours was locked out; the candidate help and admin guide said 7 days; admins had no Resend/extend, and a revoked invitation blocked re-inviting the student.
+**Cause:** `modules/05-assessment-lifecycle/src/tokens.ts:66` (`DEFAULT_INVITATION_TTL_HOURS = 72`, used at `service.ts:1539`) was never reconciled with `CandidateHelp.tsx:179` / `admin-guide.tsx:518`; `inviteUsers` skipped revoked rows.
+**Fix:** TTL 168 h; `POST /api/admin/invitations/:id/resend` and `POST /api/admin/assessments/:id/invitations/resend` (new token, old link dead, 7 days, audit `assessment.invitation.resent`); invite/CSV import re-activate revoked or lapsed rows; migration 0117 `last_resent_at`. Commit `50ebccf`.
+**Prevention:** `invitation-resend.test.ts` asserts the TTL, the dead old token, the 409 after start and the bulk counts.
+
+## 2026-10-01 — Accepting a re-run silently wrote nothing, and auto-release would have handed over an erased candidate's result (caught pre-deploy)
+
+**Symptom (found by the builder while implementing release-on-last-accept):** accepting Re-run proposals on a sent-back attempt changed nothing when the prompts were unchanged; and the new automatic hand-over had no erased-candidate check.
+**Cause:** the D7 idempotency skip in `admin-accept.ts` treated a same-prompt-SHA proposal as a replay even when it was a fresh AI pass; finalize's `markEvaluationReleased` path never looked at erasure (release-to-tenant did).
+**Fix:** on an already-graded attempt, a proposal newer than the question's newest grading is written as a new row with `override_of` = the superseded row (newest wins; replays and stale tabs still skipped); hand-over only when `!isAttemptCandidateErased`. Commit `809e807`.
+**Prevention:** mutation-checked tests in `super-evaluation.test.ts` / `completion-gate.test.ts`. Rule: an idempotency key must distinguish "same request again" from "new work with the same inputs".
+
 ## 2026-10-01 — Platform grade / rerun could start an AI run on an attempt that was not in the queue (caught pre-deploy)
 
 **Symptom (found in the Codex Phase II review, before deploy):** a direct call to the platform grade or rerun route could start a Claude run on an MCQ-only, already-released-to-company or published attempt, spending the owner's subscription for nothing.

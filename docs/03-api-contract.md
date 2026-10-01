@@ -2679,3 +2679,44 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 **Not included.** Background or API-mode grading, company-triggered AI (the owner has decided companies may evaluate once an API budget exists; not built, so these routes answer 403 in every mode), release to the company on the last accept (today an explicit `release-to-tenant` call), a per-assessment release mode, a "result updated" email (a published result is final), and a company-facing ETA beyond the candidate's `turnaround_text`.
 
 **Impact.** `modules/11-candidate-ui` wire types and the post-submit / My results pages, `modules/10-admin-dashboard` (tenant settings, review states, platform queue and evaluate pages), 15 results CSV and candidate activity, 13 `result_released` template. Rollback: deploy the previous image; the new columns are additive (data model doc).
+
+---
+
+## 2026-10-01 (later): invitations, webhooks, evaluation flow, option shuffle
+
+**Invitations** (company admin; same auth chain as `/api/admin/invitations/:id`)
+
+| Method + path | Success | Errors |
+| --- | --- | --- |
+| `POST /api/admin/invitations/:id/resend` | 200 the invitation; a new link is emailed after commit, the old link stops working, valid 7 days | 404 `INVITATION_NOT_FOUND` · 409 `INVITATION_ALREADY_STARTED` / `ASSESSMENT_NOT_ACTIVE` / `USER_INACTIVE` · 502 `INVITATION_EMAIL_FAILED` (link rotated but email not queued: resend again) |
+| `POST /api/admin/assessments/:id/invitations/resend` | 200 `{ resent, skipped: [{ id, code }], remaining }`: at most 200 per call, one transaction per row; skips revoked rows and rows re-issued in the last 10 minutes | 404 |
+
+- **Invitation list:** `GET /api/admin/assessments/:id/invitations` rows gain `can_resend`, and the response gains `resendable` (the bulk count).
+- **Re-invite:** `POST /api/admin/assessments/:id/invite` and the CSV import now re-activate a revoked or lapsed invitation (fresh link, email) instead of skipping it. A live or started one stays `INVITATION_EXISTS`.
+- **Link lifetime:** candidate invitation links last 7 days (was 72 h).
+
+**Webhooks**
+- **Create:** `POST /api/admin/webhooks` rejects, with 400 `WEBHOOK_URL_NOT_ALLOWED` and `details.reason` ∈ `invalid_url | scheme_not_allowed | userinfo_not_allowed | localhost_not_allowed | blocked_address`:
+  - non-https URLs (http is allowed only outside production);
+  - userinfo;
+  - `localhost`;
+  - blocked IP literals.
+- **Delivery:**
+  - The hostname is resolved at connect time. The delivery is refused if ANY address is private, loopback, link-local, CGNAT, multicast or reserved (IPv4 and IPv6, including mapped and NAT64). A refusal is recorded `failed` (`blocked_address` / `blocked_url`) and never retried.
+  - Redirects are not followed (3xx = permanent failure).
+  - Timeout 10 s (was 30 s); at most 2 KB of the response is stored.
+- **Headers:**
+  - `X-AssessIQ-Timestamp` is now **unix seconds** (was ISO-8601; 0 endpoints existed in production at the change).
+  - New `X-AssessIQ-Signature-V2: sha256=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`.
+  - The V1 signature header is unchanged.
+  - Receivers should verify V2 and reject timestamps more than 5 minutes old. The reference check is `verifySignatureV2` in `modules/13-notifications/src/webhooks/signature.ts`.
+
+**Platform evaluation (super admin)**
+- `accept`, `manual-score` and `override` under `/api/admin/super/evaluations/:attemptId/*` release the evaluation to the company in the same transaction when that call completes the attempt, setting `evaluation_released_at` and `evaluation_released_by`. This never happens for an erased candidate, and never for an already-graded (sent-back) attempt: use `release-to-tenant` for those.
+- `rerun` on a graded (sent-back) attempt sets the grading marker and caches `ai_proposals` (poll like Grade all). Accepting those proposals writes new grading rows (the newest wins) and answers `attempt.status = "graded"`.
+- `release-to-tenant` clears the `ai_proposals` cache.
+
+**Candidate (option shuffle)**
+- `GET /api/me/attempts/:id`: MCQ `content.options` come in this attempt's display order, and `answers[].answer.selected` is the displayed position.
+- `POST /api/me/attempts/:id/answer` takes the displayed index; the server stores the original one.
+- No new fields and no new errors.

@@ -1502,3 +1502,33 @@ Neither job calls AI or imports `@assessiq/ai-grading` (`lint:ambient-ai` stays 
 5. Owner alert missing: `redis-cli GET aiq:alert:evaluation_queue` (a value means one was sent in the last 24 h), then the `evaluation-queue-alert:` lines in `worker.log`, then `SUPER_ADMIN_EMAILS` on the worker container.
 
 Not covered: there is no queue-age metric beyond the platform queue page and the 24 h email.
+
+---
+
+## 35. Notifications hardening, invitation resend, evaluation release (2026-10-01)
+
+- **Email classes** (`modules/13-notifications/src/email/delivery-policy.ts`):
+  - **auth** (`admin_email_otp`, `candidate_login_link`, `invitation_admin`): no BullMQ priority, so it runs before bulk mail, alongside cron; 5 attempts, exponential 5 s.
+  - **bulk** (everything else): priority 100; 11 attempts; backoff `email-bulk` = 1m, 5m, 15m, 1h, 2h, 4h, 6h, 8h, 12h, 12h (about 45 h).
+  - **Webhook** jobs also use priority 100.
+  - SMTP 5.1.x (bad recipient) is an `UnrecoverableError` and fails at once.
+- **SMTP timeouts:** connection 10 s, greeting 10 s, socket 30 s. They are appended to `SMTP_URL` unless already set (`withSmtpTimeouts`), so a hung SMTP connection can no longer hold the single worker slot (timer sweep, auto-release).
+- **`email_log.status`:** `queued` between retries, `sent`, `failed` (final). These statuses now persist: migration 0121.
+- **Log events:**
+  - `email.send.attempt_failed` (warn: emailLogId, template, emailClass, attempt, maxAttempts, smtpCode, enhancedCode, errCode, permanent, willRetry);
+  - `email.queued` gains `emailClass`;
+  - `webhook.delivery.refused` (warn: reason, endpointId, host, address);
+  - `webhook.delivery.permanent_fail` now also covers 3xx;
+  - network error text `webhook request timed out after 10000ms`.
+- **`webhook_deliveries.last_error`:** `blocked_address`, `blocked_url`, `HTTP 3xx: redirects are not followed`, `HTTP 4xx: <snippet>`.
+- **Audit:**
+  - `assessment.invitation.resent`;
+  - `assessment.invite` rows with `after.kind = reinvite`;
+  - `grading.accepted` / `grading.override` / manual score with `after.evaluation_released = true` when that call handed the result to the company.
+- **Triage:**
+  - **"My link doesn't work":** the admin clicks Resend on the invitation; the old link dies and a new 7-day link is emailed.
+  - **"Email never arrived":** check `email_log.status`. `queued` means still retrying (up to about 45 h); `failed` means permanent or exhausted. Then grep the worker logs for `email.send.attempt_failed` and read `smtpCode`; a daily-limit reply means wait for the reset or upgrade the plan.
+- **Known follow-ups:**
+  - the webhook backoff is off by one (the first retry waits 5 m, not 1 m);
+  - webhook deliveries that exhaust retries stay `pending`;
+  - `in_app_notifications` mark-read has no UPDATE policy.

@@ -1548,3 +1548,31 @@ audit JSONB for grading-event forensics.
 - **Not included:** a per-assessment release-mode override (design plan §6), a "result updated" email (a published result is final: 409 `RESULT_ALREADY_PUBLISHED`), any table for the queue (it is a query).
 - **Impact:** 06 reads both tables for the candidate result; 07 owns the queue and the tenant review; 09 owns finalize / release; 15 candidate stats and leaderboard count only `status = 'released'`, and the results CSV prints "Awaiting evaluation" for unreleased rows; 13 sends `result_released`; 16 holds the help rows. `attempt_summary_mv` is unchanged.
 - **Rollback:** additive and nullable. Old code ignores the columns, and the default `manual` mode matches the old "an admin publishes" behaviour. The 0113 backfill is not reversed.
+
+---
+
+## Invitations, notifications and option shuffle (2026-10-01, later the same day)
+
+Commits: `50ebccf` (invites), `def48bb` + `e33f1e6` (notifications), `55023bf` (option shuffle), `809e807` + `23c9f0b` (release on last accept), `88b3b02` (follow-ups). All migrations are additive.
+
+- **`assessment_invitations.last_resent_at TIMESTAMPTZ NULL`** (migration 0117). Stamped whenever a link is re-issued (resend, bulk resend, re-invite after revoke). Bulk resend skips rows re-issued in the last 10 minutes, so `remaining` shrinks and a double click sends nothing; original invitations keep NULL.
+- **Invitation lifecycle (no new status value):**
+  - revoked = `status='expired'`;
+  - lapsed = `pending`/`viewed` with `expires_at` in the past;
+  - a re-issue rotates `token_hash` on the same row, so the old link stops resolving, and sets `expires_at = now() + 7 days` and status `pending`.
+  - The candidate link TTL is now **168 h** (`DEFAULT_INVITATION_TTL_HOURS`), matching the candidate help and admin guide. Links issued under 72 h were not backfilled.
+- **`attempt_questions.option_order SMALLINT[] NULL`** (migration 0119). A per-attempt MCQ permutation: `option_order[display position] = original option index`.
+  - Written once at attempt start, only when `assessments.randomize` is true (the same switch as question order) and the options do not refer to each other. "All of the above", "Both A and B" and options in a non-Latin script are left in authored order.
+  - NULL means authored order: old or in-flight attempts, and non-MCQ questions.
+  - It is server-internal and never returned to candidates. `attempt_answers.answer.selected` stays in ORIGINAL index space, so scoring (09), admin review, exports and analytics are unchanged.
+- **RLS UPDATE policies** (migration 0121): `tenant_isolation_update` on `email_log` (tenant predicate) and on `webhook_deliveries` (EXISTS via `webhook_endpoints.tenant_id`), with `USING` + `WITH CHECK`. Before this, both tables had only SELECT and INSERT policies, so status updates as `assessiq_app` matched 0 rows silently (see RCA 2026-10-01). `in_app_notifications` has the same gap (mark-read); it is not fixed yet.
+- **`attempts.evaluation_released_by`** is now also written by the platform evaluator's completing accept, manual score or override, in the same statement as the graded flip.
+- **Help seeds:**
+  - 0118 rewrites 7 evaluation-release help rows and adds `admin.evaluations.rerun_ai`;
+  - 0120 adds 3 invitation-resend keys and fixes `admin.platform.admin_email` (72 h → 7 days);
+  - global help rows: 156.
+- **Considered and rejected:**
+  - a new invitation status for "revoked" (the existing `expired` + status semantics are enough);
+  - storing shuffled answers in display space (that would have touched scoring, review, exports and analytics);
+  - a per-assessment shuffle toggle (`randomize` already exists).
+- **Not included:** invitation reminder emails; a public drive link with self-registration (design-gated); DSAR export translation of option order (it stays in original indexes).
