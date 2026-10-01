@@ -1178,13 +1178,14 @@ After bootstrap: log in at `https://assessiq.automateedge.cloud/admin/login`, co
 
 > **Status (2026-10-01): INSTALLED and verified.** Until this date, the cron described here existed only in this doc. The VPS had no backup job, no `/var/backups/assessiq` and no rclone (see RCA 2026-10-01 "Documented DB backups were never installed").
 
-**What runs (live copy on the VPS; this is the source of truth):**
+**What runs (live copy on the VPS; this is the source of truth; a byte-identical copy is kept in the repo at `tools/ops/assessiq-backup.sh` — redeploy with `scp tools/ops/assessiq-backup.sh assessiq-vps:/etc/cron.daily/assessiq-backup` then `chmod 755`; no secrets inside, it reads `SMTP_URL` from `/srv/assessiq/.env` at runtime):**
 - **Schedule and dump:** `/etc/cron.daily/assessiq-backup` runs as root once a day (run-parts, about 06:25 server time). It runs `docker exec assessiq-postgres pg_dump -U assessiq -d assessiq -Fc` to write `/var/backups/assessiq/assessiq-<UTC-ts>.dump`. The custom format is already compressed, so there is no gzip. The directory is 0700 and each file 0600.
 - **Integrity check:** the new archive must pass `pg_restore -l` before it replaces the temp file.
 - **Retention:** 14 days, deleting only `assessiq-*.dump` files inside that directory.
 - **Log:** one line per run in `/var/log/assessiq/backup.log`, `OK <file> <bytes>` or `FAIL rc=… line=…`.
 - **Failure alert:** an `ERR` trap emails `connect@assessiq.in` (which forwards to the owner's Gmail). It uses `curl` with the app's own `SMTP_URL` from `/srv/assessiq/.env` (Brevo), with no extra account. The alert path was tested on 2026-10-01 and delivered.
 - **Offsite:** the owner-enabled **Hostinger weekly VPS backup**, which captures `/var/backups/assessiq`. Worst-case data loss is about 1 day if the disk survives and up to about 7 days if the whole VPS is lost.
+- **Prompt skills (added 2026-10-01 b):** each run also tars `/srv/assessiq/prompts/skills` to `prompts-skills-<ts>.tgz` (14-day retention). The prompts are gitignored, so this tarball plus the host copy are the only copies besides the owner's laptop. If the folder is missing, the run emails an alert.
 - **Known ceiling (`ponytail`):** if the cron daemon itself stops, nothing alerts. Add an external dead-man ping (healthchecks.io) if that matters. rclone/R2 offsite (the original design below) was not adopted; add it if RPO must be under 7 days for VPS loss.
 
 **Restore drill, 2026-10-01: PASSED.**

@@ -1,3 +1,59 @@
+# Session — 2026-10-01 (e) — orchestrator session wrap-up: owner decisions recorded, loose artifacts saved
+
+**Headline:** No new product code in this slice. This session (status review, P0, pilot hardening; entries "P0" and "(b)" below) recorded two owner decisions, which the parallel session then built or deferred. It also saved every artifact that existed only in a temp scratchpad.
+
+**Commits:** this handoff commit (`tools/ops/assessiq-backup.sh`, `docs/06-deployment.md`, this file).
+**Tests:** n/a (no code change). The backup script is byte-identical to the live `/etc/cron.daily/assessiq-backup` (diffed).
+**Next (owner):**
+- Run `docs/testing/AssessIQ_Scoring_Release_Test_Script.docx` (current flows).
+- P0 script v2 is outdated for T6/T7; regenerate it as v3 before use, or use the scoring-release script.
+- Then T11: create Rajneesh's company.
+**Open questions:** none new. OD2 (API key) gates the AI-mode switch below.
+
+## What this slice did, in detail
+
+**1. Owner decisions recorded (docs only).**
+- **Where:** plan `docs/design/2026-10-01-scoring-and-result-release-plan.md` §6/§11 and the SP9/SP10 rows; tasks `docs/PENDING_TASKS_2026-10-01.md` SP9/SP10; roadmap N10 in `docs/design/2026-10-01-product-review-competitive-strategy.md`.
+- **(a) Release to the company is automatic when the super admin accepts the last grade.** No separate "Release to tenant" click; accepting each grade is already the super admin's review. A manual "release all complete" stays only as recovery. Tenant dashboard notice: "N new results published" (Auto) / "N results ready to publish" (Manual).
+  - **Status:** BUILT by the parallel session (`809e807`, `23c9f0b`).
+- **(b) Who may trigger AI evaluation is a switch on `AI_PIPELINE_MODE`.**
+  - `claude-code-vps` (today, no API key): super admin only.
+  - `anthropic-api` (when there is API budget): tenant admins may evaluate too.
+  - **Why:** super-admin-only exists because there is no API key, not as a permanent product rule.
+  - **Status:** DEFERRED to OD2 by the parallel session (API mode is still a stub; routes are `super_admin`-only today).
+- **Considered and rejected:** keeping the explicit super-admin "Release to tenant" click. It is an extra step with no added review, since each grade is accepted individually.
+
+**2. Owner flows confirmed against the plan.** All four are in the plan, and SP1–SP4 and SP9–SP11 are now live:
+- Auto + no AI: result on screen, plus an email with score, pass/fail and certificate.
+- Auto + AI: "result will be emailed" message, then auto-publish after super-admin evaluation.
+- Manual + AI: super admin evaluates, then the tenant reviews and publishes, then the email goes out.
+- Manual + no AI: tenant publishes.
+
+**3. Loose artifacts saved (were only in the session scratchpad).**
+- **Backup script:** `tools/ops/assessiq-backup.sh` (tracked, byte-identical to the live cron; no secrets, reads `SMTP_URL` at runtime). `docs/06-deployment.md` § Backups now points to it, with the redeploy command and the prompts-tarball note.
+- **P0 test-script generator:** `docs/testing/generators/build-p0-test-script.js` (local) with README notes. **Marked outdated** for T6/T7 and its "Known limitations" now that students get results.
+- **Retired aptitude v1 set:** `docs/exam-content/aptitude-questions-v1-LEAKED-retired.json` plus `aptitude-v1-blind-answers.json` (local, gitignored), kept as a record of the retired set.
+
+**Explicitly NOT included:**
+- Untracked owner leftovers stay untouched (pending task H2): `BingTrackingCode.md`, `totp-enrollment-status.test.ts`, `google-sso.ts.p1bak`, `AssessIQ-Email-Kit/`.
+- The P0 v3 test script was not regenerated (owner can use the scoring-release script).
+
+**Impact:**
+- **Disaster recovery:** the backup script can now be restored from git.
+- **Future sessions:** they must not re-ask the two decisions above; the memory note `ai-pipeline-claude-code-admin` records both.
+
+---
+
+## Agent utilization (2026-10-01 e)
+- **Opus:** decision capture across plan/tasks/roadmap; checked the parallel session's build against the decisions; saved artifacts; diffed against the live VPS; handoff.
+- **Sonnet:** n/a (docs and housekeeping only).
+- **Haiku:** n/a.
+- **codex:rescue:** n/a (no code change).
+- **claude-mem:** honoured parallel-session-shared-working-tree (prepend-only edit of SESSION_STATE, other session's entries untouched), docs-folder-gitignored (`git add -f`), and prompts-skills-out-of-git.
+- **Routing telemetry:** n/a this slice.
+
+---
+
 # Session — 2026-10-01 (d) — five Claude-only tasks: invites, email + webhook hardening, release on last accept, option shuffle — SHIPPED + LIVE
 
 **Headline:** five tasks are live.
