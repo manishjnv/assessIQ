@@ -14,7 +14,8 @@ import { Spinner } from '@assessiq/ui-system';
 //
 // Behaviour:
 //   - On mount: read ?token=…, POST to /api/auth/candidate/verify-link
-//   - 200 { ok: true,  redirect: '/candidate/certificates' } → navigate there
+//   - 200 { ok: true,  redirect: '/candidate/results' }      → navigate there
+//                                    (the server picks the target; /candidate/results since 2026-10-01)
 //   - 200 { ok: false, error: 'invalid_link' }               → /candidate/login?error=invalid_link
 //   - Network error / unexpected response                    → same failure landing
 //   - Missing token in URL                                   → same failure landing
