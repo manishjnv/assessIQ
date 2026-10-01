@@ -45,7 +45,7 @@ interface TombstoneRow {
  *   1. Fetch user row — 404 if missing, 400 if not a candidate.
  *   2. Idempotent guard — return early if already erased (no audit write).
  *   3. UPDATE users: replace name + email with sha256-derived pseudonyms,
- *      set erased_at = now().
+ *      drop metadata roll_number / branch, set erased_at = now().
  *   4. UPDATE attempt_answers: set answer = '"[erased]"' for non-mcq rows.
  *   5. UPDATE sessions: NULL out ip + user_agent.
  *   6. SELECT count(*) from certificates (preserved, never mutated).
@@ -106,6 +106,8 @@ export async function eraseCandidatePii(
       `UPDATE users
           SET name      = 'deleted_user_' || substr(encode(sha256(id::text::bytea),'hex'),1,12),
               email     = 'deleted+' || substr(encode(sha256(id::text::bytea),'hex'),1,12) || '@erased.assessiq.local',
+              -- import profile fields (roll number / branch, 1a4f82d) identify the student
+              metadata  = COALESCE(metadata, '{}'::jsonb) - 'roll_number' - 'branch',
               erased_at = now()
         WHERE id = $1 AND erased_at IS NULL
         RETURNING name, email, erased_at::text`,
