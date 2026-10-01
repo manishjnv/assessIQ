@@ -30,6 +30,9 @@ export function csvCell(v: string | number | null | undefined): string {
 
 const pct = (e: number, m: number): string => (m > 0 ? String(Math.round((e / m) * 1000) / 10) : '');
 
+export const RESULTS_SORTS = ['name', 'rank', 'branch'] as const;
+export type ResultsSort = (typeof RESULTS_SORTS)[number];
+
 export interface ResultsCsv {
   csv: string;
   filenameBase: string; // assessment id (assessments has no slug column)
@@ -38,6 +41,7 @@ export interface ResultsCsv {
 export async function buildAssessmentResultsCsv(
   tenantId: string,
   assessmentId: string,
+  sort: ResultsSort = 'name',
 ): Promise<ResultsCsv> {
   return withTenant(tenantId, async (client) => {
     // RLS on assessments hides other tenants' rows → 404.
@@ -55,8 +59,10 @@ export async function buildAssessmentResultsCsv(
       attempt_id: string | null; status: string | null;
       started_at: Date | null; submitted_at: Date | null;
       evaluation_released_at: Date | null;
+      roll_number: string | null; branch: string | null;
     }>(
       `SELECT i.user_id, u.name, u.email, i.status AS inv_status,
+              u.metadata->>'roll_number' AS roll_number, u.metadata->>'branch' AS branch,
               at.id AS attempt_id, at.status, at.started_at, at.submitted_at,
               at.evaluation_released_at
          FROM assessment_invitations i
@@ -70,6 +76,20 @@ export async function buildAssessmentResultsCsv(
         LIMIT ${RESULTS_ROW_CAP}`,
       [assessmentId],
     );
+
+    // Integrity signals (not scores — shown regardless of release state).
+    // 'fullscreen_exit' is emitted by the attempt engine; 0 until it exists.
+    const ev = await client.query<{ attempt_id: string; tabs: string; pastes: string; fs: string }>(
+      `SELECT e.attempt_id,
+              count(*) FILTER (WHERE e.event_type = 'tab_blur')        AS tabs,
+              count(*) FILTER (WHERE e.event_type = 'paste')           AS pastes,
+              count(*) FILTER (WHERE e.event_type = 'fullscreen_exit') AS fs
+         FROM attempt_events e
+         JOIN attempts at ON at.id = e.attempt_id AND at.assessment_id = $1
+        GROUP BY e.attempt_id`,
+      [assessmentId],
+    );
+    const integrity = new Map(ev.rows.map((r) => [r.attempt_id, r]));
 
     // Effective grading per (attempt, question) with category, for this assessment.
     const gr = await client.query<{
@@ -114,11 +134,12 @@ export async function buildAssessmentResultsCsv(
     }
 
     const header = [
-      'name', 'email', 'status', 'started_at', 'submitted_at', 'score', 'max_score', 'percent', 'result',
+      'name', 'email', 'roll_number', 'branch', 'status', 'started_at', 'submitted_at',
+      'score', 'max_score', 'percent', 'result', 'rank',
+      'tab_switches', 'paste_count', 'fullscreen_exits',
       ...categories.map((c) => `${c} (%)`),
     ];
-    const lines = [header.map(csvCell).join(',')];
-    for (const c of cands.rows) {
+    const rows = cands.rows.map((c) => {
       const status = c.status ?? (c.inv_status === 'expired' ? 'expired' : 'invited');
       // Phase II: while the platform has not released its evaluation to the tenant
       // (still queued with AssessIQ, or sent back), the row shows "Awaiting
@@ -138,10 +159,37 @@ export async function buildAssessmentResultsCsv(
       const result = awaiting
         ? 'Awaiting evaluation'
         : percent !== null && passing !== null ? (percent >= passing ? 'Pass' : 'Fail') : '';
+      const ie = c.attempt_id !== null ? integrity.get(c.attempt_id) : undefined;
+      return { c, status, t, percent, result, rank: null as number | null, ie };
+    });
+
+    // Competition ranking (1,2,2,4) by percent DESC over rows with a visible score.
+    const ranked = rows.filter((r) => r.percent !== null).sort((x, y) => y.percent! - x.percent!);
+    ranked.forEach((r, i) => {
+      r.rank = i > 0 && ranked[i - 1]!.percent === r.percent ? ranked[i - 1]!.rank : i + 1;
+    });
+
+    // Array.sort is stable, so ties keep the SQL name order.
+    // ponytail: blanks sort last; localeCompare for branch A->Z.
+    if (sort === 'rank') {
+      rows.sort((x, y) => (x.rank ?? Infinity) - (y.rank ?? Infinity));
+    } else if (sort === 'branch') {
+      rows.sort((x, y) => {
+        const bx = x.c.branch ?? '', by = y.c.branch ?? '';
+        if (bx === '' || by === '') return bx === by ? (x.rank ?? Infinity) - (y.rank ?? Infinity) : bx === '' ? 1 : -1;
+        return bx.localeCompare(by) || (x.rank ?? Infinity) - (y.rank ?? Infinity);
+      });
+    }
+
+    const lines = [header.map(csvCell).join(',')];
+    for (const { c, status, t, percent, result, rank, ie } of rows) {
       const cells: Array<string | number | null> = [
-        c.name ?? '', c.email, status,
+        c.name ?? '', c.email, c.roll_number ?? '', c.branch ?? '', status,
         c.started_at?.toISOString() ?? '', c.submitted_at?.toISOString() ?? '',
-        t ? t.e : '', t ? t.m : '', percent ?? '', result,
+        t ? t.e : '', t ? t.m : '', percent ?? '', result, rank ?? '',
+        ie ? Number(ie.tabs) : c.attempt_id ? 0 : '',
+        ie ? Number(ie.pastes) : c.attempt_id ? 0 : '',
+        ie ? Number(ie.fs) : c.attempt_id ? 0 : '',
         ...categories.map((n) => {
           const x = t?.cat.get(n);
           return x ? pct(x[0], x[1]) : '';

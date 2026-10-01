@@ -29,7 +29,8 @@ export interface ImportResult {
   warning?: string;
 }
 
-const SAMPLE_CSV = "name,email\nAsha Verma,asha.verma@example.com\nRohan Mehta,rohan.mehta@example.com\n";
+const SAMPLE_CSV =
+  "name,email,roll_number,branch\nAsha Verma,asha.verma@example.com,21CS001,CSE\nRohan Mehta,rohan.mehta@example.com,21ME014,Mechanical\n";
 
 // ponytail: minimal quote-aware splitter for the preview only — the server
 // parser is the real one.

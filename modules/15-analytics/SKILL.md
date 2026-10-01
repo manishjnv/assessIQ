@@ -126,3 +126,12 @@ The activity test file spins up its own postgres container (`aiq_activity_test`)
 - Phase 4: populate `gradingCostByMonth` when `grading_jobs` table ships
 
 - `src/__tests__/results-export.test.ts` — 4 integration tests for the live results CSV (statuses, override precedence, per-category %, formula escaping, cross-tenant 404, reviewer/candidate gating). Passing score comes from `levels.passing_score_pct` of the assessment level.
+
+## Results CSV: ranking, branch sort, integrity counts (2026-10-01, campus placement)
+
+- **Columns (in order):** name, email, roll_number, branch, status, started_at, submitted_at, score, max_score, percent, result, rank, tab_switches, paste_count, fullscreen_exits, then one `<category> (%)` per category.
+- **rank:** competition ranking (1,2,2,4) by percent DESC among rows with a *visible* score (released to tenant). Blank for awaiting-evaluation / not-started rows, so ranks never leak held-back results.
+- **Integrity counts:** one `GROUP BY attempt_id` over `attempt_events` (`tab_blur`, `paste`, `fullscreen_exit`, matched by string, so 0 until the engine emits `fullscreen_exit`). They are signals, not scores: shown regardless of release state; blank when the candidate has no attempt.
+- **`?sort=name|rank|branch`** on `GET /api/admin/assessments/:id/results.csv` (zod enum, unknown -> 400). `branch` = branch A-Z (blank last), then rank, then name. Default `name` is unchanged.
+- **Why:** the placement cell needs a ranked, branch-wise list. Roll/branch come from `users.metadata` (see 03-users SKILL).
+- **Not included:** no per-branch rank, no percentile, no cut-off filtering.

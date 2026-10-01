@@ -635,3 +635,10 @@ Tests:
 **Not included.** Custom columns/metadata, update-on-reimport of names, async/background import, resend of candidate assessment-invitation emails (no such action exists today; `/admin/super/tenants/:id/invitations/resend` is admin-invites only). Invite emails are queued by 13-notifications (BullMQ `email.send`, 5 attempts, exponential backoff 5s; status in `email_log`). Import runs invites synchronously inside one request: near the 1000-row cap this may approach the CF ~100s edge timeout.
 
 **Downstream.** `docs/03-api-contract.md` (endpoint), `modules/16-help-system` (2 entries), `modules/10-admin-dashboard` (new component + tests). Tests: `src/__tests__/import.test.ts` (parser + testcontainers: tenant isolation, reuse, one PII-free audit row), `apps/api/src/__tests__/routes/admin-users-import.test.ts`.
+
+## Roll number + branch on CSV import (2026-10-01, campus placement)
+
+- **What:** `parseCandidateCsv` accepts optional `roll_number` (aliases `roll no`, `roll`, `enrollment`) and `branch` (aliases `department`, `dept`) columns; headers match case-insensitively, ignoring spaces/underscores/hyphens. Values are trimmed, capped at 64 chars, and stored in `users.metadata` as `roll_number` / `branch`.
+- **Why JSONB, not columns:** `users.metadata` already exists (documented for employee_id/department/team) and sits under the existing RLS, so no migration or `docs/02-data-model.md` change is needed. The results CSV reads `metadata->>'roll_number'`.
+- **Re-import:** an existing student is updated only for non-empty cells (`metadata || patch`); an empty cell never wipes a stored value. Name/email behaviour and the row/invite caps are unchanged.
+- **Not included:** no UI to edit roll/branch per user, no uniqueness check on roll numbers.
