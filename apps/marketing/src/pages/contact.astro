@@ -1,7 +1,7 @@
 ---
 // contact.astro — Contact page
 // JSON-LD: BreadcrumbList (Home › Contact) per SEO §3.6 / §15 template
-// Form: static mailto — no backend yet. TODO: wire to a real form endpoint.
+// Form: static mailto — no backend yet. TODO(contact): wire to a real form endpoint.
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
@@ -113,7 +113,7 @@ const breadcrumbSchema = {
         </div>
 
         <!-- Static contact form — mailto action, no backend yet -->
-        <!-- TODO: real data — wire to a form backend (Formspark / custom endpoint) when ready -->
+        <!-- TODO(contact): real data — wire to a form backend (Formspark / custom endpoint) when ready -->
         <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-2xl">
           <h2 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
             Send us a note.
