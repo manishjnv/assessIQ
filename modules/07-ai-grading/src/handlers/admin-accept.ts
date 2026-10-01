@@ -26,7 +26,7 @@ import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { AppError, streamLogger } from "@assessiq/core";
 import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
-import { computeAttemptScore, finalizeAttemptIfComplete } from "@assessiq/scoring";
+import { computeAttemptScoreInTx, finalizeAttemptIfComplete } from "@assessiq/scoring";
 import { auditInTx } from "@assessiq/audit-log";
 
 const log = streamLogger("grading");
@@ -247,6 +247,15 @@ async function acceptProposals(
     markEvaluationReleased: true,
   });
 
+  // finalize rolls attempt_scores up only when it flips the status. Every other
+  // accept (partial, or a re-run accepted on an already-'graded' result) rolls up
+  // HERE — inside the attempt lock, in the same tx as the grade inserts — so
+  // attempt_scores always matches the grades a concurrent Release will see. A
+  // post-commit recompute left a window in which a Release could publish a stale
+  // total (and a late recompute then changed a published score). A rollup error
+  // now rolls the accept back, same as override and manual-score.
+  if (!flipped) await computeAttemptScoreInTx(client, tenantId, attemptId);
+
   // One summary audit row for the whole accept batch (mirrors
   // help.content.imported precedent — N inserts, one audit row summarising
   // the batch). `attempt_status_now` reflects the actual post-gate state so
@@ -318,17 +327,9 @@ export async function handleAdminAccept(
     "grading.accept.complete",
   );
 
-  // Kick off scoring rollup. Idempotent (UPSERT) and meaningful even on
-  // partial accepts (the scoring rollup updates running totals + sets
-  // pending_review when not all questions are graded). Non-fatal: a scoring
-  // failure must not roll back the already-committed gradings. Admin can
-  // recompute via GET /api/admin/attempts/:id/score.
-  try {
-    await computeAttemptScore(tenantId, attemptId);
-    log.info({ attemptId }, "grading.scoring.complete");
-  } catch (scoringErr) {
-    log.error({ attemptId, err: scoringErr }, "grading.scoring.error_after_accept");
-  }
+  // No post-commit rollup: attempt_scores was already written inside the accept
+  // tx (finalizeAttemptIfComplete when it flipped, computeAttemptScoreInTx
+  // otherwise — see acceptProposals).
 
   return {
     gradings,
