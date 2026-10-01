@@ -45,6 +45,7 @@ import { handleAdminRerun } from "./handlers/admin-rerun.js";
 import { handleAdminManualScore } from "./handlers/admin-manual-score.js";
 import { handleAdminOverride } from "./handlers/admin-override.js";
 import {
+  assertInEvaluationQueue,
   handleSuperGetEvaluation,
   handleSuperListEvaluations,
   handleSuperReleaseToTenant,
@@ -162,6 +163,7 @@ export async function registerSuperEvaluationRoutes(
       }
 
       const tenantId = await resolveEvaluationTenant(attemptId);
+      await assertInEvaluationQueue(attemptId);
       return handleAdminGrade({ tenantId, userId, attemptId, sessionLastActivity });
     },
   );
@@ -261,6 +263,7 @@ export async function registerSuperEvaluationRoutes(
       }
 
       const tenantId = await resolveEvaluationTenant(attemptId);
+      await assertInEvaluationQueue(attemptId);
       // exactOptionalPropertyTypes: omit forceEscalate entirely when undefined.
       return handleAdminRerun({
         tenantId,
