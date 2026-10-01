@@ -206,7 +206,8 @@ async function insertMcqQuestion(
     correct: 0,
     rationale: "IDS stands for Intrusion Detection System.",
   };
-  const kbSources = (opts.kbSourceIds ?? ["kb-src-001"]).map((sid) => ({
+  // A real L2 KB source id: the structural scorer rejects ids not in knowledge-base/soc-l*.json.
+  const kbSources = (opts.kbSourceIds ?? ["mitre.t1059.001"]).map((sid) => ({
     id: sid,
     name: sid,
     citation: sid,
