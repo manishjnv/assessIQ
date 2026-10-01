@@ -6,7 +6,7 @@
  * and carry no email_log row; they go straight through SMTP.
  *
  * Recipient: connect@assessiq.in (hardcoded)
- * // TODO: move to config if the contact address changes again
+ * // TODO(config): move to config if the contact address changes again
  *
  * NEVER import claude / @anthropic-ai from this file (Rule #1).
  */
@@ -105,7 +105,7 @@ export async function sendContactEnquiry(input: ContactEnquiryInput): Promise<vo
   await Promise.race([
     transport.sendMail({
       from: config.EMAIL_FROM,
-      to: 'connect@assessiq.in', // TODO: move to config if the contact address changes again
+      to: 'connect@assessiq.in', // TODO(config): move to config if the contact address changes again
       replyTo: email,            // team can reply directly to the submitter
       subject,
       text,

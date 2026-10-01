@@ -9,7 +9,7 @@
  *   - Missing template or key → throws loudly (typos surface early in tests).
  *   - Cache: each lang file is loaded once and kept in memory.
  *
- * TODO: when per-tenant language preference is added, look up
+ * TODO(i18n): when per-tenant language preference is added, look up
  *   TenantSettings.preferredLanguage (modules/02-tenancy) and pass it as `lang`.
  *   The call site in render.ts is: buildVars(name, parsed, tenantLang ?? 'en').
  *
