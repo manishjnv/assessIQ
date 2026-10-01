@@ -30,6 +30,11 @@
 //
 // ?error=invalid_link — set by CandidateLoginVerify when the verify
 // endpoint does not 302 in time (stale / already-used magic link).
+//
+// ?tenant=<slug> — the organisation, set by the result-email portal link
+// (/candidate/login?tenant=<slug>). When absent the candidate types their
+// "Organisation code" (the same slug) instead. The API needs the slug to scope
+// the email lookup under RLS (anti-enumeration), so the page never guesses one.
 
 import { type CSSProperties, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -119,6 +124,12 @@ export function CandidateLogin(): JSX.Element {
   const [params] = useSearchParams();
   const linkError = params.get('error') === 'invalid_link';
 
+  // Organisation (tenant slug: lowercase letters, digits, hyphens). From the
+  // URL when present, else typed by the candidate.
+  const tenantFromUrl = (params.get('tenant') ?? '').trim().toLowerCase();
+  const [orgCode, setOrgCode] = useState('');
+  const tenantSlug = tenantFromUrl !== '' ? tenantFromUrl : orgCode.trim().toLowerCase();
+
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'rate_limited'>('idle');
 
@@ -133,18 +144,15 @@ export function CandidateLogin(): JSX.Element {
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    if (status === 'sending' || status === 'sent') return;
+    if (status === 'sending' || status === 'sent' || tenantSlug === '') return;
     setStatus('sending');
     try {
-      // FIX 1: tenant_slug is now required by the API to scope the email lookup
-      // under RLS (prevents cross-tenant email existence disclosure).
-      // Hardcoded for now because only one production tenant is live.
-      // TODO Phase 6: detect tenant from subdomain or URL ?tenant=… once
-      // multi-tenant routing ships (e.g. wipro-soc.assessiq.com → 'wipro-soc').
-      const tenant_slug = 'wipro-soc';
+      // tenant_slug is required by the API to scope the email lookup under RLS
+      // (prevents cross-tenant email existence disclosure) — see ?tenant= note
+      // at the top of this file.
       await api('/auth/candidate/request-link', {
         method: 'POST',
-        body: JSON.stringify({ email, tenant_slug }),
+        body: JSON.stringify({ email, tenant_slug: tenantSlug }),
       });
       // Treat any 2xx as success — we never reveal whether the account existed.
       setStatus('sent');
@@ -176,11 +184,15 @@ export function CandidateLogin(): JSX.Element {
            (max-width: 719px) OR (pointer:coarse AND max-width: 1024px),
            replacing the page-local 900px media query. */
         .aiq-candidate-login-main { padding: 48px 64px; }
+        /* !important: the container carries an inline grid-template-columns
+           and the aside an inline display:flex, which beat a plain stylesheet
+           rule — without it the two panes stayed side by side on phones
+           (form squeezed to ~190px + horizontal scroll). */
         [data-viewport="mobile"] .aiq-candidate-login {
-          grid-template-columns: 1fr;
+          grid-template-columns: 1fr !important;
         }
         [data-viewport="mobile"] .aiq-candidate-login > aside {
-          display: none;
+          display: none !important;
         }
         [data-viewport="mobile"] .aiq-candidate-login-main {
           padding: 24px 22px;
@@ -311,6 +323,23 @@ export function CandidateLogin(): JSX.Element {
               </div>
             ) : (
               <form onSubmit={handleSubmit} noValidate data-help-id="candidate.auth.request_link">
+                {tenantFromUrl === '' && (
+                  <div data-help-id="candidate.auth.org_code" style={{ marginBottom: 20 }}>
+                    <Field
+                      label="Organisation code"
+                      name="organisation"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="e.g. acme-college"
+                      help="Ask your administrator if you don't know it."
+                      required
+                      value={orgCode}
+                      onChange={(e) => setOrgCode(e.target.value)}
+                    />
+                  </div>
+                )}
                 <Field
                   label="Email address"
                   type="email"
@@ -326,7 +355,7 @@ export function CandidateLogin(): JSX.Element {
                   type="submit"
                   variant="primary"
                   loading={status === 'sending'}
-                  disabled={!email.trim()}
+                  disabled={!email.trim() || tenantSlug === ''}
                   style={{ width: '100%' }}
                 >
                   Send me a sign-in link
