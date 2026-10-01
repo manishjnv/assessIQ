@@ -126,6 +126,14 @@ AI-assisted question generation is the only AI-touching surface in this module's
 
 `publishPack(id)` flips `question_packs.status` to `published` AND writes a `question_versions` row for every question in the pack at the current `(content, rubric)`, **even if no edit happened since the last publish**. This guarantees a permanent immutable snapshot keyed by `(question_id, version)` for the published pack version. Subsequent question edits create new `question_versions` rows but do NOT alter the published snapshot — until `publishPack` is called again, which bumps `question_packs.version` and re-snapshots. Resolves the SKILL.md ambiguity about whether publish is a metadata-only flip or a content snapshot. (It's both.)
 
+### Exam content is never committed (2026-10-01)
+
+**What:** question text and answer keys never go into git. The repo is public; anything committed is readable by every candidate. The aptitude seed (`0109_seed_platform_aptitude_pack.sql`, already applied in prod) was moved to `docs/exam-content/` (gitignored, local only) and untracked; `.gitignore` also blocks its old path. `tools/gen-aptitude-migration.ts` now writes there by default, and the real-content block of `aptitude-seed-migration.test.ts` reads from there (skips in CI).
+**Why:** the 60-question aptitude pack with answers was pushed to the public repo on 2026-10-01. Owner chose to keep the repo public, so content moves out of git instead.
+**Rejected:** making the repo private (owner decision); rewriting git history (force-push breaks the VPS clone and parallel sessions, and the old commit stays viewable anyway).
+**Not included:** the copy in git history is still public — those 60 items are treated as leaked and must be replaced before any real drive. `prompts/skills/` is also public but is bind-mounted into the api container from the repo, so untracking it needs a deploy change first.
+**Impact:** load new content with `POST /api/admin/questions/import` or by applying generated SQL on the VPS by hand. `tools/migrate.ts --check` only checks files present in the repo, so an applied migration with no file does not fail the deploy gate. Structural seeds (domains, categories) can still be migrations; content cannot.
+
 ---
 
 ## Status
