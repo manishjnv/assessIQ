@@ -198,3 +198,13 @@ Any "small refactor" that moves grading into a worker, adds auto-retry, or lets 
 All 5 admin-mutating handlers in `src/handlers/admin-*.ts` write one `audit_log` row inside the same `withTenant` transaction as the domain mutation via `auditInTx(...)`. Eight call sites total across the module — `admin-accept` (1, `grading.accepted`), `admin-claim-release` (2, `grading.claimed` + `grading.released`), `admin-override` (1, `grading.override`), `admin-rerun` (1, `grading.retry`), `admin-generate` (3, all `question.ai_generated`). Coverage-grep guard in `src/__tests__/audit-writes.test.ts` pins those counts; adding a new admin-mutating handler without an audit write fails the test.
 
 Why this matters: Phase 1 grading's compliance frame in [docs/05-ai-pipeline.md § Compliance frame](../../docs/05-ai-pipeline.md) hinges on every inference-triggering action being admin-attributable. The audit row + `gradings.graded_by` + `gradings.prompt_version_sha` are the three-way receipt that the call ran inside the human-in-the-loop boundary. See [docs/11-observability.md § 29](../../docs/11-observability.md) for the full per-site contract.
+
+
+## Completion gate, manual score, release (SP1/SP2, 2026-10-01)
+
+- `handleAdminAccept` no longer owns the gate: it calls 09 `finalizeAttemptIfComplete(markEvaluationReleased: true)` (billing + cache clear moved inside it). A partial accept, a `review_needed` grade or an ungraded KQL question keeps the attempt `pending_admin_grading`.
+- `handleAdminOverride` refuses a published result (409 `RESULT_ALREADY_PUBLISHED`), recomputes `attempt_scores` in the same tx (the old never-called `recomputeOnOverride` seam) and finalises when the override completes the result. Still exactly one `grading.override` audit row, reason text never in audit.
+- `POST /api/admin/attempts/:id/questions/:questionId/manual-score` (`adminFreshMfa`, body `{score_earned, reason 1..500}`) — first human score for an ungraded question (KQL has no grader). `admin_override` row, `override_of` NULL, sha/label `manual:v1`, model `manual`, `score_max = questions.points`; audit `grading.override` `{kind:'manual_first_score'}`. 409 if the question already has a grade, 409 if released. No AI call.
+- `handleAdminReleaseAttempt` delegates to 09 `releaseAttemptInTx`, then emails via 13 `sendResultReleasedEmail` after commit (static imports; the old `new Function` dynamic imports are gone). `POST /api/admin/assessments/:id/release-all` releases every ready, non-erased result of an assessment, one tx each → `{released[], skipped[{id,code}]}`.
+- Audit pins: `admin-claim-release.ts` keeps only `grading.claimed`; the release audit is pinned in 09 `release.test.ts`.
+- New dependency: `@assessiq/notifications`.

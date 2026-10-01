@@ -88,3 +88,18 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 - Tenant-defined custom archetypes — Phase 2+ if requested
 - Skill-area sub-scores (e.g., "MITRE knowledge: 8/10") — needs question tag rollup
 - Public cross-tenant leaderboard — Phase 3+ (DPDP review required, P2.D13)
+
+
+## Result completion + release (SP1/SP2, 2026-10-01)
+
+**What.** One definition of a *complete* result and one place that publishes it.
+- `finalizeAttemptIfComplete(client, {tenantId, attemptId, markEvaluationReleased})` (`src/finalize.ts`) — complete iff EVERY frozen question of the attempt (mcq, subjective, scenario, log_analysis, kql) has an *effective* grading (newest row per question; `admin_override` wins a `graded_at` tie) whose status is not `review_needed`. Then, in the caller's tx: `attempt_scores` rollup, `status → 'graded'` (+ `evaluation_released_at = now()` when asked), review-cache columns cleared, `recordGradedAttempt`. No audit row inside; callers (MCQ system row, accept, override, manual score) keep theirs. The only writer of `status='graded'`.
+- `releaseAttemptInTx(client, {tenantId, attemptId, actor, trigger?})` (`src/release.ts`) — the only place a result is published: erased candidate → 422 `AIG_ATTEMPT_NOT_RELEASABLE_ERASED`; not `graded` / evaluation not released / an effective grade still `review_needed` → 409 `RESULT_NOT_READY`; flips to `released`; ONE `grading.released` audit row (actor user|system, `after.trigger` manual|auto); certificate via `issueCertificateOnRelease` inside a SAVEPOINT (a cert failure never undoes the release). No email inside — callers email after commit (module 13).
+
+**Why.** KQL was outside the old completion gate (an attempt "graded" with KQL missing), `review_needed` grades counted as done, and release only checked erasure. Owner rule P1: a candidate sees only a complete, final score.
+
+**Considered / rejected.** Counting only AI types (old gate); a new `attempts.status` value (the enum is read by 06/07/09/15 + frontends — state lives in `evaluation_released_*` columns instead); emailing inside the release tx (a mail failure must not roll a published result back).
+
+**Not included.** Phase II (platform evaluation queue, send-back). 09 still must not import 07.
+
+**Impact.** 09 now depends on `@assessiq/certification`. `finalize` clears `attempts.ai_proposals/grading_started_at` (07 migration 0100) — test DBs that finalise must apply it. `getGradingsForAttempt` gained the same admin_override tie-break.
