@@ -11,6 +11,12 @@
  *   - release-to-tenant refuses incomplete / flagged / erased / already-released /
  *     published attempts and suspended tenants; bulk = one tx per attempt
  *   - route layer: the tenant AI routes answer 403 AI_EVALUATION_BY_ASSESSIQ
+ *   - owner decision 2026-10-01 (section 5): the accept / manual score / override that
+ *     COMPLETES an attempt releases it to the company in the same tx (released_at + _by,
+ *     hand-over recorded on that call's own audit row); a partial accept does not; a
+ *     sent-back (already graded) attempt is never auto-released; the attempt-level Re-run AI
+ *     on a sent-back attempt caches its proposals and accepting them (same prompt SHA) writes
+ *     new rows + updates the score; an Auto-mode tenant's sweep then publishes it.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
@@ -21,9 +27,13 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
+// The auto-release sweep (section 5) emails the candidate after each release; module 13 is covered by its own tests.
+vi.mock("@assessiq/notifications", () => ({ sendResultReleasedEmail: vi.fn(async () => undefined) }));
 
 import { AppError } from "@assessiq/core";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
+import { sendResultReleasedEmail } from "@assessiq/notifications";
+import { processAutoReleaseTick, resetAutoReleaseCooldownForTesting } from "../../../../apps/api/src/jobs/auto-release.js";
 import { gradeSubjective } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
 import { handleAdminGrade } from "../handlers/admin-grade.js";
@@ -238,7 +248,7 @@ async function seed(
   return { attemptId, qids };
 }
 
-function proposal(attemptId: string, questionId: string): GradingProposal {
+function proposal(attemptId: string, questionId: string, o: Partial<GradingProposal> = {}): GradingProposal {
   return {
     attempt_id: attemptId,
     question_id: questionId,
@@ -251,6 +261,7 @@ function proposal(attemptId: string, questionId: string): GradingProposal {
     model: "test-model",
     escalation_chosen_stage: "2",
     generated_at: new Date().toISOString(),
+    ...o,
   };
 }
 
@@ -598,5 +609,290 @@ describe("route layer", () => {
     const empty = await app.inject({ method: "POST", url: `/api/admin/super/evaluations/release-to-tenant`, payload: { attempt_ids: [] } });
     expect(empty.statusCode).toBe(400);
     await app.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Owner decision 2026-10-01: the LAST accept / score releases to the company
+// ---------------------------------------------------------------------------
+
+const cacheState = (id: string) =>
+  sup((c) =>
+    c
+      .query(`SELECT ai_proposals IS NOT NULL AS cached, grading_started_at IS NOT NULL AS marker FROM attempts WHERE id = $1`, [id])
+      .then((r) => r.rows[0] as { cached: boolean; marker: boolean }),
+  );
+const totals = (id: string) =>
+  sup((c) =>
+    c
+      .query(`SELECT total_earned::float AS e, total_max::float AS m FROM attempt_scores WHERE attempt_id = $1`, [id])
+      .then((r) => r.rows[0] as { e: number; m: number } | undefined),
+  );
+/** The AI rows of one question, oldest first. */
+const aiRows = (attemptId: string, questionId: string) =>
+  sup((c) =>
+    c
+      .query(
+        `SELECT id::text, score_earned::float AS score_earned, override_of::text AS override_of, prompt_version_sha
+           FROM gradings WHERE attempt_id = $1 AND question_id = $2 AND grader = 'ai' ORDER BY graded_at, id`,
+        [attemptId, questionId],
+      )
+      .then((r) => r.rows as Array<{ id: string; score_earned: number; override_of: string | null; prompt_version_sha: string }>),
+  );
+/** grading.override audit rows written for one attempt (manual first score or override). */
+const overrideAudits = (gradingId: string) => auditRows(gradingId, "grading.override");
+
+describe("release on the last accept (owner decision 2026-10-01)", () => {
+  const SESSION = async (req: { session?: unknown }) => {
+    req.session = { tenantId: P, userId: superUser, lastSeenAt: new Date().toISOString() };
+  };
+  let app: ReturnType<typeof newApp>;
+  let D: string; // Auto-mode tenant (the sweep publishes what it is handed)
+  let adminD: string;
+  let E: string; // manual tenant that switches to Auto AFTER a result became ready
+  let adminE: string;
+
+  const post = (path: string, payload?: object) =>
+    payload === undefined
+      ? app.inject({ method: "POST", url: `/api/admin/super/evaluations/${path}` })
+      : app.inject({ method: "POST", url: `/api/admin/super/evaluations/${path}`, payload });
+
+  beforeAll(async () => {
+    app = newApp();
+    await registerSuperEvaluationRoutes(app, { superAdminOnly: [SESSION as never], superAdminFreshMfa: [SESSION as never] });
+    [D, E, adminD, adminE] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    await sup(async (c) => {
+      for (const [id, slug, admin, mode] of [
+        [D, "t-auto", adminD, "auto"],
+        [E, "t-late-auto", adminE, "manual"],
+      ] as const) {
+        await c.query(`INSERT INTO tenants (id, slug, name) VALUES ($1,$2,$3)`, [id, slug, `Tenant ${slug}`]);
+        await c.query(
+          `INSERT INTO tenant_settings (tenant_id, result_release_mode, result_release_auto_since)
+           VALUES ($1, $2, ${mode === "auto" ? "now() - interval '1 hour'" : "NULL"})`,
+          [id, mode],
+        );
+        await c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Admin','admin','active')`, [admin, id, `${slug}@x.test`]);
+      }
+    });
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("the accept that COMPLETES the attempt releases it: released_at + released_by, off the queue, tenant sees ready_to_publish, billed once, hand-over on the accept's own audit row", async () => {
+    const { attemptId, qids } = await seed(B, adminB, "submitted", ["mcq", "subjective"]);
+    const res = await post(`${attemptId}/accept`, { proposals: [proposal(attemptId, qids[1]!)] });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ attempt: { id: attemptId, status: "graded" } });
+
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: true, released_by: superUser, sent_back: false });
+    expect(await billing(attemptId)).toBe(1);
+    expect((await handleSuperListEvaluations({ tenantId: B })).items.map((i) => i.attempt_id)).not.toContain(attemptId);
+
+    const t = await handleAdminClaimAttempt({ tenantId: B, userId: adminB, attemptId });
+    expect(t).toMatchObject({ evaluation_status: "ready_to_publish", ai_proposals: null });
+    expect(t.score).toMatchObject({ total_earned: 18, total_max: 20 });
+
+    // No new audit call site: the hand-over rides on the existing accept row (target tenant's log, super admin as actor).
+    const accepted = await auditRows(attemptId, "grading.accepted");
+    expect(accepted).toHaveLength(1);
+    expect(accepted[0]).toMatchObject({ tenant_id: B, actor_user_id: superUser, after: { attempt_status_now: "graded", evaluation_released: true } });
+    expect(await auditRows(attemptId, "grading.evaluation_released")).toHaveLength(0);
+
+    // Released attempts are not in the queue any more, so the AI cannot be run on them again.
+    const again = await post(`${attemptId}/rerun`, {});
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toMatchObject({ error: { code: "NOT_IN_EVALUATION_QUEUE" } });
+  });
+
+  it("an accept that does NOT complete it leaves it unreleased; the manual KQL score that completes it releases it (audit on the manual-score row)", async () => {
+    const { attemptId, qids } = await seed(B, adminB, "submitted", ["mcq", "subjective", "kql"]);
+    const acc = await post(`${attemptId}/accept`, { proposals: [proposal(attemptId, qids[1]!)] });
+    expect(acc.statusCode).toBe(200);
+    expect(acc.json()).toMatchObject({ attempt: { status: "pending_admin_grading" } });
+    expect((await att(attemptId)).released).toBe(false);
+    expect(await billing(attemptId)).toBe(0);
+    const partial = await auditRows(attemptId, "grading.accepted");
+    expect(partial[0]!.after).toMatchObject({ attempt_status_now: "pending_admin_grading" });
+    expect(partial[0]!.after).not.toHaveProperty("evaluation_released");
+
+    const man = await post(`${attemptId}/questions/${qids[2]}/manual-score`, { score_earned: 7, reason: "query is right" });
+    expect(man.statusCode).toBe(200);
+    expect(man.json()).toMatchObject({ attempt: { status: "graded" } });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: true, released_by: superUser });
+    expect(await billing(attemptId)).toBe(1);
+    const audit = await overrideAudits(man.json().grading.id);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ tenant_id: B, actor_user_id: superUser, after: { kind: "manual_first_score", evaluation_released: true } });
+    expect(JSON.stringify(audit[0])).not.toContain("query is right"); // PII policy unchanged
+  });
+
+  it("an override that resolves the last flagged grade completes + releases it; on a SENT-BACK attempt an override never releases — only Release to company does", async () => {
+    const { attemptId, qids } = await seed(B, adminB, "submitted", ["mcq", "scenario"]);
+    const failed = proposal(attemptId, qids[1]!, {
+      band: { reasoning_band: 0, ai_justification: "", error_class: "AIG_RUNTIME_FAILURE", needs_escalation: false },
+      score_earned: 0,
+      prompt_version_sha: "error:no-sha",
+      model: "none",
+      escalation_chosen_stage: null,
+    });
+    const acc = await post(`${attemptId}/accept`, { proposals: [failed] });
+    expect(acc.json()).toMatchObject({ attempt: { status: "pending_admin_grading" }, gradings: [{ status: "review_needed" }] });
+    expect((await att(attemptId)).released).toBe(false);
+
+    const flaggedId = acc.json().gradings[0].id as string;
+    const ov = await post(`${attemptId}/gradings/${flaggedId}/override`, { score_earned: 9, reason: "AI failed; graded by hand" });
+    expect(ov.statusCode).toBe(200);
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: true, released_by: superUser });
+    expect((await overrideAudits(ov.json().grading.id))[0]).toMatchObject({ after: { evaluation_released: true } });
+
+    // The company sends it back; the evaluator re-evaluates with an override: still graded, NOT auto-released.
+    await handleAdminSendBack({ tenantId: B, userId: adminB, attemptId, note: "please re-check" });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: false, sent_back: true });
+    const ov2 = await post(`${attemptId}/gradings/${ov.json().grading.id}/override`, { score_earned: 6, reason: "second look" });
+    expect(ov2.statusCode).toBe(200);
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: false, released_by: null, sent_back: true });
+    expect(await billing(attemptId)).toBe(1);
+    const second = (await overrideAudits(ov2.json().grading.id))[0]!;
+    expect(second.after).not.toHaveProperty("evaluation_released");
+    expect(await totals(attemptId)).toMatchObject({ e: 16, m: 20 });
+
+    // Release to company (the recovery action) hands it back and clears the send-back marker.
+    const rel = await post(`${attemptId}/release-to-tenant`);
+    expect(rel.statusCode).toBe(200);
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: true, released_by: superUser, sent_back: false });
+  });
+
+  it("Re-run AI on a sent-back attempt: marker held during the run, proposals cached; accepting them (SAME prompt sha) writes NEW rows and updates the score; replays and stale proposals are skipped", async () => {
+    const SHA = "anchors:11111111;band:22222222;escalate:-";
+    const { attemptId, qids } = await seed(B, adminB, "submitted", ["mcq", "subjective"]);
+    // first evaluation: 8/10 on Q2; the accept completes and releases it
+    const first = await post(`${attemptId}/accept`, { proposals: [proposal(attemptId, qids[1]!, { prompt_version_sha: SHA, score_earned: 8 })] });
+    expect(first.statusCode).toBe(200);
+    expect(await totals(attemptId)).toMatchObject({ e: 18, m: 20 });
+    await handleAdminSendBack({ tenantId: B, userId: adminB, attemptId, note: "Q2 looks too generous" });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: false, sent_back: true });
+
+    // Re-run AI (attempt level). Mocked runtime: same prompt sha as the first pass, a different verdict.
+    let markerDuring: boolean | undefined;
+    mockGrade.mockImplementation(async (input) => {
+      markerDuring = (await cacheState(attemptId)).marker;
+      return proposal(input.attempt_id, input.question_id, { prompt_version_sha: SHA, score_earned: 4 });
+    });
+    const rr = await post(`${attemptId}/rerun`, {});
+    expect(rr.statusCode).toBe(200);
+    const proposals = rr.json().proposals as GradingProposal[];
+    expect(proposals).toHaveLength(1); // only the AI-gradeable question
+    expect(markerDuring).toBe(true);
+    expect(await cacheState(attemptId)).toEqual({ cached: true, marker: false });
+    // same rubric resolution as Grade all (a rubric-less subjective question grades on the reasoning band, not a hard fail)
+    expect(mockGrade.mock.calls[0]![0].rubric).toMatchObject({ anchor_weight_total: 0, reasoning_weight_total: 100 });
+    // the evaluate page's GET returns the cached proposals (survives a dropped response / tab navigation)
+    const detail = await app.inject({ method: "GET", url: `/api/admin/super/evaluations/${attemptId}` });
+    expect(detail.json()).toMatchObject({ attempt: { status: "graded" }, evaluation_released_at: null });
+    expect(detail.json().ai_proposals).toHaveLength(1);
+    // D8: nothing is committed by the re-run itself
+    expect(await totals(attemptId)).toMatchObject({ e: 18, m: 20 });
+    expect(await aiRows(attemptId, qids[1]!)).toHaveLength(1);
+
+    // Accept the re-run result: a NEW row that supersedes the old one (same sha -> override_of keeps the D7 index happy)
+    const acc = await post(`${attemptId}/accept`, { proposals });
+    expect(acc.statusCode).toBe(200);
+    expect(acc.json()).toMatchObject({ attempt: { status: "graded" } });
+    const rows = await aiRows(attemptId, qids[1]!);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ score_earned: 4, override_of: rows[0]!.id, prompt_version_sha: SHA });
+    expect(await totals(attemptId)).toMatchObject({ e: 14, m: 20 }); // recomputed in the same locked tx
+    // still graded + unreleased (a sent-back attempt is never auto-released), billed exactly once
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: false, released_by: null, sent_back: true });
+    expect(await billing(attemptId)).toBe(1);
+    const audits = await auditRows(attemptId, "grading.accepted");
+    expect(audits.at(-1)!.after).toMatchObject({ attempt_status_now: "graded", grading_count: 1 });
+    expect(audits.at(-1)!.after).not.toHaveProperty("evaluation_released");
+
+    // Replaying the same Accept (double click / retry) writes nothing more.
+    await post(`${attemptId}/accept`, { proposals });
+    expect(await aiRows(attemptId, qids[1]!)).toHaveLength(2);
+
+    // A human override made AFTER the re-run beats a stale re-run proposal.
+    const ov = await post(`${attemptId}/gradings/${rows[1]!.id}/override`, { score_earned: 9, reason: "re-checked by hand" });
+    expect(ov.statusCode).toBe(200);
+    await post(`${attemptId}/accept`, { proposals });
+    expect(await aiRows(attemptId, qids[1]!)).toHaveLength(2);
+    expect(await totals(attemptId)).toMatchObject({ e: 19, m: 20 });
+
+    // Release to company hands it back; the send-back marker and the review cache are cleared.
+    expect((await post(`${attemptId}/release-to-tenant`)).statusCode).toBe(200);
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: true, released_by: superUser, sent_back: false });
+    expect(await cacheState(attemptId)).toEqual({ cached: false, marker: false });
+  });
+
+  it("Re-run on a PRE-graded attempt keeps its old behaviour: no marker, no cache (the per-question Opus helper)", async () => {
+    const { attemptId } = await seed(B, adminB, "pending_admin_grading", ["subjective"]);
+    mockGrade.mockImplementation(async (input) => proposal(input.attempt_id, input.question_id));
+    const rr = await post(`${attemptId}/rerun`, { forceEscalate: true });
+    expect(rr.statusCode).toBe(200);
+    expect(rr.json().proposals).toHaveLength(1);
+    expect(await cacheState(attemptId)).toEqual({ cached: false, marker: false });
+  });
+
+  it("a failed Re-run AI never leaves the in-progress marker behind (and the AI is only reachable on a click: 409 for an attempt not in the queue)", async () => {
+    const { attemptId } = await seed(B, adminB, "graded", ["subjective"], { gradings: "all" });
+    await sup((c) => c.query(`UPDATE attempts SET evaluation_sent_back_at = now() WHERE id = $1`, [attemptId]));
+    // the audit write (last step of the run) fails -> the whole run errors after the marker was set
+    await sup((c) =>
+      c.query(`CREATE OR REPLACE FUNCTION t_rerun_audit_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'grading.retry' AND NEW.entity_id = '${attemptId}' THEN RAISE EXCEPTION 'audit down'; END IF; RETURN NEW; END $$;
+               CREATE TRIGGER t_rerun_audit_fail BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION t_rerun_audit_fail()`),
+    );
+    mockGrade.mockImplementation(async (input) => proposal(input.attempt_id, input.question_id));
+    try {
+      const rr = await post(`${attemptId}/rerun`, {});
+      expect(rr.statusCode).toBe(500);
+    } finally {
+      await sup((c) => c.query(`DROP TRIGGER t_rerun_audit_fail ON audit_log`));
+    }
+    expect(await cacheState(attemptId)).toEqual({ cached: false, marker: false });
+    // single-flight slot was released: a second run is accepted
+    const ok = await post(`${attemptId}/rerun`, {});
+    expect(ok.statusCode).toBe(200);
+  });
+
+  it("an erased candidate's completed attempt is NEVER handed to the company (gate unchanged): graded, unreleased, release-to-tenant still 422", async () => {
+    const { attemptId, qids } = await seed(B, adminB, "submitted", ["mcq", "subjective"], { erased: true });
+    const res = await post(`${attemptId}/accept`, { proposals: [proposal(attemptId, qids[1]!)] });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ attempt: { status: "graded" } });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", released: false, released_by: null });
+    expect((await auditRows(attemptId, "grading.accepted"))[0]!.after).not.toHaveProperty("evaluation_released");
+    await expect(handleSuperReleaseToTenant({ tenantId: B, userId: superUser, attemptId })).rejects.toMatchObject({
+      code: "AIG_ATTEMPT_NOT_RELEASABLE_ERASED",
+      status: 422,
+    });
+  });
+
+  it("Auto-mode tenant: the completion-time release is what the sweep publishes (audit actor = the evaluator, trigger auto); a manual tenant, and a result ready BEFORE the switch to Auto, stay with the company", async () => {
+    resetAutoReleaseCooldownForTesting();
+    vi.mocked(sendResultReleasedEmail).mockClear();
+    const auto = await seed(D, adminD, "submitted", ["mcq", "subjective"]);
+    const manual = await seed(B, adminB, "submitted", ["mcq", "subjective"]);
+    const early = await seed(E, adminE, "submitted", ["mcq", "subjective"]); // E is still manual when this completes
+    for (const x of [auto, manual, early]) {
+      expect((await post(`${x.attemptId}/accept`, { proposals: [proposal(x.attemptId, x.qids[1]!)] })).statusCode).toBe(200);
+      expect((await att(x.attemptId)).released).toBe(true); // handed to the company at completion time
+    }
+    // E switches to Auto only now (what the real settings service stamps): the result was ready before the switch
+    await sup((c) => c.query(`UPDATE tenant_settings SET result_release_mode = 'auto', result_release_auto_since = now() WHERE tenant_id = $1`, [E]));
+
+    const tick = await processAutoReleaseTick();
+    expect(tick.failed).toBe(0);
+    expect((await att(auto.attemptId)).status).toBe("released");
+    expect((await att(manual.attemptId)).status).toBe("graded");
+    expect((await att(early.attemptId)).status).toBe("graded");
+    const released = await auditRows(auto.attemptId, "grading.released");
+    expect(released).toHaveLength(1);
+    expect(released[0]).toMatchObject({ tenant_id: D, actor_user_id: superUser, after: { trigger: "auto" } });
+    expect(vi.mocked(sendResultReleasedEmail)).toHaveBeenCalledWith({ tenantId: D, attemptId: auto.attemptId });
+    expect(vi.mocked(sendResultReleasedEmail)).not.toHaveBeenCalledWith({ tenantId: B, attemptId: manual.attemptId });
   });
 });

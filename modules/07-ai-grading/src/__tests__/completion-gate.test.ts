@@ -50,6 +50,8 @@ const DIRS: Array<[string, string[] | undefined]> = [
   ["07-ai-grading", ["0040_gradings.sql", "0041_tenant_grading_budgets.sql", "0100_attempts_ai_proposals_cache.sql"]],
   ["09-scoring", undefined],
   ["19-billing", undefined],
+  // users.erased_at: the platform routes' hand-over (markEvaluationReleased) never releases an erased candidate
+  ["20-data-rights", ["0102_users_erased_at.sql"]],
 ];
 
 type QType = "mcq" | "subjective" | "scenario" | "log_analysis" | "kql";
@@ -686,7 +688,7 @@ describe("POST /api/admin/gradings/:id/override (route) — score range", () => 
 });
 
 describe("POST /api/admin/super/evaluations/:attemptId/accept (platform route) — score bounds", () => {
-  it("422 AIG_INVALID_BODY (never a 500 numeric overflow) for out-of-range scores; 200 for an in-range body, evaluation NOT released", async () => {
+  it("422 AIG_INVALID_BODY (never a 500 numeric overflow) for out-of-range scores; 200 for an in-range body, and the completing accept releases the evaluation to the tenant", async () => {
     const app = await buildSuperApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
     for (const bad of [
@@ -712,13 +714,15 @@ describe("POST /api/admin/super/evaluations/:attemptId/accept (platform route) �
     });
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ attempt: { id: attemptId, status: "graded" } });
-    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: false });
+    // owner decision 2026-10-01: the platform route passes markEvaluationReleased=true, so the accept that
+    // completes the attempt also hands it to the tenant (same tx; the direct handler default stays false)
+    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: true });
     await app.close();
   });
 });
 
 describe("POST /api/admin/super/evaluations/:attemptId/questions/:questionId/manual-score (platform route)", () => {
-  it("200 with the new grading; evaluation NOT released to the tenant", async () => {
+  it("200 with the new grading; the score that completes the attempt releases it to the tenant", async () => {
     const app = await buildSuperApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["kql"]);
     const res = await app.inject({
@@ -728,7 +732,7 @@ describe("POST /api/admin/super/evaluations/:attemptId/questions/:questionId/man
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ grading: { model: "manual", score_earned: 8 }, attempt: { id: attemptId, status: "graded" } });
-    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: false });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: true });
     await app.close();
   });
 

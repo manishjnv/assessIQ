@@ -226,6 +226,49 @@ function buildSynthesizedRubric(
   };
 }
 
+/**
+ * The rubric the runtime is given for one AI-gradeable question.
+ *
+ * 1. Synthesis for the two types that carry their reference answers in content
+ *    (log_analysis: expected_findings; scenario: steps[].expected). Admins
+ *    historically don't author rubrics for these (rubricRequiredFor returns false),
+ *    so without it the question hard-fails AIG_SCHEMA_VIOLATION and blocks the whole
+ *    attempt. An authored rubric (one with anchors) always wins.
+ * 2. Last-resort safety net: any question that STILL has no usable anchors
+ *    (subjective with no/empty rubric; scenario/log_analysis with no synthesisable
+ *    concepts) grades holistically on the reasoning band instead of hard-failing.
+ *
+ * Ephemeral — NEVER persisted (D8 / Stage 1 acceptance contract). Used by Grade all
+ * (below) and by Re-run (admin-rerun.ts), so a re-run — in particular the
+ * attempt-level "Re-run AI" on a sent-back result — grades exactly like the first
+ * pass instead of failing on every rubric-less question.
+ */
+export function resolveGradingRubric(type: string, content: unknown, rubric: unknown): unknown {
+  let effectiveRubric = rubric;
+  if (type === "log_analysis" || type === "scenario") {
+    const rubricVal = rubric as { anchors?: unknown[] } | null | undefined;
+    if (
+      !rubricVal ||
+      !Array.isArray(rubricVal.anchors) ||
+      rubricVal.anchors.length === 0
+    ) {
+      const concepts = extractSynthConcepts(type, content);
+      if (concepts.length > 0) {
+        effectiveRubric = buildSynthesizedRubric(
+          concepts,
+          SYNTH_REASONING_BANDS[type],
+        );
+      }
+    }
+  }
+
+  const erv = effectiveRubric as { anchors?: unknown[] } | null | undefined;
+  if (!erv || !Array.isArray(erv.anchors) || erv.anchors.length === 0) {
+    effectiveRubric = REASONING_ONLY_RUBRIC;
+  }
+  return effectiveRubric;
+}
+
 async function loadGradingData(
   client: PoolClient,
   attemptId: string,
@@ -390,41 +433,9 @@ export async function handleAdminGrade(
 
       const answer = answers.get(q.question_id) ?? null;
 
-      // Grade-time rubric synthesis for the two types that carry their
-      // reference answers in content (log_analysis: expected_findings;
-      // scenario: steps[].expected). Admins historically don't author rubrics
-      // for these (rubricRequiredFor returns false), so without this the
-      // question hard-fails AIG_SCHEMA_VIOLATION and blocks the whole attempt.
-      // Ephemeral — NEVER persisted (D8). An authored rubric always wins.
-      let effectiveRubric = q.rubric;
-      if (q.type === "log_analysis" || q.type === "scenario") {
-        const rubricVal = q.rubric as { anchors?: unknown[] } | null | undefined;
-        if (
-          !rubricVal ||
-          !Array.isArray(rubricVal.anchors) ||
-          rubricVal.anchors.length === 0
-        ) {
-          const concepts = extractSynthConcepts(q.type, q.content);
-          if (concepts.length > 0) {
-            effectiveRubric = buildSynthesizedRubric(
-              concepts,
-              SYNTH_REASONING_BANDS[q.type],
-            );
-          }
-        }
-      }
-
-      // Last-resort safety net: any AI-gradeable question that STILL has no
-      // usable anchors (subjective with no/empty rubric; scenario/log_analysis
-      // with no synthesisable concepts) grades holistically on the reasoning
-      // band instead of hard-failing AIG_SCHEMA_VIOLATION and blocking the
-      // attempt. Authored/synthesised anchor rubrics always take precedence.
-      {
-        const erv = effectiveRubric as { anchors?: unknown[] } | null | undefined;
-        if (!erv || !Array.isArray(erv.anchors) || erv.anchors.length === 0) {
-          effectiveRubric = REASONING_ONLY_RUBRIC;
-        }
-      }
+      // Grade-time rubric resolution (synthesis + holistic fallback) — shared with
+      // Re-run so a re-run grades exactly like the first pass. Ephemeral, D8.
+      const effectiveRubric = resolveGradingRubric(q.type, q.content, q.rubric);
 
       try {
         const proposal = await gradeSubjective({

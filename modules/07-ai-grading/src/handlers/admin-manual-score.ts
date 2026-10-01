@@ -27,7 +27,7 @@ import { AppError, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { computeAttemptScoreInTx, finalizeAttemptIfComplete } from "@assessiq/scoring";
-import { insertGrading } from "../repository.js";
+import { insertGrading, isAttemptCandidateErased } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
 import { deriveOverrideStatus } from "./admin-override.js";
@@ -47,9 +47,10 @@ export interface HandleAdminManualScoreInput {
   /** Free-form justification (1..500 chars, validated by the route). Stored on the row only. */
   reason: string;
   /**
-   * When this score completes the attempt, also set evaluation_released_at?
-   * DEFAULT false (fail-closed): the platform evaluator releases to the tenant in a
-   * separate audited step (see HandleAdminAcceptInput.markEvaluationReleased).
+   * When this score completes the attempt, also hand it to the tenant
+   * (evaluation_released_at / _by)? DEFAULT false (fail-closed). The platform
+   * evaluator's route passes true (see HandleAdminAcceptInput.markEvaluationReleased);
+   * never applied to an erased candidate or an already-'graded' attempt.
    */
   markEvaluationReleased?: boolean;
 }
@@ -169,8 +170,26 @@ export async function handleAdminManualScore(
       override_reason: reason,
     });
 
-    // One audit row, same tx. PII policy (same as override): the reason text is
-    // kept OUT of audit_log — it lives on the immutable gradings row.
+    // Rollup first (truthful totals even when still incomplete), then finalise
+    // if this was the last missing grade. Whether the evaluation is also handed
+    // to the tenant is the caller's decision (default: no); the platform route
+    // asks for it, and an erased candidate is never handed over.
+    await computeAttemptScoreInTx(client, tenantId, attemptId);
+    const handOver =
+      input.markEvaluationReleased === true && !(await isAttemptCandidateErased(client, attemptId));
+    const { finalized } = await finalizeAttemptIfComplete(client, {
+      tenantId,
+      attemptId,
+      markEvaluationReleased: handOver,
+      releasedBy: userId,
+    });
+    const released = finalized && handOver;
+
+    // One audit row, same tx (written AFTER the finalise so it can record the
+    // hand-over: `evaluation_released: true` only when this score completed the
+    // attempt and released it — there is no separate audit row for that).
+    // PII policy (same as override): the reason text is kept OUT of audit_log — it
+    // lives on the immutable gradings row.
     await auditInTx(client, {
       tenantId,
       actorKind: "user",
@@ -186,17 +205,8 @@ export async function handleAdminManualScore(
         score_earned: grading.score_earned,
         score_max: grading.score_max,
         status: grading.status,
+        ...(released ? { evaluation_released: true } : {}),
       },
-    });
-
-    // Rollup first (truthful totals even when still incomplete), then finalise
-    // if this was the last missing grade. Whether the evaluation is also handed
-    // to the tenant is the caller's decision (default: no — release-to-tenant).
-    await computeAttemptScoreInTx(client, tenantId, attemptId);
-    const { finalized } = await finalizeAttemptIfComplete(client, {
-      tenantId,
-      attemptId,
-      markEvaluationReleased: input.markEvaluationReleased === true,
     });
 
     return { grading, attempt: { id: attemptId, status: finalized ? "graded" : status } };
