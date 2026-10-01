@@ -27,7 +27,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
-import { Button, Card, Chip, Drawer, Icon, Logo, Spinner } from '@assessiq/ui-system';
+import { Button, Card, Chip, Drawer, Icon, Logo, Modal, Spinner } from '@assessiq/ui-system';
 import {
   AttemptTimer,
   AutosaveIndicator,
@@ -49,6 +49,7 @@ import type {
   AttemptAnswerWire,
 } from '@assessiq/candidate-ui';
 import { CandidateHelp } from '@assessiq/candidate-ui';
+import { McqAnswerArea } from './McqAnswerArea.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -70,14 +71,6 @@ const FORBIDDEN_SYNONYM_KEYS: ReadonlySet<string> = new Set([
 function hasForbiddenSynonym(content: unknown): boolean {
   if (typeof content !== 'object' || content === null) return false;
   return Object.keys(content as object).some((k) => FORBIDDEN_SYNONYM_KEYS.has(k));
-}
-
-// mcq: { question, options: string[], correct: number, rationale? }
-interface McqContent {
-  question: string;
-  options: string[];   // 4 option texts, indexed 0–3
-  correct: number;     // not rendered to candidate
-  rationale?: string;  // not rendered to candidate
 }
 
 // log_analysis: { question, log_format?, log_excerpt, expected_findings?, sample_solution?, hint? }
@@ -159,119 +152,6 @@ const COUNTER_LABEL: CSSProperties = {
 };
 
 // ─── Answer area sub-components ───────────────────────────────────────────────
-
-function McqAnswerArea({
-  question,
-  answer,
-  disabled,
-  onAnswerChange,
-}: {
-  question: FrozenQuestionWire;
-  answer: unknown;
-  disabled: boolean;
-  onAnswerChange: (value: unknown) => void;
-}): JSX.Element {
-  const content = question.content as McqContent;
-  const options: string[] = Array.isArray(content?.options) ? (content.options as string[]) : [];
-  // Canonical answer shape: { selected: number } — index into options[].
-  const answerObj =
-    answer !== null && typeof answer === 'object'
-      ? (answer as { selected?: unknown })
-      : null;
-  const selected: number | null =
-    typeof answerObj?.selected === 'number' ? answerObj.selected : null;
-
-  return (
-    <div role="radiogroup" aria-label="Answer options" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
-      {options.map((text, idx) => {
-        const isSelected = selected === idx;
-        const letter = String.fromCharCode(65 + idx); // A, B, C, D
-        return (
-          <label
-            key={idx}
-            style={{ display: 'block', cursor: disabled ? 'not-allowed' : 'pointer' }}
-          >
-            <input
-              type="radio"
-              name={question.question_id}
-              value={String(idx)}
-              checked={isSelected}
-              disabled={disabled}
-              onChange={() => onAnswerChange({ selected: idx })}
-              style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
-            />
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--aiq-space-md)',
-                padding: 'var(--aiq-space-md) var(--aiq-space-lg)',
-                background: isSelected ? 'var(--aiq-color-accent-soft)' : 'var(--aiq-color-bg-base)',
-                border: isSelected
-                  ? '1px solid var(--aiq-color-accent)'
-                  : '1px solid var(--aiq-color-border)',
-                borderRadius: 'var(--aiq-radius-md)',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                transition: 'border-color 150ms ease, background 150ms ease',
-                userSelect: 'none',
-              }}
-            >
-              {/* Radio circle */}
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: '50%',
-                  border: `1.5px solid ${isSelected ? 'var(--aiq-color-accent)' : 'var(--aiq-color-border-strong)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'border-color 150ms ease',
-                }}
-              >
-                {isSelected && (
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      background: 'var(--aiq-color-accent)',
-                    }}
-                  />
-                )}
-              </span>
-              {/* Letter label */}
-              <span
-                style={{
-                  fontFamily: 'var(--aiq-font-mono)',
-                  fontSize: 11,
-                  color: 'var(--aiq-color-fg-muted)',
-                  width: 14,
-                  flexShrink: 0,
-                }}
-              >
-                {letter}
-              </span>
-              {/* Option text */}
-              <span
-                style={{
-                  fontFamily: 'var(--aiq-font-sans)',
-                  fontSize: 15,
-                  color: 'var(--aiq-color-fg-primary)',
-                  lineHeight: 1.5,
-                  flex: 1,
-                }}
-              >
-                {text}
-              </span>
-            </div>
-          </label>
-        );
-      })}
-    </div>
-  );
-}
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -821,6 +701,22 @@ function ScenarioAnswerArea({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+/**
+ * Single "is this question answered?" predicate, shared by the navigator status
+ * and the submit-confirmation count. null / undefined / '' / [] / {selected:null}
+ * (an object whose every value is empty) are unanswered; 0 and false are answers.
+ */
+export function isAnsweredValue(ans: unknown): boolean {
+  const empty = (v: unknown): boolean =>
+    v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+  if (empty(ans)) return false;
+  if (typeof ans === 'object' && !Array.isArray(ans)) {
+    const vals = Object.values(ans as Record<string, unknown>);
+    return vals.some((v) => !empty(v));
+  }
+  return true;
+}
+
 export function AttemptPage(): JSX.Element {
   const { id: attemptId = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -836,6 +732,9 @@ export function AttemptPage(): JSX.Element {
   const [flags, setFlags] = useState<Map<string, boolean>>(new Map());
   const [locked, setLocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Submit confirmation modal (replaces window.confirm / window.alert).
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   // M2a: drawer open state for the mobile bottom-sheet question navigator.
   // Desktop never opens it (the aside is always visible); mobile toggles via
   // the .aiq-attempt-nav-toggle header button. Closes on item-select.
@@ -949,18 +848,14 @@ export function AttemptPage(): JSX.Element {
   // ── Submit handler ────────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(async (): Promise<void> => {
-    const confirmed = window.confirm(
-      'Submit your attempt? You cannot edit answers after this.',
-    );
-    if (!confirmed) return;
-
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await submitAttempt(attemptId);
       clearBackup(attemptId);
       navigate(`/take/attempt/${attemptId}/submitted`, { replace: true });
     } catch (err) {
-      // Surface submit failures — don't swallow silently.
+      // Surface submit failures inline in the modal — don't swallow silently.
       setSubmitting(false);
       const msg =
         err instanceof CandidateApiError
@@ -968,7 +863,7 @@ export function AttemptPage(): JSX.Element {
           : err instanceof Error
             ? err.message
             : 'Unknown error. Please try again.';
-      window.alert(`Submit failed: ${msg}`);
+      setSubmitError(`Submit failed: ${msg}`);
     }
   }, [attemptId, navigate]);
 
@@ -1104,7 +999,7 @@ export function AttemptPage(): JSX.Element {
     const isCurrentQ = qid === currentQuestionId;
     const isFlagged = flags.get(qid) ?? false;
     const ans = answers.get(qid);
-    const isAnswered = ans !== null && ans !== undefined && ans !== '';
+    const isAnswered = isAnsweredValue(ans);
 
     let status: 'unanswered' | 'answered' | 'flagged' | 'current';
     if (isCurrentQ) {
@@ -1119,6 +1014,15 @@ export function AttemptPage(): JSX.Element {
 
     return { questionId: qid, position: q.position, status };
   });
+
+  // ── Submit-confirmation counts ─────────────────────────────────────────────
+  const totalCount = sorted.length;
+  // Same predicate as the navigator's 'answered' status (isAnsweredValue).
+  const answeredCount = navigatorItems.filter((it) =>
+    isAnsweredValue(answers.get(it.questionId)),
+  ).length;
+  const unansweredCount = totalCount - answeredCount;
+  const flaggedCount = sorted.filter((q) => flags.get(q.question_id) ?? false).length;
 
   // ── Navigator body (shared between desktop aside and mobile <Drawer>) ─────
   // Same JSX rendered in both surfaces — same items, same onSelect, same per-
@@ -1437,19 +1341,63 @@ export function AttemptPage(): JSX.Element {
           </Button>
         )}
 
-        {/* Submit — always visible; enabled even if not all questions answered
-            (Phase 1 uses window.confirm guard per contract decision) */}
+        {/* Submit — always visible; enabled even if not all questions answered.
+            Opens the confirmation modal (counts of answered / unanswered / flagged). */}
         <Button
           variant="primary"
           size="sm"
           className="aiq-attempt-submit-btn"
           disabled={locked || submitting}
           data-help-id="candidate.attempt.submit.confirm"
-          onClick={() => void handleSubmit()}
+          onClick={() => {
+            setSubmitError(null);
+            setConfirmOpen(true);
+          }}
         >
           {submitting ? 'Submitting…' : 'Submit'}
         </Button>
       </footer>
+
+      {/* ── SUBMIT CONFIRMATION ──────────────────────────────────────────
+          Kit Modal: Esc / backdrop = Go back, focus moves in and Tab is trapped. */}
+      <Modal
+        open={confirmOpen}
+        onClose={() => {
+          if (!submitting) setConfirmOpen(false);
+        }}
+        title="Submit your test?"
+      >
+        <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
+          <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
+            You answered {answeredCount} of {totalCount} questions.
+          </p>
+          {unansweredCount > 0 && (
+            <p style={{ margin: '0 0 8px' }}>
+              {unansweredCount} question{unansweredCount !== 1 ? 's are' : ' is'} unanswered
+              {' '}— {unansweredCount !== 1 ? 'they' : 'it'} will score 0.
+            </p>
+          )}
+          {flaggedCount > 0 && (
+            <p style={{ margin: '0 0 8px' }}>
+              {flaggedCount} question{flaggedCount !== 1 ? 's are' : ' is'} flagged for review.
+            </p>
+          )}
+          <p style={{ margin: 0 }}>You cannot change your answers after you submit.</p>
+          {submitError !== null && (
+            <p role="alert" style={{ margin: '12px 0 0', color: 'var(--aiq-color-fg-primary)' }}>
+              {submitError}
+            </p>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--aiq-space-sm)' }}>
+          <Button variant="outline" disabled={submitting} onClick={() => setConfirmOpen(false)}>
+            Go back
+          </Button>
+          <Button variant="primary" disabled={submitting} onClick={() => void handleSubmit()}>
+            {submitting ? 'Submitting…' : 'Submit test'}
+          </Button>
+        </div>
+      </Modal>
 
       {/* ── MOBILE NAVIGATOR DRAWER ───────────────────────────────────────
           Renders only when navOpen=true (Drawer returns null otherwise).

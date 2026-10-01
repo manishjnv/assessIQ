@@ -11,7 +11,8 @@
  * The container is started ONCE in beforeAll and shared across every test.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import Fastify from "fastify";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
@@ -21,9 +22,29 @@ import { randomUUID } from "node:crypto";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
 
+// Route tests below drive the REAL engine + DB but stub the two external
+// collaborators of /take/start (token resolution + session minting).
+const routeCtx = vi.hoisted(() => ({
+  resolved: null as unknown,
+  session: null as { userId: string; tenantId: string } | null,
+}));
+vi.mock("@assessiq/assessment-lifecycle", async (orig) => ({
+  ...(await orig<typeof import("@assessiq/assessment-lifecycle")>()),
+  resolveInvitationToken: vi.fn(async () => routeCtx.resolved),
+  markInvitationViewedByToken: vi.fn(async () => undefined),
+}));
+vi.mock("@assessiq/auth", async (orig) => ({
+  ...(await orig<typeof import("@assessiq/auth")>()),
+  mintCandidateSession: vi.fn(async () => ({ id: "sess-1", token: "sess-token" })),
+  // Per-token throttle on /take/start (Redis-backed in prod) — allowed by default.
+  consumeRateLimit: vi.fn(async () => ({ allowed: true, retryAfterSeconds: 60 })),
+}));
+
 // Module 06 surface
 import {
-  startAttempt,
+  startAttempt as rawStartAttempt,
+  getTakePreview,
+  recordTakeConsent,
   getAttemptForCandidate,
   saveAnswer,
   toggleFlag,
@@ -32,6 +53,22 @@ import {
   sweepStaleTimersForTenant,
 } from "../service.js";
 import * as repo from "../repository.js";
+import { registerAttemptTakeRoutes } from "../routes.take.js";
+import { registerAttemptCandidateRoutes } from "../routes.candidate.js";
+
+// Every non-embed Begin now needs a consent row (R4 invariant lives in
+// startAttempt). Test wrapper records consent first (deduped) so the existing
+// suites keep exercising the engine; consent-specific tests use rawStartAttempt.
+async function startAttempt(
+  tenantId: string,
+  input: Parameters<typeof rawStartAttempt>[1],
+): ReturnType<typeof rawStartAttempt> {
+  if (input.embedOrigin !== true) {
+    await recordTakeConsent(tenantId, { userId: input.userId, ip: null, userAgent: null });
+  }
+  return rawStartAttempt(tenantId, input);
+}
+
 import { AE_ERROR_CODES } from "../types.js";
 import { _resetForTesting as resetRateCap, RATE_CAP_CONSTANTS } from "../rate-cap.js";
 
@@ -266,6 +303,10 @@ beforeAll(async () => {
       "0040_gradings.sql",
     ]);
     await applyMigrationsFromDir(client, join(MODULES_ROOT, "09-scoring", "migrations"));
+    // Candidate Begin consent ledger (recordTakeConsent).
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "20-data-rights", "migrations"), [
+      "0101_consent_events.sql",
+    ]);
   });
 
   // Wire withTenant to point at the test container.
@@ -407,6 +448,224 @@ describe("startAttempt", () => {
 // immutable against questions added to the pack after publish, and (b) an
 // assessment with NO frozen rows (legacy/pre-0096) falls back to the live pool.
 // ---------------------------------------------------------------------------
+
+describe("take landing — clock starts at Begin, not at link-open", () => {
+  it("preview creates no attempt and starts no clock; Begin (startAttempt) sets it; reopen resumes; Begin twice is idempotent", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Pia"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 4, 20);
+    const input = { userId: candidate, assessmentId };
+
+    // 1. Opening the link = preview only.
+    const preview = await getTakePreview(tenantA, input);
+    expect(preview.existing).toBeNull();
+    expect(preview.questionCount).toBe(4);
+    expect(preview.companyName).toBe("Tenant A");
+    const rows = await withSuperClient((c) =>
+      c.query("SELECT 1 FROM attempts WHERE assessment_id = $1 AND user_id = $2", [assessmentId, candidate]),
+    );
+    expect(rows.rowCount).toBe(0);
+
+    // 2. Begin sets started_at / ends_at at click time (after the preview).
+    await new Promise((r) => setTimeout(r, 25));
+    const beforeBegin = Date.now();
+    const attempt = await startAttempt(tenantA, input);
+    expect(attempt.started_at!.getTime()).toBeGreaterThanOrEqual(beforeBegin);
+    expect(attempt.ends_at!.getTime() - attempt.started_at!.getTime()).toBe(20 * 60 * 1000);
+
+    // 3. Reopen after Begin: preview reports the same attempt, same ends_at.
+    const reopened = await getTakePreview(tenantA, input);
+    expect(reopened.existing?.id).toBe(attempt.id);
+    expect(reopened.existing?.ends_at).toEqual(attempt.ends_at);
+
+    // 4. Begin twice does not reset the clock.
+    await new Promise((r) => setTimeout(r, 25));
+    const again = await startAttempt(tenantA, input);
+    expect(again.id).toBe(attempt.id);
+    expect(again.started_at).toEqual(attempt.started_at);
+    expect(again.ends_at).toEqual(attempt.ends_at);
+  });
+
+  it("preview rejects a non-active assessment with no attempt (same as Begin would)", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Quin"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 2);
+    await withSuperClient((c) => c.query("UPDATE assessments SET status = 'closed' WHERE id = $1", [assessmentId]));
+    await expect(getTakePreview(tenantA, { userId: candidate, assessmentId })).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("recordTakeConsent appends a data_processing consent row", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Rae"));
+    await recordTakeConsent(tenantA, { userId: candidate, ip: "203.0.113.9", userAgent: "vitest" });
+    const res = await withSuperClient((c) =>
+      c.query("SELECT purpose, lawful_basis, policy_version, host(ip) AS ip FROM consent_events WHERE user_id = $1", [candidate]),
+    );
+    expect(res.rows).toHaveLength(1);
+    expect(res.rows[0]).toMatchObject({ purpose: "data_processing", lawful_basis: "consent", ip: "203.0.113.9" });
+  });
+});
+
+describe("consent invariant + Begin race (R4 review fixes)", () => {
+  it("new non-embed attempt without a consent row -> CONSENT_REQUIRED (422), no attempt row; resume needs no consent", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Sol"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 2);
+    const input = { userId: candidate, assessmentId };
+    await expect(rawStartAttempt(tenantA, input)).rejects.toMatchObject({
+      code: AE_ERROR_CODES.CONSENT_REQUIRED,
+      status: 422,
+    });
+    const rows = await withSuperClient((c) =>
+      c.query("SELECT 1 FROM attempts WHERE assessment_id = $1 AND user_id = $2", [assessmentId, candidate]),
+    );
+    expect(rows.rowCount).toBe(0);
+    await recordTakeConsent(tenantA, { userId: candidate, ip: null, userAgent: null });
+    const attempt = await rawStartAttempt(tenantA, input);
+    // resume: no further consent check, returns the same attempt
+    expect((await rawStartAttempt(tenantA, input)).id).toBe(attempt.id);
+  });
+
+  it("embed attempt without consent is allowed (host-asserted consent)", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Emb"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 2);
+    const attempt = await rawStartAttempt(tenantA, { userId: candidate, assessmentId, embedOrigin: true });
+    expect(attempt.id).toBeTruthy();
+  });
+
+  it("concurrent startAttempt x2 resolves to the same attempt (no 500 / aborted tx)", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Race"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 3);
+    await recordTakeConsent(tenantA, { userId: candidate, ip: null, userAgent: null });
+    const input = { userId: candidate, assessmentId };
+    const [a, b] = await Promise.all([rawStartAttempt(tenantA, input), rawStartAttempt(tenantA, input)]);
+    expect(a.id).toBe(b.id);
+    expect(a.ends_at).toEqual(b.ends_at);
+    const rows = await withSuperClient((c) =>
+      c.query("SELECT 1 FROM attempts WHERE assessment_id = $1 AND user_id = $2", [assessmentId, candidate]),
+    );
+    expect(rows.rowCount).toBe(1);
+  });
+
+  it("recordTakeConsent is deduped per (tenant,user,policy version), even concurrently", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Dup"));
+    const args = { userId: candidate, ip: null, userAgent: null };
+    await Promise.all([recordTakeConsent(tenantA, args), recordTakeConsent(tenantA, args)]);
+    await recordTakeConsent(tenantA, args);
+    const res = await withSuperClient((c) =>
+      c.query("SELECT 1 FROM consent_events WHERE user_id = $1", [candidate]),
+    );
+    expect(res.rowCount).toBe(1);
+  });
+});
+
+describe("HTTP routes — consent invariant (R4 review fixes)", () => {
+  const TOKEN = "tok_0123456789abcdef0123456789abcdef";
+
+  async function buildApp() {
+    const app = Fastify();
+    app.setErrorHandler((err, _req, reply) => {
+      const e = err as { status?: number; toJson?: () => unknown };
+      if (typeof e.toJson === "function") return reply.code(e.status ?? 500).send({ error: e.toJson() });
+      return reply.code(500).send({ error: { code: "INTERNAL" } });
+    });
+    await registerAttemptTakeRoutes(app, { publicChain: [] });
+    await registerAttemptCandidateRoutes(app, {
+      candidateOnly: async (req) => {
+        (req as unknown as { session: unknown }).session = routeCtx.session;
+      },
+    });
+    return app;
+  }
+
+  async function setup(label: string) {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, label));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 2, 15);
+    routeCtx.resolved = {
+      already_submitted: false,
+      assessment: { id: assessmentId, tenant_id: tenantA, name: "Active Assessment" },
+      invitation: { id: randomUUID() },
+      candidate: { id: candidate, name: label },
+      level: { duration_minutes: 15 },
+    };
+    routeCtx.session = { userId: candidate, tenantId: tenantA };
+    return { candidate, assessmentId };
+  }
+
+  const counts = (candidate: string, assessmentId: string) =>
+    withSuperClient(async (c) => ({
+      attempts: (await c.query("SELECT 1 FROM attempts WHERE assessment_id = $1 AND user_id = $2", [assessmentId, candidate])).rowCount,
+      consents: (await c.query("SELECT 1 FROM consent_events WHERE user_id = $1", [candidate])).rowCount,
+    }));
+
+  it("/take/start preview: 200, no Set-Cookie, no attempt, no consent row", async () => {
+    const { candidate, assessmentId } = await setup("Prev");
+    const app = await buildApp();
+    const res = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, preview: true } });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["set-cookie"]).toBeUndefined();
+    expect(res.json().attempt_id).toBeNull();
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 0, consents: 0 });
+  });
+
+  it("/take/start per-token throttle: exhausted bucket -> 429 + Retry-After, key is a hash (no plaintext token)", async () => {
+    const { candidate, assessmentId } = await setup("Thr");
+    const auth = await import("@assessiq/auth");
+    vi.mocked(auth.consumeRateLimit).mockResolvedValueOnce({ allowed: false, retryAfterSeconds: 42 });
+    const app = await buildApp();
+    const res = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, preview: true } });
+    expect(res.statusCode).toBe(429);
+    expect(res.headers["retry-after"]).toBe("42");
+    const key = vi.mocked(auth.consumeRateLimit).mock.calls.at(-1)![0];
+    expect(key.startsWith("aiq:rl:take-token:")).toBe(true);
+    expect(key.includes(TOKEN)).toBe(false);
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 0, consents: 0 });
+  });
+
+  it("/take/start Begin without consent and no attempt -> 422 CONSENT_REQUIRED, nothing created", async () => {
+    const { candidate, assessmentId } = await setup("NoCons");
+    const app = await buildApp();
+    const res = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN } });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe("CONSENT_REQUIRED");
+    expect(res.headers["set-cookie"]).toBeUndefined();
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 0, consents: 0 });
+  });
+
+  it("/take/start Begin with consent -> 201 + cookie + one consent row; second Begin = same attempt, same ends_at, still one consent row", async () => {
+    const { candidate, assessmentId } = await setup("Begin");
+    const app = await buildApp();
+    const r1 = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, consent: true } });
+    expect(r1.statusCode).toBe(201);
+    expect(String(r1.headers["set-cookie"])).toContain("sess-token");
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 1, consents: 1 });
+    const endsAt1 = (await withSuperClient((c) => c.query("SELECT ends_at FROM attempts WHERE id = $1", [r1.json().attempt_id]))).rows[0].ends_at;
+    await new Promise((r) => setTimeout(r, 25));
+    const r2 = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, consent: true } });
+    expect(r2.statusCode).toBe(201);
+    expect(r2.json().attempt_id).toBe(r1.json().attempt_id);
+    const endsAt2 = (await withSuperClient((c) => c.query("SELECT ends_at FROM attempts WHERE id = $1", [r2.json().attempt_id]))).rows[0].ends_at;
+    expect(endsAt2).toEqual(endsAt1);
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 1, consents: 1 });
+  });
+
+  it("/api/me/assessments/:id/start: no consent on file -> 422; with {consent:true} -> 201 + consent row", async () => {
+    const { candidate, assessmentId } = await setup("Me");
+    const app = await buildApp();
+    const url = `/api/me/assessments/${assessmentId}/start`;
+    const denied = await app.inject({ method: "POST", url });
+    expect(denied.statusCode).toBe(422);
+    expect(denied.json().error.code).toBe("CONSENT_REQUIRED");
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 0, consents: 0 });
+    const ok = await app.inject({ method: "POST", url, payload: { consent: true } });
+    expect(ok.statusCode).toBe(201);
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 1, consents: 1 });
+  });
+});
 
 describe("startAttempt — frozen-pool resolution (lock at assignment)", () => {
   it("draws ONLY from the pool frozen at publish, ignoring questions added to the pack afterwards", async () => {

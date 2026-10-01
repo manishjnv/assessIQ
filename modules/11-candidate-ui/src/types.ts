@@ -81,10 +81,31 @@ export interface InvitedAssessmentWire {
 // state. Shape matches docs/03-api-contract.md § Magic-link.
 export interface TakeStartResponseWire {
   attempt_id: string;
+  /** true when an existing attempt was resumed (clock NOT reset). */
+  resumed?: boolean;
+  candidate?: { name: string };
   assessment: {
     id: string;
     name: string;
     duration_seconds: number;
+    question_count?: number;
+    company_name?: string;
+  };
+}
+
+// POST /take/start { token, preview: true } — landing data only. NEVER creates
+// an attempt or starts the clock; attempt_id is non-null only when the
+// candidate already began (resume).
+export interface TakePreviewResponseWire {
+  attempt_id: string | null;
+  resumed: boolean;
+  candidate: { name: string };
+  assessment: {
+    id: string;
+    name: string;
+    duration_seconds: number;
+    question_count: number;
+    company_name: string;
   };
 }
 

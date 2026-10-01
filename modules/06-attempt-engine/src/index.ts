@@ -17,6 +17,8 @@
 
 export {
   startAttempt,
+  getTakePreview,
+  recordTakeConsent,
   getAttemptForCandidate,
   saveAnswer,
   toggleFlag,

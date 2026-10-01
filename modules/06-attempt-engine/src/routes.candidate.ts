@@ -22,7 +22,9 @@
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ValidationError, NotFoundError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { isIP } from "node:net";
 import {
+  recordTakeConsent,
   startAttempt,
   getAttemptForCandidate,
   saveAnswer,
@@ -117,6 +119,18 @@ export async function registerAttemptCandidateRoutes(
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
 
+      // Optional { consent: true } — the candidate ticked the consent statement.
+      // Without a consent row on file startAttempt rejects a NEW attempt with
+      // 422 CONSENT_REQUIRED (resume of an existing attempt never needs it).
+      const body = (req.body ?? {}) as { consent?: unknown };
+      if (body.consent === true) {
+        const ip = req.ip ?? null;
+        await recordTakeConsent(tenantId, {
+          userId,
+          ip: ip !== null && isIP(ip) !== 0 ? ip : null,
+          userAgent: ((req.headers["user-agent"] as string | undefined) ?? "unknown").slice(0, 512),
+        });
+      }
       const attempt = await startAttempt(tenantId, {
         userId,
         assessmentId: id,

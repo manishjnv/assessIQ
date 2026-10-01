@@ -208,9 +208,16 @@ export async function insertAttempt(
     durationSeconds: number;
     embedOrigin?: boolean;
   },
-): Promise<Attempt> {
+): Promise<Attempt | null> {
+  // Returns null when UNIQUE(assessment_id, user_id) is violated (23505): a
+  // concurrent Begin won the race. The INSERT runs under a SAVEPOINT so the
+  // surrounding withTenant transaction is NOT left aborted and the caller can
+  // re-read the winner's row.
   // tenant_id is explicitly passed to satisfy the WITH CHECK RLS policy.
-  const result = await client.query<AttemptRow>(
+  await client.query("SAVEPOINT insert_attempt");
+  let result;
+  try {
+    result = await client.query<AttemptRow>(
     `INSERT INTO attempts
        (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -227,11 +234,56 @@ export async function insertAttempt(
       input.embedOrigin ?? false,
     ],
   );
+  } catch (err) {
+    if ((err as { code?: string }).code === "23505") {
+      await client.query("ROLLBACK TO SAVEPOINT insert_attempt");
+      return null;
+    }
+    throw err;
+  }
+  await client.query("RELEASE SAVEPOINT insert_attempt");
   const row = result.rows[0];
   if (row === undefined) {
     throw new Error("insertAttempt: INSERT returned no row");
   }
   return mapAttemptRow(row);
+}
+
+/**
+ * Append a candidate pre-test consent row to the module-20 consent_events
+ * ledger (append-only; INSERT only). No dedicated writer exists in 20-data-rights
+ * yet, so the attempt engine records the magic-link Begin consent directly.
+ */
+export async function hasConsentEvent(
+  client: PoolClient,
+  input: { userId: string; policyVersion: string },
+): Promise<boolean> {
+  const r = await client.query(
+    `SELECT 1 FROM consent_events
+      WHERE user_id = $1 AND purpose = 'data_processing' AND policy_version = $2
+        AND granted_at IS NOT NULL
+      LIMIT 1`,
+    [input.userId, input.policyVersion],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+export async function insertConsentEvent(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    userId: string;
+    policyVersion: string;
+    ip: string | null;
+    userAgent: string | null;
+  },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO consent_events
+       (tenant_id, user_id, purpose, policy_version, granted_at, ip, user_agent, lawful_basis)
+     VALUES ($1, $2, 'data_processing', $3, now(), $4::inet, $5, 'consent')`,
+    [input.tenantId, input.userId, input.policyVersion, input.ip, input.userAgent],
+  );
 }
 
 export async function updateAttemptStatus(
