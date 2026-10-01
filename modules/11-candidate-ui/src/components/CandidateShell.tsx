@@ -77,7 +77,8 @@ const TOP_BAR_HEIGHT = 52;
 
 // M4 — shared NavLink style. Active route gets a soft raised background +
 // primary fg color; inactive stays secondary. Applies in both the desktop
-// inline nav and the mobile overflow menu.
+// inline nav and the mobile overflow menu. Routes: Results (the emailed
+// sign-in link lands there), Certificates, Activity.
 const NAV_LINK_BASE: React.CSSProperties = {
   fontFamily: 'var(--aiq-font-sans)',
   fontSize: 13,
@@ -173,6 +174,9 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
         {/* M4 — Desktop inline nav. Hidden on mobile via .aiq-candidate-nav-desktop
             CSS rule. Same routes as the mobile overflow menu below. */}
         <nav className="aiq-candidate-nav-desktop" aria-label="Candidate sections">
+          <NavLink to="/candidate/results" style={navLinkStyle}>
+            Results
+          </NavLink>
           <NavLink to="/candidate/certificates" style={navLinkStyle}>
             Certificates
           </NavLink>
@@ -272,6 +276,16 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
                 zIndex: 101,
               }}
             >
+              <li role="none">
+                <NavLink
+                  role="menuitem"
+                  to="/candidate/results"
+                  onClick={() => setMenuOpen(false)}
+                  style={menuItemStyle}
+                >
+                  Results
+                </NavLink>
+              </li>
               <li role="none">
                 <NavLink
                   role="menuitem"

@@ -1,9 +1,17 @@
 // Tests for CandidateShell component.
-// Verifies: top bar renders email; sign-out calls fetch + navigates.
+// Verifies: top bar renders email; sign-out calls fetch + navigates; the nav
+// links to Results / Certificates / Activity (desktop inline nav + mobile menu).
 
 import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
 import { CandidateShell } from '../components';
+
+// CandidateShell renders react-router NavLinks (M4), so every render needs a Router.
+function renderShell(ui: ReactElement): ReturnType<typeof render> {
+  return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
 
 // ---------------------------------------------------------------------------
 // Mock fetch globally
@@ -56,13 +64,13 @@ afterEach(() => {
 describe('CandidateShell', () => {
   it('renders children', async () => {
     vi.stubGlobal('fetch', mockFetch([{ url: /whoami/, body: WHOAMI_OK }]));
-    render(<CandidateShell><div>Hello world</div></CandidateShell>);
+    renderShell(<CandidateShell><div>Hello world</div></CandidateShell>);
     expect(screen.getByText('Hello world')).toBeDefined();
   });
 
   it('shows "Signed in as <email>" in the top bar after whoami resolves', async () => {
     vi.stubGlobal('fetch', mockFetch([{ url: /whoami/, body: WHOAMI_OK }]));
-    render(<CandidateShell><div /></CandidateShell>);
+    renderShell(<CandidateShell><div /></CandidateShell>);
     await waitFor(() => {
       expect(screen.getByText('candidate@example.com')).toBeDefined();
     });
@@ -88,7 +96,7 @@ describe('CandidateShell', () => {
       configurable: true,
     });
 
-    render(<CandidateShell><div /></CandidateShell>);
+    renderShell(<CandidateShell><div /></CandidateShell>);
     await waitFor(() => {
       expect(screen.getByText('Sign out')).toBeDefined();
     });
@@ -105,7 +113,7 @@ describe('CandidateShell', () => {
 
   it('renders AssessIQ logo text in top bar', async () => {
     vi.stubGlobal('fetch', mockFetch([{ url: /whoami/, body: WHOAMI_OK }]));
-    render(<CandidateShell><div /></CandidateShell>);
+    renderShell(<CandidateShell><div /></CandidateShell>);
     // Logo text rendered by the aiq-mark span inside the header.
     await waitFor(() => {
       expect(screen.getAllByText('AssessIQ').length).toBeGreaterThanOrEqual(1);
@@ -115,8 +123,30 @@ describe('CandidateShell', () => {
   it('does not show email section while whoami is loading', () => {
     // Never-resolving fetch keeps it in loading state.
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
-    render(<CandidateShell><div /></CandidateShell>);
+    renderShell(<CandidateShell><div /></CandidateShell>);
     expect(screen.queryByText(/Signed in as/)).toBeNull();
     expect(screen.queryByText('Sign out')).toBeNull();
+  });
+
+  it('desktop nav links to Results, Certificates and Activity (Results first)', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    renderShell(<CandidateShell><div /></CandidateShell>);
+    const nav = screen.getByRole('navigation', { name: 'Candidate sections' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((a) => a.textContent)).toEqual(['Results', 'Certificates', 'Activity']);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual([
+      '/candidate/results',
+      '/candidate/certificates',
+      '/candidate/activity',
+    ]);
+  });
+
+  it('mobile overflow menu also offers Results', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    renderShell(<CandidateShell><div /></CandidateShell>);
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+    const menu = screen.getByRole('menu', { name: 'Candidate navigation' });
+    const results = within(menu).getByRole('menuitem', { name: 'Results' });
+    expect(results.getAttribute('href')).toBe('/candidate/results');
   });
 });
