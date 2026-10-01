@@ -1,5 +1,144 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`template snapshots — evaluation_queue_alert (Phase II SP11) > HTML renders to a stable snapshot 1`] = `
+"<!-- Composes kit partials. Platform-owner alert (Phase II SP11, 2026-10-01): evaluations waiting more than 24 hours. Counts + link only — no tenant, assessment or candidate detail. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
+  <title>Evaluations are waiting</title>
+</head>
+<body style="margin:0;padding:0;background:#f1efea;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0a0a0b;font-size:15px;line-height:1.55;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased">
+  <div style="display:none;font-size:1px;line-height:1px;color:#fefefe;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">
+    4 evaluation(s) have waited more than 24 hours.&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1efea">
+    <tr>
+      <td align="center" style="padding:32px 24px 40px">
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#ffffff;border:1px solid #e4e4e7;border-radius:14px;overflow:hidden">
+          
+            <!-- A3 email-header — wordmark left, optional eyebrow right -->
+            <tr>
+              <td style="padding:22px 36px;border-bottom:1px solid #e4e4e7;background:#ffffff">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#0a0a0b;letter-spacing:-0.01em">
+                      AssessIQ
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          
+          <!-- A4 email-body — generous side padding -->
+          <tr>
+            <td style="padding:36px 40px;background:#ffffff">
+              
+                  <!-- A5 email-lede-editorial (30px H1) -->
+                  <p style="margin:0 0 14px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:11px;font-weight:500;color:#1a73e8;text-transform:uppercase;letter-spacing:0.08em">EVALUATION QUEUE</p>
+                  <h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:500;color:#0a0a0b;letter-spacing:-0.02em;line-height:1.15">Evaluations are waiting.</h1>
+                  <p style="margin:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:17px;color:#3f3f46;line-height:1.55">4 evaluation(s) have waited more than 24 hours. The oldest has waited 37.5 hours.</p>
+              
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
+                    <tr><td><!-- A7 email-meta-card — bordered key/value pair list -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e4e7;border-radius:12px;border-collapse:separate">
+                <tr>
+                  <td style="padding:14px 20px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
+                    Waiting
+                  </td>
+                  <td style="padding:14px 20px 14px 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
+                    <strong>4</strong> over 24 hours
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 20px;border-top:1px solid #e4e4e7;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
+                    Oldest
+                  </td>
+                  <td style="padding:14px 20px 14px 0;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
+                    37.5 hours
+                  </td>
+                </tr>
+              </table>
+              </td></tr>
+                  </table>
+              
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
+                    <tr><td><!-- A6 email-cta — pill button with MSO/VML Outlook fallback -->
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                href="https://assessiq.test/admin/platform/evaluations"
+                style="height:46px;v-text-anchor:middle;width:230px;"
+                arcsize="50%" stroke="f" fillcolor="#1a73e8">
+                <w:anchorlock/>
+                <center style="color:#ffffff;font-family:'Helvetica Neue',Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:-0.005em">
+                  Open the evaluation queue
+                </center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-->
+              <a href="https://assessiq.test/admin/platform/evaluations"
+                style="display:inline-block;background:#1a73e8;color:#ffffff;padding:14px 28px;border-radius:999px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:-0.005em;text-decoration:none;mso-hide:all">
+                Open the evaluation queue
+              </a>
+              <!--<![endif]-->
+              </td></tr>
+                  </table>
+              
+            </td>
+          </tr>
+          
+            <!-- A9a email-footer-transactional — brand mark + reason + address + © -->
+            <tr>
+              <td style="padding:28px 40px 32px;background:#fafafa;border-top:1px solid #e4e4e7">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding-bottom:14px;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:500;color:#0a0a0b;letter-spacing:-0.01em">
+                      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1a73e8;vertical-align:middle;margin-right:10px"></span>
+                      AssessIQ
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-bottom:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#3f3f46;line-height:1.55;max-width:460px">
+                      You&#x27;re receiving this because you&#x27;re a platform administrator of AssessIQ.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="border-top:1px solid #e4e4e7;padding-top:16px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em">
+                      AssessIQ &middot; Bangalore 560068, India &middot; &copy; 2026
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"
+`;
+
+exports[`template snapshots — evaluation_queue_alert (Phase II SP11) > text renders to a stable snapshot 1`] = `"Evaluation queue: 4 waiting more than 24 hours"`;
+
+exports[`template snapshots — evaluation_queue_alert (Phase II SP11) > text renders to a stable snapshot 2`] = `
+"Hello,
+
+4 evaluation(s) have waited more than 24 hours. The oldest has waited 37.5 hours.
+
+Open the evaluation queue:
+https://assessiq.test/admin/platform/evaluations
+
+— The AssessIQ team
+AssessIQ · Bangalore 560068, India · © 2026
+"
+`;
+
 exports[`template snapshots — invitation_candidate > HTML renders to a stable snapshot 1`] = `
 "<!-- Composes kit partials (Email Kit Port E2a). Diverges from kit/emails/templates-1.jsx <Invite> only where docs/13-email-system.md §4 records. -->
 <!DOCTYPE html>

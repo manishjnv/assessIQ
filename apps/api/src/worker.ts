@@ -3,7 +3,8 @@
  *
  * Runs as a separate process (apps/api Docker image, second container) and
  * schedules these repeating jobs (plus the nightly MV refresh + DPDP retention
- * purge, and result.auto_release every 15 s — SP2, see jobs/auto-release.ts):
+ * purge, result.auto_release every 15 s — SP2, see jobs/auto-release.ts — and
+ * evaluation.queue_alert hourly — Phase II SP11, see jobs/evaluation-queue-alert.ts):
  *
  *   1. assessment-boundary-cron — every 60s.
  *      Drives module 05's processBoundariesForTenant for every active tenant.
@@ -53,6 +54,11 @@ import {
   AUTO_RELEASE_INTERVAL_MS,
   processAutoReleaseTick,
 } from "./jobs/auto-release.js";
+import {
+  EVAL_QUEUE_ALERT_JOB_NAME,
+  EVAL_QUEUE_ALERT_INTERVAL_MS,
+  processEvaluationQueueAlertTick,
+} from "./jobs/evaluation-queue-alert.js";
 
 const log = streamLogger("worker");
 
@@ -114,6 +120,10 @@ export const JOB_RETRY_POLICY: Record<
   // retry of a failed tick would only double the work. processAutoReleaseTick never
   // throws (per-attempt errors are logged + cooled down), so this is belt and braces.
   [AUTO_RELEASE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
+  // evaluation.queue_alert — attempts 1: it runs hourly anyway, and a retry inside the
+  // same hour would only repeat the count. A tick that sent nothing releases its Redis
+  // gate itself (jobs/evaluation-queue-alert.ts), so the next hour retries the alert.
+  [EVAL_QUEUE_ALERT_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
 };
 
 // ---------------------------------------------------------------------------
@@ -338,7 +348,8 @@ async function start(): Promise<void> {
       r.name === TIMER_SWEEP_JOB_NAME ||
       r.name === MV_REFRESH_JOB_NAME ||
       r.name === RETENTION_JOB_NAME ||
-      r.name === AUTO_RELEASE_JOB_NAME
+      r.name === AUTO_RELEASE_JOB_NAME ||
+      r.name === EVAL_QUEUE_ALERT_JOB_NAME
     ) {
       await queue.removeRepeatableByKey(r.key);
     }
@@ -424,6 +435,22 @@ async function start(): Promise<void> {
     },
   );
 
+  // SP11 — evaluation-queue alert: hourly, emails SUPER_ADMIN_EMAILS when platform
+  // evaluations have waited > 24 h, at most once per 24 h (Redis gate). No AI; see
+  // jobs/evaluation-queue-alert.ts.
+  const evalAlertPolicy = JOB_RETRY_POLICY[EVAL_QUEUE_ALERT_JOB_NAME]!;
+  await queue.add(
+    EVAL_QUEUE_ALERT_JOB_NAME,
+    {},
+    {
+      repeat: { every: EVAL_QUEUE_ALERT_INTERVAL_MS },
+      attempts: evalAlertPolicy.attempts,
+      backoff: evalAlertPolicy.backoff,
+      removeOnComplete: 24,
+      removeOnFail: 24,
+    },
+  );
+
   // Consumer: processes any job that lands on the queue.
   // Concurrency: cron jobs run at 1 (never two boundary/timer ticks simultaneously
   // — would race on the bulk UPDATE). Email + webhook jobs can run at higher
@@ -450,6 +477,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processRetentionTick);
         case AUTO_RELEASE_JOB_NAME:
           return runJobWithLogging(job, () => processAutoReleaseTick());
+        case EVAL_QUEUE_ALERT_JOB_NAME:
+          return runJobWithLogging(job, () => processEvaluationQueueAlertTick(redis));
         default:
           throw new Error(`Unknown job name: ${job.name}`);
       }

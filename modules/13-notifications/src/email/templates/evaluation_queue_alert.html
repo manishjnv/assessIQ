@@ -1,0 +1,25 @@
+<!-- Composes kit partials. Platform-owner alert (Phase II SP11, 2026-10-01): evaluations waiting more than 24 hours. Counts + link only — no tenant, assessment or candidate detail. -->
+{{#> email-shell preheader=(concat count " evaluation(s) have waited more than 24 hours.")}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-editorial
+      eyebrow="EVALUATION QUEUE"
+      title=_t_heading
+      body=(concat count " evaluation(s) have waited more than 24 hours. The oldest has waited " oldestAgeHours " hours.")}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
+      <tr><td>{{> email-meta-card rows=meta_rows}}</td></tr>
+    </table>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
+      <tr><td>{{> email-cta label=_t_cta href=queueLink width_px=230}}</td></tr>
+    </table>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional reason="You're receiving this because you're a platform administrator of AssessIQ."}}
+
+{{/email-shell}}

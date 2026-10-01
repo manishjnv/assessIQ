@@ -393,6 +393,11 @@ describe('email template rendering', () => {
         scoreText: '42 / 60 (70%)', resultText: 'Passed',
         portalLink: 'https://x.com/candidate/login?tenant=x',
       }},
+      // Phase II SP11 (2026-10-01): evaluation_queue_alert joins the closed template list.
+      { name: 'evaluation_queue_alert' as const, vars: {
+        count: 3, oldestAgeHours: 37.5,
+        queueLink: 'https://x.com/admin/platform/evaluations',
+      }},
     ] as const;
 
     for (const { name, vars } of templates) {
@@ -495,6 +500,35 @@ describe('email template rendering', () => {
       expect(() => renderTemplate('result_released', { ...base, resultText: 'Maybe' })).toThrow();
       expect(() => renderTemplate('result_released', { ...base, portalLink: 'not-a-url' })).toThrow();
       expect(() => renderTemplate('result_released', { ...base, scoreText: '' })).toThrow();
+    });
+  });
+
+  // Phase II SP11 (2026-10-01): platform-owner alert — counts + queue link only.
+  describe('evaluation_queue_alert', () => {
+    const base = {
+      count: 4,
+      oldestAgeHours: 37.5,
+      queueLink: 'https://assessiq.test/admin/platform/evaluations',
+    };
+
+    it('renders subject, count, oldest age and the queue link in both variants', () => {
+      const r = renderTemplate('evaluation_queue_alert', base);
+      expect(r.subject).toBe('Evaluation queue: 4 waiting more than 24 hours');
+      for (const body of [r.html, r.text]) {
+        expect(body).toContain('4');
+        expect(body).toContain('37.5');
+        expect(body).toContain('https://assessiq.test/admin/platform/evaluations');
+      }
+      expect(r.html).not.toContain('{{');
+      expect(r.text).not.toContain('{{');
+    });
+
+    it('carries no tenant / assessment / candidate detail (closed Zod schema) and rejects bad vars', () => {
+      expect(() => renderTemplate('evaluation_queue_alert', { ...base, count: -1 })).toThrow();
+      expect(() => renderTemplate('evaluation_queue_alert', { ...base, queueLink: 'not-a-url' })).toThrow();
+      // Unknown extra keys are stripped by Zod, never rendered.
+      const r = renderTemplate('evaluation_queue_alert', { ...base, candidateName: 'Priya' } as never);
+      expect(`${r.html}\n${r.text}`).not.toContain('Priya');
     });
   });
 });
@@ -1060,6 +1094,10 @@ describe('brand color compliance (post-rebrand guard)', () => {
         portalLink: 'https://x.com/candidate/login?tenant=x',
         certificateLink: 'https://x.com/verify/AIQ-1',
       }},
+      { name: 'evaluation_queue_alert' as const, vars: {
+        count: 3, oldestAgeHours: 37.5,
+        queueLink: 'https://x.com/admin/platform/evaluations',
+      }},
     ] as const;
 
     for (const { name, vars } of allTemplates) {
@@ -1219,6 +1257,10 @@ describe('voice compliance', () => {
       portalLink: 'https://x.com/candidate/login?tenant=x',
       certificateLink: 'https://x.com/verify/AIQ-1',
     }},
+    { name: 'evaluation_queue_alert' as const, vars: {
+      count: 3, oldestAgeHours: 37.5,
+      queueLink: 'https://x.com/admin/platform/evaluations',
+    }},
   ] as const;
 
   it('no template uses "click here" or "click below" (copy-and-voice.md)', () => {
@@ -1299,6 +1341,25 @@ describe('template snapshots — result_released (SP4)', () => {
 
   it('text renders to a stable snapshot', () => {
     const { text, subject } = renderTemplate('result_released', SNAPSHOT_VARS);
+    expect(subject).toMatchSnapshot();
+    expect(text).toMatchSnapshot();
+  });
+});
+
+describe('template snapshots — evaluation_queue_alert (Phase II SP11)', () => {
+  const SNAPSHOT_VARS = {
+    count: 4,
+    oldestAgeHours: 37.5,
+    queueLink: 'https://assessiq.test/admin/platform/evaluations',
+  };
+
+  it('HTML renders to a stable snapshot', () => {
+    const { html } = renderTemplate('evaluation_queue_alert', SNAPSHOT_VARS);
+    expect(html).toMatchSnapshot();
+  });
+
+  it('text renders to a stable snapshot', () => {
+    const { text, subject } = renderTemplate('evaluation_queue_alert', SNAPSHOT_VARS);
     expect(subject).toMatchSnapshot();
     expect(text).toMatchSnapshot();
   });

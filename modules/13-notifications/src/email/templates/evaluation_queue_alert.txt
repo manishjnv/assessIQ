@@ -1,0 +1,11 @@
+Subject: Evaluation queue: {{count}} waiting more than 24 hours
+
+Hello,
+
+{{count}} evaluation(s) have waited more than 24 hours. The oldest has waited {{oldestAgeHours}} hours.
+
+Open the evaluation queue:
+{{queueLink}}
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

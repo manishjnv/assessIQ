@@ -25,6 +25,10 @@ export const EmailTemplateNameSchema = z.enum([
   // SP4 (2026-10-01): candidate result email — sent once, after a result is
   // published (status 'released'). Final score only; never answers or bands.
   'result_released',
+  // Phase II SP11 (2026-10-01): platform-owner alert — evaluations waiting more
+  // than 24 hours in the super-admin queue. Counts + link only (no tenant,
+  // assessment or candidate detail).
+  'evaluation_queue_alert',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -103,6 +107,16 @@ export const ResultReleasedVarsSchema = z.object({
   certificateLink: z.string().url().optional(),
 });
 
+// Phase II SP11: evaluation_queue_alert — counts + a link to the platform queue.
+export const EvaluationQueueAlertVarsSchema = z.object({
+  /** Queue items older than 24 hours. */
+  count: z.number().int().min(0),
+  /** Age of the oldest item in hours, one decimal place. */
+  oldestAgeHours: z.number().min(0),
+  /** `${ASSESSIQ_BASE_URL}/admin/platform/evaluations`. */
+  queueLink: z.string().url(),
+});
+
 export const WeeklyDigestAdminVarsSchema = z.object({
   tenantName: z.string().min(1),
   weekEnding: z.string(), // ISO8601 date
@@ -123,6 +137,7 @@ export type AttemptReadyForReviewAdminVars = z.infer<typeof AttemptReadyForRevie
 export type WeeklyDigestAdminVars = z.infer<typeof WeeklyDigestAdminVarsSchema>;
 export type AdminEmailOtpVars = z.infer<typeof AdminEmailOtpVarsSchema>;
 export type ResultReleasedVars = z.infer<typeof ResultReleasedVarsSchema>;
+export type EvaluationQueueAlertVars = z.infer<typeof EvaluationQueueAlertVarsSchema>;
 
 export type TemplateVarsMap = {
   invitation_admin: InvitationAdminVars;
@@ -136,6 +151,7 @@ export type TemplateVarsMap = {
   // P2: Email-OTP sign-in code (admin/reviewer only).
   admin_email_otp: AdminEmailOtpVars;
   result_released: ResultReleasedVars;
+  evaluation_queue_alert: EvaluationQueueAlertVars;
 };
 
 // ---------------------------------------------------------------------------
