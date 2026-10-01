@@ -30,7 +30,7 @@ const breadcrumbSchema = {
 
 <BaseLayout
   title="Privacy Policy"
-  description="AssessIQ's privacy policy — how candidate and account data is collected, used, and protected in line with India's DPDP Act 2023, with data stored on India-region infrastructure."
+  description="AssessIQ's privacy policy — how candidate and account data is collected, used, and protected in line with India's DPDP Act 2023, including where data is stored and the sub-processors we use."
   canonicalPath="/privacy"
 >
   <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
@@ -105,10 +105,9 @@ const breadcrumbSchema = {
           </p>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
             Name, email address, and assessment responses are collected when a candidate accepts an invitation
-            to take an assessment. Where proctoring is enabled by the hiring organisation, this also includes
-            webcam footage or screenshots, device and browser metadata (operating system, browser version,
-            screen resolution), and IP address. Proctoring is always disclosed to the candidate before the
-            assessment begins.
+            to take an assessment. We also record attempt details (such as start and submit times and
+            timing) and technical data such as IP address and browser or device information. AssessIQ does
+            not currently record webcam, microphone, or screen content.
           </p>
         </div>
 
@@ -139,7 +138,7 @@ const breadcrumbSchema = {
             What we do not collect
           </p>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            We do not collect payment card details (billing is handled by a third-party payment processor).
+            We do not collect payment card details (the platform does not take card payments).
             We do not collect sensitive personal data — such as caste, religion, health status, or financial
             account numbers — and our assessment packs are reviewed to avoid questions that solicit such
             information.
@@ -165,15 +164,20 @@ const breadcrumbSchema = {
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
               Candidate data is used to administer the assessment the candidate was invited to take and to
               produce a scored result. Grading is performed on behalf of the hiring organisation. The result
-              and any rationale are made available to that organisation's administrators and assigned reviewers.
+              and any rationale are made available to that organisation's administrators and reviewers once released.
+              Multiple-choice answers are scored automatically by fixed rules.
             </p>
           </div>
           <div>
             <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-              Generating reports for the hiring organisation.
+              AI-assisted evaluation of written answers.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Assessment outcomes, band scores, and supporting rationale are compiled into reports that
+              Written answers may be evaluated by AssessIQ staff with AI assistance (Anthropic Claude). The
+              text of the answer (and the question and rubric it is graded against) is sent to Anthropic for
+              this purpose; candidate names and email addresses are not part of what is sent. Evaluation is
+              run by AssessIQ staff, not automatically in the background, and results are reviewed before they
+              are released to the hiring organisation. Assessment outcomes, band scores, and supporting rationale are compiled into reports that
               the hiring organisation uses to make hiring or evaluation decisions. We do not add our own
               interpretation beyond what the rubric produces.
             </p>
@@ -232,14 +236,14 @@ const breadcrumbSchema = {
       <div class="max-w-3xl">
         <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Data residency</p>
         <h2 id="residency-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
-          Assessment data stored in India.
+          Where data is stored and processed.
         </h2>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-          All assessment data, candidate records, proctoring footage, and attempt logs are stored on
-          India-region infrastructure. We do not route personal data through overseas servers for routine
-          processing. Where a sub-processor is involved (for example, a transactional email provider),
-          that sub-processor is contracted to handle data in a manner consistent with our obligations and
-          does not retain personal data beyond the transaction. See the <a href="/security" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">security page</a> for
+          Assessment data, candidate records, and attempt logs are stored in the platform's database on a
+          virtual private server operated by Hostinger, with Cloudflare in front of it. Cross-border
+          transfer: when written answers are evaluated with AI assistance, the answer text is processed by
+          Anthropic, which operates in the United States, so that data leaves India for that purpose.
+          Transactional emails (invitations, sign-in codes, results notices) are sent through Brevo. See the <a href="/security" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">security page</a> for
           the full infrastructure posture.
         </p>
       </div>
@@ -262,8 +266,7 @@ const breadcrumbSchema = {
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
               The organisation that invited a candidate to take an assessment can view that candidate's
               result, band score, and supporting rationale. Access within the organisation is further
-              limited by role: reviewers see only the assessments assigned to them; administrators see
-              all assessments within their tenant. No organisation can see data belonging to another.
+              limited by role (administrators, reviewers, and candidates see different things). No organisation can see data belonging to another.
             </p>
           </div>
           <div>
@@ -271,10 +274,11 @@ const breadcrumbSchema = {
               Sub-processors under contract.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              We use a small number of infrastructure and operational sub-processors — hosting, transactional
-              email — each under a data processing agreement that limits their use of data to providing the
-              contracted service. We do not authorise sub-processors to use personal data for their own
-              purposes.
+              We use a small number of sub-processors: Hostinger (server hosting), Cloudflare (network
+              proxy and security), Brevo (transactional email), Google (optional sign-in with a Google
+              account), and Anthropic (AI-assisted evaluation of written answers, processed in the United
+              States). We limit what each receives to what its service needs, and we do not authorise
+              sub-processors to use personal data for their own purposes.
             </p>
           </div>
           <div>

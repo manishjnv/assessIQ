@@ -83,7 +83,7 @@ const faqSchema = {
       "name": "Does AssessIQ support remote developer assessment?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ runs entirely online with browser-based coding environments, proctoring controls, and shareable test links. Candidates can complete assessments from any location, and administrators receive a full attempt log including timing, proctoring events, and per-question results. There is no desktop software to install on either side."
+        "text": "Yes. AssessIQ runs entirely in the browser: candidates receive an invite link (valid for 7 days) and can complete assessments from any location, with time limits enforced server-side. Administrators see per-question results and timing. There is no desktop software to install on either side. Webcam proctoring and coding tests are not available yet."
       }
     }
   ]
@@ -298,7 +298,7 @@ const breadcrumbSchema = {
         </ul>
 
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
-          See the <a href="/tests/python" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Python assessment</a>, <a href="/tests/sql" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">SQL assessment</a>, and <a href="/tests/role/backend-developer" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">backend developer role pack</a> for examples of how AssessIQ structures role-specific coding tests.
+          AssessIQ does not run coding tests today (code execution is not built); it offers MCQ, scenario, log-analysis and written-answer questions instead.
         </p>
       </section>
 
@@ -356,7 +356,7 @@ const breadcrumbSchema = {
         </p>
 
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
-          Calibrating question difficulty for a campus cohort is different from calibrating for experienced hires. Aptitude norms, expected coding problem difficulty, and time limits should reflect what a final-year engineering student can reasonably complete — not what a senior engineer would find challenging. See <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's campus recruitment solution</a> for how we handle bulk invite, concurrent session management, and drive-specific reporting.
+          Calibrating question difficulty for a campus cohort is different from calibrating for experienced hires. Aptitude norms, expected coding problem difficulty, and time limits should reflect what a final-year engineering student can reasonably complete — not what a senior engineer would find challenging. See <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's campus recruitment solution</a> for how bulk CSV import (up to 200 students) and results export work.
         </p>
       </section>
 
@@ -414,7 +414,7 @@ const breadcrumbSchema = {
         </h3>
 
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
-          A slow hiring process has costs beyond the internal time spent: candidates accept other offers, particularly in competitive segments of the market. A structured assessment process that gives candidates clear timelines and quick feedback is also a candidate experience investment. See <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's IT hiring solution</a> for how bulk invite, real-time monitoring, and one-click export address the operational side of this. For bias considerations in shortlisting, see the next section.
+          A slow hiring process has costs beyond the internal time spent: candidates accept other offers, particularly in competitive segments of the market. A structured assessment process that gives candidates clear timelines and quick feedback is also a candidate experience investment. See <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">AssessIQ's IT hiring solution</a> for how bulk invite and results CSV export address the operational side of this. For bias considerations in shortlisting, see the next section.
         </p>
       </section>
 
@@ -476,7 +476,7 @@ const breadcrumbSchema = {
         </div>
 
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-0">
-          AssessIQ supports all three stages: <a href="/tests/python" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">skill-specific tests</a> and <a href="/tests/role/backend-developer" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">role packs</a> for Stage 1, structured scoring rubrics for Stage 2, and a dashboard that surfaces per-candidate and cohort-level evidence for Stage 3. See the <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT hiring solution page</a> for a full capability overview.
+          AssessIQ covers the assessment parts of this: question packs and MCQ tests for Stage 1, structured scoring rubrics for Stage 2, and reports that surface per-candidate and cohort-level results for Stage 3. See the <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT hiring solution page</a> for a full capability overview.
         </p>
       </section>
 
@@ -538,7 +538,7 @@ const breadcrumbSchema = {
               Does AssessIQ support remote developer assessment?
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Yes. AssessIQ runs entirely online with browser-based coding environments, <a href="/resources/remote-proctoring-integrity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">proctoring controls</a>, and shareable test links. Candidates complete assessments from any location; administrators receive a full attempt log including timing, proctoring events, and per-question results.
+              Yes. AssessIQ runs entirely in the browser: candidates receive an invite link (valid for 7 days) and complete assessments from any location, with time limits enforced server-side. Administrators see per-question results and timing. Webcam <a href="/resources/remote-proctoring-integrity" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">proctoring</a> and coding tests are not available yet.
             </p>
           </div>
 

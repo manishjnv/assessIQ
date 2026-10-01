@@ -49,13 +49,7 @@ const softwareSchema = {
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
   "url": `${site}/`,
-  "description": "Skills-based candidate and team assessment platform for IT companies and educational institutions in India — proctored tests, coding assessments, aptitude, and skill-gap analytics.",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "INR",
-    "category": "Free trial"
-  }
+  "description": "Skills-based candidate and team assessment platform for IT companies and educational institutions in India — structured tests, aptitude, AI-assisted evaluation of written answers, and skill-gap analytics."
 };
 
 // Who-it's-for cards (no fabricated stats)
@@ -63,7 +57,7 @@ const audiences = [
   {
     label: "IT & Tech Companies",
     heading: "Screen developers before the interview.",
-    body: "Role-specific coding tests, aptitude batteries, and proctored assessments. See who can actually do the work, not just talk about it.",
+    body: "Aptitude batteries and scenario-based skills tests, scored against a clear rubric. See who can actually do the work, not just talk about it.",
   },
   {
     label: "Campus Recruitment",
@@ -73,24 +67,24 @@ const audiences = [
   {
     label: "Educational Institutions",
     heading: "Certify skills with integrity.",
-    body: "Proctored online exams, team skill-gap analysis, and shareable credentials your students can take to their next employer.",
+    body: "Online exams, team skill-gap analysis, and certificates with a public verification page that students can take to their next employer.",
   },
 ];
 
 // What it does — product capability pillars
 const capabilities = [
-  { label: "Skills Tests", body: "Assess Python, Java, SQL, React, .NET, aptitude, logical reasoning, English, and more." },
-  { label: "Coding Assessment", body: "Live coding environment with test cases. Evaluates real programming ability, not just theory." },
-  { label: "Proctored Exams", body: "Browser lockdown, webcam monitoring, and AI-flagged anomalies so you can trust every score." },
+  { label: "Skills Tests", body: "Multiple-choice, scenario, and written-answer questions from licensed question packs, including a live aptitude pack. More domains coming soon." },
+  { label: "AI-assisted Evaluation", body: "Written, scenario, and log-analysis answers are evaluated with AI assistance by AssessIQ evaluators against anchor and band rubrics, then released to you with rationale." },
+  { label: "Fair Delivery", body: "Randomised question order, per-student option shuffle, server-side timers, and per-candidate invite links." },
   { label: "Team Skill-Gap", body: "Map your current team's competencies. Find where training is needed before it becomes attrition." },
   { label: "Certification", body: "Issue tamper-evident digital credentials candidates can share on LinkedIn and their CV." },
-  { label: "Analytics & Reporting", body: "Per-candidate and cohort-level reports. Export to your ATS or view in the admin dashboard." },
+  { label: "Analytics & Reporting", body: "Per-candidate and cohort-level reports. Export results as CSV or view them in the admin dashboard." },
 ];
 ---
 
 <BaseLayout
   title="Candidate & Team Assessment Platform for India"
-  description="AssessIQ is a skills-based assessment platform for IT companies, campus recruitment, and educational institutions in India. Proctored tests, coding assessments, and team skill-gap analytics. Graded on evidence."
+  description="AssessIQ is a skills-based assessment platform for IT companies, campus recruitment, and educational institutions in India. Structured tests, AI-assisted evaluation, and team skill-gap analytics. Graded on evidence."
   canonicalPath="/"
 >
   <!-- JSON-LD: Organization (separate block per §3.6) -->
@@ -117,19 +111,19 @@ const capabilities = [
       <!-- Value prop — clear positioning for India IT hiring + campus + institutions -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
         AssessIQ is a candidate and team assessment platform built for Indian IT companies,
-        campus recruitment teams, and educational institutions. Skills tests, coding assessments,
-        proctored exams, and team skill-gap analytics — all in one place.
+        campus recruitment teams, and educational institutions. Skills tests, aptitude assessments,
+        certificates, and team skill-gap analytics — all in one place.
       </p>
 
       <!-- CTA row — one primary action per surface (branding §8.1) -->
       <div class="flex flex-wrap items-center gap-aiq-md">
         <a
-          href="https://assessiq.in/admin/login"
+          href="/contact"
           class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Get started free
+          Request a demo
         </a>
         <a
           href="/contact"
@@ -225,7 +219,7 @@ const capabilities = [
             India-first, globally ready.
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Calibrated for the Indian hiring market — campus batch sizes, IT-sector role stacks, vernacular-neutral question design, and local data residency.
+            Calibrated for the Indian hiring market — campus batch sizes, IT-sector role stacks, and plain-language question design.
           </p>
         </div>
         <div>
@@ -233,7 +227,7 @@ const capabilities = [
             Auditable by design.
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Full attempt logs, proctoring flags, and per-answer evidence. Every decision is traceable — whether for internal review or regulatory compliance.
+            Full attempt logs, an append-only audit log, and per-answer evidence. Every decision is traceable — whether for internal review or regulatory compliance.
           </p>
         </div>
         <div>
@@ -241,7 +235,7 @@ const capabilities = [
             Built for the admin, not just the candidate.
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Dashboard-driven workflows, bulk invite, real-time monitoring, and one-click result reports. You spend time on decisions, not on spreadsheets.
+            Dashboard-driven workflows, bulk invite with resend, CSV student import, and results export. You spend time on decisions, not on spreadsheets.
           </p>
         </div>
       </div>
@@ -252,12 +246,12 @@ const capabilities = [
           Ready to assess with confidence?
         </p>
         <a
-          href="https://assessiq.in/admin/login"
+          href="/contact"
           class="inline-flex font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Start your free trial
+          Request a demo
         </a>
       </div>
 

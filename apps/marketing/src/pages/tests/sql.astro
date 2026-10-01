@@ -12,7 +12,7 @@ const serviceSchema = {
   "serviceType": "SQL skills assessment",
   "provider": { "@type": "Organization", "name": "AssessIQ" },
   "areaServed": ["India", "Worldwide"],
-  "description": "Online SQL test for pre-employment screening and data role hiring in India. Covers joins, aggregations, subqueries, window functions, and query optimisation. Structured scoring with anti-cheat proctoring.",
+  "description": "SQL test pack for AssessIQ: coming soon. Not yet available; contact us to be told when it launches.",
   "url": `${site}/tests/sql`
 };
 
@@ -22,50 +22,18 @@ const faqSchema = {
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "How long is an SQL online test?",
+      "name": "Is the SQL test available on AssessIQ?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "A SQL screening test typically runs 30–45 minutes for multiple-choice and query-output questions. Tests that require writing live SQL queries against a test database run 45–60 minutes. Admins set the duration per test."
+        "text": "Not yet. The SQL test pack is coming soon. Contact us and we will tell you when it launches."
       }
     },
     {
       "@type": "Question",
-      "name": "Is the SQL test free on AssessIQ?",
+      "name": "Which AssessIQ test is available today?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "The free tier lets you run SQL tests and review candidate results. Paid plans add higher candidate volumes, bulk invite, and advanced proctoring controls. See the pricing page for current limits."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Which SQL dialect does the test use?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Questions are written in standard ANSI SQL and are compatible with MySQL, PostgreSQL, and SQL Server. Dialect-specific syntax (e.g. LIMIT vs TOP, date functions) is flagged in the question where relevant, so candidates aren't penalised for dialect differences."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Does the SQL test cover window functions?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. Window functions (ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PARTITION BY) are included at the mid-level and senior question tiers. They are kept separate from the core joins-and-aggregations pack so admins can target the right difficulty for the role."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "What score is good on an SQL test for a data analyst role?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "For data analyst roles, strong SQL fundamentals (joins, GROUP BY, HAVING, subqueries) matter more than window functions or query-plan reading. A candidate in the top third of your cohort on a mid-level SQL pack is typically a solid shortlist signal. AssessIQ shows the cohort distribution per test run."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Can SQL tests be combined with other skill tests on AssessIQ?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. Admins can combine SQL questions with Python, aptitude, or logical reasoning questions in a single timed session. This is common for data analyst and data engineer screening, where SQL query skill and scripting fluency both matter."
+        "text": "The Aptitude test pack (multiple-choice, scored automatically) is live. Written, scenario and log-analysis questions can be graded with AI assistance by AssessIQ evaluators."
       }
     }
   ]
@@ -93,7 +61,7 @@ const topics = [
 
 <BaseLayout
   title="SQL Online Test for Hiring & Assessment"
-  description="Run an SQL online test to screen data analysts and backend developers in India. Covers joins, aggregations, subqueries, window functions, and query design. Structured scoring, anti-cheat proctoring."
+  description="SQL online test for hiring: coming soon on AssessIQ. Not yet available; contact us to be notified."
   canonicalPath="/tests/sql"
 >
   <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
@@ -114,16 +82,16 @@ const topics = [
 
   <section class="bg-aiq-bg-base border-b border-aiq-border">
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
-      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Skill Test &middot; SQL</p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Skill Test &middot; SQL &middot; Coming soon</p>
       <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
-        SQL Online Test for Hiring &amp; Assessment
+        SQL Online Test for Hiring &amp; Assessment <span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span>
       </h1>
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        An SQL online test measures a candidate's ability to query, transform, and reason about relational data — from correct join semantics and GROUP BY logic to subqueries, CTEs, and window functions. It identifies candidates who write correct SQL under realistic conditions, not just those who recall syntax from memory.
+        Coming soon: the SQL test pack is not yet available. What follows describes the intended scope. An SQL online test measures a candidate's ability to query, transform, and reason about relational data — from correct join semantics and GROUP BY logic to subqueries, CTEs, and window functions. It identifies candidates who write correct SQL under realistic conditions, not just those who recall syntax from memory.
       </p>
       <div class="flex flex-wrap items-center gap-aiq-md">
-        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Get started free</a>
-        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Contact us about this test</a>
+        <a href="/tests/aptitude" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">See the live Aptitude test</a>
       </div>
     </div>
   </section>
@@ -145,7 +113,7 @@ const topics = [
 
   <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
-      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample question</p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Illustrative example (not from a live test)</p>
       <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">The kind of question candidates answer</h2>
       <div class="max-w-3xl">
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
@@ -208,18 +176,18 @@ FROM orders;</code></pre>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg max-w-3xl">
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Duration</p>
-          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">30–60 min</p>
-          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Configurable per test</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Coming soon</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Confirmed at launch</p>
         </div>
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Format</p>
-          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">MCQ + Query writing</p>
-          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Output prediction + live SQL</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Coming soon</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Confirmed at launch</p>
         </div>
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Levels</p>
-          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Foundational — Advanced</p>
-          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Joins-only to window functions</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Coming soon</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Confirmed at launch</p>
         </div>
       </div>
     </div>
@@ -230,12 +198,8 @@ FROM orders;</code></pre>
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
       <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Common questions about the SQL online test</h2>
       <div class="flex flex-col gap-aiq-xl max-w-3xl">
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long is an SQL online test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A SQL screening test typically runs 30–45 minutes for MCQ and query-output questions. Tests requiring live SQL query writing run 45–60 minutes. Duration is configurable by the admin.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the SQL test free on AssessIQ?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The free tier lets you run SQL tests and review candidate results. Paid plans add higher candidate volumes and advanced proctoring. See the <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing page</a>.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Which SQL dialect does the test use?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Questions are written in standard ANSI SQL, compatible with MySQL, PostgreSQL, and SQL Server. Dialect-specific syntax is flagged in the question where relevant.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does the SQL test cover window functions?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PARTITION BY are included at mid and senior tiers. They are kept separate from the core pack so admins can include or exclude them by role.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What score is good on an SQL test for a data analyst role?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">For data analyst roles, strong SQL fundamentals (joins, GROUP BY, HAVING, subqueries) matter most. A candidate in the top third of your cohort on a mid-level pack is typically a solid shortlist signal. AssessIQ shows the cohort distribution per test run.</p></div>
-        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can SQL tests be combined with other skill tests?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. Admins can combine SQL with Python, aptitude, or logical reasoning questions in a single timed session. This is common for data analyst and data engineer screening.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the SQL test available on AssessIQ?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Not yet. The SQL test pack is coming soon. <a href="/contact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Contact us</a> and we will tell you when it launches.</p></div>
+        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Which AssessIQ test is available today?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The <a href="/tests/aptitude" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Aptitude test pack</a> (multiple-choice, scored automatically) is live. Written, scenario and log-analysis questions can be graded with AI assistance by AssessIQ evaluators.</p></div>
       </div>
     </div>
   </section>
@@ -247,8 +211,8 @@ FROM orders;</code></pre>
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
           <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Ready to screen SQL candidates?</h2>
           <div class="flex flex-wrap gap-aiq-md">
-            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Start free</a>
-            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Pricing</a>
+            <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Contact us about this test</a>
+            <a href="/tests" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">All skill tests</a>
           </div>
         </div>
         <div>

@@ -58,7 +58,7 @@ const faqSchema = {
       "name": "Does HackerEarth support proctoring for assessments?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt that admins can review. Both platforms address proctoring; the depth and auditability of proctoring logs differs — evaluate against your compliance requirements."
+        "text": "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring features are coming soon and are not available today; it currently offers server-side timers, per-student option shuffle, and an append-only audit log. If anti-cheating controls are a requirement now, HackerEarth is the stronger fit."
       }
     },
     {
@@ -74,15 +74,15 @@ const faqSchema = {
       "name": "Which platform has a larger coding challenge library?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth publicly states a library of 40,000+ coding problems across 1,000+ skills and 40+ programming languages. AssessIQ's coding question packs are curated specifically for Indian IT hiring role stacks — focused on Python, Java, SQL, React, .NET, and related technologies — with calibration for Indian candidate pools. If breadth of coding problems across many languages is the priority, HackerEarth has more volume. If curated packs calibrated for Indian IT hiring are the priority, AssessIQ is built for that."
+        "text": "HackerEarth publicly states a library of 40,000+ coding problems across 1,000+ skills and 40+ programming languages. AssessIQ does not offer coding tests today (coming soon); its packs currently cover aptitude and other MCQ and written-answer content. If a large coding-problem library is the priority, HackerEarth is the clear choice."
       }
     },
     {
       "@type": "Question",
-      "name": "Can I try AssessIQ for free?",
+      "name": "How can I evaluate AssessIQ before committing?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This lets you evaluate AssessIQ against your real hiring workflow before deciding."
+        "text": "Contact us and we will set up a company account so you can run a real assessment against your hiring workflow before deciding."
       }
     }
   ]
@@ -118,22 +118,22 @@ const breadcrumbSchema = {
 const tableRows = [
   {
     criterion: "India focus",
-    assessiq: "Built India-first — calibrated question packs for Indian IT role stacks, local data residency, pricing for Indian team sizes",
+    assessiq: "Built for Indian hiring and campus programs — structured scoring, audit trail, and an aptitude question pack",
     hackerearth: "Founded in Bengaluru; global platform serving 3,000+ companies; strong Indian enterprise and developer community presence"
   },
   {
     criterion: "Proctoring",
-    assessiq: "Tab-switch detection, full-screen enforcement, webcam monitoring, copy-paste restriction, timestamped event log per attempt",
+    assessiq: "Proctoring features (Coming soon); server-side timers and an append-only audit log today",
     hackerearth: "Smart Browser, copy/paste detection, AI-generated code tracking; anti-cheat controls built into the assessment layer"
   },
   {
     criterion: "Question types",
-    assessiq: "Coding (live execution + test cases), MCQ, output prediction, aptitude, logical reasoning — curated for Indian IT hiring",
+    assessiq: "MCQ with per-student option shuffle, scenario and log-analysis questions, aptitude pack; coding tests (Coming soon)",
     hackerearth: "40,000+ coding problems across 1,000+ skills and 40+ programming languages; AI-powered question engine; real-world project simulations"
   },
   {
     criterion: "Code evaluation",
-    assessiq: "Browser-based environment; submissions run against hidden test cases; pass/fail count + execution time visible to admin",
+    assessiq: "Coding tests and live code execution (Coming soon); MCQ scored deterministically, written answers graded with AI assistance by AssessIQ evaluators",
     hackerearth: "Real-time code evaluation; AI-powered scoring; automated leaderboards with candidate performance analytics"
   },
   {
@@ -153,7 +153,7 @@ const tableRows = [
   },
   {
     criterion: "Integrations",
-    assessiq: "Admin dashboard, CSV export, PDF reports; ATS integrations — varies by plan (check current docs)",
+    assessiq: "Admin dashboard, results CSV per assessment, signed webhooks; ATS/HRMS integrations (Coming soon)",
     hackerearth: "Integrations with major ATS and HR platforms; enterprise integration catalog"
   },
   {
@@ -179,7 +179,7 @@ const faqs = [
   },
   {
     q: "Does HackerEarth support proctoring for assessments?",
-    a: "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt that admins can review. Both platforms address proctoring; the depth and auditability of proctoring logs differs — evaluate against your compliance requirements."
+    a: "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring features are coming soon and are not available today; it currently offers server-side timers, per-student option shuffle, and an append-only audit log. If anti-cheating controls are a requirement now, HackerEarth is the stronger fit."
   },
   {
     q: "Is HackerEarth good for hackathon-based hiring in India?",
@@ -187,11 +187,11 @@ const faqs = [
   },
   {
     q: "Which platform has a larger coding challenge library?",
-    a: "HackerEarth publicly states a library of 40,000+ coding problems across 1,000+ skills and 40+ programming languages. AssessIQ's coding question packs are curated specifically for Indian IT hiring role stacks — focused on Python, Java, SQL, React, .NET, and related technologies — with calibration for Indian candidate pools. If breadth of coding problems across many languages is the priority, HackerEarth has more volume. If curated packs calibrated for Indian IT hiring are the priority, AssessIQ is built for that."
+    a: "HackerEarth publicly states a library of 40,000+ coding problems across 1,000+ skills and 40+ programming languages. AssessIQ does not offer coding tests today (coming soon); its packs currently cover aptitude and other MCQ and written-answer content. If a large coding-problem library is the priority, HackerEarth is the clear choice."
   },
   {
-    q: "Can I try AssessIQ for free?",
-    a: "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This lets you evaluate AssessIQ against your real hiring workflow before deciding."
+    q: "How can I evaluate AssessIQ before committing?",
+    a: "Contact us and we will set up a company account so you can run a real assessment against your hiring workflow before deciding."
   }
 ];
 ---
@@ -326,10 +326,10 @@ const faqs = [
               You want a B2B-only platform with no public leaderboards, no gamification, and no candidate-facing community — just a clean admin workflow for your hiring team.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You are running campus or institutional drives with bulk invite, CSV import, and concurrent sessions for Indian candidate pools.
+              You are running campus or institutional drives with bulk invite and CSV import (up to 200 per import) for Indian candidate pools.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You want to get started without a procurement process — free account, no credit card.
+              You want a guided setup — talk to us and we will create your company account.
             </li>
           </ul>
         </div>
@@ -400,7 +400,7 @@ const faqs = [
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Sign in
             </a>
             <a
               href="/contact"

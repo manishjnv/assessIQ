@@ -73,7 +73,7 @@ const faqSchema = {
       "name": "How long should a frontend developer assessment take?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "A standard frontend developer battery on AssessIQ takes 60–90 minutes: approximately 30 minutes for the JavaScript test, 30 minutes for React, and 20–30 minutes for aptitude if included. For senior roles, adding a live coding task extends the session to 90–120 minutes. Admins can configure duration per test segment."
+        "text": "Duration depends on which tests are combined. This role assessment is coming soon, so contact us to discuss scope and timing before you plan a campaign."
       }
     },
     {
@@ -81,7 +81,7 @@ const faqSchema = {
       "name": "How do you assess a frontend developer without bias?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Structured, proctored online tests reduce several common bias sources: all candidates receive the same questions in the same timed conditions, scoring is automated and rubric-based, and results show a per-cohort distribution so shortlisting thresholds are calibrated to the actual candidate pool rather than an arbitrary pass mark. Resume-based screening is deferred until after objective test results are reviewed."
+        "text": "Structured online tests reduce several common bias sources: all candidates receive the same questions under the same timer, multiple-choice scoring is deterministic, and written answers are scored against a rubric with a recorded rationale. This role assessment is coming soon, so contact us about it."
       }
     },
     {
@@ -89,7 +89,7 @@ const faqSchema = {
       "name": "What is a good score on a frontend developer assessment?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "There is no universal pass mark. The appropriate shortlist threshold depends on the seniority level, the difficulty calibration of your question pack, and the depth of your candidate pool. AssessIQ displays each candidate's score alongside the cohort distribution, so you can set a percentile-based cutoff (e.g. top third of your pool) rather than a fixed score."
+        "text": "There is no universal pass mark. The appropriate shortlist threshold depends on the seniority level, the difficulty calibration of your question pack, and the depth of your candidate pool. Set the cutoff relative to your actual candidate pool, using AssessIQ results and the results CSV export, rather than a fixed score."
       }
     },
     {
@@ -105,7 +105,7 @@ const faqSchema = {
       "name": "Can AssessIQ tests be used for remote frontend developer hiring in India?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ is fully browser-based with no software install required. Built-in proctoring — tab-switch detection, webcam monitoring, full-screen enforcement — runs in the candidate's browser. Invite via CSV or shareable link; there is no per-seat cap on concurrent sessions, making it suitable for distributed hiring across India."
+        "text": "This role assessment is coming soon, so contact us about it. AssessIQ is browser-based with no software install, and candidates can be invited by CSV import or emailed invite links that stay valid for 7 days."
       }
     }
   ]
@@ -183,8 +183,8 @@ const batteryTests = [
 ---
 
 <BaseLayout
-  title="Frontend Developer Assessment Test"
-  description="Assess frontend developers in India with a structured battery: JavaScript, React, and Aptitude. Competency matrix, benchmark guidance, and sample scorecard for hiring teams. No fabricated stats."
+  title="Frontend Developer Assessment Test (Coming soon)"
+  description="Coming soon: AssessIQ role assessment for hiring frontend developers in India. Competency matrix, benchmark guidance and scorecard outline. Contact us about this test."
   canonicalPath={canonicalPath}
   ogType="article"
 >
@@ -209,20 +209,20 @@ const batteryTests = [
   <!-- HERO -->
   <section class="bg-aiq-bg-base border-b border-aiq-border">
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
-      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Frontend Developer</p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Frontend Developer <span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span></p>
       <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
         Frontend Developer Assessment Test: Skills, Battery &amp; Scorecard
       </h1>
       <!-- 40–60 word intro — featured-snippet target -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        To assess a frontend developer, you need more than a resume scan. A structured battery tests JavaScript language fluency, React component design, and cognitive aptitude in a single proctored session — giving hiring teams an objective, comparable signal across every candidate, regardless of college or prior employer.
+        To assess a frontend developer, you need more than a resume scan. A structured battery tests JavaScript language fluency, React component design, and cognitive aptitude in a single session — giving hiring teams an objective, comparable signal across every candidate, regardless of college or prior employer.
       </p>
       <div class="flex flex-wrap items-center gap-aiq-md">
-        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-          Get started free
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Contact us about this test
         </a>
-        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-          Talk to us
+        <a href="/tests" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          See available tests
         </a>
       </div>
     </div>
@@ -293,11 +293,11 @@ const batteryTests = [
           </div>
           <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
             <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Mid / Senior (3+ yrs)</p>
-            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">React performance and advanced JavaScript (async patterns, memory) should score in the upper tier. Use per-cohort distribution to set the bar.</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">React performance and advanced JavaScript (async patterns, memory) should score in the upper tier. Set the bar relative to your own candidate pool.</p>
           </div>
         </div>
         <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
-          AssessIQ shows each score alongside the distribution for your current campaign cohort — so your shortlist threshold is always relative to who actually applied, not a hypothetical norm.
+          Set your shortlist threshold relative to who actually applied, using AssessIQ results and the results CSV export, not a hypothetical norm.
         </p>
       </div>
     </div>
@@ -331,7 +331,7 @@ const batteryTests = [
             </div>
           </div>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">
-            Each component shows a band score (not just a total), a per-question breakdown, and proctoring event flags — giving reviewers the detail needed to make a structured shortlist decision.
+            Each component shows a band score (not just a total) and a per-question breakdown — giving reviewers the detail needed to make a structured shortlist decision.
           </p>
         </div>
         <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
@@ -358,15 +358,15 @@ const batteryTests = [
         </div>
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long should a frontend developer assessment take?</h3>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A standard frontend developer battery on AssessIQ takes 60&#8211;90 minutes: approximately 30 minutes for the JavaScript test, 30 minutes for React, and 20&#8211;30 minutes for aptitude if included. For senior roles, adding a live coding task extends the session to 90&#8211;120 minutes. Admins can configure duration per test segment.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Duration depends on which tests are combined. This role assessment is coming soon, so contact us to discuss scope and timing before you plan a campaign.</p>
         </div>
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How do you assess a frontend developer without bias?</h3>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Structured, proctored online tests reduce several common bias sources: all candidates receive the same questions in the same timed conditions, scoring is automated and rubric-based, and results show a per-cohort distribution so shortlisting thresholds are calibrated to the actual candidate pool rather than an arbitrary pass mark.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Structured online tests reduce several common bias sources: all candidates receive the same questions under the same timer, multiple-choice scoring is deterministic, and written answers are scored against a rubric with a recorded rationale. This role assessment is coming soon, so contact us about it.</p>
         </div>
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is a good score on a frontend developer assessment?</h3>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">There is no universal pass mark. The appropriate shortlist threshold depends on the seniority level, the difficulty calibration of your question pack, and the depth of your candidate pool. AssessIQ displays each candidate&#39;s score alongside the cohort distribution, so you can set a percentile-based cutoff rather than a fixed score.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">There is no universal pass mark. The appropriate shortlist threshold depends on the seniority level, the difficulty calibration of your question pack, and the depth of your candidate pool. Set the cutoff relative to your actual candidate pool, using AssessIQ results and the results CSV export, rather than a fixed score.</p>
         </div>
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Should aptitude be part of a frontend developer battery?</h3>
@@ -374,7 +374,7 @@ const batteryTests = [
         </div>
         <div>
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can AssessIQ tests be used for remote frontend developer hiring in India?</h3>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. AssessIQ is fully browser-based with no software install required. Built-in proctoring &#8212; tab-switch detection, webcam monitoring, full-screen enforcement &#8212; runs in the candidate&#39;s browser. Invite via CSV or shareable link; there is no per-seat cap on concurrent sessions.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">This role assessment is coming soon, so contact us about it. AssessIQ is browser-based with no software install, and candidates can be invited by CSV import or emailed invite links that stay valid for 7 days.</p>
         </div>
       </div>
     </div>
@@ -390,11 +390,11 @@ const batteryTests = [
             Ready to screen frontend developers?
           </h2>
           <div class="flex flex-wrap gap-aiq-md">
-            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-              Start free
+            <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Contact us about this test
             </a>
-            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-              Pricing
+            <a href="/tests" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              All skill tests
             </a>
           </div>
         </div>

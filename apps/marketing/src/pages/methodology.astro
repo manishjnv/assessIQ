@@ -95,7 +95,7 @@ const validityPoints = [
   },
   {
     label: "Reliability (consistency)",
-    body: "A reliable assessment produces consistent results: a candidate who takes the same assessment on two occasions, or two candidates of identical ability, should score similarly. AssessIQ supports reliability through standardised question text, standardised rubrics with explicit band anchors, and time-limited conditions that are enforced server-side. The AI-assisted scoring layer is calibrated to the same rubric a human reviewer would apply. We do not publish an internal reliability coefficient for our question packs because we have not run the reference-population studies required to calculate one honestly. See /glossary/reliability-coefficient for what that calculation requires.",
+    body: "A reliable assessment produces consistent results: a candidate who takes the same assessment on two occasions, or two candidates of identical ability, should score similarly. AssessIQ supports reliability through standardised question text, standardised rubrics with explicit band anchors, and time-limited conditions that are enforced server-side. Where AI assistance is used, it is given the same rubric a human reviewer would apply. We do not publish an internal reliability coefficient for our question packs because we have not run the reference-population studies required to calculate one honestly. See /glossary/reliability-coefficient for what that calculation requires.",
   },
 ];
 
@@ -107,11 +107,11 @@ const fairnessPractices = [
   },
   {
     label: "Job-relevance gate",
-    body: "The EEOC Uniform Guidelines on Employee Selection Procedures require that selection procedures be job-related. Every question in AssessIQ is scoped to a defined competency domain with an explicit job-relevance rationale. Questions that cannot be tied to a job task are excluded.",
+    body: "The EEOC Uniform Guidelines on Employee Selection Procedures require that selection procedures be job-related. Question packs are written to a defined competency domain, and questions that cannot be tied to a job task are left out.",
   },
   {
     label: "Band-score transparency",
-    body: "Every scored response carries a rationale: what the candidate demonstrated, and at which band. This makes the basis for a score inspectable — by administrators, by internal auditors, and if challenged, by the candidate. Opaque pass/fail scores with no explanation are a fairness and legal-exposure risk; AssessIQ is designed to avoid them.",
+    body: "Every AI-assisted band score carries a rationale: what the candidate demonstrated, and at which band. This makes the basis for a score inspectable — by administrators, by internal auditors, and if challenged, by the candidate. Opaque pass/fail scores with no explanation are a fairness and legal-exposure risk; AssessIQ is designed to avoid them.",
   },
   {
     label: "Adverse-impact awareness",
@@ -122,7 +122,7 @@ const fairnessPractices = [
 
 <BaseLayout
   title="Assessment Methodology — AssessIQ"
-  description="How AssessIQ assessment packs are designed, scored, and reviewed. Band scoring, validity and reliability principles, fairness practices, and proctoring integrity — honestly described."
+  description="How AssessIQ assessment packs are designed, scored, and reviewed. Band scoring, validity and reliability principles, fairness practices, test-integrity measures, and how AI-assisted scoring works — honestly described."
   canonicalPath="/methodology"
 >
   <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
@@ -156,7 +156,7 @@ const fairnessPractices = [
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
         A hiring assessment is only useful if it measures what it claims to measure, consistently, and without
         unfair disadvantage to any group of candidates. This page describes the principles and practices behind
-        AssessIQ question packs, the band-scoring model, and our approach to fairness and integrity.
+        AssessIQ question packs, the band-scoring model, and our approach to fairness and test integrity.
       </p>
     </div>
   </section>
@@ -316,27 +316,23 @@ const fairnessPractices = [
   <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="proctoring-heading">
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
       <div class="max-w-3xl">
-        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Proctoring integrity</p>
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Test integrity</p>
         <h2 id="proctoring-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
           Conditions that make scores meaningful.
         </h2>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
-          A valid score requires a controlled test environment. AssessIQ&rsquo;s proctoring layer — available on
-          Growth and Enterprise tiers — combines browser lockdown (candidates cannot switch tabs or open other
-          applications) with webcam monitoring and server-side time enforcement. See
-          <a href="/glossary/proctoring" class="text-aiq-accent hover:underline">our proctoring glossary entry</a> and
-          the <a href="/security" class="text-aiq-accent hover:underline">security page</a> for how proctoring data is stored and protected.
+          A valid score requires a controlled test environment. Today AssessIQ enforces time limits on the server
+          and randomises what each candidate sees; it does not yet include webcam proctoring, browser lockdown or tab-switch
+          detection. See <a href="/security" class="text-aiq-accent hover:underline">the security page</a> for how candidate data is stored and protected.
         </p>
         <div class="flex flex-col gap-aiq-xl">
           <div>
             <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-              Human review of flagged attempts.
+              Proctoring and in-test monitoring.<span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span>
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Proctoring flags — tab switches, webcam anomalies, activity breaks — are surfaced to administrators
-              for human review, not automatically invalidated. An automated system cannot distinguish a candidate
-              looking away from the screen from one consulting external material. The decision to invalidate an
-              attempt is a human judgment call, made by a person with the context to assess it.
+              Webcam proctoring, browser lockdown and tab-switch or copy-paste detection are not available yet. When
+              they ship, flagged events will be surfaced for human review rather than automatically invalidating an attempt.
             </p>
           </div>
           <div>
@@ -344,8 +340,8 @@ const fairnessPractices = [
               Anti-cheat design in question packs.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Question packs support randomisation of question order and, for MCQ, answer option order. Time limits
-              are enforced server-side. Copy-paste is restricted in the coding environment. These measures reduce
+              Assessments can randomise question order, and MCQ answer options are shuffled per student. Time limits
+              are enforced server-side. These measures reduce
               the value of answer-sharing between candidates sitting the same assessment drive.
             </p>
           </div>
@@ -354,8 +350,8 @@ const fairnessPractices = [
               Answer-key protection.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Correct answers and scoring rationale are never exposed to candidates — not in the assessment UI,
-              not in share links, and not in any API response reachable by a candidate session. Access to answer
+              Correct answers and scoring rationale are never exposed to candidates — not in the assessment UI
+              and not in any API response reachable by a candidate session. Access to answer
               keys is gated to administrator and reviewer roles only. This is enforced at the server layer, not
               by UI-level hiding.
             </p>
@@ -374,20 +370,20 @@ const fairnessPractices = [
           How AI scoring works — and what it does not do.
         </h2>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
-          For open-response and coding questions, AssessIQ uses AI-assisted scoring calibrated to the same
-          rubric a human reviewer would apply. The scoring model is given the question, the rubric anchors for
+          For subjective, scenario and log-analysis questions, AssessIQ uses AI-assisted scoring against the same
+          rubric a human reviewer would apply. MCQ questions are scored deterministically against the answer key, with no AI involved. The scoring model is given the question, the rubric anchors for
           each band, and the candidate response — and returns a band score plus a rationale explaining which
           anchor the response matches and why.
         </p>
         <div class="flex flex-col gap-aiq-xl">
           <div>
             <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-              Scoring is triggered by an administrator, not automatically.
+              Scoring is triggered by a person, not automatically.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              AI scoring runs on administrator action — it does not fire automatically when a candidate submits.
-              This is a deliberate design constraint: the administrator decides when results are ready to review,
-              not an automated pipeline.
+              AI-assisted evaluation is run by AssessIQ evaluators on request — companies cannot self-serve it, and it does not fire
+              automatically when a candidate submits. Candidates only ever see complete scores, and results reach the company
+              once released. The written-answer text is sent to Anthropic&rsquo;s Claude (US) for evaluation.
             </p>
           </div>
           <div>
@@ -405,7 +401,7 @@ const fairnessPractices = [
               Reviewers can override.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Administrators and assigned reviewers can inspect the AI-assigned score and rationale and override
+              Administrators and reviewers can inspect the AI-assigned score and rationale and override
               it. The final score on a candidate record reflects human judgment if a reviewer has intervened.
               AI scoring is an efficiency tool, not a black-box decision system.
             </p>

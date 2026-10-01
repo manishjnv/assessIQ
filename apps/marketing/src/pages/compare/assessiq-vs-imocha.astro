@@ -50,7 +50,7 @@ const faqSchema = {
       "name": "How does AssessIQ differ from iMocha?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "iMocha's strength is its Skills Intelligence Cloud — AI-powered workforce analytics that map skills gaps across an organization's existing talent pool, not just candidate screening. AssessIQ is focused on the hiring and institutional assessment use case: structured coding tests, rubric-based scoring, proctoring with per-attempt audit logs, and a simple admin workflow for Indian IT companies and educational institutions. If your primary need is workforce skills mapping and talent intelligence at enterprise scale, iMocha is purpose-built for that. If your primary need is structured pre-interview screening with scoring rationale, AssessIQ is the more focused option."
+        "text": "iMocha's strength is its Skills Intelligence Cloud — AI-powered workforce analytics that map skills gaps across an organization's existing talent pool, not just candidate screening. AssessIQ is focused on the hiring and institutional assessment use case: rubric-based scoring, per-attempt audit logs, and a simple admin workflow for Indian IT companies and educational institutions. If your primary need is workforce skills mapping and talent intelligence at enterprise scale, iMocha is purpose-built for that. If your primary need is structured pre-interview screening with scoring rationale, AssessIQ is the more focused option."
       }
     },
     {
@@ -58,7 +58,7 @@ const faqSchema = {
       "name": "Does iMocha support coding assessments?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "iMocha includes coding and project-based assessments as part of its 3,000+ assessment library. AssessIQ's coding environment runs submissions against hidden test cases with real-time pass/fail results and execution time visible to the admin. Both platforms support coding evaluation; the depth and focus of the coding experience differs — iMocha is part of a broader skill assessment and intelligence platform, while AssessIQ centers the coding test experience as a core hiring workflow."
+        "text": "iMocha includes coding and project-based assessments as part of its 3,000+ assessment library. AssessIQ does not offer coding tests today (coming soon); it focuses on MCQ, scenario, and log-analysis questions with rubric-based scoring. If coding evaluation is a requirement now, iMocha is the stronger fit."
       }
     },
     {
@@ -66,7 +66,7 @@ const faqSchema = {
       "name": "Is iMocha designed for Indian companies?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "iMocha operates across India/APAC, North America, and UK/EMEA — it serves 500+ enterprise customers across three continents. AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes and hiring volumes. Both serve Indian customers; AssessIQ's entire design is oriented around the India B2B hiring context."
+        "text": "iMocha operates across India/APAC, North America, and UK/EMEA — it serves 500+ enterprise customers across three continents. AssessIQ is built for Indian hiring and campus programs, with structured scoring and an aptitude question pack. Both serve Indian customers; AssessIQ is oriented around the India B2B hiring context."
       }
     },
     {
@@ -79,10 +79,10 @@ const faqSchema = {
     },
     {
       "@type": "Question",
-      "name": "Can I try AssessIQ for free?",
+      "name": "How can I evaluate AssessIQ before committing?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This makes it straightforward to evaluate the platform against your real hiring workflow before committing."
+        "text": "Contact us and we will set up a company account so you can run a real assessment against your hiring workflow before committing."
       }
     }
   ]
@@ -118,32 +118,32 @@ const breadcrumbSchema = {
 const tableRows = [
   {
     criterion: "India focus",
-    assessiq: "Built India-first — calibrated question packs for Indian IT role stacks, local data residency, pricing designed for Indian teams",
+    assessiq: "Built for Indian hiring and campus programs — structured scoring, audit trail, and an aptitude question pack",
     imocha: "Operates across India/APAC, NA, and UK/EMEA; serves enterprise customers globally across 70+ countries"
   },
   {
     criterion: "Proctoring",
-    assessiq: "Tab-switch detection, full-screen enforcement, webcam monitoring, copy-paste restriction, timestamped event log per attempt",
+    assessiq: "Proctoring features (Coming soon); server-side timers and an append-only audit log today",
     imocha: "AI-enabled proctoring tools included; secure remote assessment delivery across enterprise exam programs"
   },
   {
     criterion: "Question / assessment types",
-    assessiq: "Coding (live execution + test cases), MCQ, output prediction, aptitude, logical reasoning — curated for Indian IT hiring",
+    assessiq: "MCQ with per-student option shuffle, scenario and log-analysis questions, aptitude pack; coding tests (Coming soon)",
     imocha: "3,000+ ready-to-use assessments including coding, cognitive, situational, and project-based; 10,000+ assessments per some published figures"
   },
   {
     criterion: "Code evaluation",
-    assessiq: "Browser-based coding environment; submissions run against hidden test cases; pass/fail count + execution time visible to admin",
+    assessiq: "Coding tests and live code execution (Coming soon); MCQ scored deterministically, written answers graded with AI assistance by AssessIQ evaluators",
     imocha: "Coding assessments and project-based assessments available; real-world challenge evaluation as part of broader skills platform"
   },
   {
     criterion: "Skills intelligence",
-    assessiq: "Structured scoring per role/test; admin dashboard for cohort analytics; focused on pre-employment assessment output",
+    assessiq: "Anchor/band scoring per question; admin dashboard and analytics; focused on pre-employment assessment output",
     imocha: "Skills Intelligence Cloud — AI maps 30,000+ skills across roles, infers gaps, supports internal mobility and workforce planning at enterprise scale"
   },
   {
     criterion: "Workforce analytics",
-    assessiq: "Per-candidate and cohort-level reports; CSV/PDF export; focused on hiring decision support",
+    assessiq: "Per-candidate and cohort-level reports; results CSV export; focused on hiring decision support",
     imocha: "Enterprise workforce analytics across the full talent lifecycle — hiring, L&D, upskilling, internal mobility, workforce planning"
   },
   {
@@ -153,12 +153,12 @@ const tableRows = [
   },
   {
     criterion: "Integrations",
-    assessiq: "Admin dashboard, CSV export, PDF reports; ATS integrations — varies by plan (check current docs)",
+    assessiq: "Admin dashboard, results CSV per assessment, signed webhooks; ATS/HRMS integrations (Coming soon)",
     imocha: "SAP and major HRMS/ATS integrations; enterprise integration catalog; Skills Intelligence Cloud connects to existing HR infrastructure"
   },
   {
     criterion: "Deployment / scale",
-    assessiq: "Cloud SaaS; bulk invite via CSV or shareable link; no per-seat cap on concurrent sessions",
+    assessiq: "Cloud SaaS; bulk invite via CSV import (up to 200 per import) and email invites; invite links valid 7 days with resend",
     imocha: "Cloud SaaS; enterprise-scale deployment across 500+ customers in 70+ countries; purpose-built for large organizations"
   },
   {
@@ -175,23 +175,23 @@ const faqs = [
   },
   {
     q: "How does AssessIQ differ from iMocha?",
-    a: "iMocha's strength is its Skills Intelligence Cloud — AI-powered workforce analytics that map skills gaps across an organization's existing talent pool, not just candidate screening. AssessIQ is focused on the hiring and institutional assessment use case: structured coding tests, rubric-based scoring, proctoring with per-attempt audit logs, and a simple admin workflow for Indian IT companies and educational institutions. If your primary need is workforce skills mapping and talent intelligence at enterprise scale, iMocha is purpose-built for that. If your primary need is structured pre-interview screening with scoring rationale, AssessIQ is the more focused option."
+    a: "iMocha's strength is its Skills Intelligence Cloud — AI-powered workforce analytics that map skills gaps across an organization's existing talent pool, not just candidate screening. AssessIQ is focused on the hiring and institutional assessment use case: rubric-based scoring, per-attempt audit logs, and a simple admin workflow for Indian IT companies and educational institutions. If your primary need is workforce skills mapping and talent intelligence at enterprise scale, iMocha is purpose-built for that. If your primary need is structured pre-interview screening with scoring rationale, AssessIQ is the more focused option."
   },
   {
     q: "Does iMocha support coding assessments?",
-    a: "iMocha includes coding and project-based assessments as part of its 3,000+ assessment library. AssessIQ's coding environment runs submissions against hidden test cases with real-time pass/fail results and execution time visible to the admin. Both platforms support coding evaluation; the depth and focus of the coding experience differs — iMocha is part of a broader skill assessment and intelligence platform, while AssessIQ centers the coding test experience as a core hiring workflow."
+    a: "iMocha includes coding and project-based assessments as part of its 3,000+ assessment library. AssessIQ does not offer coding tests today (coming soon); it focuses on MCQ, scenario, and log-analysis questions with rubric-based scoring. If coding evaluation is a requirement now, iMocha is the stronger fit."
   },
   {
     q: "Is iMocha designed for Indian companies?",
-    a: "iMocha operates across India/APAC, North America, and UK/EMEA — it serves 500+ enterprise customers across three continents. AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes and hiring volumes. Both serve Indian customers; AssessIQ's entire design is oriented around the India B2B hiring context."
+    a: "iMocha operates across India/APAC, North America, and UK/EMEA — it serves 500+ enterprise customers across three continents. AssessIQ is built for Indian hiring and campus programs, with structured scoring and an aptitude question pack. Both serve Indian customers; AssessIQ is oriented around the India B2B hiring context."
   },
   {
     q: "What is the iMocha Skills Intelligence Cloud?",
     a: "iMocha's Skills Intelligence Cloud is an enterprise workforce analytics layer that provides AI-powered visibility into an organization's skill inventory — mapping 30,000+ skills across roles, inferring skills gaps, matching talent to open positions, and tracking upskilling progress. It extends beyond candidate screening into the full employee lifecycle: L&D, internal mobility, and workforce planning. AssessIQ does not offer this workforce intelligence layer — it focuses on structured pre-employment assessment and institutional exam delivery."
   },
   {
-    q: "Can I try AssessIQ for free?",
-    a: "Yes. AssessIQ has a free starting point — create an account and run assessments without a credit card. This makes it straightforward to evaluate the platform against your real hiring workflow before committing."
+    q: "How can I evaluate AssessIQ before committing?",
+    a: "Contact us and we will set up a company account so you can run a real assessment against your hiring workflow before committing."
   }
 ];
 ---
@@ -250,7 +250,7 @@ const faqs = [
       <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-2xl max-w-2xl">
         <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">TL;DR</p>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-          iMocha's Skills Intelligence Cloud maps skills gaps across your entire workforce — from hiring through L&D and internal mobility — at enterprise scale. AssessIQ focuses on structured pre-employment screening for Indian IT companies: coding tests, rubric scoring, and a straightforward admin workflow. Different scopes for different organizational needs.
+          iMocha's Skills Intelligence Cloud maps skills gaps across your entire workforce — from hiring through L&D and internal mobility — at enterprise scale. AssessIQ focuses on structured pre-employment screening for Indian IT companies: rubric scoring, audit trails, and a straightforward admin workflow. Different scopes for different organizational needs.
         </p>
       </div>
 
@@ -320,16 +320,16 @@ const faqs = [
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">Choose AssessIQ if…</p>
           <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              Your primary need is structured pre-interview screening — coding tests, skills batteries, and proctored sessions with scoring that explains itself, built for Indian IT hiring workflows.
+              Your primary need is structured pre-interview screening — MCQ and written-answer assessments with scoring that explains itself, built for Indian IT hiring workflows.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
               You want audit-trail-level transparency: timestamped attempt logs, per-answer evidence, and anchor-based rubrics your team can use to defend every hiring decision.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You are a campus team or educational institution running bulk invite drives with no per-seat concurrency friction.
+              You are a campus team or educational institution running bulk invite drives with CSV import (up to 200 per import).
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You want to start quickly — free account, no credit card, no enterprise procurement cycle.
+              You want a guided setup — talk to us and we will create your company account.
             </li>
           </ul>
         </div>
@@ -400,7 +400,7 @@ const faqs = [
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Sign in
             </a>
             <a
               href="/contact"

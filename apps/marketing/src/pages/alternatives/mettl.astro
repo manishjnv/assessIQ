@@ -31,7 +31,7 @@ const articleSchema = {
     }
   },
   "mainEntityOfPage": `${site}${slug}`,
-  "description": "Looking for a Mercer Mettl alternative? See how AssessIQ compares for India-first hiring and assessment — structured scoring, proctoring, and auditable decisions."
+  "description": "Looking for a Mercer Mettl alternative? See how AssessIQ compares for India-first hiring and assessment — structured scoring and auditable decisions."
 };
 
 // FAQPage JSON-LD — mirrors the visible FAQ section verbatim (SEO §15 hard rule)
@@ -52,7 +52,7 @@ const faqSchema = {
       "name": "How does AssessIQ differ from Mercer Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Both platforms serve the Indian hiring market with proctored assessments. Mercer Mettl is a broad enterprise exam platform with 26+ question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — with pricing calibrated for Indian team sizes rather than global enterprise contracts."
+        "text": "Both platforms serve the Indian hiring market. Mercer Mettl is a broad enterprise exam platform with 26+ question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — and does not offer proctoring yet. Contact us for pricing."
       }
     },
     {
@@ -60,7 +60,7 @@ const faqSchema = {
       "name": "Is Mercer Mettl suitable for small and mid-size companies in India?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mercer Mettl serves a wide range of organisations, but its enterprise-grade scope and pricing structure are often cited as considerations for smaller teams. AssessIQ is designed specifically for the needs and budgets of Indian SME and mid-market hiring teams — with no large minimum commitment required to get started."
+        "text": "Mercer Mettl serves a wide range of organisations, but its enterprise-grade scope and pricing structure are often cited as considerations for smaller teams. AssessIQ is a lighter, focused platform aimed at Indian SME and mid-market hiring teams. Contact us to discuss pricing."
       }
     },
     {
@@ -68,7 +68,7 @@ const faqSchema = {
       "name": "Does AssessIQ support the same question types as Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ supports multiple-choice, coding tests (with live execution and test-case scoring), subjective/open-ended (AI-graded with structured rubrics), aptitude and logical reasoning, and role-specific question packs. Mercer Mettl supports 26+ question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating."
+        "text": "AssessIQ supports multiple-choice (with per-student option shuffle), subjective, scenario and log-analysis questions (graded with AI assistance by AssessIQ evaluators against structured rubrics), an aptitude question pack, and question packs. Coding tests are not available yet. Mercer Mettl supports 26+ question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating."
       }
     },
     {
@@ -76,7 +76,7 @@ const faqSchema = {
       "name": "Which platform has better proctoring — AssessIQ or Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication, with claimed 98%+ accuracy. AssessIQ's proctoring covers tab-switch detection, webcam monitoring, full-screen enforcement, and a timestamped event log. For very high-stakes certification exams requiring forensic-grade invigilation, Mettl's investment in this area is well documented. For standard hiring-stage proctoring, AssessIQ's controls are purpose-built and sufficient."
+        "text": "Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication, with claimed 98%+ accuracy. AssessIQ does not offer proctoring yet — no webcam monitoring, browser lockdown or tab-switch detection. It does provide server-side timers, option shuffle and question-order randomisation. If proctoring is a requirement today, Mettl is the stronger choice."
       }
     },
     {
@@ -84,7 +84,7 @@ const faqSchema = {
       "name": "When should I choose AssessIQ over Mercer Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ is likely a better fit if you are: (a) a growing Indian IT company or staffing team that wants structured, rubric-based hiring assessments without an enterprise contract; (b) prioritising per-answer scoring rationale and an admin-friendly dashboard over broad psychometric instrument libraries; or (c) running technical hiring at volumes where a simpler, focused platform is more practical than a large exam-management system."
+        "text": "AssessIQ is likely a better fit if you are: (a) a growing Indian team that wants structured, rubric-based assessments without an enterprise contract; (b) prioritising per-answer scoring rationale and an admin-friendly dashboard over broad psychometric instrument libraries; or (c) running assessments at volumes where a simpler, focused platform is more practical than a large exam-management system."
       }
     }
   ]
@@ -120,19 +120,19 @@ const breadcrumbSchema = {
 const criteria = [
   { criterion: "Primary category",        mettl: "Enterprise exam & proctoring",          assessiq: "Structured hiring assessment" },
   { criterion: "India headquarters",       mettl: "Yes (Gurugram)",                        assessiq: "Yes" },
-  { criterion: "Question types",           mettl: "26+ formats incl. psychometric",        assessiq: "MCQ, coding, subjective, aptitude" },
-  { criterion: "Proctoring",              mettl: "AI + facial recognition, 3-point auth",  assessiq: "Tab-switch, webcam, full-screen, event log" },
+  { criterion: "Question types",           mettl: "26+ formats incl. psychometric",        assessiq: "MCQ, subjective, scenario, log-analysis, aptitude" },
+  { criterion: "Proctoring",              mettl: "AI + facial recognition, 3-point auth",  assessiq: "Coming soon" },
   { criterion: "Scoring model",           mettl: "Varies by test type",                    assessiq: "Anchor-based rubrics + scoring bands" },
-  { criterion: "Pricing model",           mettl: "Contact-based / enterprise",             assessiq: "See /pricing" },
-  { criterion: "Ideal scale",             mettl: "Large enterprise / mass exams",          assessiq: "SME to mid-market, bulk hiring" },
-  { criterion: "Global reach",            mettl: "90+ countries",                          assessiq: "India-first, globally accessible" },
+  { criterion: "Pricing model",           mettl: "Contact-based / enterprise",             assessiq: "Contact sales" },
+  { criterion: "Ideal scale",             mettl: "Large enterprise / mass exams",          assessiq: "SME to mid-market, campus batches" },
+  { criterion: "Global reach",            mettl: "90+ countries",                          assessiq: "India-first" },
   { criterion: "Admin dashboard",         mettl: "Comprehensive exam management",          assessiq: "Hiring-workflow focused" },
 ];
 ---
 
 <BaseLayout
   title="Best Mercer Mettl Alternatives in 2026"
-  description="Looking for a Mercer Mettl alternative? See how AssessIQ compares for India-first hiring & assessment — structured scoring, proctoring, auditable decisions."
+  description="Looking for a Mercer Mettl alternative? See how AssessIQ compares for India-first hiring & assessment — structured scoring and auditable decisions."
   canonicalPath="/alternatives/mettl"
   ogType="article"
 >
@@ -182,7 +182,7 @@ const criteria = [
 
       <!-- Featured-snippet target: 40–60 word definitional intro -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        Mercer Mettl is a well-established enterprise exam and proctoring platform with deep capabilities for large-scale certification and campus exams. If you are evaluating alternatives for structured hiring assessments — with rubric-based scoring, audit trails, and India-calibrated pricing — AssessIQ is built for that workflow.
+        Mercer Mettl is a well-established enterprise exam and proctoring platform with deep capabilities for large-scale certification and campus exams. If you are evaluating alternatives for structured hiring assessments — with rubric-based scoring and audit trails — AssessIQ is built for that workflow.
       </p>
 
       <div class="flex flex-wrap items-center gap-aiq-md">
@@ -192,7 +192,7 @@ const criteria = [
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Try AssessIQ free
+          Sign in to AssessIQ
         </a>
         <a
           href="/contact"
@@ -311,10 +311,10 @@ const criteria = [
           <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
             <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">AssessIQ may suit you if…</p>
             <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
-              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You are an Indian IT company or staffing team running structured hiring assessments without an enterprise contract.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You are an Indian team running structured assessments without an enterprise contract.</span></li>
               <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want per-answer scoring rationale — anchors, bands, and reviewer-readable explanation — not just a total score.</span></li>
-              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You need bulk candidate invite, live monitoring, and CSV export without paying for a full exam-management platform.</span></li>
-              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>Pricing calibrated for Indian team sizes matters more than global multi-country SLA coverage.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You need CSV student import, email invites with resend, and CSV results export without paying for a full exam-management platform.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>A lightweight, focused workflow matters more than global multi-country coverage.</span></li>
             </ul>
           </div>
         </div>
@@ -347,7 +347,7 @@ const criteria = [
             How does AssessIQ differ from Mercer Mettl?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Both platforms serve the Indian hiring market with proctored assessments. Mercer Mettl is a broad enterprise exam platform with 26+ question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — with pricing calibrated for Indian team sizes rather than global enterprise contracts.
+            Both platforms serve the Indian hiring market. Mercer Mettl is a broad enterprise exam platform with 26+ question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — and does not offer proctoring yet. Contact us for pricing.
           </p>
         </div>
 
@@ -356,7 +356,7 @@ const criteria = [
             Is Mercer Mettl suitable for small and mid-size companies in India?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Mercer Mettl serves a wide range of organisations, but its enterprise-grade scope and pricing structure are often cited as considerations for smaller teams. AssessIQ is designed specifically for the needs and budgets of Indian SME and mid-market hiring teams — with no large minimum commitment required to get started.
+            Mercer Mettl serves a wide range of organisations, but its enterprise-grade scope and pricing structure are often cited as considerations for smaller teams. AssessIQ is a lighter, focused platform aimed at Indian SME and mid-market hiring teams. Contact us to discuss pricing.
           </p>
         </div>
 
@@ -365,7 +365,7 @@ const criteria = [
             Does AssessIQ support the same question types as Mettl?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ supports multiple-choice, coding tests (with live execution and test-case scoring), subjective/open-ended (AI-graded with structured rubrics), aptitude and logical reasoning, and role-specific question packs. Mercer Mettl supports 26+ question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating.
+            AssessIQ supports multiple-choice (with per-student option shuffle), subjective, scenario and log-analysis questions (graded with AI assistance by AssessIQ evaluators against structured rubrics), an aptitude question pack, and question packs. Coding tests are not available yet. Mercer Mettl supports 26+ question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating.
           </p>
         </div>
 
@@ -374,7 +374,7 @@ const criteria = [
             Which platform has better proctoring — AssessIQ or Mettl?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication, with claimed 98%+ accuracy. AssessIQ's proctoring covers tab-switch detection, webcam monitoring, full-screen enforcement, and a timestamped event log. For very high-stakes certification exams requiring forensic-grade invigilation, Mettl's investment in this area is well documented. For standard hiring-stage proctoring, AssessIQ's controls are purpose-built and sufficient.
+            Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication, with claimed 98%+ accuracy. AssessIQ does not offer proctoring yet — no webcam monitoring, browser lockdown or tab-switch detection. It does provide server-side timers, option shuffle and question-order randomisation. If proctoring is a requirement today, Mettl is the stronger choice.
           </p>
         </div>
 
@@ -383,7 +383,7 @@ const criteria = [
             When should I choose AssessIQ over Mercer Mettl?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ is likely a better fit if you are: (a) a growing Indian IT company or staffing team that wants structured, rubric-based hiring assessments without an enterprise contract; (b) prioritising per-answer scoring rationale and an admin-friendly dashboard over broad psychometric instrument libraries; or (c) running technical hiring at volumes where a simpler, focused platform is more practical than a large exam-management system.
+            AssessIQ is likely a better fit if you are: (a) a growing Indian team that wants structured, rubric-based assessments without an enterprise contract; (b) prioritising per-answer scoring rationale and an admin-friendly dashboard over broad psychometric instrument libraries; or (c) running assessments at volumes where a simpler, focused platform is more practical than a large exam-management system.
           </p>
         </div>
 
@@ -409,7 +409,7 @@ const criteria = [
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Sign in
             </a>
             <a
               href="/contact"
@@ -421,7 +421,7 @@ const criteria = [
             </a>
           </div>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
-            Questions about data residency or security? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+            Questions about security? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
           </p>
         </div>
 
@@ -451,7 +451,7 @@ const criteria = [
               <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 IT &amp; Technical Hiring with AssessIQ
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">How AssessIQ handles technical screening from coding tests to audit trails.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">How AssessIQ handles structured screening, from rubric scoring to audit trails.</p>
             </li>
           </ul>
         </div>
