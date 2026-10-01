@@ -184,3 +184,32 @@ describe('AdminMfa recovery-code panel', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(RECOVERY_CODES.join('\n'));
   });
 });
+
+// ---------------------------------------------------------------------------
+// S1/S2 — "Skip for now" (A10, 2026-10-01): only when MFA is optional
+// ---------------------------------------------------------------------------
+
+describe('AdminMfa skip link (MFA optional)', () => {
+  it('S1: shows "Skip for now" while enrolling when the session MFA gate is already verified, and navigates to /admin', async () => {
+    vi.mocked(useSession).mockReturnValue({
+      session: {
+        mfaStatus: 'verified',
+        totpEnrolled: false,
+        user: { id: 'u1', email: 'admin@example.com', name: 'Admin', role: 'admin' },
+        tenant: { id: 't1', slug: 'test' },
+      },
+      loading: false,
+    } as ReturnType<typeof useSession>);
+    render(<AdminMfa />);
+    await waitFor(() => screen.getByRole('button', { name: /Confirm and continue/i }));
+    const link = screen.getByRole('link', { name: 'Skip for now' });
+    fireEvent.click(link);
+    expect(mockNavigate).toHaveBeenCalledWith('/admin', { replace: true });
+  });
+
+  it('S2: hides "Skip for now" when MFA is required (mfaStatus pending)', async () => {
+    render(<AdminMfa />);
+    await waitFor(() => screen.getByRole('button', { name: /Confirm and continue/i }));
+    expect(screen.queryByRole('link', { name: 'Skip for now' })).toBeNull();
+  });
+});

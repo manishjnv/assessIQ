@@ -568,6 +568,39 @@ export function AdminMfa(): JSX.Element {
               </a>
             </p>
           )}
+
+          {/* Opt-in enrolment (MFA_REQUIRED=false): the server already reports
+              this session's MFA gate as satisfied, so a first-time admin may
+              skip. Navigation only — requireAuth still enforces the real gate
+              server-side; super_admin (always-MFA) never sees 'verified' here
+              while unenrolled, so the link stays hidden for them. */}
+          {enrolled === false && session?.mfaStatus === 'verified' && (
+            <p
+              data-help-id="admin.auth.mfa.skip"
+              style={{
+                marginTop: 18,
+                fontSize: 13,
+                color: 'var(--aiq-color-fg-secondary)',
+                textAlign: 'center',
+              }}
+            >
+              Two-factor sign-in is optional for your account.{' '}
+              <a
+                href="/admin"
+                onClick={(e) => {
+                  e.preventDefault();
+                  nav('/admin', { replace: true });
+                }}
+                style={{
+                  color: 'var(--aiq-color-accent)',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                Skip for now
+              </a>
+            </p>
+          )}
         </Card>
       </main>
 
