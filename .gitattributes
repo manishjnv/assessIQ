@@ -1,0 +1,3 @@
+
+# Ops scripts run on the Linux VPS — always LF, even on a Windows checkout.
+tools/ops/*.sh text eol=lf
