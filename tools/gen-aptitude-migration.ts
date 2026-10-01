@@ -7,7 +7,8 @@
  * apply it on the VPS by hand, or load questions via POST /api/admin/questions/import.
  *
  * Usage:
- *   pnpm tsx tools/gen-aptitude-migration.ts <questions.json> [--out <file.sql>] [--publish]
+ *   pnpm tsx tools/gen-aptitude-migration.ts <questions.json> [--out <file.sql>] [--publish] [--pack-key v2]
+ *   --pack-key  distinct deterministic pack id for a replacement set (retire the old pack's slug first)
  *
  *   default  pack + questions land as 'draft' (super_admin reviews, then clicks
  *            Publish in the UI -> canonical publishPack path: snapshots, audit row).
@@ -85,9 +86,15 @@ function dq(s: string): string {
   return `$${tag}$${s}$${tag}$`;
 }
 
-export function generateAptitudeSql(d: AptitudeInput, opts: { publish?: boolean; inputSha?: string } = {}): string {
+export function generateAptitudeSql(
+  d: AptitudeInput,
+  opts: { publish?: boolean; inputSha?: string; packKey?: string } = {},
+): string {
   validateInput(d);
   const publish = opts.publish === true;
+  // Pack id is deterministic; a REPLACEMENT set (e.g. after a leak) needs a new key
+  // or it collides with the retired pack's id. v1 = no key (back-compat).
+  const packIdKey = opts.packKey ? `assessiq:aptitude:pack:${opts.packKey}` : "assessiq:aptitude:pack";
   const qs = d.questions;
   const levelCount = (pos: 1 | 2) => qs.filter((q) => LEVEL_POS[q.difficulty] === pos).length;
 
@@ -201,7 +208,7 @@ BEGIN
 
   -- 4. Pack (platform tenant). Skipped if a pack with this slug already exists.
   INSERT INTO question_packs (id, tenant_id, slug, name, domain, description, status, version, created_by)
-  SELECT md5('assessiq:aptitude:pack')::uuid, v_platform, ${dq(PACK_SLUG)}, ${dq(d.pack.name)},
+  SELECT md5(${dq(packIdKey)})::uuid, v_platform, ${dq(PACK_SLUG)}, ${dq(d.pack.name)},
          ${dq(DOMAIN_SLUG)}, ${dq(d.pack.description)}, ${packStatus}, ${packVersion}, v_user
    WHERE NOT EXISTS (SELECT 1 FROM question_packs WHERE tenant_id = v_platform AND slug = ${dq(PACK_SLUG)});
 
@@ -256,9 +263,9 @@ $aptmig$;
 const isMain = process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const args = process.argv.slice(2);
-  const input = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--out");
+  const input = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--out" && args[i - 1] !== "--pack-key");
   if (input === undefined) {
-    console.error("usage: tsx tools/gen-aptitude-migration.ts <questions.json> [--out file.sql] [--publish]");
+    console.error("usage: tsx tools/gen-aptitude-migration.ts <questions.json> [--out file.sql] [--publish] [--pack-key v2]");
     process.exit(2);
   }
   const outIdx = args.indexOf("--out");
@@ -273,6 +280,7 @@ if (isMain) {
   const raw = readFileSync(input, "utf8");
   const sql = generateAptitudeSql(JSON.parse(raw) as AptitudeInput, {
     publish: args.includes("--publish"),
+    ...(args.includes("--pack-key") ? { packKey: args[args.indexOf("--pack-key") + 1]! } : {}),
     inputSha: createHash("sha256").update(raw).digest("hex"),
   });
   mkdirSync(path.dirname(out), { recursive: true }); // docs/ is gitignored, so the folder may not exist

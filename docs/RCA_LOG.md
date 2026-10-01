@@ -10,6 +10,15 @@
 **Cause:** `tools/gen-aptitude-migration.ts` wrote its SQL into the tracked `modules/04-question-bank/migrations/` folder by default, and content seeds were treated like schema migrations. Nothing stops content from being committed to a public repo.
 **Fix:** File moved to `docs/exam-content/` (gitignored) and untracked; `.gitignore` blocks the old path and the new folder; generator default output moved (`tools/gen-aptitude-migration.ts` CLI `out` default); test reads the new path (`aptitude-seed-migration.test.ts`, skips in CI). DB content in prod is unchanged. Owner chose to keep the repo public, so the copy in git history remains: the pack is treated as leaked and will be replaced before any real drive.
 **Prevention:** Rule in `modules/04-question-bank/SKILL.md` § "Exam content is never committed" — question text and answer keys never enter git; load content via the admin JSON import or apply generated SQL on the VPS by hand. Manual discipline plus the `.gitignore` guard (no automated content scanner).
+**Follow-up (2026-10-01, same day):**
+- **Leaked set replaced in prod.** 60 new items were authored (no overlap with the leaked set) and blind-solved by an independent agent with 60/60 agreement. Neither copy is in git; they live in `docs/exam-content/aptitude-questions-v2.json` and `aptitude-v2-seed.sql`.
+- **How it was applied:** in one transaction on the VPS:
+  - the leaked platform pack was renamed `campus-placement-aptitude-v1-retired` and archived, with all 60 of its questions archived;
+  - the v2 seed was applied: `campus-placement-aptitude` is published with 60 active `APT2-*` questions.
+  - Pre-check: 0 clones, 0 entitlements and 0 attempts used the leaked pack.
+- **First attempt rolled back cleanly:** the generator's deterministic pack id collided with the retired pack's id. The generator now has `--pack-key` for replacement sets.
+- **`prompts/skills/` untracked and gitignored** (grading and generation prompt IP). The host copy is the source of truth and is included in the daily backup tarball (see `docs/06-deployment.md` skill-deploy note).
+- **Residual:** both the old answer key and the old prompt versions stay readable in public git history (no rewrite, owner decision).
 
 ## 2026-10-01 — Documented daily DB backups were never installed (no backup existed)
 

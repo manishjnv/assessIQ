@@ -469,6 +469,15 @@ docker compose -f /srv/assessiq/infra/docker-compose.yml up -d --no-deps --force
 
 **Skill-deploy procedure (when any `prompts/skills/*/SKILL.md` changes):**
 
+> **CHANGED 2026-10-01: prompts are no longer in git.**
+> - **Why:** the repo is public, and the grading and generation prompts are product IP, so `prompts/skills/` was untracked and gitignored.
+> - **Source of truth:** the VPS host copy at `/srv/assessiq/prompts/skills/`. A local working copy stays on the laptop (ignored), and the daily backup writes `prompts-skills-<ts>.tgz` to `/var/backups/assessiq/`.
+> - **Container mount:** unchanged (`../prompts/skills:/home/node/.claude/skills:ro`).
+> - **Deploying a skill change:** `git pull` no longer does it. Copy the edited file instead: `scp prompts/skills/<name>/SKILL.md assessiq-vps:/srv/assessiq/prompts/skills/<name>/SKILL.md`. That's the whole deploy (the file is re-read on every call), but still rebuild the api image if the runtime schema changed too, and re-baseline the evals.
+> - **One-time cutover (2026-10-01):** the untracking commit makes the next `git pull` on the VPS delete the folder. So back it up before the pull (`cp -a prompts/skills /root/assessiq-skills-backup-<ts>`), restore it right after (`cp -a … prompts/skills`), and then **recreate** api and worker, because the bind mount pinned the deleted directory inode. sha256 of every SKILL.md was checked before and after.
+> - **Lint:** `tools/lint-deploy-procedure.ts` CHECK A now treats a missing folder (fresh CI checkout) as normal.
+> - The `git pull` steps below are historical.
+
 Skills in `prompts/skills/` are bind-mounted read-only into the `assessiq-api` and
 `assessiq-worker` containers at `/home/node/.claude/skills/` (relative path
 `../prompts/skills` from `infra/docker-compose.yml`). **A `git pull` alone is sufficient
