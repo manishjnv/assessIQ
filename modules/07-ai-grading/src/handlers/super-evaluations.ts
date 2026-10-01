@@ -125,6 +125,38 @@ export async function resolveEvaluationTenant(attemptId: string): Promise<string
   return tenantId;
 }
 
+/**
+ * AI may only run on an attempt that is in the platform evaluation queue (same rule
+ * as the queue list): at least one non-MCQ question, candidate not erased, and either
+ * still pre-graded or graded-but-not-yet-released to the tenant. Stops grade/rerun on
+ * published, released-to-tenant or MCQ-only attempts (no wasted Claude calls).
+ */
+export async function assertInEvaluationQueue(attemptId: string): Promise<void> {
+  const eligible = await withSystemReadOnly(async (client) => {
+    const res = await client.query<{ ok: boolean }>(
+      `SELECT (
+          EXISTS (SELECT 1 FROM attempt_questions aq JOIN questions q ON q.id = aq.question_id
+                   WHERE aq.attempt_id = a.id AND q.type <> 'mcq')
+          AND u.erased_at IS NULL
+          AND (a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
+               OR (a.status = 'graded' AND a.evaluation_released_at IS NULL))
+        ) AS ok
+         FROM attempts a
+         JOIN users u ON u.id = a.user_id
+        WHERE a.id = $1`,
+      [attemptId],
+    );
+    return res.rows[0]?.ok === true;
+  });
+  if (!eligible) {
+    throw new AppError(
+      "This attempt is not in the evaluation queue (already released, published, or nothing to evaluate)",
+      "NOT_IN_EVALUATION_QUEUE",
+      409,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Review payload (blind)
 // ---------------------------------------------------------------------------

@@ -33,6 +33,7 @@ import { handleAdminOverride } from "../handlers/admin-override.js";
 import { handleAdminClaimAttempt } from "../handlers/admin-claim-release.js";
 import { handleAdminSendBack } from "../handlers/admin-send-back.js";
 import {
+  assertInEvaluationQueue,
   handleSuperGetEvaluation,
   handleSuperListEvaluations,
   handleSuperReleaseToTenant,
@@ -336,6 +337,18 @@ describe("platform evaluation queue — cross-tenant, blind", () => {
       status: 409,
       details: { code: "TENANT_NOT_ACTIVE" },
     });
+  });
+
+  it("assertInEvaluationQueue: AI grade/rerun only on queue items", async () => {
+    const inQueue = await seed(B, adminB, "submitted", ["subjective"]);
+    await expect(assertInEvaluationQueue(inQueue.attemptId)).resolves.toBeUndefined();
+
+    const mcqOnly = await seed(A, adminA, "submitted", ["mcq"]);
+    const withTenant = await seed(A, adminA, "graded", ["subjective"], { gradings: "all", evaluationReleased: true });
+    const published = await seed(A, adminA, "released", ["subjective"], { gradings: "all", evaluationReleased: true });
+    for (const x of [mcqOnly, withTenant, published]) {
+      await expect(assertInEvaluationQueue(x.attemptId)).rejects.toMatchObject({ code: "NOT_IN_EVALUATION_QUEUE", status: 409 });
+    }
   });
 });
 
