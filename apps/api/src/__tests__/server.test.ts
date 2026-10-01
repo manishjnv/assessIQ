@@ -54,6 +54,7 @@ vi.mock('@assessiq/auth', () => {
   };
 
   return {
+    CANDIDATE_LOGIN_TOKEN_TTL_SEC: 900, // candidate.ts route reads it at import
     rateLimitMiddleware: (_opts?: unknown) => passthrough(),
     sessionLoaderMiddleware,
     apiKeyAuthMiddleware,
@@ -128,11 +129,9 @@ vi.mock('@assessiq/users', () => ({
   bulkImport: vi.fn(),
 }));
 
+const { tenantContextSpy } = vi.hoisted(() => ({ tenantContextSpy: vi.fn() }));
 vi.mock('@assessiq/tenancy', () => ({
-  tenantContextMiddleware: () => ({
-    preHandler: vi.fn().mockResolvedValue(undefined),
-    onResponse: vi.fn().mockResolvedValue(undefined),
-  }),
+  tenantContextMiddleware: tenantContextSpy,
   getTenantBySlug: vi.fn().mockResolvedValue(null),
   getTenantById: vi.fn().mockResolvedValue(null),
   withTenant: vi.fn(),
@@ -175,6 +174,13 @@ describe('AssessIQ API server', () => {
     expect(res.json()).toEqual({ status: 'ok' });
   });
 
+  // 1b. Campus-scale: the per-request tenant-context transaction (pins a pool
+  // connection + BEGIN per request) must not be registered at all.
+  it('does not register the per-request tenantContextMiddleware (no pool client per request)', async () => {
+    await app.inject({ method: 'GET', url: '/api/admin/users', headers: ADMIN_HEADERS });
+    expect(tenantContextSpy).not.toHaveBeenCalled();
+  });
+
   // 2. Admin users — missing session → 401 AUTHN_FAILED.
   it('GET /api/admin/users without session returns 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/admin/users' });
@@ -195,16 +201,16 @@ describe('AssessIQ API server', () => {
     expect(body.error.code).toBe('AUTHZ_FAILED');
   });
 
-  // 4. Bulk import stub — admin auth → 501 + correct code.
-  it('POST /api/admin/users/import with admin auth returns 501 + BULK_IMPORT_PHASE_1', async () => {
+  // 4. Bulk import (implemented 2026-10-01, was a 501 stub) — admin auth,
+  //    missing csv → 400 validation error (route is wired + admin-gated).
+  it('POST /api/admin/users/import with admin auth and no csv returns 400', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/admin/users/import',
       headers: ADMIN_HEADERS,
+      payload: {},
     });
-    expect(res.statusCode).toBe(501);
-    const body = res.json() as { error: { code: string } };
-    expect(body.error.code).toBe('BULK_IMPORT_PHASE_1');
+    expect(res.statusCode).toBe(400);
   });
 
   // 5. Accept invitation — bogus token → 404.

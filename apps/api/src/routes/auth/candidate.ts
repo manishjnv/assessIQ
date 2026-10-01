@@ -119,11 +119,11 @@ export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise
     '/api/auth/candidate/verify-link',
     {
       config: { skipAuth: true },
-      // credentialEndpoint:true (adversarial finding 4, 2026-05-20) — the
-      // magic-link token is a credential. 15-min single-use TTL + high entropy
-      // are the primary defenses; the 20/min per-route cap adds consistency
-      // with the other token-consuming endpoints (TOTP, email-OTP, /login/*).
-      preHandler: authChain({ requireSession: false, credentialEndpoint: true }),
+      // candidateEntry:true (2026-10, campus drive) replaces the former
+      // credentialEndpoint 20/min cap, which would 429 a 300-student lab behind
+      // one IP. The magic-link token is 256-bit random + 15-min single-use, so
+      // 2000/min/IP (RATE_LIMIT_IP_CANDIDATE_ENTRY) leaves brute force infeasible.
+      preHandler: authChain({ requireSession: false, candidateEntry: true }),
     },
     async (req, reply) => {
       const body = req.body as Record<string, unknown> | undefined;

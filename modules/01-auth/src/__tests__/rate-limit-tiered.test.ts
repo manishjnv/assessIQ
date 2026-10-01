@@ -29,6 +29,10 @@ const { mockConfig, mockEval } = vi.hoisted(() => {
     RATE_LIMIT_IP_VERIFIED_ADMIN: 5000,
     RATE_LIMIT_USER_VERIFIED_ADMIN: 300,
     RATE_LIMIT_CREDENTIAL: 20,
+    RATE_LIMIT_IP_CANDIDATE_SESSION: 3000,
+    RATE_LIMIT_USER_CANDIDATE: 120,
+    RATE_LIMIT_IP_CANDIDATE_ENTRY: 600,
+    RATE_LIMIT_TENANT: 6000,
     // Legacy env vars (unchanged defaults)
     RATE_LIMIT_IP_ADMIN: 100,
     RATE_LIMIT_IP_USER: 30,
@@ -116,6 +120,10 @@ beforeEach(() => {
   mockConfig.RATE_LIMIT_IP_VERIFIED_ADMIN = 5000;
   mockConfig.RATE_LIMIT_USER_VERIFIED_ADMIN = 300;
   mockConfig.RATE_LIMIT_CREDENTIAL = 20;
+  mockConfig.RATE_LIMIT_IP_CANDIDATE_SESSION = 3000;
+  mockConfig.RATE_LIMIT_USER_CANDIDATE = 120;
+  mockConfig.RATE_LIMIT_IP_CANDIDATE_ENTRY = 600;
+  mockConfig.RATE_LIMIT_TENANT = 6000;
   mockConfig.RATE_LIMIT_IP_ADMIN = 100;
   mockConfig.RATE_LIMIT_IP_USER = 30;
   mockConfig.RATE_LIMIT_IP_ANON = 30;
@@ -147,9 +155,9 @@ describe("resolveIpBucketMax — auth-tier-aware IP bucket selection", () => {
     expect(resolveIpBucketMax(req)).toBe(mockConfig.RATE_LIMIT_IP_ADMIN);
   });
 
-  it("T4: candidate → IP_USER (30)", () => {
+  it("T4: valid candidate session → IP_CANDIDATE_SESSION (3000), not IP_USER", () => {
     const req = makeReq({ session: makeSession("candidate", false) });
-    expect(resolveIpBucketMax(req)).toBe(mockConfig.RATE_LIMIT_IP_USER);
+    expect(resolveIpBucketMax(req)).toBe(mockConfig.RATE_LIMIT_IP_CANDIDATE_SESSION);
   });
 
   it("T5: anon (no session, no apiKey) → IP_ANON (30)", () => {
@@ -230,7 +238,7 @@ describe("per-user bucket max — auth-tier-aware", () => {
     expect(userCall?.[3]).toBe(60);
   });
 
-  it("T8b: candidate → user bucket max = 60 — unchanged", async () => {
+  it("T8b: candidate → user bucket max = RATE_LIMIT_USER_CANDIDATE (120)", async () => {
     const handler = rateLimitMiddleware();
     const req = makeReq({ session: makeSession("candidate", false) });
     await handler(req, makeReply() as unknown as Parameters<typeof handler>[1]);
@@ -239,7 +247,7 @@ describe("per-user bucket max — auth-tier-aware", () => {
       typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:user:"),
     );
     expect(userCall).toBeDefined();
-    expect(userCall?.[3]).toBe(60);
+    expect(userCall?.[3]).toBe(120);
   });
 });
 

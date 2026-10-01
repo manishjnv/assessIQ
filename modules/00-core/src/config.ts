@@ -163,6 +163,32 @@ const ConfigSchema = z
     // protection on credential paths while lifting the general IP cap for admins.
     RATE_LIMIT_CREDENTIAL: z.coerce.number().int().positive().default(20),
 
+    // ── Campus-drive (100-500 candidates behind ONE public IP) ──────────────
+    // See modules/01-auth/src/middleware/rate-limit.ts header for the rationale.
+    // Per-IP cap for a VALID candidate session (req.session.role==='candidate').
+    // DoS ceiling only, mirrors RATE_LIMIT_IP_VERIFIED_ADMIN: the per-user bucket
+    // below is the real per-student limit. 3000/min ~= 500 students x 6 req/min.
+    RATE_LIMIT_IP_CANDIDATE_SESSION: z.coerce.number().int().positive().default(3000),
+    // Per-candidate-session-user cap. Autosave debounces 5s/question (~12/min)
+    // plus flush-on-blur/nav, timer sync, flag/event posts: ~30/min worst real
+    // case; 120 leaves 4x headroom incl. client retry bursts.
+    RATE_LIMIT_USER_CANDIDATE: z.coerce.number().int().positive().default(120),
+    // Per-route per-IP cap for the unauthenticated magic-link entry routes
+    // (candidateEntry:true: POST /take/start, POST /api/auth/candidate/verify-link).
+    // 300 students opening links at once from one lab IP must not 429. Tokens are
+    // 256-bit random, so 600/min brute force stays infeasible.
+    RATE_LIMIT_IP_CANDIDATE_ENTRY: z.coerce.number().int().positive().default(2000),
+    // Per-tenant cap (session + apiKey branches), was hardcoded 600/min which
+    // 300 autosaving students exceed. 6000 ~= 500 students x 12 req/min.
+    RATE_LIMIT_TENANT: z.coerce.number().int().positive().default(6000),
+
+    // ── Postgres pool ───────────────────────────────────────────────────────
+    // Max clients in the single pg.Pool (modules/02-tenancy/src/pool.ts) of EACH
+    // process (api, worker). Postgres max_connections is the default 100 (3
+    // reserved for superuser; compose sets no override). api 30 + worker 30 = 60,
+    // leaving ~37 for migrations / psql / backups. Lower on the worker via env.
+    PG_POOL_MAX: z.coerce.number().int().positive().default(30),
+
     // ── Origin-verify anti-IP-spoof ─────────────────────────────────────────
     //
     // Production topology: Cloudflare (DNS-proxy) → shared Caddy → assessiq-api
