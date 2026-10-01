@@ -79,8 +79,10 @@ Surfaced in admin attempt detail under "Integrity signals". Never auto-flag or a
 ## Help/tooltip surface
 - `candidate.intro.integrity` — what's monitored, what's not
 - `candidate.attempt.timer`, `candidate.attempt.flag`, `candidate.attempt.kql.editor`, etc. (see 07-help-system)
-- `candidate.submit.confirm` — finality
-- `candidate.result.bands` — explanation of band-based scoring
+- `candidate.submit.confirm` — what happens after submit (instant result vs emailed result)
+- `candidate.result.bands` — explains the released-result card: score, percent, Passed / Not passed, certificate. Key name kept (renaming breaks tenant overrides); no bands or AI justifications are shown to candidates (owner rule P1, 2026-10-01)
+- `candidate.results.list` — the `/candidate/results` page
+- `candidate.auth.org_code` — the "Organisation code" field on `/candidate/login` (shown only when `?tenant=` is absent)
 
 ## What shipped (Phase 1 G1.D — 2026-05-02)
 
@@ -89,7 +91,9 @@ Surfaced in admin attempt detail under "Integrity signals". Never auto-flag or a
 | File | Purpose |
 |---|---|
 | `src/types.ts` | Wire types for `/api/me/*` and `/take/start` — ISO strings on the JSON boundary, distinct from `06-attempt-engine`'s service-layer Date types. `CandidateEventInput` mirrors EVENTS.md catalog. |
-| `src/api.ts` | Typed fetch client. `CandidateApiError` envelope; `takePreview` (read-only landing data, no timer), `takeStart(token, { consent })` (the Begin click: creates the attempt and starts the clock), `listInvitedAssessments`, `startAttempt`, `getAttempt`, `saveAnswer` (reads `X-Client-Revision` header), `toggleFlag`, `recordEvent`, `submitAttempt`, `getResult`. Cookie-trust via `credentials: 'include'`; never persists tokens to storage. |
+| `src/api.ts` | Typed fetch client. `CandidateApiError` envelope; `takePreview` (read-only landing data, no timer), `takeStart(token, { consent })` (the Begin click: creates the attempt and starts the clock), `listInvitedAssessments`, `startAttempt`, `getAttempt`, `saveAnswer` (reads `X-Client-Revision` header), `toggleFlag`, `recordEvent`, `submitAttempt` (returns `result_expectation` / `email_masked` / `turnaround_text`), `getResult` (200 `released` result or 202 `pending`; treat any status other than `released` as pending), `listMyResults` (`GET /me/results`). Cookie-trust via `credentials: 'include'`; never persists tokens to storage. |
+| `src/components/ResultSummary.tsx` | The candidate-facing COMPLETE result (2026-10-01): `ScoreRing` (percent) beside `total / max (percent%)`, Passed / Not passed chip, optional "View certificate" link. Shared by `Submitted.tsx` and `MyResults.tsx`; `compact` = list-row size. No bands / breakdown / insights / percentile (P1). flex-wrap, so it reflows on phones without a viewport branch. |
+| `src/components/MyResults.tsx` | `/candidate/results` — the candidate's released results, newest first (`GET /api/me/results`); loading / empty / error states. The emailed magic-link sign-in lands here. |
 | `src/components/AttemptTimer.tsx` | Server-deadline-anchored countdown pill. Re-derives `remaining = endsAt - Date.now()` every 1 s tick (no accumulation). `onExpire` fires exactly once via `useRef` guard. Color states: green > 5 min, warning ≤ 5 min, danger ≤ 1 min. |
 | `src/components/AutosaveIndicator.tsx` | 5-state pill (`idle` / `saving` / `saved` / `error` / `offline`). 8-px CSS dot + relative-time label refreshing every 30 s on `saved`. Pulse keyframe injected once per page-load with idempotency guard. |
 | `src/components/IntegrityBanner.tsx` | 4 variants — `multi_tab`, `reconnecting`, `tab_was_blurred`, `stale_connection`. Single-source-of-truth `VARIANT_CONFIG` record drives copy + icon + ARIA role/live. `stale_connection` uses `role="alert" aria-live="assertive"`; rest are polite status. |
@@ -106,7 +110,7 @@ Surfaced in admin attempt detail under "Integrity signals". Never auto-flag or a
 - `TakeRoot.tsx` — `<Outlet>` wrapped in `<HelpProvider page="candidate.attempt" audience="candidate" locale="en">`. Mounted via React Router under `/take`.
 - `TokenLanding.tsx` (`/take/:token`) — calls `POST /api/take/start`. 5-state machine: `loading` / `success` / `error404` (Session 4b backend not wired — heading "Connection error.") / `invalid` (401/403 — heading "Invalid magic link.") / `error` (5xx — heading "Something went wrong.").
 - `Attempt.tsx` (`/take/attempt/:id`) — the runner. Wires all 4 primitives + 3 hooks + HelpDrawer (which reads from TakeRoot's HelpProvider). Type-switched answer area for `mcq` (radio cards), `subjective` (autosaving textarea + word counter), `kql` (mono textarea — Monaco deferred per decision #11), `scenario` / `log_analysis` (stub messages — Phase 2). Submit uses `window.confirm` (Modal primitive deferred — see `docs/SESSION_STATE.md` open questions).
-- `Submitted.tsx` (`/take/attempt/:id/submitted`) — terminal page. Polls `GET /api/me/attempts/:id/result` every 30 s; shows `grading_pending` panel for entire Phase 1 lifetime. 401/403/404 → `/take/error`. 5xx / network → still shows submitted panel with "Result polling temporarily unavailable" sub-text.
+- `Submitted.tsx` (`/take/attempt/:id/submitted`) — terminal page, **rewritten 2026-10-01 (scoring + result release)**. A candidate only ever sees a COMPLETE result (owner rule P1) — never a partial score. `Attempt.tsx` hands the submit response (`result_expectation`, `email_masked`, `turnaround_text`) over as router state; without it (timer-expiry auto-submit, deep link) the first `GET /api/me/attempts/:id/result` decides. `'soon'` → "Scoring your answers… this takes under a minute." and a poll every 5 s for at most 60 s; a 200 `released` swaps in the result card (`ResultSummary`: score ring, `total / max (percent%)`, Passed / Not passed, certificate link, "A copy was emailed to {email_masked}."). `'email'`, or the 60 s window closing, → "Your result will be emailed to {email_masked} {turnaround_text}." (manual-release tenants, when the API sends `release_mode: 'manual'`: "…once {tenant_name} releases it."). 5xx / network / a mid-poll 401 never show an error page; 401/403/404 on the FIRST fetch with no router state → `/take/error`. The old `window.location.reload()` loop and 30 s poll are gone.
 - `Expired.tsx` (`/take/expired`) + `ErrorPage.tsx` (`/take/error`) — static fallback states. Two-column branded layout matching `apps/web/src/pages/admin/login.tsx` idiom.
 
 ### Help system integration
@@ -150,8 +154,13 @@ A separate surface from the assessment-taking flow. Candidates navigate to `/can
 /candidate
 ├── /login              CandidateLogin — email input + submit; 204 → shows link-sent state
 ├── /login/verify       CandidateLoginVerify — intermediate route; GET ?token= triggers server-side redirect
+├── /results            CandidateShell > MyResults — released results, newest first (the emailed sign-in link lands here)
 └── /certificates       CandidateShell > MyCertificates (already exists in 11-candidate-ui)
 ```
+
+`CandidateShell` nav (desktop inline + mobile overflow menu): **Results**, Certificates, Activity.
+
+`/candidate/login` takes the organisation from `?tenant=<slug>` (the result email links to `/candidate/login?tenant=<slug>`); when the param is absent it shows an "Organisation code" field instead. The hard-coded `'wipro-soc'` tenant is gone. The page-local mobile rules use `!important` because the container and the aside carry inline `grid-template-columns` / `display` that otherwise beat the stylesheet (the two panes used to stay side by side on phones).
 
 ### CandidateShell
 

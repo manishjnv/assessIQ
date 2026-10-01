@@ -1,6 +1,8 @@
-// AssessIQ — Tenant settings page: DPDP Data Retention controls.
+// AssessIQ — Tenant settings page: company name, Result release mode and DPDP
+// Data Retention controls.
 //
 // Route: /admin/tenant-settings  (tenant admin only; route wiring done in follow-up)
+// Also embedded in the Settings page (billing.tsx) via <TenantSettings embedded />.
 //
 // INVARIANT: This file must never import @anthropic-ai/sdk, @anthropic-ai/claude-agent-sdk,
 // or any module that transitively imports them. AI SDK usage is restricted to
@@ -22,15 +24,34 @@
 import React, { useEffect, useState, type CSSProperties } from "react";
 import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { MfaStepUp } from "../components/mfa-step-up.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession, fetchAdminWhoami } from "../session.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+/** How finished results reach candidates (spec 2026-10-01 SP2). Default: manual. */
+type ReleaseMode = "manual" | "auto";
+
 interface TenantSettingsResponse {
   retention_days: number;
-  updated_at: string;
+  updated_at?: string;
+  /** Absent on servers that predate the Result release setting. */
+  result_release_mode?: ReleaseMode;
 }
+
+const RELEASE_OPTIONS: ReadonlyArray<{ value: ReleaseMode; label: string; help: string }> = [
+  {
+    value: "manual",
+    label: "Manual (default)",
+    help: "You publish each result yourself. Candidates are not sent a result until you do.",
+  },
+  {
+    value: "auto",
+    label: "Automatic",
+    help: "Results publish as soon as they are complete. Candidates see their score and are emailed straight away.",
+  },
+];
 
 // Shape returned by GET /api/admin/me — we only care about the retention field.
 interface AdminMeResponse {
@@ -106,6 +127,18 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // ── Result release mode ───────────────────────────────────────────────────
+  // releaseMode = what the server has (null: unknown — older API or load
+  // failed); releaseChoice = the radio the admin picked but has not saved.
+  const [releaseMode, setReleaseMode] = useState<ReleaseMode | null>(null);
+  const [releaseChoice, setReleaseChoice] = useState<ReleaseMode | null>(null);
+  const [releaseSaving, setReleaseSaving] = useState(false);
+  const [releaseSuccess, setReleaseSuccess] = useState<string | null>(null);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+  const [releaseMfa, setReleaseMfa] = useState(false);
+  const selectedRelease = releaseChoice ?? releaseMode;
+  const releaseDirty = selectedRelease !== null && selectedRelease !== releaseMode;
 
   // ── Purge state ───────────────────────────────────────────────────────────
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -217,6 +250,11 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
       setRetentionDays(data.retention_days);
       setInputValue(String(data.retention_days));
       setUpdatedAt(data.updated_at ?? null);
+      setReleaseMode(
+        data.result_release_mode === "auto" || data.result_release_mode === "manual"
+          ? data.result_release_mode
+          : null,
+      );
     } catch (primaryErr) {
       const is404 =
         primaryErr instanceof AdminApiError && primaryErr.status === 404;
@@ -281,6 +319,50 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Save result release mode ──────────────────────────────────────────────
+  // PATCH needs a fresh MFA check. A 401 (or 403 MFA_REQUIRED) opens the shared
+  // MfaStepUp inline — the picked option is kept and the save is retried once
+  // the code verifies. (/admin/mfa ignores ?return= and always lands on
+  // /admin, so a redirect would lose the admin's place.)
+
+  const handleSaveRelease = async (): Promise<void> => {
+    if (selectedRelease === null) return;
+    setReleaseSaving(true);
+    setReleaseError(null);
+    setReleaseSuccess(null);
+    try {
+      await adminApi("/admin/tenant-settings/result-release-mode", {
+        method: "PATCH",
+        body: JSON.stringify({ mode: selectedRelease }),
+      });
+      setReleaseMode(selectedRelease);
+      setReleaseChoice(null);
+      setReleaseMfa(false);
+      setReleaseSuccess(
+        selectedRelease === "auto"
+          ? "Results now publish automatically."
+          : "Results now wait for you to publish them.",
+      );
+      setTimeout(() => setReleaseSuccess(null), 4000);
+    } catch (err) {
+      if (
+        err instanceof AdminApiError &&
+        (err.status === 401 ||
+          (err.status === 403 && err.apiError.details?.code === "MFA_REQUIRED"))
+      ) {
+        setReleaseMfa(true);
+      } else {
+        setReleaseError(
+          err instanceof AdminApiError
+            ? err.apiError.message
+            : "Unexpected error — please try again.",
+        );
+      }
+    } finally {
+      setReleaseSaving(false);
     }
   };
 
@@ -530,7 +612,8 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 lineHeight: 1.5,
               }}
             >
-              Tenant-level configuration for data retention and compliance controls.
+              Tenant-level configuration: company name, result release, and data
+              retention and compliance controls.
             </p>
           </div>
         )}
@@ -634,6 +717,171 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 Save company name
               </Button>
             </div>
+          </Card>
+        </section>
+
+        {/* ── Result release section ──────────────────────────────────────── */}
+        <section aria-labelledby="result-release-heading" data-help-id="admin.settings.result_release_mode">
+          <div
+            style={{
+              paddingBottom: 16,
+              borderBottom: "1px solid var(--aiq-color-border)",
+              marginBottom: 24,
+            }}
+          >
+            <h2
+              id="result-release-heading"
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: 22,
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Result release.
+            </h2>
+          </div>
+          <Card padding="lg">
+            {loadingSettings ? (
+              <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-xl) 0" }}>
+                <Spinner aria-label="Loading result release setting" />
+              </div>
+            ) : (
+              <>
+                <fieldset
+                  disabled={releaseSaving}
+                  style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
+                >
+                  <legend
+                    style={{
+                      padding: 0,
+                      marginBottom: 12,
+                      fontFamily: "var(--aiq-font-sans)",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: "var(--aiq-color-fg-primary)",
+                    }}
+                  >
+                    When do candidates receive their results?
+                  </legend>
+                  <div style={{ display: "grid", gap: 12, maxWidth: 520 }}>
+                    {RELEASE_OPTIONS.map((opt) => {
+                      const selected = selectedRelease === opt.value;
+                      return (
+                        <label
+                          key={opt.value}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 12,
+                            padding: "14px 16px",
+                            borderRadius: "var(--aiq-radius-md)",
+                            border: `1px solid ${selected ? "var(--aiq-color-accent)" : "var(--aiq-color-border-strong)"}`,
+                            background: selected ? "var(--aiq-color-accent-soft)" : "transparent",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="result-release-mode"
+                            value={opt.value}
+                            checked={selected}
+                            onChange={() => {
+                              setReleaseChoice(opt.value);
+                              setReleaseError(null);
+                              setReleaseSuccess(null);
+                              setReleaseMfa(false);
+                            }}
+                            style={{ marginTop: 3, accentColor: "var(--aiq-color-accent)" }}
+                          />
+                          <span>
+                            <span
+                              style={{
+                                display: "block",
+                                fontFamily: "var(--aiq-font-sans)",
+                                fontSize: 13,
+                                fontWeight: 500,
+                                color: "var(--aiq-color-fg-primary)",
+                              }}
+                            >
+                              {opt.label}
+                            </span>
+                            <span
+                              style={{
+                                display: "block",
+                                marginTop: 2,
+                                fontSize: 12,
+                                lineHeight: 1.5,
+                                color: "var(--aiq-color-fg-secondary)",
+                              }}
+                            >
+                              {opt.help}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <p
+                  style={{
+                    margin: "12px 0 0",
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    color: "var(--aiq-color-fg-secondary)",
+                    maxWidth: 520,
+                  }}
+                >
+                  Switching to Automatic does not publish results that are already
+                  waiting. You can still publish those yourself.
+                </p>
+
+                {releaseSuccess && (
+                  <div style={{ marginTop: 16 }}>
+                    <Chip variant="success">{releaseSuccess}</Chip>
+                  </div>
+                )}
+                {releaseError && (
+                  <div
+                    role="alert"
+                    style={{
+                      marginTop: 16,
+                      fontSize: 13,
+                      color: "var(--aiq-color-danger, #dc2626)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {releaseError}
+                  </div>
+                )}
+
+                {releaseMfa ? (
+                  <div style={{ marginTop: 20, maxWidth: 520 }}>
+                    <MfaStepUp
+                      prompt="Changing how results are released needs a fresh authenticator check. Enter your 6-digit code to continue."
+                      confirmLabel="Verify & save"
+                      onVerified={() => {
+                        setReleaseMfa(false);
+                        void handleSaveRelease();
+                      }}
+                      onCancel={() => setReleaseMfa(false)}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 20 }}>
+                    <Button
+                      onClick={() => void handleSaveRelease()}
+                      loading={releaseSaving}
+                      disabled={!releaseDirty}
+                    >
+                      Save result release
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
           </Card>
         </section>
 
