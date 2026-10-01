@@ -35,6 +35,7 @@ import { ExpectedAnswerView } from "../components/ExpectedAnswerView.js";
 import { ReleaseConfirmModal } from "../components/ReleaseConfirmModal.js";
 import { ConceptCoverageView } from "../components/ConceptCoverageView.js";
 import { adminApi, AdminApiError } from "../api.js";
+import { bandToScore } from "../lib/band-score.js";
 import type { GradingProposal, GradingsRow } from "@assessiq/ai-grading";
 
 // ---------------------------------------------------------------------------
@@ -121,6 +122,8 @@ interface OverrideFormState {
   questionId: string | null;
   gradingId: string | null;
   band: number | null;
+  /** score_max of the grading being overridden — the band is scaled to it. */
+  scoreMax: number | null;
   justification: string;
   reason: string;
 }
@@ -397,7 +400,7 @@ export function AdminAttemptDetail(): React.ReactElement {
   // Re-run escalation proposals (keyed by question_id) — Stage-3 results
   const [escalationProposals, setEscalationProposals] = useState<Record<string, GradingProposal>>({});
   const [grading, setGrading] = useState(false);
-  const [overrideForm, setOverrideForm] = useState<OverrideFormState>({ questionId: null, gradingId: null, band: null, justification: "", reason: "" });
+  const [overrideForm, setOverrideForm] = useState<OverrideFormState>({ questionId: null, gradingId: null, band: null, scoreMax: null, justification: "", reason: "" });
   const [accepting, setAccepting] = useState(false);
   const [overriding, setOverriding] = useState(false);
   // Phase 3 review UX (2026-05-29): replace window.confirm() Release flow
@@ -587,19 +590,19 @@ export function AdminAttemptDetail(): React.ReactElement {
   }
 
   async function handleOverrideSubmit() {
-    if (!overrideForm.gradingId || overrideForm.band === null || !overrideForm.reason.trim()) return;
+    if (!overrideForm.gradingId || overrideForm.band === null || overrideForm.scoreMax === null || !overrideForm.reason.trim()) return;
     setOverriding(true);
     try {
       await adminApi(`/admin/gradings/${overrideForm.gradingId}/override`, {
         method: "POST",
         body: JSON.stringify({
-          score_earned: overrideForm.band * 25,
+          score_earned: bandToScore(overrideForm.band, overrideForm.scoreMax),
           reasoning_band: overrideForm.band,
           ai_justification: overrideForm.justification,
           reason: overrideForm.reason,
         }),
       });
-      setOverrideForm({ questionId: null, gradingId: null, band: null, justification: "", reason: "" });
+      setOverrideForm({ questionId: null, gradingId: null, band: null, scoreMax: null, justification: "", reason: "" });
       await load();
     } catch (err) {
       if (err instanceof AdminApiError && err.status === 401) {
@@ -1120,7 +1123,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                       <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={overriding || overrideForm.band === null || !overrideForm.reason.trim()} onClick={() => void handleOverrideSubmit()}>
                         Submit override
                       </button>
-                      <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => setOverrideForm({ questionId: null, gradingId: null, band: null, justification: "", reason: "" })}>
+                      <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => setOverrideForm({ questionId: null, gradingId: null, band: null, scoreMax: null, justification: "", reason: "" })}>
                         Cancel
                       </button>
                     </div>
@@ -1129,7 +1132,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                   <button
                     type="button"
                     className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                    onClick={() => setOverrideForm({ questionId: q.id, gradingId: existingGrading.id, band: existingGrading.reasoning_band, justification: existingGrading.ai_justification ?? "", reason: "" })}
+                    onClick={() => setOverrideForm({ questionId: q.id, gradingId: existingGrading.id, band: existingGrading.reasoning_band, scoreMax: Number(existingGrading.score_max), justification: existingGrading.ai_justification ?? "", reason: "" })}
                   >
                     Override grade
                   </button>
@@ -1141,7 +1144,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                     proposal={proposal}
                     submitting={accepting}
                     onAccept={() => void handleAccept(q.id, proposal)}
-                    onOverride={() => setOverrideForm({ questionId: q.id, gradingId: null, band: proposal.band.reasoning_band, justification: proposal.band.ai_justification, reason: "" })}
+                    onOverride={() => setOverrideForm({ questionId: q.id, gradingId: null, band: proposal.band.reasoning_band, scoreMax: null, justification: proposal.band.ai_justification, reason: "" })}
                     onRerun={() => void handleRerun(q.id)}
                   />
                 )}
