@@ -270,7 +270,7 @@ describe("Block 1 — RLS visibility", () => {
   // forward migrations 0092/0093/0094 that never bumped it); corrected to the
   // true post-migration count 125 (124 pre-existing + 1 for
   // admin.question_bank.pack.revise, migration 0097). 2026-10-01: 125 -> 131
-  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139; 2026-10-01 scoring/result-release Phase II FE +13 admin keys (0116: 9 admin.evaluations.* + admin.attempts.{awaiting_evaluation,send_back,release_button} + admin.assessments.release_all) -> 152; 2026-10-01 release-on-last-accept +1 admin key (0118: admin.evaluations.rerun_ai; its 7 UPDATEs add no rows) -> 153; 2026-10-01 invitation resend +3 admin keys (0120: admin.assessments.invitations.{resend,resend_all,resend_result}; its UPDATE of admin.platform.admin_email adds no rows) -> 156.
+  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139; 2026-10-01 scoring/result-release Phase II FE +13 admin keys (0116: 9 admin.evaluations.* + admin.attempts.{awaiting_evaluation,send_back,release_button} + admin.assessments.release_all) -> 152; 2026-10-01 release-on-last-accept +1 admin key (0118: admin.evaluations.rerun_ai; its 7 UPDATEs add no rows) -> 153; 2026-10-01 invitation resend +3 admin keys (0120: admin.assessments.invitations.{resend,resend_all,resend_result}; its UPDATE of admin.platform.admin_email adds no rows) -> 156; 2026-10-01 placement results sort +1 admin key (0125: admin.assessment.results_csv.sort; its 2 UPDATEs add no rows) -> 157.
   it("tenant A sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_A, async (client) => {
@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(156);
+    expect(count).toBe(157);
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(156);
+    expect(count).toBe(157);
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt

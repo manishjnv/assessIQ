@@ -209,6 +209,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resultsSort, setResultsSort] = useState<"name" | "rank" | "branch">("name");
   const [error, setError] = useState<string | null>(null);
 
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -1061,10 +1062,27 @@ export function AdminAssessmentDetail(): React.ReactElement {
               Invitations.
             </h2>
             <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
+              <HelpTip helpId="admin.assessment.results_csv.sort">
+                <label
+                  data-help-id="admin.assessment.results_csv.sort"
+                  style={{ fontSize: "var(--aiq-text-sm)", display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}
+                >
+                  Sort by:
+                  <select
+                    value={resultsSort}
+                    onChange={(e) => setResultsSort(e.target.value as "name" | "rank" | "branch")}
+                    data-testid="results-sort"
+                  >
+                    <option value="name">Name</option>
+                    <option value="rank">Rank</option>
+                    <option value="branch">Branch then rank</option>
+                  </select>
+                </label>
+              </HelpTip>
               <HelpTip helpId="admin.assessments.results.download_csv">
                 <a
                   className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  href={`/api/admin/assessments/${id}/results.csv`}
+                  href={`/api/admin/assessments/${id}/results.csv?sort=${resultsSort}`}
                   download
                   data-help-id="admin.assessments.results.download_csv"
                 >

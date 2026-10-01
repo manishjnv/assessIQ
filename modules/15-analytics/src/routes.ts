@@ -39,7 +39,7 @@ import {
 } from './service.js';
 import { ExportFilterSchema } from './types.js';
 import { EXPORT_ROW_CAP } from './repository.js';
-import { buildAssessmentResultsCsv } from './results-export.js';
+import { buildAssessmentResultsCsv, RESULTS_SORTS } from './results-export.js';
 import { processRefreshMvJob } from './refresh-mv-job.js';
 import { registerActivityRoutes } from './activity/index.js';
 import { registerActivityCandidateRoutes } from './activity-candidate/index.js';
@@ -115,8 +115,10 @@ export async function registerAnalyticsRoutes(
   app.get('/api/admin/assessments/:id/results.csv', { preHandler: resultsPre }, async (req, reply) => {
     const id = z.string().uuid().safeParse((req.params as { id: string }).id);
     if (!id.success) throw new ValidationError('invalid assessment id');
+    const sort = z.enum(RESULTS_SORTS).default('name').safeParse((req.query as { sort?: string }).sort);
+    if (!sort.success) throw new ValidationError('sort must be name, rank or branch');
     const { tenantId, userId } = sess(req);
-    const { csv, filenameBase } = await buildAssessmentResultsCsv(tenantId, id.data);
+    const { csv, filenameBase } = await buildAssessmentResultsCsv(tenantId, id.data, sort.data);
     await audit({
       tenantId,
       actorUserId: userId,

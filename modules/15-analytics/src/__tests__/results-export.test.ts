@@ -44,6 +44,8 @@ const assessmentB = randomUUID();
 let candGraded = '';
 let candSubmitted = '';
 let candInvited = '';
+let candTie = '';   // graded, same 75% as Aarav, branch ECE
+let candLow = '';   // graded, 50%, branch CSE
 let candHeld = ''; // graded, but the platform has not released the evaluation to the tenant
 
 const EVIL = '=HYPERLINK("http://x","hi")';
@@ -71,12 +73,14 @@ beforeAll(async () => {
     await c.query(`INSERT INTO tenants (id,name,slug) VALUES ($1,'A',$3),($2,'B',$4)`,
       [tenantA, tenantB, `ta-${tenantA.slice(0, 8)}`, `tb-${tenantB.slice(0, 8)}`]);
     await c.query(`INSERT INTO users (id,tenant_id,email,name,role,status) VALUES ($1,$2,'admin@a.test','Admin','admin','active')`, [admin, tenantA]);
-    const mk = async (name: string, email: string) => {
+    const mk = async (name: string, email: string, meta: Record<string, string> = {}) => {
       const id = randomUUID();
-      await c.query(`INSERT INTO users (id,tenant_id,email,name,role,status) VALUES ($1,$2,$3,$4,'candidate','active')`, [id, tenantA, email, name]);
+      await c.query(`INSERT INTO users (id,tenant_id,email,name,role,status,metadata) VALUES ($1,$2,$3,$4,'candidate','active',$5::jsonb)`, [id, tenantA, email, name, JSON.stringify(meta)]);
       return id;
     };
-    candGraded = await mk('Aarav Sharma', 'aarav@a.test');
+    candGraded = await mk('Aarav Sharma', 'aarav@a.test', { roll_number: '21CS001', branch: 'CSE' });
+    candTie = await mk('Bela Tie', 'bela@a.test', { roll_number: '21EC002', branch: 'ECE' });
+    candLow = await mk('Chirag Low', 'chirag@a.test', { roll_number: '21CS003', branch: 'CSE' });
     candSubmitted = await mk(EVIL, 'sub@a.test');
     candInvited = await mk('Zoya, "Z" Khan', 'zoya@a.test');
     candHeld = await mk('Held Back', 'held@a.test');
@@ -101,6 +105,7 @@ beforeAll(async () => {
       `INSERT INTO assessment_invitations (assessment_id,user_id,token_hash,expires_at,status,invited_by) VALUES ($1,$2,$3,now()+interval '7 day',$4,$5)`,
       [assessmentId, u, randomUUID(), s, admin]);
     await inv(candGraded, 'submitted'); await inv(candSubmitted, 'submitted'); await inv(candInvited, 'pending'); await inv(candHeld, 'submitted');
+    await inv(candTie, 'submitted'); await inv(candLow, 'submitted');
 
     // Phase II: a 'graded' result is visible to the tenant only once the platform released
     // the evaluation (evaluation_released_at); `released = false` models "still with AssessIQ".
@@ -113,6 +118,8 @@ beforeAll(async () => {
     const gradedAttempt = await att(candGraded, 'graded');
     await att(candSubmitted, 'submitted');
     const heldAttempt = await att(candHeld, 'graded', false);
+    const tieAttempt = await att(candTie, 'graded');
+    const lowAttempt = await att(candLow, 'graded');
 
     const grade = (a: string, q: string, earned: number, grader = 'deterministic', at = 'now()') => c.query(
       `INSERT INTO gradings (attempt_id,question_id,tenant_id,grader,score_earned,score_max,status,prompt_version_sha,prompt_version_label,model,graded_at,override_of)
@@ -126,6 +133,14 @@ beforeAll(async () => {
     await grade(gradedAttempt, qs[3]!, 0);
     // Admin override on Q2 (Quant) 0 -> 10, newer than the deterministic row.
     await grade(gradedAttempt, qs[1]!, 10, 'admin_override', `now()+interval '1 minute'`);
+    // Tie: 30/40 = 75% (same as Aarav). Low: 20/40 = 50%.
+    for (let i = 0; i < 4; i++) await grade(tieAttempt, qs[i]!, i === 3 ? 0 : 10);
+    for (let i = 0; i < 4; i++) await grade(lowAttempt, qs[i]!, i < 2 ? 10 : 0);
+    // Integrity events: Aarav 2 tab blurs + 1 paste + 1 fullscreen_exit; held attempt 3 blurs
+    // (shown even though its score is hidden).
+    const ev = (a: string, t: string, n: number) => c.query(`INSERT INTO attempt_events (attempt_id,event_type) SELECT $1,$2 FROM generate_series(1,$3)`, [a, t, n]);
+    await ev(gradedAttempt, 'tab_blur', 2); await ev(gradedAttempt, 'paste', 1); await ev(gradedAttempt, 'fullscreen_exit', 1);
+    await ev(heldAttempt, 'tab_blur', 3);
     // The held-back attempt has grades too — they must NOT surface in the tenant's CSV.
     for (let i = 0; i < 4; i++) await grade(heldAttempt, qs[i]!, 10);
 
@@ -190,31 +205,69 @@ describe('assessment results.csv', () => {
     expect(res.body.startsWith('﻿')).toBe(true);
 
     const rows = parseCsv(res.body);
-    expect(rows[0]).toEqual(['name', 'email', 'status', 'started_at', 'submitted_at', 'score', 'max_score', 'percent', 'result', 'Quant (%)', 'Verbal (%)']);
-    expect(rows.length).toBe(5);
+    expect(rows[0]).toEqual(['name', 'email', 'roll_number', 'branch', 'status', 'started_at', 'submitted_at', 'score', 'max_score', 'percent', 'result', 'rank', 'tab_switches', 'paste_count', 'fullscreen_exits', 'Quant (%)', 'Verbal (%)']);
+    expect(rows.length).toBe(7);
     const by = Object.fromEntries(rows.slice(1).map((r) => [r[1]!, r]));
 
     // graded + evaluation released to the tenant: 10 + override(10) + 10 + 0 = 30/40 = 75%, level passing 60 -> Pass
     const g = by['aarav@a.test']!;
-    expect(g.slice(2, 3)).toEqual(['graded']);
-    expect(g.slice(5)).toEqual(['30', '40', '75', 'Pass', '100', '50']); // override precedence: Quant 20/20
+    expect(g.slice(2, 5)).toEqual(['21CS001', 'CSE', 'graded']);
+    expect(g.slice(7)).toEqual(['30', '40', '75', 'Pass', '1', '2', '1', '1', '100', '50']); // override precedence: Quant 20/20
 
     // submitted-not-graded: attempt status, no score, result "Awaiting evaluation" (Phase II)
     const s = by['sub@a.test']!;
-    expect(s[2]).toBe('submitted');
-    expect(s.slice(5)).toEqual(['', '', '', 'Awaiting evaluation', '', '']);
+    expect(s[4]).toBe('submitted');
+    expect(s.slice(7)).toEqual(['', '', '', 'Awaiting evaluation', '', '0', '0', '0', '', '']);
 
     // graded but NOT released to the tenant (still with AssessIQ / sent back): grades exist,
     // yet the CSV shows no score and "Awaiting evaluation" — nothing provisional leaks out.
     const h = by['held@a.test']!;
-    expect(h[2]).toBe('graded');
-    expect(h.slice(5)).toEqual(['', '', '', 'Awaiting evaluation', '', '']);
+    expect(h[4]).toBe('graded');
+    // rank blank, but integrity counts are shown regardless of release state
+    expect(h.slice(7)).toEqual(['', '', '', 'Awaiting evaluation', '', '3', '0', '0', '', '']);
 
     // invited, never started
     const i = by['zoya@a.test']!;
     expect(i[0]).toBe('Zoya, "Z" Khan');
-    expect(i.slice(2, 5)).toEqual(['invited', '', '']);
+    expect(i.slice(4, 7)).toEqual(['invited', '', '']);
+    expect(i.slice(11)).toEqual(['', '', '', '', '', '']); // no attempt: rank + integrity blank
     await app.close();
+  });
+
+  const col = (rows: string[][], name: string) => rows.slice(1).map((r) => r[rows[0]!.indexOf(name)]!);
+  const get = async (q = '') => {
+    const app = buildApp();
+    const res = await app.inject({ method: 'GET', url: `/api/admin/assessments/${assessmentId}/results.csv${q}`, headers: { 'x-role': 'admin' } });
+    await app.close();
+    return res;
+  };
+
+  it('ranks with competition ties (1,2,2,4) and leaves awaiting/not-started rows blank', async () => {
+    const rows = parseCsv((await get()).body);
+    const byEmail = Object.fromEntries(rows.slice(1).map((r) => [r[1]!, r[rows[0]!.indexOf('rank')]!]));
+    expect(byEmail).toEqual({
+      'aarav@a.test': '1', 'bela@a.test': '1', 'chirag@a.test': '3',
+      'sub@a.test': '', 'held@a.test': '', 'zoya@a.test': '',
+    });
+  });
+
+  it('sort=rank orders by rank, unranked last; sort=branch is branch A-Z, then rank, then name', async () => {
+    const r = parseCsv((await get('?sort=rank')).body);
+    expect(col(r, 'rank')).toEqual(['1', '1', '3', '', '', '']);
+    expect(col(r, 'name').slice(0, 2)).toEqual(['Aarav Sharma', 'Bela Tie']);
+
+    const b = parseCsv((await get('?sort=branch')).body);
+    // CSE (Aarav rank 1, Chirag rank 3), ECE (Bela), then no-branch rows by name
+    expect(col(b, 'branch')).toEqual(['CSE', 'CSE', 'ECE', '', '', '']);
+    expect(col(b, 'name').slice(0, 3)).toEqual(['Aarav Sharma', 'Chirag Low', 'Bela Tie']);
+
+    const n = parseCsv((await get('?sort=name')).body);
+    expect(n.length).toBe(7);
+    expect(col(n, 'rank')).toContain('3');
+  });
+
+  it('unknown sort -> 400', async () => {
+    expect((await get('?sort=bogus')).statusCode).toBe(400);
   });
 
   it('neutralises formula injection in names', async () => {

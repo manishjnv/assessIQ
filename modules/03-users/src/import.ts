@@ -17,6 +17,11 @@ export const IMPORT_MAX_ROWS = 1000;
 export const IMPORT_MAX_BYTES = 512 * 1024;
 const MAX_NAME_LENGTH = 200;
 const MAX_EMAIL_LENGTH = 254;
+const MAX_PROFILE_LENGTH = 64;
+// Header aliases (after lowercasing + stripping spaces/underscores/hyphens).
+const ROLL_ALIASES = ['rollnumber', 'rollno', 'roll', 'enrollment'];
+const BRANCH_ALIASES = ['branch', 'department', 'dept'];
+const normHeader = (h: string): string => h.toLowerCase().replace(/[\s_-]+/g, '');
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Control + invisible/bidi-override chars — names flow into emails, UI and CSV exports.
 // eslint-disable-next-line no-control-regex, no-misleading-character-class
@@ -33,6 +38,9 @@ export interface ParsedCandidateRow {
   row: number;
   name: string;
   email: string;
+  /** Optional profile columns; present only when the cell was non-empty. */
+  rollNumber?: string;
+  branch?: string;
 }
 
 export interface ParsedCandidateCsv {
@@ -99,6 +107,11 @@ export function parseCandidateCsv(input: string): ParsedCandidateCsv {
   const header = all[0]?.map((h) => h.trim().toLowerCase()) ?? [];
   const nameIdx = header.indexOf('name');
   const emailIdx = header.indexOf('email');
+  const norm = header.map(normHeader);
+  const rollIdx = norm.findIndex((h) => ROLL_ALIASES.includes(h));
+  const branchIdx = norm.findIndex((h) => BRANCH_ALIASES.includes(h));
+  const profile = (cells: string[], idx: number): string =>
+    idx < 0 ? '' : (cells[idx] ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_PROFILE_LENGTH);
   if (nameIdx < 0 || emailIdx < 0) {
     throw new ValidationError('CSV header row must contain "name" and "email" columns', {
       details: { code: 'CSV_MISSING_COLUMNS', required: ['name', 'email'] },
@@ -137,7 +150,13 @@ export function parseCandidateCsv(input: string): ParsedCandidateCsv {
       skip('DUPLICATE_IN_FILE');
     } else {
       seen.add(email);
-      valid.push({ row, name, email });
+      const rollNumber = profile(cells, rollIdx);
+      const branch = profile(cells, branchIdx);
+      valid.push({
+        row, name, email,
+        ...(rollNumber && !BAD_NAME_CHARS.test(rollNumber) ? { rollNumber } : {}),
+        ...(branch && !BAD_NAME_CHARS.test(branch) ? { branch } : {}),
+      });
     }
   }
   return { valid, skipped, totalRows };
@@ -176,6 +195,10 @@ export async function importCandidates(
   await withTenant(tenantId, async (client) => {
     for (const r of parsed.valid) {
       const found = await repo.findUserByEmailNormalized(client, r.email);
+      const profileMeta: Record<string, string> = {
+        ...(r.rollNumber ? { roll_number: r.rollNumber } : {}),
+        ...(r.branch ? { branch: r.branch } : {}),
+      };
       if (found !== null) {
         if (found.deleted_at !== null) {
           // Soft-deleted users are never silently revived/re-invited by an import.
@@ -184,6 +207,13 @@ export async function importCandidates(
           skipped.push({ row: r.row, email: r.email, reason: 'EXISTING_USER_NOT_CANDIDATE' });
         } else {
           existing++;
+          // Non-empty cells only: an empty cell never wipes a stored value.
+          if (Object.keys(profileMeta).length > 0) {
+            await client.query(
+              `UPDATE users SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb, updated_at = now() WHERE id = $1`,
+              [found.id, JSON.stringify(profileMeta)],
+            );
+          }
           candidates.push({ userId: found.id, row: r.row, email: r.email });
         }
         continue;
@@ -197,7 +227,7 @@ export async function importCandidates(
           name: r.name,
           role: 'candidate',
           status: 'active',
-          metadata: {},
+          metadata: profileMeta,
         });
         await client.query('RELEASE SAVEPOINT import_row');
         created++;

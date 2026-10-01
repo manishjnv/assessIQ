@@ -28,6 +28,26 @@ describe('parseCandidateCsv', () => {
     expect(r.skipped).toEqual([]);
   });
 
+  it('maps roll_number / branch header aliases (case/space-insensitive) and trims to 64 chars', () => {
+    const r = parseCandidateCsv(
+      `Name,Email,Roll No,Department
+A,a@x.com, 21CS001 ,CSE
+B,b@x.com,,
+C,c@x.com,${'9'.repeat(80)},x`,
+    );
+    expect(r.valid[0]).toEqual({ row: 2, name: 'A', email: 'a@x.com', rollNumber: '21CS001', branch: 'CSE' });
+    expect(r.valid[1]).toEqual({ row: 3, name: 'B', email: 'b@x.com' });
+    expect(r.valid[2]!.rollNumber).toHaveLength(64);
+    for (const h of ['roll_number', 'roll', 'enrollment', 'ROLL NUMBER']) {
+      expect(parseCandidateCsv(`name,email,${h}
+A,a@x.com,7`).valid[0]!.rollNumber).toBe('7');
+    }
+    for (const h of ['branch', 'dept', 'Department']) {
+      expect(parseCandidateCsv(`name,email,${h}
+A,a@x.com,ECE`).valid[0]!.branch).toBe('ECE');
+    }
+  });
+
   it('handles quotes, commas, escaped quotes and newlines inside names', () => {
     const r = parseCandidateCsv('name,email\n"Doe, Jane ""JD""",jane@x.com\n"Multi\nLine",m@x.com');
     // Whitespace (incl. embedded newlines) collapses to one space.
@@ -223,5 +243,30 @@ describe('importCandidates', () => {
     expect(r.created).toBe(0);
     expect(r.existing).toBe(1);
     expect((await count()).rows[0].n).toBe(before + 1);
+  });
+});
+
+describe('importCandidates roll_number / branch', () => {
+  it('persists on create and updates existing only for non-empty cells', async () => {
+    const meta = async (email: string) =>
+      su(async (c) => (await c.query(`SELECT metadata FROM users WHERE tenant_id=$1 AND email=$2`, [tenantA, email])).rows[0]!.metadata);
+
+    await importCandidates(tenantA, `name,email,roll,dept
+Roll One,roll1@example.com,21CS001,CSE
+`, adminA);
+    expect(await meta('roll1@example.com')).toEqual({ roll_number: '21CS001', branch: 'CSE' });
+
+    // Re-import: empty branch cell keeps CSE; new roll overwrites.
+    const r = await importCandidates(tenantA, `name,email,roll_number,branch
+Roll One,roll1@example.com,21CS999,
+`, adminA);
+    expect(r.existing).toBe(1);
+    expect(await meta('roll1@example.com')).toEqual({ roll_number: '21CS999', branch: 'CSE' });
+
+    // Plain name,email import on an existing student changes nothing.
+    await importCandidates(tenantA, `name,email
+Roll One,roll1@example.com
+`, adminA);
+    expect(await meta('roll1@example.com')).toEqual({ roll_number: '21CS999', branch: 'CSE' });
   });
 });
