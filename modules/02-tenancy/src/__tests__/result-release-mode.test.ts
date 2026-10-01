@@ -17,17 +17,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool } from "../pool.js";
 import { withTenant } from "../with-tenant.js";
 import { updateResultReleaseMode } from "../service.js";
 import { findTenantSettings } from "../repository.js";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const MODULES_ROOT = join(HERE, "..", "..", "..");
 const ACTOR = "00000000-0000-0000-0000-000000000002";
 
 let container: StartedTestContainer;
@@ -42,13 +38,6 @@ async function sql<T = Record<string, unknown>>(q: string, p: unknown[] = []): P
     return (await c.query(q, p)).rows as T[];
   } finally {
     await c.end();
-  }
-}
-
-async function applyDir(c: Client, dir: string, only?: string[]): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-  for (const f of only ? files.filter((x) => only.includes(x)) : files) {
-    await c.query(await readFile(join(dir, f), "utf8"));
   }
 }
 
@@ -74,18 +63,7 @@ beforeAll(async () => {
 
   const c = new Client({ connectionString: url });
   await c.connect();
-  await c.query(
-    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='assessiq_app') THEN CREATE ROLE assessiq_app; END IF; END $$;`,
-  );
-  await c.query(
-    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='assessiq_system') THEN CREATE ROLE assessiq_system BYPASSRLS; END IF; END $$;`,
-  );
-  await c.query(`GRANT assessiq_app TO assessiq`);
-  await c.query(`GRANT assessiq_system TO assessiq`);
-  await applyDir(c, join(MODULES_ROOT, "02-tenancy", "migrations"));
-  await applyDir(c, join(MODULES_ROOT, "03-users", "migrations"), ["020_users.sql"]);
-  await applyDir(c, join(MODULES_ROOT, "14-audit-log", "migrations"), ["0050_audit_log.sql"]);
-  await applyDir(c, join(MODULES_ROOT, "20-data-rights", "migrations"), ["0103_tenant_retention_days.sql"]);
+  await applyAllMigrations(c);
   await c.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
   await c.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
   await c.query(`GRANT USAGE, SELECT ON SEQUENCE audit_log_id_seq TO assessiq_app`);

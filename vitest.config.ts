@@ -8,6 +8,12 @@ export default defineConfig({
     ],
     setupFiles: ["./vitest.setup.ts"],
     environment: "node",
+    // DB tests each start a postgres testcontainer; with many files in parallel the
+    // start (+ full migration chain) routinely exceeds the 10 s default hook timeout.
+    hookTimeout: 180_000,
+    testTimeout: 60_000,
+    maxWorkers: 2,
+    minWorkers: 1,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

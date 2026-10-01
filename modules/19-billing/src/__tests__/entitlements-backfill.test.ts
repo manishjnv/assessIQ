@@ -24,6 +24,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
+import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -41,10 +42,6 @@ const THIS_DIR = toFsPath(new URL('.', import.meta.url));
 const BILLING_MODULE_ROOT = join(THIS_DIR, '..', '..');
 const MODULES_ROOT = join(BILLING_MODULE_ROOT, '..');
 
-const TENANCY_MIGRATIONS_DIR  = join(MODULES_ROOT, '02-tenancy', 'migrations');
-const USERS_MIGRATIONS_DIR    = join(MODULES_ROOT, '03-users', 'migrations');
-const QB_MIGRATIONS_DIR       = join(MODULES_ROOT, '04-question-bank', 'migrations');
-const BILLING_MIGRATIONS_DIR  = join(BILLING_MODULE_ROOT, 'migrations');
 
 // The backfill SQL — MUST stay byte-identical to the INSERT in
 // 0082_entitlements_backfill.sql (incl. NULL::uuid — a bare NULL under
@@ -110,19 +107,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
-  const filtered = only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), 'utf8');
-    await client.query(sql);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
@@ -153,23 +137,15 @@ beforeAll(
 
     await withSuperClient(async (client) => {
       // 1. Tenancy
-      await applyMigrationsFromDir(client, TENANCY_MIGRATIONS_DIR);
+      await applyAllMigrations(client);
 
       // 2. Users
-      await applyMigrationsFromDir(client, USERS_MIGRATIONS_DIR, ['020_users.sql']);
 
       // 3. Question bank tables needed for the backfill join
       //    0010: question_packs, 0011: levels, 0012: questions, 0016: ai_draft + kb column
-      await applyMigrationsFromDir(client, QB_MIGRATIONS_DIR, [
-        '0010_question_packs.sql',
-        '0011_levels.sql',
-        '0012_questions.sql',
-        '0016_questions_ai_draft_kb.sql',
-      ]);
 
       // 4. Billing entitlements table (no tenant_plans needed for this test — backfill
       //    runs as superuser / system role, doesn't touch withTenant or tenant_plans)
-      await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, ['0081_tenant_entitlements.sql']);
 
       // Seed tenants
       await client.query(
@@ -181,15 +157,15 @@ beforeAll(
 
       // Seed admin user (required for question_packs.created_by and questions.created_by FKs)
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role)
-         VALUES ($1, $2, 'admin@bf-test.com', 'admin')`,
+        `INSERT INTO users (id, tenant_id, email, name, role)
+         VALUES ($1, $2, 'admin@bf-test.com', 'Test User', 'admin')`,
         [ADMIN_USER_ID, TENANT1_ID],
       );
       // Tenant 2 needs its own user
       const ADMIN_USER2_ID = randomUUID();
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role)
-         VALUES ($1, $2, 'admin2@bf-test.com', 'admin')`,
+        `INSERT INTO users (id, tenant_id, email, name, role)
+         VALUES ($1, $2, 'admin2@bf-test.com', 'Test User', 'admin')`,
         [ADMIN_USER2_ID, TENANT2_ID],
       );
 

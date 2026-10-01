@@ -23,7 +23,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execSync } from "node:child_process";
@@ -75,10 +75,6 @@ const THIS_DIR = toFsPath(new URL(".", import.meta.url));
 const AI_MODULE_ROOT = join(THIS_DIR, "..", "..");
 const MODULES_ROOT = join(AI_MODULE_ROOT, "..");
 
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_MIGRATIONS_DIR = join(MODULES_ROOT, "03-users", "migrations");
-const QB_MIGRATIONS_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
-const AI_MIGRATIONS_DIR = join(AI_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -192,19 +188,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-  const filtered = only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), "utf8");
-    await client.query(sql);
-  }
-}
-
 async function seedPack(
   client: Client,
   tenantId: string,
@@ -259,10 +242,7 @@ beforeAll(
 
     await withSuperClient(async (client) => {
       // Apply migrations in FK-safe order
-      await applyMigrationsFromDir(client, TENANCY_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, USERS_MIGRATIONS_DIR, ["020_users.sql"]);
-      await applyMigrationsFromDir(client, QB_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, AI_MIGRATIONS_DIR);
+      await applyAllMigrations(client);
 
       // Seed tenant + admin
       await client.query(
@@ -343,11 +323,17 @@ describe("handleAdminGenerate — sharded path citation enforcement", () => {
         model: "claude-sonnet-4-6",
         wrongTypeDropped: 0,
       };
+      mockGenerateQuestionsByType.mockClear();
       mockGenerateQuestionsByType.mockResolvedValue(mockOutput);
 
       // Set environment for sharded path
       const origMode = process.env["AI_GENERATE_MODE"];
       process.env["AI_GENERATE_MODE"] = "sharded";
+      // `config` is loaded once at import, so the env var above no longer switches mode;
+      // the handler reads tenant_settings.ai_generate_mode first (admin-generate.ts:496).
+      await withSuperClient((c) =>
+        c.query(`UPDATE tenant_settings SET ai_generate_mode = 'sharded' WHERE tenant_id = $1`, [TENANT_ID]),
+      );
 
       try {
         const result = await handleAdminGenerate(makeInput(packId, levelId, 4));
@@ -356,6 +342,9 @@ describe("handleAdminGenerate — sharded path citation enforcement", () => {
         expect(result.generated).toBe(1);
         expect(result.questionIds).toHaveLength(1);
       } finally {
+        await withSuperClient((c) =>
+          c.query(`UPDATE tenant_settings SET ai_generate_mode = NULL WHERE tenant_id = $1`, [TENANT_ID]),
+        );
         if (origMode === undefined) {
           delete process.env["AI_GENERATE_MODE"];
         } else {
@@ -374,7 +363,9 @@ describe("handleAdminGenerate — sharded path citation enforcement", () => {
         return r.rows[0] as { citation_dropped: number; count_inserted: number };
       });
 
-      expect(attemptRow.citation_dropped).toBe(3);
+      // The handler fans out one call per allocated type and the mock returns the same 4
+      // drafts for each, so the 3 bad ones are dropped once per call.
+      expect(attemptRow.citation_dropped).toBe(3 * mockGenerateQuestionsByType.mock.calls.length);
       expect(attemptRow.count_inserted).toBe(1);
     },
   );

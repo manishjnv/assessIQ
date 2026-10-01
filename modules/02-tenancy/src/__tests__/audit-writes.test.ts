@@ -36,10 +36,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 
 // ---------------------------------------------------------------------------
 // Mock @assessiq/audit-log — allows one-shot failure injection for atomicity
@@ -76,12 +77,6 @@ import { updateTenantSettings, suspendTenant } from "../service.js";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVICE_FILE = join(HERE, "..", "service.ts");
 
-const MODULE_ROOT = join(HERE, "..", "..");
-const MODULES_ROOT = join(MODULE_ROOT, "..");
-
-const TENANCY_MIGRATIONS_DIR = join(MODULE_ROOT, "migrations");
-const USERS_MIGRATIONS_DIR = join(MODULES_ROOT, "03-users", "migrations");
-const AUDIT_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
 
 // ---------------------------------------------------------------------------
 // Coverage table
@@ -91,6 +86,8 @@ const COVERAGE: Array<{
   functionName: string;
   expectedAction: string;
   expectedCallCount: number;
+  /** Function that actually holds withTenant + auditInTx when the exported fn delegates to a shared helper. */
+  auditBodyFn?: string;
 }> = [
   {
     functionName: "updateTenantSettings",
@@ -101,6 +98,7 @@ const COVERAGE: Array<{
     functionName: "suspendTenant",
     expectedAction: "tenant.suspended",
     expectedCallCount: 1,
+    auditBodyFn: "performLifecycleTransition", // suspendTenant delegates to the shared helper
   },
 ];
 
@@ -125,7 +123,7 @@ describe("02-tenancy G3.D audit-write coverage", () => {
         // Slice out the function body by finding the function declaration and
         // the next top-level export. This avoids counting calls from other
         // functions in the same file.
-        const fnStart = serviceSrc.indexOf(`async function ${entry.functionName}`);
+        const fnStart = serviceSrc.indexOf(`async function ${entry.auditBodyFn ?? entry.functionName}`);
         expect(fnStart).toBeGreaterThan(-1);
         // Find the next top-level `export async function` after this one
         const nextFn = serviceSrc.indexOf(`export async function`, fnStart + 10);
@@ -153,7 +151,7 @@ describe("02-tenancy G3.D audit-write coverage", () => {
       });
 
       it(`mentions both withTenant and auditInTx (atomicity structure)`, () => {
-        const fnStart = serviceSrc.indexOf(`async function ${entry.functionName}`);
+        const fnStart = serviceSrc.indexOf(`async function ${entry.auditBodyFn ?? entry.functionName}`);
         const nextFn = serviceSrc.indexOf(`export async function`, fnStart + 10);
         const fnBody =
           nextFn > -1 ? serviceSrc.slice(fnStart, nextFn) : serviceSrc.slice(fnStart);
@@ -200,19 +198,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
     return await fn(client);
   } finally {
     await client.end();
-  }
-}
-
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-  const filtered = only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), "utf8");
-    await client.query(sql);
   }
 }
 
@@ -293,27 +278,7 @@ beforeAll(async () => {
   containerUrl = `postgres://assessiq:assessiq_test_pw@${host}:${port}/assessiq`;
 
   await withSuperClient(async (client) => {
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
-          CREATE ROLE assessiq_app;
-        END IF;
-      END $$;
-    `);
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
-          CREATE ROLE assessiq_system BYPASSRLS;
-        END IF;
-      END $$;
-    `);
-    await client.query(`GRANT assessiq_app TO assessiq`);
-    await client.query(`GRANT assessiq_system TO assessiq`);
-
-    // Apply migrations in order
-    await applyMigrationsFromDir(client, TENANCY_MIGRATIONS_DIR);
-    await applyMigrationsFromDir(client, USERS_MIGRATIONS_DIR, ["020_users.sql"]);
-    await applyMigrationsFromDir(client, AUDIT_MIGRATIONS_DIR, ["0050_audit_log.sql"]);
+    await applyAllMigrations(client);
 
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
     await client.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
@@ -421,6 +386,14 @@ describe("02-tenancy G3.D audit writes — live integration (suspendTenant)", ()
     // Reset tenant to 'active' before each test
     await withSuperClient((c) =>
       c.query(`UPDATE tenants SET status = 'active' WHERE id = $1`, [TENANT_ID]),
+    );
+    // audit_log.actor_user_id has an FK to users(id): the actor must exist.
+    await withSuperClient((c) =>
+      c.query(
+        `INSERT INTO users (id, tenant_id, email, name, role, status)
+         VALUES ($1, $2, 'actor@example.com', 'Actor', 'admin', 'active') ON CONFLICT DO NOTHING`,
+        [ACTOR_USER_ID, TENANT_ID],
+      ),
     );
     await clearAudit(TENANT_ID);
   });

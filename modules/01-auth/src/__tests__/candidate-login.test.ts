@@ -14,9 +14,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import { setRedisForTesting, closeRedis } from "../redis.js";
@@ -30,22 +29,6 @@ import {
 } from "../candidate-login.js";
 import { sha256Hex } from "../crypto-util.js";
 import { sessions } from "../sessions.js";
-
-// ---------------------------------------------------------------------------
-// Path helpers — strip leading slash before drive letter on Windows
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR         = toFsPath(new URL(".", import.meta.url));  // .../src/__tests__/
-const AUTH_MODULE_ROOT = join(THIS_DIR, "..", "..");                // modules/01-auth/
-const MODULES_ROOT     = join(AUTH_MODULE_ROOT, "..");              // modules/
-
-const TENANCY_MIGRATIONS = join(MODULES_ROOT, "02-tenancy", "migrations");
-const AUTH_MIGRATIONS    = join(AUTH_MODULE_ROOT, "migrations");
-const AUDIT_MIGRATIONS   = join(MODULES_ROOT, "14-audit-log", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -104,73 +87,7 @@ beforeAll(async () => {
   redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
   await withSuperClient(async (client) => {
-    // 1. 02-tenancy migrations
-    const tenancyFiles = (await readdir(TENANCY_MIGRATIONS))
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
-    for (const file of tenancyFiles) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS, file), "utf-8");
-      await client.query(sql);
-    }
-
-    // 2. Stub users table (superset of what sessions.test uses, + display_name alias)
-    await client.query(`
-      CREATE TABLE users (
-        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id   UUID NOT NULL REFERENCES tenants(id),
-        email       TEXT NOT NULL DEFAULT 'x',
-        name        TEXT NOT NULL DEFAULT 'x',
-        role        TEXT NOT NULL DEFAULT 'admin',
-        status      TEXT NOT NULL DEFAULT 'active',
-        deleted_at  TIMESTAMPTZ
-      )
-    `);
-
-    // 3. 01-auth migrations (010–015, lexical) then the new 0076
-    const authFiles = (await readdir(AUTH_MIGRATIONS))
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
-    for (const file of authFiles) {
-      const sql = await readFile(join(AUTH_MIGRATIONS, file), "utf-8");
-      await client.query(sql);
-    }
-
-    // 4. audit_log table (required by auditInTx called inside service functions)
-    //    Apply only if the 14-audit-log migrations directory exists.
-    let auditFiles: string[] = [];
-    try {
-      auditFiles = (await readdir(AUDIT_MIGRATIONS))
-        .filter((f) => f.endsWith(".sql"))
-        .sort();
-    } catch {
-      // 14-audit-log migrations not accessible from this test's cwd — create
-      // a minimal audit_log stub so auditInTx can INSERT.
-    }
-
-    if (auditFiles.length > 0) {
-      for (const file of auditFiles) {
-        const sql = await readFile(join(AUDIT_MIGRATIONS, file), "utf-8");
-        await client.query(sql);
-      }
-    } else {
-      // Minimal stub (no RLS — test uses superuser; action validation is in TS).
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS audit_log (
-          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          tenant_id     UUID NOT NULL,
-          actor_user_id UUID,
-          actor_kind    TEXT NOT NULL,
-          action        TEXT NOT NULL,
-          entity_type   TEXT NOT NULL,
-          entity_id     UUID,
-          before        JSONB,
-          after         JSONB,
-          ip            INET,
-          user_agent    TEXT,
-          at            TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `);
-    }
+    await applyAllMigrations(client);
   });
 
   await setPoolForTesting(pgUrl);
@@ -505,8 +422,9 @@ describe("checkCandidateLinkRateLimit (Fix 2 — per-(IP, email) rate limit)", (
     const warnSpy = vi.fn();
     const fakeRedis = {
       eval: vi.fn().mockRejectedValue(new Error("connection refused")),
-    } as unknown as Parameters<typeof setRedisForTesting>[0];
-    setRedisForTesting(fakeRedis);
+    };
+    // setRedisForTesting takes a URL: connect for real, then shadow the methods with fakes.
+    Object.assign(await setRedisForTesting(redisUrl), fakeRedis);
 
     try {
       const allowed = await checkCandidateLinkRateLimit(

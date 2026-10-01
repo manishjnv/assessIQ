@@ -17,29 +17,11 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import Fastify from "fastify";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { registerQuestionBankRoutes } from "../routes.js";
-
-// ---------------------------------------------------------------------------
-// Path helpers (Windows compat — strip leading slash before drive letter)
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR       = toFsPath(new URL(".", import.meta.url));
-const QB_MODULE_ROOT = join(THIS_DIR, "..", "..");          // modules/04-question-bank/
-const MODULES_ROOT   = join(QB_MODULE_ROOT, "..");          // modules/
-
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_MIGRATIONS_DIR   = join(MODULES_ROOT, "03-users", "migrations");
-const QB_MIGRATIONS_DIR      = join(QB_MODULE_ROOT, "migrations");
-const AI_GRADING_MIGRATIONS_DIR = join(MODULES_ROOT, "07-ai-grading", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -173,43 +155,7 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
-  const [tenancyFiles, usersFiles, qbFiles, aiGradingFiles] = await Promise.all([
-    readdir(TENANCY_MIGRATIONS_DIR),
-    readdir(USERS_MIGRATIONS_DIR),
-    readdir(QB_MIGRATIONS_DIR),
-    readdir(AI_GRADING_MIGRATIONS_DIR),
-  ]);
-
-  const tenancySorted = tenancyFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: TENANCY_MIGRATIONS_DIR, file: f }));
-
-  // Only 020_users.sql — skip 021_invitations.sql (requires auth tables)
-  const usersSorted = usersFiles
-    .filter((f) => f.endsWith(".sql") && f.startsWith("020_"))
-    .sort()
-    .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
-
-  const qbSorted = qbFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: QB_MIGRATIONS_DIR, file: f }));
-
-  // Only 0042_generation_attempts.sql — the table we exercise here.
-  // 0040_gradings.sql is skipped (requires 01-auth tables not present).
-  // 0041_tenant_grading_budgets.sql is skipped (depends on 0040).
-  const aiGradingSorted = aiGradingFiles
-    .filter((f) => f.endsWith(".sql") && f === "0042_generation_attempts.sql")
-    .sort()
-    .map((f) => ({ dir: AI_GRADING_MIGRATIONS_DIR, file: f }));
-
-  await withSuperClient(async (client) => {
-    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...qbSorted, ...aiGradingSorted]) {
-      const sql = await readFile(join(dir, file), "utf-8");
-      await client.query(sql);
-    }
-  });
+  await withSuperClient((client) => applyAllMigrations(client));
 
   await setPoolForTesting(containerUrl);
 

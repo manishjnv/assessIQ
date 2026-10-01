@@ -7,8 +7,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '@assessiq/core';
 import { setPoolForTesting, closePool } from '@assessiq/tenancy';
@@ -18,8 +17,6 @@ vi.mock('@assessiq/audit-log', () => ({ audit: vi.fn(async () => undefined) }));
 import { registerAnalyticsRoutes } from '../routes.js';
 import { csvCell } from '../results-export.js';
 
-const here = new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
-const MODULES = join(here, '..', '..', '..');
 
 let container: StartedTestContainer;
 let url: string;
@@ -28,12 +25,6 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   const c = new Client({ connectionString: url });
   await c.connect();
   try { return await fn(c); } finally { await c.end(); }
-}
-async function applyDir(c: Client, dir: string, only?: string[]) {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
-  for (const f of only ? files.filter((x) => only.includes(x)) : files) {
-    await c.query(await readFile(join(dir, f), 'utf8'));
-  }
 }
 
 const tenantA = randomUUID();
@@ -61,14 +52,7 @@ beforeAll(async () => {
 
   await sup(async (c) => {
     await c.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
-    await applyDir(c, join(MODULES, '02-tenancy', 'migrations'));
-    await applyDir(c, join(MODULES, '03-users', 'migrations'), ['020_users.sql']);
-    await applyDir(c, join(MODULES, '04-question-bank', 'migrations'));
-    await applyDir(c, join(MODULES, '05-assessment-lifecycle', 'migrations'));
-    await applyDir(c, join(MODULES, '06-attempt-engine', 'migrations'));
-    await applyDir(c, join(MODULES, '07-ai-grading', 'migrations'), ['0040_gradings.sql', '0041_tenant_grading_budgets.sql']);
-    await applyDir(c, join(MODULES, '09-scoring', 'migrations'));
-    await applyDir(c, join(MODULES, '15-analytics', 'migrations'));
+    await applyAllMigrations(c);
 
     await c.query(`INSERT INTO tenants (id,name,slug) VALUES ($1,'A',$3),($2,'B',$4)`,
       [tenantA, tenantB, `ta-${tenantA.slice(0, 8)}`, `tb-${tenantB.slice(0, 8)}`]);

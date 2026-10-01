@@ -20,8 +20,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
@@ -43,19 +42,6 @@ import type { CreateQuestionInput } from "../types.js";
 // ---------------------------------------------------------------------------
 // Path helpers (Windows: strip leading slash before drive letter)
 // ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR        = toFsPath(new URL(".", import.meta.url));
-const QB_MODULE_ROOT  = join(THIS_DIR, "..", "..");
-const MODULES_ROOT    = join(QB_MODULE_ROOT, "..");
-
-const TENANCY_DIR     = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_DIR       = join(MODULES_ROOT, "03-users",   "migrations");
-const AUDIT_DIR       = join(MODULES_ROOT, "14-audit-log", "migrations");
-const QB_DIR          = join(QB_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -183,45 +169,9 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_audit_test`;
 
-  // Apply migrations: tenancy → users (020) → audit-log → question-bank.
-  const [tenancyFiles, usersFiles, auditFiles, qbFiles] = await Promise.all([
-    readdir(TENANCY_DIR),
-    readdir(USERS_DIR),
-    readdir(AUDIT_DIR),
-    readdir(QB_DIR),
-  ]);
-
-  const allMigrations = [
-    ...tenancyFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: TENANCY_DIR, file: f })),
-    ...usersFiles.filter((f) => f.endsWith(".sql") && f.startsWith("020_")).sort().map((f) => ({ dir: USERS_DIR, file: f })),
-    ...auditFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: AUDIT_DIR, file: f })),
-    ...qbFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: QB_DIR, file: f })),
-  ];
-
   await withSuperClient(async (client) => {
     await client.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
-    // App role expected by RLS policies.
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
-          CREATE ROLE assessiq_app;
-        END IF;
-      END $$;
-    `);
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
-          CREATE ROLE assessiq_system BYPASSRLS;
-        END IF;
-      END $$;
-    `);
-    await client.query(`GRANT assessiq_app TO test`);
-    await client.query(`GRANT assessiq_system TO test`);
-
-    for (const { dir, file } of allMigrations) {
-      const sql = await readFile(join(dir, file), "utf-8");
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
 
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
     // audit_log has REVOKE UPDATE/DELETE/TRUNCATE; service writes only INSERT.
@@ -514,6 +464,20 @@ describe("G3.D audit writes — 04-question-bank", () => {
       adminA,
     );
     await publishPack(tenantA, pack.id, adminA);
+    // publishPack now auto-activates the draft questions it publishes, so add a
+    // fresh draft question afterwards for the bulk-activate to act on.
+    await createQuestion(
+      tenantA,
+      {
+        pack_id: pack.id,
+        level_id: levelId,
+        type: "mcq",
+        topic: "aa-test-2",
+        points: 5,
+        content: mcqContent(),
+      },
+      adminA,
+    );
 
     await clearAudit(tenantA);
     await activateAllQuestionsForPack(tenantA, pack.id, adminA);

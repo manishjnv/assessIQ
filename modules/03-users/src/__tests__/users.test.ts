@@ -15,9 +15,8 @@
 import { describe, it, test, expect, beforeAll, afterAll, vi, beforeEach } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 
 // setPoolForTesting and closePool are test-only helpers in 02-tenancy/src/pool.ts.
 // They are NOT exported from @assessiq/tenancy public surface — import the source directly.
@@ -72,25 +71,6 @@ let containerUrl: string;
 let redisUrl: string;
 let tenantA: string;
 let tenantB: string;
-
-// Path helper — strip Windows-style leading slash before drive letter.
-// import.meta.url on Windows: file:///E:/code/...
-// new URL('.', import.meta.url).pathname: /E:/code/.../src/__tests__/  (trailing slash)
-// We strip the leading slash so join() works correctly on Windows.
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, '$1');
-}
-
-// __tests__/ is at: modules/03-users/src/__tests__/
-// path.join normalizes the trailing slash, so two `..` reach the module root.
-const THIS_DIR = toFsPath(new URL('.', import.meta.url));    // .../modules/03-users/src/__tests__/
-const USERS_MODULE_ROOT = join(THIS_DIR, '..', '..');         // .../modules/03-users/
-const MODULES_ROOT = join(USERS_MODULE_ROOT, '..');           // .../modules/
-
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, '02-tenancy', 'migrations');
-const AUTH_MIGRATIONS_DIR = join(MODULES_ROOT, '01-auth', 'migrations');
-const USERS_MIGRATIONS_DIR = join(USERS_MODULE_ROOT, 'migrations');
-const AUDIT_MIGRATIONS_DIR = join(MODULES_ROOT, '14-audit-log', 'migrations');
 
 // G3.D 03-users sweep: every admin-mutating service call now writes an
 // audit_log row inside the same withTenant transaction. We need a fixed
@@ -160,70 +140,9 @@ beforeAll(async () => {
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
   redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
-  // 2. Apply migrations in dependency order across three directories.
-  //
-  // Lexical order WOULD be 0001-0003 (tenancy) → 010-015 (auth) → 020-021
-  // (users/invitations) — but the auth migrations 010-013, 015 FK to
-  // users(id) which is created in 020. So we apply per-directory in
-  // dependency-resolved order: tenancy → users (020) → auth → invitations
-  // (021). The runtime tools/migrate.ts has the same latent ordering issue
-  // for fresh DBs; production deploys have applied 0001-0003 + 020-021 via
-  // psql -f, and W4 deploys 010-015 against an already-populated DB so the
-  // ordering bug never bites in production. Recorded as a Phase 1 follow-up.
-  const [tenancyFiles, authFiles, usersFiles, auditFiles] = await Promise.all([
-    readdir(TENANCY_MIGRATIONS_DIR),
-    readdir(AUTH_MIGRATIONS_DIR),
-    readdir(USERS_MIGRATIONS_DIR),
-    readdir(AUDIT_MIGRATIONS_DIR),
-  ]);
-
-  const tenancySorted = tenancyFiles.filter((f) => f.endsWith('.sql')).sort()
-    .map((f) => ({ dir: TENANCY_MIGRATIONS_DIR, file: f }));
-  const authSorted = authFiles.filter((f) => f.endsWith('.sql')).sort()
-    .map((f) => ({ dir: AUTH_MIGRATIONS_DIR, file: f }));
-  const usersSorted = usersFiles.filter((f) => f.endsWith('.sql')).sort();
-  const usersTable = usersSorted.filter((f) => f.startsWith('020_'))
-    .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
-  const usersInvitations = usersSorted.filter((f) => !f.startsWith('020_'))
-    .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
-  // 14-audit-log/migrations/0050_audit_log.sql — required because every
-  // wired mutation (createUser, updateUser, softDelete, restore, inviteUser)
-  // writes an audit_log row inside the same transaction.
-  const auditSorted = auditFiles.filter((f) => f.endsWith('.sql')).sort()
-    .map((f) => ({ dir: AUDIT_MIGRATIONS_DIR, file: f }));
-
-  const allFiles = [
-    ...tenancySorted,        // 0001-0003: tenants + RLS helpers + tenant RLS
-    ...usersTable,           // 020: users (auth + audit FKs target this)
-    ...authSorted,           // 010-015: auth tables (FK users + tenants)
-    ...usersInvitations,     // 021: user_invitations
-    ...auditSorted,          // 0050: audit_log + tenant_settings.audit_retention_years
-  ];
-
+  // 2. Apply every module migration (shared helper: roles + fresh-DB order).
   await withSuperClient(async (client) => {
-    // App + system roles required by audit_log RLS + GRANT setup.
-    // Mirrors the QB / AL G3.D audit-write sweep test setup.
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
-          CREATE ROLE assessiq_app;
-        END IF;
-      END $$;
-    `);
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
-          CREATE ROLE assessiq_system BYPASSRLS;
-        END IF;
-      END $$;
-    `);
-    await client.query(`GRANT assessiq_app TO test`);
-    await client.query(`GRANT assessiq_system TO test`);
-
-    for (const { dir, file } of allFiles) {
-      const sql = await readFile(join(dir, file), 'utf-8');
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
 
     // audit_log has REVOKE UPDATE/DELETE/TRUNCATE in its migration; explicitly
     // GRANT SELECT+INSERT to assessiq_app so service-layer writes via withTenant succeed.
@@ -762,7 +681,7 @@ describe('acceptInvitation', () => {
   // ---------------------------------------------------------------------------
 
   it('rejects unknown token with INVITATION_NOT_FOUND', async () => {
-    await expect(acceptInvitation('totallyfaketoken_that_does_not_exist_in_db')).rejects.toSatisfy(
+    await expect(acceptInvitation('A'.repeat(43)) /* well-formed (43 chars) but unknown */).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof NotFoundError &&
         (e.details as Record<string, unknown> | undefined)?.['code'] === 'INVITATION_NOT_FOUND',

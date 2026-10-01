@@ -19,29 +19,12 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import Fastify from "fastify";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { registerQuestionBankRoutes } from "../routes.js";
 
-// ---------------------------------------------------------------------------
-// Path helpers (Windows compat — strip leading slash before drive letter)
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR       = toFsPath(new URL(".", import.meta.url));
-const QB_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT   = join(QB_MODULE_ROOT, "..");
-
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_MIGRATIONS_DIR   = join(MODULES_ROOT, "03-users", "migrations");
-const AUDIT_MIGRATIONS_DIR   = join(MODULES_ROOT, "14-audit-log", "migrations");
-const QB_MIGRATIONS_DIR      = join(QB_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -186,29 +169,7 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_bulk_test`;
 
-  const [tenancyFiles, usersFiles, auditFiles, qbFiles] = await Promise.all([
-    readdir(TENANCY_MIGRATIONS_DIR),
-    readdir(USERS_MIGRATIONS_DIR),
-    readdir(AUDIT_MIGRATIONS_DIR),
-    readdir(QB_MIGRATIONS_DIR),
-  ]);
-
-  // audit-log migrations precede QB migrations because the G3.D sweep wires
-  // auditInTx() into bulkUpdateQuestionStatus — the route's happy-path tests
-  // would otherwise fail with "relation audit_log does not exist".
-  const migrations = [
-    ...tenancyFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: TENANCY_MIGRATIONS_DIR, file: f })),
-    ...usersFiles.filter((f) => f.endsWith(".sql") && f.startsWith("020_")).sort().map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f })),
-    ...auditFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: AUDIT_MIGRATIONS_DIR, file: f })),
-    ...qbFiles.filter((f) => f.endsWith(".sql")).sort().map((f) => ({ dir: QB_MIGRATIONS_DIR, file: f })),
-  ];
-
-  await withSuperClient(async (client) => {
-    for (const { dir, file } of migrations) {
-      const sql = await readFile(join(dir, file), "utf-8");
-      await client.query(sql);
-    }
-  });
+  await withSuperClient((client) => applyAllMigrations(client));
 
   await setPoolForTesting(containerUrl);
 

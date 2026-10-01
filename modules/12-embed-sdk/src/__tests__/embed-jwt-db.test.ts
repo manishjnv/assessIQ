@@ -34,9 +34,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import * as jose from 'jose';
 
 import { setPoolForTesting, closePool } from '@assessiq/tenancy';
@@ -49,27 +48,6 @@ import {
 } from '@assessiq/auth';
 import { AuthnError } from '@assessiq/core';
 import { mintEmbedSession } from '../session-mint.js';
-
-// ─── Path helpers ─────────────────────────────────────────────────────────────
-
-/**
- * On Windows, import.meta.url gives a path like /C:/foo/bar. Strip the leading
- * slash before the drive letter so join() works correctly.
- */
-function stripWindowsDriveLead(p: string): string {
-  return p.replace(/^\/([A-Za-z]:)/, '$1');
-}
-
-const THIS_DIR = stripWindowsDriveLead(new URL('.', import.meta.url).pathname);
-
-// modules/12-embed-sdk/src/__tests__ → repo root: 4 levels up
-const REPO_ROOT = join(THIS_DIR, '..', '..', '..', '..');
-
-const TENANCY_MIGRATIONS = join(REPO_ROOT, 'modules', '02-tenancy', 'migrations');
-const USERS_MIGRATIONS   = join(REPO_ROOT, 'modules', '03-users',   'migrations');
-const AUTH_MIGRATIONS    = join(REPO_ROOT, 'modules', '01-auth',    'migrations');
-// modules/12-embed-sdk/src/__tests__ → migrations: 2 levels up
-const EMBED_SDK_MIGRATIONS = join(THIS_DIR, '..', '..', 'migrations');
 
 // ─── Container state ──────────────────────────────────────────────────────────
 
@@ -182,39 +160,9 @@ beforeAll(async () => {
   pgUrl    = `postgres://test:test@${pgContainer.getHost()}:${pgContainer.getMappedPort(5432)}/aiq_test`;
   redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
-  // Apply migrations in dependency order.
+  // Apply every module migration (shared helper).
   await withSuperClient(async (c) => {
-    for (const file of [
-      '0001_tenants.sql',
-      '0002_rls_helpers.sql',
-      '0003_tenants_rls.sql',
-    ]) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS, file), 'utf-8');
-      await c.query(sql);
-    }
-  });
-
-  // Real users schema (no password_hash / email_verified).
-  await withSuperClient(async (c) => {
-    const sql = await readFile(join(USERS_MIGRATIONS, '020_users.sql'), 'utf-8');
-    await c.query(sql);
-  });
-
-  // Sessions + embed_secrets.
-  await withSuperClient(async (c) => {
-    for (const file of ['011_sessions.sql', '014_embed_secrets.sql']) {
-      const sql = await readFile(join(AUTH_MIGRATIONS, file), 'utf-8');
-      await c.query(sql);
-    }
-  });
-
-  // session_type column on sessions (D6) + privacy_disclosed on tenants (D13).
-  await withSuperClient(async (c) => {
-    const sql = await readFile(
-      join(EMBED_SDK_MIGRATIONS, '0071_tenants_embed_metadata.sql'),
-      'utf-8',
-    );
-    await c.query(sql);
+    await applyAllMigrations(c);
   });
 
   // Wire the module singletons to the testcontainers instances.

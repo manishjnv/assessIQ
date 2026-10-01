@@ -24,8 +24,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations as applyAll } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
@@ -52,17 +51,7 @@ function toFsPath(url: URL): string {
   return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
 }
 
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
-const SCORING_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT = join(SCORING_MODULE_ROOT, "..");
 
-const TENANCY_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_DIR = join(MODULES_ROOT, "03-users", "migrations");
-const QB_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
-const AL_DIR = join(MODULES_ROOT, "05-assessment-lifecycle", "migrations");
-const AE_DIR = join(MODULES_ROOT, "06-attempt-engine", "migrations");
-const GRADING_DIR = join(MODULES_ROOT, "07-ai-grading", "migrations");
-const SCORING_DIR = join(SCORING_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Container lifecycle
@@ -114,36 +103,8 @@ async function withSuperClient<T>(
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-  const filtered =
-    only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), "utf8");
-    await client.query(sql);
-  }
-}
-
 async function applyAllMigrations(): Promise<void> {
-  await withSuperClient(async (client) => {
-    await client.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
-    await applyMigrationsFromDir(client, TENANCY_DIR);
-    await applyMigrationsFromDir(client, USERS_DIR, ["020_users.sql"]);
-    await applyMigrationsFromDir(client, QB_DIR);
-    await applyMigrationsFromDir(client, AL_DIR);
-    await applyMigrationsFromDir(client, AE_DIR);
-    // 07-ai-grading: gradings + tenant_grading_budgets
-    await applyMigrationsFromDir(client, GRADING_DIR, [
-      "0040_gradings.sql",
-      "0041_tenant_grading_budgets.sql",
-    ]);
-    // 09-scoring
-    await applyMigrationsFromDir(client, SCORING_DIR);
-  });
+  await withSuperClient((client) => applyAll(client));
 }
 
 // ---------------------------------------------------------------------------

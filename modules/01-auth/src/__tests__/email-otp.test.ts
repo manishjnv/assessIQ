@@ -24,30 +24,14 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
 import { setRedisForTesting, closeRedis } from "../redis.js";
 import { requestEmailOtp, verifyEmailOtp, checkOtpRateLimit, checkOtpEmailRateLimit } from "../email-otp.js";
 import { sha256Hex } from "../crypto-util.js";
 import { getRedis } from "../redis.js";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
-const AUTH_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT = join(AUTH_MODULE_ROOT, "..");
-
-const TENANCY_MIGRATIONS = join(MODULES_ROOT, "02-tenancy", "migrations");
-const AUTH_MIGRATIONS = join(AUTH_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Mock sendEmail to prevent real SMTP calls
@@ -128,63 +112,8 @@ beforeAll(async () => {
   pgUrl    = `postgres://test:test@${pgContainer.getHost()}:${pgContainer.getMappedPort(5432)}/aiq_test`;
   redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
-  // Apply migrations.
-  const tenancyFiles = (await readdir(TENANCY_MIGRATIONS)).filter(f => f.endsWith(".sql")).sort();
-  const authFiles    = (await readdir(AUTH_MIGRATIONS)).filter(f => f.endsWith(".sql")).sort();
-
   await withSuperClient(async (client) => {
-    for (const file of tenancyFiles) {
-      await client.query(await readFile(join(TENANCY_MIGRATIONS, file), "utf-8"));
-    }
-
-    // Users table shim.
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        email       TEXT NOT NULL,
-        role        TEXT NOT NULL DEFAULT 'admin'
-                    CHECK (role IN ('admin','super_admin','reviewer','candidate')),
-        status      TEXT NOT NULL DEFAULT 'active'
-                    CHECK (status IN ('active','disabled','pending')),
-        deleted_at  TIMESTAMPTZ DEFAULT NULL,
-        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (tenant_id, email)
-      );
-      ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-      CREATE POLICY tenant_isolation ON users
-        USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
-      CREATE POLICY tenant_isolation_insert ON users FOR INSERT
-        WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
-    `);
-
-    await client.query(`
-      ALTER TABLE users FORCE ROW LEVEL SECURITY;
-      GRANT SELECT ON users TO assessiq_system;
-    `).catch(() => {});
-
-    for (const file of authFiles) {
-      await client.query(await readFile(join(AUTH_MIGRATIONS, file), "utf-8"));
-    }
-
-    // oauth_identities stub (needed for mintForIdentity customer branch).
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS oauth_identities (
-        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id     UUID NOT NULL,
-        user_id       UUID NOT NULL,
-        provider      TEXT NOT NULL,
-        subject       TEXT NOT NULL,
-        email_verified BOOLEAN NOT NULL DEFAULT false,
-        raw_profile   JSONB,
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (provider, subject)
-      );
-    `).catch(() => {});
-
-    // sessions table stub (for mintForIdentity → sessions.create).
-    // The real sessions table is created by auth migrations.
+    await applyAllMigrations(client);
 
     // Platform tenant + super_admin user.
     await client.query(`
@@ -194,11 +123,12 @@ beforeAll(async () => {
       INSERT INTO tenant_settings (tenant_id)
       VALUES ('${PLATFORM_TENANT_ID}')
       ON CONFLICT DO NOTHING;
-      INSERT INTO users (id, tenant_id, email, role, status)
+      INSERT INTO users (id, tenant_id, email, name, role, status)
       VALUES (
         '00000000-0000-7000-0000-000000000002',
         '${PLATFORM_TENANT_ID}',
         'superadmin@example.com',
+        'Super Admin',
         'super_admin',
         'active'
       ) ON CONFLICT DO NOTHING;
@@ -225,19 +155,19 @@ beforeAll(async () => {
       [regularTenantId],
     );
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, role, status) VALUES
-         ($1, $2, 'admin@example.com',    'admin',    'active'),
-         ($3, $2, 'reviewer@example.com', 'reviewer', 'active'),
+      `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES
+         ($1, $2, 'admin@example.com',    'Admin',    'admin',    'active'),
+         ($3, $2, 'reviewer@example.com', 'Reviewer', 'reviewer', 'active'),
          -- mixed@example.com also has a super_admin row in the platform tenant (seeded below)
-         ($4, $2, 'mixed@example.com',    'admin',    'active')`,
+         ($4, $2, 'mixed@example.com',    'Mixed',    'admin',    'active')`,
       [adminUserId, regularTenantId, reviewerUserId, mixedAdminUserId],
     );
 
     // Seed the super_admin identity for mixed@example.com in the platform tenant.
     // This tests that filterEligible blocks the super_admin row even when mixed in.
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, role, status) VALUES
-         ('00000000-0000-7000-0000-000000000003', '${PLATFORM_TENANT_ID}', 'mixed@example.com', 'super_admin', 'active')
+      `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES
+         ('00000000-0000-7000-0000-000000000003', '${PLATFORM_TENANT_ID}', 'mixed@example.com', 'Mixed', 'super_admin', 'active')
        ON CONFLICT DO NOTHING`,
     );
   });
@@ -491,8 +421,9 @@ describe("fail-closed on Redis error", () => {
       get: vi.fn(),
       del: vi.fn(),
       getdel: vi.fn(),
-    } as unknown as Parameters<typeof setRedisForTesting>[0];
-    await setRedisForTesting(fakeRedis);
+    };
+    // setRedisForTesting takes a URL: connect for real, then shadow the methods with fakes.
+    Object.assign(await setRedisForTesting(redisUrl), fakeRedis);
 
     try {
       await expect(
@@ -511,8 +442,9 @@ describe("fail-closed on Redis error", () => {
   it("verifyEmailOtp: Redis eval failure → throws AuthnError (fail-closed)", async () => {
     const fakeRedis = {
       eval: vi.fn().mockRejectedValue(new Error("connection refused")),
-    } as unknown as Parameters<typeof setRedisForTesting>[0];
-    await setRedisForTesting(fakeRedis);
+    };
+    // setRedisForTesting takes a URL: connect for real, then shadow the methods with fakes.
+    Object.assign(await setRedisForTesting(redisUrl), fakeRedis);
 
     try {
       await expect(
@@ -561,8 +493,9 @@ describe("checkOtpRateLimit — per-(IP, email) rate limit", () => {
   it("fails closed (returns false) when Redis throws", async () => {
     const fakeRedis = {
       eval: vi.fn().mockRejectedValue(new Error("connection refused")),
-    } as unknown as Parameters<typeof setRedisForTesting>[0];
-    await setRedisForTesting(fakeRedis);
+    };
+    // setRedisForTesting takes a URL: connect for real, then shadow the methods with fakes.
+    Object.assign(await setRedisForTesting(redisUrl), fakeRedis);
 
     try {
       const allowed = await checkOtpRateLimit("10.11.0.1", `rl-redis-down-${randomUUID()}@example.com`);
@@ -608,8 +541,9 @@ describe("checkOtpEmailRateLimit — per-email IP-independent cap", () => {
   it("fails closed (returns false) when Redis throws", async () => {
     const fakeRedis = {
       eval: vi.fn().mockRejectedValue(new Error("connection refused")),
-    } as unknown as Parameters<typeof setRedisForTesting>[0];
-    await setRedisForTesting(fakeRedis);
+    };
+    // setRedisForTesting takes a URL: connect for real, then shadow the methods with fakes.
+    Object.assign(await setRedisForTesting(redisUrl), fakeRedis);
 
     try {
       const allowed = await checkOtpEmailRateLimit(`rl-redis-down-${randomUUID()}@example.com`);
