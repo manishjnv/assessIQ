@@ -153,3 +153,170 @@ If you did not expect this email, you can ignore it.
 AssessIQ · Bangalore 560068, India · © 2026
 "
 `;
+
+exports[`template snapshots — result_released (SP4) > HTML renders to a stable snapshot 1`] = `
+"<!-- Composes kit partials. Result-released email (SP4, 2026-10-01); layout follows attempt_graded_candidate. Final score only — nothing per-question (owner rule P1). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
+  <title>Your result is ready</title>
+</head>
+<body style="margin:0;padding:0;background:#f1efea;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0a0a0b;font-size:15px;line-height:1.55;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased">
+  <div style="display:none;font-size:1px;line-height:1px;color:#fefefe;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">
+    Your result for SOC L1 Skills Assessment is ready.&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;&#8199;&#65279;
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1efea">
+    <tr>
+      <td align="center" style="padding:32px 24px 40px">
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#ffffff;border:1px solid #e4e4e7;border-radius:14px;overflow:hidden">
+          
+            <!-- A3 email-header — wordmark left, optional eyebrow right -->
+            <tr>
+              <td style="padding:22px 36px;border-bottom:1px solid #e4e4e7;background:#ffffff">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#0a0a0b;letter-spacing:-0.01em">
+                      AssessIQ
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          
+          <!-- A4 email-body — generous side padding -->
+          <tr>
+            <td style="padding:36px 40px;background:#ffffff">
+              
+                  <!-- A5 email-lede-editorial (30px H1) -->
+                  <p style="margin:0 0 14px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:11px;font-weight:500;color:#1a73e8;text-transform:uppercase;letter-spacing:0.08em">RESULT</p>
+                  <h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:500;color:#0a0a0b;letter-spacing:-0.02em;line-height:1.15">Your result is ready.</h1>
+                  <p style="margin:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:17px;color:#3f3f46;line-height:1.55">Hi Alice Patel, Wipro has released your result for SOC L1 Skills Assessment.</p>
+              
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
+                    <tr><td><!-- A7 email-meta-card — bordered key/value pair list -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e4e7;border-radius:12px;border-collapse:separate">
+                <tr>
+                  <td style="padding:14px 20px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
+                    Assessment
+                  </td>
+                  <td style="padding:14px 20px 14px 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
+                    <strong>SOC L1 Skills Assessment</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 20px;border-top:1px solid #e4e4e7;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
+                    Company
+                  </td>
+                  <td style="padding:14px 20px 14px 0;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
+                    Wipro
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 20px;border-top:1px solid #e4e4e7;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
+                    Score
+                  </td>
+                  <td style="padding:14px 20px 14px 0;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
+                    <strong>42 / 60 (70%)</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 20px;border-top:1px solid #e4e4e7;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
+                    Result
+                  </td>
+                  <td style="padding:14px 20px 14px 0;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
+                    <strong>Passed</strong>
+                  </td>
+                </tr>
+              </table>
+              </td></tr>
+                  </table>
+              
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
+                    <tr><td><!-- A6 email-cta — pill button with MSO/VML Outlook fallback -->
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                href="https://assessiq.test/candidate/login?tenant&#x3D;wipro"
+                style="height:46px;v-text-anchor:middle;width:190px;"
+                arcsize="50%" stroke="f" fillcolor="#1a73e8">
+                <w:anchorlock/>
+                <center style="color:#ffffff;font-family:'Helvetica Neue',Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:-0.005em">
+                  View your result
+                </center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-->
+              <a href="https://assessiq.test/candidate/login?tenant&#x3D;wipro"
+                style="display:inline-block;background:#1a73e8;color:#ffffff;padding:14px 28px;border-radius:999px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:-0.005em;text-decoration:none;mso-hide:all">
+                View your result
+              </a>
+              <!--<![endif]-->
+              </td></tr>
+                  </table>
+              
+                  <p style="margin:24px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55"><!-- A10 email-ghost-link — secondary accent link (no MSO wrap) -->
+              <a href="https://assessiq.test/verify/AIQ-2026-10-SNAP01" style="color:#1a73e8;text-decoration:none;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:500">
+                View your certificate &rarr;
+              </a>
+              </p>
+              
+            </td>
+          </tr>
+          
+            <!-- A9a email-footer-transactional — brand mark + reason + address + © -->
+            <tr>
+              <td style="padding:28px 40px 32px;background:#fafafa;border-top:1px solid #e4e4e7">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding-bottom:14px;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:500;color:#0a0a0b;letter-spacing:-0.01em">
+                      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1a73e8;vertical-align:middle;margin-right:10px"></span>
+                      AssessIQ
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-bottom:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#3f3f46;line-height:1.55;max-width:460px">
+                      You&#x27;re receiving this because you completed an AssessIQ assessment.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="border-top:1px solid #e4e4e7;padding-top:16px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em">
+                      AssessIQ &middot; Bangalore 560068, India &middot; &copy; 2026
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"
+`;
+
+exports[`template snapshots — result_released (SP4) > text renders to a stable snapshot 1`] = `"Your result for SOC L1 Skills Assessment is ready"`;
+
+exports[`template snapshots — result_released (SP4) > text renders to a stable snapshot 2`] = `
+"Hi Alice Patel,
+
+Wipro has released your result for SOC L1 Skills Assessment.
+
+Score: 42 / 60 (70%)
+Result: Passed
+
+View your result:
+https://assessiq.test/candidate/login?tenant=wipro
+
+View your certificate:
+https://assessiq.test/verify/AIQ-2026-10-SNAP01
+
+— The AssessIQ team
+AssessIQ · Bangalore 560068, India · © 2026
+"
+`;
