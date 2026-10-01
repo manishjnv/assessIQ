@@ -649,6 +649,103 @@ export async function updateRetentionDays(
 }
 
 // ---------------------------------------------------------------------------
+// Tenant-admin: per-tenant result release mode (manual | auto).
+// ---------------------------------------------------------------------------
+//
+// Same isolation pattern as updateRetentionDays: the generic
+// updateTenantSettingsRow patch MUST NOT carry result_release_mode; this is
+// the only mutator. UPDATE + exactly one audit row commit in one withTenant tx.
+//
+// Switching the mode never releases anything by itself (no side effect here).
+// result_release_mode_changed_at is bumped on every real change so the
+// auto-release sweep (apps/api worker) only publishes attempts that became
+// ready AFTER the switch — results already waiting stay for an explicit
+// (bulk) release by the admin. An idempotent same-mode request writes nothing.
+
+export type ResultReleaseMode = "manual" | "auto";
+
+export interface UpdateResultReleaseModeResult {
+  tenantId: string;
+  result_release_mode: ResultReleaseMode;
+  previous: ResultReleaseMode;
+  updatedAt: Date;
+  /** null on an idempotent no-op (nothing changed, nothing audited). */
+  auditId: string | null;
+}
+
+export async function updateResultReleaseMode(
+  adminUserId: string,
+  targetTenantId: string,
+  newMode: unknown,
+): Promise<UpdateResultReleaseModeResult> {
+  if (newMode !== "manual" && newMode !== "auto") {
+    throw new ValidationError("mode must be 'manual' or 'auto'", {
+      details: { code: "INVALID_RESULT_RELEASE_MODE", received: newMode },
+    });
+  }
+  const mode: ResultReleaseMode = newMode;
+
+  log.info({ targetTenantId, mode }, "updateResultReleaseMode");
+
+  return await withTenant(targetTenantId, async (client) => {
+    // Narrow, locking read (only the two columns we need): serialises two
+    // concurrent flips and does not depend on unrelated columns (webhook_secret,
+    // module-20 retention_days) existing in the schema under test.
+    const currentRes = await client.query<{ result_release_mode: ResultReleaseMode; updated_at: Date }>(
+      `SELECT result_release_mode, updated_at FROM tenant_settings LIMIT 1 FOR UPDATE`,
+    );
+    const current = currentRes.rows[0];
+    if (current === undefined) {
+      throw new NotFoundError(`tenant_settings not found for tenant ${targetTenantId}`);
+    }
+    const previous = current.result_release_mode;
+    if (previous === mode) {
+      return {
+        tenantId: targetTenantId,
+        result_release_mode: previous,
+        previous,
+        updatedAt: current.updated_at,
+        auditId: null,
+      };
+    }
+
+    const updateResult = await client.query<{ result_release_mode: ResultReleaseMode; updated_at: Date }>(
+      `UPDATE tenant_settings
+          SET result_release_mode = $1,
+              result_release_mode_changed_at = now(),
+              updated_at = now()
+        RETURNING result_release_mode, updated_at`,
+      [mode],
+    );
+    const updatedRow = updateResult.rows[0];
+    if (updatedRow === undefined) {
+      throw new NotFoundError(
+        `tenant_settings row missing after UPDATE for tenant ${targetTenantId}`,
+      );
+    }
+
+    const auditRow = await auditInTx(client, {
+      tenantId: targetTenantId,
+      actorKind: "user",
+      actorUserId: adminUserId,
+      action: "tenant.settings.updated",
+      entityType: "tenant_settings",
+      entityId: targetTenantId,
+      before: { result_release_mode: previous },
+      after: { result_release_mode: updatedRow.result_release_mode },
+    });
+
+    return {
+      tenantId: targetTenantId,
+      result_release_mode: updatedRow.result_release_mode,
+      previous,
+      updatedAt: updatedRow.updated_at,
+      auditId: auditRow.id,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // renameTenant — tenant-admin edits their OWN company display name.
 // ---------------------------------------------------------------------------
 //

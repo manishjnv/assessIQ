@@ -77,5 +77,15 @@ export interface TenantSettings {
    * by SQL CHECK.
    */
   retention_days: number;
+  /**
+   * How a finished (complete, final) result reaches the candidate. Added by
+   * migration 0114.
+   *   manual (default) — hidden until a tenant admin publishes it.
+   *   auto             — published as soon as it is complete (worker sweep
+   *                      `result.auto_release`).
+   * Only changed through updateResultReleaseMode (audited); NOT part of the
+   * generic updateTenantSettingsRow patch.
+   */
+  result_release_mode: "manual" | "auto";
   updated_at: Date;
 }
