@@ -11,7 +11,8 @@
  *   - POST .../manual-score route: body/param validation + chain wiring.
  *   - Adversarial-review fixes: accept locks the attempt row first and refuses a
  *     released attempt (409, nothing written — incl. the real lock race against a
- *     Release); override rejects a score outside 0..score_max (422).
+ *     Release); accept rolls attempt_scores up inside its own tx (a rollup failure
+ *     rolls the accept back); override rejects a score outside 0..score_max (422).
  *
  * No AI anywhere: runtime-selector is mocked and never called.
  */
@@ -358,6 +359,53 @@ describe("handleAdminAccept — a published result is final; attempt row lock fi
     }
     expect(await gradingCount(attemptId)).toBe(0);
     expect((await att(attemptId)).status).toBe("released");
+  });
+});
+
+describe("handleAdminAccept — attempt_scores is rolled up inside the accept tx (review fix: no post-commit window)", () => {
+  /** graded + unpublished: mcq 10/10 + one AI-graded subjective 5/10 -> 15/20 */
+  async function gradedWithAi(): Promise<{ attemptId: string; qid: string }> {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 5 })]);
+    expect((await att(attemptId)).status).toBe("graded");
+    expect(await totals(attemptId)).toMatchObject({ e: 15, m: 20 });
+    return { attemptId, qid: qids[1]! };
+  }
+  /** What a re-run produces: same question, a new prompt sha (so D7 idempotency does not swallow it). */
+  const regraded = (attemptId: string, qid: string, scoreEarned: number) =>
+    proposal(attemptId, qid, { score_earned: scoreEarned, prompt_version_sha: `anchors:${randomUUID().slice(0, 8)};band:bbbbbbbb;escalate:-` });
+
+  it("re-accepting a better grade on a graded, unpublished attempt: stays graded, attempt_scores shows the new total IN THE SAME TX as the grade, no second bill", async () => {
+    const { attemptId, qid } = await gradedWithAi();
+    const r = await accept(attemptId, [regraded(attemptId, qid, 9)]);
+    expect((await att(attemptId)).status).toBe("graded");
+    expect(await totals(attemptId)).toMatchObject({ e: 19, m: 20, pending_review: false });
+    expect(await billing(attemptId)).toBe(1);
+    // gradings.graded_at and attempt_scores.computed_at both default to now() = the TRANSACTION start time,
+    // so they are equal only if the rollup ran in the same tx as the grade insert (a post-commit recompute is a later tx).
+    const sameTx = await sup((c) =>
+      c
+        .query(`SELECT s.computed_at = g.graded_at AS same FROM attempt_scores s, gradings g WHERE s.attempt_id = $1 AND g.id = $2`, [attemptId, r.gradings[0]!.id])
+        .then((x) => x.rows[0].same as boolean),
+    );
+    expect(sameTx).toBe(true);
+  });
+
+  it("the rollup is part of the accept tx: when it fails, the new grade, the audit row and the totals all roll back together", async () => {
+    const { attemptId, qid } = await gradedWithAi();
+    await sup((c) =>
+      c.query(`CREATE OR REPLACE FUNCTION t_gate_rollup_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.attempt_id = '${attemptId}' THEN RAISE EXCEPTION 'rollup blocked'; END IF; RETURN NEW; END $$;
+               CREATE TRIGGER t_gate_rollup_fail BEFORE INSERT OR UPDATE ON attempt_scores FOR EACH ROW EXECUTE FUNCTION t_gate_rollup_fail()`),
+    );
+    try {
+      await expect(accept(attemptId, [regraded(attemptId, qid, 9)])).rejects.toThrow(/rollup blocked/);
+    } finally {
+      await sup((c) => c.query(`DROP TRIGGER t_gate_rollup_fail ON attempt_scores`));
+    }
+    // before this fix the rollup ran after the commit and its failure was swallowed: the grade stayed, the totals were stale
+    expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='ai'`, attemptId)).toBe(1);
+    expect(await count(`SELECT COUNT(*) n FROM audit_log WHERE entity_id=$1 AND action='grading.accepted'`, attemptId)).toBe(1);
+    expect(await totals(attemptId)).toMatchObject({ e: 15, m: 20 });
   });
 });
 
