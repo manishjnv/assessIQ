@@ -924,9 +924,14 @@ export async function findInvitationForCandidate(
   assessmentId: string,
   userId: string,
 ): Promise<{ id: string; status: string; expires_at: Date } | null> {
+  // FOR UPDATE: attempt start and an admin "Resend" (05 resendInvitation, which locks
+  // the same row) must take turns. Without it a resend could check "not started", then
+  // this start commit, and the resend rotate + email a link for a started candidate.
+  // startAttempt re-validates status / expiry on the row it gets under this lock.
   const result = await client.query<{ id: string; status: string; expires_at: Date }>(
     `SELECT id, status, expires_at FROM assessment_invitations
-     WHERE assessment_id = $1 AND user_id = $2 LIMIT 1`,
+     WHERE assessment_id = $1 AND user_id = $2 LIMIT 1
+     FOR UPDATE`,
     [assessmentId, userId],
   );
   const row = result.rows[0];
