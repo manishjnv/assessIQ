@@ -38,6 +38,7 @@ import { auditInTx } from '@assessiq/audit-log';
 import * as repo from '../repository.js';
 import { encrypt, decrypt } from './crypto.js';
 import { validateWebhookUrl } from './url-policy.js';
+import { BULK_EMAIL_PRIORITY } from '../email/delivery-policy.js';
 import type {
   WebhookEndpoint,
   WebhookDelivery,
@@ -236,6 +237,8 @@ export async function replayDelivery(
     {
       attempts: 5,
       backoff: { type: 'custom' },
+      // Low lane with bulk email: a webhook burst must not delay sign-in codes or cron.
+      priority: BULK_EMAIL_PRIORITY,
       removeOnComplete: 50,
       removeOnFail: 50,
     },
@@ -304,6 +307,8 @@ async function emitWebhookToEndpoint(
     {
       attempts: 5,
       backoff: { type: 'custom' },
+      // Low lane with bulk email: a webhook burst must not delay sign-in codes or cron.
+      priority: BULK_EMAIL_PRIORITY,
       removeOnComplete: 50,
       removeOnFail: 50,
     },

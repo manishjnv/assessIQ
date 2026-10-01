@@ -25,7 +25,22 @@ import { config } from '@assessiq/core';
  */
 export function buildTransportFromUrl(smtpUrl: string): Transporter | null {
   if (!smtpUrl || smtpUrl.trim().length === 0) return null;
-  return nodemailer.createTransport(smtpUrl);
+  return nodemailer.createTransport(withSmtpTimeouts(smtpUrl));
+}
+
+// nodemailer defaults (2 min connect, 10 min socket) let one hung SMTP connection hold
+// the single worker slot — and with it the attempt-timer sweep and auto-release — for
+// minutes. A failed send is retried by the job's own backoff, so fail fast instead.
+// Passed as URL query params: createTransport(url) ignores any other option object.
+// An operator-set value in SMTP_URL wins (we only add missing keys).
+const SMTP_TIMEOUTS_MS = { connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 30_000 };
+
+export function withSmtpTimeouts(smtpUrl: string): string {
+  const missing = Object.entries(SMTP_TIMEOUTS_MS)
+    .filter(([key]) => !new RegExp(`[?&]${key}=`).test(smtpUrl))
+    .map(([key, ms]) => `${key}=${ms}`);
+  if (missing.length === 0) return smtpUrl;
+  return `${smtpUrl}${smtpUrl.includes('?') ? '&' : '?'}${missing.join('&')}`;
 }
 
 /**
