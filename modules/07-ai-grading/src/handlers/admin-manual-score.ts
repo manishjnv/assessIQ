@@ -17,8 +17,10 @@
  * score_max is questions.points: the same source the deterministic MCQ rows and
  * the AI-failure placeholder rows use, and the only source KQL has (no rubric).
  *
- * Auth: fresh-MFA gating is the route layer's responsibility (adminFreshMfa),
- * same as override. Phase II moves this route to the platform evaluator.
+ * Auth: fresh-MFA gating is the route layer's responsibility, same as override.
+ * Phase II (2026-10-01): the tenant route answers 403 AI_EVALUATION_BY_ASSESSIQ; this
+ * handler is reached only from the platform evaluator's route (super admin, fresh
+ * MFA), which runs it inside withTenant(<the attempt's tenant>).
  */
 
 import { AppError, streamLogger } from "@assessiq/core";
@@ -44,6 +46,12 @@ export interface HandleAdminManualScoreInput {
   scoreEarned: number;
   /** Free-form justification (1..500 chars, validated by the route). Stored on the row only. */
   reason: string;
+  /**
+   * When this score completes the attempt, also set evaluation_released_at?
+   * DEFAULT false (fail-closed): the platform evaluator releases to the tenant in a
+   * separate audited step (see HandleAdminAcceptInput.markEvaluationReleased).
+   */
+  markEvaluationReleased?: boolean;
 }
 
 export interface HandleAdminManualScoreOutput {
@@ -182,13 +190,13 @@ export async function handleAdminManualScore(
     });
 
     // Rollup first (truthful totals even when still incomplete), then finalise
-    // if this was the last missing grade. Phase I: the tenant admin is the
-    // evaluator, so evaluation is released to the tenant.
+    // if this was the last missing grade. Whether the evaluation is also handed
+    // to the tenant is the caller's decision (default: no — release-to-tenant).
     await computeAttemptScoreInTx(client, tenantId, attemptId);
     const { finalized } = await finalizeAttemptIfComplete(client, {
       tenantId,
       attemptId,
-      markEvaluationReleased: true,
+      markEvaluationReleased: input.markEvaluationReleased === true,
     });
 
     return { grading, attempt: { id: attemptId, status: finalized ? "graded" : status } };

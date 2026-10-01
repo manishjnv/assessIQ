@@ -1,10 +1,18 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./fastify.d.ts" />
-// AssessIQ — modules/07-ai-grading Fastify route registrar.
+// AssessIQ — modules/07-ai-grading Fastify route registrar (TENANT admin surface).
 //
-// Mounts 10 admin endpoints under /api/admin/* per docs/03-api-contract.md
+// Mounts the tenant admin endpoints under /api/admin/* per docs/03-api-contract.md
 // § "Admin — Grading & review". This file is the THIN route layer only:
 // validate → dispatch → return. No business logic lives here.
+//
+// Phase II (2026-10-01) — platform evaluation queue. AI evaluation is run ONLY by
+// the platform super admin (routes-super.ts, mounted by apps/api
+// routes/admin-super-evaluations.ts). The tenant routes that used to grade
+// (grade / accept / rerun / manual-score / grading-jobs retry) are kept so a stale
+// client gets a clear, stable answer: 403 AI_EVALUATION_BY_ASSESSIQ for everyone.
+// Tenants review released evaluations, override a score (only after the platform
+// released it), send it back, and publish.
 //
 // Auth chains are injected via RegisterGradingRoutesOptions (DI shape identical
 // to modules/04-question-bank, modules/05-assessment-lifecycle, and
@@ -13,33 +21,25 @@
 //
 // Multi-tenancy guard: tenantId is ALWAYS read from req.session — never from
 // the request body. Hard rule per CLAUDE.md § AssessIQ-specific hard rules #4.
+// (The platform routes are the one deliberate exception: they resolve the
+// attempt's tenant from the DB — see routes-super.ts.)
 //
 // Errors flow through the global Fastify error handler in apps/api/src/server.ts;
 // this layer throws ValidationError from @assessiq/core on bad input and does
 // NOT try/catch service throws (AppError subclasses are caught by the global
 // error handler and mapped to HTTP).
-//
-// Session heartbeat field: `req.session.lastSeenAt` (string, ISO-8601) is the
-// canonical "last active" timestamp — it is updated by extendOnPassMiddleware on
-// every authenticated request via modules/01-auth/src/sessions.ts refreshSession.
-// The admin-grade and admin-rerun handlers take `sessionLastActivity: Date | null`
-// so the route layer converts the string to Date before dispatch.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
-import { ValidationError } from "@assessiq/core";
+import { AppError, ValidationError } from "@assessiq/core";
 import { AnchorFindingSchema, BandFindingSchema, AI_GRADING_ERROR_CODES } from "./types.js";
 
-import { handleAdminGrade } from "./handlers/admin-grade.js";
-import { handleAdminAccept } from "./handlers/admin-accept.js";
-import type { AcceptEdits } from "./handlers/admin-accept.js";
 import { handleAdminOverride } from "./handlers/admin-override.js";
-import { handleAdminManualScore } from "./handlers/admin-manual-score.js";
-import { handleAdminRerun } from "./handlers/admin-rerun.js";
+import { handleAdminSendBack } from "./handlers/admin-send-back.js";
 import { handleAdminQueue } from "./handlers/admin-queue.js";
 import { handleAdminClaimAttempt, handleAdminReleaseAttempt } from "./handlers/admin-claim-release.js";
 import { handleAdminReleaseAll } from "./handlers/admin-release-all.js";
-import { handleAdminListGradingJobs, handleAdminRetryGradingJob } from "./handlers/admin-grading-jobs.js";
+import { handleAdminListGradingJobs } from "./handlers/admin-grading-jobs.js";
 import { handleAdminBudget } from "./handlers/admin-budget.js";
 import { handleAdminListAttempts } from "./handlers/admin-attempts-list.js";
 
@@ -72,11 +72,14 @@ export interface RegisterGradingRoutesOptions {
 // ValidationError with structured `issues` rather than a raw ZodError.
 // ---------------------------------------------------------------------------
 
+// The body schemas below are shared with routes-super.ts (the platform evaluator's
+// routes validate the same contracts); they are exported for that reason only.
+
 /**
- * POST /api/admin/attempts/:id/grade — no required body.
+ * POST …/grade — no required body.
  * Optional `override_skill` for future skill-selection (reserved, not used in Phase 1).
  */
-const GRADE_BODY_SCHEMA = z.object({
+export const GRADE_BODY_SCHEMA = z.object({
   override_skill: z.enum(["anchors", "band", "escalate"]).optional(),
 }).strict();
 
@@ -124,10 +127,11 @@ export const ACCEPT_BODY_SCHEMA = z.object({
 });
 
 /**
- * POST /api/admin/gradings/:id/override — admin manual score correction.
- * `reason` is mandatory so every override has an audit trail.
+ * POST /api/admin/gradings/:id/override (tenant) and
+ * POST /api/admin/super/evaluations/:attemptId/gradings/:gradingId/override (platform)
+ * — manual score correction. `reason` is mandatory so every override has an audit trail.
  */
-const OVERRIDE_BODY_SCHEMA = z.object({
+export const OVERRIDE_BODY_SCHEMA = z.object({
   score_earned: z.number(),
   reasoning_band: z.number().int().min(0).max(4).optional(),
   ai_justification: z.string().optional(),
@@ -136,27 +140,37 @@ const OVERRIDE_BODY_SCHEMA = z.object({
 });
 
 /**
- * POST /api/admin/attempts/:id/questions/:questionId/manual-score — first human
+ * POST …/questions/:questionId/manual-score (platform evaluator only) — first human
  * score for a question that has no grading yet (KQL, or any ungraded question).
  * `reason` is mandatory (stored on the immutable gradings row, never in audit).
  * The upper bound (score_max = questions.points) is enforced by the handler.
  */
-const MANUAL_SCORE_BODY_SCHEMA = z
+export const MANUAL_SCORE_BODY_SCHEMA = z
   .object({
     score_earned: z.number().finite().min(0),
     reason: z.string().trim().min(1).max(500),
   })
   .strict();
 
-const UUID_SCHEMA = z.string().uuid();
+export const UUID_SCHEMA = z.string().uuid();
 
 /**
- * POST /api/admin/attempts/:id/rerun — force a fresh grading run.
- * `forceEscalate` defaults to true in the handler when absent.
+ * POST …/rerun (platform evaluator only) — force a fresh grading run.
+ * `forceEscalate` is not set by default (standard automatic escalation).
  */
-const RERUN_BODY_SCHEMA = z.object({
+export const RERUN_BODY_SCHEMA = z.object({
   forceEscalate: z.boolean().optional(),
 }).strict();
+
+/**
+ * POST /api/admin/attempts/:id/send-back — tenant returns a released evaluation to the
+ * platform queue. The note is stored on attempts.evaluation_note, never in audit.
+ */
+const SEND_BACK_BODY_SCHEMA = z
+  .object({
+    note: z.string().trim().min(1).max(500),
+  })
+  .strict();
 
 /**
  * GET /api/admin/dashboard/queue — optional query-string filters.
@@ -214,7 +228,7 @@ function toArray<T>(v: T | T[]): T[] {
 // crashing.
 // ---------------------------------------------------------------------------
 
-function parseSessionActivity(lastSeenAt: string): Date | null {
+export function parseSessionActivity(lastSeenAt: string): Date | null {
   const d = new Date(lastSeenAt);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -222,6 +236,19 @@ function parseSessionActivity(lastSeenAt: string): Date | null {
 // ---------------------------------------------------------------------------
 // Registrar
 // ---------------------------------------------------------------------------
+
+/**
+ * Tenant routes that used to run or commit AI evaluation. Phase II: AssessIQ's
+ * platform evaluator does that, from the super-admin queue — these answer 403 for
+ * every caller (the admin chain still runs first, so anonymous callers still get 401).
+ */
+const AI_EVALUATION_ROUTES = [
+  "/api/admin/attempts/:id/grade",
+  "/api/admin/attempts/:id/accept",
+  "/api/admin/attempts/:id/rerun",
+  "/api/admin/attempts/:id/questions/:questionId/manual-score",
+  "/api/admin/grading-jobs/:id/retry",
+] as const;
 
 export async function registerGradingRoutes(
   app: FastifyInstance,
@@ -231,61 +258,49 @@ export async function registerGradingRoutes(
   const adminFreshMfa = toArray(opts.adminFreshMfa);
 
   // -------------------------------------------------------------------------
-  // POST /api/admin/attempts/:id/grade
+  // POST grade | accept | rerun | manual-score | grading-jobs/:id/retry
   //
-  // Triggers synchronous AI grading for the given attempt. Single-flight
-  // mutex inside handler prevents concurrent runs per D7.
-  // sessionLastActivity is forwarded so the handler can enforce the 60s
-  // heartbeat invariant (D2 + D7) — lastSeenAt is updated by extendOnPass on
-  // every authenticated request, making it the canonical heartbeat signal.
+  // 403 AI_EVALUATION_BY_ASSESSIQ — see AI_EVALUATION_ROUTES. No handler is
+  // reachable from here, so no tenant request can start an AI run (D2/D7 stay
+  // admin-click-only: the clicker is now the platform super admin).
+  // -------------------------------------------------------------------------
+
+  for (const url of AI_EVALUATION_ROUTES) {
+    app.post(url, { preHandler: adminOnly }, async () => {
+      throw new AppError(
+        "AI evaluation is performed by AssessIQ. Your results are released to you for review and publishing once they have been evaluated.",
+        AI_GRADING_ERROR_CODES.AI_EVALUATION_BY_ASSESSIQ,
+        403,
+      );
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/admin/attempts/:id/send-back
+  //
+  // The tenant returns a released (unpublished) evaluation to the platform queue
+  // with a note. Clears evaluation_released_at; status stays 'graded' (no
+  // re-billing); audit grading.sent_back without the note. 409 unless the
+  // evaluation is currently with the tenant. Admin chain, no fresh MFA — same as
+  // publishing (it only withdraws a result from publication).
   // -------------------------------------------------------------------------
 
   app.post(
-    "/api/admin/attempts/:id/grade",
+    "/api/admin/attempts/:id/send-back",
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const { id: attemptId } = req.params as { id: string };
-      const sessionLastActivity = parseSessionActivity(req.session!.lastSeenAt);
 
-      // Body is optional — validate if present and non-empty
-      if (req.body !== undefined && req.body !== null) {
-        const result = GRADE_BODY_SCHEMA.safeParse(req.body);
-        if (!result.success) {
-          throw new ValidationError("Invalid request body", {
-            details: {
-              code: AI_GRADING_ERROR_CODES.INVALID_BODY,
-              issues: result.error.issues,
-            },
-          });
-        }
+      if (!UUID_SCHEMA.safeParse(attemptId).success) {
+        throw new ValidationError("id must be a UUID", {
+          details: { code: AI_GRADING_ERROR_CODES.INVALID_BODY, param: "id" },
+        });
       }
-
-      return handleAdminGrade({ tenantId, userId, attemptId, sessionLastActivity });
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // POST /api/admin/attempts/:id/accept
-  //
-  // Commits AI proposals (with optional admin edits) to the `gradings` table.
-  // Requires a non-empty `proposals` array.
-  // The `edits` field in each proposal is omitted (not set to undefined) when
-  // absent so exactOptionalPropertyTypes is satisfied.
-  // -------------------------------------------------------------------------
-
-  app.post(
-    "/api/admin/attempts/:id/accept",
-    { preHandler: adminOnly },
-    async (req) => {
-      const tenantId = req.session!.tenantId;
-      const userId = req.session!.userId;
-      const { id: attemptId } = req.params as { id: string };
-
-      const result = ACCEPT_BODY_SCHEMA.safeParse(req.body);
+      const result = SEND_BACK_BODY_SCHEMA.safeParse(req.body);
       if (!result.success) {
-        throw new ValidationError("Invalid accept body", {
+        throw new ValidationError("Invalid send-back body", {
           details: {
             code: AI_GRADING_ERROR_CODES.INVALID_BODY,
             issues: result.error.issues,
@@ -293,58 +308,7 @@ export async function registerGradingRoutes(
         });
       }
 
-      // Multi-tenancy guard (Phase 3 critique C1): the URL's attemptId is the
-      // canonical scope. A body field setting proposal.attempt_id to a
-      // different attempt would let an admin write a gradings row attached to
-      // an unrelated attempt within the same tenant. RLS does not catch this
-      // (same-tenant cross-attempt is allowed by RLS). Defence: every
-      // proposal's attempt_id is FORCED to match the URL — if a client sent
-      // a mismatched value we reject loudly.
-      for (const p of result.data.proposals) {
-        if (p.attempt_id !== attemptId) {
-          throw new ValidationError(
-            "proposal.attempt_id must match the URL attemptId",
-            {
-              details: {
-                code: AI_GRADING_ERROR_CODES.INVALID_BODY,
-                expected: attemptId,
-                received: p.attempt_id,
-              },
-            },
-          );
-        }
-      }
-
-      // exactOptionalPropertyTypes: only include `edits` when it is defined,
-      // and within edits only include fields that are defined — so we never
-      // pass `{ reasoning_band: undefined }` where AcceptEdits wants `reasoning_band?: number`.
-      const proposals = result.data.proposals.map((p) => {
-        const base = {
-          attempt_id: p.attempt_id,
-          question_id: p.question_id,
-          anchors: p.anchors,
-          band: p.band,
-          score_earned: p.score_earned,
-          score_max: p.score_max,
-          prompt_version_sha: p.prompt_version_sha,
-          prompt_version_label: p.prompt_version_label,
-          model: p.model,
-          escalation_chosen_stage: p.escalation_chosen_stage,
-          generated_at: p.generated_at,
-        };
-        if (p.edits !== undefined) {
-          const edits: AcceptEdits = { question_id: p.edits.question_id };
-          if (p.edits.reasoning_band !== undefined) edits.reasoning_band = p.edits.reasoning_band;
-          if (p.edits.ai_justification !== undefined) edits.ai_justification = p.edits.ai_justification;
-          if (p.edits.anchor_hits !== undefined) edits.anchor_hits = p.edits.anchor_hits;
-          if (p.edits.error_class !== undefined) edits.error_class = p.edits.error_class;
-          if (p.edits.score_earned !== undefined) edits.score_earned = p.edits.score_earned;
-          return { ...base, edits };
-        }
-        return base;
-      });
-
-      return handleAdminAccept({ tenantId, userId, attemptId, proposals });
+      return handleAdminSendBack({ tenantId, userId, attemptId, note: result.data.note });
     },
   );
 
@@ -395,9 +359,10 @@ export async function registerGradingRoutes(
   // -------------------------------------------------------------------------
   // GET /api/admin/attempts/:id
   //
-  // Returns the full attempt view for admin review. Also claims the attempt
-  // for this admin (optimistic lock / claim semantic) so two admins don't
-  // grade the same attempt concurrently.
+  // Returns the attempt review payload for the tenant. READ-ONLY since Phase II:
+  // no claim transition, no audit row. While the evaluation is still with
+  // AssessIQ (evaluation_status 'awaiting_evaluation') gradings are [] and score
+  // is null; ai_proposals is always null for tenants.
   // -------------------------------------------------------------------------
 
   app.get(
@@ -415,8 +380,9 @@ export async function registerGradingRoutes(
   // -------------------------------------------------------------------------
   // POST /api/admin/attempts/:id/release
   //
-  // Releases the claim on an attempt so another admin can grade it.
-  // No body required.
+  // Publishes a finished result to the candidate (graded -> released). Needs the
+  // platform to have released the evaluation to the tenant first (09 core: 409
+  // RESULT_NOT_READY). No body required.
   // -------------------------------------------------------------------------
 
   app.post(
@@ -455,46 +421,6 @@ export async function registerGradingRoutes(
       }
 
       return handleAdminReleaseAll({ tenantId, userId, assessmentId });
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // POST /api/admin/attempts/:id/rerun
-  //
-  // Discards existing proposals and triggers a fresh grading run.
-  // forceEscalate defaults to true in the handler when absent.
-  // -------------------------------------------------------------------------
-
-  app.post(
-    "/api/admin/attempts/:id/rerun",
-    { preHandler: adminOnly },
-    async (req) => {
-      const tenantId = req.session!.tenantId;
-      const userId = req.session!.userId;
-      const { id: attemptId } = req.params as { id: string };
-      const sessionLastActivity = parseSessionActivity(req.session!.lastSeenAt);
-
-      const result = RERUN_BODY_SCHEMA.safeParse(req.body ?? {});
-      if (!result.success) {
-        throw new ValidationError("Invalid rerun body", {
-          details: {
-            code: AI_GRADING_ERROR_CODES.INVALID_BODY,
-            issues: result.error.issues,
-          },
-        });
-      }
-
-      // exactOptionalPropertyTypes: omit forceEscalate entirely when undefined
-      // so we don't pass `forceEscalate: undefined` to HandleAdminRerunInput.
-      const rerunInput: {
-        tenantId: string;
-        userId: string;
-        attemptId: string;
-        sessionLastActivity: Date | null;
-        forceEscalate?: boolean;
-      } = { tenantId, userId, attemptId, sessionLastActivity };
-      if (result.data.forceEscalate !== undefined) rerunInput.forceEscalate = result.data.forceEscalate;
-      return handleAdminRerun(rerunInput);
     },
   );
 
@@ -541,6 +467,9 @@ export async function registerGradingRoutes(
   // Immutable audit trail: creates a NEW gradings row (override_of = prior id),
   // never mutates the existing row.
   // The override payload is nested under `override` in the handler input.
+  // Phase II: a tenant may override only once the platform released the evaluation
+  // to it (requireEvaluationReleased) — 409 EVALUATION_NOT_RELEASED before that,
+  // 409 RESULT_ALREADY_PUBLISHED after publishing.
   // -------------------------------------------------------------------------
 
   app.post(
@@ -577,54 +506,12 @@ export async function registerGradingRoutes(
       if (result.data.ai_justification !== undefined) override.ai_justification = result.data.ai_justification;
       if (result.data.error_class !== undefined) override.error_class = result.data.error_class;
 
-      return handleAdminOverride({ tenantId, userId, gradingId, override });
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // POST /api/admin/attempts/:id/questions/:questionId/manual-score
-  //
-  // First human score for a question that has no grading yet (KQL has no
-  // grader). NO AI call. Requires fresh MFA like override. Inserts one
-  // admin_override gradings row (override_of NULL, sha 'manual:v1'), recomputes
-  // the rollup and finalises the attempt when this was the last missing grade.
-  // 409 if the question already has a grade (use override) or the result is
-  // already published. (Phase II moves this route to the platform evaluator.)
-  // -------------------------------------------------------------------------
-
-  app.post(
-    "/api/admin/attempts/:id/questions/:questionId/manual-score",
-    { preHandler: adminFreshMfa },
-    async (req) => {
-      const tenantId = req.session!.tenantId;
-      const userId = req.session!.userId;
-      const { id, questionId } = req.params as { id: string; questionId: string };
-
-      for (const [name, value] of [["id", id], ["questionId", questionId]] as const) {
-        if (!UUID_SCHEMA.safeParse(value).success) {
-          throw new ValidationError(`${name} must be a UUID`, {
-            details: { code: AI_GRADING_ERROR_CODES.INVALID_BODY, param: name },
-          });
-        }
-      }
-
-      const result = MANUAL_SCORE_BODY_SCHEMA.safeParse(req.body);
-      if (!result.success) {
-        throw new ValidationError("Invalid manual-score body", {
-          details: {
-            code: AI_GRADING_ERROR_CODES.INVALID_BODY,
-            issues: result.error.issues,
-          },
-        });
-      }
-
-      return handleAdminManualScore({
+      return handleAdminOverride({
         tenantId,
         userId,
-        attemptId: id,
-        questionId,
-        scoreEarned: result.data.score_earned,
-        reason: result.data.reason,
+        gradingId,
+        override,
+        requireEvaluationReleased: true,
       });
     },
   );
@@ -633,7 +520,7 @@ export async function registerGradingRoutes(
   // GET /api/admin/grading-jobs
   //
   // Lists grading job records (Phase 2: grading_jobs table; Phase 1: derived
-  // from attempts.status). Tenant-scoped.
+  // from attempts.status). Tenant-scoped. (POST …/retry is a 403 stub above.)
   // -------------------------------------------------------------------------
 
   app.get(
@@ -644,26 +531,6 @@ export async function registerGradingRoutes(
       const userId = req.session!.userId;
 
       return handleAdminListGradingJobs({ tenantId, userId });
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // POST /api/admin/grading-jobs/:id/retry
-  //
-  // Re-triggers a failed grading job. No body required.
-  // sessionLastActivity forwarded for the same heartbeat check as /grade.
-  // -------------------------------------------------------------------------
-
-  app.post(
-    "/api/admin/grading-jobs/:id/retry",
-    { preHandler: adminOnly },
-    async (req) => {
-      const tenantId = req.session!.tenantId;
-      const userId = req.session!.userId;
-      const { id: jobId } = req.params as { id: string };
-      const sessionLastActivity = parseSessionActivity(req.session!.lastSeenAt);
-
-      return handleAdminRetryGradingJob({ tenantId, userId, jobId, sessionLastActivity });
     },
   );
 

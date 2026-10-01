@@ -22,11 +22,12 @@
  *     4. No re-add of the old fire-and-forget `audit(` call site.
  *
  *   B. Live integration tests (testcontainer — describe block at bottom):
- *     5. Happy-path: handleAdminClaimAttempt with status='submitted' writes a
- *        grading.claimed audit_log row with correct actor/entity/before/after.
- *     6. Atomicity: mock auditInTx to throw once, assert the handler rejects
- *        AND attempts.status rolls back to 'submitted' (the UPDATE was inside
- *        the same withTenant tx as the auditInTx call).
+ *     5. Phase II: handleAdminClaimAttempt (the attempt GET) is READ-ONLY — no
+ *        status transition and NO audit row (it used to write grading.claimed).
+ *     6. handleAdminSendBack writes one grading.sent_back row WITHOUT the note;
+ *        atomicity: mock auditInTx to throw once, assert the handler rejects AND
+ *        the release marker is unchanged (the UPDATE was inside the same
+ *        withTenant tx as the auditInTx call).
  *
  * Migration apply order for the testcontainer (section B):
  *   1. ALL 02-tenancy migrations
@@ -77,6 +78,7 @@ import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { handleAdminClaimAttempt } from "../handlers/admin-claim-release.js";
 import { handleAdminAccept } from "../handlers/admin-accept.js";
 import { handleAdminOverride } from "../handlers/admin-override.js";
+import { handleAdminSendBack } from "../handlers/admin-send-back.js";
 import type { GradingProposal } from "../types.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -138,12 +140,17 @@ const COVERAGE: Array<{
     expectedCallCount: 1,
   },
   {
-    // SP2 (2026-10-01): the grading.released audit row moved into module 09
-    // releaseAttemptInTx (one shared release for manual / bulk / auto). This file
-    // keeps only the claim audit; the release audit is pinned in
-    // modules/09-scoring/src/__tests__/release.test.ts (static + live).
-    file: "admin-claim-release.ts",
-    expectedActions: ["grading.claimed"],
+    // Phase II SP10 (2026-10-01): the tenant returns a released evaluation to the
+    // platform queue. One grading.sent_back row (NO note in `after`), same tx as the UPDATE.
+    file: "admin-send-back.ts",
+    expectedActions: ["grading.sent_back"],
+    expectedCallCount: 1,
+  },
+  {
+    // Phase II SP9 (2026-10-01): the platform super admin hands a finished evaluation
+    // to the tenant. One grading.evaluation_released row in the TARGET tenant's log.
+    file: "super-evaluations.ts",
+    expectedActions: ["grading.evaluation_released"],
     expectedCallCount: 1,
   },
   {
@@ -164,6 +171,10 @@ const NO_AUDIT_HANDLERS = [
   "admin-budget.ts",       // read-only billing query
   "admin-grading-jobs.ts", // Phase-1 stubs (empty list + 503)
   "admin-release-all.ts",  // loops 09 releaseAttemptInTx — each release writes its OWN grading.released row there
+  // Phase II (2026-10-01): the attempt GET is read-only now — the old claim side effect
+  // (submitted -> pending_admin_grading + a grading.claimed row on every first open) is
+  // gone; the manual release delegates to 09 releaseAttemptInTx (its own grading.released row).
+  "admin-claim-release.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -584,9 +595,9 @@ beforeEach(() => {
 // Integration tests
 // ---------------------------------------------------------------------------
 
-describe("07-ai-grading G3.D audit writes — live integration (handleAdminClaimAttempt)", () => {
-  it("happy-path: writes a grading.claimed audit row with correct actor/entity/before/after", async () => {
-    // Reset to 'submitted' so the idempotent UPDATE fires (wasClaimed=true)
+describe("07-ai-grading audit writes — live integration (handleAdminClaimAttempt is read-only)", () => {
+  it("Phase II: opening the attempt page changes nothing and writes NO audit row (the claim side effect is gone)", async () => {
+    // 'submitted' is exactly the state the old handler would have claimed + audited.
     await withSuperClient((c) =>
       c.query(`UPDATE attempts SET status = 'submitted' WHERE id = $1`, [ATTEMPT_ID]),
     );
@@ -599,41 +610,87 @@ describe("07-ai-grading G3.D audit writes — live integration (handleAdminClaim
     });
 
     expect(result.attempt.id).toBe(ATTEMPT_ID);
-    expect(result.attempt.status).toBe("pending_admin_grading");
+    expect(result.attempt.status).toBe("submitted"); // used to flip to pending_admin_grading
+    expect(await readAttemptStatus(ATTEMPT_ID)).toBe("submitted");
+    expect(await queryAudit(TENANT_ID)).toHaveLength(0);
+  });
+});
 
-    const rows = await queryAudit(TENANT_ID, "grading.claimed");
-    const row = rows.find((r) => r.entity_id === ATTEMPT_ID);
-    expect(row).toBeDefined();
-    expect(row!.actor_kind).toBe("user");
-    expect(row!.actor_user_id).toBe(ADMIN_ID);
-    expect(row!.entity_type).toBe("attempt");
-    const before = row!.before as Record<string, unknown>;
-    const after = row!.after as Record<string, unknown>;
-    expect(before.attempt_status).toBe("submitted");
-    expect(after.attempt_status).toBe("pending_admin_grading");
+describe("07-ai-grading Phase II audit writes — live integration (handleAdminSendBack)", () => {
+  const NOTE = "Candidate 4 answer looks mis-scored - please recheck (private note)";
+
+  async function releasedToTenant(): Promise<void> {
+    await withSuperClient((c) =>
+      c.query(
+        `UPDATE attempts
+            SET status = 'graded', evaluation_released_at = now(), evaluation_released_by = $2,
+                evaluation_note = NULL, evaluation_sent_back_at = NULL
+          WHERE id = $1`,
+        [ATTEMPT_ID, ADMIN_ID],
+      ),
+    );
+  }
+
+  async function sendBackState(): Promise<{ status: string; released_at: Date | null; note: string | null; sent_back_at: Date | null }> {
+    return withSuperClient((c) =>
+      c
+        .query(
+          `SELECT status, evaluation_released_at AS released_at, evaluation_note AS note, evaluation_sent_back_at AS sent_back_at FROM attempts WHERE id = $1`,
+          [ATTEMPT_ID],
+        )
+        .then((r) => r.rows[0]),
+    );
+  }
+
+  it("writes one grading.sent_back row WITHOUT the note; clears the release, keeps status 'graded', stores the note on the attempt", async () => {
+    await releasedToTenant();
+    await clearAudit(TENANT_ID);
+
+    const out = await handleAdminSendBack({ tenantId: TENANT_ID, userId: ADMIN_ID, attemptId: ATTEMPT_ID, note: NOTE });
+    expect(out.attempt_id).toBe(ATTEMPT_ID);
+    expect(typeof out.evaluation_sent_back_at).toBe("string");
+
+    const st = await sendBackState();
+    expect(st.status).toBe("graded"); // unchanged -> no re-billing (billing runs only on the status flip)
+    expect(st.released_at).toBeNull();
+    expect(st.note).toBe(NOTE);
+    expect(st.sent_back_at).not.toBeNull();
+
+    const rows = await queryAudit(TENANT_ID, "grading.sent_back");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.actor_kind).toBe("user");
+    expect(rows[0]!.actor_user_id).toBe(ADMIN_ID);
+    expect(rows[0]!.entity_id).toBe(ATTEMPT_ID);
+    // PII policy: the free-text note is NEVER copied into audit_log.
+    expect(JSON.stringify(rows[0])).not.toContain("private note");
+    expect(JSON.stringify(rows[0])).not.toContain("Candidate 4");
+
+    // Not sendable again: nothing is with the tenant any more.
+    await expect(
+      handleAdminSendBack({ tenantId: TENANT_ID, userId: ADMIN_ID, attemptId: ATTEMPT_ID, note: "again" }),
+    ).rejects.toMatchObject({ code: "EVALUATION_NOT_RELEASED", status: 409 });
   });
 
-  it("atomicity: when auditInTx throws, attempts.status is NOT updated (withTenant rolls back)", async () => {
-    // Ensure 'submitted' so the UPDATE fires and auditInTx is called
-    await withSuperClient((c) =>
-      c.query(`UPDATE attempts SET status = 'submitted' WHERE id = $1`, [ATTEMPT_ID]),
-    );
-
-    // Inject one-shot failure — auditInTx throws inside the withTenant tx
-    injectAuditFailure = new Error("audit write injection failure");
+  it("atomicity: when the audit write throws, the send-back is rolled back (release marker untouched)", async () => {
+    await releasedToTenant();
+    injectAuditFailure = new Error("audit write injection failure — send-back path");
 
     await expect(
-      handleAdminClaimAttempt({
-        tenantId: TENANT_ID,
-        userId: ADMIN_ID,
-        attemptId: ATTEMPT_ID,
-      }),
+      handleAdminSendBack({ tenantId: TENANT_ID, userId: ADMIN_ID, attemptId: ATTEMPT_ID, note: NOTE }),
     ).rejects.toThrow(/audit write injection failure/);
 
-    // The attempts row must still be 'submitted' — the withTenant transaction
-    // rolled back when auditInTx threw, undoing the UPDATE
-    const status = await readAttemptStatus(ATTEMPT_ID);
-    expect(status).toBe("submitted");
+    const st = await sendBackState();
+    expect(st.released_at).not.toBeNull();
+    expect(st.note).toBeNull();
+    expect(st.sent_back_at).toBeNull();
+
+    // Restore the state the later tests in this file expect.
+    await withSuperClient((c) =>
+      c.query(
+        `UPDATE attempts SET status = 'submitted', evaluation_released_at = NULL, evaluation_released_by = NULL WHERE id = $1`,
+        [ATTEMPT_ID],
+      ),
+    );
   });
 });
 

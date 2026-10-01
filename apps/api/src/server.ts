@@ -14,6 +14,7 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
 import { registerAdminSuperRoutes } from './routes/admin-super.js';
+import { registerAdminSuperEvaluationsRoutes } from './routes/admin-super-evaluations.js';
 import { registerAdminTenantSettingsRoutes } from './routes/admin-tenant-settings.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
@@ -161,6 +162,10 @@ export async function buildServer() {
   // boundaries. Gate: role = 'super_admin'. Prefix: /api/admin/super/*.
   // Currently ships one endpoint: PATCH .../ai-generate-mode.
   await registerAdminSuperRoutes(app);
+  // Platform evaluation queue (Phase II): the super admin evaluates every tenant's
+  // written answers (the only AI trigger) and releases finished evaluations to the
+  // tenant. Prefix: /api/admin/super/evaluations/*.
+  await registerAdminSuperEvaluationsRoutes(app);
   await registerAdminTenantSettingsRoutes(app);
   // Question-bank admin routes — same admin-gated authChain. The module
   // accepts the chain as an injected dep so the library stays Fastify-shape-

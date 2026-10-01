@@ -724,7 +724,9 @@ describe("handleAdminAccept", () => {
         [ATTEMPT_ID],
       );
       expect(r.rows[0]!.status).toBe("graded");
-      expect(r.rows[0]!.released).toBe(true);
+      // Phase II: accepting (the platform evaluator's act) does not release the
+      // evaluation to the tenant by default — release-to-tenant is a separate step.
+      expect(r.rows[0]!.released).toBe(false);
     });
   });
 });
@@ -979,15 +981,28 @@ describe("handleAdminClaimAttempt + handleAdminReleaseAttempt", () => {
     return attemptId;
   }
 
-  it("6.1 Claim flips submitted → pending_admin_grading idempotently", async () => {
+  it("6.1 The attempt GET is READ-ONLY (Phase II): no claim transition; tenant sees no AI state while awaiting evaluation", async () => {
     const attemptId = await buildFreshSubmittedAttempt();
+    // Seed AI review state that a tenant must never see.
+    await withSuperClient((c) =>
+      c.query(`UPDATE attempts SET ai_proposals = '[{"x":1}]'::jsonb, grading_started_at = now() WHERE id = $1`, [attemptId]),
+    );
 
     const r1 = await handleAdminClaimAttempt({ tenantId: TENANT_ID, userId: ADMIN_ID, attemptId });
-    expect(r1.attempt.status).toBe("pending_admin_grading");
+    expect(r1.attempt.status).toBe("submitted"); // used to flip to pending_admin_grading
+    expect(r1.evaluation_status).toBe("awaiting_evaluation");
+    expect(r1.ai_proposals).toBeNull();
+    expect(r1.grading_started_at).toBeNull();
+    expect(r1.gradings).toEqual([]);
+    expect(r1.score).toBeNull();
 
-    // Second call — idempotent, no error.
+    // Second call — still no side effect.
     const r2 = await handleAdminClaimAttempt({ tenantId: TENANT_ID, userId: ADMIN_ID, attemptId });
-    expect(r2.attempt.status).toBe("pending_admin_grading");
+    expect(r2.attempt.status).toBe("submitted");
+    const row = await withSuperClient((c) =>
+      c.query<{ status: string }>(`SELECT status FROM attempts WHERE id = $1`, [attemptId]).then((r) => r.rows[0]!),
+    );
+    expect(row.status).toBe("submitted");
   });
 
   it("6.2 Release flips graded → released", async () => {

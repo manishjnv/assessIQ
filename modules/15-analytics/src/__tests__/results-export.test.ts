@@ -44,6 +44,7 @@ const assessmentB = randomUUID();
 let candGraded = '';
 let candSubmitted = '';
 let candInvited = '';
+let candHeld = ''; // graded, but the platform has not released the evaluation to the tenant
 
 const EVIL = '=HYPERLINK("http://x","hi")';
 
@@ -78,6 +79,7 @@ beforeAll(async () => {
     candGraded = await mk('Aarav Sharma', 'aarav@a.test');
     candSubmitted = await mk(EVIL, 'sub@a.test');
     candInvited = await mk('Zoya, "Z" Khan', 'zoya@a.test');
+    candHeld = await mk('Held Back', 'held@a.test');
 
     const pack = randomUUID(); const level = randomUUID();
     await c.query(`INSERT INTO question_packs (id,tenant_id,slug,name,domain,status,created_by) VALUES ($1,$2,'p','P','aptitude','published',$3)`, [pack, tenantA, admin]);
@@ -98,16 +100,19 @@ beforeAll(async () => {
     const inv = (u: string, s: string) => c.query(
       `INSERT INTO assessment_invitations (assessment_id,user_id,token_hash,expires_at,status,invited_by) VALUES ($1,$2,$3,now()+interval '7 day',$4,$5)`,
       [assessmentId, u, randomUUID(), s, admin]);
-    await inv(candGraded, 'submitted'); await inv(candSubmitted, 'submitted'); await inv(candInvited, 'pending');
+    await inv(candGraded, 'submitted'); await inv(candSubmitted, 'submitted'); await inv(candInvited, 'pending'); await inv(candHeld, 'submitted');
 
-    const att = async (u: string, status: string) => {
+    // Phase II: a 'graded' result is visible to the tenant only once the platform released
+    // the evaluation (evaluation_released_at); `released = false` models "still with AssessIQ".
+    const att = async (u: string, status: string, released = status === 'graded') => {
       const id = randomUUID();
-      await c.query(`INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status,started_at,submitted_at) VALUES ($1,$2,$3,$4,$5,now()-interval '1 hour',now())`, [id, tenantA, assessmentId, u, status]);
+      await c.query(`INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status,started_at,submitted_at,evaluation_released_at) VALUES ($1,$2,$3,$4,$5,now()-interval '1 hour',now(),CASE WHEN $6::boolean THEN now() END)`, [id, tenantA, assessmentId, u, status, released]);
       for (let i = 0; i < 4; i++) await c.query(`INSERT INTO attempt_questions (attempt_id,question_id,position,question_version) VALUES ($1,$2,$3,1)`, [id, qs[i], i + 1]);
       return id;
     };
     const gradedAttempt = await att(candGraded, 'graded');
     await att(candSubmitted, 'submitted');
+    const heldAttempt = await att(candHeld, 'graded', false);
 
     const grade = (a: string, q: string, earned: number, grader = 'deterministic', at = 'now()') => c.query(
       `INSERT INTO gradings (attempt_id,question_id,tenant_id,grader,score_earned,score_max,status,prompt_version_sha,prompt_version_label,model,graded_at,override_of)
@@ -121,6 +126,8 @@ beforeAll(async () => {
     await grade(gradedAttempt, qs[3]!, 0);
     // Admin override on Q2 (Quant) 0 -> 10, newer than the deterministic row.
     await grade(gradedAttempt, qs[1]!, 10, 'admin_override', `now()+interval '1 minute'`);
+    // The held-back attempt has grades too — they must NOT surface in the tenant's CSV.
+    for (let i = 0; i < 4; i++) await grade(heldAttempt, qs[i]!, 10);
 
     // Tenant B assessment (cross-tenant target).
     const packB = randomUUID(); const levelB = randomUUID(); const adminB = randomUUID();
@@ -184,18 +191,24 @@ describe('assessment results.csv', () => {
 
     const rows = parseCsv(res.body);
     expect(rows[0]).toEqual(['name', 'email', 'status', 'started_at', 'submitted_at', 'score', 'max_score', 'percent', 'result', 'Quant (%)', 'Verbal (%)']);
-    expect(rows.length).toBe(4);
+    expect(rows.length).toBe(5);
     const by = Object.fromEntries(rows.slice(1).map((r) => [r[1]!, r]));
 
-    // graded: 10 + override(10) + 10 + 0 = 30/40 = 75%, level passing 60 -> Pass
+    // graded + evaluation released to the tenant: 10 + override(10) + 10 + 0 = 30/40 = 75%, level passing 60 -> Pass
     const g = by['aarav@a.test']!;
     expect(g.slice(2, 3)).toEqual(['graded']);
     expect(g.slice(5)).toEqual(['30', '40', '75', 'Pass', '100', '50']); // override precedence: Quant 20/20
 
-    // submitted-not-graded: attempt status, score blank
+    // submitted-not-graded: attempt status, no score, result "Awaiting evaluation" (Phase II)
     const s = by['sub@a.test']!;
     expect(s[2]).toBe('submitted');
-    expect(s.slice(5)).toEqual(['', '', '', '', '', '']);
+    expect(s.slice(5)).toEqual(['', '', '', 'Awaiting evaluation', '', '']);
+
+    // graded but NOT released to the tenant (still with AssessIQ / sent back): grades exist,
+    // yet the CSV shows no score and "Awaiting evaluation" — nothing provisional leaks out.
+    const h = by['held@a.test']!;
+    expect(h[2]).toBe('graded');
+    expect(h.slice(5)).toEqual(['', '', '', 'Awaiting evaluation', '', '']);
 
     // invited, never started
     const i = by['zoya@a.test']!;

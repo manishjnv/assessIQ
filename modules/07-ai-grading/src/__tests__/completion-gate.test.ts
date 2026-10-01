@@ -34,6 +34,7 @@ import { handleAdminAccept, type HandleAdminAcceptInput } from "../handlers/admi
 import { handleAdminManualScore } from "../handlers/admin-manual-score.js";
 import { handleAdminOverride } from "../handlers/admin-override.js";
 import { registerGradingRoutes } from "../routes.js";
+import { registerSuperEvaluationRoutes } from "../routes-super.js";
 import type { GradingProposal } from "../types.js";
 
 const toFsPath = (url: URL): string => url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
@@ -234,13 +235,15 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
     expect(await totals(attemptId)).toMatchObject({ e: 18, m: 20 });
   });
 
-  it("... and the manual KQL score completes it: graded, evaluation released, billed once, KQL in the total", async () => {
+  it("... and the manual KQL score completes it: graded, billed once, KQL in the total; evaluation NOT released to the tenant (Phase II default)", async () => {
     const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective", "kql"]);
     await accept(attemptId, [proposal(attemptId, qids[1]!)]);
     const m = await manual(attemptId, qids[2]!, 7);
     expect(m.attempt.status).toBe("graded");
     expect(m.grading).toMatchObject({ grader: "admin_override", override_of: null, model: "manual", score_earned: 7, score_max: 10, status: "partial" });
-    expect(await att(attemptId)).toEqual({ status: "graded", eval_released: true, cache_clear: true });
+    // Phase II: evaluating never hands the result to the tenant implicitly — that is the
+    // separate release-to-tenant step (markEvaluationReleased defaults to false).
+    expect(await att(attemptId)).toEqual({ status: "graded", eval_released: false, cache_clear: true });
     expect(await totals(attemptId)).toMatchObject({ e: 25, m: 30, pending_review: false });
     expect(await billing(attemptId)).toBe(1);
   });
@@ -264,7 +267,7 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
       gradingId: r.gradings[0]!.id,
       override: { score_earned: 9, reason: "AI failed; graded by hand" },
     });
-    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: true });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: false });
     expect(await totals(attemptId)).toMatchObject({ e: 19, m: 20, pending_review: false });
     expect(await billing(attemptId)).toBe(1);
   });
@@ -275,7 +278,7 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
     const proposals = [proposal(attemptId, qids[1]!), proposal(attemptId, qids[2]!, { score_earned: 10 })];
     const r = await accept(attemptId, proposals);
     expect(r.attempt.status).toBe("graded");
-    expect(await att(attemptId)).toEqual({ status: "graded", eval_released: true, cache_clear: true });
+    expect(await att(attemptId)).toEqual({ status: "graded", eval_released: false, cache_clear: true });
     expect(await billing(attemptId)).toBe(1);
     // re-accepting the SAME proposals is idempotent (D7): no new rows, no second bill
     const again = await accept(attemptId, proposals);
@@ -619,16 +622,37 @@ describe("handleAdminOverride — score_earned must be within 0..score_max (revi
   });
 });
 
-async function buildApp() {
+function newApp() {
   const app = Fastify();
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof AppError) return reply.code(err.status).send({ error: err.toJson() });
     return reply.code(500).send({ error: { code: "INTERNAL", message: String(err) } });
   });
+  return app;
+}
+
+/** The TENANT admin surface (registerGradingRoutes) with the session = this tenant's admin. */
+async function buildApp() {
+  const app = newApp();
   const session = async (req: { session?: unknown }) => {
     req.session = { tenantId: tenant, userId: admin, lastSeenAt: new Date().toISOString() };
   };
   await registerGradingRoutes(app, { adminOnly: [session as never], adminFreshMfa: [session as never] });
+  return app;
+}
+
+/**
+ * The PLATFORM evaluator surface (registerSuperEvaluationRoutes). Phase II: accept and
+ * manual-score moved here (the tenant routes answer 403). The session carries a
+ * DIFFERENT tenant id (the platform tenant stand-in) to prove the routes resolve the
+ * attempt's tenant from the database and never from the session.
+ */
+async function buildSuperApp() {
+  const app = newApp();
+  const session = async (req: { session?: unknown }) => {
+    req.session = { tenantId: randomUUID(), userId: admin, lastSeenAt: new Date().toISOString() };
+  };
+  await registerSuperEvaluationRoutes(app, { superAdminOnly: [session as never], superAdminFreshMfa: [session as never] });
   return app;
 }
 
@@ -637,6 +661,8 @@ describe("POST /api/admin/gradings/:id/override (route) — score range", () => 
     const app = await buildApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
     const gradingId = (await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 5 })])).gradings[0]!.id;
+    // Phase II: a tenant may override only after the platform released the evaluation to it.
+    await sup((c) => c.query(`UPDATE attempts SET evaluation_released_at = now() WHERE id = $1`, [attemptId]));
     for (const bad of [-1, 11]) {
       const res = await app.inject({
         method: "POST",
@@ -659,9 +685,9 @@ describe("POST /api/admin/gradings/:id/override (route) — score range", () => 
   });
 });
 
-describe("POST /api/admin/attempts/:id/accept (route) — score bounds", () => {
-  it("422 AIG_INVALID_BODY (never a 500 numeric overflow) for out-of-range scores; 200 for an in-range body", async () => {
-    const app = await buildApp();
+describe("POST /api/admin/super/evaluations/:attemptId/accept (platform route) — score bounds", () => {
+  it("422 AIG_INVALID_BODY (never a 500 numeric overflow) for out-of-range scores; 200 for an in-range body, evaluation NOT released", async () => {
+    const app = await buildSuperApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
     for (const bad of [
       { score_earned: 1e6, score_max: 10 }, // would overflow NUMERIC(6,2)
@@ -671,7 +697,7 @@ describe("POST /api/admin/attempts/:id/accept (route) — score bounds", () => {
     ]) {
       const res = await app.inject({
         method: "POST",
-        url: `/api/admin/attempts/${attemptId}/accept`,
+        url: `/api/admin/super/evaluations/${attemptId}/accept`,
         payload: { proposals: [proposal(attemptId, qids[1]!, bad)] },
       });
       expect(res.statusCode, JSON.stringify(bad)).toBe(422);
@@ -681,26 +707,28 @@ describe("POST /api/admin/attempts/:id/accept (route) — score bounds", () => {
 
     const ok = await app.inject({
       method: "POST",
-      url: `/api/admin/attempts/${attemptId}/accept`,
+      url: `/api/admin/super/evaluations/${attemptId}/accept`,
       payload: { proposals: [proposal(attemptId, qids[1]!, { score_earned: 8, score_max: 10 })] },
     });
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ attempt: { id: attemptId, status: "graded" } });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: false });
     await app.close();
   });
 });
 
-describe("POST /api/admin/attempts/:id/questions/:questionId/manual-score (route)", () => {
-  it("200 with the new grading; the chain is the fresh-MFA chain (session injected by it)", async () => {
-    const app = await buildApp();
+describe("POST /api/admin/super/evaluations/:attemptId/questions/:questionId/manual-score (platform route)", () => {
+  it("200 with the new grading; evaluation NOT released to the tenant", async () => {
+    const app = await buildSuperApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["kql"]);
     const res = await app.inject({
       method: "POST",
-      url: `/api/admin/attempts/${attemptId}/questions/${qids[0]}/manual-score`,
+      url: `/api/admin/super/evaluations/${attemptId}/questions/${qids[0]}/manual-score`,
       payload: { score_earned: 8, reason: "query returns the expected rows" },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ grading: { model: "manual", score_earned: 8 }, attempt: { id: attemptId, status: "graded" } });
+    expect(await att(attemptId)).toMatchObject({ status: "graded", eval_released: false });
     await app.close();
   });
 
@@ -712,11 +740,11 @@ describe("POST /api/admin/attempts/:id/questions/:questionId/manual-score (route
     ["non-number score", { score_earned: "5", reason: "r" }],
     ["unknown field", { score_earned: 5, reason: "r", extra: 1 }],
   ])("400 VALIDATION_FAILED for %s", async (_label, payload) => {
-    const app = await buildApp();
+    const app = await buildSuperApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["kql"]);
     const res = await app.inject({
       method: "POST",
-      url: `/api/admin/attempts/${attemptId}/questions/${qids[0]}/manual-score`,
+      url: `/api/admin/super/evaluations/${attemptId}/questions/${qids[0]}/manual-score`,
       payload,
     });
     expect(res.statusCode).toBe(400);
@@ -724,11 +752,11 @@ describe("POST /api/admin/attempts/:id/questions/:questionId/manual-score (route
     await app.close();
   });
 
-  it("400 for a non-UUID id / questionId", async () => {
-    const app = await buildApp();
+  it("400 for a non-UUID attemptId / questionId", async () => {
+    const app = await buildSuperApp();
     const res = await app.inject({
       method: "POST",
-      url: `/api/admin/attempts/not-a-uuid/questions/${randomUUID()}/manual-score`,
+      url: `/api/admin/super/evaluations/not-a-uuid/questions/${randomUUID()}/manual-score`,
       payload: { score_earned: 5, reason: "r" },
     });
     expect(res.statusCode).toBe(400);
