@@ -177,7 +177,7 @@ async function main() {
         console.log(
           `[smoke] Could not fetch attempt id — score manually:\n` +
             `  question ids: ${result.questionIds.join(", ")}\n` +
-            `  TODO: run score-candidate --attempt-id <id> after locating the row in generation_attempts`,
+            `  TODO(stage1): run score-candidate --attempt-id <id> after locating the row in generation_attempts`,
         );
       } finally {
         client.release();
