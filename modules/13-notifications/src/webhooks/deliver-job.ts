@@ -8,19 +8,35 @@
  * Retry semantics (P3.D12):
  *   - 2xx → status='delivered', done.
  *   - 4xx (excluding 408/425/429) → status='failed' PERMANENT, no retry.
- *   - 408/425/429 + 5xx + network errors → throw (triggers BullMQ retry
- *     per the WEBHOOK_RETRY_DELAYS_MS literal schedule).
+ *   - 3xx → status='failed' PERMANENT, no retry. Redirects are never followed
+ *     (the target would be attacker-chosen) — see safe-post.ts.
+ *   - Refused by the SSRF guard (destination resolves to a private / reserved
+ *     address, or the URL breaks the policy) → status='failed' PERMANENT,
+ *     last_error='blocked_address' | 'blocked_url', no retry.
+ *   - 408/425/429 + 5xx + network errors (DNS, connect, TLS, 10 s timeout) →
+ *     throw (triggers BullMQ retry per the WEBHOOK_RETRY_DELAYS_MS schedule).
  *
- * NEVER log full webhook payload at INFO (PII/data-leakage risk).
- * Only log structural metadata: deliveryId, endpointId, event, status, httpStatus.
+ * Every delivery carries two signatures: X-AssessIQ-Signature (V1, body only,
+ * unchanged) and X-AssessIQ-Signature-V2 over "<X-AssessIQ-Timestamp>.<body>".
+ *
+ * NEVER log full webhook payload at INFO (PII/data-leakage risk), nor the full
+ * endpoint URL (it often carries a secret path). Only structural metadata:
+ * deliveryId, endpointId, event, status, httpStatus.
  */
 
 import type { Job } from 'bullmq';
 import { streamLogger } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import * as repo from '../repository.js';
-import { signPayload } from './signature.js';
+import { signPayload, signPayloadV2 } from './signature.js';
 import { getDecryptedSecret } from './service.js';
+import {
+  postWebhook,
+  WebhookRefusedError,
+  WEBHOOK_MAX_RESPONSE_BYTES,
+  type PostDeps,
+  type WebhookResponse,
+} from './safe-post.js';
 
 const log = streamLogger('webhook');
 
@@ -29,12 +45,23 @@ export interface WebhookDeliverJobData {
   tenantId: string;
 }
 
+/** "HTTP 400" or "HTTP 400: <receiver's error text>" — control chars out, <= 2 KB. */
+function failureText(httpStatus: number, bodySnippet: string): string {
+  const snippet = bodySnippet
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ') // NUL would make the Postgres write throw
+    .trim()
+    .slice(0, WEBHOOK_MAX_RESPONSE_BYTES);
+  return snippet === '' ? `HTTP ${httpStatus}` : `HTTP ${httpStatus}: ${snippet}`;
+}
+
 /**
  * Process one webhook delivery attempt.
- * Called by the BullMQ worker via runJobWithLogging.
+ * Called by the BullMQ worker via runJobWithLogging. `deps` is a test seam;
+ * production passes nothing.
  */
 export async function processWebhookDeliverJob(
   job: Job<WebhookDeliverJobData>,
+  deps: PostDeps = {},
 ): Promise<{ deliveryId: string; status: string; httpStatus: number | null }> {
   const { deliveryId, tenantId } = job.data;
 
@@ -81,124 +108,131 @@ export async function processWebhookDeliverJob(
     return { deliveryId, status: 'failed', httpStatus: null };
   }
 
-  // 4. Serialize payload + sign.
+  // 4. Serialize payload + sign. V1 (body only) stays for existing receivers;
+  //    V2 binds the timestamp into the MAC so a captured delivery cannot be replayed.
   const body = JSON.stringify(delivery.payload);
-  const signature = signPayload(body, secret);
-  const timestamp = new Date().toISOString();
+  const timestamp = String(Math.floor(Date.now() / 1000)); // unix seconds
 
-  // 5. POST to the endpoint URL.
-  let httpStatus: number | null = null;
-  let lastError: string | null = null;
-
+  // 5. POST through the SSRF-guarded transport.
   const startMs = Date.now();
+  let response: WebhookResponse;
 
   try {
-    const response = await fetch(endpoint.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-AssessIQ-Event': delivery.event,
-        'X-AssessIQ-Delivery': deliveryId,
-        'X-AssessIQ-Signature': signature,
-        'X-AssessIQ-Timestamp': timestamp,
-        'User-Agent': 'AssessIQ-Webhooks/1.0',
+    response = await postWebhook(
+      {
+        url: endpoint.url,
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-AssessIQ-Event': delivery.event,
+          'X-AssessIQ-Delivery': deliveryId,
+          'X-AssessIQ-Signature': signPayload(body, secret),
+          'X-AssessIQ-Timestamp': timestamp,
+          'X-AssessIQ-Signature-V2': signPayloadV2(body, secret, timestamp),
+          'User-Agent': 'AssessIQ-Webhooks/1.0',
+        },
       },
-      body,
-      signal: AbortSignal.timeout(30_000), // 30s request timeout
-    });
-
-    httpStatus = response.status;
-    const latencyMs = Date.now() - startMs;
-
-    if (response.ok) {
-      // 2xx — success
-      await withTenant(tenantId, (client) =>
-        repo.updateWebhookDeliveryStatus(client, deliveryId, {
-          status: 'delivered',
-          ...(httpStatus !== null ? { httpStatus } : {}),
-          deliveredAt: new Date(),
-          attempts: job.attemptsMade + 1,
-          retryAt: null,
-        }),
-      );
-
-      log.info(
-        { deliveryId, endpointId: endpoint.id, event: delivery.event, httpStatus, latencyMs },
-        'webhook.delivery.delivered',
-      );
-
-      return { deliveryId, status: 'delivered', httpStatus };
-    }
-
-    // Non-2xx — determine retry vs permanent fail.
-    // 4xx (excluding transient ones) = permanent fail.
-    // Transient 4xx that we DO retry: 408 (Request Timeout), 425 (Too Early), 429 (Rate Limited).
-    const isTransient4xx = [408, 425, 429].includes(httpStatus);
-    const isPermanentFail = httpStatus >= 400 && httpStatus < 500 && !isTransient4xx;
-
-    lastError = `HTTP ${httpStatus}`;
-
-    if (isPermanentFail) {
+      deps,
+    );
+  } catch (err: unknown) {
+    if (err instanceof WebhookRefusedError) {
+      // Deterministic policy refusal → permanent failure, never retried. The
+      // tenant sees only the reason code; the resolved address stays in the log.
       await withTenant(tenantId, (client) =>
         repo.updateWebhookDeliveryStatus(client, deliveryId, {
           status: 'failed',
-          ...(httpStatus !== null ? { httpStatus } : {}),
-          ...(lastError !== null ? { lastError } : {}),
+          lastError: err.reason,
           attempts: job.attemptsMade + 1,
         }),
       );
-
       log.warn(
-        { deliveryId, endpointId: endpoint.id, event: delivery.event, httpStatus, latencyMs },
-        'webhook.delivery.permanent_fail',
+        {
+          deliveryId,
+          endpointId: endpoint.id,
+          event: delivery.event,
+          reason: err.reason,
+          host: err.host,
+          address: err.address,
+        },
+        'webhook.delivery.refused',
       );
-
-      // Return without throwing — BullMQ should NOT retry permanent 4xx failures.
-      return { deliveryId, status: 'failed', httpStatus };
+      return { deliveryId, status: 'failed', httpStatus: null };
     }
 
-    // Transient error (5xx or 408/425/429) — throw to trigger BullMQ retry.
-    const err = new Error(`Transient HTTP ${httpStatus} from webhook endpoint`);
-    log.warn(
-      { deliveryId, endpointId: endpoint.id, event: delivery.event, httpStatus, latencyMs, attemptsMade: job.attemptsMade },
-      'webhook.delivery.retry',
-    );
-    throw err;
-
-  } catch (err: unknown) {
-    const latencyMs = Date.now() - startMs;
-
-    // If err is a response-related Error we already threw — re-throw.
-    // If err is a network error (fetch threw before we got a response), throw to retry.
-    if (httpStatus !== null && [408, 425, 429].includes(httpStatus)) {
-      throw err; // already logged above
-    }
-    if (httpStatus !== null && httpStatus >= 500) {
-      throw err; // already logged above
-    }
-    if (httpStatus !== null) {
-      // This branch shouldn't occur given the logic above, but be safe.
-      throw err;
-    }
-
-    // Network-level error (no HTTP response).
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    const errorClass = err instanceof Error ? err.constructor.name : 'Error';
-
+    // Network-level error (DNS, connect, TLS, timeout) — no HTTP response.
     log.warn(
       {
         deliveryId,
         endpointId: endpoint.id,
         event: delivery.event,
-        latencyMs,
-        errorClass,
-        errorMessage,
+        latencyMs: Date.now() - startMs,
+        errorClass: err instanceof Error ? err.constructor.name : 'Error',
+        errorMessage: err instanceof Error ? err.message : String(err),
         attemptsMade: job.attemptsMade,
       },
       'webhook.delivery.network_error',
     );
-
     // Re-throw to let BullMQ handle retry scheduling.
     throw err;
   }
+
+  const httpStatus = response.status;
+  const latencyMs = Date.now() - startMs;
+
+  if (httpStatus >= 200 && httpStatus < 300) {
+    // 2xx — success
+    await withTenant(tenantId, (client) =>
+      repo.updateWebhookDeliveryStatus(client, deliveryId, {
+        status: 'delivered',
+        httpStatus,
+        deliveredAt: new Date(),
+        attempts: job.attemptsMade + 1,
+        retryAt: null,
+      }),
+    );
+
+    log.info(
+      { deliveryId, endpointId: endpoint.id, event: delivery.event, httpStatus, latencyMs },
+      'webhook.delivery.delivered',
+    );
+
+    return { deliveryId, status: 'delivered', httpStatus };
+  }
+
+  // Non-2xx — determine retry vs permanent fail.
+  // 3xx = permanent (redirects are never followed).
+  // 4xx (excluding transient ones) = permanent fail.
+  // Transient 4xx that we DO retry: 408 (Request Timeout), 425 (Too Early), 429 (Rate Limited).
+  const isRedirect = httpStatus >= 300 && httpStatus < 400;
+  const isTransient4xx = [408, 425, 429].includes(httpStatus);
+  const isPermanentFail =
+    isRedirect || (httpStatus >= 400 && httpStatus < 500 && !isTransient4xx);
+
+  if (isPermanentFail) {
+    await withTenant(tenantId, (client) =>
+      repo.updateWebhookDeliveryStatus(client, deliveryId, {
+        status: 'failed',
+        httpStatus,
+        lastError: isRedirect
+          ? `HTTP ${httpStatus}: redirects are not followed`
+          : failureText(httpStatus, response.bodySnippet),
+        attempts: job.attemptsMade + 1,
+      }),
+    );
+
+    log.warn(
+      { deliveryId, endpointId: endpoint.id, event: delivery.event, httpStatus, latencyMs },
+      'webhook.delivery.permanent_fail',
+    );
+
+    // Return without throwing — BullMQ should NOT retry permanent failures.
+    return { deliveryId, status: 'failed', httpStatus };
+  }
+
+  // Transient error (5xx or 408/425/429) — throw to trigger BullMQ retry.
+  log.warn(
+    { deliveryId, endpointId: endpoint.id, event: delivery.event, httpStatus, latencyMs, attemptsMade: job.attemptsMade },
+    'webhook.delivery.retry',
+  );
+  throw new Error(`Transient HTTP ${httpStatus} from webhook endpoint`);
 }

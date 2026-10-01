@@ -743,10 +743,12 @@ describe('webhook deliver-job HTTP semantics', () => {
     ).mockResolvedValueOnce('test-webhook-secret');
 
     const { processWebhookDeliverJob } = await import('../webhooks/deliver-job.js');
+    // The fixture server is on loopback, which the SSRF guard refuses by default —
+    // `isBlocked: () => false` is the test-only seam (see webhook-safety.test.ts).
     const result = await processWebhookDeliverJob({
       data: { deliveryId: 'del-1', tenantId: 'tenant-1' },
       attemptsMade: 0,
-    } as never);
+    } as never, { isBlocked: () => false });
 
     expect(result.status).toBe('delivered');
     expect(result.httpStatus).toBe(200);
@@ -797,7 +799,7 @@ describe('webhook deliver-job HTTP semantics', () => {
     const result = await processWebhookDeliverJob({
       data: { deliveryId: 'del-2', tenantId: 'tenant-1' },
       attemptsMade: 0,
-    } as never);
+    } as never, { isBlocked: () => false });
 
     expect(result.status).toBe('failed');
     expect(result.httpStatus).toBe(400);
@@ -844,7 +846,7 @@ describe('webhook deliver-job HTTP semantics', () => {
       processWebhookDeliverJob({
         data: { deliveryId: 'del-3', tenantId: 'tenant-1' },
         attemptsMade: 0,
-      } as never),
+      } as never, { isBlocked: () => false }),
     ).rejects.toThrow();
   });
 });
