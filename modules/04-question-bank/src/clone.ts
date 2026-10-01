@@ -35,7 +35,7 @@ import { type PoolClient } from "pg";
 import { uuidv7, NotFoundError, ValidationError, ConflictError } from "@assessiq/core";
 import { getPool } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import type { QuestionType, QuestionStatus, LevelRubricDefaults, KnowledgeBaseSource } from "./types.js";
+import type { QuestionType, QuestionStatus, LevelRubricDefaults } from "./types.js";
 
 const MAX_SLUG_RETRIES = 10;
 

@@ -15,7 +15,7 @@ import { TakeRightPane } from './TakeRightPane.js';
 
 // ─── shared style constants (mirrors login.tsx) ───────────────────────────────
 
-const META_LABEL: CSSProperties = {
+const _META_LABEL: CSSProperties = {
   fontFamily: 'var(--aiq-font-mono)',
   fontSize: 11,
   textTransform: 'uppercase',

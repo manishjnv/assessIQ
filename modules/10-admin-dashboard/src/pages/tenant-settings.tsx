@@ -22,7 +22,7 @@
 // sequential fetches, no extra dependencies.
 
 import React, { useEffect, useState, type CSSProperties } from "react";
-import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
+import { Button, Card, Chip, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -503,7 +503,6 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
               }}
             >
               {report.errors.map((e, idx) => (
-                // eslint-disable-next-line react/no-array-index-key
                 <li key={idx}>{e}</li>
               ))}
             </ul>

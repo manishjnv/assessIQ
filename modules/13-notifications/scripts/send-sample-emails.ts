@@ -23,7 +23,7 @@
  */
 
 import { readFileSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import nodemailer from 'nodemailer';
 import { renderTemplate } from '../src/email/render.js';
 import type { EmailTemplateName, TemplateVarsMap } from '../src/types.js';

@@ -39,7 +39,6 @@ import {
   createAssessmentFromSet,
   importLicensedSet,
   resyncLicensedSet,
-  getAssessment,
   getAssessmentDetail,
   updateAssessment,
   publishAssessment,

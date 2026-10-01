@@ -114,7 +114,7 @@ function assertRejected(result: MaybeError, label: string): string {
 }
 
 /** Assert accepted, return the canonical questions echoed back by the tool. */
-function acceptedQuestions(result: MaybeError, label: string): any[] {
+function acceptedQuestions(result: MaybeError, label: string): Array<Record<string, unknown>> {
   assert.equal(result.isError, undefined, `${label}: unexpected isError — ${result.content?.[0]?.text?.slice(0, 300)}`);
   const payload = JSON.parse(result.content[0].text);
   assert.equal(payload.accepted, true, `${label}: expected accepted:true`);

@@ -786,13 +786,13 @@ const LIFECYCLE_COPY: Record<
   },
   archive: {
     title: (name) => `Archive ${name}?`,
-    body: (name) =>
+    body: () =>
       `Archiving will sign out all active users immediately, prevent future logins, and hide this tenant from the default Platform view. All data is preserved. You can unarchive any time.`,
     verb: "Archive",
   },
   unarchive: {
     title: (name) => `Unarchive ${name}?`,
-    body: (name) =>
+    body: () =>
       `Unarchiving will restore this tenant to active status. Users may sign in again.`,
     verb: "Unarchive",
   },
@@ -1963,7 +1963,6 @@ function PlatformDomainsSection(): React.ReactElement {
 
   useEffect(() => {
     fetchDomains();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Create domain ──
@@ -2495,12 +2494,10 @@ export function AdminPlatform(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     void fetchTenants(includeArchived);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchTenants, includeArchived]);
 
   const handleResend = async (tenantId: string): Promise<void> => {

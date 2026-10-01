@@ -44,7 +44,7 @@ import { readAuthScopeOnce, authScopeCopy, type AuthScopeBannerCopy } from '../.
 
 // ─── shared style constants (mirrors TokenLanding.tsx) ───────────────────────
 
-const META_LABEL: CSSProperties = {
+const _META_LABEL: CSSProperties = {
   fontFamily: 'var(--aiq-font-mono)',
   fontSize: 11,
   textTransform: 'uppercase',

@@ -147,12 +147,12 @@ async function startAttemptFor(assessmentId: string, userId: string, status = "i
   );
 }
 
-async function auditRows(entityId: string, action: string): Promise<Array<{ before: any; after: any; actor_user_id: string }>> {
+async function auditRows(entityId: string, action: string): Promise<Array<{ before: Record<string, unknown>; after: Record<string, unknown>; actor_user_id: string }>> {
   return sql(
     `SELECT before, after, actor_user_id::text FROM audit_log
       WHERE entity_id = $1 AND action = $2 ORDER BY at`,
     [entityId, action],
-  ) as any;
+  ) as never;
 }
 
 async function rejection(p: Promise<unknown>): Promise<AppError> {
@@ -315,7 +315,7 @@ describe("resendInvitation", () => {
     expect(rows[0]!.after).toMatchObject({ kind: "resend", status: "pending", assessment_id: a });
     // Dates must be stored as ISO strings (the audit redactor flattens Date objects to {}).
     expect(typeof rows[0]!.before.expires_at).toBe("string");
-    expect(Math.abs(new Date(rows[0]!.after.expires_at).getTime() - (Date.now() + SEVEN_DAYS_MS))).toBeLessThan(60_000);
+    expect(Math.abs(new Date(rows[0]!.after.expires_at as string).getTime() - (Date.now() + SEVEN_DAYS_MS))).toBeLessThan(60_000);
   });
 
   it("revives a REVOKED invitation (extend / re-invite) and a LAPSED one", async () => {

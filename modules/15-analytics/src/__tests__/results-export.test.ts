@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
-import Fastify from 'fastify';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -165,7 +165,7 @@ function buildApp() {
     const status = err instanceof AppError ? err.status : 500;
     void reply.status(status).send({ error: { message: err.message } });
   });
-  const roleGate = (roles: string[]) => async (req: any, reply: any) => {
+  const roleGate = (roles: string[]) => async (req: FastifyRequest & { session?: unknown }, reply: FastifyReply) => {
     const role = req.headers['x-role'] as string | undefined;
     if (!role || !roles.includes(role)) return reply.status(403).send({ error: 'forbidden' });
     req.session = { tenantId: (req.headers['x-tenant'] as string) ?? tenantA, userId: admin };
