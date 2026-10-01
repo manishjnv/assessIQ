@@ -302,7 +302,9 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
         turnaround_text: config.EVALUATION_TURNAROUND_TEXT,
         tenant_name: "Acme University",
       });
-      expect(JSON.stringify(v)).not.toMatch(/total_|percent|passed|33|score/i);
+      expect(Object.keys(v).sort()).toEqual( // no score-bearing key at all
+        ["email_masked", "release_mode", "result_expectation", "status", "tenant_name", "turnaround_text"],
+      );
     },
   );
 
@@ -386,7 +388,10 @@ describe("listCandidateResults", () => {
     });
     expect(items[1]).toMatchObject({ percent: 50, passed: false, certificate: null });
     expect(items.map((i) => i.attempt_id)).not.toContain(other.attemptId);
-    expect(JSON.stringify(items)).not.toMatch(/59|band|justification|answer/);
+    expect(items.map((i) => i.total_earned)).not.toContain(59); // the provisional 'graded' score never appears
+    expect(Object.keys(items[0]!).sort()).toEqual( // nothing per-question, no bands / justifications
+      ["assessment_name", "attempt_id", "certificate", "passed", "percent", "released_at", "total_earned", "total_max"],
+    );
   });
 
   it("a candidate with nothing released gets an empty list", async () => {
