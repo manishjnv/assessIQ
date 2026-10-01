@@ -87,5 +87,12 @@ export interface TenantSettings {
    * generic updateTenantSettingsRow patch.
    */
   result_release_mode: "manual" | "auto";
+  /**
+   * When the tenant switched manual -> auto (NULL while 'manual'). The
+   * auto-release sweep only publishes attempts whose evaluation was released at
+   * or after this moment, so a switch to 'auto' never releases the results that
+   * were already waiting. Set / cleared by updateResultReleaseMode only.
+   */
+  result_release_auto_since: Date | null;
   updated_at: Date;
 }

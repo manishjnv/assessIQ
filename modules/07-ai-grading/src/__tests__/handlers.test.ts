@@ -47,6 +47,13 @@ vi.mock("@assessiq/audit-log", async () => {
   };
 });
 
+// SP2: handleAdminReleaseAttempt sends the result email through module 13 after commit.
+// This DB has no notification tables; the email path is covered by release-flow.test.ts
+// and 13's own tests, so stub it here.
+vi.mock("@assessiq/notifications", () => ({
+  sendResultReleasedEmail: vi.fn(async () => undefined),
+}));
+
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
 
@@ -985,9 +992,13 @@ describe("handleAdminClaimAttempt + handleAdminReleaseAttempt", () => {
 
   it("6.2 Release flips graded → released", async () => {
     const attemptId = await buildFreshSubmittedAttempt();
-    // Advance to 'graded' directly.
+    // Advance to 'graded' directly. SP2: publishing also requires the evaluation to be
+    // released to the tenant (evaluation_released_at, migration 0113).
     await withSuperClient((c) =>
-      c.query(`UPDATE attempts SET status = 'graded' WHERE id = $1`, [attemptId]),
+      c.query(
+        `UPDATE attempts SET status = 'graded', evaluation_released_at = now() WHERE id = $1`,
+        [attemptId],
+      ),
     );
 
     const result = await handleAdminReleaseAttempt({ tenantId: TENANT_ID, userId: ADMIN_ID, attemptId });

@@ -138,9 +138,13 @@ const COVERAGE: Array<{
     expectedCallCount: 1,
   },
   {
+    // SP2 (2026-10-01): the grading.released audit row moved into module 09
+    // releaseAttemptInTx (one shared release for manual / bulk / auto). This file
+    // keeps only the claim audit; the release audit is pinned in
+    // modules/09-scoring/src/__tests__/release.test.ts (static + live).
     file: "admin-claim-release.ts",
-    expectedActions: ["grading.claimed", "grading.released"],
-    expectedCallCount: 2,
+    expectedActions: ["grading.claimed"],
+    expectedCallCount: 1,
   },
   {
     file: "admin-generate.ts",
@@ -159,6 +163,7 @@ const NO_AUDIT_HANDLERS = [
   "admin-queue.ts",        // read-only dashboard query
   "admin-budget.ts",       // read-only billing query
   "admin-grading-jobs.ts", // Phase-1 stubs (empty list + 503)
+  "admin-release-all.ts",  // loops 09 releaseAttemptInTx — each release writes its OWN grading.released row there
 ];
 
 // ---------------------------------------------------------------------------

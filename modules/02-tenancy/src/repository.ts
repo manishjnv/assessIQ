@@ -4,7 +4,7 @@ import type { Tenant, TenantSettings } from "./types.js";
 
 const TENANT_COLUMNS = `id, slug, name, domain, branding, status, created_at, updated_at`;
 
-const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, retention_days, result_release_mode, updated_at`;
+const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, retention_days, result_release_mode, result_release_auto_since, updated_at`;
 
 interface TenantRow {
   id: string;
@@ -28,6 +28,7 @@ interface SettingsRow {
   ai_generate_mode: string | null;
   retention_days: number | string;   // pg may return INT as number or string depending on version
   result_release_mode: string;
+  result_release_auto_since: Date | null;
   updated_at: Date;
 }
 
@@ -58,6 +59,7 @@ function mapSettingsRow(row: SettingsRow): TenantSettings {
       ? row.retention_days
       : Number.parseInt(String(row.retention_days), 10),
     result_release_mode: row.result_release_mode as TenantSettings["result_release_mode"],
+    result_release_auto_since: row.result_release_auto_since,
     updated_at: row.updated_at,
   };
 }

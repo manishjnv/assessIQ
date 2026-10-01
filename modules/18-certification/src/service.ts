@@ -91,6 +91,18 @@ export interface IssueCertificateOptions {
   credential_prefix?: string;
 }
 
+/**
+ * Audit actor for an issuance. A user id -> actor_kind 'user'; null -> the
+ * system (auto-release with no human actor): actor_kind 'system', no user id.
+ */
+function actorAudit(
+  actorUserId: string | null,
+): { actorKind: 'user'; actorUserId: string } | { actorKind: 'system' } {
+  return actorUserId === null
+    ? { actorKind: 'system' }
+    : { actorKind: 'user', actorUserId };
+}
+
 function toSignaturePayload(args: {
   id: string;
   tenant_id: string;
@@ -247,8 +259,7 @@ export async function issueCertificate(
 
       await auditInTx(client, {
         tenantId: input.tenant_id,
-        actorKind: 'user',
-        actorUserId: input.actor_user_id,
+        ...actorAudit(input.actor_user_id),
         action: 'certification.cert.upgrade',
         entityType: 'certificate',
         entityId: upgraded.id,
@@ -336,8 +347,7 @@ export async function issueCertificate(
 
   await auditInTx(client, {
     tenantId: input.tenant_id,
-    actorKind: 'user',
-    actorUserId: input.actor_user_id,
+    ...actorAudit(input.actor_user_id),
     action: 'certification.cert.issue',
     entityType: 'certificate',
     entityId: inserted.id,
@@ -594,12 +604,17 @@ export async function incrementShareCount(
  *   - attempt_scores row absent (scores not yet computed)
  *   - score below the 70% completion threshold
  *
- * NEVER throws — the caller (07-ai-grading release handler) wraps this in
- * a catch so cert failure cannot block grade release (SKILL.md §4.1).
+ * actorUserId: the releasing admin, or null when the SYSTEM releases (auto-
+ * release sweep) — the audit rows then carry actor_kind 'system'.
+ *
+ * Failure policy: the caller (09-scoring releaseAttemptInTx) wraps this in a
+ * SAVEPOINT and rolls back to it on any error, so a cert failure can never
+ * undo the release (SKILL.md §4.1). Upgrade-only: an existing cert is never
+ * downgraded or re-issued (issueCertificate's idempotent path).
  */
 export async function issueCertificateOnRelease(
   client: PoolClient,
-  args: { tenantId: string; attemptId: string; actorUserId: string },
+  args: { tenantId: string; attemptId: string; actorUserId: string | null },
 ): Promise<Certificate | null> {
   const { tenantId, attemptId, actorUserId } = args;
 

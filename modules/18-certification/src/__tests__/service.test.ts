@@ -193,6 +193,51 @@ describe('issueCertificate — happy path issue', () => {
 });
 
 // ---------------------------------------------------------------------------
+// System actor (SP2, 2026-10-01): the auto-release sweep has no human actor.
+// actor_user_id null -> audit actor_kind 'system', no actor user id.
+// ---------------------------------------------------------------------------
+
+describe('issueCertificate — system actor (actor_user_id null)', () => {
+  it('issue: audit row has actorKind system and NO actorUserId', async () => {
+    vi.mocked(repo.findByAttempt).mockResolvedValue(null);
+    vi.mocked(repo.insertCertificate).mockImplementation(
+      async (_c, input) =>
+        makeExistingCert({
+          id: input.id,
+          credential_id: input.credential_id,
+          signed_hash: input.signed_hash,
+          issued_at: input.issued_at,
+          tier: input.tier,
+        }),
+    );
+    vi.mocked(auditInTx).mockResolvedValue({ id: 'audit-sys' } as Awaited<ReturnType<typeof auditInTx>>);
+
+    await issueCertificate(fakeClient, { ...makeInput('completion'), actor_user_id: null });
+
+    const auditCall = vi.mocked(auditInTx).mock.calls[0]?.[1];
+    expect(auditCall?.action).toBe('certification.cert.issue');
+    expect(auditCall?.actorKind).toBe('system');
+    expect(auditCall).not.toHaveProperty('actorUserId');
+  });
+
+  it('upgrade: audit row has actorKind system and NO actorUserId', async () => {
+    const existing = makeExistingCert({ tier: 'completion' });
+    vi.mocked(repo.findByAttempt).mockResolvedValue(existing);
+    vi.mocked(repo.upgradeCertificateTier).mockImplementation(async (_c, _id, _t, newTier, newHash) =>
+      makeExistingCert({ ...existing, tier: newTier as Tier, signed_hash: newHash }),
+    );
+    vi.mocked(auditInTx).mockResolvedValue({ id: 'audit-sys-up' } as Awaited<ReturnType<typeof auditInTx>>);
+
+    await issueCertificate(fakeClient, { ...makeInput('distinction'), actor_user_id: null });
+
+    const auditCall = vi.mocked(auditInTx).mock.calls[0]?.[1];
+    expect(auditCall?.action).toBe('certification.cert.upgrade');
+    expect(auditCall?.actorKind).toBe('system');
+    expect(auditCall).not.toHaveProperty('actorUserId');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Idempotence: same-tier re-issue
 // ---------------------------------------------------------------------------
 
