@@ -270,7 +270,7 @@ describe("Block 1 — RLS visibility", () => {
   // forward migrations 0092/0093/0094 that never bumped it); corrected to the
   // true post-migration count 125 (124 pre-existing + 1 for
   // admin.question_bank.pack.revise, migration 0097). 2026-10-01: 125 -> 131
-  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139.
+  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139; 2026-10-01 scoring/result-release Phase II FE +13 admin keys (0116: 9 admin.evaluations.* + admin.attempts.{awaiting_evaluation,send_back,release_button} + admin.assessments.release_all) -> 152.
   it("tenant A sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_A, async (client) => {
@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(139);
+    expect(count).toBe(152);
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(139);
+    expect(count).toBe(152);
   });
 
   // 0115 UPDATEs the two global rows that predate the result-release change.

@@ -370,7 +370,7 @@ export function AdminGuide(): React.ReactElement {
               <strong>
                 build pack → add levels → add questions → publish pack →
                 create assessment → invite candidates → candidates take →
-                AI grades → admin reviews → reports.
+                AssessIQ evaluates → you review and publish → reports.
               </strong>
             </P>
           </Card>
@@ -457,8 +457,8 @@ export function AdminGuide(): React.ReactElement {
                 items={[
                   <><strong>MCQ</strong> — auto-graded.</>,
                   <><strong>Short answer / KQL pattern</strong> — auto-graded.</>,
-                  <><strong>Long answer</strong> — AI-graded with admin review.</>,
-                  <><strong>Code paste</strong> — AI-graded.</>,
+                  <><strong>Long answer</strong> — evaluated by AssessIQ with AI assistance; you review and publish.</>,
+                  <><strong>Code paste</strong> — evaluated by AssessIQ with AI assistance.</>,
                 ]}
               />
               <P>
@@ -550,13 +550,15 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 10 ── */}
-            <StepCard number={10} title="Trigger AI grading per attempt">
+            <StepCard number={10} title="AssessIQ evaluates written answers">
               <P>
-                <strong>Attempts → click an attempt → Grade now.</strong>{" "}
-                Phase 1 grading is synchronous — wait ~30–60 s while the AI
-                grading engine runs under your admin account. Each subjective
-                answer receives anchor + band (0/25/50/75/100) + justification.
-                MCQ + KQL are scored immediately.
+                <strong>You don't grade anything.</strong>{" "}
+                Multiple-choice answers are scored the moment a candidate
+                submits. Written answers are evaluated by AssessIQ evaluators
+                with AI assistance. When an attempt is evaluated it shows as{" "}
+                <strong>Ready to publish</strong> on the Attempts page; until
+                then it shows <strong>Awaiting evaluation</strong> and no score
+                is visible.
               </P>
               <div style={{ marginTop: "var(--aiq-space-sm)" }}>
                 <button
@@ -570,16 +572,17 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 11 ── */}
-            <StepCard number={11} title="Review and accept or override">
+            <StepCard number={11} title="Review and publish">
               <P>
-                On the attempt detail page, scroll through each question. The AI
-                grade shows anchor + justification. For each subjective answer:
+                Open an attempt marked <strong>Ready to publish</strong> and
+                scroll through each question: the final score, the evidence and
+                the reasoning behind it. Then:
               </P>
               <UL
                 items={[
-                  <><strong>Accept</strong> — AI verdict stands.</>,
-                  <><strong>Override</strong> — record your own band; the AI verdict is preserved beside it (audit trail, never replaced).</>,
-                  <>Add reasoning in the <strong>comment field</strong>.</>,
+                  <><strong>Publish to candidate</strong> — the candidate sees the result. On the assessment page, <strong>Publish all ready</strong> does this for every ready attempt at once. With Automatic release (Settings) results publish themselves.</>,
+                  <><strong>Override</strong> — record your own score with a reason; the evaluator's score is kept beside it (audit trail, never replaced).</>,
+                  <><strong>Send back for re-evaluation</strong> — return the attempt to AssessIQ with a note.</>,
                 ]}
               />
             </StepCard>
@@ -649,8 +652,8 @@ export function AdminGuide(): React.ReactElement {
             />
             <TipCard
               icon="sparkle"
-              title="Re-grading"
-              body="Only the admin can re-trigger grading — no background AI calls. Re-trigger from the attempt detail page at any time."
+              title="Re-evaluation"
+              body="Not happy with a score? Override it with a reason, or send the attempt back to AssessIQ for re-evaluation with a note. Companies don't run AI grading themselves."
             />
             <TipCard
               icon="grid"
@@ -695,8 +698,8 @@ export function AdminGuide(): React.ReactElement {
                   a: "Not by default. Admin manually creates a new invitation if needed.",
                 },
                 {
-                  q: "What if AI grading fails?",
-                  a: "Admin can re-trigger. Failures are logged; no auto-retry in Phase 1.",
+                  q: "What if the evaluation of an attempt fails?",
+                  a: "AssessIQ handles it. An attempt stays in the AssessIQ queue until every question has a final score, and nothing is shown to the candidate before that.",
                 },
                 {
                   q: "Can I edit a published pack?",

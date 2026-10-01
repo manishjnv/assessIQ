@@ -13,7 +13,8 @@ import { Chip, Table, ErasedChip } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
-import { attemptStatusDisplay } from "../lib/status.js";
+import { attemptStatusDisplay, evaluationStatusDisplay } from "../lib/status.js";
+import type { EvaluationStatus } from "../lib/evaluation.js";
 import { formatTimestamp } from "../lib/format.js";
 
 type AttemptStatus = "submitted" | "pending_admin_grading" | "graded" | "released" | "auto_submitted";
@@ -26,6 +27,8 @@ interface AttemptListItem {
   assessment_name: string;
   level_label: string;
   status: AttemptStatus;
+  /** Result state for the company: awaiting evaluation / ready to publish / published. */
+  evaluation_status?: EvaluationStatus;
   submitted_at: string | null;
   started_at: string;
 }
@@ -126,7 +129,11 @@ export function AdminAttempts(): React.ReactElement {
       label: "Status",
       sortable: true,
       render: (row: AttemptListItem) => {
-        const s = attemptStatusDisplay(row.status);
+        // Result state ("Awaiting evaluation" / "Ready to publish" / "Published")
+        // when the API supplies it; otherwise the raw attempt-status label.
+        const s = row.evaluation_status
+          ? evaluationStatusDisplay(row.evaluation_status)
+          : attemptStatusDisplay(row.status);
         return <Chip variant={s.variant}>{s.label}</Chip>;
       },
     },

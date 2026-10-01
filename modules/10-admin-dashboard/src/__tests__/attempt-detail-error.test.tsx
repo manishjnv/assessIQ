@@ -1,13 +1,17 @@
 // AssessIQ — attempt-detail error-handling tests.
 //
-// Verifies that a transient grade/action error does NOT blank-red the page:
+// Verifies that a transient action error does NOT blank-red the page:
 //   - Page stays rendered with question content when error is set.
 //   - Error banner shows with Refresh + Dismiss buttons.
-//   - Clicking Refresh triggers a new load() call and clears the error.
+//   - Clicking Refresh triggers a new load and clears the error.
 //   - Clicking Dismiss clears the banner without reloading.
+//
+// 2026-10-01 (scoring / result-release): tenants no longer have a Grade all
+// button, so the failing action is now "Publish to candidate" on a
+// ready_to_publish attempt (the publish POST is what rejects).
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import React from "react";
 
 // ---------------------------------------------------------------------------
@@ -61,13 +65,16 @@ vi.mock("../components/BandPicker.js", () => ({
 const MOCK_DETAIL = {
   attempt: {
     id: "attempt-abc123",
-    status: "pending_admin_grading",
+    status: "graded",
     started_at: "2026-05-10T09:00:00Z",
     submitted_at: "2026-05-10T10:00:00Z",
     candidate_email: "test@example.com",
+    candidate_name: "Test Candidate",
+    isErased: false,
     assessment_name: "SOC L2 Assessment",
     level_label: "L2",
   },
+  evaluation_status: "ready_to_publish",
   answers: [
     { question_id: "q1", answer: "candidate answer for q1" },
   ],
@@ -75,7 +82,11 @@ const MOCK_DETAIL = {
     { id: "q1", type: "mcq", content: "What is the MITRE technique for PowerShell abuse?", points: 5 },
   ],
   gradings: [],
+  ai_proposals: null,
+  grading_started_at: null,
 };
+
+const FAIL_MESSAGE = "The publish request could not be completed — refresh the page and try again.";
 
 // ---------------------------------------------------------------------------
 // Import under test (after mocks are set up)
@@ -85,6 +96,27 @@ import { adminApi, AdminApiError } from "../api.js";
 import { AdminAttemptDetail } from "../pages/attempt-detail.js";
 
 const mockAdminApi = adminApi as ReturnType<typeof vi.fn>;
+
+function failure(): Error {
+  return new (AdminApiError as unknown as new (
+    status: number,
+    apiError: { code: string; message: string },
+  ) => InstanceType<typeof AdminApiError>)(409, { code: "RESULT_NOT_READY", message: FAIL_MESSAGE });
+}
+
+/** Opens the publish summary and confirms — the POST that follows is the failing call. */
+async function confirmPublish(): Promise<void> {
+  fireEvent.click(screen.getByRole("button", { name: "Publish to candidate" }));
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Publish to candidate" }));
+}
+
+async function renderLoaded(): Promise<void> {
+  render(React.createElement(AdminAttemptDetail));
+  await waitFor(() =>
+    expect(screen.queryByText("What is the MITRE technique for PowerShell abuse?")).not.toBeNull(),
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -102,119 +134,55 @@ describe("AdminAttemptDetail — error banner behaviour", () => {
   });
 
   it("renders question content after initial load", async () => {
-    render(React.createElement(AdminAttemptDetail));
-    await waitFor(() =>
-      expect(screen.queryByText("What is the MITRE technique for PowerShell abuse?")).not.toBeNull(),
-    );
+    await renderLoaded();
   });
 
-  it("shows error banner (not blank-red page) when Grade returns 409 HEARTBEAT_STALE", async () => {
-    // Second call is the Grade POST — rejects with HEARTBEAT_STALE.
-    const heartbeatError = new (AdminApiError as unknown as new (
-      status: number,
-      apiError: { code: string; message: string },
-    ) => InstanceType<typeof AdminApiError>)(409, {
-      code: "HEARTBEAT_STALE",
-      message: "Your session was idle for more than 5 minutes — refresh the page to continue grading.",
-    });
-    mockAdminApi.mockRejectedValueOnce(heartbeatError);
+  it("shows error banner (not blank-red page) when Publish is rejected", async () => {
+    // Second call is the publish POST — rejects.
+    mockAdminApi.mockRejectedValueOnce(failure());
 
-    render(React.createElement(AdminAttemptDetail));
-
-    // Wait for initial load to complete and question to appear.
-    await waitFor(() =>
-      expect(
-        screen.queryByText("What is the MITRE technique for PowerShell abuse?"),
-      ).not.toBeNull(),
-    );
-
-    // Click Grade button to trigger the failing action.
-    const gradeBtn = screen.getByText("Grade all");
-    fireEvent.click(gradeBtn);
+    await renderLoaded();
+    await confirmPublish();
 
     // Error banner should appear.
-    await waitFor(() =>
-      expect(
-        screen.queryByText(
-          "Your session was idle for more than 5 minutes — refresh the page to continue grading.",
-        ),
-      ).not.toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByText(FAIL_MESSAGE)).not.toBeNull());
 
     // Page must still show question content — NOT a blank page.
-    expect(
-      screen.queryByText("What is the MITRE technique for PowerShell abuse?"),
-    ).not.toBeNull();
+    expect(screen.queryByText("What is the MITRE technique for PowerShell abuse?")).not.toBeNull();
 
     // Refresh and Dismiss buttons must be present.
     expect(screen.queryByText("Refresh")).not.toBeNull();
     expect(screen.queryByText("Dismiss")).not.toBeNull();
   });
 
-  it("Refresh button calls load() and clears the error banner", async () => {
-    const heartbeatError = new (AdminApiError as unknown as new (
-      status: number,
-      apiError: { code: string; message: string },
-    ) => InstanceType<typeof AdminApiError>)(409, {
-      code: "HEARTBEAT_STALE",
-      message: "Your session was idle for more than 5 minutes — refresh the page to continue grading.",
-    });
-    // Grade fails, then the Refresh load() succeeds.
+  it("Refresh button reloads the attempt and clears the error banner", async () => {
+    // Publish fails, then the Refresh load succeeds.
     mockAdminApi
-      .mockRejectedValueOnce(heartbeatError) // Grade POST
-      .mockResolvedValueOnce(MOCK_DETAIL);   // Refresh load GET
+      .mockRejectedValueOnce(failure()) // publish POST
+      .mockResolvedValueOnce(MOCK_DETAIL); // Refresh GET
 
-    render(React.createElement(AdminAttemptDetail));
+    await renderLoaded();
+    await confirmPublish();
+    await waitFor(() => expect(screen.queryByText("Refresh")).not.toBeNull());
 
-    await waitFor(() =>
-      expect(
-        screen.queryByText("What is the MITRE technique for PowerShell abuse?"),
-      ).not.toBeNull(),
-    );
-
-    fireEvent.click(screen.getByText("Grade all"));
-
-    await waitFor(() =>
-      expect(screen.queryByText("Refresh")).not.toBeNull(),
-    );
-
-    // Before click: adminApi has been called twice (initial load + grade).
+    // Before click: adminApi has been called twice (initial load + publish).
     const callsBefore = mockAdminApi.mock.calls.length;
 
     fireEvent.click(screen.getByText("Refresh"));
 
-    // After click: a new load() call should have been made.
+    // After click: a new load call should have been made.
     await waitFor(() => expect(mockAdminApi.mock.calls.length).toBeGreaterThan(callsBefore));
 
-    // Error banner should disappear after Refresh completes.
-    await waitFor(() =>
-      expect(screen.queryByText("Refresh")).toBeNull(),
-    );
+    // Error banner should disappear.
+    await waitFor(() => expect(screen.queryByText("Refresh")).toBeNull());
   });
 
   it("Dismiss button clears the error banner without reloading", async () => {
-    const heartbeatError = new (AdminApiError as unknown as new (
-      status: number,
-      apiError: { code: string; message: string },
-    ) => InstanceType<typeof AdminApiError>)(409, {
-      code: "HEARTBEAT_STALE",
-      message: "Your session was idle for more than 5 minutes — refresh the page to continue grading.",
-    });
-    mockAdminApi.mockRejectedValueOnce(heartbeatError);
+    mockAdminApi.mockRejectedValueOnce(failure());
 
-    render(React.createElement(AdminAttemptDetail));
-
-    await waitFor(() =>
-      expect(
-        screen.queryByText("What is the MITRE technique for PowerShell abuse?"),
-      ).not.toBeNull(),
-    );
-
-    fireEvent.click(screen.getByText("Grade all"));
-
-    await waitFor(() =>
-      expect(screen.queryByText("Dismiss")).not.toBeNull(),
-    );
+    await renderLoaded();
+    await confirmPublish();
+    await waitFor(() => expect(screen.queryByText("Dismiss")).not.toBeNull());
 
     const callsBefore = mockAdminApi.mock.calls.length;
     fireEvent.click(screen.getByText("Dismiss"));
@@ -226,8 +194,6 @@ describe("AdminAttemptDetail — error banner behaviour", () => {
     expect(mockAdminApi.mock.calls.length).toBe(callsBefore);
 
     // Page still shows question content.
-    expect(
-      screen.queryByText("What is the MITRE technique for PowerShell abuse?"),
-    ).not.toBeNull();
+    expect(screen.queryByText("What is the MITRE technique for PowerShell abuse?")).not.toBeNull();
   });
 });

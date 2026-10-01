@@ -231,8 +231,10 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   interface NavEntry {
     label: string;
     href: string;
-    icon: "home" | "chart" | "grid" | "user" | "settings" | "book" | "bell" | "eye" | "clock" | "sparkle";
+    icon: "home" | "chart" | "grid" | "user" | "settings" | "book" | "bell" | "eye" | "clock" | "sparkle" | "check";
     adminOnly?: boolean;
+    /** A nested route that has its own nav entry — this entry is not active on it. */
+    excludePath?: string;
     /**
      * When true, the entry is shown ONLY to super_admin sessions.
      * A tenant admin (role === "admin") must NOT see these entries — super_admin
@@ -285,8 +287,11 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     // Settings hosts billing + DPDP retention controls (tenant-settings is
     // embedded as a section at the bottom of the billing page).
     { label: "Settings", href: "/admin/settings", icon: "settings", adminOnly: true },
+    // Evaluation queue — AssessIQ's cross-tenant AI-evaluation work surface
+    // (super_admin only; tenant admins review and publish, they never evaluate).
+    { label: "Evaluations", href: "/admin/platform/evaluations", icon: "check", superAdminOnly: true },
     // Platform provisioning — visible to super_admin only; tenant admins must not see this.
-    { label: "Platform", href: "/admin/platform", icon: "settings", superAdminOnly: true },
+    { label: "Platform", href: "/admin/platform", icon: "settings", superAdminOnly: true, excludePath: "/admin/platform/evaluations" },
   ];
 
   // User card footer — kit dashboard.jsx footer slot
@@ -396,7 +401,12 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 label={e.label}
                 icon={e.icon}
                 href={e.href}
-                active={path === e.href || (e.href !== "/admin" && path.startsWith(e.href))}
+                active={
+                  path === e.href ||
+                  (e.href !== "/admin" &&
+                    path.startsWith(e.href) &&
+                    !(e.excludePath && path.startsWith(e.excludePath)))
+                }
                 collapsed={collapsed}
               />
             );

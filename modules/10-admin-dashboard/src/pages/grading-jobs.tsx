@@ -5,10 +5,14 @@
 // User-facing: plain-language explanation of how grading works today.
 // Rewritten 2026-05-04: removed internal project jargon (Phase 1/3, BullMQ,
 // P2.D3) and replaced with answers to "what does this mean for me right now?"
+// Rewritten 2026-10-01 (scoring/release change): AssessIQ evaluates written
+// answers from the super-admin queue; the company only reviews and publishes.
 //
 // Technical context (for engineers, not users):
 //   - No background grading jobs in Phase 2 mode.
-//   - Manual admin-click only (P2.D3: no BullMQ processors for AI grading).
+//   - AI evaluation runs only on a super-admin click (P2.D3: no BullMQ
+//     processors for AI grading); tenant routes return 403
+//     AI_EVALUATION_BY_ASSESSIQ.
 //   - Card 4 ("Coming soon") will become a live job table when async grading
 //     ships (Phase 3+).
 //
@@ -75,7 +79,7 @@ export function AdminGradingJobs(): React.ReactElement {
         {/* Page header */}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
           <h1 style={SERIF_H1}>Grading.</h1>
-          <p style={MUTED_SM}>How AI grading works in your tenant.</p>
+          <p style={MUTED_SM}>How results get scored, and what you do with them.</p>
         </div>
 
         {/* Card 1 — How grading works */}
@@ -86,9 +90,15 @@ export function AdminGradingJobs(): React.ReactElement {
               <h2 style={SERIF_H2}>How grading works</h2>
             </div>
             <ul style={{ ...BODY, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-              <li>Each candidate's submitted answers are graded by AI when you start it.</li>
+              <li>Multiple-choice answers are scored automatically the moment a candidate submits. You don't need to trigger anything for those.</li>
               <li>
-                To grade a candidate's attempt: go to{" "}
+                Written answers (long answers, scenarios, log analysis) are evaluated by AssessIQ evaluators with AI assistance. You don't grade them yourself.
+              </li>
+              <li>
+                Until that evaluation is done the attempt shows <strong>Awaiting evaluation</strong> and no score is visible, to you or to the candidate.
+              </li>
+              <li>
+                When it is done the attempt shows <strong>Ready to publish</strong>. Open it on{" "}
                 <button
                   type="button"
                   className="aiq-btn aiq-btn-ghost aiq-btn-sm"
@@ -96,12 +106,10 @@ export function AdminGradingJobs(): React.ReactElement {
                   onClick={() => navigate("/admin/attempts")}
                 >
                   <strong>Attempts</strong>
-                </button>
-                , click an attempt marked <strong>Submitted</strong>, then click <strong>Grade all</strong>.
+                </button>{" "}
+                to review the final scores.
               </li>
-              <li>Grading takes about 30–60 seconds. You'll wait on the page while it runs.</li>
-              <li>For each subjective answer (long answer, code), the AI assigns a score band — 0, 25, 50, 75, or 100 — and explains why.</li>
-              <li>Auto-graded questions (multiple choice, KQL pattern) are scored immediately on submit. You don't need to trigger anything for those.</li>
+              <li>For each written answer the evaluation assigns a score band — 0, 25, 50, 75, or 100 — with the evidence and reasoning behind it.</li>
             </ul>
           </div>
         </Card>
@@ -111,14 +119,15 @@ export function AdminGradingJobs(): React.ReactElement {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
               <Icon name="eye" size={18} color="var(--aiq-color-accent)" />
-              <h2 style={SERIF_H2}>Reviewing AI grades</h2>
+              <h2 style={SERIF_H2}>Reviewing and publishing</h2>
             </div>
-            <p style={BODY}>After grading completes, open the attempt detail page. For each AI-graded answer, you can:</p>
+            <p style={BODY}>Open an attempt marked Ready to publish. You can:</p>
             <ul style={{ ...BODY, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-              <li><strong>Accept</strong> — the AI's grade stands.</li>
-              <li><strong>Override grade</strong> — you record a different grade. The AI's original grade is kept beside yours and is never erased, so there's a full audit trail.</li>
+              <li><strong>Publish to candidate</strong> — the candidate sees the result. Use <strong>Publish all ready</strong> on the assessment page to publish many at once, or choose Automatic release in Settings.</li>
+              <li><strong>Override grade</strong> — you record a different grade. The original grade is kept beside yours and is never erased, so there's a full audit trail.</li>
+              <li><strong>Send back for re-evaluation</strong> — returns the attempt to AssessIQ with a note.</li>
             </ul>
-            <p style={BODY_SM}>Add reasoning in the comment field when you override.</p>
+            <p style={BODY_SM}>Add a reason when you override. Published results can't be changed.</p>
           </div>
         </Card>
 
@@ -127,12 +136,12 @@ export function AdminGradingJobs(): React.ReactElement {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
               <Icon name="flag" size={18} color="var(--aiq-color-fg-muted)" />
-              <h2 style={SERIF_H2}>If grading fails</h2>
+              <h2 style={SERIF_H2}>If something looks wrong</h2>
             </div>
             <ul style={{ ...BODY, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-              <li>Sometimes grading runs into an error (rare, but possible).</li>
-              <li>If it fails, you'll see an error on the attempt page. Click <strong>Grade all</strong> again to retry.</li>
-              <li>Grading does not retry automatically — it only runs when you click.</li>
+              <li>Nothing is shown to candidates until the result is complete, so a slow evaluation never exposes a partial score.</li>
+              <li>If an attempt stays on <strong>Awaiting evaluation</strong> longer than the turnaround you were given, contact your AssessIQ operator.</li>
+              <li>If a score that is ready to publish looks wrong, override it with a reason or send the attempt back.</li>
             </ul>
           </div>
         </Card>
@@ -149,7 +158,7 @@ export function AdminGradingJobs(): React.ReactElement {
               A list of running, queued, and recently failed grading jobs will appear here when AssessIQ moves to background grading.
             </p>
             <p style={MUTED_SM}>
-              Until then, this page is informational. All grading happens on the attempt detail page itself.
+              Until then, this page is informational. Evaluation happens in AssessIQ's own queue; you review the result on the attempt page.
             </p>
           </div>
         </Card>
@@ -179,8 +188,9 @@ export function AdminGradingJobs(): React.ReactElement {
           >
             <p style={{ margin: 0, lineHeight: 1.6 }}>
               <strong>Phase 2 mode — sync grading.</strong> No background grading jobs exist.
-              Grading is triggered manually via POST /admin/attempts/:id/grade and runs
-              synchronously on admin click (P2.D3: no BullMQ processors for AI).
+              Grading is triggered manually via POST /admin/super/evaluations/:id/grade and
+              runs synchronously on a super-admin click (P2.D3: no BullMQ processors for AI).
+              Tenant admins cannot run AI grading — their routes return 403 AI_EVALUATION_BY_ASSESSIQ.
             </p>
             <p style={{ margin: 0, lineHeight: 1.6 }}>
               Background async grading (BullMQ) is deferred to Phase 3. This page will show
