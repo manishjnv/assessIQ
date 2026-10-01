@@ -73,12 +73,15 @@ export interface HandleAdminGradeOutput {
    * + log_analysis). MCQ is scored deterministically (no AI) by
    * scoreMcqForAttempt in module 09 at submit time — and again at the start of
    * this handler for pre-fix attempts — and is excluded from the proposal
-   * batch. KQL has no grader yet (known gap) and is also excluded.
+   * batch. KQL has no grader (known gap): it is also excluded and must be
+   * scored by a human via POST .../questions/:questionId/manual-score before
+   * the result is complete (SP1).
    */
   proposals: GradingProposal[];
   /**
-   * Present (status "graded") only when the attempt had NO non-MCQ questions
-   * and this click finalised it (MCQ gradings + score rollup + graded +
+   * Present (status "graded") only when this click completed the attempt: the
+   * MCQ scoring left every question graded (MCQ-only attempts), so module 09's
+   * finalizeAttemptIfComplete flipped it (MCQ gradings + score rollup + graded +
    * billing + audit, one tx). `proposals` is then empty by design.
    */
   attempt?: { id: string; status: "graded" };
