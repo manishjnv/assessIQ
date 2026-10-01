@@ -38,7 +38,10 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@assessiq/ai-grading": "workspace:*",
+    "@assessiq/assessment-lifecycle": "workspace:*",
     "@assessiq/core": "workspace:*",
+    "@assessiq/question-bank": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",

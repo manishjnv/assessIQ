@@ -50,6 +50,11 @@ const EXEMPT_FILES = new Set([
   "tools/lint-logging-discipline.ts",
 ]);
 
+// CLI tools and one-off scripts print to stdout by design (mirrors the
+// no-console override for these paths in eslint.config.js).
+const EXEMPT_PREFIXES = ["tools/", "modules/17-ui-system/tools/"];
+const EXEMPT_SEGMENT = "/scripts/";
+
 interface Violation {
   file: string;
   line: number;
@@ -82,6 +87,7 @@ function* walk(dir: string): Generator<string> {
 function lintFile(absPath: string): Violation[] {
   const rel = normalizeFile(absPath);
   if (EXEMPT_FILES.has(rel)) return [];
+  if (EXEMPT_PREFIXES.some((p) => rel.startsWith(p)) || (rel.startsWith("modules/") && rel.includes(EXEMPT_SEGMENT))) return [];
 
   const text = readFileSync(absPath, "utf8");
   const lines = text.split("\n");
@@ -105,10 +111,21 @@ function lintFile(absPath: string): Violation[] {
   // Pattern: `log.error(<identifier>)` where <identifier> is not an object literal.
   const bareErrRe = /\blog\w*\.error\s*\(\s*[a-zA-Z_$][\w$]*\s*\)/;
 
+  // A deliberate, ESLint-visible opt-out (`eslint-disable-next-line no-console`
+  // or a `/* eslint-disable no-console */` block) marks an intentional CLI /
+  // dev-warning print; honour it instead of duplicating the exemption here.
+  let consoleBlockOff = false;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
+    if (/eslint-disable no-console/.test(line)) consoleBlockOff = true;
+    if (/eslint-enable no-console/.test(line)) consoleBlockOff = false;
+    const consoleAllowed =
+      consoleBlockOff ||
+      /eslint-disable-line no-console/.test(line) ||
+      /eslint-disable-next-line no-console/.test(lines[i - 1] ?? "");
 
-    if (consoleRe.test(line)) {
+    if (!consoleAllowed && consoleRe.test(line)) {
       violations.push({ file: rel, line: i + 1, rule: "no-console", text: line.trim() });
     }
 

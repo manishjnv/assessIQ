@@ -532,6 +532,10 @@ async function checkEnvVarDeclaration(
         continue; // skip unreadable files
       }
 
+      // Tests and one-off CLI scripts read ad-hoc vars; only runtime code needs
+      // deploy-time declaration.
+      if (/(^|\/)(__tests__|scripts)\//.test(relPath) || /\.(test|spec)\.tsx?$/.test(relPath)) continue;
+
       const lines = content.split("\n");
       for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
         const line = lines[lineIdx];
@@ -697,6 +701,8 @@ async function checkEmailTemplateUrls(
         const line = lines[lineIdx];
         const trimmed = line.trimStart();
         if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
+        // Regex literals such as .replace(/\{\{x\}\}/g, ...) end in "/g" — not a URL.
+        if (/\.replace\(\s*\//.test(line)) continue;
 
         // Pattern 1: template literal `${base}/path/${segment}` or `${base}/path`
         TEMPLATE_URL_PATH_RE.lastIndex = 0;

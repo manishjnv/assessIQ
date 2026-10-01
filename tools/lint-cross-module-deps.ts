@@ -194,7 +194,7 @@ function isTestFile(filePath: string): boolean {
   const rel = norm.startsWith(repoNorm + "/")
     ? norm.slice(repoNorm.length + 1)
     : norm;
-  return rel.startsWith("tools/") || rel.includes("/ci/");
+  return rel.startsWith("tools/") || rel.startsWith("tests/") || rel.includes("/ci/");
 }
 
 /**
@@ -407,9 +407,9 @@ function checkFileViolations(
     // Test files: accepted in either `dependencies` or `devDependencies`
     // (test-only workspace imports may legitimately live in devDeps to keep
     // the production dep graph lean).
-    const declared = isTest
+    const declared = pkg === pkgJson.name || (isTest
       ? (pkg in deps) || (pkg in devDeps)
-      : (pkg in deps);
+      : (pkg in deps));
 
     if (!declared) {
       violations.push({
