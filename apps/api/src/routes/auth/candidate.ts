@@ -23,7 +23,7 @@ import { authChain } from '../../middleware/auth-chain.js';
 // POST /api/auth/candidate/verify-link  body: { token }
 //   Verifies token, destroys any pre-existing session (session-fixation hygiene),
 //   mints 30-day fixed-window candidate session, sets aiq_sess cookie, returns
-//   200 { ok: true, redirect: '/candidate/certificates' }.
+//   200 { ok: true, redirect: '/candidate/results' }.
 //   On failure: 200 { ok: false, error: 'invalid_link' }.
 //
 //   POST (not GET) is intentional — email-preview crawlers (Gmail, Outlook,
@@ -108,7 +108,7 @@ export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise
   // POST /api/auth/candidate/verify-link  body: { token }
   // Auth: none (public) — the token IS the credential.
   // Success: destroy prior session (Fix 4), mint 30-day session, set cookie, return JSON
-  //   { ok: true, redirect: '/candidate/certificates' }.
+  //   { ok: true, redirect: '/candidate/results' }.
   // Failure: return JSON { ok: false, error: 'invalid_link' } (HTTP 200 — the
   //   error is part of the protocol, not a transport-layer failure; the SPA
   //   handles redirect to /candidate/login?error=invalid_link).
@@ -176,7 +176,8 @@ export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise
         maxAge: CANDIDATE_SESSION_TTL_SEC,
       });
 
-      return reply.status(200).send({ ok: true, redirect: '/candidate/certificates' });
+      // SP3 (2026-10-01): land on the results portal — the result email's link goes through here.
+      return reply.status(200).send({ ok: true, redirect: '/candidate/results' });
     },
   );
 }
