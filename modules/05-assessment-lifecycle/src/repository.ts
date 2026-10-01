@@ -624,7 +624,7 @@ export async function listInvitationRows(
   // - users: candidate name + email.
   // - attempts: one attempt per (assessment_id, user_id) pair — LEFT JOIN
   //   matches on both axes so a user with no attempt returns NULLs.
-  // - attempt_scores: scoring summary for completed attempts.
+  // - attempt_scores: scoring summary, only for results released to the tenant.
   //
   // INVITATION_COLUMNS is NOT reused here (no alias prefix); the single-row
   // read functions (findInvitationById etc.) remain unchanged.
@@ -652,7 +652,11 @@ export async function listInvitationRows(
      LEFT JOIN users         u  ON u.id  = ai.user_id
      LEFT JOIN attempts      a  ON a.assessment_id = ai.assessment_id
                                 AND a.user_id      = ai.user_id
+     -- score only once the result is released to the tenant
+     -- (same rule as 09 TENANT_VISIBLE_ATTEMPT_SQL)
      LEFT JOIN attempt_scores s ON s.attempt_id = a.id
+                                AND (a.status = 'released'
+                                     OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))
      ${where}
      ORDER BY ai.created_at DESC, ai.id DESC
      LIMIT $${i} OFFSET $${i + 1}`,

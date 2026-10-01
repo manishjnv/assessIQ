@@ -37,6 +37,7 @@ export {
   computeAttemptScoreInTx,
   recomputeOnOverride,
   getAttemptScoreRow,
+  getTenantVisibleAttemptScore,
   cohortStats,
   leaderboard,
   individualReport,

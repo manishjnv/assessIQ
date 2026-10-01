@@ -315,6 +315,22 @@ export async function upsertAttemptScore(
 }
 
 // ---------------------------------------------------------------------------
+// isAttemptTenantVisible — false when the attempt is missing or its result is
+// not yet released to the tenant (TENANT_VISIBLE_ATTEMPT_SQL).
+// ---------------------------------------------------------------------------
+
+export async function isAttemptTenantVisible(
+  client: PoolClient,
+  attemptId: string,
+): Promise<boolean> {
+  const res = await client.query(
+    `SELECT 1 FROM attempts a WHERE a.id = $1 AND ${TENANT_VISIBLE_ATTEMPT_SQL}`,
+    [attemptId],
+  );
+  return res.rows.length > 0;
+}
+
+// ---------------------------------------------------------------------------
 // getAttemptScore — fetch existing row (returns null if not yet computed)
 // ---------------------------------------------------------------------------
 
@@ -330,6 +346,13 @@ export async function getAttemptScore(
   if (!r) return null;
   return mapAttemptScoreRow(r);
 }
+
+// Tenant-visible score rule (2026-10-01): a tenant sees a score only once the
+// result is released to it — status 'released', or 'graded' with
+// evaluation_released_at set (same rule as 15 results-export / 07
+// deriveEvaluationStatus). Applied to every tenant report reader below.
+export const TENANT_VISIBLE_ATTEMPT_SQL =
+  "(a.status = 'released' OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))";
 
 // ---------------------------------------------------------------------------
 // getCohortStats — aggregate stats for all graded attempts in an assessment
@@ -348,7 +371,8 @@ export async function getCohortStats(
        PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY atsc.auto_pct)::text AS p90
      FROM attempt_scores atsc
      JOIN attempts a ON a.id = atsc.attempt_id
-     WHERE a.assessment_id = $1`,
+     WHERE a.assessment_id = $1
+       AND ${TENANT_VISIBLE_ATTEMPT_SQL}`,
     [assessmentId],
   );
 
@@ -358,6 +382,7 @@ export async function getCohortStats(
      JOIN attempts a ON a.id = atsc.attempt_id
      WHERE a.assessment_id = $1
        AND atsc.archetype IS NOT NULL
+       AND ${TENANT_VISIBLE_ATTEMPT_SQL}
      GROUP BY atsc.archetype`,
     [assessmentId],
   );
@@ -407,6 +432,7 @@ export async function getLeaderboard(
      JOIN attempts a  ON a.id  = atsc.attempt_id
      JOIN users    u  ON u.id  = a.user_id
      WHERE a.assessment_id = $1
+       AND ${TENANT_VISIBLE_ATTEMPT_SQL}
      ORDER BY atsc.auto_pct DESC
      LIMIT $2`,
     [assessmentId, opts.topN],
@@ -450,6 +476,7 @@ export async function getIndividualScores(
      JOIN attempts   a     ON a.id    = atsc.attempt_id
      JOIN assessments asmnt ON asmnt.id = a.assessment_id
      WHERE a.user_id = $1
+       AND ${TENANT_VISIBLE_ATTEMPT_SQL}
      ORDER BY atsc.computed_at DESC`,
     [userId],
   );

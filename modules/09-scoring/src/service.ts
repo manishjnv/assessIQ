@@ -203,6 +203,25 @@ export async function getAttemptScoreRow(
 }
 
 // ---------------------------------------------------------------------------
+// getTenantVisibleAttemptScore — tenant-facing read for GET /admin/attempts/:id/score.
+// null while the result is not released to the tenant (repo.TENANT_VISIBLE_ATTEMPT_SQL);
+// otherwise the cached row, computed on demand if absent.
+// ---------------------------------------------------------------------------
+
+export async function getTenantVisibleAttemptScore(
+  tenantId: string,
+  attemptId: string,
+): Promise<AttemptScore | null> {
+  return withTenant(tenantId, async (client) => {
+    if (!(await repo.isAttemptTenantVisible(client, attemptId))) return null;
+    return (
+      (await repo.getAttemptScore(client, attemptId)) ??
+      (await computeAttemptScoreInTx(client, tenantId, attemptId))
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
 // cohortStats — aggregate statistics for all scored attempts in an assessment
 // ---------------------------------------------------------------------------
 
