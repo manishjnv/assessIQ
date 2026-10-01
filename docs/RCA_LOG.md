@@ -1988,3 +1988,21 @@ with a dated note in `docs/06-deployment.md` § DR.
 **Safety basis:** `require-auth.ts:59` wraps the entire TOTP-verified + fresh-MFA gates in `if (isSuperAdmin || config.MFA_REQUIRED)`. For non-super_admin when MFA off, `totpVerified` is never read by any auth gate — flipping it relaxes no authorization, only the rate-limit tier. Credential endpoints keep their own 20/min per-route bucket regardless of tier.
 
 **Prevention:** (a) When a 429 recurs, read the `scope` field FIRST and fix *that* bucket — do not raise a different cap. (b) The pre-existing `middleware.test.ts` rate-limit assertions are stale (expect `RATE_LIMIT_IP_ADMIN=100`, now 500; "per-user 60/min") and were silently failing — flagged for a follow-up test-refresh; they did not catch this regression. (c) Regression test added: `google-sso.test.ts` now asserts `totpVerified=true` + redirect `/admin` when `MFA_REQUIRED=false`. The suite was itself broken (users-shim missing `name`, `email_verified` unset in mocks, stale `assessiq.in` redirect assertion) and had not run locally — all repaired so it runs green (16/16).
+
+## 2026-10-01 — Company reports showed scores before the result was released to the company
+
+**Symptom:** Found in the Phase II review, not reported by a user. A company admin could see graded-but-unreleased totals through module 09 (`GET /api/admin/attempts/:id/score`, cohort / individual / leaderboard reports), the analytics view `attempt_summary_mv` (cohort report, individual report, archetype counts, export, Activity avg score), the cohort topic breakdown, the home "avg % this week" KPI and the assessment invitee list. Those attempts were still with the platform evaluator or had been sent back. The attempt-detail GET and the results CSV already hid them.
+
+**Cause:** "Released to the tenant" became a column (`attempts.evaluation_released_at`, migration 0113) after these readers were written. Each reader joined `attempt_scores` without a release check: `modules/09-scoring/src/repository.ts` (getCohortStats / getLeaderboard / getIndividualScores), `modules/15-analytics/migrations/0060_attempt_summary_mv.sql` (no filter), `modules/15-analytics/src/repository.ts` (topic breakdown, homeKpis avg), `modules/05-assessment-lifecycle/src/repository.ts` (invitee list `LEFT JOIN attempt_scores`).
+
+**Fix (`76c3014`):** one rule everywhere, `status = 'released' OR (status = 'graded' AND evaluation_released_at IS NOT NULL)`:
+- the view: migration `0122_attempt_summary_mv_released_only.sql` blanks its score columns until that holds;
+- module 09: exports `TENANT_VISIBLE_ATTEMPT_SQL`; the report queries use it, and `/score` returns `null` until the attempt is visible (`getTenantVisibleAttemptScore`);
+- the analytics topic / KPI queries and the 05 invitee join use the same condition.
+
+**Prevention:** regression tests:
+- `09-scoring/src/__tests__/scoring.test.ts` "hides attempts whose result is not released to the tenant";
+- `15-analytics/src/__tests__/analytics.test.ts` "hides scores of results not released to the tenant (0122)";
+- the activity avg now excludes unreleased fixtures.
+
+When a new "visibility" state is added to `attempts`, grep every `attempt_scores` / `gradings` / `attempt_summary_mv` reader in the same change.

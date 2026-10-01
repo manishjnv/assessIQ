@@ -1032,6 +1032,15 @@ Heavy analytics queries (cohort reports, heatmaps, exports) join `attempt_scores
 - **Considered:** TimescaleDB hypertable. Rejected — overkill for Phase 3 volume (< 50 k attempts), adds operational complexity.
 - **Chosen:** Standard Postgres materialized view + CONCURRENT refresh. Zero additional infra; `REFRESH CONCURRENTLY` holds no table-level lock, so live reads continue during refresh.
 
+### Score columns are NULL until the result is released to the tenant (migration `0122`, 2026-10-01)
+
+- **What changed:** `0122_attempt_summary_mv_released_only.sql` drops and recreates the view. Every scored attempt still has a row, but `total_earned`, `total_max`, `auto_pct`, `pending_review` and `archetype` are `NULL` unless the result is tenant-visible: `status = 'released'` OR (`status = 'graded'` AND `evaluation_released_at IS NOT NULL`). Indexes, the `assessiq_system` owner (0088) and `SELECT` grants are restored in the same migration.
+- **Why:** before this, cohort reports, the individual report, archetype counts, the export and Activity stats could show scores of attempts the platform was still evaluating, or had sent back. Owner rule: a company sees only complete, released results.
+- **Considered and rejected:** dropping unreleased rows from the view. That would make the Activity "completions" KPI undercount submitted attempts.
+- **Readers that changed:** the two score *lists* (`individualReport`, admin cohort attempts in `modules/15-analytics/src/repository.ts`) add `auto_pct IS NOT NULL`. `AVG` / `PERCENTILE_CONT` ignore `NULL`s, so the aggregate readers are unchanged. The candidate readers already filter `attempt_status = 'released'`.
+- **Not included:** refresh timing. The view still refreshes nightly (02:00 UTC) and on the manual refresh route, so a result released today shows in reports after the next refresh, as before.
+- **Same rule on the live tables** (not the view): module 09 `TENANT_VISIBLE_ATTEMPT_SQL` (`modules/09-scoring/src/repository.ts`) on cohort / leaderboard / individual reports; the cohort topic breakdown and home "avg % this week" KPI (`15-analytics/src/repository.ts`); and the assessment invitee list join to `attempt_scores` (`05-assessment-lifecycle/src/repository.ts`).
+
 ### RLS caveat
 
 **Postgres does NOT enforce RLS on materialized views.** All queries against `attempt_summary_mv` MUST include:
