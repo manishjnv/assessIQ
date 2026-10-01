@@ -120,6 +120,32 @@ async function acceptProposals(
   attemptId: string,
   proposals: HandleAdminAcceptInput["proposals"],
 ): Promise<{ gradings: GradingsRow[]; flipped: boolean }> {
+  // Lock the attempt row FIRST — the same row lock Release (09), override and
+  // manual-score take — so the lock order is always attempt row -> everything
+  // else. Without it a Release could check "no flagged grade" and publish while
+  // this accept is still inserting a review_needed grade (and the rollup that
+  // follows would then change an already-published score). A published result is
+  // final: refuse before a single row is written.
+  const lock = await client.query<{ status: string }>(
+    `SELECT status FROM attempts WHERE id = $1 FOR UPDATE`,
+    [attemptId],
+  );
+  const attemptStatus = lock.rows[0]?.status;
+  if (attemptStatus === undefined) {
+    throw new AppError(
+      `Attempt ${attemptId} not found`,
+      AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
+      404,
+    );
+  }
+  if (attemptStatus === "released") {
+    throw new AppError(
+      "This result has already been published to the candidate and can no longer be changed",
+      AI_GRADING_ERROR_CODES.RESULT_ALREADY_PUBLISHED,
+      409,
+    );
+  }
+
   // Phase 3 critique #3 (sonnet rescue): validate each proposal.question_id
   // belongs to this attempt's frozen question set. Without this guard, an
   // admin could submit a body with a question_id from a different attempt
@@ -262,6 +288,21 @@ export async function handleAdminAccept(
       AI_GRADING_ERROR_CODES.INVALID_BODY,
       422,
     );
+  }
+
+  // The attempt row lock in acceptProposals is taken on `attemptId`, so every row
+  // must be written to THAT attempt. The route already rejects a mismatch (400);
+  // enforced here too so a direct caller can never lock one attempt and write
+  // grades onto another (e.g. an already-published one).
+  for (const p of proposals) {
+    if (p.attempt_id !== attemptId) {
+      throw new AppError(
+        "proposal.attempt_id must match the attemptId",
+        AI_GRADING_ERROR_CODES.INVALID_BODY,
+        422,
+        { details: { expected: attemptId, received: p.attempt_id } },
+      );
+    }
   }
 
   const { gradings, flipped } = await withTenant(tenantId, (client) =>
