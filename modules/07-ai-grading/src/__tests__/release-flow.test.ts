@@ -149,6 +149,8 @@ interface Opts {
   pct?: number;
   /** minutes ago the evaluation was released (orders the bulk release) */
   evalAgoMin?: number;
+  /** the newest effective grade is review_needed (AI failure after a re-run) */
+  flagged?: boolean;
 }
 
 async function addAttempt(assessment: string, o: Opts = {}, tid = tenant): Promise<string> {
@@ -168,6 +170,21 @@ async function addAttempt(assessment: string, o: Opts = {}, tid = tenant): Promi
       `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review) VALUES ($1,$2,$3,100,$3,false)`,
       [attemptId, tid, o.pct ?? 80],
     );
+    if (o.flagged === true) {
+      const qid = randomUUID();
+      const asm = await c.query<{ pack_id: string; level_id: string; created_by: string }>(`SELECT pack_id, level_id, created_by FROM assessments WHERE id=$1`, [assessment]);
+      const a = asm.rows[0]!;
+      await c.query(
+        `INSERT INTO questions (id, pack_id, level_id, type, topic, points, status, content, version, created_by) VALUES ($1,$2,$3,'subjective','t',10,'active','{"question":"q"}'::jsonb,1,$4)`,
+        [qid, a.pack_id, a.level_id, a.created_by],
+      );
+      await c.query(`INSERT INTO attempt_questions (attempt_id, question_id, position, question_version) VALUES ($1,$2,1,1)`, [attemptId, qid]);
+      await c.query(
+        `INSERT INTO gradings (tenant_id, attempt_id, question_id, grader, score_earned, score_max, status, prompt_version_sha, prompt_version_label, model)
+         VALUES ($1,$2,$3,'ai',0,10,'review_needed','error:no-sha','error','none')`,
+        [tid, attemptId, qid],
+      );
+    }
   });
   return attemptId;
 }
@@ -290,6 +307,16 @@ describe("handleAdminReleaseAll (bulk 'release all ready')", () => {
     expect(await status(bad)).toBe("graded");
     expect(await releasedAudits(bad)).toBe(0);
     expect(emailedIds()).toEqual([a, c]);
+  });
+
+  it("P1: a ready attempt whose grade is flagged review_needed is skipped with RESULT_NOT_READY (never published), the rest are released", async () => {
+    const asm = await seedAssessment();
+    const ok = await addAttempt(asm, { evalAgoMin: 5 });
+    const flagged = await addAttempt(asm, { evalAgoMin: 4, flagged: true });
+    const out = await handleAdminReleaseAll({ tenantId: tenant, userId: admin, assessmentId: asm });
+    expect(out).toEqual({ released: [ok], skipped: [{ id: flagged, code: "RESULT_NOT_READY" }] });
+    expect(await status(flagged)).toBe("graded");
+    expect(emailedIds()).toEqual([ok]);
   });
 
   it("unknown assessment and another tenant's assessment -> 404", async () => {

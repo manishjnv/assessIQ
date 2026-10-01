@@ -151,6 +151,8 @@ interface A {
   embed?: boolean;
   pct?: number;
   evaluator?: string; // evaluation_released_by
+  /** the newest effective grade is review_needed (e.g. an AI failure after a re-run) */
+  flagged?: boolean;
 }
 
 async function addAttempt(t: T, o: A = {}): Promise<string> {
@@ -172,6 +174,20 @@ async function addAttempt(t: T, o: A = {}): Promise<string> {
       `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review) VALUES ($1,$2,$3,100,$3,false)`,
       [attemptId, t.id, o.pct ?? 80],
     );
+    if (o.flagged === true) {
+      const qid = randomUUID();
+      const asm = await c.query<{ pack_id: string; level_id: string }>(`SELECT pack_id, level_id FROM assessments WHERE id=$1`, [t.assessment]);
+      await c.query(
+        `INSERT INTO questions (id, pack_id, level_id, type, topic, points, status, content, version, created_by) VALUES ($1,$2,$3,'subjective','t',10,'active','{"question":"q"}'::jsonb,1,$4)`,
+        [qid, asm.rows[0]!.pack_id, asm.rows[0]!.level_id, t.admin],
+      );
+      await c.query(`INSERT INTO attempt_questions (attempt_id, question_id, position, question_version) VALUES ($1,$2,1,1)`, [attemptId, qid]);
+      await c.query(
+        `INSERT INTO gradings (tenant_id, attempt_id, question_id, grader, score_earned, score_max, status, prompt_version_sha, prompt_version_label, model)
+         VALUES ($1,$2,$3,'ai',0,10,'review_needed','error:no-sha','error','none')`,
+        [t.id, attemptId, qid],
+      );
+    }
   });
   return attemptId;
 }
@@ -349,6 +365,35 @@ describe("auto-release sweep", () => {
     const r3 = await processAutoReleaseTick(t0 + 11 * 60_000);
     expect(r3).toMatchObject({ released: 1 });
     expect(await status(bad)).toBe("released");
+  });
+
+  it("P1: an attempt whose effective grade is flagged review_needed is NOT published; it is cooled down (not re-selected every tick)", async () => {
+    const t = await seedTenant({ mode: "auto", sinceMinAgo: 60 });
+    const flagged = await addAttempt(t, { evalAgoMin: 5, flagged: true });
+    const ok = await addAttempt(t, { evalAgoMin: 4 });
+    const t0 = Date.now();
+    const r1 = await processAutoReleaseTick(t0);
+    expect(r1).toMatchObject({ candidates: 2, released: 1, skipped: 1, failed: 0 });
+    expect(await status(flagged)).toBe("graded");
+    expect(await releasedAudit(flagged)).toHaveLength(0);
+    expect(await status(ok)).toBe("released");
+    expect(emailed()).toEqual([ok]);
+
+    // inside the cooldown it is not even selected again (no hot loop, no starvation)
+    const r2 = await processAutoReleaseTick(t0 + 15_000);
+    expect(r2).toMatchObject({ candidates: 0, released: 0, skipped: 0 });
+
+    // once the grade is resolved (override) and the cooldown has passed it is published
+    await sup((c) =>
+      c.query(
+        `INSERT INTO gradings (tenant_id, attempt_id, question_id, grader, score_earned, score_max, status, prompt_version_sha, prompt_version_label, model)
+         SELECT tenant_id, attempt_id, question_id, 'admin_override', 8, 10, 'correct', 'sha-ov', 'v1', 'm' FROM gradings WHERE attempt_id=$1 LIMIT 1`,
+        [flagged],
+      ),
+    );
+    const r3 = await processAutoReleaseTick(t0 + 11 * 60_000);
+    expect(r3).toMatchObject({ released: 1 });
+    expect(await status(flagged)).toBe("released");
   });
 
   it("two overlapping ticks release each attempt exactly once (one audit row, one email each)", async () => {
