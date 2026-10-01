@@ -4,6 +4,83 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-01 — Platform grade / rerun could start an AI run on an attempt that was not in the queue (caught pre-deploy)
+
+**Symptom (found in the Codex Phase II review, before deploy):** a direct call to the platform grade or rerun route could start a Claude run on an MCQ-only, already-released-to-company or published attempt, spending the owner's subscription for nothing.
+**Cause:** the platform routes resolved the attempt's tenant but never checked queue eligibility; the rule lived only in the queue-list query (`modules/07-ai-grading/src/repository.ts:633-675`).
+**Fix:** `assertInEvaluationQueue` (`modules/07-ai-grading/src/handlers/super-evaluations.ts:134-158`), called by grade (`routes-super.ts:166`) and rerun (`routes-super.ts:266`); 409 `NOT_IN_EVALUATION_QUEUE`. Commit `a7b4596`.
+**Prevention:** smoke test in `super-evaluation.test.ts:350`. The predicate now exists in three places (queue list, this guard, `apps/api/src/jobs/evaluation-queue-alert.ts`); the list and the alert job carry KEEP IN SYNC comments. Rule: a route that spends an AI run checks eligibility server-side, not only in the list the UI shows.
+
+## 2026-10-01 — Override form sent band × 25 whatever the question's score_max
+
+**Symptom:** overriding an AI-failure placeholder grade (its `score_max` is the question's points, e.g. 5-10) stored impossible values such as 75/10; once the server range check existed (entry below) every band of 1 or more was refused on those rows.
+**Cause:** `modules/10-admin-dashboard/src/pages/attempt-detail.tsx:596` (before `ecea951`) posted `score_earned: overrideForm.band * 25`, which is right only for rubric rows whose `score_max` is about 100.
+**Fix:** `bandToScore(band, scoreMax)` (`modules/10-admin-dashboard/src/lib/band-score.ts:8`) scales the band to the grading's own `score_max`; the form keeps `scoreMax` in its state. The call now sits in the shared panel (`AttemptGradingPanel.tsx:597`). Commit `ecea951`.
+**Prevention:** unit test `band-score.test.ts`, and the server rejects any score outside `0..score_max`, so a wrong client can no longer store a bad value.
+
+## 2026-10-01 — Auto-release could publish after the tenant switched back to manual (caught pre-deploy)
+
+**Symptom (adversarial review finding, before deploy):** a result could be published automatically for a tenant that had just switched to manual.
+**Cause:** the sweep picks candidates in one read and releases each later in its own transaction; `releaseAttemptInTx` never re-checked the tenant's mode, so manual → auto → manual between the two steps still published.
+**Fix:** for an auto trigger the release re-reads `tenant_settings` under `FOR SHARE` (mode `auto`, `auto_since` set, result released at or after it) and otherwise throws 409 `RESULT_NOT_READY` (`modules/09-scoring/src/release.ts:132-150`); the sweep skips and cools it down (`apps/api/src/jobs/auto-release.ts:130-152`). Commit `da3d5a2`.
+**Prevention:** `release.test.ts` (four refusal cases, a microsecond boundary, a real uncommitted-switch race) and `auto-release.test.ts`, verified to fail with the gate removed. Rule: a background job re-checks its eligibility inside the transaction that acts.
+
+## 2026-10-01 — Accept could add a flagged grade after Release had checked, and its score rollup ran outside the lock (caught pre-deploy)
+
+**Symptom (adversarial review, before deploy):** an accept running while a Release was in flight could add a `review_needed` grade after the release had looked for flagged grades, so a published result could carry one, and a late rollup could then change the published score. Unchecked accept scores could also inflate the percentage (a value of 10^4 or more was a 500).
+**Cause:** `acceptProposals` inserted grades without locking the attempt row, recomputed `attempt_scores` after commit, and the body schema was only `z.number()`.
+**Fix:** lock the attempt row first and refuse a published one with 409 `RESULT_ALREADY_PUBLISHED` (`modules/07-ai-grading/src/handlers/admin-accept.ts:180-198`, commit `4df09b2`); roll up inside the same locked tx (`:295-308`, `b51105c`); bound the payload to `0 < score_max <= 1000` and `0 <= score_earned <= score_max` (`:126-160`, `d7decf6`).
+**Prevention:** real lock-race tests in `completion-gate.test.ts` (they fail with the lock removed). Rule: every `gradings` writer takes the attempt row lock first; accept, override, manual score and the 09 release share it.
+
+## 2026-10-01 — Override score had no range check
+
+**Symptom (found in adversarial review; present since the handler shipped on 2026-05-03):** `POST /api/admin/gradings/:id/override` accepted any number, so a negative or oversized `score_earned` flowed into the attempt rollup and from there into the published percentage, pass / fail and certificate tier.
+**Cause:** `handleAdminOverride` stored `score_earned` unchecked, and the route schema was `z.number()`.
+**Fix:** `modules/07-ai-grading/src/handlers/admin-override.ts:103-119` rejects a non-finite value or one outside `0..original.score_max` with 422 `AIG_INVALID_BODY` (`details.score_max`); manual first scores have the same bound (`admin-manual-score.ts:143-150`). Commit `7e2afee`.
+**Prevention:** range tests in `completion-gate.test.ts`; `gradings` rows are insert-only, so `score_max` cannot change under the check.
+
+## 2026-10-01 — Candidate portal login was hard-wired to one tenant
+
+**Symptom:** `/candidate/login` always looked the email up under the tenant slug `wipro-soc`, so a candidate of any other company could not sign in there, including from the link in the result email.
+**Cause:** `apps/web/src/pages/candidate/CandidateLogin.tsx:144` (before `3a2b4c7`) hard-coded `const tenant_slug = 'wipro-soc'` with a note to add multi-tenant routing later.
+**Fix:** the page reads `?tenant=<slug>` (`CandidateLogin.tsx:127-131`) and shows an "Organisation code" field when it is missing (`:326`); the result email links to `/candidate/login?tenant=<slug>` (`modules/13-notifications/src/email/result-released.ts:112-113`). Commit `3a2b4c7`.
+**Prevention:** `CandidateLogin.test.tsx` covers `?tenant=`, the typed fallback and a blank `?tenant=`. Rule: no tenant literal in a shared page.
+
+## 2026-10-01 — Candidate activity stats and leaderboard counted scores that were not released
+
+**Symptom:** a candidate's activity stats and personal leaderboard included graded but unpublished attempts, so partial or provisional totals were visible, against owner rule P1 (only a complete, final score).
+**Cause:** `modules/15-analytics/src/activity-candidate/stats.ts` read `attempt_summary_mv`, which holds an `attempt_scores` row from the first partial accept on, with no status filter; `leaderboard.ts` counted `submitted … graded … pending_admin_grading` for the candidate's own rows and for the ranking population.
+**Fix:** `stats.ts:94,130,155` add `mv.attempt_status = 'released'`; `leaderboard.ts:121,134,183` use `a.status = 'released'`. Commit `d6344f4`.
+**Prevention:** four leak-guard cases in `activity-candidate.test.ts` (they fail against the unfixed code). Rule: anything a candidate can read filters on `released`.
+
+## 2026-10-01 — Candidates never saw a result, and the result email was never sent
+
+**Symptom:** after submitting, a candidate only ever got "grading pending": `GET /api/me/attempts/:id/result` answered 202 for every attempt, even a published one, and no "your result is ready" email went out when a result was released.
+**Cause:** `modules/06-attempt-engine/src/routes.candidate.ts:329-337` (before `d6344f4`) returned `202 grading_pending` unconditionally; the release handler called `sendResultReleasedEmail` through a dynamic import (`modules/07-ai-grading/src/handlers/admin-claim-release.ts:441-454`) of a function module 13 never exported, so the email was skipped silently.
+**Fix:** `getCandidateResult` (`modules/06-attempt-engine/src/result.ts:224-284`: 200 with the complete result once released, else 202 with what to expect), `GET /api/me/results`, and `sendResultReleasedEmail` (`modules/13-notifications/src/email/result-released.ts:52`), now a static import called after commit by manual release, bulk release and the sweep. Commits `d6344f4`, `7be8acc`, `ceb535c`.
+**Prevention:** `candidate-result.test.ts`, `result-released-email.test.ts` and the cross-module `apps/api/src/__tests__/result-flow.test.ts`. Rule: a "best effort if the module exists" dynamic import hid a missing function from May; import statically so a missing export fails the build.
+
+## 2026-10-01 — Switching a tenant to auto could publish every result already waiting (caught pre-deploy)
+
+**Symptom (spec gap found while building, before deploy):** as specified, the sweep selected every graded, released-to-company result of an auto tenant, so turning a tenant to auto would have published every finished result still waiting for the admin, including ones being held on purpose.
+**Cause:** the build spec's sweep query had no start-time guard, and the first guard written for it (migration 0114 as first committed, `87d408e`) was a general `result_release_mode_changed_at timestamptz NOT NULL DEFAULT now()` instead of an explicit "auto since" value that is empty when auto is off.
+**Fix:** `result_release_auto_since` (`modules/02-tenancy/migrations/0114_tenant_settings_result_release_mode.sql:22`) is NULL while manual, set to `now()` on manual → auto and cleared on auto → manual (`updateResultReleaseMode`, `modules/02-tenancy/src/service.ts`). The sweep needs mode `auto`, `auto_since` NOT NULL and `evaluation_released_at >= auto_since` (`apps/api/src/jobs/auto-release.ts:73-79`) and the release core re-checks it (`release.ts:132-150`). Commits `ceb535c`, `da3d5a2`.
+**Prevention:** `result-release-mode.test.ts` and the switch-to-auto boundary cases in `auto-release.test.ts` and `release.test.ts`. Rule: "automatic from now on" needs an explicit start timestamp that is NULL when the feature is off.
+
+## 2026-10-01 — A certificate error could abort the release it belonged to
+
+**Symptom (latent):** certificate issuance ran inside the release transaction; a database error in that step would leave the whole Postgres transaction aborted and take the release's UPDATE and audit row with it.
+**Cause:** the old handler (`modules/07-ai-grading/src/handlers/admin-claim-release.ts:406-432`, before `ceb535c`) guarded the call only with a JS `.catch()`, which cannot undo a failed SQL statement inside the same transaction.
+**Fix:** the certificate now runs inside `SAVEPOINT release_cert` and rolls back to it on any error, logging `grading.release.cert_issuance_failed`; the release commits regardless (`modules/09-scoring/src/release.ts:190-208`). Commit `ceb535c`.
+**Prevention:** `release.test.ts:450-460` covers a JS error and a SQL error (aborted-transaction state) during issuance. Rule: best-effort work inside a transaction needs a SAVEPOINT, not a `.catch()`.
+
+## 2026-10-01 — "Fully graded" check let KQL answers and review_needed grades through
+
+**Symptom:** an attempt containing KQL became `graded` with the KQL question missing from both the score and the maximum, and a `review_needed` grade (an AI failure, or a two-model disagreement) counted as done, so a result with an unreviewed grade could be released. Found while planning the scoring rules.
+**Cause:** the old gate in `modules/07-ai-grading/src/handlers/admin-accept.ts:208-244` (before `d5db5ae`) counted only subjective / scenario / log_analysis rows and filtered on `override_of` and `grader`, never on `status`. KQL has no grader (`admin-grade.ts:384-388`) and `computeAttemptScoreInTx` sums existing `gradings` rows only (`modules/09-scoring/src/service.ts:85`), so a question with no row dropped out of the total and the max. Release checked only for an erased candidate and status `graded`.
+**Fix:** one shared definition, `finalizeAttemptIfComplete` (`modules/09-scoring/src/finalize.ts:49-107`): every `attempt_questions` row of every type needs an effective grade that is not `review_needed`; accept, override, manual score and MCQ scoring all call it. KQL gets a manual first score (`admin-manual-score.ts`), and release re-checks flagged grades (`release.ts:152-174`, `5bacbad`). Commits `b3b18b3`, `d5db5ae`, `5bacbad`.
+**Prevention:** `finalize.test.ts` (all five types, MCQ + KQL waits for a manual score, `review_needed` blocks, newest grade wins, billed once) and `completion-gate.test.ts`. Rule: completeness has one definition (module 09); no handler keeps its own copy.
+
 ## 2026-10-01 — Candidate timer started when the link was opened, not at "Begin" (plus a consent bypass)
 
 **Symptom:** Opening the invite link started the clock straight away. A student who read the instructions lost test time. There was also no consent step, and "Phase 1" / "Session 4b" developer copy was visible to candidates.

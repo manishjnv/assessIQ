@@ -1,3 +1,65 @@
+# Session — 2026-10-01 (c) — scoring & result release (SP1–SP4) + platform evaluation queue (SP9–SP11) — SHIPPED + LIVE
+
+**Headline:** Students now get only a complete, final result (on screen, or by email if it takes over a minute). Each company picks auto or manual publishing. Only AssessIQ (the owner) runs AI evaluation, from one cross-tenant queue, before handing results to the company.
+- **SP1:** one "complete result" gate for all 5 question types. KQL answers and flagged grades can no longer slip through.
+- **SP2–SP4:** company release setting (auto/manual), candidate result screen + "My results", result email, and the 60-second "we'll email you" rule.
+- **SP9–SP10:** blind queue at `/admin/platform/evaluations` → evaluate → release to company → company reviews, sends back or publishes (single or publish-all). Company-side AI routes now return 403.
+- **SP11:** an hourly email to the owner when evaluations have waited over 24 h, plus turnaround text on the submit screen.
+
+**Commits (pushed `ecea951`…`a7b4596`; Phase I went live earlier today at `ecea951`):**
+- Phase I: `b8163e1` backend · `7d56d75` frontend · `b41916c` codex fixes · `ecea951` override uses the question's score_max
+- Phase II: `ee8a28f` backend · `1564489` frontend · `a7b4596` codex fix: super grade/re-run only on queue items
+- Docs + RCAs: this commit
+
+**Tests:**
+- 07 super-evaluation 7/7; 10-admin-dashboard 85; apps/web 44; typecheck 0 errors; lint:ambient-ai OK.
+- The known older failures are unchanged: 07 admin-generate-* and extract-eval-fixtures, 02 audit-writes ×4, apps/api auth ×6 and mint-session.
+
+**Deploy (LIVE):**
+- Migrations 0113–0116 applied and recorded.
+- api, worker and frontend rebuilt and recreated; all healthy.
+- On `assessiq.in`: health 200; super routes give 401 when logged out; the queue page is served.
+- Worker: `result.auto_release` runs every 15 s; `evaluation.queue_alert` is scheduled hourly in Redis.
+- `claude` 2.1.286 runs in the api container.
+
+**Next (owner):** two dry runs.
+1. An MCQ test: submit, then check the result screen and email in both auto and manual mode.
+2. A written test: queue → Evaluate → Accept → Release to company → company publishes → the candidate sees the result and gets the email.
+
+**Open questions:**
+- Is the Brevo free tier (300 emails/day) enough for pilot result emails? (A5)
+- SP5–SP8 not started. Known Phase II gaps are listed in the local `PENDING_TASKS_2026-10-01.md`.
+
+---
+
+## Agent utilization (2026-10-01 c)
+- **Opus:**
+  - checked the 5 tasks against the plan, roadmap and pending tasks; wrote the spec and the Phase II wire contract;
+  - diff reviews; fixed `bandToScore` and the queue-eligibility gate;
+  - migrations, both VPS deploys, and triage of the verification results.
+- **Sonnet:** code-seam map; contradiction review; Phase I backend + frontend; Phase II backend + frontend; docs.
+- **Haiku:** Phase II live verification sweep. It raised two false alarms that Opus re-checked:
+  - it tested the old domain through a 301, so the POST became a GET;
+  - it reported the hourly job "missing" before its first run.
+- **codex:rescue:**
+  - Phase I revise: accept locks the attempt first, override range check, auto-release re-checks the mode, plus 2 leftovers.
+  - Phase II revise: queue eligibility on super grade/re-run (`a7b4596`).
+- **claude-mem:** honoured these memories:
+  - scoring-release-rules;
+  - ai-pipeline-claude-code-admin (only the owner triggers AI);
+  - billing-in-same-tx;
+  - vps-shared-host (additive, enumerated first, `assessiq-*` only);
+  - parallel-session-shared-working-tree (branch checked, `67cbb33` preserved);
+  - docs-folder-gitignored.
+- **Routing telemetry:**
+  - Sonnet · Phase I backend · reworked: Y (codex: 3 fixes + 2 leftovers)
+  - Sonnet · Phase I frontend · reworked: N (it found the spec's missing auto-release time guard)
+  - Sonnet · Phase II backend · reworked: Y (codex: queue eligibility, fixed by Opus)
+  - Sonnet · Phase II frontend · reworked: N
+  - Haiku · deploy verify sweep · reworked: Y (false alarms; re-checked against assessiq.in)
+
+---
+
 # Session — 2026-10-01 (b) — pilot hardening R1/R2/R4/A10 — SHIPPED + LIVE
 
 **Headline:** Four fixes are live before the university pilot's first real drive.

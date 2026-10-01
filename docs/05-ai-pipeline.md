@@ -1,6 +1,6 @@
 # 05 — AI Grading Pipeline
 
-> **Phase 1 (current, $0 API budget):** Production grading runs synchronously through the **Claude Code CLI** on the VPS, authenticated against the admin's personal Max subscription. Every grading call is initiated by an explicit click in the admin panel — single-admin-in-the-loop, no async workers, no Agent SDK, no API key.
+> **Phase 1 (current, $0 API budget):** Production grading runs synchronously through the **Claude Code CLI** on the VPS, authenticated against the admin's personal Max subscription. Every grading call is initiated by an explicit click of the platform super admin (the owner) in the platform evaluation queue — company admins can no longer trigger it (§ Platform evaluation queue, 2026-10-01) — single-admin-in-the-loop, no async workers, no Agent SDK, no API key.
 >
 > **Phase 2 (future, paid budget):** Same prompts and rubric move to the Claude Agent SDK with an `ANTHROPIC_API_KEY`, async BullMQ workers, prompt-cache savings, and tenant-level concurrency. The pipeline is designed so the swap is a single config flag (`AI_PIPELINE_MODE`).
 
@@ -26,7 +26,7 @@ Anthropic's consumer ToS allows individual subscribers to script their own use o
 
 | Invariant | Enforcement |
 |---|---|
-| Only the admin (a single human) ever triggers Claude Code | Backend route gated on admin session; no other code path may spawn `claude` |
+| Only the platform admin (the owner, a single human) ever triggers Claude Code | Backend route gated on a `super_admin` session (company-admin routes answer 403 `AI_EVALUATION_BY_ASSESSIQ` since 2026-10-01); no other code path may spawn `claude` |
 | Claude Code runs only while the admin is actively at the panel | Activity-heartbeat check in last 60s before spawn |
 | No cron, no scheduler, no webhook, no candidate-triggered AI call | CI lint rule: forbid `claude` invocation outside the admin-grading handler |
 | One concurrent grading task per admin click | Process registry; reject spawn if another grading run is alive |
@@ -63,18 +63,20 @@ Admin reviews:
    • "Defer"       → leave attempt in pending_admin_grading
 ```
 
+> **Update 2026-10-01:** in the flow above the "admin" is the platform super admin working from the platform evaluation queue (`/admin/platform/evaluations`), not a company admin. The routes are `POST /api/admin/super/evaluations/:attemptId/{grade,accept,rerun}` (see `docs/03-api-contract.md` and § Platform evaluation queue below); the company routes of the same names answer 403 `AI_EVALUATION_BY_ASSESSIQ`. The heartbeat check in the code is a session active in the last 5 minutes (`AIG_HEARTBEAT_STALE`), not 60 s.
+
 Two structural shifts from a typical async pipeline:
 1. **No BullMQ worker for grading.** BullMQ stays for non-AI work (emails, webhooks, exports). Grading is synchronous.
 2. **Claude Code's output is a *proposal*, not a verdict.** The admin's click is what makes a grade real. This is why the architecture is compliance-defensible: the AI is assisting the human admin, not replacing them.
 
 ### Per-type grading dispatch
 
-`POST /admin/attempts/:id/grade` (implemented in `modules/07-ai-grading/src/handlers/admin-grade.ts`) iterates every frozen question in the attempt and routes by type. The five types split into two paths — deterministic and AI-graded:
+`POST /admin/attempts/:id/grade` (2026-10-01: reached only as `POST /api/admin/super/evaluations/:attemptId/grade`; implemented in `modules/07-ai-grading/src/handlers/admin-grade.ts`) iterates every frozen question in the attempt and routes by type. The five types split into two paths — deterministic and AI-graded:
 
 | Type | Path | Answer shape | Notes |
 |---|---|---|---|
 | `mcq` | **Deterministic** (module 09 scoring) | `{ selected: number }` | `answer.selected === content.correct`; never reaches the AI pipeline |
-| `kql` | **Keyword-match** (module 09 scoring) | `{ query: string }` | Count of `content.expected_keywords` present in `answer.query`; never reaches the AI pipeline |
+| `kql` | **No grader yet: manual first score** | `{ query: string }` | Not scored by module 09 or the AI (earlier text here described a keyword match that was never built). The platform evaluator enters a score (`POST /api/admin/super/evaluations/:attemptId/questions/:questionId/manual-score`, 2026-10-01) and the result is not complete until every KQL question has one; never reaches the AI pipeline |
 | `subjective` | **AI-graded** → `gradeSubjective()` | `{ response: string }` | Uses admin-authored rubric from DB; rubric required at question-activation time |
 | `scenario` | **AI-graded** → `gradeSubjective()` | `{ steps: [{stepIndex, response}] }` | Admin-authored rubric if present, else **synthesised at grade-time** from `content.steps[].expected` (see below, added 2026-05-26); `serializeAnswer` concatenates step responses (max 10 steps; extra steps truncated with a note in the prompt) |
 | `log_analysis` | **AI-graded** → `gradeSubjective()` | `{ findings: string[], explanation: string }` | Rubric is **synthesised at grade-time** from `content.expected_findings` (70 % anchor weight split evenly across findings, 30 % reasoning band); not persisted to `questions.rubric` |
@@ -1273,8 +1275,53 @@ The same pattern applies for `generateQuestions`, `generateRubricDraft`, and any
 
 **Completion gate unchanged in meaning.** `admin-accept.ts` still flips a mixed attempt to `graded` only when every AI-gradable question (subjective | scenario | log_analysis) has a `grader IN ('ai','admin_override')` row; deterministic rows are outside both sides of the comparison but are included in the final `computeAttemptScore` total. The gate's `status IN (...)` list (and `handleAdminGrade`'s gradeable-status check) now also accepts `auto_submitted` - previously an auto-submitted attempt could neither be graded nor completed.
 
+> **Superseded 2026-10-01 (SP1):** the completion gate described in this paragraph is gone. A result is now complete only when EVERY question of the attempt, KQL included, has an effective grade that is not `review_needed`, decided in one place (module 09 `finalizeAttemptIfComplete`). KQL still has no grader, but it can no longer be silently dropped from the total: it needs a manual first score. See § Platform evaluation queue below and `docs/02-data-model.md` § Scoring and result release.
+
 **Admin Grade on an MCQ-only attempt.** Returns `{ proposals: [], attempt: { id, status: "graded" } }` instead of an empty AI batch. Mixed attempts return the same shape as before (no `attempt` key).
 
 **Explicitly NOT included.** (a) KQL has the same gap (no grader at all) - an attempt containing KQL, scenario, log_analysis or subjective keeps the current admin flow; KQL is out of scope. (b) Multi-answer MCQ: the content schema is single-`correct` (int index) so only that is supported. (c) Scenario-step MCQs (inside `scenario` content) are graded by the AI path, unchanged. (d) No backfill job - pre-fix attempts are finalised by the admin Grade click (prod is pre-launch, forward-only).
 
 **Downstream impact.** `GET /admin/attempts/:id` `gradings[]` now contains `grader='deterministic'` rows (model `none`); the attempt-detail UI should render them as "auto-scored". `09-scoring` exports `scoreMcqForAttempt`, `scoreMcqAndFinalizeIfComplete`, `computeAttemptScoreInTx`; `06-attempt-engine` and `09-scoring` gain workspace deps (`@assessiq/scoring`, `@assessiq/billing`).
+
+---
+
+## Platform evaluation queue (owner decision, 2026-10-01)
+
+> **Status: LIVE** (Phase II SP9-SP11: backend merge `ee8a28f`, frontend merge `1564489`, fix `a7b4596`). The AI itself is unchanged: synchronous, on a human click, single-flight, accept-before-commit (D2 / D7 / D8), and `lint:ambient-ai` is untouched. What changed is **who** clicks and **who** sees a result first.
+
+### Why
+
+- Anthropic's terms for Pro / Max plan credentials assume ordinary individual use and do not allow routing other people's requests through them (see the compliance frame above). Letting every company admin click Grade put the owner's subscription behind customers' requests.
+- Decision: **only the platform super admin (the owner) triggers AI**, per attempt, with a human accepting every grade. Companies never trigger AI: they review the finished evaluation and publish it. AssessIQ is free (no customer payments), so nothing is resold.
+- If paid plans start, or volume grows well beyond one person's ordinary use, switch the engine to an API key (`AI_PIPELINE_MODE=anthropic-api`, decision OD2). The flow below does not change when the engine changes.
+
+### End-to-end flow
+
+1. **Submit.** An attempt whose questions are all MCQ is complete at submit (deterministic scoring, `evaluation_released_at` set) and the company's release mode applies directly. An attempt with any written (`subjective`, `scenario`, `log_analysis`) or KQL question stays `submitted` and enters the queue. The candidate is told right away: wait about a minute on screen (auto tenants, all-MCQ tests) or "emailed to r***@… `<turnaround>`" (everything else).
+2. **Queue.** The super admin opens `/admin/platform/evaluations`: every active company's waiting attempts, oldest first, with age badges (amber from 24 h, red from 48 h), written / KQL counts, a "sent back" marker and a company filter. Blind: no candidate name or email anywhere.
+3. **Evaluate** (`/admin/platform/evaluations/:attemptId`). Grade all (the AI call; 5-minute session heartbeat, single-flight) → per-question proposals → Accept, Override, Re-run (optionally forcing the Opus second opinion) or a manual score for KQL. None of these releases anything. The attempt becomes `graded` (billed once) only when the result is **complete**: every question has an effective grade that is not `review_needed`.
+4. **Release to company** (one attempt or bulk) sets `evaluation_released_at` and writes audit `grading.evaluation_released`. Evaluating and handing over are two separate, audited acts.
+5. **Company reviews.** Grades and evidence are read-only. The company may **override** a score with a reason (fresh MFA, 5 min) or **send back** with a note (the attempt returns to the queue; no re-billing).
+6. **Publish.** Manual mode: the admin presses Publish or "Publish all ready". Auto mode: the worker sweep `result.auto_release` publishes within about 15 s, but only evaluations released after the switch to auto. Publishing issues the certificate when one is earned (inside a SAVEPOINT, so a certificate error never undoes the release) and sends the result email.
+7. **Candidate** sees only the complete result (score, percent, pass / fail, certificate) on the post-submit page, in "My results" and by email; never answers, bands or justifications. A published result is final.
+
+### Queue eligibility
+
+An attempt is in the queue when it has at least one non-MCQ question, its candidate is not erased, its company is active, and it is either pre-graded (`submitted`, `auto_submitted`, `pending_admin_grading`) or `graded` with the evaluation not yet released (finished, or sent back). The same predicate is written in three places: the queue list (`listSuperEvaluationQueue`), the guard on `grade` / `rerun` (`assertInEvaluationQueue`, 409 `NOT_IN_EVALUATION_QUEUE`) and the worker's owner alert (which must not import `@assessiq/ai-grading`). Change all three together; the list and the alert job carry KEEP IN SYNC comments.
+
+### What companies can no longer do
+
+Trigger or accept AI grading, re-run, enter a manual first score or retry a grading job (all `403 AI_EVALUATION_BY_ASSESSIQ`); see grades, proposals or the score on the attempt page before the evaluation is released; override before release (409 `EVALUATION_NOT_RELEASED`); change anything after publishing (409 `RESULT_ALREADY_PUBLISHED`).
+
+### Service levels
+
+- The owner is emailed (template `evaluation_queue_alert`: count, oldest age, link) when queue items are older than 24 hours. Worker job `evaluation.queue_alert`, hourly, at most one email per 24 h; recipients come from `SUPER_ADMIN_EMAILS`, which defaults to the platform owner's address.
+- The candidate's "emailed to you" message carries `EVALUATION_TURNAROUND_TEXT` (default "within 72 hours"); set it to the real turnaround.
+- Capacity (plan estimate, unchanged): one person on one subscription handles about 50-150 attempts a day; a written answer takes about 36 s of AI time (measured 2026-10-01), so a 100-candidate drive with 5 written answers each is about 5 hours of AI time plus review.
+- Consent: the Begin-test copy now says written answers are evaluated by AssessIQ evaluators with AI assistance (consent policy version `2026-10-02`). The privacy notice and tenant terms still need the same disclosure (tracked separately).
+
+### Considered and rejected / not included / impact
+
+- **Rejected (for the `claude-code-vps` engine):** company admins triggering AI (the compliance problem above); a per-company API key (BYOK: compliant and listed as an option in the product review, but not built; revisit with OD2); background grading after submit (Phase 2 / paid API; breaks the no-ambient-AI rule); a new `attempts.status` value for the hand-over (read by too many modules, so columns instead).
+- **Not included:** async or API-mode grading, per-company AI, two follow-ups the owner decided after this build (release to the company automatically when the super admin accepts the last grade; and an `AI_PIPELINE_MODE` switch that lets companies evaluate once an API budget exists; today the hand-over is an explicit step and the company routes answer 403 in every mode), answer-reuse and rule tiers (SP5), calibration examples and agreement tracking (SP6), more auto-gradable types and a KQL grader (SP7; until then KQL needs a manual score), calibrated auto-commit (SP8).
+- **Impact:** `docs/02-data-model.md` (columns, derived states), `docs/03-api-contract.md` (routes), `docs/11-observability.md` § 34 (jobs, log events), modules 06, 07, 09, 10, 11, 13, 15, 16. CLAUDE.md rule #1 holds: the two new worker jobs never call AI (one publishes a finished result, the other counts rows and sends mail).

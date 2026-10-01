@@ -375,6 +375,8 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 
 > **Status (2026-05-03, Phase 2 G2.A Session 1.b — LIVE in commit `5aec6ad`):** All 10 admin endpoints below registered into `apps/api/src/server.ts` via `registerGradingRoutes(app, { adminOnly: authChain({roles:['admin']}), adminFreshMfa: authChain({roles:['admin'], freshMfaWithinMinutes: 5}) })`. Smoke verified live: 11/11 Haiku checks PASS (every endpoint returns 401 AUTHN_FAILED without session — none 404). Service handlers under `modules/07-ai-grading/src/handlers/admin-*.ts`, registrar at `routes.ts`. Grading runtime at `runtimes/claude-code-vps.ts` spawns `claude -p` per D1-D8 in `docs/05-ai-pipeline.md`. Override never replaces — INSERTs new `gradings` row with `grader='admin_override'`, `override_of` FK, `override_reason`. Multi-tenancy guard: `/accept` validates every `proposal.attempt_id === URL attemptId` AND every `proposal.question_id ∈ attempt_questions` for the attempt. D7 single-flight is in-process `Map<attemptId>`; same-attempt OR other-attempt 409. Skill SHAs at deploy time: `anchors=1f04c875`, `band=15c14f96`, `escalate=f3588256` (claude CLI v2.1.119 on the VPS).
 
+> **Superseded 2026-10-01 (platform evaluation queue):** for company admins `grade`, `accept`, `rerun` and `grading-jobs/:id/retry` below now answer `403 AI_EVALUATION_BY_ASSESSIQ` (AI evaluation runs from `/api/admin/super/evaluations*`); `GET /admin/attempts/:id` is read-only; `release` and `override` need the evaluation released to the company first. The heartbeat window in the rows below is 5 minutes in code (not 60 s). Current contract: § Scoring and result release at the end of this doc.
+
 | Method | Path | Purpose | Status |
 |---|---|---|---|
 | `POST` | `/admin/attempts/:id/grade`           | Trigger sync AI grading. D1 mode + D7 heartbeat + D7 single-flight. Returns `{ proposals: GradingProposal[] }` — does NOT write `gradings` rows (D8 accept-before-commit). **2026-10-01:** also runs deterministic MCQ scoring first; for an attempt with only MCQ questions the click finalises it (graded + billed, no AI) and returns `{ proposals: [], attempt: { id, status: "graded" } }` (`attempt` is absent otherwise). `auto_submitted` attempts are now gradeable. 409 `AIG_HEARTBEAT_STALE` if session idle > 60s. 409 `AIG_GRADING_IN_PROGRESS` on single-flight reject. 503 `AIG_RUNTIME_FAILURE` on `claude` subprocess error. **Phase 2 cache (2026-05-29, commit `96b71a6`):** ALSO sets `attempts.grading_started_at = NOW()` on entry, writes `attempts.ai_proposals = proposals_jsonb` + nulls the marker at batch completion. On any thrown error a catch best-effort nulls the marker (so the FE banner doesn't stick on a failed run). Recovery path for "client got CF/proxy 504/524 on the 4-minute synchronous response" — proposals are persisted server-side regardless of whether the response reached the browser. Cache is review-state only — admin Accept click is still required to write `gradings` rows. | **live 2026-05-29** |
@@ -1278,6 +1280,8 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | `POST` | `/api/me/attempts/:id/submit`     | Final submit (idempotent terminal) — Phase 1 stops at `submitted`; returns `202 { attempt_id, status: 'submitted', estimated_grading_seconds: null }` | **live 2026-05-02** |
 | `GET`  | `/api/me/attempts/:id/result`     | View result — Phase 1 returns `202 { status: 'grading_pending' }` until module 07/08 land in Phase 2 | **live (placeholder) 2026-05-02** |
 
+> **Superseded 2026-10-01:** `submit` now also returns `result_expectation`, `release_mode`, `email_masked` and `turnaround_text`; `result` returns `200` with the complete result once it is published (otherwise `202 { status: 'pending', … }`); `GET /api/me/results` is new. See § Scoring and result release at the end of this doc.
+
 ### Embed
 
 > **Status: LIVE 2026-05-03 (Phase 4 commit `b20858b`).** Full implementation in `apps/api/src/routes/auth/embed.ts`. Decisions pinned in `modules/12-embed-sdk/SKILL.md` § Decisions captured (2026-05-03). All 4 `/embed` routes below are live and verified (smoke tests: `/embed` → 400 without token ✅, `/embed/health` → 200 ✅, `/embed/sdk.js` → 200 ✅).
@@ -1446,6 +1450,8 @@ GET /api/me/attempts/att_.../result
 ... after grading completes ...
 → 200 { "status":"released", "score": { "earned": 78, "max": 100, "auto_pct": 78 }, "by_question": [...] }
 ```
+
+> Note (2026-10-01): the `/submit` and `/result` bodies in steps 4 and 5 above are out of date. Current shapes: § Scoring and result release at the end of this doc.
 
 ## Worked example — Webhook payload (host integration)
 
@@ -2616,3 +2622,60 @@ Reads (`tenant_plans`, `tenant_entitlements`, `question_packs`) run under the pu
 ```
 
 A 403 rolls back the publish attempt — there is no partial published state and no `assessment.published` audit row.
+
+---
+
+## Scoring and result release (2026-10-01)
+
+> **Status: LIVE.** Phase I (candidate result, release modes, result email; deploy `ecea951`) and Phase II (platform evaluation queue; merges `ee8a28f` backend and `1564489` frontend, fix `a7b4596`). Rules: a candidate sees only a **complete, final** result; AI evaluation is run only by the platform super admin; the company (tenant) reviews and publishes. **This section supersedes** the grade / accept / rerun / attempt-detail / release / override rows under "Admin — Grading & review" and the candidate `submit` / `result` rows. Data: `docs/02-data-model.md` § Scoring and result release. Flow and rationale: `docs/05-ai-pipeline.md` § Platform evaluation queue.
+
+**Conventions.** Errors are `{ error: { code, message, details? } }`. A body that fails validation is `400 VALIDATION_FAILED` (`details.code = AIG_INVALID_BODY`, `details.issues`); a value rejected inside a handler uses the `error.code` shown below, except `TENANT_NOT_ACTIVE`, `TENANT_NOT_FOUND` and `INVALID_RESULT_RELEASE_MODE`, which are `error.details.code` (the top-level code is `CONFLICT`, `NOT_FOUND`, `VALIDATION_FAILED`). Tenant is never in the URL or body: company routes use the session's tenant, and the platform routes look the attempt's tenant up in the database. State a company sees: `awaiting_evaluation` → `ready_to_publish` → `published`.
+
+### Candidate (`/api/me/*`, candidate session)
+
+| Method + path | Behaviour |
+|---|---|
+| `POST /api/me/attempts/:id/submit` | `202 { attempt_id, status: 'submitted', estimated_grading_seconds: 60 \| null, result_expectation: 'soon' \| 'email', release_mode: 'manual' \| 'auto', email_masked, turnaround_text }`. `'soon'` only when the tenant is in `auto` (switched on) AND every question is MCQ AND the attempt is not an embed attempt; everything else is `'email'`. `email_masked` looks like `r***@example.com`. `turnaround_text` is config `EVALUATION_TURNAROUND_TEXT` (default "within 72 hours"). The lookup can never fail a submit (it falls back to `'email'`). Never a score. |
+| `GET /api/me/attempts/:id/result` | Published: `200 { status: 'released', total_earned, total_max, percent (0-100, 1 dp), passed (percent >= the level's passing_score_pct), assessment_name, released_at, certificate: { credential_id, verify_url } \| null }`. Otherwise `202 { status: 'pending', result_expectation, release_mode, email_masked, turnaround_text, tenant_name }`. 404 for an unknown attempt or someone else's. Never per-question data, bands, justifications or a partial score. |
+| `GET /api/me/results` | `200 { items: [{ attempt_id, assessment_name, released_at, total_earned, total_max, percent, passed, certificate \| null }] }`: published results only, newest first (the portal "My results" page). |
+
+Related: the candidate magic-link verify (`POST /api/auth/candidate/verify-link`) now redirects to `/candidate/results`. `GET /api/me/activity/stats` and `/leaderboard` count published results only. The `result_released` email (sent once, after publishing; skipped for erased candidates and embed attempts) links to `/candidate/login?tenant=<slug>`; that page reads `?tenant=` and shows an "Organisation code" field when it is missing. The consent policy version recorded at Begin is now `2026-10-02` (the PreTest copy says written answers are evaluated by AssessIQ evaluators with AI assistance).
+
+### Company (tenant) admin (`/api/admin/*`, admin session)
+
+| Method + path | Auth | Behaviour |
+|---|---|---|
+| `GET /api/admin/tenant-settings` | admin | `200 { result_release_mode, result_release_auto_since, retention_days, company_name }`. |
+| `PATCH /api/admin/tenant-settings/result-release-mode` | admin + **fresh MFA (15 min)** | Body `{ mode: 'manual' \| 'auto' }` → `200 { tenantId, result_release_mode, previous, result_release_auto_since, updatedAt, auditId \| null }` (`auditId` is null on a same-mode no-op). Switching never publishes anything by itself; only evaluations released AFTER switching to auto are published automatically (worker job `result.auto_release`, ~15 s). Errors: 400 `INVALID_RESULT_RELEASE_MODE`, 409 `TENANT_NOT_ACTIVE`, 401 stale MFA, 403 not admin. Audit `tenant.settings.updated`. |
+| `POST /api/admin/attempts/:id/release` | admin | Publish one result (`graded` → `released`; certificate issued inside a SAVEPOINT; result email after commit). `200 { attempt: { id, status: 'released' } }`. Errors: 404 `AIG_ATTEMPT_NOT_FOUND`; 422 `AIG_ATTEMPT_NOT_RELEASABLE_ERASED`; 409 `RESULT_NOT_READY` (not `graded` (this used to be 422 `AIG_ATTEMPT_NOT_GRADEABLE`), evaluation not yet released to the company, or a grade still `review_needed`). |
+| `POST /api/admin/assessments/:id/release-all` | admin | Publish every ready result of the assessment (graded, evaluation released, candidate not erased), one transaction each. `200 { released: [attemptId], skipped: [{ id, code }] }`. 404 unknown assessment; 400 non-UUID id. |
+| `POST /api/admin/attempts/:id/send-back` | admin | Body `{ note: 1..500 chars }` (strict). Returns the evaluation to the platform queue: clears `evaluation_released_at/_by`, stores the note, status stays `graded` (no re-billing). `200 { attempt_id, evaluation_sent_back_at }`. Errors: 409 `EVALUATION_NOT_RELEASED`, 409 `RESULT_ALREADY_PUBLISHED`, 404. Audit `grading.sent_back` (the note is not in the audit row). |
+| `POST /api/admin/gradings/:id/override` | admin + **fresh MFA (5 min)** | Changed: allowed only after the platform released the evaluation (409 `EVALUATION_NOT_RELEASED` before that; 409 `RESULT_ALREADY_PUBLISHED` once published). `score_earned` must be finite and within `0..score_max` (422 `AIG_INVALID_BODY`, `details.score_max`). The attempt rollup is recomputed in the same tx. Body and the INSERT-only D8 rule are unchanged. |
+| `POST /api/admin/attempts/:id/{grade,accept,rerun}`, `POST …/questions/:questionId/manual-score`, `POST /api/admin/grading-jobs/:id/retry` | admin | **`403 AI_EVALUATION_BY_ASSESSIQ`** for everyone (anonymous callers still get 401). Kept only so a stale client gets a clear answer. |
+| `GET /api/admin/attempts/:id` | admin | Now **read-only**: no `submitted → pending_admin_grading` claim and no `grading.claimed` audit row. Adds `evaluation_status`, `evaluation_released_at`, `evaluation_note`, `evaluation_sent_back_at` and `score` (`{ total_earned, total_max, auto_pct, pending_review }`). `ai_proposals` and `grading_started_at` are always `null` for companies. While `awaiting_evaluation`: `gradings: []` and `score: null`. |
+| `GET /api/admin/attempts`, `GET /api/admin/dashboard/queue` | admin | Each row gains `evaluation_status`. |
+| `GET /api/admin/assessments/:id/results.csv` | admin | A row still awaiting evaluation shows the result "Awaiting evaluation" and no score, percent or category columns. |
+
+### Platform evaluation queue (`/api/admin/super/evaluations*`, `super_admin` only)
+
+Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the route bodies are `modules/07-ai-grading/src/routes-super.ts`. **super** = `roles: ['super_admin']` (TOTP is always required for super admins); **super + fresh MFA** = the same plus TOTP within 15 minutes, used only by manual score and override. Every per-attempt route resolves the attempt's tenant from the database (read-only system-role lookup), refuses a missing or suspended tenant (404 `TENANT_NOT_FOUND`, 409 `TENANT_NOT_ACTIVE`), then runs the handler inside that tenant's `withTenant` with the super admin as actor, so audit rows land in the **tenant's** log. A non-UUID path param is `400 VALIDATION_FAILED`; an unknown attempt is `404 AIG_ATTEMPT_NOT_FOUND`. The platform never receives the candidate's name or email.
+
+| Method + path | Auth | Body → success | Errors |
+|---|---|---|---|
+| `GET /api/admin/super/evaluations?tenant_id=` | super | → `200 { items: [{ attempt_id, tenant_id, tenant_name, assessment_id, assessment_name, level_label, submitted_at, age_hours (1 dp), written_count, kql_count, status, complete (status === 'graded'), grading_in_progress (an AI run started under 10 min ago), sent_back, sent_back_note }], counts: { pending, older_than_24h } }`. Oldest first, at most 500 rows (counts cover the whole queue). | 400 bad `tenant_id` |
+| `GET …/:attemptId` | super | → `200 { tenant_id, tenant_name, attempt: { id, status, assessment_name, level_label, started_at, submitted_at }, answers, frozen_questions (with rubric), gradings, ai_proposals, grading_started_at, score, evaluation_released_at, evaluation_note, evaluation_sent_back_at }`. No side effects. | |
+| `POST …/:attemptId/grade` | super | Optional `{ override_skill? }` → `200 { proposals }`. **The only AI trigger:** synchronous, single-flight, writes no `gradings` row until accepted (D8). | 409 `NOT_IN_EVALUATION_QUEUE`; 409 `AIG_HEARTBEAT_STALE` (session idle over 5 min); 409 `AIG_GRADING_IN_PROGRESS`; 422 `AIG_ATTEMPT_NOT_GRADEABLE`; 503 `AIG_*` runtime errors |
+| `POST …/:attemptId/accept` | super | `{ proposals: [...] }` (same schema as the old tenant accept; every `proposal.attempt_id` must equal the URL id) → `200 { gradings, attempt: { id, status: 'graded' \| 'pending_admin_grading' } }`. Completing the attempt flips it to `graded` (billed once) but does **not** release it to the company. | 400 id mismatch or schema; 422 `AIG_INVALID_BODY` (`0 < score_max <= 1000`, `0 <= score_earned <= score_max`, question not in the attempt); 409 `RESULT_ALREADY_PUBLISHED` |
+| `POST …/:attemptId/rerun` | super | `{ forceEscalate?: boolean }` (strict; default false = normal automatic escalation) → fresh `proposals`. Also valid on a `graded` attempt the company sent back. | as `grade`; 400 for any other body shape |
+| `POST …/:attemptId/questions/:questionId/manual-score` | super + fresh MFA | `{ score_earned >= 0, reason 1..500 }` (strict) → `200 { grading, attempt: { id, status } }`. First human score for a question with no grade (KQL has no grader). No AI. | 409 `AIG_QUESTION_ALREADY_GRADED`; 409 `RESULT_ALREADY_PUBLISHED`; 422 `AIG_INVALID_BODY` (question not in the attempt, or outside `0..questions.points`); 422 `AIG_ATTEMPT_NOT_GRADEABLE` |
+| `POST …/:attemptId/gradings/:gradingId/override` | super + fresh MFA | `{ score_earned, reasoning_band?, ai_justification?, error_class?, reason }` → `200 { grading }`. Part of the evaluation itself (no "released first" rule). | 404 `AIG_GRADING_NOT_FOUND` (also when the grading belongs to another attempt); 409 `RESULT_ALREADY_PUBLISHED`; 422 `AIG_INVALID_BODY` |
+| `POST …/:attemptId/release-to-tenant` | super | → `200 { attempt_id, evaluation_released_at }`. Needs status `graded`, every question effectively graded, none `review_needed`, candidate not erased. Sets `evaluation_released_at/_by`, clears the send-back marker. Audit `grading.evaluation_released`. | 409 `EVALUATION_NOT_COMPLETE`, `EVALUATION_ALREADY_RELEASED`, `RESULT_ALREADY_PUBLISHED`; 422 `AIG_ATTEMPT_NOT_RELEASABLE_ERASED` |
+| `POST /api/admin/super/evaluations/release-to-tenant` | super | `{ attempt_ids: uuid[1..200] }` (strict) → `200 { released: [ids], skipped: [{ id, code }] }`. One transaction per attempt; duplicates are processed once. | 400 |
+
+`NOT_IN_EVALUATION_QUEUE` (`a7b4596`) guards `grade` and `rerun` only. The attempt must have a non-MCQ question, a non-erased candidate, and be pre-graded or `graded` with the evaluation not yet released: the same rule as the queue list. A direct call therefore cannot spend an AI run on an MCQ-only, released or published attempt.
+
+**Considered and rejected.** Returning 404 for the old company grade routes (a stale client would not learn why; 403 with a stable code does). Showing a "provisional" score with a flag (owner rule P1 forbids any partial number). A new `attempts.status` value for "released to the company" (see `docs/02-data-model.md`).
+
+**Not included.** Background or API-mode grading, company-triggered AI (the owner has decided companies may evaluate once an API budget exists; not built, so these routes answer 403 in every mode), release to the company on the last accept (today an explicit `release-to-tenant` call), a per-assessment release mode, a "result updated" email (a published result is final), and a company-facing ETA beyond the candidate's `turnaround_text`.
+
+**Impact.** `modules/11-candidate-ui` wire types and the post-submit / My results pages, `modules/10-admin-dashboard` (tenant settings, review states, platform queue and evaluate pages), 15 results CSV and candidate activity, 13 `result_released` template. Rollback: deploy the previous image; the new columns are additive (data model doc).

@@ -608,6 +608,8 @@ CREATE UNIQUE INDEX attempt_events_capped_unique_idx
 
 **Phase 1 grading-free contract** (CLAUDE.md AssessIQ-specific rule #1, decision #6): `submitAttempt` transitions `status` to `'submitted'` and stops. The values `'pending_admin_grading'`, `'graded'`, `'released'` are accepted by the CHECK constraint for forward-compat but never written by Phase 1 code. The candidate's `/api/me/attempts/:id/result` endpoint returns `202 grading_pending` until Phase 2 wires module 07 + 08.
 
+> **Superseded 2026-10-01:** `graded` and `released` are now written (MCQ scoring at submit, the platform evaluation queue, tenant or automatic publishing) and `/api/me/attempts/:id/result` returns the released result. See § Scoring and result release at the end of this doc.
+
 **`integrity` / `client_meta` columns** (in the original sketch above) — explicitly dropped from the live schema. Behavioural signals live in `attempt_events` rows; if Phase 2 wants a denormalized aggregate, the read path can compute it from events in `attempt_scores`.
 
 ### `assessment_frozen_pool` — "lock at assignment" (migration 0096, 2026-05-25)
@@ -1498,3 +1500,51 @@ audit_log is for "did this change?" forensics, not "what was the name
 called?". The `correct_answer` rubric ground-truth (NOT candidate PII)
 is intentionally NOT covered by any of these patterns and remains in
 audit JSONB for grading-event forensics.
+
+---
+
+## Scoring and result release (2026-10-01)
+
+> **Status: LIVE.** Phase I (SP1-SP4) shipped in the `ecea951` deploy; Phase II (SP9-SP11, the platform evaluation queue) in `a7b4596`. Owner rules: a candidate sees only a complete, final score (P1); each tenant chooses how results are published (P3). This section is the **data**. Behaviour: `docs/03-api-contract.md` § Scoring and result release and `docs/05-ai-pipeline.md` § Platform evaluation queue.
+
+### `attempts` — 4 columns + 1 index (`modules/06-attempt-engine/migrations/0113_attempts_evaluation_release.sql`)
+
+| Column | Meaning |
+|---|---|
+| `evaluation_released_at timestamptz NULL` | "The tenant may see and publish this result." Set when an auto-scorable (all-MCQ) attempt completes at submit (09 `finalizeAttemptIfComplete(markEvaluationReleased: true)`) and when the platform releases an evaluation to the tenant (07 `handleSuperReleaseToTenant`). Cleared by the tenant's send-back. Publishing (`graded` → `released`) requires it. |
+| `evaluation_released_by uuid NULL` → `users(id)` | Who released the evaluation. NULL = the system (auto-scorable completion). The auto-release sweep uses it as the audit actor when set. |
+| `evaluation_note text NULL` | The tenant's send-back note. Free text, so it is never copied into `audit_log`. |
+| `evaluation_sent_back_at timestamptz NULL` | When the tenant last sent the attempt back to the platform queue. |
+
+- **Backfill:** every row already `graded` or `released` got `evaluation_released_at = now()`, so existing finished results stay publishable and do not re-enter the queue.
+- **Index:** `attempts_ready_to_release_idx ON attempts (evaluation_released_at) WHERE status = 'graded' AND evaluation_released_at IS NOT NULL` keeps the auto-release sweep's cross-tenant scan tiny.
+- **`attempts.status` is unchanged** (CHECK list above). It is read by modules 06, 07, 09, 15 and the frontends, so the new state lives in columns, not in a new enum value. The older note that `graded` / `released` are "never written" is obsolete.
+
+### `tenant_settings` — 2 columns (`modules/02-tenancy/migrations/0114_tenant_settings_result_release_mode.sql`)
+
+- `result_release_mode text NOT NULL DEFAULT 'manual' CHECK (IN ('manual','auto'))`. **manual:** a finished result waits until a tenant admin publishes it. **auto:** the worker sweep `result.auto_release` publishes it within ~15 s of the evaluation being released to the tenant. Default `manual` (safer for hiring tenants).
+- `result_release_auto_since timestamptz NULL`. `now()` on manual → auto, `NULL` on auto → manual, untouched by a same-mode request. Automatic publishing needs mode `auto`, this value NOT NULL, and `evaluation_released_at >= result_release_auto_since`. So switching to auto never publishes results that were already waiting (the admin uses the bulk "publish all ready" for those).
+- Only writer: `updateResultReleaseMode` (`modules/02-tenancy/src/service.ts`): UPDATE + one `tenant.settings.updated` audit row (`before` / `after` = `{ result_release_mode }`) in one tx. It is not part of the generic settings patch.
+
+### Effective grade and "complete result"
+
+- **Effective grade** of a question = its newest `gradings` row: `DISTINCT ON (question_id) … ORDER BY graded_at DESC, (grader = 'admin_override') DESC`. The tie-break matters: rows written in one transaction share `now()`, and an override must win. Same rule in 09 `finalize.ts`, 09 `repository.getGradingsForAttempt`, 07 `getAttemptProgress` and 15 `results-export.ts`.
+- **A result is complete** only when EVERY `attempt_questions` row (all five types, KQL included) has an effective grade whose `status <> 'review_needed'`; an attempt with no frozen questions is never complete. One definition, in 09 `finalizeAttemptIfComplete`, the only writer of `status = 'graded'` (billing runs in the same tx). The old gate counted only subjective / scenario / log_analysis and let flagged grades through (`docs/RCA_LOG.md` 2026-10-01).
+- `attempt_scores.total_max` is the sum of the effective grades' `score_max`, so a question with no grade used to vanish from both totals. KQL has no grader: it is scored by a **manual first score**, a `gradings` row with `grader = 'admin_override'`, `override_of NULL`, `prompt_version_sha` / `_label` `manual:v1`, `model` `manual`, `escalation_chosen_stage` `manual`, `score_max = questions.points`; the free-text reason lives in `override_reason`, never in audit.
+- 09 `releaseAttemptInTx` re-checks "no effective `review_needed`" when publishing, because a later re-run can add a flagged row to a graded but unpublished attempt.
+
+### Derived evaluation state (never stored)
+
+`deriveEvaluationStatus` (`modules/07-ai-grading/src/repository.ts`): **published** = status `released`; **ready to publish** = status `graded` AND `evaluation_released_at` set; otherwise **awaiting evaluation** (still queued with the platform, or sent back). Tenants see this state. The platform queue = attempts with at least one non-MCQ question, a non-erased candidate and an active tenant, that are either pre-graded (`submitted`, `auto_submitted`, `pending_admin_grading`) or `graded` with `evaluation_released_at IS NULL`.
+
+### Help seeds and audit actions
+
+- `0115_seed_result_release_help.sql`: 3 new global rows (`admin.settings.result_release_mode`, `candidate.results.list`, `candidate.auth.org_code`) and 2 `UPDATE`s of global v1 rows (`candidate.submit.confirm`, `candidate.result.bands`: reworded to "complete result only"; the key name is kept because renaming breaks tenant overrides). `0116_seed_evaluation_queue_help.sql`: 13 new admin rows (`admin.evaluations.*` ×9, `admin.attempts.{awaiting_evaluation,send_back,release_button}`, `admin.assessments.release_all`). Both are idempotent (`ON CONFLICT DO NOTHING`); `0011` is deliberately not regenerated (checksum-drift guard). Global rows 136 → 139 → 152. `0109` stays a reserved gap.
+- New `audit_log` actions (`modules/14-audit-log/src/types.ts`): `grading.evaluation_released` (platform hands an evaluation to the tenant) and `grading.sent_back` (tenant returns it; the note is never in `after`). Both are written in the **attempt's tenant** audit log, in the same tx as the UPDATE. `grading.released` now carries `after.trigger` (`manual` | `auto`) and `actor_kind = 'system'` when the sweep releases an evaluation that has no releasing user; `grading.claimed` is no longer written (the catalog entry stays for historical rows).
+
+### Considered and rejected / not included / impact / rollback
+
+- **Rejected:** a new `attempts.status` value (see above); storing `evaluation_status` (derivable from two columns, so it cannot drift); a `result_release_mode_changed_at` column (first draft of 0114, replaced by `result_release_auto_since`, which is NULL unless auto was switched on through the service, so the sweep releases nothing for a tenant whose mode was edited by hand).
+- **Not included:** a per-assessment release-mode override (design plan §6), a "result updated" email (a published result is final: 409 `RESULT_ALREADY_PUBLISHED`), any table for the queue (it is a query).
+- **Impact:** 06 reads both tables for the candidate result; 07 owns the queue and the tenant review; 09 owns finalize / release; 15 candidate stats and leaderboard count only `status = 'released'`, and the results CSV prints "Awaiting evaluation" for unreleased rows; 13 sends `result_released`; 16 holds the help rows. `attempt_summary_mv` is unchanged.
+- **Rollback:** additive and nullable. Old code ignores the columns, and the default `manual` mode matches the old "an admin publishes" behaviour. The 0113 backfill is not reversed.

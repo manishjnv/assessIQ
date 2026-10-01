@@ -502,6 +502,8 @@ Defined per-job-name in `JOB_RETRY_POLICY` at [apps/api/src/worker.ts](../apps/a
 |---|---|---|---|
 | `assessment-boundary-cron` | 5 | exponential, base 1000 ms | Bulk `UPDATE WHERE status IN ('published', 'active') AND boundary < now()` — re-running on already-transitioned rows is a SQL no-op. No external side effects (no audit, no notifications, no webhooks). |
 | `attempt-timer-sweep` | 5 | exponential, base 1000 ms | Bulk `UPDATE WHERE status='in_progress' AND ends_at < now()` + per-attempt `time_milestone` event insert, all wrapped in a single `withTenant(...)` transaction. Either the whole tick commits (retry sees nothing left to process) or it rolls back (retry processes the same rows fresh). No partial-commit risk. |
+| `result.auto_release` | 1 | exponential, base 1000 ms (not used) | Every tick re-selects from the DB and each attempt is released in its own tx under the attempt row lock, so an overlapping or repeated tick cannot publish twice. A retry would only repeat work the next 15 s tick does anyway. See § 34.1. |
+| `evaluation.queue_alert` | 1 | exponential, base 1000 ms (not used) | Sends mail, so it is gated by the Redis key `aiq:alert:evaluation_queue` (`SET NX EX 24h`); a tick that sent nothing deletes the key and the next hourly tick retries. See § 34.1. |
 
 BullMQ's exponential backoff with `delay: 1000` produces approximate retry delays of 1s, 2s, 4s, 8s (with jitter). The total worst-case time from first failure to permanent-fail mark is ~15s, well under either job's interval (30s for timer-sweep, 60s for boundary).
 
@@ -1437,3 +1439,66 @@ The CI workflow (`.github/workflows/visual-regression.yml`) is **advisory only**
   4. Record it in `docs/RCA_LOG.md`.
 - **Restore the database:** use the § Backups drill pattern in `docs/06-deployment.md`. Restore into a throwaway container first, verify, and only then plan a cut-over. Never `pg_restore` straight over the live database without the owner's approval.
 - **Never** run `docker system prune`, `apt autoremove`, or stop or restart any non-`assessiq-*` container or unit. The host is shared (CLAUDE.md rule 8).
+
+## 34. Scoring and result release — worker jobs, log events, audit rows (2026-10-01)
+
+> **Read this when:** a result was not published, a candidate says "I never got my result email", the owner's evaluation-queue alert did not arrive, or you are changing the release / evaluation path. Design: `docs/05-ai-pipeline.md` § Platform evaluation queue. Data: `docs/02-data-model.md` § Scoring and result release.
+
+### 34.1 Worker jobs (both on the `assessiq-cron` queue, `assessiq-worker` container)
+
+| Job | Schedule | Retry | What it does | `worker.job.finished` `result` |
+|---|---|---|---|---|
+| `result.auto_release` (`apps/api/src/jobs/auto-release.ts`) | every 15 s | attempts 1 | One cross-tenant read (role `assessiq_system`) for up to 50 attempts that are `graded`, have `evaluation_released_at >= tenant_settings.result_release_auto_since`, belong to an active tenant in mode `auto`, have a non-erased candidate and are not embed attempts. Each is released in its own `withTenant` tx via 09 `releaseAttemptInTx` (trigger `auto`; audit actor = the user who released the evaluation, else `system`), then `sendResultReleasedEmail` after commit. Never throws out of the job. | `{ candidates, released, skipped, failed }` |
+| `evaluation.queue_alert` (`apps/api/src/jobs/evaluation-queue-alert.ts`) | hourly | attempts 1 | READ ONLY count of queue items older than 24 h. If the count is above 0 and the Redis key `aiq:alert:evaluation_queue` can be created (`SET NX EX 24h`), it emails every address in `SUPER_ADMIN_EMAILS` (template `evaluation_queue_alert`). A tick that sent nothing deletes the key so the next hour retries. | `{ overdue, oldestAgeHours, alerted, sent }` |
+
+Neither job calls AI or imports `@assessiq/ai-grading` (`lint:ambient-ai` stays green): one publishes an already-finished result, the other counts rows and sends mail. The overdue count duplicates the queue predicate of 07 `listSuperEvaluationQueue`; keep the two in sync.
+
+- **Cooldown.** An attempt that fails or is refused is skipped for 10 minutes (in memory, per worker process; a restart clears it) so one poison attempt cannot starve the batch. It shows up as `skipped` or `failed` in the job result.
+- **Mode re-check.** The release re-reads the tenant's mode inside its own tx (`FOR SHARE` on `tenant_settings`), so a switch back to manual between the sweep's read and its release wins: that attempt is `skipped`, not published.
+- **Quiet ticks.** A tick with no candidates writes no `auto-release tick` line, only the wrapper's `worker.job.start` / `worker.job.finished` (§ 13.1).
+
+### 34.2 Key log events
+
+| Event (`msg`) | Level | Stream | When |
+|---|---|---|---|
+| `auto-release tick` | info | worker | The sweep found candidates (`candidates`, `released`, `skipped`, `failed`) |
+| `auto-release: skipped` | info | worker | Business refusal (`code`, usually `RESULT_NOT_READY`): released by someone else first, candidate erased in between, a grade still `review_needed`, tenant switched back to manual, or the result predates `auto_since` |
+| `auto-release: release failed`, `auto-release: candidate query failed` | error | worker | Unexpected error for one attempt / the cross-tenant read failed |
+| `auto-release: result email failed` | warn | worker | The email call threw (it normally never does); the result IS published |
+| `evaluation-queue-alert: sent` | info | worker | Alert emailed (`overdue`, `oldestAgeHours`, `sent`) |
+| `evaluation-queue-alert: SUPER_ADMIN_EMAILS is empty`, `evaluation-queue-alert: no email could be sent` | warn / error | worker | No recipients configured / every send failed (the Redis gate is released for the next tick) |
+| `grading.release.complete` | info | grading | A company admin published one result (07) |
+| `grading.release.cert_issuance_failed` | warn | grading | Certificate issuance failed and was rolled back to its SAVEPOINT; the release itself committed (09) |
+| `grading.release.notification_failed` | warn | grading | The post-commit result email threw; the release stands |
+| `grading.release_all.complete`, `grading.release_all.unexpected_error` | info / error | grading | Bulk publish finished (`ready`, `released`, `skipped`) / one attempt failed unexpectedly |
+| `grading.evaluation_released.complete` | info | grading | The platform released one evaluation to its company |
+| `grading.release_to_tenant.bulk_complete`, `grading.release_to_tenant.unexpected_error` | info / error | grading | Bulk release-to-company finished (`requested`, `released`, `skipped`) / one attempt failed unexpectedly |
+| `grading.sent_back.complete` | info | grading | A company sent an evaluation back |
+| `grading.manual_score.complete` | info | grading | A manual first score was written |
+| `submit.expectation_failed` | warn | app | The "soon / email" lookup at submit failed; the candidate got the safe "emailed" message |
+| `result.released_without_score_row` | warn | app | A published attempt had no `attempt_scores` row; the result endpoint answered "pending" instead of a partial score |
+| `result_released.email_skipped: <reason>` | info / warn | webhook | No email sent: attempt not found, not released or no score row (warn); candidate erased or embed attempt (info) |
+| `result_released.email_failed`, `evaluation_queue_alert.email_failed` | warn | webhook | Building or queueing the email threw. Delivery itself is logged by `email.queued` / `email.sent` (§ 14.1) and `email_log` |
+
+### 34.3 Audit rows (in the attempt's own tenant log, same tx as the change)
+
+| Call site | Action | Note |
+|---|---|---|
+| `modules/09-scoring/src/release.ts:178` | `grading.released` | `after.trigger` = `manual` \| `auto`; actor `system` when the sweep releases an evaluation that has no releasing user. Moved here from 07 `admin-claim-release.ts`, which now writes no audit row |
+| `modules/07-ai-grading/src/handlers/super-evaluations.ts:333` | `grading.evaluation_released` | The super admin is the actor |
+| `modules/07-ai-grading/src/handlers/admin-send-back.ts:97` | `grading.sent_back` | The note is NOT in `after` (free text) |
+| `modules/07-ai-grading/src/handlers/admin-manual-score.ts:174` | `grading.override` | `after.kind = 'manual_first_score'`; the reason text lives only on the `gradings` row |
+| `modules/02-tenancy/src/service.ts` `updateResultReleaseMode` | `tenant.settings.updated` | `before` / `after` = `{ result_release_mode }`; a same-mode request writes nothing |
+| `modules/09-scoring/src/mcq.ts:175` | `grading.accepted` | `actor_kind = 'system'`; written only when MCQ scoring actually finalised the attempt |
+
+`grading.claimed` is no longer written (the attempt GET is read-only); the action stays in the catalog for historical rows.
+
+### 34.4 Triage: "a result is waiting but the candidate has nothing"
+
+1. `SELECT status, evaluation_released_at, evaluation_released_by, evaluation_sent_back_at FROM attempts WHERE id = '<attempt-id>'`. `graded` with `evaluation_released_at` NULL is still in the platform queue (expected: the owner has not released it). `graded` with it set is ready for the company to publish.
+2. Manual tenant: an admin must press Publish or "Publish all ready". Auto tenant: `SELECT result_release_mode, result_release_auto_since FROM tenant_settings WHERE tenant_id = '<tenant-id>'`. Automatic publishing needs mode `auto`, `auto_since` set, and `evaluation_released_at >= auto_since`; results released before the switch need a manual publish.
+3. `jq 'select(.msg | startswith("auto-release"))' /var/log/assessiq/worker.log | tail`. A `skipped` line carries the refusal `code`; a `worker.job.finished` result of `candidates: 0` on every tick means nothing matched step 2.
+4. Published but no email: look for `result_released.email_skipped` in `webhook.log` (erased, embed, no score row), then `email_log` for `template_id = 'result_released'`. Brevo's daily cap is shared (§ 33.1).
+5. Owner alert missing: `redis-cli GET aiq:alert:evaluation_queue` (a value means one was sent in the last 24 h), then the `evaluation-queue-alert:` lines in `worker.log`, then `SUPER_ADMIN_EMAILS` on the worker container.
+
+Not covered: there is no queue-age metric beyond the platform queue page and the 24 h email.
