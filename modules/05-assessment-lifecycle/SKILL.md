@@ -141,6 +141,9 @@ Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps 
 - **#20** — RNG / no playback — Phase 1 lands on attempt.start in module 06; the lifecycle module does not perform selection.
 - **#22** — `(assessment_id, user_id)` UNIQUE constraint on `assessment_invitations` enforces v1's "one invitation per user per assessment" cap.
 
+## settings.integrity (Integrity v1, 2026-10-01)
+`settings.integrity = { fullscreen?: boolean, block_copy_paste?: boolean }`, both default false. Typed with `AssessmentIntegritySettingsSchema` (strict: unknown keys rejected) and checked by `assertIntegritySettings` in createAssessment / updateAssessment / createAssessmentFromSet (via createAssessment). Why: the university campus tests need basic anti-cheating switches; they live in the existing settings JSONB so there is no migration. Read by 06 getAttemptForCandidate; enforced client-side only. Note: updateAssessment replaces `settings` wholesale (existing behaviour), so an editor must send the full object. No edit UI yet: the create form sets it. Not included: any server enforcement.
+
 ## Invitation resend / re-invite (2026-10-01)
 
 **Why:** links expired after 72 h (copy promised 7 days), a student who missed the window was locked out with no UI fix, and a revoked invitation blocked re-inviting the same student (UNIQUE `(assessment_id, user_id)` → `INVITATION_EXISTS`). First real user = a campus placement drive (100+ students).

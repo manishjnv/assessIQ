@@ -18,7 +18,7 @@ import { registerAdminSuperEvaluationsRoutes } from './routes/admin-super-evalua
 import { registerAdminTenantSettingsRoutes } from './routes/admin-tenant-settings.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
-import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes } from '@assessiq/attempt-engine';
+import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes } from '@assessiq/attempt-engine';
 import { registerGradingRoutes } from '@assessiq/ai-grading';
 import {
   registerHelpPublicRoutes,
@@ -186,6 +186,8 @@ export async function buildServer() {
   // /api/me/attempts/* under the candidate authChain. Admin-side attempt
   // routes (/api/admin/attempts/*) ship with module 07 in Phase 2.
   await registerAttemptCandidateRoutes(app, { candidateOnly: authChain({ roles: ['candidate'] }) });
+
+  await registerAttemptAdminRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
 
   // Attempt-engine take routes — bare-root /take/:token magic-link surface.
   // Pre-auth (token IS the credential), so uses the public chain. Caddy must

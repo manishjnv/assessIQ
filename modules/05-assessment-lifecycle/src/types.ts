@@ -93,9 +93,19 @@ export type AssessmentBlueprint = z.infer<typeof AssessmentBlueprintSchema>;
 // `blueprint` here — adding it to this schema is the clean approach per the
 // original design note.
 
+// Integrity v1 — candidate-runner proctoring-lite switches (both default off).
+export const AssessmentIntegritySettingsSchema = z
+  .object({
+    fullscreen: z.boolean().optional(),
+    block_copy_paste: z.boolean().optional(),
+  })
+  .strict();
+export type AssessmentIntegritySettings = z.infer<typeof AssessmentIntegritySettingsSchema>;
+
 export const AssessmentSettingsSchema = z
   .object({
     blueprint: AssessmentBlueprintSchema.optional(),
+    integrity: AssessmentIntegritySettingsSchema.optional(),
   })
   .passthrough();
 export type AssessmentSettings = z.infer<typeof AssessmentSettingsSchema>;

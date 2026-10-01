@@ -857,6 +857,9 @@ export function AdminAssessments(): React.ReactElement {
     closes_at: "",
   });
   const [creating, setCreating] = useState(false);
+  // Integrity v1: written to settings.integrity on create (both default off).
+  const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
+  const [integrityBlockCopy, setIntegrityBlockCopy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Creation method: "from-set" (clone-on-use a licensed platform set, default)
@@ -974,6 +977,9 @@ export function AdminAssessments(): React.ReactElement {
     try {
       const opensAtIso = new Date(newForm.opens_at).toISOString();
       const closesAtIso = newForm.closes_at ? new Date(newForm.closes_at).toISOString() : undefined;
+      const integritySettings = {
+        integrity: { fullscreen: integrityFullscreen, block_copy_paste: integrityBlockCopy },
+      };
 
       // ── From-set (clone-on-use) ───────────────────────────────────────────
       // The server license-checks the source set, clones it into this tenant on
@@ -988,6 +994,7 @@ export function AdminAssessments(): React.ReactElement {
           question_count: pendingFromSet.question_count,
           opens_at: opensAtIso,
           ...(closesAtIso ? { closes_at: closesAtIso } : {}),
+          settings: integritySettings,
         });
         navigate(`/admin/assessments/${created.id}`);
         return;
@@ -1000,7 +1007,7 @@ export function AdminAssessments(): React.ReactElement {
 
       if (pendingBlueprint !== null) {
         // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
-        body.settings = { blueprint: pendingBlueprint };
+        body.settings = { blueprint: pendingBlueprint, ...integritySettings };
         // question_count placeholder — backend overrides via Σcriteria.count
         body.question_count = pendingBlueprint.criteria.reduce((s, c) => s + c.count, 0);
         // pack_id / level_id resolved by findOrCreatePackForDomain on backend
@@ -1428,6 +1435,40 @@ export function AdminAssessments(): React.ReactElement {
                   />
                 </div>
               )}
+
+              {/* Integrity v1 — candidate runner switches */}
+              <fieldset
+                style={{
+                  border: "1px solid var(--aiq-color-border)",
+                  borderRadius: "var(--aiq-radius-sm)",
+                  padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+                  marginBottom: "var(--aiq-space-md)",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                }}
+              >
+                <legend style={{ fontWeight: 500 }}>Test integrity</legend>
+                <HelpTip helpId="admin.assessment.integrity.fullscreen">
+                  <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                    <input
+                      type="checkbox"
+                      checked={integrityFullscreen}
+                      onChange={(e) => setIntegrityFullscreen(e.target.checked)}
+                    />
+                    Require full screen
+                  </label>
+                </HelpTip>
+                <HelpTip helpId="admin.assessment.integrity.block_copy_paste">
+                  <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                    <input
+                      type="checkbox"
+                      checked={integrityBlockCopy}
+                      onChange={(e) => setIntegrityBlockCopy(e.target.checked)}
+                    />
+                    Block copy and paste
+                  </label>
+                </HelpTip>
+              </fieldset>
 
               {createError && (
                 <div

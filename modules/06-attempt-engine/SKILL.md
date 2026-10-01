@@ -54,6 +54,7 @@ sweepStaleTimersForTenant(tenantId, now?): Promise<{ autoSubmitted, attemptIds }
 | POST   | `/api/me/attempts/:id/flag`        | `{ question_id, flagged }` | `200 { flagged }` |
 | POST   | `/api/me/attempts/:id/event`       | `{ event_type, question_id?, payload? }` | `201 AttemptEvent` or `204` (rate-cap dropped) |
 | POST   | `/api/me/attempts/:id/submit`      | — | `202 { attempt_id, status: 'submitted', estimated_grading_seconds: null }` |
+| GET    | `/api/admin/attempts/:id/integrity` (admin chain) | — | `200 { tab_switches, copy, paste, paste_blocked, fullscreen_exits, multi_tab_conflicts }` |
 | GET    | `/api/me/attempts/:id/result`      | — | `202 { status: 'grading_pending', message }` (Phase 1 placeholder; Phase 2 returns released results) |
 
 ## Time enforcement
@@ -61,13 +62,17 @@ Server is source of truth. Client computes remaining time from `attempt.started_
 
 A periodic sweeper (BullMQ repeating job, every 30 seconds) finds attempts in `in_progress` past their `ends_at` and auto-submits them with status `auto_submitted`.
 
+## Integrity v1 (2026-10-01)
+Why: campus-placement aptitude tests need basic anti-cheating signals. What: `assessments.settings.integrity = { fullscreen?, block_copy_paste? }` (default off, validated in 05) is surfaced on `CandidateAttemptView.integrity` so the runner can enforce it; the runner records `fullscreen_enter/exit` and `blocked` copy/paste. `getAttemptIntegritySummary(tenantId, attemptId)` returns `{ tab_switches, copy, paste, paste_blocked, fullscreen_exits, multi_tab_conflicts }` (counts from `attempt_events`, RLS via the attempts join); served at `GET /api/admin/attempts/:id/integrity` (`routes.admin.ts`, admin chain, tenant from session). Counts are not scores: visible regardless of release state. Not included: any enforcement beyond cancelling clipboard events and prompting for full screen (both can be bypassed by a determined candidate; the signals are evidence, not proof); AI; per-attempt penalties.
+
 ## Behavioral signals captured
 Stored in `attempt_events` for downstream analysis (09-scoring uses these for archetype):
 - `question_view` (question_id, at)
 - `answer_save` (question_id, at, edits_count)
 - `flag` / `unflag`
 - `tab_blur` / `tab_focus` (visibility transitions)
-- `copy` / `paste`
+- `copy` / `paste` (optional `blocked: true` when the assessment blocks them)
+- `fullscreen_enter` / `fullscreen_exit` (Integrity v1)
 - `nav_back` (jumped backwards)
 - `time_milestone` (per-question time crossed thresholds)
 

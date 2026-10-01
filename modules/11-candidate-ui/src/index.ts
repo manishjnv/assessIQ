@@ -57,6 +57,7 @@ export {
   AttemptTimer,
   AutosaveIndicator,
   IntegrityBanner,
+  FullscreenGate,
   QuestionNavigator,
   CandidateHelp,
   CompletionModal,
@@ -93,6 +94,7 @@ export type {
   UseAutosaveArgs,
   UseAutosaveResult,
   UseIntegrityHooksArgs,
+  IntegrityHooksState,
   UseMultiTabWarningArgs,
   UseMultiTabWarningResult,
 } from "./hooks";

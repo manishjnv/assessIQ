@@ -61,7 +61,7 @@ import {
 import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "./tokens.js";
 import { sendInvitationEmail } from "./email.js";
 import type { SendAssessmentInvitationInput } from "./email.js";
-import { AL_ERROR_CODES, AssessmentBlueprintSchema } from "./types.js";
+import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema } from "./types.js";
 import type {
   Assessment,
   AssessmentBlueprint,
@@ -448,6 +448,7 @@ export async function createAssessment(
   // internally and is already cross-tenant-guarded (Opus-reviewed, Slice 2.1c).
   // The input pack_id / level_id / question_count are overridden with the
   // blueprint-resolved values so the no-blueprint INSERT path below is unchanged.
+  assertIntegritySettings(input.settings);
   let resolvedInput = input;
   let mergedSettings: AssessmentSettings = input.settings ?? {};
 
@@ -590,6 +591,19 @@ export async function createAssessment(
 // clone tx, create tx). A clone with no assessment (if step 3 fails) is benign
 // and reused on retry. The authoritative entitlement control is the publish
 // gate, so even a TOCTOU license-revoke between clone and publish is safe.
+/** Integrity v1: reject a malformed settings.integrity (typed sub-key, like blueprint). */
+export function assertIntegritySettings(settings: AssessmentSettings | undefined): void {
+  const raw = (settings as Record<string, unknown> | undefined)?.["integrity"];
+  if (raw === undefined) return;
+  const r = AssessmentIntegritySettingsSchema.safeParse(raw);
+  if (!r.success) {
+    throw new ValidationError(
+      `settings.integrity is invalid: ${r.error.issues.map((i) => i.message).join("; ")}`,
+      { details: { code: "INVALID_PARAM", param: "settings.integrity" } },
+    );
+  }
+}
+
 export async function createAssessmentFromSet(
   tenantId: string,
   input: CreateAssessmentFromSetInput,
@@ -710,6 +724,7 @@ export async function updateAssessment(
   // (findOrCreatePackForDomain uses its own withTenant internally).
   // The category-level FK guard is performed inside the main withTenant below
   // (needs the tenant-scoped client).
+  assertIntegritySettings(patch.settings);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
   let validatedBlueprint: AssessmentBlueprint | null = null;
   const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];

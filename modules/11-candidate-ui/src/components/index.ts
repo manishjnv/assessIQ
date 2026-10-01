@@ -7,6 +7,9 @@ export type { AutosaveIndicatorProps, AutosaveStatus } from "./AutosaveIndicator
 export { IntegrityBanner } from "./IntegrityBanner";
 export type { IntegrityBannerProps, IntegrityBannerKind } from "./IntegrityBanner";
 
+export { FullscreenGate } from "./FullscreenGate";
+export type { FullscreenGateProps } from "./FullscreenGate";
+
 export { QuestionNavigator } from "./QuestionNavigator";
 export type { QuestionNavigatorProps, NavigatorItem } from "./QuestionNavigator";
 

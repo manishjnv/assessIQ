@@ -20,6 +20,7 @@ import type {
   Attempt,
   AttemptAnswer,
   AttemptEvent,
+  AttemptIntegritySummary,
   AttemptQuestion,
   AttemptStatus,
   FrozenQuestion,
@@ -751,6 +752,35 @@ export async function countAttemptEvents(
     [attemptId],
   );
   return parseInt(result.rows[0]?.count ?? "0", 10);
+}
+
+/** Integrity summary counts. RLS (attempt_events policy via attempts.tenant_id) scopes rows. */
+export async function countIntegrityEvents(
+  client: PoolClient,
+  attemptId: string,
+): Promise<AttemptIntegritySummary> {
+  const r = await client.query<{ event_type: string; blocked: boolean; n: string }>(
+    `SELECT event_type, COALESCE(payload->>'blocked' = 'true', false) AS blocked, count(*) AS n
+     FROM attempt_events
+     WHERE attempt_id = $1
+       AND event_type IN ('tab_blur','copy','paste','fullscreen_exit','multi_tab_conflict')
+     GROUP BY 1, 2`,
+    [attemptId],
+  );
+  const out: AttemptIntegritySummary = {
+    tab_switches: 0, copy: 0, paste: 0, paste_blocked: 0, fullscreen_exits: 0, multi_tab_conflicts: 0,
+  };
+  for (const row of r.rows) {
+    const n = parseInt(row.n, 10);
+    if (row.event_type === "tab_blur") out.tab_switches += n;
+    else if (row.event_type === "copy") out.copy += n;
+    else if (row.event_type === "paste") {
+      out.paste += n;
+      if (row.blocked) out.paste_blocked += n;
+    } else if (row.event_type === "fullscreen_exit") out.fullscreen_exits += n;
+    else if (row.event_type === "multi_tab_conflict") out.multi_tab_conflicts += n;
+  }
+  return out;
 }
 
 export async function listAttemptEvents(
