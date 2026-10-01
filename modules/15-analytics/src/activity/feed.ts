@@ -168,6 +168,9 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'grading.accepted':                     'accepted AI grading',
   'grading.claimed':                      'claimed attempt for grading',
   'grading.released':                     'released graded attempt',
+  // Phase II platform evaluation queue (2026-10-01)
+  'grading.evaluation_released':          'released an evaluated attempt to the company',
+  'grading.sent_back':                    'sent an evaluation back for re-evaluation',
   'attempt_scores.recomputed_by_admin':   'recomputed attempt scores',
   // API keys + embed
   'api_key.created':                      'created API key',
