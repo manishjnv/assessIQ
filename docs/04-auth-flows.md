@@ -202,8 +202,8 @@ The strict path. Every admin must clear both factors.
 1. `requestId` (correlation)
 2. `cookieParser` (`@fastify/cookie`, registered globally at app startup — runs as `onRequest` before any `preHandler`)
 3. `sessionLoader` (sets `req.session` from Redis — **runs before rateLimit** so the role can be read for IP bucket resolution; short-circuits in <1 ms when no `aiq_sess` cookie is present)
-4. `rateLimit` (role-aware per-IP on all routes; per-user 60/min; per-tenant 600/min — see § Role-aware IP rate limiting below)
-5. `tenantContext` (sets `app.current_tenant` for the DB connection)
+4. `rateLimit` (role-aware per-IP on all routes; per-user 60/min (candidate 120/min); per-tenant `RATE_LIMIT_TENANT` 6000/min — see § Role-aware IP rate limiting and § Campus-scale rate limits below)
+5. ~~`tenantContext`~~ (REMOVED 2026-10 — never fired and unused; routes use `withTenant()`, see § Campus-scale)
 6. `requireAuth(roles, mfaRequired=true)` — applied per route
 
 > **Chain reorder note (2026-05-04):** The original order was `requestId → rateLimit → cookieParser → sessionLoader → ...`. sessionLoader was moved before rateLimit so role-aware IP bucket resolution can inspect `req.session`. This is safe: `@fastify/cookie` runs as an `onRequest` hook (before all `preHandlers`), so `req.cookies` is always populated when `sessionLoader` runs. Anonymous requests (no `aiq_sess` cookie) incur zero extra overhead — sessionLoader short-circuits on missing cookie without touching Redis.
@@ -793,7 +793,8 @@ Role is resolved per-request from `req.session.role`, `req.apiKey`, or anonymous
 | Tier | Bucket max (default) | Env var | Scope |
 |---|---|---|---|
 | admin / reviewer session | 100 req/min/IP | `RATE_LIMIT_IP_ADMIN` | **All routes** |
-| candidate session | 30 req/min/IP | `RATE_LIMIT_IP_USER` | **All routes** |
+| candidate session (valid, role=candidate) | 3000 req/min/IP (campus lab, see § Campus-scale below) | `RATE_LIMIT_IP_CANDIDATE_SESSION` | **All routes** |
+| unknown-role session | 30 req/min/IP | `RATE_LIMIT_IP_USER` | **All routes** |
 | anonymous (no session, no key) | 30 req/min/IP | `RATE_LIMIT_IP_ANON` | **All routes** |
 | API key (`Authorization: Bearer aiq_live_*`) | 600 req/min/IP | `RATE_LIMIT_IP_APIKEY` | **All routes** |
 | Per-user | 60 req/min | — (unchanged) | Authenticated sessions |
@@ -1101,3 +1102,27 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 - `.env.example`: two new vars with rollout comments.
 
 > **TODO (operator, out-of-band):** Apply the Cloudflare Transform Rule to inject `x-origin-verify: <secret>` on every request to the zone. This is a Cloudflare dashboard action — it is NOT applied by any code in this repo. Until it is applied, `ORIGIN_TRUST_MODE=off` is the correct setting.
+
+## Campus-scale rate limits and DB pool (2026-10, task R2)
+
+**Problem.** A campus placement drive is 100-500 students in one lab behind ONE public IP, all taking the test at once. The per-IP bucket (30/min candidate, 120/min anon), the 20/min credential cap on `verify-link`, the hardcoded 600/min per-tenant cap and a 10-connection pg pool all 429'd or starved the lab mid-test.
+
+**What changed (`rate-limit.ts`, `auth-chain.ts`, `config.ts`, `pool.ts`, `server.ts`):**
+
+| Control | Before | After | Env var |
+|---|---|---|---|
+| Per-IP, valid candidate session | 30/min | 3000/min (DoS ceiling; mirrors the verified-admin lift) | `RATE_LIMIT_IP_CANDIDATE_SESSION` |
+| Per-user, candidate | 60/min | 120/min | `RATE_LIMIT_USER_CANDIDATE` |
+| Per-tenant (session + apiKey) | 600/min hardcoded | 6000/min | `RATE_LIMIT_TENANT` |
+| Entry routes `POST /take/start`, `POST /api/auth/candidate/verify-link` | 120/min anon IP (and 20/min credential on verify-link) | dedicated per-route per-IP bucket `aiq:rl:entry:<route>:<ip>` 2000/min (2 calls per student: preview + Begin, plus reloads) via `authChain({ candidateEntry: true })` | `RATE_LIMIT_IP_CANDIDATE_ENTRY` |
+| pg pool max | 10 | 30 | `PG_POOL_MAX` |
+
+**Why these numbers.** Autosave debounces 5 s per question (`useAutosave`, ~12 saves/min), plus flush-on-blur/navigation, timer sync, flag/event posts: ~30/min worst realistic case per student, so 120/min per user is 4x headroom including client retry bursts while still stopping a runaway script. Tenant 6000 = 500 students x 12 req/min. Session IP 3000 = 500 x 6. Entry 600 = 2x a 300-student lab. Pool: Postgres `max_connections` is the default 100 (compose sets none); api 30 + worker 30 = 60, ~37 left for migrations/psql/backups; lower the worker via env if needed.
+
+**Why safe.** Session validity comes from `sessionLoader` (Redis lookup) before the limiter runs, so a forged cookie stays on the anon tier. The per-user bucket is still the real per-student limit. Magic-link tokens are 256-bit random + single-use, so 2000/min/IP leaves brute force infeasible; the entry bucket uses its own key so an entry burst does not consume the lab's general anonymous bucket. Admin credential endpoints (TOTP, email OTP, login select/identities) keep the unchanged 20/min `credentialEndpoint` bucket. Fail-closed on missing client IP in production is unchanged. `verify-link` moved from `credentialEndpoint` to `candidateEntry` deliberately.
+
+**Considered and rejected.** Raising the global anon IP cap (weakens every public route); keying the limiter by attempt id (needs a DB/Redis lookup before the limiter, and the session already identifies the student).
+
+**Request-scoped tenant transaction removed.** `tenantContextMiddleware` was a global `preHandler` that checked out a pool client + `BEGIN` per request. Evidence: nothing reads `req.db`/`req.tenant` (only `server.ts` referenced `req.db`), all DB access uses `withTenant()`; and because `sessionLoader` is a per-route preHandler while Fastify runs global preHandlers first, the hook never saw `req.session` in production (it was dead code that would have pinned a second connection for the whole request if it ever fired). The registration in `server.ts` is removed; the exported helper stays in `02-tenancy` with a "do not register globally" note.
+
+**Not included.** Per-route-group candidate caps, Redis-cluster sharding of the buckets, pgbouncer. Load script: `tools/load/candidate-drive.k6.js` (staging/local only).

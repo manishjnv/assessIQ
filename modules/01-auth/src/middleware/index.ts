@@ -14,7 +14,7 @@
 
 export { requestIdMiddleware } from "./request-id.js";
 export { cookieParserMiddleware, parseCookieHeader } from "./cookie-parser.js";
-export { rateLimitMiddleware } from "./rate-limit.js";
+export { rateLimitMiddleware, consumeRateLimit } from "./rate-limit.js";
 export { extractClientIp } from "../client-ip.js";
 export { sessionLoaderMiddleware } from "./session-loader.js";
 export { apiKeyAuthMiddleware } from "./api-key-auth.js";

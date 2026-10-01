@@ -6,7 +6,6 @@ import {
   streamLogger,
   uuidv7,
 } from '@assessiq/core';
-import { tenantContextMiddleware } from '@assessiq/tenancy';
 import { extractClientIp } from '@assessiq/auth';
 import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
@@ -84,22 +83,14 @@ export async function buildServer() {
     enterWithRequestContext(ctx);
   });
 
-  // Tenant context (RLS pin). Skips when req.session is absent (e.g. /health, /invitations/accept pre-auth).
-  // 02-tenancy is structurally typed against minimal TenantRequest/TenantReply shapes
-  // (no hard fastify dep) — bridge via Parameters<> rather than deep-import unexposed types.
-  const tenancy = tenantContextMiddleware();
-  type TReq = Parameters<typeof tenancy.preHandler>[0];
-  type TRep = Parameters<typeof tenancy.preHandler>[1];
-  app.addHook('preHandler', async (req, reply) => {
-    if (req.session?.tenantId !== undefined) {
-      await tenancy.preHandler(req as unknown as TReq, reply as unknown as TRep);
-    }
-  });
-  app.addHook('onResponse', async (req, reply) => {
-    if (req.db !== undefined) {
-      await tenancy.onResponse(req as unknown as TReq, reply as unknown as TRep);
-    }
-  });
+  // NOTE (campus-scale fix, 2026-10): the global tenantContextMiddleware
+  // preHandler/onResponse pair was REMOVED. No route or library reads req.db /
+  // req.tenant (grep: only this file referenced req.db); every DB access goes
+  // through withTenant()/explicit clients. Because sessionLoader is a PER-ROUTE
+  // preHandler (auth-chain.ts) and Fastify runs global preHandlers first, the
+  // hook never saw req.session in production; had it ever fired it would have
+  // pinned a second pool connection (BEGIN held open) for the whole request.
+  // Tenant scoping = withTenant(). See docs/04-auth-flows.md § Rate limits & pool.
 
   // Centralized error mapping
   app.setErrorHandler((err, _req, reply) => {
@@ -195,7 +186,7 @@ export async function buildServer() {
   // Pre-auth (token IS the credential), so uses the public chain. Caddy must
   // forward /take/* to assessiq-api — see RCA 2026-05-02 § Caddy /help/* fix
   // for the additive-matcher procedure.
-  await registerAttemptTakeRoutes(app, { publicChain: authChain({ requireSession: false }) });
+  await registerAttemptTakeRoutes(app, { publicChain: authChain({ requireSession: false, candidateEntry: true }) });
 
   // AI grading admin routes — mounts /api/admin/{attempts,gradings,dashboard,grading-jobs,settings}/*
   // per docs/03-api-contract.md § Admin — Grading & review. Override requires

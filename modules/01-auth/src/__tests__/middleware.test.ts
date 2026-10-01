@@ -372,7 +372,7 @@ describe("rate-limit (Redis testcontainer)", () => {
       expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_VERIFIED_ADMIN);
     });
 
-    it("T3: candidate session → IP limit = RATE_LIMIT_IP_USER (30/min)", async () => {
+    it("T3: candidate session → IP limit = RATE_LIMIT_IP_CANDIDATE_SESSION (3000/min, campus lab)", async () => {
       const handler = rateLimitMiddleware();
       const ip = "40.1.1.3";
       const session: NonNullable<AuthRequest["session"]> = {
@@ -386,12 +386,16 @@ describe("rate-limit (Redis testcontainer)", () => {
         lastTotpAt: nowIso(),
       };
       const reply = makeReply();
-      await handler(makeReq({
+      const req = makeReq({
         url: "/take/some-token",
         headers: { "cf-connecting-ip": ip },
         session,
-      }), reply);
-      expect(reply.headers["X-RateLimit-Limit"]).toBe(config.RATE_LIMIT_IP_USER);
+      });
+      await handler(req, reply);
+      // IP bucket is lifted (campus lab); the per-user bucket (120) is now the
+      // most-constrained one and so the one reported in the headers.
+      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_CANDIDATE_SESSION);
+      expect(reply.headers["X-RateLimit-Limit"]).toBe(config.RATE_LIMIT_USER_CANDIDATE);
     });
 
     it("T4: anon (no session, no apiKey) → IP limit = RATE_LIMIT_IP_ANON (30/min)", async () => {

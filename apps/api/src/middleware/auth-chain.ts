@@ -29,12 +29,10 @@
 // @fastify/cookie runs as an onRequest hook BEFORE all preHandlers, so
 // req.cookies is always populated when sessionLoader runs.
 //
-// The 02-tenancy.tenantContextMiddleware already runs as a global preHandler
-// gated on req.session?.tenantId. When this auth chain populates req.session,
-// the global hook fires AFTER per-route preHandlers complete — except Fastify
-// runs global preHandlers first. So tenant context is NOT set by the global
-// hook for these auth routes; the route handlers and library functions use
-// withTenant(...) to scope DB queries explicitly.
+// The 02-tenancy.tenantContextMiddleware is NO LONGER registered globally
+// (removed 2026-10: unused req.db, would pin a pool connection per request).
+// Route handlers and library functions use withTenant(...) to scope DB queries
+// explicitly.
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { config } from '@assessiq/core';
@@ -70,11 +68,15 @@ const _rateLimit = rateLimitMiddleware();
 // enforces a per-route per-IP credential cap (RATE_LIMIT_CREDENTIAL=20/min).
 // Always applies regardless of session tier to protect TOTP brute-force surface.
 const _rateLimitCredential = rateLimitMiddleware({ credentialEndpoint: true });
+// Candidate magic-link entry instance — dedicated per-route per-IP bucket
+// (RATE_LIMIT_IP_CANDIDATE_ENTRY) so a campus lab behind one IP can all open links.
+const _rateLimitCandidateEntry = rateLimitMiddleware({ candidateEntry: true });
 const _sessionLoader = sessionLoaderMiddleware({ skipUserStatusCheck });
 const _extendOnPass = extendOnPassMiddleware(config.SESSION_COOKIE_NAME);
 
 const rateLimit: FastifyHook = cast(_rateLimit);
 const rateLimitCredential: FastifyHook = cast(_rateLimitCredential);
+const rateLimitCandidateEntry: FastifyHook = cast(_rateLimitCandidateEntry);
 const sessionLoader: FastifyHook = cast(_sessionLoader);
 const apiKeyAuth: FastifyHook = cast(apiKeyAuthMiddleware);
 const extendOnPass: FastifyHook = cast(_extendOnPass);
@@ -104,12 +106,17 @@ export interface AuthChainOpts {
   // Use on credential endpoints (TOTP verify, recovery, login email request/verify)
   // to maintain brute-force protection even when the verified-admin IP cap is high.
   credentialEndpoint?: boolean;
+  // Unauthenticated candidate magic-link entry route: dedicated per-IP bucket
+  // instead of the general IP / credential buckets. See rate-limit.ts.
+  candidateEntry?: boolean;
 }
 
 export function authChain(opts: AuthChainOpts = {}): FastifyHook[] {
   // Chain order: sessionLoader and apiKeyAuth BEFORE rateLimit so resolveIpBucketMax
   // can read both req.session.role and req.apiKey for IP tier selection. See header comment for full safety rationale.
-  const rl = opts.credentialEndpoint === true ? rateLimitCredential : rateLimit;
+  const rl = opts.candidateEntry === true
+    ? rateLimitCandidateEntry
+    : opts.credentialEndpoint === true ? rateLimitCredential : rateLimit;
   const chain: FastifyHook[] = [sessionLoader, apiKeyAuth, rl, syncCtx];
   if (opts.requireSession === false) return chain;
 

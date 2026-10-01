@@ -11,7 +11,9 @@ export function getPool(): Pool {
       connectionString: config.DATABASE_URL,
       // Connection-level safety: fail fast on a dead connection.
       // Phase 1 will tune these from observability data.
-      max: 10,
+      // PG_POOL_MAX (default 30) — see config.ts for the max_connections
+      // arithmetic. Was a hardcoded 10, too small for a 300-candidate drive.
+      max: config.PG_POOL_MAX,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
       // application_name shows up in pg_stat_activity for debugging.

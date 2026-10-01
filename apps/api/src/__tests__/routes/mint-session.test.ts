@@ -52,6 +52,7 @@ vi.mock('@assessiq/auth', () => {
   };
 
   return {
+    CANDIDATE_LOGIN_TOKEN_TTL_SEC: 900, // candidate.ts route reads it at import
     rateLimitMiddleware: () => passthrough(),
     sessionLoaderMiddleware,
     apiKeyAuthMiddleware: () => async () => undefined,

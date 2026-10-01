@@ -5,6 +5,13 @@ import { getPool } from "./pool.js";
 /**
  * Tenant-context middleware for the Fastify request lifecycle.
  *
+ * NOT REGISTERED by apps/api (removed 2026-10, campus-scale fix): nothing
+ * consumed req.db / req.tenant, and the per-request client + open BEGIN would
+ * pin a pool connection for the full request lifetime (pool exhaustion under a
+ * 300-candidate drive). Routes scope DB access with withTenant(). Kept only as
+ * an exported helper (covered by tenancy.test.ts); do NOT re-register it
+ * globally. If a request-scoped client is ever needed again, acquire it lazily.
+ *
  * Phase 0 deliberately avoids a hard dependency on `fastify` (the API server
  * isn't built yet). Instead, this module exports the two hook functions
  * (`preHandler`, `onResponse`) with structurally-typed `req` / `reply`

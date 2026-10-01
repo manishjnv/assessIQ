@@ -14,9 +14,10 @@ import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 //                   → config.RATE_LIMIT_IP_VERIFIED_ADMIN (default 5000/min)
 //                     DoS ceiling only; credential + per-user are the real limits.
 //   pre-MFA admin   → config.RATE_LIMIT_IP_ADMIN  (default 100/min) — UNCHANGED
-//   candidate       → config.RATE_LIMIT_IP_USER   (default  30/min)
+//   candidate session (role==='candidate') → config.RATE_LIMIT_IP_CANDIDATE_SESSION (3000/min)
+//   unknown-role session → config.RATE_LIMIT_IP_USER (default 30/min)
 //   anon            → config.RATE_LIMIT_IP_ANON   (default  30/min)
-//   API key         → config.RATE_LIMIT_IP_APIKEY (default 600/min)
+//   API key         → config.RATE_LIMIT_IP_APIKEY (default 2000/min)
 //
 // Credential bucket key: aiq:rl:cred:<routePath>:<ip>
 //   Optional — only pushed when rateLimitMiddleware({ credentialEndpoint: true }).
@@ -24,10 +25,30 @@ import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 //   ALWAYS applies regardless of auth tier. Verified admins hit it too.
 //   Prevents the IP cap lift from weakening TOTP brute-force protection.
 //
+// Candidate-entry bucket key: aiq:rl:entry:<routePath>:<ip>
+//   Only when rateLimitMiddleware({ candidateEntry: true }); REPLACES the general
+//   IP bucket for that route. Max: config.RATE_LIMIT_IP_CANDIDATE_ENTRY (2000/min).
+//   Why: a campus drive = 100-500 students in one lab behind ONE public IP all
+//   opening their magic link at once (POST /take/start, POST
+//   /api/auth/candidate/verify-link). The anon 120/min IP cap (or the 20/min
+//   credential cap) would 429 the lab. The token is 256-bit random, so 600
+//   guesses/min/IP is still infeasible to brute-force. A separate key keeps the
+//   entry burst from burning the lab's general anon bucket (whoami probes etc.).
+//
+// Campus drive (candidate sessions): all students share one IP, so the per-IP
+// bucket cannot be the binding limit for a valid candidate session; the per-user
+// bucket (config.RATE_LIMIT_USER_CANDIDATE, 120/min) is the real per-student cap
+// and the per-tenant bucket (config.RATE_LIMIT_TENANT, 6000/min) bounds a tenant.
+// Session validity is established by sessionLoader (Redis lookup of the session
+// cookie token) BEFORE this runs: a forged cookie leaves req.session undefined
+// and falls to the anon tier.
+//
 // User bucket key:   aiq:rl:user:<userId>,     max varies by tier:
 //   verified admin (totpVerified===true): config.RATE_LIMIT_USER_VERIFIED_ADMIN (300/min)
-//   pre-MFA admin / candidates: 60/min (hardcoded — original conservative cap)
-// Tenant bucket key: aiq:rl:tenant:<tenantId>, 600/min, authenticated + API-key (unchanged)
+//   candidate session: config.RATE_LIMIT_USER_CANDIDATE (120/min)
+//   pre-MFA admin / other: 60/min (hardcoded — original conservative cap)
+// Tenant bucket key: aiq:rl:tenant:<tenantId>, config.RATE_LIMIT_TENANT (6000/min),
+//   authenticated + API-key
 //
 // Key namespace: aiq:rl:ip:<ip> (not aiq:rl:auth:ip:) — old keys expire naturally.
 //
@@ -69,6 +90,22 @@ async function evalBucket(limit: Limit): Promise<BucketResult> {
   const redis = getRedis();
   const result = (await redis.eval(LUA, 1, limit.key, limit.max, limit.windowSeconds)) as [number, number];
   return { remaining: result[0], ttlSeconds: result[1] < 0 ? limit.windowSeconds : result[1] };
+}
+
+/**
+ * Consume one unit from an arbitrary fixed-window bucket (same atomic Lua as the
+ * middleware). For route-specific throttles the middleware can't key on — e.g.
+ * per-magic-link-token on POST /take/start (codex 2026-10: a valid link replayed
+ * from many IPs must not generate unbounded session/DB work). Returns allowed=false
+ * once the bucket is exhausted. `key` MUST NOT contain a raw secret — hash it.
+ */
+export async function consumeRateLimit(
+  key: string,
+  max: number,
+  windowSeconds: number,
+): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+  const r = await evalBucket({ key, max, windowSeconds, scope: "credential" });
+  return { allowed: r.remaining >= 0, retryAfterSeconds: r.ttlSeconds };
 }
 
 // Extracts the client IP. Production uses CF-Connecting-IP (Caddy normalized).
@@ -123,7 +160,7 @@ function setHeaders(reply: AuthReply, max: number, remaining: number, ttlSeconds
 //   pre-MFA admin   — role∈{admin,reviewer,super_admin} AND totpVerified!==true
 //                     → RATE_LIMIT_IP_ADMIN (default 100/min) — UNCHANGED from today.
 //   candidate       — RATE_LIMIT_IP_USER (default 30/min)
-//   API key         — RATE_LIMIT_IP_APIKEY (default 600/min)
+//   API key         — RATE_LIMIT_IP_APIKEY (default 2000/min)
 //   anon            — RATE_LIMIT_IP_ANON (default 30/min)
 //
 // Note: super_admin is included in the admin-role set so platform admins get
@@ -141,7 +178,9 @@ function resolveIpBucketMax(req: AuthRequest): number {
       // Pre-MFA admin: byte-identical to the behaviour before this redesign.
       return config.RATE_LIMIT_IP_ADMIN;
     }
-    if (role === "candidate") return config.RATE_LIMIT_IP_USER;
+    // Valid candidate session: lift the per-IP cap (campus lab behind one IP).
+    // Mirrors the verified-admin lift above; per-user is the real limit.
+    if (role === "candidate") return config.RATE_LIMIT_IP_CANDIDATE_SESSION;
     return config.RATE_LIMIT_IP_USER; // defensive fallback for unknown role string
   }
   if (req.apiKey !== undefined) return config.RATE_LIMIT_IP_APIKEY;
@@ -158,6 +197,17 @@ export interface RateLimitOptions {
    * IP lift does NOT weaken brute-force protection.
    */
   credentialEndpoint?: boolean;
+  /**
+   * Unauthenticated candidate magic-link entry route (POST /take/start,
+   * POST /api/auth/candidate/verify-link). Swaps the general per-IP bucket for a
+   * dedicated per-route per-IP bucket `aiq:rl:entry:<routePath>:<ip>` at
+   * config.RATE_LIMIT_IP_CANDIDATE_ENTRY (default 2000/min) so a lab of 300
+   * students behind one IP can all open their links. Safe because the token is
+   * 256-bit random (brute force infeasible at 2000/min). Do NOT combine with
+   * credentialEndpoint (that 20/min cap is exactly what this option avoids); do
+   * NOT use for admin/OTP/TOTP credential routes.
+   */
+  candidateEntry?: boolean;
 }
 
 export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
@@ -174,13 +224,25 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
     // Compose the active limits.
     const limits: Limit[] = [];
 
+    // Fastify-matched route pattern (stable; see the no-req.url-fallback note below).
+    const routePath = (req as { routeOptions?: { url?: string } }).routeOptions?.url ?? "unknown";
+
     if (ip !== null) {
-      limits.push({
-        key: `aiq:rl:ip:${ip}`,
-        max: resolveIpBucketMax(req),
-        windowSeconds: 60,
-        scope: "ip",
-      });
+      if (opts.candidateEntry === true) {
+        limits.push({
+          key: `aiq:rl:entry:${routePath}:${ip}`,
+          max: config.RATE_LIMIT_IP_CANDIDATE_ENTRY,
+          windowSeconds: 60,
+          scope: "ip",
+        });
+      } else {
+        limits.push({
+          key: `aiq:rl:ip:${ip}`,
+          max: resolveIpBucketMax(req),
+          windowSeconds: 60,
+          scope: "ip",
+        });
+      }
     }
 
     // Credential-endpoint extra bucket: per-route per-IP cap at RATE_LIMIT_CREDENTIAL
@@ -189,7 +251,7 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
     // ALWAYS applies regardless of session auth tier — even a verified-admin session
     // with the high IP cap (5000/min) still hits the 20/min credential cap.
     if (opts.credentialEndpoint === true && ip !== null) {
-      // routeOptions.url is the Fastify-matched route pattern (e.g. /api/auth/totp/verify) —
+      // routePath (above) is the Fastify-matched route pattern (e.g. /api/auth/totp/verify) —
       // stable across all requests to the matched route.
       //
       // NO fallback to req.url (adversarial finding 3, 2026-05-20): req.url
@@ -198,7 +260,6 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
       // matched pattern is absent (shouldn't happen on a registered route, but
       // could on a wildcard/catch-all), all such requests share one "unknown"
       // bucket — strictly safer than an attacker-controlled key shape.
-      const routePath = (req as { routeOptions?: { url?: string } }).routeOptions?.url ?? "unknown";
       limits.push({
         key: `aiq:rl:cred:${routePath}:${ip}`,
         max: config.RATE_LIMIT_CREDENTIAL,
@@ -210,12 +271,15 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
     if (req.session !== undefined) {
       // Per-user bucket: verified admins get a higher cap because they've passed MFA
       // and the per-user limit is the meaningful constraint at that tier (not IP).
-      // Pre-MFA admin / candidates stay at 60 — the original conservative cap.
+      // Candidate sessions get RATE_LIMIT_USER_CANDIDATE (the real per-student cap
+      // now that the IP bucket is lifted). Pre-MFA admin / unknown roles stay at 60.
       const role = req.session.role;
       const isAdminRole = role === "admin" || role === "reviewer" || role === "super_admin";
       const userMax = isAdminRole && req.session.totpVerified === true
         ? config.RATE_LIMIT_USER_VERIFIED_ADMIN
-        : 60;
+        : role === "candidate"
+          ? config.RATE_LIMIT_USER_CANDIDATE
+          : 60;
       limits.push({
         key: `aiq:rl:user:${req.session.userId}`,
         max: userMax,
@@ -224,14 +288,14 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
       });
       limits.push({
         key: `aiq:rl:tenant:${req.session.tenantId}`,
-        max: 600,
+        max: config.RATE_LIMIT_TENANT,
         windowSeconds: 60,
         scope: "tenant",
       });
     } else if (req.apiKey !== undefined) {
       limits.push({
         key: `aiq:rl:tenant:${req.apiKey.tenantId}`,
-        max: 600,
+        max: config.RATE_LIMIT_TENANT,
         windowSeconds: 60,
         scope: "tenant",
       });
