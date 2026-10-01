@@ -1,3 +1,58 @@
+# Session — 2026-10-01 (b) — pilot hardening R1/R2/R4/A10 — SHIPPED + LIVE
+
+**Headline:** Four fixes are live before the university pilot's first real drive.
+- **R2:** a campus lab behind one IP no longer gets rate-limited, and the DB pool is 30.
+- **R4:** the timer starts at "Begin", with consent, a system check, a practice question and a real submit dialog.
+- **R1:** the leaked aptitude set was replaced in prod, and the AI prompts are out of the public repo.
+- **A10:** "Skip for now" on the authenticator page while MFA is optional.
+
+**Commits (pushed `40c2c10..298becd`):**
+- `38a1f34` — R2 (codex: revise → addressed)
+- `0d19011` — R4 (Sonnet: revise → addressed)
+- `8f488cf` — A10
+- `aecc8d9` — R1 prompts out of git, generator `--pack-key`
+- `298becd` — RCAs
+
+**Tests:**
+- 06: 74/74.
+- 01-auth rate-limit, 02-tenancy, 16-help, MCQ suites: 187/187.
+- web: take + mfa 16/16; api server 6/6.
+- typecheck 0 errors; lint:rls, lint:ambient-ai and deploy-lint self-test pass.
+
+**Deploy (LIVE):**
+- The prompts were snapshotted before the `git pull` and restored after it; all 11 sha256 values match on the host, the api and the worker.
+- Migrations 0111/0112 applied and recorded.
+- api, worker and frontend rebuilt and recreated, all healthy.
+- `/take/start` answers with `x-ratelimit-limit: 2000`.
+- The backup now also writes `prompts-skills-<ts>.tgz` (verified run).
+- **Content swap:** in prod, in one transaction, the leaked pack was archived as `campus-placement-aptitude-v1-retired` and the new pack (60 `APT2-*`, published) was loaded. The first try rolled back on a pack-id collision; fixed with `--pack-key`.
+
+**Next (owner):** run the updated test script `docs/testing/AssessIQ_P0_Test_Script_v2.docx`, then T11 (Rajneesh's company).
+**Open questions:**
+- k6 load test at 300–500 candidates (staging only).
+- R11 (session DB checks before the limiter).
+- The admin guide still says "Phase 1" (R5 copy pass).
+
+---
+
+## Agent utilization (2026-10-01 b)
+- **Opus:**
+  - plan; A10 hand-written; R1 prompts untracking, deploy-lint fix, generator `--pack-key`;
+  - prod content swap and VPS deploy with the prompts backup/restore;
+  - R2/R4 diff review (raised the entry cap to 2000 because preview + Begin = 2 calls), the per-token throttle, and the commit-staging fixes;
+  - docs and the test-script update.
+- **Sonnet:** R2 build; R4 build plus revise; 60 new questions; blind check (60/60); R4 adversarial review (revise).
+- **Haiku:** n/a.
+- **codex:rescue:** R2 revise → per-token throttle added; pre-existing R11 logged.
+- **claude-mem:** honoured vps-shared-host (additive, enumerated first, namespaced backup path), billing-in-same-tx (MCQ path untouched), verify-behavior-not-bundle (bundle and route checks done; click-through test pending the operator), and parallel-session-shared-working-tree (an intervening commit `40c2c10` from another session was preserved and verified).
+- **Routing telemetry:**
+  - Sonnet · R2 rate limit/pool · reworked: Y (codex: per-token throttle)
+  - Sonnet · R4 timer/consent/pre-test · reworked: Y (Sonnet review: 7 fixes)
+  - Sonnet · 60 replacement MCQs · reworked: N
+  - Opus · A10 · reworked: N
+
+---
+
 # Session — 2026-10-01 (P0: university aptitude pilot + production safety — SHIPPED + LIVE)
 
 **Headline:** Everything for a university campus-placement pilot (MCQ aptitude tests) is live, and prod now has verified daily backups.
