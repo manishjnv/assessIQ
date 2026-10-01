@@ -22,8 +22,8 @@
 import type { PoolClient } from "pg";
 import { streamLogger } from "@assessiq/core";
 import { auditInTx } from "@assessiq/audit-log";
-import { recordGradedAttempt } from "@assessiq/billing";
-import { computeAttemptScoreInTx } from "./service.js";
+import { finalizeAttemptIfComplete } from "./finalize.js";
+import { getAttemptScore } from "./repository.js";
 
 /** gradings.prompt_version_sha / _label / model sentinels for deterministic rows. */
 export const MCQ_SENTINEL_SHA = "deterministic-mcq-v1";
@@ -116,10 +116,14 @@ export async function scoreMcqForAttempt(
 }
 
 /**
- * Score MCQ rows, and — when the attempt is MCQ-only (no other question type;
- * KQL/scenario/etc. keep the current admin flow) — finalise it in the SAME
- * transaction: attempt_scores rollup → status 'graded' → billing_events row →
- * audit row (system actor). Safe to call repeatedly.
+ * Score MCQ rows, then finalise the attempt through the shared
+ * finalizeAttemptIfComplete() (SP1) in the SAME transaction: attempt_scores
+ * rollup → status 'graded' (+ evaluation_released_at) → billing_events row.
+ * An MCQ-only attempt completes here; an attempt with other question types
+ * completes only once EVERY other question also has a final, non-flagged grade
+ * (the old "mcq>0 && other==0" shortcut is gone — completeness is one rule now).
+ * A system audit row is written only when this call actually finalised it.
+ * Safe to call repeatedly.
  *
  * Returns { finalized } — true only when this call flipped the attempt to graded.
  */
@@ -130,61 +134,43 @@ export async function scoreMcqAndFinalizeIfComplete(
 ): Promise<{ finalized: boolean; mcqRowsInserted: number }> {
   const mcqRowsInserted = await scoreMcqForAttempt(client, attemptId);
 
-  const counts = await client.query<{ mcq: string; other: string }>(
-    `SELECT COUNT(*) FILTER (WHERE q.type = 'mcq')  AS mcq,
-            COUNT(*) FILTER (WHERE q.type <> 'mcq') AS other
-       FROM attempt_questions aq
-       JOIN questions q ON q.id = aq.question_id
-      WHERE aq.attempt_id = $1`,
-    [attemptId],
-  );
-  const mcq = Number(counts.rows[0]?.mcq ?? 0);
-  const other = Number(counts.rows[0]?.other ?? 0);
-  if (mcq === 0 || other > 0) return { finalized: false, mcqRowsInserted };
-
-  // Never finalise a partial score: every MCQ must have its deterministic row
-  // (a question missing its frozen question_versions snapshot is skipped by the
-  // scoring JOIN — leave that attempt for an admin instead of under-counting max).
-  const scored = await client.query<{ n: string }>(
-    `SELECT COUNT(DISTINCT g.question_id) AS n
-       FROM gradings g
-       JOIN attempt_questions aq
-         ON aq.attempt_id = g.attempt_id AND aq.question_id = g.question_id
-       JOIN questions q ON q.id = g.question_id
-      WHERE g.attempt_id = $1
-        AND g.grader = 'deterministic'
-        AND g.override_of IS NULL
-        AND q.type = 'mcq'`,
-    [attemptId],
-  );
-  if (Number(scored.rows[0]?.n ?? 0) < mcq) {
-    log.warn({ tenantId, attemptId, mcq, scored: scored.rows[0]?.n }, "mcq.finalize.skipped_missing_snapshot");
+  // Completion needs every attempt question graded: an MCQ whose frozen
+  // question_versions snapshot is missing has no deterministic row, so the
+  // attempt simply stays un-finalised for an admin (never an under-counted max).
+  const { finalized } = await finalizeAttemptIfComplete(client, {
+    tenantId,
+    attemptId,
+    markEvaluationReleased: true,
+  });
+  if (!finalized) {
+    // Observability for the one MCQ-specific stall: a question whose frozen
+    // snapshot is missing is skipped by the scoring JOIN, so it has no
+    // deterministic row and the attempt waits for an admin.
+    const unscored = await client.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n
+         FROM attempt_questions aq
+         JOIN questions q ON q.id = aq.question_id
+        WHERE aq.attempt_id = $1
+          AND q.type = 'mcq'
+          AND NOT EXISTS (
+            SELECT 1 FROM gradings g
+             WHERE g.attempt_id = aq.attempt_id
+               AND g.question_id = aq.question_id
+               AND g.grader = 'deterministic'
+          )`,
+      [attemptId],
+    );
+    if ((unscored.rows[0]?.n ?? 0) > 0) {
+      log.warn({ tenantId, attemptId, mcqUnscored: unscored.rows[0]?.n }, "mcq.finalize.skipped_missing_snapshot");
+    }
     return { finalized: false, mcqRowsInserted };
   }
 
-  // Lock the attempt row; only pre-graded states may be finalised. Score BEFORE
-  // the flip: archetype signals read status='auto_submitted'.
-  const st = await client.query<{ status: string }>(
-    `SELECT status FROM attempts WHERE id = $1 FOR UPDATE`,
+  const score = await getAttemptScore(client, attemptId);
+  const counts = await client.query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM attempt_questions WHERE attempt_id = $1`,
     [attemptId],
   );
-  const status = st.rows[0]?.status;
-  if (
-    status !== "submitted" &&
-    status !== "auto_submitted" &&
-    status !== "pending_admin_grading"
-  ) {
-    return { finalized: false, mcqRowsInserted };
-  }
-
-  const score = await computeAttemptScoreInTx(client, tenantId, attemptId);
-
-  // submitted|auto_submitted|pending_admin_grading → graded is CHECK-legal and
-  // is the same transition admin-accept performs.
-  await client.query(`UPDATE attempts SET status = 'graded' WHERE id = $1`, [attemptId]);
-
-  // Revenue-leak invariant: billing in the same tx as attempt→graded.
-  await recordGradedAttempt(client, tenantId, attemptId);
 
   await auditInTx(client, {
     action: "grading.accepted", // existing catalog action; no new catalog entry needed
@@ -195,9 +181,9 @@ export async function scoreMcqAndFinalizeIfComplete(
     after: {
       attempt_id: attemptId,
       source: "deterministic_mcq",
-      grading_count: mcq,
-      total_earned: score.total_earned,
-      total_max: score.total_max,
+      grading_count: counts.rows[0]?.n ?? 0,
+      total_earned: score?.total_earned ?? null,
+      total_max: score?.total_max ?? null,
       attempt_status_now: "graded",
     },
   });
