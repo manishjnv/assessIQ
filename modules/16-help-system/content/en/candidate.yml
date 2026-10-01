@@ -281,50 +281,63 @@ candidate.attempt.submit.confirm:
 
 candidate.submit.confirm:
   audience: candidate
-  short_text: "Final confirmation — clicking Submit ends the attempt and starts the grading queue."
+  short_text: "Your result appears here within a minute if it can be scored instantly; otherwise it is emailed to you."
   long_md: |
-    ## Final submit dialog
+    ## After you submit
 
-    This dialog is the last step. Once you confirm, AssessIQ:
+    Your answers are saved and the timer has stopped. There is nothing more
+    you need to do.
 
-    1. Freezes your answers and the timer.
-    2. Records all behavioral signals.
-    3. Queues the attempt for grading.
-    4. Emails your administrator that the attempt is ready for review.
+    - **Instant scoring.** If every question is multiple choice and your
+      organisation publishes results automatically, your result appears on
+      this page in under a minute.
+    - **Otherwise** your result is emailed to your registered address, shown
+      here with part of it hidden (for example `r***@gmail.com`). The message
+      on this page says how long that usually takes.
+    - You only ever see a **complete, final** result — never a partial score
+      while marking is still in progress.
 
-    **You will not see your score immediately.** AI grading runs synchronously
-    when an admin opens your attempt for review (Phase 1). Your administrator
-    will email you once the score is released; depending on their workflow,
-    that can be the same day or several days later.
+    If the email does not arrive, check your spam folder. You can also sign
+    in to the candidate portal with the same email address to see your
+    results.
 
-    There is no "save and continue later" option from this dialog — once you
-    are here, you have committed to submitting.
-
+# Key name kept (renaming a help_id breaks tenant overrides); the content is
+# now about the result card, not bands — the band model is no longer shown to
+# candidates (owner rule P1, 2026-10-01).
 candidate.result.bands:
   audience: candidate
-  short_text: "Bands 0/25/50/75/100 represent your performance vs the rubric, not a raw percentage."
+  short_text: "Your result shows your score, the percentage and whether you passed. You only ever see a complete, final result."
   long_md: |
-    ## Understanding your score
+    ## Understanding your result
 
-    AssessIQ does not report raw percentages for subjective and scenario
-    questions. Instead, every answer lands on a **band**:
+    A released result shows four things:
 
-    | Band | Meaning |
-    |---|---|
-    | **0** | Missing, off-topic, or fundamentally incorrect |
-    | **25** | Touched the right area but missed the key point |
-    | **50** | Partial credit — covered some of the rubric, missed the rest |
-    | **75** | Substantially correct, with one notable gap |
-    | **100** | Complete and well-reasoned per the rubric anchors |
+    - **Score** — the points you earned out of the total available, for
+      example 42 / 60.
+    - **Percent** — your score as a percentage of the total.
+    - **Passed or Not passed** — your percentage compared with the pass mark
+      set for this assessment.
+    - **Certificate** — if you earned one, a link to view and verify it.
 
-    **Why bands and not percentages?** Subjective work is not millimetric.
-    Two graders comparing "73% vs 76%" learn nothing useful; comparing band
-    50 vs band 75 forces a clear judgement call. AssessIQ surfaces the AI's
-    band, the AI's justification, and any admin override side-by-side — so
-    your record is transparent end-to-end.
+    A result is released only when marking is finished and final. You will
+    never see a partial or provisional score. Answer keys and per-question
+    marks are not shown.
 
-    MCQ and KQL questions also map to bands so the final score has a
-    consistent shape.
+candidate.results.list:
+  audience: candidate
+  short_text: "Every result your organisation has released to you, newest first, with a link to any certificate you earned."
+  long_md: |
+    ## My results
+
+    This page lists the results your organisation has **released** to you,
+    newest first. Each one shows your score, the percentage, whether you
+    passed, and a link to your certificate when you earned one.
+
+    - A result appears here only when marking is finished and it has been
+      published — never earlier, and never as a partial score.
+    - When a result is published we also email you, with a link back to this
+      page.
+    - Don't see an assessment you took? Its result has not been released yet.
 
 # ─── Certificates ───
 
@@ -388,6 +401,20 @@ candidate.auth.request_link:
 
     **Already signed in?** If you already have an active session you will be
     taken straight to your certificates without needing to request a new link.
+
+candidate.auth.org_code:
+  audience: candidate
+  short_text: "Your organisation's short code, for example acme-college. If you don't have it, ask your administrator."
+  long_md: |
+    ## Organisation code
+
+    The code identifies the organisation (a school, college or company) that
+    registered you, so AssessIQ can find your account. It is made of lowercase
+    letters, digits and hyphens, for example `acme-college`.
+
+    - If you opened this page from a link in an email from us, the code is
+      already included and this box is not shown.
+    - Otherwise, ask your administrator for the code.
 
 candidate.auth.link_sent:
   audience: candidate

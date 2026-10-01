@@ -2489,6 +2489,28 @@ admin.settings.company_name:
     - The new name also appears on certificates you issue or view afterwards.
     - Each change is recorded in the audit log.
 
+admin.settings.result_release_mode:
+  audience: admin
+  short_text: "Choose whether results go to candidates automatically once complete, or only when you publish them."
+  long_md: |
+    ## Result release
+
+    This setting decides when a candidate can see their result.
+
+    - **Manual (default).** A finished result waits for you. Candidates see
+      nothing — and are not emailed — until you publish it.
+    - **Automatic.** A result is published as soon as it is complete: the
+      candidate sees their score and is emailed straight away.
+
+    A result is **complete** only when every question has a final score.
+    Candidates never see a partial or provisional score, in either mode.
+
+    **Switching to Automatic does not publish results that are already
+    waiting** — you can still publish those yourself.
+
+    You may be asked for a fresh authenticator code when you save. Each
+    change is recorded in the audit log.
+
 admin.assessments.invite.import_csv:
   audience: admin
   short_text: "Upload a CSV of names and emails to add candidates and invite them to this assessment in one go."
