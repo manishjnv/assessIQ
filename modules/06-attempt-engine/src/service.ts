@@ -368,8 +368,11 @@ export async function startAttempt(
     // "All of the above", "Both A and B" — see option-shuffle.ts). This is the ONLY
     // place attempt_questions rows are created — standard and embed starts both
     // arrive here — so every new attempt gets its order from this one site. Old and
-    // in-flight attempts keep NULL. No per-assessment toggle: always on when eligible.
-    const mcqOptions = await repo.listMcqOptionsForPicks(client, chosen);
+    // in-flight attempts keep NULL. Follows assessments.randomize (default true), the
+    // same switch as question order: randomize=false keeps the authored option order.
+    const mcqOptions = assessment.randomize
+      ? await repo.listMcqOptionsForPicks(client, chosen)
+      : new Map<string, unknown>();
     const aqRows = chosen.map((q, i) => ({
       questionId: q.id,
       position: i + 1,
