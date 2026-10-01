@@ -24,6 +24,7 @@ import { withTenant } from "@assessiq/tenancy";
 import {
   findGradingById,
   insertGrading,
+  isAttemptCandidateErased,
 } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
@@ -66,8 +67,8 @@ export interface HandleAdminOverrideInput {
   requireEvaluationReleased?: boolean;
   /**
    * When this override completes the attempt (e.g. it resolves the last
-   * review_needed grade), also set evaluation_released_at? DEFAULT false
-   * (fail-closed) — see HandleAdminAcceptInput.markEvaluationReleased.
+   * review_needed grade), also hand it to the tenant (evaluation_released_at / _by)?
+   * DEFAULT false (fail-closed) — see HandleAdminAcceptInput.markEvaluationReleased.
    */
   markEvaluationReleased?: boolean;
 }
@@ -183,8 +184,36 @@ export async function handleAdminOverride(
       override_reason: override.reason,
     });
 
+    // Keep the rollup truthful in the SAME tx (this is the previously
+    // never-called recomputeOnOverride path): attempt_scores reflects the
+    // override immediately, so the tenant review screen and the CSV never show
+    // a stale total. Deliberately no second audit row — the override audit below
+    // is the one row for this mutation; the derived rollup is recomputable.
+    await computeAttemptScoreInTx(client, tenantId, original.attempt_id);
+
+    // An override can be what completes the result (e.g. the platform evaluator
+    // overrides a review_needed AI grade). Finalise if complete — no-op when the
+    // attempt is already graded or still has pending questions. Whether the
+    // evaluation is also handed to the tenant is the caller's decision (default
+    // no); the platform route asks for it, and an erased candidate is never
+    // handed over. An override on an already-'graded' attempt (a sent-back
+    // re-evaluation) is never auto-released: that is the explicit release step.
+    const handOver =
+      input.markEvaluationReleased === true &&
+      !(await isAttemptCandidateErased(client, original.attempt_id));
+    const { finalized } = await finalizeAttemptIfComplete(client, {
+      tenantId,
+      attemptId: original.attempt_id,
+      markEvaluationReleased: handOver,
+      releasedBy: userId,
+    });
+    const released = finalized && handOver;
+
     // G3.D: audit inside the same tx so grading INSERT and audit_log INSERT
     // commit or roll back atomically (atomicity fix — was out-of-tx before G3.D).
+    // Written AFTER the finalise so the row can record the hand-over
+    // (`evaluation_released: true` only when this override completed the attempt
+    // and released it — there is no separate audit row for that).
     //
     // PII policy (2026-05-13 follow-up, Sonnet review V8):
     //   override_reason is free-text admin input and may contain candidate
@@ -208,25 +237,9 @@ export async function handleAdminOverride(
         score_earned: newRow.score_earned,
         score_max: newRow.score_max,
         status: newRow.status,
+        ...(released ? { evaluation_released: true } : {}),
         // override_reason intentionally OMITTED — see PII policy comment above.
       },
-    });
-
-    // Keep the rollup truthful in the SAME tx (this is the previously
-    // never-called recomputeOnOverride path): attempt_scores reflects the
-    // override immediately, so the tenant review screen and the CSV never show
-    // a stale total. Deliberately no second audit row — the override audit above
-    // is the one row for this mutation; the derived rollup is recomputable.
-    await computeAttemptScoreInTx(client, tenantId, original.attempt_id);
-
-    // An override can be what completes the result (e.g. the platform evaluator
-    // overrides a review_needed AI grade). Finalise if complete — no-op when the
-    // attempt is already graded or still has pending questions. Whether the
-    // evaluation is also handed to the tenant is the caller's decision (default no).
-    await finalizeAttemptIfComplete(client, {
-      tenantId,
-      attemptId: original.attempt_id,
-      markEvaluationReleased: input.markEvaluationReleased === true,
     });
 
     return newRow;

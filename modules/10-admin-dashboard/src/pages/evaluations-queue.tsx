@@ -4,8 +4,11 @@
 //
 // Every company's attempts that carry written answers and are waiting for
 // AssessIQ to evaluate them (spec 2026-10-01 §11, wire contract §5b), oldest
-// first. "Evaluate next" opens the oldest; finished (graded) attempts can be
-// released to their company in bulk.
+// first. "Evaluate next" opens the oldest. Accepting the last grade of an
+// attempt releases it to its company by itself (owner decision 2026-10-01), so
+// the bulk "Release selected to company" is the RECOVERY action: finished (graded)
+// attempts that are still here — sent back and re-evaluated, or completed before
+// that change — can be released in bulk.
 //
 // Consumes:
 //   GET  /api/admin/super/evaluations                          → { items, counts }
@@ -310,7 +313,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
             Evaluations.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
-            Written answers from every company, oldest first. Evaluate each one, then release it to the company.
+            Written answers from every company, oldest first. Accepting the last grade of an attempt releases it to its company and takes it off this list.
           </p>
         </div>
 

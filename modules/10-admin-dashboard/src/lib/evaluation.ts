@@ -180,6 +180,40 @@ export function effectiveGradings(gradings: GradingsRow[]): Map<string, Gradings
   return best;
 }
 
+/**
+ * Is this AI proposal NEWER than the grade currently counted for its question? True for
+ * a result of the attempt-level "Re-run AI" (sent-back attempt): it was generated after
+ * the grade it would replace. After Accept — or an override — the counted grade is the
+ * newer one, so the proposal stops qualifying. Mirrors the server rule in 07 accept
+ * (a proposal at or before the newest grading is a replay / stale and is skipped).
+ * A proposal without a usable timestamp never qualifies.
+ */
+export function isNewerThanGrade(p: GradingProposal, g: GradingsRow): boolean {
+  const generated = Date.parse(p.generated_at);
+  const graded = new Date(g.graded_at).getTime();
+  return Number.isFinite(generated) && Number.isFinite(graded) && generated > graded;
+}
+
+/**
+ * Would this action leave EVERY question with a final (non-flagged) grade? `questionIds`
+ * are the questions the action is about to grade (accepted proposals, a manual score, an
+ * override); every other question must already carry an effective grade that is not
+ * `review_needed`. Mirrors the completion rule of module 09 finalizeAttemptIfComplete —
+ * used only for the "this releases the result" notice, the server decides for real.
+ */
+export function completesWith(
+  questionIds: readonly string[],
+  allQuestionIds: readonly string[],
+  effective: ReadonlyMap<string, GradingsRow>,
+): boolean {
+  if (allQuestionIds.length === 0) return false;
+  return allQuestionIds.every((id) => {
+    if (questionIds.includes(id)) return true;
+    const g = effective.get(id);
+    return g !== undefined && g.status !== "review_needed";
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Queue age
 // ---------------------------------------------------------------------------

@@ -34,11 +34,22 @@ export interface FinalizeAttemptInput {
   attemptId: string;
   /**
    * true  -> also set attempts.evaluation_released_at = now() ("the tenant may
-   *          see and publish this result"). Used by auto-scorable completion and,
-   *          in Phase I, by the tenant admin's own evaluation.
-   * false -> leave it NULL (Phase II: the platform evaluator releases separately).
+   *          see and publish this result") in the SAME statement as the flip, so
+   *          the result is never graded-but-unreleased in between. Used by
+   *          auto-scorable completion and, since the 2026-10-01 owner decision, by
+   *          the platform evaluator's accept / manual score / override: accepting
+   *          the last grade IS the review, there is no separate click.
+   * false -> leave it NULL (the default for every other caller; the explicit
+   *          release-to-tenant step then hands it over).
    */
   markEvaluationReleased: boolean;
+  /**
+   * With markEvaluationReleased: the user handing the result over, written to
+   * attempts.evaluation_released_by (the auto-release sweep uses it as the audit
+   * actor). Omit for system completion (all-MCQ attempts) -> NULL. Ignored when
+   * markEvaluationReleased is false.
+   */
+  releasedBy?: string;
 }
 
 /**
@@ -50,7 +61,7 @@ export async function finalizeAttemptIfComplete(
   client: PoolClient,
   input: FinalizeAttemptInput,
 ): Promise<{ finalized: boolean }> {
-  const { tenantId, attemptId, markEvaluationReleased } = input;
+  const { tenantId, attemptId, markEvaluationReleased, releasedBy } = input;
 
   // 1. Lock the attempt row; only pre-graded states may be finalised. The status
   //    predicate is re-evaluated after the lock is acquired, so a concurrent
@@ -88,14 +99,17 @@ export async function finalizeAttemptIfComplete(
   //    status='auto_submitted'. Then flip, then bill — one transaction.
   await computeAttemptScoreInTx(client, tenantId, attemptId);
 
+  // evaluation_released_at / _by are set in the SAME statement as the flip (one tx):
+  // now() is the completion moment, which is what the auto-release sweep compares
+  // with result_release_auto_since.
   await client.query(
     `UPDATE attempts
         SET status = 'graded',
             ai_proposals = NULL,
             grading_started_at = NULL
-            ${markEvaluationReleased ? ", evaluation_released_at = now()" : ""}
+            ${markEvaluationReleased ? ", evaluation_released_at = now(), evaluation_released_by = $2" : ""}
       WHERE id = $1`,
-    [attemptId],
+    markEvaluationReleased ? [attemptId, releasedBy ?? null] : [attemptId],
   );
 
   // Revenue-leak invariant: billing in the same tx as attempt -> graded.

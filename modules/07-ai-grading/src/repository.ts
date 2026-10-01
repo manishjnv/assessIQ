@@ -191,6 +191,10 @@ export interface InsertGradingInput {
  *
  * D8 invariant: caller MUST pass override_of=null for new AI gradings and
  * override_of=<original.id> for admin overrides. This function never UPDATEs.
+ * One more legitimate use of override_of: an AI RE-RUN accepted on an already-graded
+ * (sent-back) attempt whose prompt SHA did not change — the new row points at the
+ * same-SHA row it supersedes, which keeps the D7 partial unique index satisfied
+ * (admin-accept.ts). The newest row wins either way.
  *
  * tenantId is passed explicitly to satisfy the WITH CHECK RLS policy on
  * gradings (mirrors insertAttempt in 06-attempt-engine). The value must match
@@ -274,6 +278,51 @@ export async function findGradingByIdempotencyKey(
   );
   const row = result.rows[0];
   return row !== undefined ? mapGradingRow(row) : null;
+}
+
+/**
+ * Is this proposal NEWER than every grading already written for (attempt, question)
+ * — any grader, so a human override counts? Compared in SQL (timestamptz, exact), not in
+ * JS. False for an unparsable timestamp or a question with no grading.
+ *
+ * Used by accept on an already-graded attempt to tell a fresh AI pass (a re-run after a
+ * send-back: same prompt SHA, new verdict) from a replay or a stale tab: a proposal
+ * generated at or before the newest grading can never overwrite it.
+ */
+export async function isProposalNewerThanGradings(
+  client: PoolClient,
+  attemptId: string,
+  questionId: string,
+  generatedAt: string,
+): Promise<boolean> {
+  if (!Number.isFinite(Date.parse(generatedAt))) return false;
+  const result = await client.query<{ newer: boolean | null }>(
+    `SELECT (MAX(graded_at) < $3::timestamptz) AS newer
+       FROM gradings
+      WHERE attempt_id = $1
+        AND question_id = $2`,
+    [attemptId, questionId, generatedAt],
+  );
+  return result.rows[0]?.newer === true;
+}
+
+/**
+ * Has the attempt's candidate been erased (DPDP/GDPR, users.erased_at)? Same source as
+ * release-to-tenant's gate. The platform completion path uses it under the attempt lock:
+ * an erased candidate's result is never handed over to the tenant automatically.
+ */
+export async function isAttemptCandidateErased(
+  client: PoolClient,
+  attemptId: string,
+): Promise<boolean> {
+  const result = await client.query<{ erased: boolean }>(
+    `SELECT (u.erased_at IS NOT NULL) AS erased
+       FROM attempts a
+       JOIN users u ON u.id = a.user_id
+      WHERE a.id = $1`,
+    [attemptId],
+  );
+  return result.rows[0]?.erased === true;
 }
 
 // ---------------------------------------------------------------------------

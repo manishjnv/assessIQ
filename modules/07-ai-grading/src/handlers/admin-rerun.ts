@@ -17,6 +17,15 @@
  *   carry `escalation_chosen_stage: "3"` (or "manual" if Stage 2/3 disagree
  *   by ≥2 bands).
  *
+ * Attempt-level re-evaluation (2026-10-01): on an already-'graded' attempt (the tenant
+ * sent it back) this is the platform evaluator's "Re-run AI". It then behaves like
+ * Grade all: the grading-in-progress marker (attempts.grading_started_at) is set for the
+ * run and the returned proposals are cached on the attempt (attempts.ai_proposals), so
+ * the evaluate page can poll progress and a proxy timeout loses nothing. On a pre-graded
+ * attempt nothing of that applies — the per-question "Re-run (Opus)" helper keeps its
+ * original, stateless behaviour. Either way NOTHING is committed here (D8): the
+ * evaluator's accept writes the gradings rows.
+ *
  * Cross-module SQL note: same as admin-grade.ts — inline SQL via withTenant,
  * no @assessiq/attempt-engine import (not in this package's dependencies).
  */
@@ -27,6 +36,7 @@ import { auditInTx } from "@assessiq/audit-log";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { gradeSubjective } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
+import { resolveGradingRubric } from "./admin-grade.js";
 import type { GradingProposal } from "../types.js";
 import type { PoolClient } from "pg";
 
@@ -170,6 +180,8 @@ export async function handleAdminRerun(
   }
 
   const startMs = Date.now();
+  // True while this run holds the grading-in-progress marker (graded attempts only).
+  let markerHeld = false;
 
   try {
     const { status, questions, answers } = await withTenant(
@@ -190,6 +202,21 @@ export async function handleAdminRerun(
       );
     }
 
+    // Attempt-level re-evaluation of an already-graded (sent-back) attempt: mark the
+    // run in progress exactly like Grade all, so the page shows the banner and polls,
+    // and so the proposals survive a dropped response (cached below). A marker left
+    // behind by a crash is treated as stalled by the page after 10 minutes.
+    const reevaluation = status === "graded";
+    if (reevaluation) {
+      await withTenant(tenantId, async (client) => {
+        await client.query(
+          `UPDATE attempts SET grading_started_at = NOW() WHERE id = $1`,
+          [attemptId],
+        );
+      });
+      markerHeld = true;
+    }
+
     const proposals: GradingProposal[] = [];
     let questionCount = 0;
 
@@ -207,7 +234,9 @@ export async function handleAdminRerun(
           attempt_id: attemptId,
           question_id: q.question_id,
           question_content: q.content,
-          rubric: q.rubric,
+          // Same rubric resolution as Grade all (synthesised / holistic fallback), so a
+          // re-run does not fail on a question whose first pass was graded that way.
+          rubric: resolveGradingRubric(q.type, q.content, q.rubric),
           answer,
           ...(input.forceEscalate === true ? { force_escalate: true } : {}),
         };
@@ -259,6 +288,17 @@ export async function handleAdminRerun(
     );
 
     await withTenant(tenantId, async (client) => {
+      if (reevaluation) {
+        // Review cache + marker clear, atomically with the audit row (same as Grade all).
+        // NOT a committed grade — the evaluator's accept is still required (D8).
+        await client.query(
+          `UPDATE attempts
+              SET ai_proposals = $1::jsonb,
+                  grading_started_at = NULL
+            WHERE id = $2`,
+          [JSON.stringify(proposals), attemptId],
+        );
+      }
       await auditInTx(client, {
         action: "grading.retry",
         actorKind: "user",
@@ -275,8 +315,29 @@ export async function handleAdminRerun(
         },
       });
     });
+    markerHeld = false;
 
     return { proposals };
+  } catch (err) {
+    // Any failure while the marker is held must clear it, or the page's "grading in
+    // progress" banner sticks on a run that is over. Best-effort — never mask the
+    // original error.
+    if (markerHeld) {
+      try {
+        await withTenant(tenantId, async (client) => {
+          await client.query(
+            `UPDATE attempts SET grading_started_at = NULL WHERE id = $1`,
+            [attemptId],
+          );
+        });
+      } catch (clearErr) {
+        log.warn(
+          { attemptId, err: (clearErr as Error).message },
+          "grading.marker_clear_failed",
+        );
+      }
+    }
+    throw err;
   } finally {
     slot.release();
   }

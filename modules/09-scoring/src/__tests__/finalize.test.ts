@@ -209,6 +209,32 @@ describe("finalizeAttemptIfComplete", () => {
     expect(await billing(attemptId)).toBe(1);
   });
 
+  it("releasedBy: recorded with evaluation_released_at in the SAME statement as the flip; omitted (system completion) stays NULL; ignored when not released", async () => {
+    const by = (id: string) =>
+      sup((c) =>
+        c
+          .query(`SELECT evaluation_released_at IS NOT NULL AS released, evaluation_released_by::text AS by FROM attempts WHERE id=$1`, [id])
+          .then((r) => r.rows[0] as { released: boolean; by: string | null }),
+      );
+    const run = async (opts: { release: boolean; releasedBy?: string }) => {
+      const { attemptId, qids } = await seed("pending_admin_grading", ["subjective"]);
+      await gradeOne(attemptId, qids[0]!, { earned: 8 });
+      const r = await withTenant(tenant, (c) =>
+        finalizeAttemptIfComplete(c, {
+          tenantId: tenant,
+          attemptId,
+          markEvaluationReleased: opts.release,
+          ...(opts.releasedBy !== undefined ? { releasedBy: opts.releasedBy } : {}),
+        }),
+      );
+      expect(r).toEqual({ finalized: true });
+      return by(attemptId);
+    };
+    expect(await run({ release: true, releasedBy: admin })).toEqual({ released: true, by: admin });
+    expect(await run({ release: true })).toEqual({ released: true, by: null });
+    expect(await run({ release: false, releasedBy: admin })).toEqual({ released: false, by: null });
+  });
+
   it("auto_submitted attempts finalise too", async () => {
     const { attemptId, qids } = await seed("auto_submitted", ["mcq"]);
     await gradeOne(attemptId, qids[0]!, { grader: "deterministic", earned: 10 });
