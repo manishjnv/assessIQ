@@ -35,6 +35,8 @@ const AdminTenantSettings = lazy(() => import('@assessiq/admin-dashboard').then(
 const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
 const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminPlatform })));
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
+const AdminEvaluationsQueue = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationsQueue })));
+const AdminEvaluationDetail = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationDetail })));
 
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
 const MyResults = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyResults })));
@@ -112,6 +114,10 @@ export function App(): JSX.Element {
           <Route path="/admin/activity" element={<RequireSession role="admin"><AdminActivity /></RequireSession>} />
           {/* Platform provisioning — super_admin only (exact-match gate) */}
           <Route path="/admin/platform" element={<RequireSession role="super_admin"><AdminPlatform /></RequireSession>} />
+          {/* Evaluation queue — AssessIQ evaluates written answers across all
+              companies (super_admin only); companies review and publish. */}
+          <Route path="/admin/platform/evaluations" element={<RequireSession role="super_admin"><AdminEvaluationsQueue /></RequireSession>} />
+          <Route path="/admin/platform/evaluations/:attemptId" element={<RequireSession role="super_admin"><AdminEvaluationDetail /></RequireSession>} />
           {/* Phase C — super-admin per-tenant user drill-down */}
           <Route path="/admin/platform/:tenantId/users" element={<RequireSession role="super_admin"><SuperAdminUsers /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
