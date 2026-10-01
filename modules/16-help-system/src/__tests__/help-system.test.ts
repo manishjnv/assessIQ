@@ -270,7 +270,7 @@ describe("Block 1 — RLS visibility", () => {
   // forward migrations 0092/0093/0094 that never bumped it); corrected to the
   // true post-migration count 125 (124 pre-existing + 1 for
   // admin.question_bank.pack.revise, migration 0097). 2026-10-01: 125 -> 131
-  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136.
+  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139.
   it("tenant A sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_A, async (client) => {
@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(136);
+    expect(count).toBe(139);
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,28 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(136);
+    expect(count).toBe(139);
+  });
+
+  // 0115 UPDATEs the two global rows that predate the result-release change.
+  // A WHERE that matched nothing would fail silently, so assert the new copy:
+  // no bands / AI justifications (owner rule P1) and no admin-run grading queue.
+  it("0115 rewrote candidate.submit.confirm and candidate.result.bands", async () => {
+    if (skipAll) return;
+    const rows = await withSuperClient(async (client) => {
+      const res = await client.query<{ key: string; short_text: string; long_md: string }>(
+        `SELECT key, short_text, long_md FROM help_content
+          WHERE tenant_id IS NULL AND status = 'active'
+            AND key IN ('candidate.submit.confirm', 'candidate.result.bands')`,
+      );
+      return res.rows;
+    });
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(`${r.short_text}\n${r.long_md}`, r.key).not.toMatch(
+        /\bbands?\b|justification|grading queue|admin opens/i,
+      );
+    }
   });
 
   it("tenant A override is visible to tenant A", async () => {
