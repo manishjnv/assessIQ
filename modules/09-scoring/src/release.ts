@@ -17,7 +17,8 @@
 //      the release itself still commits.
 //   9. A candidate sees a result only after release; release requires a
 //      COMPLETE result: status 'graded' AND evaluation_released_at set (the
-//      tenant may publish it — migration 0113).
+//      tenant may publish it — migration 0113) AND no effective grade still
+//      flagged review_needed (a re-run can add one after finalisation).
 //
 // No AI call, no model, no network.
 
@@ -105,6 +106,30 @@ export async function releaseAttemptInTx(
       `Result is not ready to publish (status '${row.status}'${
         row.status === "graded" ? ", evaluation not released to the tenant" : ""
       })`,
+      RELEASE_ERROR_CODES.RESULT_NOT_READY,
+      409,
+    );
+  }
+
+  // P1 re-check: finalize (finalize.ts) guarantees no flagged grade when an attempt
+  // becomes 'graded', but a later re-run / accept (07) can add a NEWER review_needed
+  // row to a graded-but-unpublished attempt (e.g. the AI failed on the re-run). A
+  // flagged grade is provisional, so it must never be published: same effective-grade
+  // rule as finalize (newest row per question, admin_override wins a timestamp tie).
+  const flagged = await client.query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n
+       FROM (
+         SELECT DISTINCT ON (g.question_id) g.status
+           FROM gradings g
+          WHERE g.attempt_id = $1
+          ORDER BY g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC
+       ) e
+      WHERE e.status = 'review_needed'`,
+    [attemptId],
+  );
+  if ((flagged.rows[0]?.n ?? 0) > 0) {
+    throw new AppError(
+      "Result has grades that still need review — resolve them before publishing",
       RELEASE_ERROR_CODES.RESULT_NOT_READY,
       409,
     );

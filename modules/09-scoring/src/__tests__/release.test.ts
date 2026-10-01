@@ -112,16 +112,19 @@ interface Opts {
   evalReleased?: boolean;
   pct?: number;
   erased?: boolean;
+  /** one question with these gradings, oldest first (graded_at = now() - ago) */
+  grades?: Array<{ status: "correct" | "review_needed"; ago: string; grader?: "ai" | "admin_override" }>;
 }
 
 /** One-question attempt with an attempt_scores row at `pct` percent (out of 100). */
-async function seed(o: Opts = {}): Promise<{ attemptId: string; candidateId: string }> {
+async function seed(o: Opts = {}): Promise<{ attemptId: string; candidateId: string; qid: string | null }> {
   const pack = randomUUID();
   const level = randomUUID();
   const assessment = randomUUID();
   const cand = randomUUID();
   const attemptId = randomUUID();
   const pct = o.pct ?? 80;
+  let qid: string | null = null;
   await sup(async (c) => {
     await c.query(
       `INSERT INTO question_packs (id, tenant_id, slug, name, domain, status, created_by) VALUES ($1,$2,$3,'P','soc','published',$4)`,
@@ -148,8 +151,23 @@ async function seed(o: Opts = {}): Promise<{ attemptId: string; candidateId: str
       `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review) VALUES ($1,$2,$3,100,$3,false)`,
       [attemptId, tenant, pct],
     );
+    if (o.grades !== undefined) {
+      qid = randomUUID();
+      await c.query(
+        `INSERT INTO questions (id, pack_id, level_id, type, topic, points, status, content, version, created_by) VALUES ($1,$2,$3,'subjective','t',10,'active','{"question":"q"}'::jsonb,1,$4)`,
+        [qid, pack, level, admin],
+      );
+      await c.query(`INSERT INTO attempt_questions (attempt_id, question_id, position, question_version) VALUES ($1,$2,1,1)`, [attemptId, qid]);
+      for (const g of o.grades) {
+        await c.query(
+          `INSERT INTO gradings (tenant_id, attempt_id, question_id, grader, score_earned, score_max, status, prompt_version_sha, prompt_version_label, model, graded_at)
+           VALUES ($1,$2,$3,$4,5,10,$5,$6,'v1','m', now() - interval '${g.ago}')`,
+          [tenant, attemptId, qid, g.grader ?? "ai", g.status, `sha-${randomUUID().slice(0, 8)}`],
+        );
+      }
+    }
   });
-  return { attemptId, candidateId: cand };
+  return { attemptId, candidateId: cand, qid };
 }
 
 const release = (attemptId: string, actor: ReleaseActor, trigger?: "manual" | "auto") =>
@@ -248,6 +266,31 @@ describe("releaseAttemptInTx — gates", () => {
     await expect(release(attemptId, userActor())).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
     expect(await status(attemptId)).toBe(before);
     expect(await audits(attemptId, "grading.released")).toHaveLength(0);
+  });
+
+  it("P1: a NEWER review_needed grade (a re-run after finalisation) blocks the release; once overridden it can be published", async () => {
+    const { attemptId, qid } = await seed({ grades: [{ status: "correct", ago: "10 minutes" }, { status: "review_needed", ago: "1 minute" }] });
+    await expect(release(attemptId, userActor())).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    expect(await status(attemptId)).toBe("graded");
+    expect(await audits(attemptId, "grading.released")).toHaveLength(0);
+    expect(await certs(attemptId)).toHaveLength(0);
+
+    // the admin resolves the flagged grade with an override (newest row, admin_override)
+    await sup((c) =>
+      c.query(
+        `INSERT INTO gradings (tenant_id, attempt_id, question_id, grader, score_earned, score_max, status, prompt_version_sha, prompt_version_label, model)
+         VALUES ($1,$2,$3,'admin_override',9,10,'correct','sha-override','v1','m')`,
+        [tenant, attemptId, qid],
+      ),
+    );
+    await release(attemptId, userActor());
+    expect(await status(attemptId)).toBe("released");
+  });
+
+  it("an OLDER review_needed row that a newer good grade superseded does not block", async () => {
+    const { attemptId } = await seed({ grades: [{ status: "review_needed", ago: "10 minutes" }, { status: "correct", ago: "1 minute" }] });
+    await release(attemptId, userActor());
+    expect(await status(attemptId)).toBe("released");
   });
 
   it("404 for an unknown attempt (and for another tenant's attempt under RLS)", async () => {

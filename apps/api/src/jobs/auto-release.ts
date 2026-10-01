@@ -34,11 +34,12 @@ export const AUTO_RELEASE_JOB_NAME = 'result.auto_release';
 export const AUTO_RELEASE_INTERVAL_MS = 15_000;
 export const AUTO_RELEASE_BATCH = 50;
 
-// ponytail: in-memory poison guard. An attempt whose release keeps failing with a
-// non-business error would otherwise be re-selected first on every tick (oldest first),
-// and 50 of them would starve every other tenant's auto-release. Failed ids are skipped
-// for FAIL_COOLDOWN_MS; per-process, a restart simply retries them. Upgrade to a DB-side
-// attempt counter only if poison attempts are ever seen in production.
+// ponytail: in-memory poison guard. An attempt whose release keeps failing (an unexpected
+// error, or a business refusal such as a grade flagged for review) would otherwise be
+// re-selected first on every tick (oldest first), and 50 of them would starve every other
+// tenant's auto-release. Such ids are skipped for FAIL_COOLDOWN_MS; per-process, a restart
+// simply retries them. Upgrade to a DB-side attempt counter only if poison attempts are
+// ever seen in production.
 const FAIL_COOLDOWN_MS = 10 * 60_000;
 const failedAt = new Map<string, number>();
 
@@ -46,9 +47,9 @@ const failedAt = new Map<string, number>();
 export type AutoReleaseResult = {
   candidates: number;
   released: number;
-  /** business-rule refusals (race with another release, erased in between, ...) — not errors */
+  /** business-rule refusals (race with another release, erased in between, flagged grade) — not errors; cooled down */
   skipped: number;
-  /** unexpected errors; the id is cooled down for FAIL_COOLDOWN_MS */
+  /** unexpected errors; cooled down for FAIL_COOLDOWN_MS */
   failed: number;
 };
 
@@ -126,9 +127,12 @@ export async function processAutoReleaseTick(now: number = Date.now()): Promise<
       );
     } catch (err) {
       if (err instanceof AppError) {
-        // RESULT_NOT_READY (someone released it first), erased between the read and
-        // the release, ... — expected races, not poison.
+        // Business-rule refusal: someone released it first, erased between the read and
+        // the release, or it still has a grade flagged for review (RESULT_NOT_READY) —
+        // expected, not an error. Cool it down too: a flagged attempt would otherwise be
+        // re-selected (oldest first) on every tick and starve the rest of the batch.
         result.skipped += 1;
+        failedAt.set(c.attempt_id, now);
         log.info(
           { attemptId: c.attempt_id, tenantId: c.tenant_id, code: err.code },
           'auto-release: skipped',
