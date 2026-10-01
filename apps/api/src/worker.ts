@@ -42,7 +42,7 @@ import {
   type EmailSendJobData,
   processWebhookDeliverJob,
   type WebhookDeliverJobData,
-  webhookBackoffStrategy,
+  notificationsBackoffStrategy,
 } from "@assessiq/notifications";
 import {
   processRefreshMvJob,
@@ -90,13 +90,21 @@ const TIMER_SWEEP_INTERVAL_MS = 30_000;
  * Cron jobs are idempotent at the SQL level (bulk UPDATE WHERE status IN (...)
  * — re-running on already-transitioned rows is a no-op), so retries are safe.
  *
- * email.send: 5 attempts, exponential base 5s (SMTP transient retries, not a
- *   published external contract — exponential is fine here).
+ * email.send: two classes, decided per template when sendEmail() enqueues
+ *   (modules/13-notifications/src/email/delivery-policy.ts is the source of
+ *   truth; the entry below mirrors the AUTH class and is documentation only):
+ *     auth (sign-in codes/links, admin invitations): no priority — BullMQ runs
+ *       unprioritized jobs before ANY prioritized one, so they jump ahead of
+ *       bulk — 5 attempts, exponential base 5s (codes expire in minutes).
+ *     bulk (everything else): priority 100, 11 attempts, custom backoff type
+ *       'email-bulk' = [1m,5m,15m,1h,2h,4h,6h,8h,12h,12h] (~45 h), so a provider
+ *       daily-limit outage delays the email instead of dropping it. SMTP 5.1.x
+ *       (bad recipient) fails at once via UnrecoverableError.
  *
  * webhook.deliver: 5 attempts, custom backoff via WEBHOOK_RETRY_DELAYS_MS
  *   literal schedule [1m, 5m, 30m, 2h, 12h] per P3.D12. This IS a published
  *   API contract per docs/03-api-contract.md:324 — must remain literal.
- *   Registered as the 'webhook-literal' custom backoff strategy below.
+ *   Backoff type 'custom'; see notificationsBackoffStrategy below.
  */
 export const JOB_RETRY_POLICY: Record<
   string,
@@ -465,7 +473,10 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processTimerSweepTick);
         case EMAIL_SEND_JOB_NAME:
           return runJobWithLogging(job, () =>
-            processEmailSendJob(job.data as EmailSendJobData),
+            processEmailSendJob(job.data as EmailSendJobData, {
+              attempt: job.attemptsMade + 1,
+              maxAttempts: job.opts.attempts ?? 1,
+            }),
           );
         case WEBHOOK_DELIVER_JOB_NAME:
           return runJobWithLogging(job, () =>
@@ -487,9 +498,11 @@ async function start(): Promise<void> {
       connection: redis,
       concurrency: 1,
       settings: {
-        // Custom backoff strategy for webhook.deliver — literal [1m,5m,30m,2h,12h]
-        // per P3.D12. NOT exponential. This is a published API contract.
-        backoffStrategy: webhookBackoffStrategy,
+        // BullMQ allows ONE custom backoff strategy per worker; it is routed on
+        // the job's backoff.type: 'custom' = webhook.deliver — literal
+        // [1m,5m,30m,2h,12h] per P3.D12 (NOT exponential, a published API
+        // contract); 'email-bulk' = bulk email.send (~45 h schedule).
+        backoffStrategy: notificationsBackoffStrategy,
       },
     },
   );
