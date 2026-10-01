@@ -4,8 +4,11 @@
  *
  * Covers: erased gate (422), not-ready gate (409), exactly one grading.released audit
  * row with the right actor/trigger, certificate issued only here (>=70%), system actor
- * (audit actor_kind 'system', actor_user_id NULL), and the SAVEPOINT guarantee: a
- * certificate failure (JS error OR SQL error) never rolls the release back.
+ * (audit actor_kind 'system', actor_user_id NULL), the SAVEPOINT guarantee (a
+ * certificate failure, JS error OR SQL error, never rolls the release back), and the
+ * auto-release gate: an 'auto' release re-checks the tenant mode / auto_since under a
+ * FOR SHARE lock, so a switch back to manual between the sweep's read and its release
+ * (committed or still in flight) can never be overtaken by a publish.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
@@ -100,8 +103,32 @@ afterAll(async () => {
   if (container !== undefined) await container.stop();
 }, 30_000);
 
-beforeEach(() => {
+/** Put the shared tenant into a release mode; `sinceSql` is a SQL expression for result_release_auto_since. */
+const setSettings = (mode: "manual" | "auto", sinceSql: string) =>
+  sup((c) =>
+    c.query(`UPDATE tenant_settings SET result_release_mode = $1, result_release_auto_since = ${sinceSql} WHERE tenant_id = $2`, [mode, tenant]),
+  );
+
+/** Resolves once some backend is blocked on a row/transaction lock (i.e. the code under test reached its lock). */
+async function waitForLockWait(timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const n = await sup((c) =>
+      c
+        .query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`)
+        .then((r) => r.rows[0].n as number),
+    );
+    if (n > 0) return;
+    if (Date.now() > deadline) throw new Error("nothing is waiting on a lock: the code under test never blocked on the expected row");
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+beforeEach(async () => {
   process.env[CERT_SIGNING_SECRET_ENV] = SECRET;
+  // Default: the tenant has been in auto mode for a day, so an 'auto' release is
+  // eligible (the auto-release gate has its own describe below, which overrides this).
+  await setSettings("auto", "now() - interval '1 day'");
 });
 afterEach(() => {
   process.env[CERT_SIGNING_SECRET_ENV] = SECRET;
@@ -315,6 +342,108 @@ describe("releaseAttemptInTx — gates", () => {
     expect(rejected.reason).toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
     expect(await audits(attemptId, "grading.released")).toHaveLength(1);
     expect(await certs(attemptId)).toHaveLength(1);
+  });
+});
+
+describe("releaseAttemptInTx — auto-release gate (the sweep's candidate read can be stale)", () => {
+  it.each([
+    ["the tenant was switched back to manual (auto_since cleared)", "manual", "NULL"],
+    ["manual mode with a stale auto_since left behind", "manual", "now() - interval '1 day'"],
+    ["auto mode but result_release_auto_since is NULL (inconsistent row)", "auto", "NULL"],
+    ["auto mode but the result became ready BEFORE result_release_auto_since", "auto", "now() + interval '1 day'"],
+  ] as const)("auto trigger refused with 409 RESULT_NOT_READY when %s; nothing changes", async (_label, mode, since) => {
+    const { attemptId } = await seed({ pct: 85 });
+    await setSettings(mode, since);
+    // both ways an auto release is requested: system actor (default trigger) and a user actor with an explicit 'auto'
+    await expect(release(attemptId, { kind: "system" })).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    await expect(release(attemptId, userActor(), "auto")).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    expect(await status(attemptId)).toBe("graded");
+    expect(await audits(attemptId, "grading.released")).toHaveLength(0);
+    expect(await certs(attemptId)).toHaveLength(0);
+  });
+
+  it("auto trigger is allowed when the tenant is in auto mode and the result became ready at or after auto_since", async () => {
+    const { attemptId } = await seed({ pct: 85 }); // evaluation_released_at = now; auto_since = 1 day ago (beforeEach default)
+    expect(await release(attemptId, { kind: "system" })).toEqual({ released: true });
+    expect(await status(attemptId)).toBe("released");
+    expect((await audits(attemptId, "grading.released"))[0]).toMatchObject({ after: { trigger: "auto" } });
+  });
+
+  it("the boundary is exact (compared in SQL, microseconds): evaluation_released_at == auto_since is eligible, one microsecond earlier is not", async () => {
+    const a = await seed();
+    await sup((c) => c.query(`UPDATE attempts SET evaluation_released_at = '2026-03-01 10:00:00.123456+00' WHERE id = $1`, [a.attemptId]));
+    await setSettings("auto", `'2026-03-01 10:00:00.123456+00'`);
+    expect(await release(a.attemptId, { kind: "system" })).toEqual({ released: true });
+
+    const b = await seed();
+    await sup((c) => c.query(`UPDATE attempts SET evaluation_released_at = '2026-03-01 10:00:00.123455+00' WHERE id = $1`, [b.attemptId]));
+    await expect(release(b.attemptId, { kind: "system" })).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    expect(await status(b.attemptId)).toBe("graded");
+  });
+
+  it("a MANUAL release ignores the tenant mode: it works in manual mode, in auto mode, and with an auto_since in the future", async () => {
+    for (const [mode, since] of [
+      ["manual", "NULL"],
+      ["auto", "now() + interval '1 day'"],
+      ["auto", "NULL"],
+    ] as const) {
+      await setSettings(mode, since);
+      const { attemptId } = await seed();
+      expect(await release(attemptId, userActor())).toEqual({ released: true });
+      expect(await status(attemptId)).toBe("released");
+      expect((await audits(attemptId, "grading.released"))[0]).toMatchObject({ after: { trigger: "manual" } });
+    }
+  });
+
+  it("race: a switch to manual still uncommitted when the auto release reaches the gate -> the release waits for it, sees 'manual' and refuses", async () => {
+    const { attemptId } = await seed({ pct: 85 });
+    const sw = new Client({ connectionString: url });
+    await sw.connect();
+    try {
+      await sw.query("BEGIN");
+      // the admin's PATCH, not committed yet: it holds the tenant_settings row lock
+      await sw.query(`UPDATE tenant_settings SET result_release_mode = 'manual', result_release_auto_since = NULL WHERE tenant_id = $1`, [tenant]);
+      const releasing = release(attemptId, { kind: "system" }).then(
+        () => "released" as const,
+        (e: unknown) => e,
+      );
+      await waitForLockWait(); // the release is blocked on its FOR SHARE of the tenant_settings row
+      await sw.query("COMMIT");
+      expect(await releasing).toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    } finally {
+      await sw.query("ROLLBACK").catch(() => undefined);
+      await sw.end();
+    }
+    expect(await status(attemptId)).toBe("graded");
+    expect(await audits(attemptId, "grading.released")).toHaveLength(0);
+    expect(await certs(attemptId)).toHaveLength(0);
+  });
+
+  it("race: a grade writer holding the attempt lock commits a review_needed grade AFTER the release started -> the release waits, then refuses (never publishes a flagged result)", async () => {
+    const { attemptId, qid } = await seed({ grades: [{ status: "correct", ago: "10 minutes" }] });
+    const writer = new Client({ connectionString: url });
+    await writer.connect();
+    try {
+      await writer.query("BEGIN");
+      await writer.query(`SELECT 1 FROM attempts WHERE id = $1 FOR UPDATE`, [attemptId]); // what 07 accept now does first
+      const releasing = release(attemptId, userActor()).then(
+        () => "released" as const,
+        (e: unknown) => e,
+      );
+      await waitForLockWait(); // the release queues behind the writer on the attempt row
+      await writer.query(
+        `INSERT INTO gradings (tenant_id, attempt_id, question_id, grader, score_earned, score_max, status, prompt_version_sha, prompt_version_label, model)
+         VALUES ($1,$2,$3,'ai',0,10,'review_needed','error:no-sha','error','none')`,
+        [tenant, attemptId, qid],
+      );
+      await writer.query("COMMIT");
+      expect(await releasing).toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    } finally {
+      await writer.query("ROLLBACK").catch(() => undefined);
+      await writer.end();
+    }
+    expect(await status(attemptId)).toBe("graded");
+    expect(await audits(attemptId, "grading.released")).toHaveLength(0);
   });
 });
 

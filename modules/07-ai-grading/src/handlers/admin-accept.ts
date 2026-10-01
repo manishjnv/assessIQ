@@ -26,7 +26,7 @@ import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { AppError, streamLogger } from "@assessiq/core";
 import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
-import { computeAttemptScore, finalizeAttemptIfComplete } from "@assessiq/scoring";
+import { computeAttemptScoreInTx, finalizeAttemptIfComplete } from "@assessiq/scoring";
 import { auditInTx } from "@assessiq/audit-log";
 
 const log = streamLogger("grading");
@@ -110,6 +110,46 @@ function deriveStatus(
 }
 
 // ---------------------------------------------------------------------------
+// Payload bounds
+// ---------------------------------------------------------------------------
+
+/**
+ * Ceiling for one question's score_max. Real values are tiny (AI rubric totals are
+ * <= 200, question points <= 10) and gradings.score_earned/score_max are
+ * NUMERIC(6,2): a value >= 10^4 would surface as a 500 (numeric overflow), so it is
+ * refused up front as a clean 422.
+ */
+const MAX_QUESTION_SCORE = 1000;
+
+/**
+ * The accept body is echoed back by the client (the proposal came from the review
+ * cache / a previous /grade response), so nothing server-side ties its scores to
+ * the rubric: an unchecked value flows into gradings, the attempt rollup and from
+ * there the published percentage, pass/fail and certificate tier. Until accept is
+ * bound to attempts.ai_proposals (Phase II: accept becomes super-admin only) every
+ * score must at least be a sane number, for the proposal AND for an admin edit:
+ * 0 < score_max <= 1000 and 0 <= score_earned <= score_max, all finite.
+ * One bad proposal rejects the whole request (422) before any tx is opened.
+ */
+function assertScoresInRange(proposals: HandleAdminAcceptInput["proposals"]): void {
+  for (const p of proposals) {
+    const reject = (message: string): never => {
+      throw new AppError(message, AI_GRADING_ERROR_CODES.INVALID_BODY, 422, {
+        details: { question_id: p.question_id, score_max: p.score_max },
+      });
+    };
+    if (!Number.isFinite(p.score_max) || p.score_max <= 0 || p.score_max > MAX_QUESTION_SCORE) {
+      reject(`score_max must be greater than 0 and at most ${MAX_QUESTION_SCORE}`);
+    }
+    for (const earned of [p.score_earned, p.edits?.score_earned]) {
+      if (earned !== undefined && (!Number.isFinite(earned) || earned < 0 || earned > p.score_max)) {
+        reject(`score_earned must be between 0 and ${p.score_max}`);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Core work — runs inside withTenant
 // ---------------------------------------------------------------------------
 
@@ -120,6 +160,32 @@ async function acceptProposals(
   attemptId: string,
   proposals: HandleAdminAcceptInput["proposals"],
 ): Promise<{ gradings: GradingsRow[]; flipped: boolean }> {
+  // Lock the attempt row FIRST — the same row lock Release (09), override and
+  // manual-score take — so the lock order is always attempt row -> everything
+  // else. Without it a Release could check "no flagged grade" and publish while
+  // this accept is still inserting a review_needed grade (and the rollup that
+  // follows would then change an already-published score). A published result is
+  // final: refuse before a single row is written.
+  const lock = await client.query<{ status: string }>(
+    `SELECT status FROM attempts WHERE id = $1 FOR UPDATE`,
+    [attemptId],
+  );
+  const attemptStatus = lock.rows[0]?.status;
+  if (attemptStatus === undefined) {
+    throw new AppError(
+      `Attempt ${attemptId} not found`,
+      AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
+      404,
+    );
+  }
+  if (attemptStatus === "released") {
+    throw new AppError(
+      "This result has already been published to the candidate and can no longer be changed",
+      AI_GRADING_ERROR_CODES.RESULT_ALREADY_PUBLISHED,
+      409,
+    );
+  }
+
   // Phase 3 critique #3 (sonnet rescue): validate each proposal.question_id
   // belongs to this attempt's frozen question set. Without this guard, an
   // admin could submit a body with a question_id from a different attempt
@@ -221,6 +287,15 @@ async function acceptProposals(
     markEvaluationReleased: true,
   });
 
+  // finalize rolls attempt_scores up only when it flips the status. Every other
+  // accept (partial, or a re-run accepted on an already-'graded' result) rolls up
+  // HERE — inside the attempt lock, in the same tx as the grade inserts — so
+  // attempt_scores always matches the grades a concurrent Release will see. A
+  // post-commit recompute left a window in which a Release could publish a stale
+  // total (and a late recompute then changed a published score). A rollup error
+  // now rolls the accept back, same as override and manual-score.
+  if (!flipped) await computeAttemptScoreInTx(client, tenantId, attemptId);
+
   // One summary audit row for the whole accept batch (mirrors
   // help.content.imported precedent — N inserts, one audit row summarising
   // the batch). `attempt_status_now` reflects the actual post-gate state so
@@ -264,6 +339,23 @@ export async function handleAdminAccept(
     );
   }
 
+  // The attempt row lock in acceptProposals is taken on `attemptId`, so every row
+  // must be written to THAT attempt. The route already rejects a mismatch (400);
+  // enforced here too so a direct caller can never lock one attempt and write
+  // grades onto another (e.g. an already-published one).
+  for (const p of proposals) {
+    if (p.attempt_id !== attemptId) {
+      throw new AppError(
+        "proposal.attempt_id must match the attemptId",
+        AI_GRADING_ERROR_CODES.INVALID_BODY,
+        422,
+        { details: { expected: attemptId, received: p.attempt_id } },
+      );
+    }
+  }
+
+  assertScoresInRange(proposals);
+
   const { gradings, flipped } = await withTenant(tenantId, (client) =>
     acceptProposals(client, tenantId, userId, attemptId, proposals),
   );
@@ -277,17 +369,9 @@ export async function handleAdminAccept(
     "grading.accept.complete",
   );
 
-  // Kick off scoring rollup. Idempotent (UPSERT) and meaningful even on
-  // partial accepts (the scoring rollup updates running totals + sets
-  // pending_review when not all questions are graded). Non-fatal: a scoring
-  // failure must not roll back the already-committed gradings. Admin can
-  // recompute via GET /api/admin/attempts/:id/score.
-  try {
-    await computeAttemptScore(tenantId, attemptId);
-    log.info({ attemptId }, "grading.scoring.complete");
-  } catch (scoringErr) {
-    log.error({ attemptId, err: scoringErr }, "grading.scoring.error_after_accept");
-  }
+  // No post-commit rollup: attempt_scores was already written inside the accept
+  // tx (finalizeAttemptIfComplete when it flipped, computeAttemptScoreInTx
+  // otherwise — see acceptProposals).
 
   return {
     gradings,
