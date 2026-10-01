@@ -93,6 +93,13 @@ const AL_MIGRATIONS_DIR = join(MODULES_ROOT, "05-assessment-lifecycle", "migrati
 const AE_MIGRATIONS_DIR = join(MODULES_ROOT, "06-attempt-engine", "migrations");
 const AI_MIGRATIONS_DIR = join(AI_MODULE_ROOT, "migrations");
 const AUDIT_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
+// SP1 (2026-10-01): handleAdminAccept now finalises through 09-scoring's
+// finalizeAttemptIfComplete (attempt_scores rollup + billing_events row BEFORE the
+// accept audit row), so the DB under test needs those tables. users.erased_at
+// (module 20, 0102) is read by the claim handler's candidate join.
+const SCORING_MIGRATIONS_DIR = join(MODULES_ROOT, "09-scoring", "migrations");
+const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
+const DATA_RIGHTS_MIGRATIONS_DIR = join(MODULES_ROOT, "20-data-rights", "migrations");
 
 // ---------------------------------------------------------------------------
 // Coverage table: handler file → expected audit actions (from ACTION_CATALOG).
@@ -119,14 +126,25 @@ const COVERAGE: Array<{
     expectedCallCount: 1,
   },
   {
+    // SP1 (2026-10-01): first human score for an ungraded question (KQL). One
+    // grading.override row (after.kind='manual_first_score'), same tx as the INSERT.
+    file: "admin-manual-score.ts",
+    expectedActions: ["grading.override"],
+    expectedCallCount: 1,
+  },
+  {
     file: "admin-rerun.ts",
     expectedActions: ["grading.retry"],
     expectedCallCount: 1,
   },
   {
+    // SP2 (2026-10-01): the grading.released audit row moved into module 09
+    // releaseAttemptInTx (one shared release for manual / bulk / auto). This file
+    // keeps only the claim audit; the release audit is pinned in
+    // modules/09-scoring/src/__tests__/release.test.ts (static + live).
     file: "admin-claim-release.ts",
-    expectedActions: ["grading.claimed", "grading.released"],
-    expectedCallCount: 2,
+    expectedActions: ["grading.claimed"],
+    expectedCallCount: 1,
   },
   {
     file: "admin-generate.ts",
@@ -145,6 +163,7 @@ const NO_AUDIT_HANDLERS = [
   "admin-queue.ts",        // read-only dashboard query
   "admin-budget.ts",       // read-only billing query
   "admin-grading-jobs.ts", // Phase-1 stubs (empty list + 503)
+  "admin-release-all.ts",  // loops 09 releaseAttemptInTx — each release writes its OWN grading.released row there
 ];
 
 // ---------------------------------------------------------------------------
@@ -517,6 +536,9 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, AL_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AE_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AI_MIGRATIONS_DIR);
+    await applyMigrationsFromDir(client, SCORING_MIGRATIONS_DIR);
+    await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR);
+    await applyMigrationsFromDir(client, DATA_RIGHTS_MIGRATIONS_DIR, ["0102_users_erased_at.sql"]);
     await applyMigrationsFromDir(client, AUDIT_MIGRATIONS_DIR); // must be last
 
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);

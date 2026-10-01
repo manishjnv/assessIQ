@@ -23,6 +23,10 @@ export { sendEmail } from './email/index.js';
 export { processEmailSendJob } from './email/index.js';
 export type { EmailSendJobData } from './email/index.js';
 
+// SP4: candidate result email, sent after the release tx commits (best-effort,
+// never throws). Called by 07 (manual release / release-all) and the worker sweep.
+export { sendResultReleasedEmail } from './email/result-released.js';
+
 // ---------------------------------------------------------------------------
 // Contact-form enquiry (public, unauthenticated — no tenant context)
 // ---------------------------------------------------------------------------

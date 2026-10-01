@@ -29,6 +29,7 @@ import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
 import { auditInTx } from "@assessiq/audit-log";
+import { computeAttemptScoreInTx, finalizeAttemptIfComplete } from "@assessiq/scoring";
 
 const log = streamLogger("grading");
 
@@ -72,6 +73,23 @@ export async function handleAdminOverride(
         `Grading ${gradingId} not found`,
         AI_GRADING_ERROR_CODES.GRADING_NOT_FOUND,
         404,
+      );
+    }
+
+    // Published results are final (SP1): once the attempt is 'released' the
+    // candidate may already have seen the score, so it can no longer change.
+    // The row lock also serialises this override against a concurrent release
+    // (release takes the same FOR UPDATE lock), so an override can never land
+    // after the release commit.
+    const attemptRes = await client.query<{ status: string }>(
+      `SELECT status FROM attempts WHERE id = $1 FOR UPDATE`,
+      [original.attempt_id],
+    );
+    if (attemptRes.rows[0]?.status === "released") {
+      throw new AppError(
+        "This result has already been published to the candidate and can no longer be changed",
+        AI_GRADING_ERROR_CODES.RESULT_ALREADY_PUBLISHED,
+        409,
       );
     }
 
@@ -135,6 +153,23 @@ export async function handleAdminOverride(
       },
     });
 
+    // Keep the rollup truthful in the SAME tx (this is the previously
+    // never-called recomputeOnOverride path): attempt_scores reflects the
+    // override immediately, so the tenant review screen and the CSV never show
+    // a stale total. Deliberately no second audit row — the override audit above
+    // is the one row for this mutation; the derived rollup is recomputable.
+    await computeAttemptScoreInTx(client, tenantId, original.attempt_id);
+
+    // An override can be what completes the result (e.g. the admin overrides a
+    // review_needed AI grade). Finalise if complete — no-op when the attempt is
+    // already graded or still has pending questions. Phase I: the tenant admin
+    // is the evaluator, so evaluation is released to the tenant.
+    await finalizeAttemptIfComplete(client, {
+      tenantId,
+      attemptId: original.attempt_id,
+      markEvaluationReleased: true,
+    });
+
     return newRow;
   });
 
@@ -155,7 +190,8 @@ export async function handleAdminOverride(
 // Helper
 // ---------------------------------------------------------------------------
 
-function deriveOverrideStatus(
+/** Band → status for an admin-authored score (also used by manual first score). */
+export function deriveOverrideStatus(
   scoreEarned: number,
   scoreMax: number,
 ): GradingsRow["status"] {

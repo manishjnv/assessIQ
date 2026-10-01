@@ -82,6 +82,14 @@ const ConfigSchema = z
     EMAIL_FROM: z
       .string()
       .default("AssessIQ <noreply@automateedge.cloud>"),
+    /**
+     * Expected turnaround shown to a candidate whose result will be emailed
+     * rather than shown on screen: "Your result will be emailed to r***@x.com
+     * <EVALUATION_TURNAROUND_TEXT>." (submit response + pending result body,
+     * modules/06-attempt-engine). Plain text, no markup; set per deployment to
+     * match the real evaluation SLA (e.g. "within 48 hours").
+     */
+    EVALUATION_TURNAROUND_TEXT: z.string().min(1).max(120).default("within 72 hours"),
     SENTRY_DSN: z.string().optional(),
     AI_PIPELINE_MODE: z
       .enum(["claude-code-vps", "anthropic-api", "open-weights"])

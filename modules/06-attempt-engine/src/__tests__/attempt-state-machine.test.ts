@@ -319,8 +319,10 @@ beforeAll(async () => {
       "0081_tenant_entitlements.sql",
     ]);
     // Deterministic MCQ scoring at submit writes gradings + attempt_scores.
+    // 0100: finalizeAttemptIfComplete (SP1) clears the review-cache columns on the flip.
     await applyMigrationsFromDir(client, join(MODULES_ROOT, "07-ai-grading", "migrations"), [
       "0040_gradings.sql",
+      "0100_attempts_ai_proposals_cache.sql",
     ]);
     await applyMigrationsFromDir(client, join(MODULES_ROOT, "09-scoring", "migrations"));
     await applyMigrationsFromDir(client, join(MODULES_ROOT, "20-data-rights", "migrations"), [

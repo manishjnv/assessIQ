@@ -19,6 +19,7 @@
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/billing": "workspace:*",
     "@assessiq/core": "workspace:*",
+    "@assessiq/notifications": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "@assessiq/attempt-engine": "workspace:*",
     "@assessiq/auth": "workspace:*",

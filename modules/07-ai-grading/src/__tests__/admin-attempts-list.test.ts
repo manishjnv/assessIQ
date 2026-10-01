@@ -206,6 +206,8 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, AL_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AE_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AI_MIGRATIONS_DIR);
+    // handleAdminListAttempts joins users.erased_at (module 20, 0102) for the DPDP display mask.
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "20-data-rights", "migrations"), ["0102_users_erased_at.sql"]);
   });
 
   setPoolForTesting(containerUrl);

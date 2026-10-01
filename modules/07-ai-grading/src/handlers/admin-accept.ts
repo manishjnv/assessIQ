@@ -26,9 +26,8 @@ import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { AppError, streamLogger } from "@assessiq/core";
 import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
-import { computeAttemptScore } from "@assessiq/scoring";
+import { computeAttemptScore, finalizeAttemptIfComplete } from "@assessiq/scoring";
 import { auditInTx } from "@assessiq/audit-log";
-import { recordGradedAttempt } from "@assessiq/billing";
 
 const log = streamLogger("grading");
 
@@ -56,11 +55,12 @@ export interface HandleAdminAcceptInput {
 export interface HandleAdminAcceptOutput {
   gradings: GradingsRow[];
   /**
-   * Phase 2 completion-gate (2026-05-28): `status` is now `"graded"` only when
-   * every AI-gradeable question (subjective | scenario | log_analysis) has a
-   * non-overridden gradings row. Partial accepts return
-   * `"pending_admin_grading"` so the attempt is NOT marked complete until
-   * every AI-failure is re-run or overridden.
+   * Completion gate (SP1, 2026-10-01): `status` is `"graded"` only when EVERY
+   * frozen question (all five types, incl. KQL) has a final, non-flagged grade
+   * (module 09 finalizeAttemptIfComplete). Partial accepts — or accepts that
+   * leave a review_needed grade / an ungraded KQL question — return
+   * `"pending_admin_grading"` so the attempt is NOT marked complete until every
+   * AI-failure is re-run or overridden and every KQL question is scored.
    */
   attempt: { id: string; status: "graded" | "pending_admin_grading" };
 }
@@ -203,50 +203,23 @@ async function acceptProposals(
     gradings.push(grading);
   }
 
-  // Phase 2 completion-gate (2026-05-28, Bug A fix):
-  // Flip `attempts.status` to 'graded' ONLY when every AI-gradeable question
-  // (subjective | scenario | log_analysis) has a non-overridden gradings row.
-  // MCQ is scored deterministically (scoreMcqForAttempt, module 09) and its
-  // rows carry grader='deterministic', so they are excluded from both sides of
-  // this gate (the numerator counts only grader IN ('ai','admin_override')).
-  // KQL has no grader yet (known gap) and is not in the denominator either.
+  // Completion gate (SP1, 2026-10-01 — replaces the 2026-05-28 Bug A gate).
+  // The attempt is finalised (score rollup + status 'graded' + billing + review
+  // cache cleared, ONE tx) only when EVERY frozen question — all five types,
+  // including KQL — has a final, non-flagged grade (review_needed blocks).
+  // That rule now lives in one place, module 09's finalizeAttemptIfComplete,
+  // shared with deterministic MCQ scoring, override and manual scoring.
   //
-  // Previously: any single accept flipped status='graded' + fired billing,
-  // even when N-1 of N questions were still pending. With Accept-all skipping
-  // AI-failures (Phase 1 FE), this meant a single accepted question silently
-  // claimed the whole attempt was done. Revenue-leak invariant
-  // (memory: billing-events-grade-commit-critical-path) requires billing be
-  // tied to a TRUE completion, not a partial one — so billing now fires
-  // ONLY when the gate actually transitions the row.
-  const flipResult = await client.query<{ id: string }>(
-    `UPDATE attempts
-        SET status = 'graded'
-      WHERE id = $1
-        AND status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
-        AND (
-          SELECT COUNT(*)
-            FROM attempt_questions aq
-            JOIN questions q ON q.id = aq.question_id
-           WHERE aq.attempt_id = $1
-             AND q.type IN ('subjective', 'scenario', 'log_analysis')
-        ) = (
-          -- Only rows for THIS attempt's AI-gradeable questions count: a
-          -- stray/override row on an MCQ (deterministic path) must never
-          -- satisfy the gate while an AI question is still ungraded.
-          SELECT COUNT(DISTINCT g.question_id)
-            FROM gradings g
-            JOIN attempt_questions aq2
-              ON aq2.attempt_id = g.attempt_id AND aq2.question_id = g.question_id
-            JOIN questions q2 ON q2.id = g.question_id
-           WHERE g.attempt_id = $1
-             AND g.override_of IS NULL
-             AND g.grader IN ('ai', 'admin_override')
-             AND q2.type IN ('subjective', 'scenario', 'log_analysis')
-        )
-      RETURNING id`,
-    [attemptId],
-  );
-  const flipped = (flipResult.rowCount ?? 0) > 0;
+  // Revenue-leak invariant (memory: billing-events-grade-commit-critical-path):
+  // billing is tied to a TRUE completion, in the same tx as the flip; a partial
+  // accept never bills. markEvaluationReleased=true: in Phase I the tenant admin
+  // did this evaluation, so the tenant may publish the result (Phase II moves
+  // the evaluation to the platform and passes false).
+  const { finalized: flipped } = await finalizeAttemptIfComplete(client, {
+    tenantId,
+    attemptId,
+    markEvaluationReleased: true,
+  });
 
   // One summary audit row for the whole accept batch (mirrors
   // help.content.imported precedent — N inserts, one audit row summarising
@@ -267,28 +240,9 @@ async function acceptProposals(
     },
   });
 
-  // Revenue metering — fires ONLY on the actual transition to 'graded', NOT
-  // on partial accepts. Same transaction as the grade commit (auditInTx
-  // same-tx invariant). Idempotent via UNIQUE(tenant_id,attempt_id); any
-  // non-conflict db error rolls back the grade too (revenue-leak invariant).
-  if (flipped) {
-    await recordGradedAttempt(client, tenantId, attemptId);
-
-    // Phase 2 cache (2026-05-29 Bug A robustness): clear the proposals
-    // cache once the gate flips — the proposals now live in the gradings
-    // table where they belong. Same transaction as the status flip so
-    // either both happen or neither does. attempts.grading_started_at is
-    // already null at this point (cleared by admin-grade.ts at batch
-    // completion); we null it again defensively in case a partial state
-    // ever leaks in.
-    await client.query(
-      `UPDATE attempts
-          SET ai_proposals = NULL,
-              grading_started_at = NULL
-        WHERE id = $1`,
-      [attemptId],
-    );
-  }
+  // Revenue metering + the Phase 2 proposals-cache clear (2026-05-29 Bug A
+  // robustness) now happen inside finalizeAttemptIfComplete, in the same tx as
+  // the status flip: either all of {flip, bill, cache clear} commit or none.
 
   return { gradings, flipped };
 }

@@ -117,3 +117,12 @@ Submit is idempotent — calling twice returns the same result. Achieved by chec
 - **Decision #19** — Frozen-version contract: `attempt_questions.question_version` JOINs `question_versions` to render the post-edit-immutable content. Verified by integration test "returns frozen content even after admin edits live question".
 - **Decision #20** — Fisher-Yates shuffle with `Math.random()`; non-reproducible by design.
 - **Decision #23** — Two-tier rate cap: in-process per-second bucket (10/sec, drop silently); DB-enforced per-attempt total (5000, single `event_volume_capped` marker via partial UNIQUE index).
+
+
+## Candidate result contract (SP3, 2026-10-01)
+
+Owner rules: **P1** a candidate sees only a complete, final score (never partial / per-question / bands); **P2** if it will not be ready within ~1 minute say so at submit and point to the email. Code: `src/result.ts`.
+- `POST /api/me/attempts/:id/submit` (202) adds `result_expectation` (`'soon'` iff tenant `result_release_mode='auto'` with `result_release_auto_since` set AND every attempt question is MCQ AND not an embed attempt, else `'email'`), `release_mode`, `email_masked` (`r***@gmail.com`), `turnaround_text` (config `EVALUATION_TURNAROUND_TEXT`, default "within 72 hours"); `estimated_grading_seconds` = 60 for `'soon'`, else null. The expectation lookup can never fail a submit (falls back to the conservative email promise).
+- `GET /api/me/attempts/:id/result` — `released` (and a score row exists) → 200 `{status:'released', total_earned, total_max, percent (1 dp), passed (>= levels.passing_score_pct), assessment_name, released_at (grading.released audit row), certificate|null}`; otherwise 202 `{status:'pending', result_expectation, release_mode, email_masked, turnaround_text, tenant_name}`. Another candidate's attempt → 404.
+- `GET /api/me/results` — released attempts only, newest release first.
+- Migration `0113` adds `attempts.evaluation_released_at/_by/_note/_sent_back_at` (+ partial index for the sweep). A single finalize path sets `evaluation_released_at`; MCQ-only attempts are complete at submit.

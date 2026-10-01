@@ -35,6 +35,13 @@
     "cta": "Review your results",
     "login_fallback": "Log in to AssessIQ to view your results."
   },
+  "result_released": {
+    "page_title": "Your result is ready",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Your result is ready.",
+    "cta": "View your result",
+    "certificate_cta": "View your certificate"
+  },
   "attempt_ready_for_review_admin": {
     "page_title": "Attempt ready for review",
     "brand_wordmark": "AssessIQ",

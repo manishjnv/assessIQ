@@ -94,6 +94,12 @@ export type {
 export { handleAdminOverride } from "./handlers/admin-override.js";
 
 export type {
+  HandleAdminManualScoreInput,
+  HandleAdminManualScoreOutput,
+} from "./handlers/admin-manual-score.js";
+export { handleAdminManualScore } from "./handlers/admin-manual-score.js";
+
+export type {
   HandleAdminRerunInput,
   HandleAdminRerunOutput,
 } from "./handlers/admin-rerun.js";
@@ -115,6 +121,12 @@ export {
   handleAdminClaimAttempt,
   handleAdminReleaseAttempt,
 } from "./handlers/admin-claim-release.js";
+
+export type {
+  HandleAdminReleaseAllInput,
+  HandleAdminReleaseAllOutput,
+} from "./handlers/admin-release-all.js";
+export { handleAdminReleaseAll } from "./handlers/admin-release-all.js";
 
 export type {
   HandleAdminListGradingJobsInput,

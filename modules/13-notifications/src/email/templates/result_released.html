@@ -1,0 +1,29 @@
+<!-- Composes kit partials. Result-released email (SP4, 2026-10-01); layout follows attempt_graded_candidate. Final score only — nothing per-question (owner rule P1). -->
+{{#> email-shell preheader=(concat "Your result for " assessmentName " is ready.")}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-editorial
+      eyebrow="RESULT"
+      title=_t_heading
+      body=(concat "Hi " candidateName ", " tenantName " has released your result for " assessmentName ".")}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
+      <tr><td>{{> email-meta-card rows=meta_rows}}</td></tr>
+    </table>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px">
+      <tr><td>{{> email-cta label=_t_cta href=portalLink width_px=190}}</td></tr>
+    </table>
+
+    {{#if certificateLink}}
+    <p style="margin:24px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55">{{> email-ghost-link href=certificateLink label=_t_certificate_cta}}</p>
+    {{/if}}
+
+  {{/email-body}}
+
+  {{> email-footer-transactional reason="You're receiving this because you completed an AssessIQ assessment."}}
+
+{{/email-shell}}
