@@ -25,8 +25,8 @@ function Harness({ fullscreen, block }: { fullscreen: boolean; block: boolean })
 }
 
 let fsEl: Element | null = null;
-const requestFullscreen = vi.fn(function (this: HTMLElement) {
-  fsEl = this;
+const requestFullscreen = vi.fn(function () {
+  fsEl = document.documentElement;
   document.dispatchEvent(new Event("fullscreenchange"));
   return Promise.resolve();
 });

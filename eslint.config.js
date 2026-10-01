@@ -5,6 +5,7 @@ export default tseslint.config(
   {
     ignores: [
       "**/dist/**",
+      "docs/**", // gitignored local docs + one-off generators; not shipped code
       "**/node_modules/**",
       "**/coverage/**",
       "**/AssessIQ_UI_Template/**",
