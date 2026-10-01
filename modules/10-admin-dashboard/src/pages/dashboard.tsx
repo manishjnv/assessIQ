@@ -19,13 +19,19 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { StatCard, Table } from "@assessiq/ui-system";
+import { Chip, StatCard, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
-import type { QueueRow } from "@assessiq/ai-grading";
+import type { QueueRow as BaseQueueRow } from "@assessiq/ai-grading";
 import { AdminShell } from "../components/AdminShell.js";
 import { useAdminSession } from "../session.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { UsageBanner } from "../components/UsageBanner.js";
+import { evaluationStatusOf } from "../lib/evaluation.js";
+import type { EvaluationStatus } from "../lib/evaluation.js";
+import { evaluationStatusDisplay } from "../lib/status.js";
+
+/** Queue row + the result state the company sees (spec 2026-10-01 §5b). */
+type QueueRow = BaseQueueRow & { evaluation_status?: EvaluationStatus };
 
 interface QueueResponse {
   items: QueueRow[];
@@ -98,8 +104,9 @@ export function AdminDashboard(): React.ReactElement {
     return () => clearInterval(interval);
   }, [fetchQueue]);
 
-  const submittedCount = queueItems.filter((r) => r.status === "submitted").length;
-  const pendingCount = queueItems.filter((r) => r.status === "pending_admin_grading").length;
+  const evalOf = (r: QueueRow): EvaluationStatus => evaluationStatusOf(r.status, r.evaluation_status);
+  const awaitingCount = queueItems.filter((r) => evalOf(r) === "awaiting_evaluation").length;
+  const readyCount = queueItems.filter((r) => evalOf(r) === "ready_to_publish").length;
   const totalCount = queueItems.length;
 
   const displayName =
@@ -138,28 +145,11 @@ export function AdminDashboard(): React.ReactElement {
       key: "status",
       label: "Status",
       sortable: true,
-      render: (row: QueueRow) => (
-        <span
-          style={{
-            fontFamily: "var(--aiq-font-mono)",
-            fontSize: "var(--aiq-text-xs)",
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            padding: "1px 8px",
-            borderRadius: "var(--aiq-radius-pill)",
-            background:
-              row.status === "pending_admin_grading"
-                ? "var(--aiq-color-accent-soft)"
-                : "var(--aiq-color-bg-sunken)",
-            color:
-              row.status === "pending_admin_grading"
-                ? "var(--aiq-color-accent)"
-                : "var(--aiq-color-fg-secondary)",
-          }}
-        >
-          {row.status}
-        </span>
-      ),
+      render: (row: QueueRow) => {
+        // "Awaiting evaluation" / "Ready to publish" / "Published" — never the raw enum.
+        const s = evaluationStatusDisplay(evalOf(row));
+        return <Chip variant={s.variant}>{s.label}</Chip>;
+      },
     },
     {
       key: "action",
@@ -251,8 +241,8 @@ export function AdminDashboard(): React.ReactElement {
           }}
         >
           <StatCard label="In queue" value={totalCount} />
-          <StatCard label="Submitted" value={submittedCount} />
-          <StatCard label="Awaiting review" value={pendingCount} />
+          <StatCard label="Awaiting evaluation" value={awaitingCount} />
+          <StatCard label="Ready to publish" value={readyCount} />
         </div>
 
         {/* Grading queue */}
@@ -274,7 +264,7 @@ export function AdminDashboard(): React.ReactElement {
                 color: "var(--aiq-color-fg-primary)",
               }}
             >
-              Grading queue.
+              Results queue.
             </h2>
           </div>
 
@@ -300,7 +290,7 @@ export function AdminDashboard(): React.ReactElement {
                 {...(sortBy ? { sortBy } : {})}
                 sortDir={sortDir}
                 onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }}
-                emptyMessage="No attempts awaiting grading."
+                emptyMessage="No results waiting."
               />
             </div>
           </div>

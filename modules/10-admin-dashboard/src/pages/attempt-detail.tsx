@@ -1,666 +1,137 @@
-// AssessIQ — Admin attempt detail page.
+// AssessIQ — Admin attempt detail page (tenant review).
 //
 // /admin/attempts/:id
 //
-// P2.D15: loading this page triggers submitted→pending_admin_grading transition
-// via GET /admin/attempts/:id (which calls handleAdminClaimAttempt).
+// Scoring/release change (spec 2026-10-01, SP9/SP10): AssessIQ evaluates written
+// answers (super-admin evaluation queue); the company only reviews and publishes.
+// This page therefore has NO Grade all / Accept all / Re-run / manual score. It
+// follows `evaluation_status` from GET /admin/attempts/:id:
 //
-// Layout: two-column.
-//  Left: question content + candidate answer (plain text, sanitized).
-//  Right: GradingProposalCard / BandPicker override / EscalationDiff.
+//   awaiting_evaluation  banner only — AssessIQ has not released the evaluation
+//   ready_to_publish     final grades + Override (reason), "Send back for
+//                        re-evaluation" (note) and "Publish to candidate"
+//   published            read-only
+//
+// GET /admin/attempts/:id has no side effects (it no longer claims the attempt).
+//
+// Layout: header + banners, then the shared <AttemptGradingPanel mode="review">
+// (four-zone audit card per question).
 //
 // Actions:
-//  - Grade: POST /admin/attempts/:id/grade → returns proposal
-//  - Accept: POST /admin/attempts/:id/accept → commits grading row
-//  - Override: POST /admin/gradings/:id/override (freshMFA gated)
-//  - Re-run: POST /admin/attempts/:id/rerun (returns new proposals)
-//  - Release: POST /admin/attempts/:id/release (terminal)
+//  - Override: POST /admin/gradings/:id/override (fresh-MFA; inline step-up)
+//  - Send back: POST /admin/attempts/:id/send-back { note }
+//  - Publish:  POST /admin/attempts/:id/release (terminal)
 //
 // INVARIANTS:
 //  - No claude/anthropic imports.
 //  - ai_justification + candidate answer displayed as plain text only.
-//  - Override requires fresh-MFA; if 401 with code FRESH_MFA_REQUIRED,
-//    redirect to /admin/mfa?return=<current-path>.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Chip, Spinner, ErasedChip } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { GradingProposalCard } from "../components/GradingProposalCard.js";
-import { EscalationDiff } from "../components/EscalationDiff.js";
-import { ScoreDetail } from "../components/ScoreDetail.js";
-import { BandPicker } from "../components/BandPicker.js";
-import { QuestionPromptView } from "../components/QuestionPromptView.js";
-import { ExpectedAnswerView } from "../components/ExpectedAnswerView.js";
+import { AttemptGradingPanel } from "../components/AttemptGradingPanel.js";
 import { ReleaseConfirmModal } from "../components/ReleaseConfirmModal.js";
-import { ConceptCoverageView } from "../components/ConceptCoverageView.js";
-import { adminApi, AdminApiError } from "../api.js";
-import { bandToScore } from "../lib/band-score.js";
-import type { GradingProposal, GradingsRow } from "@assessiq/ai-grading";
+import { adminApi } from "../api.js";
+import {
+  apiMessage,
+  evaluationMeta,
+  evaluationStatusOf,
+  normaliseDetail,
+} from "../lib/evaluation.js";
+import type { AttemptDetailResponse } from "../lib/evaluation.js";
+import { evaluationStatusDisplay } from "../lib/status.js";
 
-// ---------------------------------------------------------------------------
-// Types for the attempt detail endpoint response
-// ---------------------------------------------------------------------------
-
-interface AttemptAnswer {
-  question_id: string;
-  answer: unknown;
-  edits_count?: number;
-}
-
-/**
- * Rubric shape carried per frozen question (added 2026-05-29). Only the
- * fields the review UI needs are typed; the full RubricSchema lives in
- * `@assessiq/rubric-engine` and the backend column is JSONB so other fields
- * pass through opaquely.
- */
-interface RubricForReview {
-  anchors?: Array<{
-    id: string;
-    concept: string;
-    weight: number;
-    synonyms?: string[];
-  }>;
-  // anchor_weight_total, reasoning_weight_total, reasoning_bands left opaque.
-}
-
-interface FrozenQuestion {
-  /**
-   * Canonical question id. The backend (handleAdminClaimAttempt →
-   * loadFrozenQuestions) returns this field as `question_id`; we normalise it
-   * to `id` at the load() boundary so the rest of the component can key
-   * answers / gradings / proposals off `q.id`. Before this normalisation the
-   * per-question lookups silently missed (every card showed "No answer
-   * submitted" / "Not yet graded" even though answers + gradings existed) —
-   * the bug surfaced 2026-05-29 when the four-zone audit layout started
-   * rendering explicit fallbacks instead of empty blocks.
-   */
-  id: string;
-  /** Raw field name as returned by the backend; normalised into `id`. */
-  question_id?: string;
-  type: string;
-  topic?: string;          // added 2026-05-29: needed for ReleaseConfirmModal table row labels
-  position?: number;       // added 2026-05-29: needed for ReleaseConfirmModal sort order
-  content: unknown;
-  points: number;
-  rubric?: RubricForReview | null;
-}
-
-interface AttemptDetailResponse {
-  attempt: {
-    id: string;
-    status: string;
-    started_at: string | null;
-    submitted_at: string | null;
-    candidate_email: string | null;
-    candidate_name: string;
-    isErased: boolean;
-    assessment_name: string;
-    level_label: string;
-  };
-  answers: AttemptAnswer[];
-  frozen_questions: FrozenQuestion[];
-  gradings: GradingsRow[];
-  /**
-   * Phase 2 cache (Bug A robustness, 2026-05-29). Server-side persisted
-   * proposals from the last handleAdminGrade run. Hydrated into local
-   * `proposals` state on load so a Grade-all whose response was dropped
-   * by a CF/proxy timeout (or by tab navigation) is recoverable on the
-   * next page open. Null if no run yet OR if the gate-flip accept
-   * cleared the cache.
-   */
-  ai_proposals: GradingProposal[] | null;
-  /**
-   * Phase 2 cache: ISO-8601 timestamp set when handleAdminGrade started
-   * a batch. Nulled at batch completion (success or error). Drives the
-   * "Grading in progress" banner and the 15s auto-poll cadence.
-   */
-  grading_started_at: string | null;
-}
-
-interface OverrideFormState {
-  questionId: string | null;
-  gradingId: string | null;
-  band: number | null;
-  /** score_max of the grading being overridden — the band is scaled to it. */
-  scoreMax: number | null;
-  justification: string;
-  reason: string;
-}
-
-// ---------------------------------------------------------------------------
-// Candidate-answer renderer
-//
-// Maps each canonical answer shape (mirrors the take-flow shapes in
-// modules/11-candidate-ui Attempt.tsx) to a human-readable layout. It must
-// NEVER dump raw JSON to the admin — unrecognised shapes fall back to a plain
-// "no preview" message rather than brace-and-quote text. The question prompt
-// is rendered by <QuestionPromptView> (candidate-facing stimulus, no answer
-// key) and the answer key + rubric by <ExpectedAnswerView>, so the audit card
-// keeps the four zones — Question / Expected / Candidate answer / AI
-// evaluation — strictly demarcated.
-// ---------------------------------------------------------------------------
-
-const ANSWER_TEXT_STYLE: React.CSSProperties = {
-  margin: 0,
-  fontFamily: "var(--aiq-font-sans)",
-  fontSize: "var(--aiq-text-md)",
-  lineHeight: 1.6,
-  whiteSpace: "pre-wrap",
-  color: "var(--aiq-color-fg-secondary)",
-  borderLeft: "2px solid var(--aiq-color-border)",
-  paddingLeft: "var(--aiq-space-md)",
-};
-
-const ANSWER_SUBLABEL_STYLE: React.CSSProperties = {
+const MONO_LABEL: React.CSSProperties = {
   fontFamily: "var(--aiq-font-mono)",
   fontSize: "var(--aiq-text-xs)",
   textTransform: "uppercase",
   letterSpacing: "0.06em",
   color: "var(--aiq-color-fg-muted)",
-  marginBottom: "var(--aiq-space-2xs)",
 };
-
-const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
-
-function asAnswerObj(v: unknown): Record<string, unknown> | null {
-  return v !== null && typeof v === "object" && !Array.isArray(v)
-    ? (v as Record<string, unknown>)
-    : null;
-}
-
-function NoAnswer({ label }: { label: string }): React.ReactElement {
-  return (
-    <p style={{ ...ANSWER_TEXT_STYLE, fontStyle: "italic", color: "var(--aiq-color-fg-muted)" }}>
-      {label}
-    </p>
-  );
-}
-
-/**
- * Plain-text serialisation of a candidate answer, used ONLY for
- * ConceptCoverageView's match-highlighting. Returns "" for question types
- * whose answers are non-narrative (mcq/kql) so coverage view is suppressed
- * for those types. Phase 3 review UX (2026-05-29).
- */
-function serializeAnswerForCoverage(type: string, answer: unknown): string {
-  if (typeof answer === "string") return answer;
-  if (answer === null || answer === undefined) return "";
-  if (typeof answer !== "object") return "";
-  const a = answer as Record<string, unknown>;
-  switch (type) {
-    case "subjective":
-      return typeof a.response === "string" ? a.response : "";
-    case "log_analysis": {
-      const findings = Array.isArray(a.findings)
-        ? a.findings.filter((f) => typeof f === "string").join("\n")
-        : "";
-      const explanation = typeof a.explanation === "string" ? a.explanation : "";
-      return [findings, explanation].filter(Boolean).join("\n\n");
-    }
-    case "scenario": {
-      if (!Array.isArray(a.steps)) return "";
-      return a.steps
-        .map((s, i) => {
-          const obj = s as Record<string, unknown> | null;
-          const resp = obj && typeof obj.response === "string" ? obj.response : "";
-          return resp ? `Step ${i + 1}: ${resp}` : "";
-        })
-        .filter(Boolean)
-        .join("\n\n");
-    }
-    default:
-      // mcq, kql, unknown types — return "" so the coverage view is omitted
-      return "";
-  }
-}
-
-function AttemptAnswerView({ type, content, answer }: { type: string; content: unknown; answer: unknown }): React.ReactElement {
-  // Legacy / plain-string answers render directly.
-  if (typeof answer === "string") {
-    return answer.trim() === "" ? <NoAnswer label="No answer submitted." /> : <p style={ANSWER_TEXT_STYLE}>{answer}</p>;
-  }
-
-  const a = asAnswerObj(answer);
-  const isEmpty = answer === null || answer === undefined || (a !== null && Object.keys(a).length === 0);
-  if (isEmpty && !(type === "mcq" && typeof answer === "number")) {
-    return <NoAnswer label="No answer submitted." />;
-  }
-
-  switch (type) {
-    case "mcq": {
-      // canonical: { selected: number }; tolerate a bare numeric index too.
-      const selected =
-        typeof a?.selected === "number" ? a.selected :
-        typeof answer === "number" ? answer : null;
-      if (selected === null) break;
-      const c = asAnswerObj(content);
-      const options = Array.isArray(c?.options) ? (c!.options as unknown[]) : [];
-      const correct = typeof c?.correct === "number" ? c!.correct : null;
-      const optText = typeof options[selected] === "string" ? (options[selected] as string) : "";
-      const isCorrect = correct === null ? null : selected === correct;
-      const mark = isCorrect === true ? " ✓" : isCorrect === false ? " ✗" : "";
-      const markColor = isCorrect === true ? "var(--aiq-color-success, #065f46)" : isCorrect === false ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-muted)";
-      return (
-        <p style={ANSWER_TEXT_STYLE}>
-          <span style={{ fontFamily: "var(--aiq-font-mono)", fontWeight: 700, marginRight: "var(--aiq-space-sm)", color: markColor }}>
-            {OPTION_LETTERS[selected] ?? selected}{mark}
-          </span>
-          {optText}
-        </p>
-      );
-    }
-
-    case "subjective": {
-      const text = typeof a?.response === "string" ? a.response : null;
-      if (text === null) break;
-      return text.trim() === "" ? <NoAnswer label="No answer submitted." /> : <p style={ANSWER_TEXT_STYLE}>{text}</p>;
-    }
-
-    case "kql": {
-      const query = typeof a?.query === "string" ? a.query : null;
-      if (query === null) break;
-      if (query.trim() === "") return <NoAnswer label="No query submitted." />;
-      return (
-        <pre
-          style={{
-            margin: 0,
-            padding: "var(--aiq-space-sm)",
-            background: "var(--aiq-color-bg-secondary, #f8f8f8)",
-            borderRadius: 4,
-            fontFamily: "var(--aiq-font-mono)",
-            fontSize: "var(--aiq-text-xs)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            color: "var(--aiq-color-fg-primary)",
-            border: "1px solid var(--aiq-color-border, #e5e7eb)",
-          }}
-        >
-          {query}
-        </pre>
-      );
-    }
-
-    case "log_analysis": {
-      const findings = Array.isArray(a?.findings)
-        ? (a!.findings as unknown[]).filter((f): f is string => typeof f === "string" && f.trim() !== "")
-        : [];
-      const explanation = typeof a?.explanation === "string" ? a.explanation : "";
-      if (findings.length === 0 && explanation.trim() === "") break;
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
-          {findings.length > 0 && (
-            <div>
-              <div style={ANSWER_SUBLABEL_STYLE}>Findings</div>
-              <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-2xs)" }}>
-                {findings.map((f, i) => (
-                  <li key={i} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", lineHeight: 1.5, whiteSpace: "pre-wrap", color: "var(--aiq-color-fg-secondary)" }}>
-                    {f}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {explanation.trim() !== "" && (
-            <div>
-              <div style={ANSWER_SUBLABEL_STYLE}>Explanation</div>
-              <p style={ANSWER_TEXT_STYLE}>{explanation}</p>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    case "scenario": {
-      const steps = Array.isArray(a?.steps) ? (a!.steps as unknown[]) : [];
-      const rows = steps
-        .map((s, i) => {
-          const so = asAnswerObj(s);
-          const resp = typeof so?.response === "string" ? so.response : "";
-          const idx = typeof so?.stepIndex === "number" ? so.stepIndex : i;
-          return { idx, resp };
-        })
-        .filter((r) => r.resp.trim() !== "");
-      if (rows.length === 0) break;
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
-          {rows.map((r, i) => (
-            <div key={i}>
-              <div style={ANSWER_SUBLABEL_STYLE}>Step {r.idx + 1}</div>
-              <p style={ANSWER_TEXT_STYLE}>{r.resp}</p>
-            </div>
-          ))}
-        </div>
-      );
-    }
-  }
-
-  // Unrecognised / malformed shape — readable message, never raw JSON.
-  return <NoAnswer label="Answer recorded — no readable preview available." />;
-}
-
-// ---------------------------------------------------------------------------
-// AuditZone — one labelled, colour-accented block of the per-question audit
-// card. The four zones (Question / Expected answer / Candidate answer / AI
-// evaluation) give the admin a clear, consistent demarcation between what was
-// asked, what was expected, what the candidate wrote, and how the AI scored it.
-// ---------------------------------------------------------------------------
-
-const ZONE_LABEL_STYLE: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--aiq-space-xs)",
-  fontFamily: "var(--aiq-font-mono)",
-  fontSize: "var(--aiq-text-xs)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  marginBottom: "var(--aiq-space-sm)",
-};
-
-function AuditZone({
-  label,
-  icon,
-  accent,
-  children,
-}: {
-  label: string;
-  icon: string;
-  accent: string;
-  children: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <section
-      style={{
-        border: "1px solid var(--aiq-color-border)",
-        borderLeft: `3px solid ${accent}`,
-        borderRadius: "var(--aiq-radius-md, 6px)",
-        padding: "var(--aiq-space-md)",
-        background: "var(--aiq-color-bg-base, #fff)",
-      }}
-    >
-      <div style={{ ...ZONE_LABEL_STYLE, color: accent }}>
-        <span aria-hidden="true">{icon}</span>
-        <span>{label}</span>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export function AdminAttemptDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
 
   const [detail, setDetail] = useState<AttemptDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Per-question proposal state (keyed by question_id)
-  const [proposals, setProposals] = useState<Record<string, GradingProposal>>({});
-  // Re-run escalation proposals (keyed by question_id) — Stage-3 results
-  const [escalationProposals, setEscalationProposals] = useState<Record<string, GradingProposal>>({});
-  const [grading, setGrading] = useState(false);
-  const [overrideForm, setOverrideForm] = useState<OverrideFormState>({ questionId: null, gradingId: null, band: null, scoreMax: null, justification: "", reason: "" });
-  const [accepting, setAccepting] = useState(false);
-  const [overriding, setOverriding] = useState(false);
-  // Phase 3 review UX (2026-05-29): replace window.confirm() Release flow
-  // with a one-page summary modal so the admin reviews the full evaluation
-  // BEFORE publishing to the candidate.
+  // Publish: summary modal so the admin sees the full evaluation BEFORE it goes
+  // to the candidate (replaces window.confirm).
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [releasing, setReleasing] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await adminApi<AttemptDetailResponse>(`/admin/attempts/${id}`);
-      // Normalise the backend's `question_id` onto `id` so per-question
-      // lookups (answers / gradings / proposals, keyed off q.id) match.
-      // Without this, frozen_questions[].id is undefined and every card
-      // falls back to "No answer submitted" / "Not yet graded".
-      const normalized: AttemptDetailResponse = {
-        ...data,
-        frozen_questions: (data.frozen_questions ?? []).map((q) => ({
-          ...q,
-          id: q.id ?? q.question_id ?? "",
-        })),
-      };
-      setDetail(normalized);
-      // Phase 2 cache hydration (Bug A robustness, 2026-05-29): if the
-      // server has cached proposals from a previous Grade-all whose POST
-      // response was lost to a CF/proxy timeout (or to a tab navigation),
-      // pick them up here so the admin can review + Accept-all without
-      // re-grading. Server clears the cache on a successful gate-flip
-      // accept, so a freshly-graded attempt with no pending proposals
-      // returns `ai_proposals: null` and this block is a no-op.
-      if (Array.isArray(data.ai_proposals) && data.ai_proposals.length > 0) {
-        const map: Record<string, GradingProposal> = {};
-        for (const p of data.ai_proposals) map[p.question_id] = p;
-        setProposals(map);
-      } else {
-        // Explicit reset prevents stale proposals from a previous attempt
-        // bleeding into this one when the admin navigates between attempts.
-        setProposals({});
-      }
-    } catch (err) {
-      setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load attempt.");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  // Send back for re-evaluation: inline note form.
+  const [showSendBack, setShowSendBack] = useState(false);
+  const [sendBackNote, setSendBackNote] = useState("");
+  const [sendingBack, setSendingBack] = useState(false);
 
-  useEffect(() => { void load(); }, [load]);
-
-  // Phase 2 cache auto-poll (Bug A robustness, 2026-05-29): while the
-  // server reports `grading_started_at` is set (a batch is in flight),
-  // re-fetch the attempt detail every 15s so the admin sees proposals
-  // land without having to manually refresh. Polling stops as soon as
-  // the marker clears (set to null by handleAdminGrade at batch
-  // completion). 15s is a balance between perceived responsiveness and
-  // request volume — a typical 3-question batch is ~3-4 min so we
-  // expect ~12-16 polls per batch worst-case. The pollerId guard
-  // prevents overlap if a poll takes longer than 15s.
-  useEffect(() => {
-    if (detail?.grading_started_at == null) return;
-    // Cap polling at POLL_CAP_SEC (12 min) to defeat a permanently-stuck
-    // marker (e.g. API container SIGKILL mid-batch). After the cap, the
-    // FE shows the "stalled" banner and the admin can click Re-grade to
-    // recover — the backend's fresh single-flight mutex will accept it.
-    const startedAt = new Date(detail.grading_started_at).getTime();
-    const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
-    if (elapsedSec > 720) return;
-    const interval = setInterval(() => { void load(); }, 15_000);
-    return () => clearInterval(interval);
-  }, [detail?.grading_started_at, load]);
-
-  async function handleGrade() {
-    if (!id) return;
-    setGrading(true);
-    try {
-      const res = await adminApi<{ proposals: GradingProposal[] }>(
-        `/admin/attempts/${id}/grade`,
-        { method: "POST" },
-      );
-      const map: Record<string, GradingProposal> = {};
-      for (const p of res.proposals) map[p.question_id] = p;
-      setError(null);
-      setProposals(map);
-      // Reload to pick up the updated grading_started_at (cleared by the
-      // backend's batch-completion write) so the banner disappears in the
-      // same tick as proposals appear.
-      void load();
-    } catch (err) {
-      // Bug A robustness (2026-05-29): a CF/proxy timeout (504/524/408)
-      // on a slow Grade-all is now non-fatal — the backend persists the
-      // batch result via the ai_proposals cache. We reload the detail
-      // (which surfaces the in-flight marker → banner appears) and let
-      // the 15s auto-poll pick up the proposals when the batch lands.
-      // For non-timeout errors (e.g. 422 status mismatch), keep the
-      // existing error banner behaviour so the admin sees the real
-      // failure rather than a misleading "still running" message.
-      const isTimeout =
-        err instanceof AdminApiError &&
-        (err.status === 504 || err.status === 524 || err.status === 408);
-      if (isTimeout) {
-        setError(
-          "Grading is taking longer than the connection timeout — it continues on the server. This page will refresh automatically when proposals arrive.",
-        );
-      } else {
-        const msg = err instanceof AdminApiError ? err.apiError.message : "Grade request failed.";
-        setError(msg);
-      }
-      // Either way reload — for timeouts to start polling; for real
-      // errors so the error banner has fresh state.
-      void load();
-    } finally {
-      setGrading(false);
-    }
-  }
-
-  // Bug A fix (2026-05-28): the backend ACCEPT_BODY_SCHEMA (routes.ts:116-118)
-  // requires `{ proposals: [ …full GradingProposal objects… ] }`. The previous
-  // body `{ question_id }` silently 422'd and grades never persisted —
-  // RCA_LOG entry "Accept never persisted grades".
-  async function handleAccept(questionId: string, proposal: GradingProposal) {
-    if (!id) return;
-    setAccepting(true);
-    try {
-      await adminApi(`/admin/attempts/${id}/accept`, {
-        method: "POST",
-        body: JSON.stringify({ proposals: [proposal] }),
-      });
-      await load();
-      setProposals((prev) => {
-        const next = { ...prev };
-        delete next[questionId];
-        return next;
-      });
-    } catch (err) {
-      setError(err instanceof AdminApiError ? err.apiError.message : "Accept failed.");
-    } finally {
-      setAccepting(false);
-    }
-  }
-
-  // AI-failure detection: proposals built by the failed-proposal branch in
-  // admin-grade.ts:413-432 carry these tells. We skip them in Accept-all so
-  // a runtime failure never auto-commits a score-0 row; the admin must
-  // explicitly Re-run or Override each one.
-  function isAiFailure(p: GradingProposal): boolean {
-    if (p.model === "none") return true;
-    if (p.prompt_version_sha === "error:no-sha") return true;
-    const ec = p.band.error_class;
-    if (typeof ec === "string" && ec.startsWith("AIG_")) return true;
-    // Two-model vote disagreed by ≥2 bands (B / feature #3): the runtime kept
-    // Stage 2's band but did NOT pick a winner (escalation_chosen_stage='manual').
-    // Exclude from Accept-all so the admin must adjudicate the disagreement
-    // explicitly — matches the backend deriveStatus() → review_needed routing.
-    if (p.escalation_chosen_stage === "manual") return true;
-    return false;
-  }
-
-  async function handleAcceptAll() {
-    if (!id) return;
-    const all = Object.values(proposals);
-    const acceptable = all.filter((p) => !isAiFailure(p));
-    if (acceptable.length === 0) {
-      setError(
-        "No proposals ready to accept — all are AI failures. Re-run or override each one.",
-      );
-      return;
-    }
-    setAccepting(true);
-    try {
-      await adminApi(`/admin/attempts/${id}/accept`, {
-        method: "POST",
-        body: JSON.stringify({ proposals: acceptable }),
-      });
-      await load();
-      setProposals((prev) => {
-        const next = { ...prev };
-        for (const p of acceptable) delete next[p.question_id];
-        return next;
-      });
-    } catch (err) {
-      setError(err instanceof AdminApiError ? err.apiError.message : "Accept all failed.");
-    } finally {
-      setAccepting(false);
-    }
-  }
-
-  async function handleOverrideSubmit() {
-    if (!overrideForm.gradingId || overrideForm.band === null || overrideForm.scoreMax === null || !overrideForm.reason.trim()) return;
-    setOverriding(true);
-    try {
-      await adminApi(`/admin/gradings/${overrideForm.gradingId}/override`, {
-        method: "POST",
-        body: JSON.stringify({
-          score_earned: bandToScore(overrideForm.band, overrideForm.scoreMax),
-          reasoning_band: overrideForm.band,
-          ai_justification: overrideForm.justification,
-          reason: overrideForm.reason,
-        }),
-      });
-      setOverrideForm({ questionId: null, gradingId: null, band: null, scoreMax: null, justification: "", reason: "" });
-      await load();
-    } catch (err) {
-      if (err instanceof AdminApiError && err.status === 401) {
-        // Fresh-MFA required — redirect to /admin/mfa then back
-        const returnPath = encodeURIComponent(window.location.pathname);
-        navigate(`/admin/mfa?return=${returnPath}`);
-        return;
-      }
-      setError(err instanceof AdminApiError ? err.apiError.message : "Override failed.");
-    } finally {
-      setOverriding(false);
-    }
-  }
-
-  async function handleRerun(questionId: string) {
-    if (!id) return;
-    setGrading(true);
-    try {
-      const res = await adminApi<{ proposals: GradingProposal[] }>(
-        `/admin/attempts/${id}/rerun?escalate=opus`,
-        { method: "POST", body: JSON.stringify({ question_id: questionId }) },
-      );
-      const p = res.proposals.find((p) => p.question_id === questionId);
-      if (p) {
+  // `silent` reloads keep the current page on screen (the grading panel holds
+  // open forms), only the first load shows the spinner.
+  const fetchDetail = useCallback(
+    async (silent: boolean): Promise<void> => {
+      if (!id) return;
+      if (!silent) {
+        setLoading(true);
         setError(null);
-        setEscalationProposals((prev) => ({ ...prev, [questionId]: p }));
       }
-    } catch (err) {
-      setError(err instanceof AdminApiError ? err.apiError.message : "Re-run failed.");
-    } finally {
-      setGrading(false);
-    }
-  }
+      try {
+        setDetail(normaliseDetail(await adminApi<AttemptDetailResponse>(`/admin/attempts/${id}`)));
+      } catch (err) {
+        setError(apiMessage(err, "Failed to load attempt."));
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [id],
+  );
+  const reload = useCallback(() => fetchDetail(true), [fetchDetail]);
 
-  function handleRelease() {
-    // 2026-05-29: open the review-summary modal instead of window.confirm.
-    // The actual POST runs in handleReleaseConfirm only after the admin
-    // sees and approves the per-question breakdown + total score.
-    setShowReleaseModal(true);
-  }
+  useEffect(() => {
+    void fetchDetail(false);
+  }, [fetchDetail]);
 
-  async function handleReleaseConfirm() {
+  async function handlePublish(): Promise<void> {
     if (!id) return;
     setReleasing(true);
     try {
       await adminApi(`/admin/attempts/${id}/release`, { method: "POST" });
       setShowReleaseModal(false);
-      await load();
+      await reload();
     } catch (err) {
-      setError(err instanceof AdminApiError ? err.apiError.message : "Release failed.");
+      // Close the summary so the error banner behind it is visible.
+      setShowReleaseModal(false);
+      setError(apiMessage(err, "Publish failed."));
     } finally {
       setReleasing(false);
     }
   }
 
+  async function handleSendBack(): Promise<void> {
+    if (!id || !sendBackNote.trim()) return;
+    setSendingBack(true);
+    try {
+      await adminApi(`/admin/attempts/${id}/send-back`, {
+        method: "POST",
+        body: JSON.stringify({ note: sendBackNote.trim() }),
+      });
+      setShowSendBack(false);
+      setSendBackNote("");
+      setError(null);
+      await reload();
+    } catch (err) {
+      setError(apiMessage(err, "Send back failed."));
+    } finally {
+      setSendingBack(false);
+    }
+  }
+
+  const crumbs = [{ label: "Attempts", href: "/admin/attempts" }, "Detail"];
+
   if (loading) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, "Detail"]} helpPage="admin.attempts.detail">
+      <AdminShell breadcrumbs={crumbs} helpPage="admin.attempts.detail">
         <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
           <Spinner aria-label="Loading attempt" />
         </div>
@@ -670,56 +141,36 @@ export function AdminAttemptDetail(): React.ReactElement {
 
   if (!detail) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, "Detail"]} helpPage="admin.attempts.detail">
+      <AdminShell breadcrumbs={crumbs} helpPage="admin.attempts.detail">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
       </AdminShell>
     );
   }
 
-  const { attempt, answers, frozen_questions, gradings } = detail;
-  const isGradeable = attempt.status === "submitted" || attempt.status === "pending_admin_grading";
-
-  // Phase 2 cache: server-driven "grading in progress" derived from the
-  // last detail fetch. While truthy, the UI disables Grade-all (the
-  // backend's single-flight mutex would 409 anyway, but disabling is
-  // friendlier UX) and shows the banner below the header. The marker is
-  // cleared by the backend at batch completion → next poll picks up the
-  // proposals → banner disappears.
-  //
-  // Sonnet adversarial revision (V1+V4, 2026-05-29): stuck-marker recovery.
-  // If the API container restarts or SIGKILLs mid-batch, the catch-block
-  // marker-clear in admin-grade.ts doesn't run → the marker stays set
-  // forever → Grade-all would be permanently disabled. Mitigation entirely
-  // on the FE: after STALE_MARKER_SEC (10 min), treat the marker as
-  // stalled — re-enable Grade-all (the backend's single-flight mutex is
-  // fresh after a restart, so a new click WILL succeed and overwrite the
-  // stale marker). Also cap polling at POLL_CAP_SEC (12 min) so we don't
-  // poll forever on a permanently-stuck marker.
-  const STALE_MARKER_SEC = 600; // 10 min
-  const POLL_CAP_SEC = 720; // 12 min
-  const gradingInProgress = detail.grading_started_at != null;
-  const gradingElapsedSec = gradingInProgress
-    ? Math.max(0, Math.floor((Date.now() - new Date(detail.grading_started_at!).getTime()) / 1000))
-    : 0;
-  const gradingStalled = gradingInProgress && gradingElapsedSec > STALE_MARKER_SEC;
-  const gradingActive = gradingInProgress && !gradingStalled;
+  const { attempt, frozen_questions, gradings } = detail;
+  const evalStatus = evaluationStatusOf(attempt.status, evaluationMeta(detail).evaluation_status);
+  const display = evaluationStatusDisplay(evalStatus);
+  const candidateName = attempt.candidate_name ?? "";
 
   return (
-    <AdminShell breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, attempt.id.slice(0, 8)]} helpPage="admin.attempts.detail">
+    <AdminShell
+      breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, attempt.id.slice(0, 8)]}
+      helpPage="admin.attempts.detail"
+    >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
           <div>
             <div style={{ marginBottom: 12 }}>
-              <Chip>{attempt.status.replace(/_/g, " ")}</Chip>
+              <Chip variant={display.variant}>{display.label}</Chip>
             </div>
             <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
               {attempt.assessment_name || `Attempt ${attempt.id.slice(0, 8)}`}
             </h1>
-            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)", display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+            <div style={{ ...MONO_LABEL, marginTop: "var(--aiq-space-xs)", display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
               <span>
                 {[
-                  attempt.candidate_name,
+                  candidateName,
                   attempt.level_label,
                   attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : null,
                 ].filter(Boolean).join(" · ") || "Candidate / assessment details pending backend enrichment"}
@@ -727,46 +178,8 @@ export function AdminAttemptDetail(): React.ReactElement {
               {attempt.isErased && <ErasedChip />}
             </div>
           </div>
-          <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
-            {isGradeable && (
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-primary"
-                data-help-id="admin.attempts.grading_dispatch"
-                disabled={grading || gradingActive}
-                onClick={() => void handleGrade()}
-                title={
-                  gradingActive
-                    ? "A grading run is already in progress on the server — wait for it to finish."
-                    : gradingStalled
-                      ? "Previous grading appears to have stalled (>10 min). Click to retry — the backend single-flight is fresh after a restart."
-                      : undefined
-                }
-              >
-                {grading || gradingActive
-                  ? "Grading…"
-                  : gradingStalled
-                    ? "Re-grade (previous stalled)"
-                    : "Grade all"}
-              </button>
-            )}
-            {isGradeable && Object.values(proposals).some((p) => !isAiFailure(p)) && (
-              <button
-                type="button"
-                className="aiq-btn aiq-btn-primary"
-                data-help-id="admin.attempts.accept_all"
-                disabled={accepting}
-                onClick={() => void handleAcceptAll()}
-              >
-                {accepting
-                  ? "Accepting…"
-                  : `Accept all (${Object.values(proposals).filter((p) => !isAiFailure(p)).length})`}
-              </button>
-            )}
-            {/* Phase 3 review UX (2026-05-29): Print review opens a clean
-                print-styled view of the full evaluation. Uses window.print()
-                + an inline @media print stylesheet that hides nav, expands
-                cards to full width, suppresses interactive controls. */}
+          <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
+            {/* Print review: window.print() + the panel's @media print stylesheet. */}
             {gradings.length > 0 && (
               <button
                 type="button"
@@ -777,14 +190,24 @@ export function AdminAttemptDetail(): React.ReactElement {
                 Print review
               </button>
             )}
-            {attempt.status === "graded" && !attempt.isErased && (
+            {evalStatus === "ready_to_publish" && (
               <button
                 type="button"
                 className="aiq-btn aiq-btn-outline aiq-no-print"
-                data-help-id="admin.attempts.release_button"
-                onClick={() => handleRelease()}
+                data-help-id="admin.attempts.send_back"
+                onClick={() => setShowSendBack(true)}
               >
-                Release to candidate
+                Send back for re-evaluation
+              </button>
+            )}
+            {evalStatus === "ready_to_publish" && !attempt.isErased && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary aiq-no-print"
+                data-help-id="admin.attempts.release_button"
+                onClick={() => setShowReleaseModal(true)}
+              >
+                Publish to candidate
               </button>
             )}
           </div>
@@ -793,407 +216,89 @@ export function AdminAttemptDetail(): React.ReactElement {
         {error && (
           <div className="aiq-banner aiq-banner-error aiq-error-banner" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-danger-subtle, #fff0f0)", border: "1px solid var(--aiq-color-danger)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
             <span style={{ flex: 1 }}>{error}</span>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-sm"
-              style={{ flexShrink: 0 }}
-              onClick={() => { setError(null); void load(); }}
-            >
+            <button type="button" className="aiq-btn aiq-btn-sm" style={{ flexShrink: 0 }} onClick={() => { setError(null); void reload(); }}>
               Refresh
             </button>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-sm aiq-btn-outline"
-              style={{ flexShrink: 0 }}
-              onClick={() => setError(null)}
-            >
+            <button type="button" className="aiq-btn aiq-btn-sm aiq-btn-outline" style={{ flexShrink: 0 }} onClick={() => setError(null)}>
               Dismiss
             </button>
           </div>
         )}
 
-        {/* Phase 2 cache: server-driven "Grading in progress" banner. Bug A
-            robustness, 2026-05-29 — Cloudflare's ~100s edge timeout was
-            dropping the synchronous POST /grade response on attempts that
-            grade for > 100s. The backend now persists proposals when the
-            batch completes; this banner tells the admin the batch is still
-            running and that they can safely navigate away (it'll pick up
-            on return). The page auto-polls every 15s while the marker is
-            set; the banner clears automatically when proposals arrive. */}
-        {gradingActive && (
+        {/* Awaiting AssessIQ evaluation — no grades are shown until the
+            evaluation is released to the company. */}
+        {evalStatus === "awaiting_evaluation" && (
           <div
             className="aiq-banner"
-            data-help-id="admin.attempts.grading_in_progress"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--aiq-space-md)",
-              padding: "var(--aiq-space-md) var(--aiq-space-xl)",
-              backgroundColor: "var(--aiq-color-info-subtle, #eef4ff)",
-              border: "1px solid var(--aiq-color-info, #3177dc)",
-              borderRadius: "var(--aiq-radius-sm, 4px)",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              color: "var(--aiq-color-info, #3177dc)",
-            }}
+            data-help-id="admin.attempts.awaiting_evaluation"
+            role="status"
+            style={{ display: "flex", flexDirection: "column", gap: 2, padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-info-subtle, #eef4ff)", border: "1px solid var(--aiq-color-info, #3177dc)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-info, #3177dc)" }}
           >
-            <Spinner aria-label="Grading in progress" />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500 }}>Grading in progress on the server.</div>
-              <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", opacity: 0.85, marginTop: 2 }}>
-                Started {gradingElapsedSec}s ago · polling every 15s · safe to navigate away — proposals will be here when you return.
-              </div>
-            </div>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-sm aiq-btn-outline"
-              onClick={() => void load()}
-            >
-              Check now
-            </button>
-          </div>
-        )}
-        {gradingStalled && (
-          <div
-            className="aiq-banner aiq-banner-warning"
-            data-help-id="admin.attempts.grading_stalled"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--aiq-space-md)",
-              padding: "var(--aiq-space-md) var(--aiq-space-xl)",
-              backgroundColor: "var(--aiq-color-warning-subtle, #fff8e0)",
-              border: "1px solid var(--aiq-color-warning, #b08000)",
-              borderRadius: "var(--aiq-radius-sm, 4px)",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              color: "var(--aiq-color-warning, #b08000)",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500 }}>Previous grading appears to have stalled.</div>
-              <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", opacity: 0.85, marginTop: 2 }}>
-                Started {Math.floor(gradingElapsedSec / 60)} min ago — the API likely restarted mid-batch. Click <strong>Re-grade</strong> above to retry; the server's single-flight is fresh.
-              </div>
+            <div style={{ fontWeight: 500 }}>Awaiting AssessIQ evaluation.</div>
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", opacity: 0.85 }}>
+              AssessIQ evaluates the written answers. When that is done you can review the final scores here and publish them to the candidate.
             </div>
           </div>
         )}
 
-        {/* Grading summary — Bug A Phase 1: surface gate progress + per-question
-            status so the admin knows why an attempt isn't completing. */}
-        {(Object.keys(proposals).length > 0 || gradings.length > 0) && (() => {
-          const aiGradeableTypes = new Set(["subjective", "scenario", "log_analysis"]);
-          const aiGradeableCount = frozen_questions.filter((q) => aiGradeableTypes.has(q.type)).length;
-          const acceptedDistinct = new Set(
-            gradings.filter((g) => !g.override_of).map((g) => g.question_id),
-          ).size;
-          const scoreEarned = gradings
-            .filter((g) => !g.override_of)
-            .reduce((s, g) => s + Number(g.score_earned ?? 0), 0);
-          const scoreMax = gradings
-            .filter((g) => !g.override_of)
-            .reduce((s, g) => s + Number(g.score_max ?? 0), 0);
-          return (
-            <div className="aiq-card" data-help-id="admin.attempts.grading_summary" style={{ padding: "var(--aiq-space-md) var(--aiq-space-xl)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--aiq-space-xl)", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", gap: "var(--aiq-space-xl)", flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                      Graded
-                    </div>
-                    <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-md)" }}>
-                      {acceptedDistinct} of {frozen_questions.length} ({aiGradeableCount} AI-gradeable)
-                    </div>
-                  </div>
-                  {scoreMax > 0 && (
-                    <div>
-                      <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                        Score
-                      </div>
-                      <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-md)" }}>
-                        {scoreEarned} / {scoreMax}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
-                  {frozen_questions.map((q, idx) => {
-                    const g = gradings.find((gg) => gg.question_id === q.id && !gg.override_of);
-                    const p = proposals[q.id];
-                    let label: string;
-                    let bg: string;
-                    let fg: string;
-                    if (g) {
-                      label = `Q${idx + 1} graded`;
-                      bg = "var(--aiq-color-success-subtle, #e8f5ec)";
-                      fg = "var(--aiq-color-success, #2a8a4a)";
-                    } else if (p && isAiFailure(p)) {
-                      label = `Q${idx + 1} needs review`;
-                      bg = "var(--aiq-color-danger-subtle, #fff0f0)";
-                      fg = "var(--aiq-color-danger)";
-                    } else if (p) {
-                      label = `Q${idx + 1} ready`;
-                      bg = "var(--aiq-color-warning-subtle, #fff8e0)";
-                      fg = "var(--aiq-color-warning, #b08000)";
-                    } else {
-                      label = `Q${idx + 1} pending`;
-                      bg = "transparent";
-                      fg = "var(--aiq-color-fg-muted)";
-                    }
-                    return (
-                      <span
-                        key={q.id}
-                        title={label}
-                        style={{
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          padding: "2px 8px",
-                          borderRadius: "var(--aiq-radius-pill, 999px)",
-                          border: `1px solid ${fg}`,
-                          backgroundColor: bg,
-                          color: fg,
-                        }}
-                      >
-                        {label}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
+        {evalStatus === "published" && (
+          <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+            This result has been published to the candidate. Scores can no longer be changed.
+          </p>
+        )}
+
+        {/* Send back for re-evaluation — note is required and goes to AssessIQ. */}
+        {showSendBack && evalStatus === "ready_to_publish" && (
+          <div className="aiq-card aiq-no-print" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
+            <span style={MONO_LABEL}>Send back for re-evaluation</span>
+            <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
+              The attempt returns to the AssessIQ queue. Tell the evaluator what to look at again.
+            </p>
+            <label style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+              <span style={MONO_LABEL}>Note (required)</span>
+              <textarea
+                className="aiq-admin-longform-textarea"
+                rows={3}
+                maxLength={500}
+                value={sendBackNote}
+                onChange={(e) => setSendBackNote(e.target.value)}
+                style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", padding: "var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", resize: "vertical" }}
+              />
+            </label>
+            <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                disabled={sendingBack || !sendBackNote.trim()}
+                onClick={() => void handleSendBack()}
+              >
+                {sendingBack ? "Sending…" : "Send back"}
+              </button>
+              <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => { setShowSendBack(false); setSendBackNote(""); }}>
+                Cancel
+              </button>
             </div>
-          );
-        })()}
+          </div>
+        )}
 
-        {/* Questions — each rendered as a four-zone audit card:
-            Question (prompt only) / Expected answer + rubric / Candidate
-            answer / AI evaluation. The strict demarcation lets the admin
-            audit what was asked, what was expected, what the candidate wrote,
-            and how the AI scored it without any of those bleeding together. */}
-        {frozen_questions.map((q, idx) => {
-          const answer = answers.find((a) => a.question_id === q.id);
-          const proposal = proposals[q.id];
-          const escalation = escalationProposals[q.id];
-          const existingGrading = gradings.find((g) => g.question_id === q.id && !g.override_of);
-
-          // Per-question status pill for the card header.
-          let stLabel: string;
-          let stBg: string;
-          let stFg: string;
-          if (existingGrading) {
-            stLabel = "graded";
-            stBg = "var(--aiq-color-success-subtle, #e8f5ec)";
-            stFg = "var(--aiq-color-success, #2a8a4a)";
-          } else if (proposal && isAiFailure(proposal)) {
-            stLabel = "needs review";
-            stBg = "var(--aiq-color-danger-subtle, #fff0f0)";
-            stFg = "var(--aiq-color-danger)";
-          } else if (proposal) {
-            stLabel = "ready to accept";
-            stBg = "var(--aiq-color-warning-subtle, #fff8e0)";
-            stFg = "var(--aiq-color-warning, #b08000)";
-          } else {
-            stLabel = "not graded";
-            stBg = "transparent";
-            stFg = "var(--aiq-color-fg-muted)";
-          }
-
-          return (
-            <div
-              key={q.id}
-              className="aiq-card aiq-admin-detail-question"
-              style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}
-            >
-              {/* Header: question index + type + points + status pill */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
-                <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                  Q{idx + 1} · {q.type} · {q.points} pts
-                </div>
-                <span
-                  style={{
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    padding: "2px 8px",
-                    borderRadius: "var(--aiq-radius-pill, 999px)",
-                    border: `1px solid ${stFg}`,
-                    backgroundColor: stBg,
-                    color: stFg,
-                  }}
-                >
-                  {stLabel}
-                </span>
-              </div>
-
-              {/* ZONE 1 — Question (candidate-facing prompt only, no answer key) */}
-              <div>
-                <div style={{ ...ZONE_LABEL_STYLE, color: "var(--aiq-color-fg-muted)" }}>
-                  <span aria-hidden="true">❓</span>
-                  <span>Question</span>
-                </div>
-                <QuestionPromptView type={q.type} content={q.content} />
-              </div>
-
-              {/* ZONE 2 — Expected answer / rubric (the grading ground-truth) */}
-              <AuditZone label="Expected answer / rubric" icon="✦" accent="var(--aiq-color-info, #3177dc)">
-                <ExpectedAnswerView type={q.type} content={q.content} rubric={q.rubric ?? null} />
-              </AuditZone>
-
-              {/* ZONE 3 — Candidate answer (what was submitted) */}
-              <AuditZone label="Candidate answer" icon="✎" accent="var(--aiq-color-fg-secondary)">
-                {answer ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
-                    <AttemptAnswerView type={q.type} content={q.content} answer={answer.answer} />
-                    {/* Rubric-concept coverage highlighting — only when (a) the
-                        type produces narrative text, (b) there's a rubric with
-                        anchors, (c) there's a committed grading whose
-                        anchor_hits pair with the rubric anchors. */}
-                    {existingGrading?.anchor_hits && q.rubric?.anchors && q.rubric.anchors.length > 0 && (() => {
-                      const answerText = serializeAnswerForCoverage(q.type, answer.answer);
-                      if (!answerText) return null;
-                      const hitById = new Map(
-                        (existingGrading.anchor_hits ?? []).map((a) => [a.anchor_id, a]),
-                      );
-                      const anchors = q.rubric.anchors.map((rA) => {
-                        const finding = hitById.get(rA.id);
-                        return {
-                          id: rA.id,
-                          concept: rA.concept,
-                          weight: rA.weight,
-                          ...(rA.synonyms ? { synonyms: rA.synonyms } : {}),
-                          hit: finding?.hit === true,
-                          ...(finding?.evidence_quote ? { evidence_quote: finding.evidence_quote } : {}),
-                        };
-                      });
-                      return (
-                        <ConceptCoverageView
-                          answerText={answerText}
-                          anchors={anchors}
-                          data-test-id={`coverage-${q.id}`}
-                        />
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  <NoAnswer label="No answer submitted." />
-                )}
-              </AuditZone>
-
-              {/* ZONE 4 — AI evaluation (band, anchor evidence, justification, controls) */}
-              <AuditZone label="AI evaluation" icon="🤖" accent="var(--aiq-color-accent, #3177dc)">
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
-                {/* Existing grading — enriched with the question's rubric so
-                    anchor chips + the inline evidence list render concept+weight */}
-                {existingGrading && (
-                  <ScoreDetail
-                    grading={existingGrading}
-                    questionLabel="Current grade"
-                    showAnchorEvidence
-                    {...(q.rubric?.anchors ? { rubricAnchors: q.rubric.anchors } : {})}
-                  />
-                )}
-
-                {/* Not-yet-graded placeholder */}
-                {!existingGrading && !proposal && (
-                  <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontStyle: "italic", color: "var(--aiq-color-fg-muted)" }}>
-                    Not yet graded{isGradeable ? " — click “Grade all” above to generate a proposal." : "."}
-                  </p>
-                )}
-
-                {/* Override form */}
-                {existingGrading && overrideForm.questionId === q.id ? (
-                  <div className="aiq-card" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-md)", border: "1px solid var(--aiq-color-border)" }}>
-                    <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                      Override grade (requires fresh MFA)
-                    </span>
-                    <BandPicker value={overrideForm.band} onChange={(b) => setOverrideForm((f) => ({ ...f, band: b }))} />
-                    <label data-help-id="admin.grading.override.reason" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-                      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                        Override reason (required)
-                      </span>
-                      <textarea
-                        className="aiq-admin-longform-textarea"
-                        rows={2}
-                        value={overrideForm.reason}
-                        onChange={(e) => setOverrideForm((f) => ({ ...f, reason: e.target.value }))}
-                        style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", padding: "var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", resize: "vertical" }}
-                      />
-                    </label>
-                    <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
-                      <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={overriding || overrideForm.band === null || !overrideForm.reason.trim()} onClick={() => void handleOverrideSubmit()}>
-                        Submit override
-                      </button>
-                      <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => setOverrideForm({ questionId: null, gradingId: null, band: null, scoreMax: null, justification: "", reason: "" })}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : existingGrading && (
-                  <button
-                    type="button"
-                    className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                    onClick={() => setOverrideForm({ questionId: q.id, gradingId: existingGrading.id, band: existingGrading.reasoning_band, scoreMax: Number(existingGrading.score_max), justification: existingGrading.ai_justification ?? "", reason: "" })}
-                  >
-                    Override grade
-                  </button>
-                )}
-
-                {/* Fresh proposal from Grade button */}
-                {proposal && !existingGrading && (
-                  <GradingProposalCard
-                    proposal={proposal}
-                    submitting={accepting}
-                    onAccept={() => void handleAccept(q.id, proposal)}
-                    onOverride={() => setOverrideForm({ questionId: q.id, gradingId: null, band: proposal.band.reasoning_band, scoreMax: null, justification: proposal.band.ai_justification, reason: "" })}
-                    onRerun={() => void handleRerun(q.id)}
-                  />
-                )}
-
-                {/* Escalation diff (Stage 2 vs Stage 3) */}
-                {proposal && escalation && proposal.question_id === escalation.question_id && (
-                  <EscalationDiff
-                    stageTwo={proposal}
-                    stageThree={escalation}
-                    onReconcile={(stage, note) => {
-                      // Bug A escalation-accept fix: send {proposals: [chosen]}
-                      // with edits carrying the reconcile note. The chosen
-                      // proposal's own escalation_chosen_stage carries the
-                      // stage marker (the edits schema doesn't carry that
-                      // field — it lives on the proposal itself).
-                      const chosenProposal = {
-                        ...(stage === "3" ? escalation : proposal),
-                        escalation_chosen_stage: stage,
-                      };
-                      void adminApi(`/admin/attempts/${id}/accept`, {
-                        method: "POST",
-                        body: JSON.stringify({
-                          proposals: [{
-                            ...chosenProposal,
-                            edits: {
-                              ai_justification: note + "\n\n[Reconciled: " + note + "]",
-                            },
-                          }],
-                        }),
-                      }).then(() => void load());
-                    }}
-                  />
-                )}
-                </div>
-              </AuditZone>
-            </div>
-          );
-        })}
+        <AttemptGradingPanel
+          detail={detail}
+          reload={reload}
+          mode="review"
+          apiBase="/admin"
+          canOverride={evalStatus === "ready_to_publish"}
+          onError={setError}
+        />
       </div>
-      {/* Phase 3 review UX (2026-05-29): Release-confirm summary modal.
-          Replaces the prior window.confirm() so admins see a one-page
-          breakdown (total score / per-question status / AI-failure callout)
-          BEFORE publishing results to the candidate. */}
+
+      {/* Publish summary modal: total score / per-question status / AI-failure
+          callout BEFORE the result goes to the candidate. */}
       <ReleaseConfirmModal
         open={showReleaseModal}
-        onConfirm={() => void handleReleaseConfirm()}
+        onConfirm={() => void handlePublish()}
         onCancel={() => setShowReleaseModal(false)}
         releasing={releasing}
-        candidateEmail={attempt.isErased ? attempt.candidate_name : (attempt.candidate_email ?? attempt.candidate_name)}
+        candidateEmail={attempt.isErased ? candidateName : (attempt.candidate_email ?? candidateName)}
         assessmentName={attempt.assessment_name}
         levelLabel={attempt.level_label}
         frozenQuestions={frozen_questions.map((q, idx) => ({
@@ -1205,39 +310,6 @@ export function AdminAttemptDetail(): React.ReactElement {
         }))}
         gradings={gradings}
       />
-      {/* Phase 3 review UX: print stylesheet. Hides nav / breadcrumbs /
-          buttons / banners / proposals while preserving question content,
-          candidate answers, score details, and the grading-summary panel.
-          Keeps the cache + nav-away state hidden from the printed audit
-          artifact. */}
-      <style>{`
-        @media print {
-          /* Phase 3 review UX adversarial revision (Sonnet V5, 2026-05-29):
-             error banner is NOT hidden — operational errors are part of the
-             audit context if the admin chose to print mid-error state. */
-          .aiq-no-print,
-          .aiq-banner:not(.aiq-error-banner),
-          .aiq-shell-nav,
-          .aiq-shell-sidebar,
-          nav,
-          [data-help-id="admin.attempts.grading_in_progress"],
-          [data-help-id="admin.attempts.grading_stalled"] {
-            display: none !important;
-          }
-          .aiq-admin-detail-question {
-            page-break-inside: avoid;
-          }
-          .aiq-card {
-            box-shadow: none !important;
-            border: 1px solid #ddd !important;
-            page-break-inside: avoid;
-          }
-          body, .aiq-shell-main {
-            background: white !important;
-            color: black !important;
-          }
-        }
-      `}</style>
     </AdminShell>
   );
 }

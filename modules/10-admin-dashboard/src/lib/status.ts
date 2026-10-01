@@ -4,10 +4,24 @@
 // to operators — that's content, not chrome.
 
 import type { ChipVariant } from "@assessiq/ui-system";
+import type { EvaluationStatus } from "./evaluation.js";
 
 export interface StatusDisplay {
   label: string;
   variant: ChipVariant;
+}
+
+// Tenant-facing result state (spec 2026-10-01): AssessIQ evaluates, the company
+// reviews and publishes. Lists and the attempt page show this instead of the raw
+// attempt status.
+const EVALUATION_STATUS: Record<EvaluationStatus, StatusDisplay> = {
+  awaiting_evaluation: { label: "Awaiting evaluation", variant: "accent" },
+  ready_to_publish:    { label: "Ready to publish",    variant: "success" },
+  published:           { label: "Published",           variant: "default" },
+};
+
+export function evaluationStatusDisplay(status: EvaluationStatus): StatusDisplay {
+  return EVALUATION_STATUS[status];
 }
 
 const ATTEMPT_STATUS: Record<string, StatusDisplay> = {

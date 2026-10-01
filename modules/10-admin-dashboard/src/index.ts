@@ -25,6 +25,9 @@ export type { RubricEditorProps, RubricDraft, AnchorDraft, BandDraft } from "./c
 export { ScoreDetail } from "./components/ScoreDetail.js";
 export type { ScoreDetailProps } from "./components/ScoreDetail.js";
 
+export { AttemptGradingPanel } from "./components/AttemptGradingPanel.js";
+export type { AttemptGradingPanelProps } from "./components/AttemptGradingPanel.js";
+
 // AdminShell is used internally — exported for custom embedding if needed.
 export { AdminShell } from "./components/AdminShell.js";
 export type { AdminShellProps } from "./components/AdminShell.js";
@@ -62,4 +65,6 @@ export { TenantSettings as AdminTenantSettings } from "./pages/tenant-settings.j
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
 export { SuperAdminUsers } from "./pages/super-admin-users.js";
+export { AdminEvaluationsQueue } from "./pages/evaluations-queue.js";
+export { AdminEvaluationDetail } from "./pages/evaluation-detail.js";
 export { domainLabel, DOMAIN_LABELS } from "./lib/domains.js";
