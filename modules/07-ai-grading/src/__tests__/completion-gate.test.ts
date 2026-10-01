@@ -12,7 +12,9 @@
  *   - Adversarial-review fixes: accept locks the attempt row first and refuses a
  *     released attempt (409, nothing written — incl. the real lock race against a
  *     Release); accept rolls attempt_scores up inside its own tx (a rollup failure
- *     rolls the accept back); override rejects a score outside 0..score_max (422).
+ *     rolls the accept back); the accept payload is bounded (0 < score_max <= 1000,
+ *     0 <= score_earned <= score_max, proposal and edit, else 422); override rejects
+ *     a score outside 0..score_max (422).
  *
  * No AI anywhere: runtime-selector is mocked and never called.
  */
@@ -28,7 +30,7 @@ vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
 
 import { AppError } from "@assessiq/core";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
-import { handleAdminAccept } from "../handlers/admin-accept.js";
+import { handleAdminAccept, type HandleAdminAcceptInput } from "../handlers/admin-accept.js";
 import { handleAdminManualScore } from "../handlers/admin-manual-score.js";
 import { handleAdminOverride } from "../handlers/admin-override.js";
 import { registerGradingRoutes } from "../routes.js";
@@ -202,7 +204,7 @@ function proposal(attemptId: string, questionId: string, o: Partial<GradingPropo
   };
 }
 
-const accept = (attemptId: string, proposals: GradingProposal[]) =>
+const accept = (attemptId: string, proposals: HandleAdminAcceptInput["proposals"]) =>
   handleAdminAccept({ tenantId: tenant, userId: admin, attemptId, proposals });
 const manual = (attemptId: string, questionId: string, scoreEarned: number, reason = "reviewed the query result") =>
   handleAdminManualScore({ tenantId: tenant, userId: admin, attemptId, questionId, scoreEarned, reason });
@@ -409,6 +411,75 @@ describe("handleAdminAccept — attempt_scores is rolled up inside the accept tx
   });
 });
 
+describe("handleAdminAccept — payload scores are bounded (review fix: the body is client-echoed)", () => {
+  /** mcq (its deterministic row = the single seeded grading) + one AI question. */
+  const fresh = () => seed("pending_admin_grading", ["mcq", "subjective"]);
+  const rows = (id: string) => count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1`, id);
+  const nothingWritten = async (attemptId: string, seededGradings = 1) => {
+    expect(await rows(attemptId)).toBe(seededGradings);
+    expect(await count(`SELECT COUNT(*) n FROM audit_log WHERE entity_id=$1 AND action='grading.accepted'`, attemptId)).toBe(0);
+    expect((await att(attemptId)).status).toBe("pending_admin_grading");
+  };
+
+  it.each([[0], [-1], [-0.01], [1000.01], [1001], [1e6], [NaN], [Infinity], [-Infinity]])(
+    "422 AIG_INVALID_BODY for score_max=%s (must be > 0 and <= 1000); nothing written",
+    async (scoreMax) => {
+      const { attemptId, qids } = await fresh();
+      await expect(accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 0, score_max: scoreMax })])).rejects.toMatchObject({
+        code: "AIG_INVALID_BODY",
+        status: 422,
+        details: { question_id: qids[1] },
+      });
+      await nothingWritten(attemptId);
+    },
+  );
+
+  it.each([[-1], [-0.01], [10.01], [11], [1e6], [NaN], [Infinity], [-Infinity]])(
+    "422 AIG_INVALID_BODY (details.score_max 10) for score_earned=%s outside 0..score_max; nothing written (1e6 would overflow NUMERIC(6,2): a 422, not a 500)",
+    async (scoreEarned) => {
+      const { attemptId, qids } = await fresh();
+      await expect(accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: scoreEarned, score_max: 10 })])).rejects.toMatchObject({
+        code: "AIG_INVALID_BODY",
+        status: 422,
+        details: { score_max: 10, question_id: qids[1] },
+      });
+      await nothingWritten(attemptId);
+    },
+  );
+
+  it.each([[-1], [10.01], [1e6], [NaN]])(
+    "422 AIG_INVALID_BODY for an EDIT with score_earned=%s even though the proposal itself is in range; nothing written",
+    async (scoreEarned) => {
+      const { attemptId, qids } = await fresh();
+      const edited = { ...proposal(attemptId, qids[1]!, { score_earned: 5, score_max: 10 }), edits: { score_earned: scoreEarned } };
+      await expect(accept(attemptId, [edited])).rejects.toMatchObject({ code: "AIG_INVALID_BODY", status: 422, details: { score_max: 10 } });
+      await nothingWritten(attemptId);
+    },
+  );
+
+  it("one bad proposal rejects the whole request: its valid sibling is not accepted either", async () => {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["subjective", "scenario"]);
+    await expect(
+      accept(attemptId, [proposal(attemptId, qids[0]!, { score_earned: 5, score_max: 10 }), proposal(attemptId, qids[1]!, { score_earned: 1e6, score_max: 10 })]),
+    ).rejects.toMatchObject({ code: "AIG_INVALID_BODY", status: 422, details: { question_id: qids[1] } });
+    await nothingWritten(attemptId, 0);
+  });
+
+  it("accepts the boundaries: score_max 1000 with earned 1000; an edit at score_max and at 0 (the edit wins)", async () => {
+    const a = await fresh();
+    const top = await accept(a.attemptId, [proposal(a.attemptId, a.qids[1]!, { score_earned: 1000, score_max: 1000 })]);
+    expect(top.gradings[0]).toMatchObject({ score_earned: 1000, score_max: 1000, status: "correct" });
+
+    const b = await fresh();
+    const toMax = await accept(b.attemptId, [{ ...proposal(b.attemptId, b.qids[1]!, { score_earned: 0, score_max: 10 }), edits: { score_earned: 10 } }]);
+    expect(toMax.gradings[0]).toMatchObject({ score_earned: 10, score_max: 10, status: "correct" });
+
+    const c = await fresh();
+    const toZero = await accept(c.attemptId, [{ ...proposal(c.attemptId, c.qids[1]!, { score_earned: 5, score_max: 10 }), edits: { score_earned: 0 } }]);
+    expect(toZero.gradings[0]).toMatchObject({ score_earned: 0, score_max: 10, status: "incorrect" });
+  });
+});
+
 describe("handleAdminManualScore", () => {
   it("writes the row + exactly one grading.override audit row (manual_first_score, NO reason text)", async () => {
     const { attemptId, qids } = await seed("pending_admin_grading", ["kql", "mcq"]);
@@ -584,6 +655,37 @@ describe("POST /api/admin/gradings/:id/override (route) — score range", () => 
     });
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ grading: { score_earned: 10, score_max: 10 } });
+    await app.close();
+  });
+});
+
+describe("POST /api/admin/attempts/:id/accept (route) — score bounds", () => {
+  it("422 AIG_INVALID_BODY (never a 500 numeric overflow) for out-of-range scores; 200 for an in-range body", async () => {
+    const app = await buildApp();
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    for (const bad of [
+      { score_earned: 1e6, score_max: 10 }, // would overflow NUMERIC(6,2)
+      { score_earned: 5, score_max: 1e6 },
+      { score_earned: -1, score_max: 10 },
+      { score_earned: 11, score_max: 10 },
+    ]) {
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/admin/attempts/${attemptId}/accept`,
+        payload: { proposals: [proposal(attemptId, qids[1]!, bad)] },
+      });
+      expect(res.statusCode, JSON.stringify(bad)).toBe(422);
+      expect(res.json()).toMatchObject({ error: { code: "AIG_INVALID_BODY", details: { question_id: qids[1] } } });
+    }
+    expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1`, attemptId)).toBe(1); // only the seeded MCQ row
+
+    const ok = await app.inject({
+      method: "POST",
+      url: `/api/admin/attempts/${attemptId}/accept`,
+      payload: { proposals: [proposal(attemptId, qids[1]!, { score_earned: 8, score_max: 10 })] },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ attempt: { id: attemptId, status: "graded" } });
     await app.close();
   });
 });

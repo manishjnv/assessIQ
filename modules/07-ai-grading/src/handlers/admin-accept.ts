@@ -110,6 +110,46 @@ function deriveStatus(
 }
 
 // ---------------------------------------------------------------------------
+// Payload bounds
+// ---------------------------------------------------------------------------
+
+/**
+ * Ceiling for one question's score_max. Real values are tiny (AI rubric totals are
+ * <= 200, question points <= 10) and gradings.score_earned/score_max are
+ * NUMERIC(6,2): a value >= 10^4 would surface as a 500 (numeric overflow), so it is
+ * refused up front as a clean 422.
+ */
+const MAX_QUESTION_SCORE = 1000;
+
+/**
+ * The accept body is echoed back by the client (the proposal came from the review
+ * cache / a previous /grade response), so nothing server-side ties its scores to
+ * the rubric: an unchecked value flows into gradings, the attempt rollup and from
+ * there the published percentage, pass/fail and certificate tier. Until accept is
+ * bound to attempts.ai_proposals (Phase II: accept becomes super-admin only) every
+ * score must at least be a sane number, for the proposal AND for an admin edit:
+ * 0 < score_max <= 1000 and 0 <= score_earned <= score_max, all finite.
+ * One bad proposal rejects the whole request (422) before any tx is opened.
+ */
+function assertScoresInRange(proposals: HandleAdminAcceptInput["proposals"]): void {
+  for (const p of proposals) {
+    const reject = (message: string): never => {
+      throw new AppError(message, AI_GRADING_ERROR_CODES.INVALID_BODY, 422, {
+        details: { question_id: p.question_id, score_max: p.score_max },
+      });
+    };
+    if (!Number.isFinite(p.score_max) || p.score_max <= 0 || p.score_max > MAX_QUESTION_SCORE) {
+      reject(`score_max must be greater than 0 and at most ${MAX_QUESTION_SCORE}`);
+    }
+    for (const earned of [p.score_earned, p.edits?.score_earned]) {
+      if (earned !== undefined && (!Number.isFinite(earned) || earned < 0 || earned > p.score_max)) {
+        reject(`score_earned must be between 0 and ${p.score_max}`);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Core work — runs inside withTenant
 // ---------------------------------------------------------------------------
 
@@ -313,6 +353,8 @@ export async function handleAdminAccept(
       );
     }
   }
+
+  assertScoresInRange(proposals);
 
   const { gradings, flipped } = await withTenant(tenantId, (client) =>
     acceptProposals(client, tenantId, userId, attemptId, proposals),
