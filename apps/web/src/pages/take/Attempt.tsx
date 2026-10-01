@@ -9,7 +9,8 @@
 //   3. On success → full attempt-taking surface (top bar, main pane, side panel,
 //      bottom bar per the CSS-Grid layout in CONTRACT §LAYOUT).
 //   4. Wire useAutosave: every answer change calls queueSave; blur calls flushSave.
-//   5. Submit → submitAttempt → clearBackup → navigate to /take/attempt/:id/submitted.
+//   5. Submit → submitAttempt → clearBackup → navigate to /take/attempt/:id/submitted
+//      (the submit response rides along as router state — see Submitted.tsx).
 //
 // Anti-patterns explicitly refused (see contract):
 //   - No dangerouslySetInnerHTML on question content.
@@ -851,9 +852,12 @@ export function AttemptPage(): JSX.Element {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await submitAttempt(attemptId);
+      const res = await submitAttempt(attemptId);
       clearBackup(attemptId);
-      navigate(`/take/attempt/${attemptId}/submitted`, { replace: true });
+      // Hand the submit response (result_expectation, email_masked,
+      // turnaround_text) to the Submitted page; it falls back to GET /result
+      // when the state is absent (e.g. timer-expiry auto-submit).
+      navigate(`/take/attempt/${attemptId}/submitted`, { replace: true, state: res });
     } catch (err) {
       // Surface submit failures inline in the modal — don't swallow silently.
       setSubmitting(false);
