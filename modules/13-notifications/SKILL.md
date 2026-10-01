@@ -95,6 +95,7 @@ Owns: `webhook_endpoints`, `webhook_deliveries`, `email_log`. Reads: `users` (re
 | `0056_in_app_notifications.sql` | `in_app_notifications` | live |
 | `0057_tenants_smtp_config.sql` | no-op (already added by `02-tenancy` migration 0004) | live |
 | `0058_webhook_tables.sql` | `webhook_endpoints`, `webhook_deliveries` | live |
+| `0121_notifications_update_policies.sql` | `email_log`, `webhook_deliveries` (UPDATE RLS policies) | new — see "UPDATE policies" below |
 
 ### What is NOT included
 
@@ -169,3 +170,15 @@ Closed-enum template `evaluation_queue_alert` (vars: `count` int, `oldestAgeHour
 **NOT included.** Egress firewalling (still recommended: the VPS's own public IP is a "public" address to this policy), port restrictions, per-tenant allow-lists, re-validation of stored endpoint URLs in bulk (they are re-checked per delivery instead), fixing `webhookBackoffStrategy`'s off-by-one (BullMQ passes the 1-based attempt count, so the first webhook retry waits 5 m not 1 m — pre-existing, published schedule, left alone).
 
 **Downstream.** `X-AssessIQ-Timestamp` changed from ISO-8601 to unix seconds — receivers that parsed the ISO value must switch to V2 verification; docs/03-api-contract.md and docs/09-integration-guide.md still show the ISO example. Existing endpoints with `http://`, userinfo, or private/loopback targets stop delivering (`blocked_*`) after deploy.
+
+## UPDATE policies on email_log + webhook_deliveries — migration 0121 (2026-10-01)
+
+**What.** One `FOR UPDATE` RLS policy per table (`tenant_isolation_update`): same tenant predicate as the existing SELECT/INSERT policies, on both the old row (`USING`) and the new row (`WITH CHECK`), so a row can neither be updated from another tenant nor moved to one.
+
+**Why.** `0055` and `0058` created only `FOR SELECT` + `FOR INSERT` policies. With RLS on and no UPDATE policy, an UPDATE as `assessiq_app` matches **zero rows, silently** (verified on a Postgres built from the repo migrations; the code already logs `email_log.update.no_rows_affected`). So the worker's status writes never persisted: `email_log` stayed `queued`, `webhook_deliveries` stayed `pending` — and the new `last_error='blocked_address'` record of a refused delivery would have been lost. Other tables use `CREATE POLICY ... USING (...)` with no `FOR`, which covers UPDATE. If production was patched by hand, 0121 only adds an OR-ed policy.
+
+**Considered and rejected.** Writing the outcome as a NEW row (webhook_deliveries is documented append-only per delivery, but `updateWebhookDeliveryStatus` has always UPDATEd it; a second row per delivery would break the list/replay UI); `FORCE ROW LEVEL SECURITY`/owner tricks.
+
+**NOT included.** `in_app_notifications` has the same SELECT+INSERT-only shape (mark-read matches 0 rows) — same fix, not part of this change. No DELETE policy.
+
+**Test.** `src/__tests__/notifications-update-policies.test.ts` (real Postgres): own-tenant writes persist; another tenant's context updates 0 rows; tenant_id / endpoint_id cannot be moved to another tenant. Rollback: `DROP POLICY tenant_isolation_update ON email_log; DROP POLICY tenant_isolation_update ON webhook_deliveries;`.
