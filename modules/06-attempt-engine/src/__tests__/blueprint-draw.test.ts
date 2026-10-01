@@ -79,6 +79,8 @@ vi.mock("../repository.js", () => ({
     embed_origin: false,
   }),
   insertAttemptQuestions: vi.fn().mockResolvedValue(undefined),
+  // Per-student option shuffle: no MCQ options known -> every row gets optionOrder null.
+  listMcqOptionsForPicks: vi.fn().mockResolvedValue(new Map()),
   insertEmptyAttemptAnswers: vi.fn().mockResolvedValue(undefined),
   markInvitationStarted: vi.fn().mockResolvedValue(undefined),
   insertAttemptEvent: vi.fn().mockResolvedValue(undefined),

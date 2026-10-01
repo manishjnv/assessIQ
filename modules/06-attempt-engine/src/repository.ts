@@ -32,7 +32,7 @@ import { answerGuidanceFor } from "./answer-guidance.js";
 
 const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin`;
 
-const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version`;
+const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version, option_order`;
 
 const ATTEMPT_ANSWER_COLUMNS = `attempt_id, question_id, answer, flagged, time_spent_seconds, edits_count, client_revision, saved_at`;
 
@@ -59,6 +59,8 @@ interface AttemptQuestionRow {
   question_id: string;
   position: number;
   question_version: number;
+  // SMALLINT[] — node-pg parses int2[] to number[]. NULL = original option order.
+  option_order: number[] | null;
 }
 
 interface AttemptAnswerRow {
@@ -120,6 +122,7 @@ function mapAttemptQuestionRow(row: AttemptQuestionRow): AttemptQuestion {
     question_id: row.question_id,
     position: row.position,
     question_version: row.question_version,
+    option_order: row.option_order,
   };
 }
 
@@ -346,7 +349,13 @@ export async function bulkAutoSubmitExpired(
 export async function insertAttemptQuestions(
   client: PoolClient,
   attemptId: string,
-  rows: ReadonlyArray<{ questionId: string; position: number; questionVersion: number }>,
+  rows: ReadonlyArray<{
+    questionId: string;
+    position: number;
+    questionVersion: number;
+    /** Per-attempt MCQ option permutation (display position -> original index); null/omitted = original order. */
+    optionOrder?: ReadonlyArray<number> | null;
+  }>,
 ): Promise<void> {
   if (rows.length === 0) return;
 
@@ -355,15 +364,57 @@ export async function insertAttemptQuestions(
   const values: unknown[] = [];
   let i = 1;
   for (const r of rows) {
-    placeholders.push(`($${i++}, $${i++}, $${i++}, $${i++})`);
-    values.push(attemptId, r.questionId, r.position, r.questionVersion);
+    placeholders.push(`($${i++}, $${i++}, $${i++}, $${i++}, $${i++}::smallint[])`);
+    values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null);
   }
 
   await client.query(
-    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version)
+    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order)
      VALUES ${placeholders.join(", ")}`,
     values,
   );
+}
+
+/**
+ * The frozen `content.options` of each picked MCQ, keyed by question id — what
+ * startAttempt needs to decide whether (and how) to shuffle. Reads the SAME frozen
+ * (question_id, version) rows the candidate is later served from
+ * (listFrozenQuestionsForAttempt), so the stored order always matches the options
+ * shown. Non-MCQ picks and picks without a snapshot are simply absent from the map.
+ */
+export async function listMcqOptionsForPicks(
+  client: PoolClient,
+  picks: ReadonlyArray<{ id: string; version: number }>,
+): Promise<Map<string, unknown>> {
+  const out = new Map<string, unknown>();
+  if (picks.length === 0) return out;
+  const result = await client.query<{ question_id: string; options: unknown }>(
+    `SELECT p.question_id::text AS question_id, qv.content -> 'options' AS options
+       FROM unnest($1::uuid[], $2::int[]) AS p(question_id, version)
+       JOIN questions q ON q.id = p.question_id AND q.type = 'mcq'
+       JOIN question_versions qv
+         ON qv.question_id = p.question_id AND qv.version = p.version`,
+    [picks.map((p) => p.id), picks.map((p) => p.version)],
+  );
+  for (const r of result.rows) out.set(r.question_id, r.options);
+  return out;
+}
+
+/**
+ * Stored option permutations of an attempt, keyed by question id (only questions
+ * that were shuffled). SERVER-INTERNAL: used to translate the candidate's view;
+ * the values are never returned to a caller outside this module.
+ */
+export async function listOptionOrders(
+  client: PoolClient,
+  attemptId: string,
+): Promise<Map<string, number[]>> {
+  const result = await client.query<{ question_id: string; option_order: number[] }>(
+    `SELECT question_id, option_order FROM attempt_questions
+      WHERE attempt_id = $1 AND option_order IS NOT NULL`,
+    [attemptId],
+  );
+  return new Map(result.rows.map((r) => [r.question_id, r.option_order]));
 }
 
 /**
