@@ -29,6 +29,7 @@
 
 import {
   streamLogger,
+  AppError,
   NotFoundError,
   ValidationError,
   ConflictError,
@@ -59,6 +60,7 @@ import {
 } from "./state-machine.js";
 import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "./tokens.js";
 import { sendInvitationEmail } from "./email.js";
+import type { SendAssessmentInvitationInput } from "./email.js";
 import { AL_ERROR_CODES, AssessmentBlueprintSchema } from "./types.js";
 import type {
   Assessment,
@@ -66,6 +68,7 @@ import type {
   AssessmentInvitation,
   AssessmentSettings,
   AssessmentStatus,
+  BulkResendResult,
   CreateAssessmentInput,
   CreateAssessmentFromSetInput,
   InvitationStatus,
@@ -87,6 +90,18 @@ const log = streamLogger("app");
 // ---------------------------------------------------------------------------
 
 const MAX_PAGE_SIZE = 100;
+
+/** Per-call cap of the bulk resend (mirrors the CSV import's 200-invite cap). */
+const BULK_RESEND_MAX = 200;
+
+/**
+ * The bulk resend leaves alone any link that was (re)issued by a resend within
+ * this window — it is what lets repeated clicks walk through a cohort larger
+ * than BULK_RESEND_MAX instead of looping on the first batch (migration 0117).
+ */
+const BULK_RESEND_RECENT_MINUTES = 10;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Read once at module load — never shell out per inviteUsers call.
@@ -1451,6 +1466,345 @@ export async function markInvitationViewedByToken(
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
+// Shared helpers — invite / resend / re-invite
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the tenant display name used in invitation emails. The
+ * 13-notifications Zod validator enforces .min(1) on tenantName; we never paper
+ * over a missing name with the tenant id or slug — the validator is right, the
+ * caller must provide a real value (RCA 2026-05-11 Finding C).
+ */
+async function resolveTenantNameForEmail(
+  client: PoolClient,
+  tenantId: string,
+): Promise<string> {
+  const tenantRow = await tenancyRepo.findTenantById(client, tenantId);
+  if (tenantRow === null) {
+    throw new NotFoundError(
+      `Tenant not found while preparing invitation emails: ${tenantId}`,
+      { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
+    );
+  }
+  const tenantName = tenantRow.name?.trim() ?? "";
+  if (tenantName.length === 0) {
+    throw new ValidationError(
+      `Tenant has empty name; cannot send invitation emails (tenant ${tenantId})`,
+      { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
+    );
+  }
+  return tenantName;
+}
+
+/** published / active are the only assessment states that accept (re)issued invitations. */
+function acceptsInvitations(status: AssessmentStatus): boolean {
+  return status === "published" || status === "active";
+}
+
+/**
+ * A link that no longer works: admin-revoked (status 'expired') or lapsed by
+ * time (still pending/viewed but past expires_at — the resolver rejects both).
+ * Started / submitted invitations are never "dead": their link is irrelevant.
+ */
+function isLinkDead(
+  inv: Pick<AssessmentInvitation, "status" | "expires_at">,
+): boolean {
+  if (inv.status === "expired") return true;
+  return (
+    (inv.status === "pending" || inv.status === "viewed") &&
+    inv.expires_at.getTime() <= Date.now()
+  );
+}
+
+/**
+ * Has the candidate started this assessment? Invitation status alone is not
+ * enough: revokeInvitation overwrites ANY status with 'expired', so a
+ * revoked-after-start invitation is only recognisable by its attempt row.
+ */
+async function candidateHasStarted(
+  client: PoolClient,
+  inv: Pick<AssessmentInvitation, "status" | "assessment_id" | "user_id">,
+): Promise<boolean> {
+  if (inv.status === "started" || inv.status === "submitted") return true;
+  return repo.hasStartedAttempt(client, inv.assessment_id, inv.user_id);
+}
+
+function invitationNotFound(invitationId: string): NotFoundError {
+  return new NotFoundError(`Invitation not found: ${invitationId}`, {
+    details: { code: AL_ERROR_CODES.INVITATION_NOT_FOUND },
+  });
+}
+
+function assessmentNotFound(assessmentId: string): NotFoundError {
+  return new NotFoundError(`Assessment not found: ${assessmentId}`, {
+    details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+  });
+}
+
+function assertAssessmentAcceptsResend(assessment: Assessment): void {
+  if (!acceptsInvitations(assessment.status)) {
+    throw new ConflictError(
+      `Invitations can only be resent while the assessment is published or active (this one is ${assessment.status}).`,
+      { details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_ACTIVE, current: assessment.status } },
+    );
+  }
+}
+
+function alreadyStartedError(): ConflictError {
+  return new ConflictError(
+    "This candidate has already started this assessment, so their invitation can't be resent.",
+    { details: { code: AL_ERROR_CODES.INVITATION_ALREADY_STARTED } },
+  );
+}
+
+/**
+ * Re-issue the link of an EXISTING invitation row on the caller's transaction:
+ *   - fresh token → the old link stops resolving the moment this commits;
+ *   - expires_at = now + DEFAULT_INVITATION_TTL_HOURS (7 days);
+ *   - status back to 'pending', last_resent_at stamped;
+ *   - exactly ONE audit row (the only auditInTx for resend / re-invite).
+ *
+ * `kind: "resend"` audits as `assessment.invitation.resent` (admin pressed
+ * Resend); `kind: "reinvite"` audits as `assessment.invite` (admin invited a
+ * student whose earlier invitation was revoked / lapsed — the invite path keeps
+ * its own action so "who was invited when" queries stay in one place).
+ *
+ * Returns null — nothing changed, nothing audited — when the row is already
+ * started / submitted. The plaintext token is returned ONLY so the caller can
+ * put it in the email link; it is never persisted or logged.
+ */
+async function reissueInvitationInTx(
+  client: PoolClient,
+  args: {
+    tenantId: string;
+    /** The row as read BEFORE the re-issue (feeds the audit `before`). */
+    invitation: AssessmentInvitation;
+    actorUserId: string;
+    kind: "resend" | "reinvite";
+  },
+): Promise<{ invitation: AssessmentInvitation; plaintext: string } | null> {
+  const { plaintext, hash } = generateInvitationToken();
+  const expiresAt = new Date(
+    Date.now() + DEFAULT_INVITATION_TTL_HOURS * 3_600_000,
+  );
+  const updated = await repo.reissueInvitation(
+    client,
+    args.invitation.id,
+    hash,
+    expiresAt,
+  );
+  if (updated === null) return null;
+
+  await auditInTx(client, {
+    tenantId: args.tenantId,
+    actorKind: "user",
+    actorUserId: args.actorUserId,
+    action:
+      args.kind === "resend" ? "assessment.invitation.resent" : "assessment.invite",
+    entityType: "assessment_invitation",
+    entityId: updated.id,
+    // ISO strings, not Date objects: redactPayload() walks objects with
+    // Object.entries(), which flattens a Date to {} in the stored JSON.
+    before: {
+      status: args.invitation.status,
+      expires_at: args.invitation.expires_at.toISOString(),
+    },
+    after: {
+      kind: args.kind,
+      status: updated.status,
+      expires_at: updated.expires_at.toISOString(),
+      assessment_id: updated.assessment_id,
+      user_id: updated.user_id,
+    },
+  });
+
+  return { invitation: updated, plaintext };
+}
+
+// ---------------------------------------------------------------------------
+// resendInvitation / resendInvitations — replace the link, extend, email again
+// ---------------------------------------------------------------------------
+
+/**
+ * ONE transaction per invitation: validate, re-issue the link, audit. Returns
+ * the updated row plus the email to send AFTER the commit (a rollback must
+ * never leave a student holding a link whose token_hash was never persisted).
+ *
+ * Allowed while the assessment is published/active and the candidate has NOT
+ * started — for pending, viewed, lapsed AND revoked invitations alike (so it is
+ * also the "extend" action). Throws:
+ *   404 INVITATION_NOT_FOUND         unknown id / other tenant (RLS) / malformed id
+ *   409 ASSESSMENT_NOT_ACTIVE        assessment is draft / closed / cancelled
+ *   409 INVITATION_ALREADY_STARTED   candidate has an attempt (or started/submitted)
+ *   409 USER_INACTIVE                candidate account disabled / not a candidate
+ */
+async function reissueForResend(
+  tenantId: string,
+  invitationId: string,
+  actorUserId: string,
+): Promise<{ invitation: AssessmentInvitation; email: SendAssessmentInvitationInput }> {
+  if (!UUID_RE.test(invitationId)) throw invitationNotFound(invitationId);
+
+  return withTenant(tenantId, async (client) => {
+    // Resolve the email's tenant name FIRST so a bad tenant row fails before
+    // any token is rotated.
+    const tenantName = await resolveTenantNameForEmail(client, tenantId);
+
+    // Row lock: serialises with a candidate hitting Begin (06 markInvitationStarted)
+    // and with a second resend of the same row.
+    const invitation = await repo.findInvitationById(client, invitationId, {
+      forUpdate: true,
+    });
+    if (invitation === null) throw invitationNotFound(invitationId);
+
+    const assessment = await repo.findAssessmentById(client, invitation.assessment_id);
+    if (assessment === null) throw assessmentNotFound(invitation.assessment_id);
+    assertAssessmentAcceptsResend(assessment);
+
+    if (await candidateHasStarted(client, invitation)) throw alreadyStartedError();
+
+    const user = await repo.findUserForInvitation(client, invitation.user_id);
+    if (user === null || user.role !== "candidate" || user.status !== "active") {
+      throw new ConflictError(
+        "This candidate's account is disabled, so the invitation can't be resent.",
+        { details: { code: AL_ERROR_CODES.USER_INACTIVE } },
+      );
+    }
+
+    const reissued = await reissueInvitationInTx(client, {
+      tenantId,
+      invitation,
+      actorUserId,
+      kind: "resend",
+    });
+    // Defensive: the row is locked FOR UPDATE, so this only fires if the status
+    // guard in the UPDATE disagrees with the read above.
+    if (reissued === null) throw alreadyStartedError();
+
+    return {
+      invitation: reissued.invitation,
+      email: {
+        tenantId,
+        to: user.email,
+        candidateName: user.name,
+        assessmentName: assessment.name,
+        invitationLink: `${PUBLIC_URL}/take/${reissued.plaintext}`,
+        expiresAt: reissued.invitation.expires_at,
+        tenantName,
+      },
+    };
+  });
+}
+
+/**
+ * Send the (re)issued invitation email AFTER the transaction committed, with
+ * the same shim the invite path uses. If it fails the DB already holds the new
+ * token (the old link is dead), so tell the admin plainly — pressing Resend
+ * again is safe (it just rotates the token once more).
+ */
+async function sendAfterCommit(
+  email: SendAssessmentInvitationInput,
+  invitationId: string,
+): Promise<void> {
+  try {
+    await sendInvitationEmail(email);
+  } catch (err) {
+    log.error({ err, invitationId }, "resend: invitation email failed after commit");
+    throw new AppError(
+      "The new link was created but the email could not be sent. Press Resend again to retry.",
+      AL_ERROR_CODES.INVITATION_EMAIL_FAILED,
+      502,
+      {
+        details: { code: AL_ERROR_CODES.INVITATION_EMAIL_FAILED },
+        cause: err,
+      },
+    );
+  }
+}
+
+/**
+ * Resend ONE invitation: fresh token (old link stops working), expires_at =
+ * now + 7 days, status back to 'pending', one audit row — all in one
+ * transaction — then the invitation email, sent after the commit.
+ */
+export async function resendInvitation(
+  tenantId: string,
+  invitationId: string,
+  actorUserId: string,
+): Promise<AssessmentInvitation> {
+  log.info({ tenantId, invitationId }, "resendInvitation");
+  const { invitation, email } = await reissueForResend(
+    tenantId,
+    invitationId,
+    actorUserId,
+  );
+  await sendAfterCommit(email, invitation.id);
+  return invitation;
+}
+
+/** Stable skip code for one failed row of the bulk resend. */
+function skipCodeOf(err: unknown): string {
+  if (err instanceof AppError) {
+    const code = err.details?.["code"];
+    return typeof code === "string" ? code : err.code;
+  }
+  return "INTERNAL";
+}
+
+/**
+ * Resend every invitation of an assessment whose candidate has not started
+ * (pending, viewed, lapsed-by-time — NOT revoked; only the single resend
+ * revives those). At most BULK_RESEND_MAX per call, oldest invitation first;
+ * `remaining` counts the eligible rows beyond the cap that were not touched.
+ *
+ * Each invitation runs in its OWN transaction (one bad row never rolls back
+ * the others) and its email goes out right after ITS commit. Links re-issued
+ * in the last BULK_RESEND_RECENT_MINUTES are skipped, so calling again
+ * continues with the rest instead of re-sending the first batch.
+ *
+ * ponytail: sequential — ≤200 rows × (tx + queue add) is a few seconds; add a
+ * small concurrency window if campus-scale latency ever matters.
+ */
+export async function resendInvitations(
+  tenantId: string,
+  assessmentId: string,
+  actorUserId: string,
+): Promise<BulkResendResult> {
+  log.info({ tenantId, assessmentId }, "resendInvitations");
+  if (!UUID_RE.test(assessmentId)) throw assessmentNotFound(assessmentId);
+
+  const recentCutoff = new Date(Date.now() - BULK_RESEND_RECENT_MINUTES * 60_000);
+  const { ids, total } = await withTenant(tenantId, async (client) => {
+    const assessment = await repo.findAssessmentById(client, assessmentId);
+    if (assessment === null) throw assessmentNotFound(assessmentId);
+    assertAssessmentAcceptsResend(assessment);
+    return repo.listResendableInvitationIds(
+      client,
+      assessmentId,
+      recentCutoff,
+      BULK_RESEND_MAX,
+    );
+  });
+
+  let resent = 0;
+  const skipped: BulkResendResult["skipped"] = [];
+  for (const id of ids) {
+    try {
+      const { invitation, email } = await reissueForResend(tenantId, id, actorUserId);
+      await sendAfterCommit(email, invitation.id);
+      resent++;
+    } catch (err) {
+      if (!(err instanceof AppError)) {
+        log.error({ err, invitationId: id }, "resendInvitations: row failed");
+      }
+      skipped.push({ id, code: skipCodeOf(err) });
+    }
+  }
+
+  return { resent, skipped, remaining: Math.max(0, total - ids.length) };
+}
+
+// ---------------------------------------------------------------------------
 // inviteUsers
 // ---------------------------------------------------------------------------
 
@@ -1464,24 +1818,8 @@ export async function inviteUsers(
 
   return withTenant(tenantId, async (client) => {
     // Fetch tenant name once — single DB hit on the same client (RLS + tx
-    // consistency), held for all invitees in this batch. The 13-notifications
-    // Zod validator enforces .min(1) on tenantName; we never paper over a
-    // missing name with the tenant id or slug — the validator is right, the
-    // caller must provide a real value (RCA 2026-05-11 Finding C).
-    const tenantRow = await tenancyRepo.findTenantById(client, tenantId);
-    if (tenantRow === null) {
-      throw new NotFoundError(
-        `Tenant not found while preparing invitation emails: ${tenantId}`,
-        { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
-      );
-    }
-    const tenantName = tenantRow.name?.trim() ?? "";
-    if (tenantName.length === 0) {
-      throw new ValidationError(
-        `Tenant has empty name; cannot send invitation emails (tenant ${tenantId})`,
-        { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
-      );
-    }
+    // consistency), held for all invitees in this batch.
+    const tenantName = await resolveTenantNameForEmail(client, tenantId);
     // a. Read assessment
     const assessment = await repo.findAssessmentById(client, assessmentId);
     if (assessment === null) {
@@ -1522,14 +1860,48 @@ export async function inviteUsers(
         continue;
       }
 
-      // Skip if invitation already exists for this (assessment, user) pair
+      // An invitation already exists for this (assessment, user) pair.
       const existing = await repo.findInvitationByAssessmentAndUser(
         client,
         assessmentId,
         userId,
       );
       if (existing !== null) {
-        skipped.push({ userId, reason: "INVITATION_EXISTS" });
+        // A live link, or a candidate who already started → "existing", as
+        // before: no new token, no duplicate email. (The live-link test runs
+        // first so the common path never touches the attempts table.)
+        if (!isLinkDead(existing) || (await candidateHasStarted(client, existing))) {
+          skipped.push({ userId, reason: "INVITATION_EXISTS" });
+          continue;
+        }
+
+        // The earlier link is dead (revoked, or lapsed after its 7 days) and
+        // the candidate never started → bring the same invitation row back to
+        // life with the same effect as Resend: fresh token, 7-day expiry, a
+        // new email. Never an error, never a silent skip. Like the new-invite
+        // path below, the email is dispatched inline within this batch's
+        // transaction.
+        const reissued = await reissueInvitationInTx(client, {
+          tenantId,
+          invitation: existing,
+          actorUserId: invitedByUserId,
+          kind: "reinvite",
+        });
+        if (reissued === null) {
+          // Lost a race with the candidate starting — treat as existing.
+          skipped.push({ userId, reason: "INVITATION_EXISTS" });
+          continue;
+        }
+        await sendInvitationEmail({
+          tenantId,
+          to: user.email,
+          candidateName: user.name,
+          assessmentName: assessment.name,
+          invitationLink: `${PUBLIC_URL}/take/${reissued.plaintext}`,
+          expiresAt: reissued.invitation.expires_at,
+          tenantName,
+        });
+        invited.push(reissued.invitation);
         continue;
       }
 
@@ -1621,7 +1993,33 @@ export async function listInvitations(
       page,
       pageSize,
     });
-    return { items, page, pageSize, total };
+
+    // Resend affordances for the admin UI. `can_resend` mirrors the single-
+    // resend rule (assessment published/active AND candidate not started —
+    // revoked and lapsed invitations qualify); `resendable` is the bulk
+    // action's total across ALL pages (not just this one).
+    const open = acceptsInvitations(assessment.status);
+    const resendable = open
+      ? await repo.countResendableInvitations(
+          client,
+          assessmentId,
+          new Date(Date.now() - BULK_RESEND_RECENT_MINUTES * 60_000),
+        )
+      : 0;
+    return {
+      items: items.map((inv) => ({
+        ...inv,
+        can_resend:
+          open &&
+          inv.status !== "started" &&
+          inv.status !== "submitted" &&
+          (inv.attempt_id == null || inv.attempt_status === "draft"),
+      })),
+      page,
+      pageSize,
+      total,
+      resendable,
+    };
   });
 }
 

@@ -907,12 +907,12 @@ admin.platform.slug:
 
 admin.platform.admin_email:
   audience: admin
-  short_text: "Email address of the company's first admin. An invitation link (valid 72 h) is sent here on provisioning."
+  short_text: "Email address of the company's first admin. An invitation link (valid 7 days) is sent here on provisioning."
   long_md: |
     ## First-admin email
 
     The email address entered here receives a one-time invitation link
-    immediately after the tenant is provisioned. The link is valid for 72 hours.
+    immediately after the tenant is provisioned. The link is valid for 7 days.
 
     The invited user signs in via the link and is granted `role = admin` for
     the new tenant. They can then invite additional admins and reviewers from
@@ -2790,3 +2790,61 @@ admin.assessments.release_all:
       candidate data was erased are skipped, and you see how many.
     - Published results are final and cannot be changed.
     - To publish one attempt at a time, open it from the Attempts page instead.
+
+# ─── Candidate invitations: 7-day links, resend, re-invite (2026-10-01) ──────────
+
+admin.assessments.invitations.resend:
+  audience: admin
+  short_text: "Email this candidate a new link, valid for 7 days. The old link stops working straight away."
+  long_md: |
+    ## Resend an invitation
+
+    Use this when a candidate missed the 7-day window, lost the email, or you
+    revoked their invitation by mistake.
+
+    - **A new link is emailed** and is valid for 7 days from now.
+    - **The old link stops working** the moment you press Resend. If the
+      candidate opens it, they are told it has expired or been replaced and to
+      use the newest email.
+    - Works for invitations that are waiting, opened, expired or revoked.
+    - **Not available once the candidate has started.** From then on the
+      attempt belongs to them, so the button is hidden and their row shows
+      **View attempt**.
+
+    Inviting a candidate again (from **+ Invite candidates** or a CSV import)
+    after their invitation was revoked or expired does the same thing.
+
+admin.assessments.invitations.resend_all:
+  audience: admin
+  short_text: "Email a new 7-day link to every candidate who hasn't started. Their old links stop working."
+  long_md: |
+    ## Resend to everyone who hasn't started
+
+    Sends a fresh link to each candidate on this assessment who has not
+    started: invitations that are waiting, opened or expired. The number in
+    brackets is how many emails will go out.
+
+    - **Old links stop working** straight away, so each candidate must use the
+      newest email.
+    - **Revoked invitations are left alone.** Resend those one at a time from
+      their row.
+    - **Candidates who have started** are never touched.
+    - **Up to 200 emails per click.** If more are waiting you are told how many
+      are left; press the button again to send the rest. Links sent in the last
+      10 minutes are not sent twice.
+    - Invitation emails go out through the normal email queue, so a large batch
+      may take a little while to arrive.
+
+admin.assessments.invitations.resend_result:
+  audience: admin
+  short_text: "How many invitations were resent, how many were skipped (and why), and how many are still to send."
+  long_md: |
+    ## Resend result
+
+    - **Resent** — new links emailed.
+    - **Skipped** — rows that could not be resent, with the reason, for example
+      the candidate started in the meantime, their account is disabled, or the
+      email could not be queued. Skipped rows are not lost: open the row and
+      press Resend to try again.
+    - **Still to send** — more candidates are waiting than one click can send
+      (200). Press **Resend to everyone who hasn't started** again to continue.

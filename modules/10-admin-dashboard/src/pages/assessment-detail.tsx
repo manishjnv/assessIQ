@@ -14,6 +14,8 @@
 //   POST /admin/assessments/:id/invite          → { user_ids: string[] }
 //   POST /admin/users/import                    → { csv, assessment_id } (CandidateCsvImport)
 //   POST /admin/assessments/:id/publish         → draft → published
+//   POST /admin/invitations/:id/resend          → new 7-day link for ONE candidate who hasn't started
+//   POST /admin/assessments/:id/invitations/resend → same for everyone who hasn't started (max 200)
 //
 // INVARIANTS:
 //  - No claude/anthropic imports or copy.
@@ -43,7 +45,10 @@ import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, d
 import type { TenantEntitlement } from "../api.js";
 
 type AssessmentStatus = "draft" | "published" | "active" | "closed" | "cancelled";
-type InvitationStatus = "pending" | "accepted" | "expired" | "submitted";
+// Mirrors the server enum (modules/05 INVITATION_STATUSES). NOTE: 'expired' is
+// what an admin REVOKE writes; a link that merely ran out of time keeps
+// 'pending' / 'viewed' with an expires_at in the past (shown as "Expired").
+type InvitationStatus = "pending" | "viewed" | "started" | "submitted" | "expired";
 
 interface Assessment {
   id: string;
@@ -73,12 +78,35 @@ interface Invitation {
   total_max?: number | null;
   auto_pct?: number | null;
   pending_review?: boolean | null;
+  /** Server-computed: Resend is allowed (assessment open + candidate not started). */
+  can_resend?: boolean;
 }
 
 interface InvitationsResponse {
   items: Invitation[];
   total: number;
+  /** How many invitations "Resend to everyone who hasn't started" would send (all pages). */
+  resendable?: number;
 }
+
+/** POST /admin/assessments/:id/invitations/resend */
+interface ResendAllResponse {
+  resent: number;
+  skipped: Array<{ id: string; code: string }>;
+  remaining: number;
+}
+
+/** Server cap per bulk-resend call (modules/05 BULK_RESEND_MAX). */
+const RESEND_ALL_CAP = 200;
+
+/** Plain-language reasons for the skip codes the bulk resend returns. */
+const RESEND_SKIP_REASON: Record<string, string> = {
+  INVITATION_ALREADY_STARTED: "already started",
+  USER_INACTIVE: "account disabled",
+  INVITATION_EMAIL_FAILED: "email could not be sent",
+  INVITATION_NOT_FOUND: "no longer exists",
+  ASSESSMENT_NOT_ACTIVE: "assessment closed",
+};
 
 interface UserItem {
   id: string;
@@ -140,7 +168,7 @@ function assessmentStatusColor(s: string): { bg: string; color: string } {
 
 function invitationStatusColor(s: string): { bg: string; color: string } {
   switch (s) {
-    case "accepted":
+    case "started":
       return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
     case "submitted":
       return { bg: "var(--aiq-color-success-soft)", color: "var(--aiq-color-success)" };
@@ -149,6 +177,28 @@ function invitationStatusColor(s: string): { bg: string; color: string } {
     default:
       return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-secondary)" };
   }
+}
+
+/** The server writes 'expired' when an admin REVOKES an invitation — say so in plain words. */
+function invitationStatusLabel(s: string): string {
+  return s === "expired" ? "revoked" : s;
+}
+
+/**
+ * "Expires 8 Oct 2026" / "Expired" — only for links that still matter (pending
+ * or viewed). Started, submitted and revoked rows have no expiry worth showing.
+ */
+function invitationExpiry(
+  inv: Invitation,
+  now: number,
+): { text: string; lapsed: boolean } | null {
+  if ((inv.status !== "pending" && inv.status !== "viewed") || inv.expires_at == null) {
+    return null;
+  }
+  const at = new Date(inv.expires_at);
+  if (at.getTime() <= now) return { text: "Expired", lapsed: true };
+  const date = at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return { text: `Expires ${date}`, lapsed: false };
 }
 
 export function AdminAssessmentDetail(): React.ReactElement {
@@ -168,6 +218,16 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  // Resend: one row ("Resend" in the Action column) or everyone who hasn't
+  // started (POST /invitations/resend, confirm dialog first). Both end in the
+  // same chip feedback; `resendable` is the server's count across ALL pages.
+  const [resendable, setResendable] = useState(0);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [showResendAll, setShowResendAll] = useState(false);
+  const [resendingAll, setResendingAll] = useState(false);
+  const [resendResult, setResendResult] = useState<ResendAllResponse | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
 
   // "Publish all ready": publish every evaluated attempt of this assessment to
   // its candidate in one go (POST /release-all). Attempts that are not ready are
@@ -212,6 +272,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
       ]);
       setAssessment(assessmentData);
       setInvitations(inviteData.items);
+      setResendable(inviteData.resendable ?? 0);
       setUsers(usersData.items);
       setEntitlements(entitlementsResult?.entitlements ?? null);
     } catch (err) {
@@ -314,6 +375,54 @@ export function AdminAssessmentDetail(): React.ReactElement {
     }
   }
 
+  // Resend ONE invitation: new link by email, 7 days from now, old link stops
+  // working. The server refuses (409) once the candidate has started.
+  async function handleResendOne(inv: Invitation) {
+    setResendingId(inv.id);
+    setResendError(null);
+    setResendResult(null);
+    try {
+      await adminApi(`/admin/invitations/${inv.id}/resend`, { method: "POST" });
+      setResendResult({ resent: 1, skipped: [], remaining: 0 });
+      await fetchData();
+    } catch (err) {
+      setResendError(
+        err instanceof AdminApiError ? err.apiError.message : "Failed to resend the invitation.",
+      );
+      // 409 (state changed, e.g. the candidate just started) / 502 (link saved,
+      // email not queued): the row is different now — refresh it.
+      if (err instanceof AdminApiError && (err.status === 409 || err.status === 502)) {
+        await fetchData();
+      }
+    } finally {
+      setResendingId(null);
+    }
+  }
+
+  // Resend to everyone who hasn't started (server caps one call at 200; the
+  // result says how many are still waiting so the admin can press it again).
+  async function handleResendAll() {
+    if (!id) return;
+    setResendingAll(true);
+    setResendError(null);
+    setResendResult(null);
+    try {
+      const res = await adminApi<ResendAllResponse>(
+        `/admin/assessments/${id}/invitations/resend`,
+        { method: "POST" },
+      );
+      setResendResult(res);
+      await fetchData();
+    } catch (err) {
+      setResendError(
+        err instanceof AdminApiError ? err.apiError.message : "Failed to resend invitations.",
+      );
+    } finally {
+      setShowResendAll(false);
+      setResendingAll(false);
+    }
+  }
+
   function toggleUser(userId: string) {
     setSelectedUserIds((prev) => {
       const next = new Set(prev);
@@ -333,6 +442,9 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const hasAttempts = invitations.some(
     (inv) => inv.attempt_id != null || inv.started_at != null,
   );
+
+  // One clock reading per render so every row's "Expires … / Expired" agrees.
+  const nowMs = Date.now();
 
   const invitationColumns: ColumnDef<Invitation>[] = [
     {
@@ -366,21 +478,35 @@ export function AdminAssessmentDetail(): React.ReactElement {
       sortable: true,
       render: (row: Invitation) => {
         const c = invitationStatusColor(row.status);
+        const expiry = invitationExpiry(row, nowMs);
         return (
-          <span
-            style={{
-              fontFamily: "var(--aiq-font-mono)",
-              fontSize: "var(--aiq-text-xs)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              padding: "1px 8px",
-              borderRadius: "var(--aiq-radius-pill)",
-              background: c.bg,
-              color: c.color,
-            }}
-          >
-            {row.status}
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
+            <span
+              style={{
+                fontFamily: "var(--aiq-font-mono)",
+                fontSize: "var(--aiq-text-xs)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                padding: "1px 8px",
+                borderRadius: "var(--aiq-radius-pill)",
+                background: c.bg,
+                color: c.color,
+              }}
+            >
+              {invitationStatusLabel(row.status)}
+            </span>
+            {expiry !== null && (
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "var(--aiq-text-xs)",
+                  color: expiry.lapsed ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-muted)",
+                }}
+              >
+                {expiry.text}
+              </span>
+            )}
+          </div>
         );
       },
     },
@@ -499,19 +625,42 @@ export function AdminAssessmentDetail(): React.ReactElement {
       label: "Action",
       sortable: false,
       render: (row: Invitation) => {
-        if (row.attempt_id == null) return <span>—</span>;
+        // Resend is offered only while the candidate has not started (the
+        // server decides: can_resend). A started row shows "View attempt →".
+        const resendBtn =
+          row.can_resend === true ? (
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+              data-help-id="admin.assessments.invitations.resend"
+              title="Email a new link, valid for 7 days. The old link stops working."
+              aria-label={`Resend invitation to ${row.user_email ?? row.user_name ?? "this candidate"}`}
+              disabled={resendingId !== null || resendingAll}
+              onClick={() => void handleResendOne(row)}
+            >
+              {resendingId === row.id ? "Sending…" : "Resend"}
+            </button>
+          ) : null;
+        const viewLink =
+          row.attempt_id != null ? (
+            <Link
+              to={`/admin/attempts/${row.attempt_id}`}
+              style={{
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+                color: "var(--aiq-color-accent)",
+                textDecoration: "none",
+              }}
+            >
+              View attempt →
+            </Link>
+          ) : null;
+        if (resendBtn === null && viewLink === null) return <span>—</span>;
         return (
-          <Link
-            to={`/admin/attempts/${row.attempt_id}`}
-            style={{
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              color: "var(--aiq-color-accent)",
-              textDecoration: "none",
-            }}
-          >
-            View attempt →
-          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+            {resendBtn}
+            {viewLink}
+          </div>
         );
       },
     },
@@ -838,6 +987,57 @@ export function AdminAssessmentDetail(): React.ReactElement {
           </div>
         </Modal>
 
+        <Modal
+          open={showResendAll}
+          onClose={() => {
+            if (!resendingAll) setShowResendAll(false);
+          }}
+          title="Resend to everyone who hasn't started?"
+          width={480}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              color: "var(--aiq-color-fg-secondary)",
+              lineHeight: 1.6,
+            }}
+          >
+            <strong>{Math.min(resendable, RESEND_ALL_CAP)}</strong> email
+            {Math.min(resendable, RESEND_ALL_CAP) === 1 ? " will" : "s will"} be sent, one to each
+            candidate who hasn't started. Each gets a new link that is valid for 7 days, and their
+            old links stop working straight away.
+            {resendable > RESEND_ALL_CAP
+              ? ` We send ${RESEND_ALL_CAP} at a time; press the button again for the other ${
+                  resendable - RESEND_ALL_CAP
+                }.`
+              : ""}
+          </p>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--aiq-space-sm)" }}>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-ghost"
+              onClick={() => setShowResendAll(false)}
+              disabled={resendingAll}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-primary"
+              onClick={() => void handleResendAll()}
+              disabled={resendingAll}
+            >
+              {resendingAll
+                ? "Sending…"
+                : `Send ${Math.min(resendable, RESEND_ALL_CAP)} email${
+                    Math.min(resendable, RESEND_ALL_CAP) === 1 ? "" : "s"
+                  }`}
+            </button>
+          </div>
+        </Modal>
+
         {/* Invitations section */}
         <div>
           <div
@@ -1010,6 +1210,78 @@ export function AdminAssessmentDetail(): React.ReactElement {
                   </>
                 )}
               </form>
+            </div>
+          )}
+
+          {/* Resend to everyone who hasn't started + the outcome chips (same style
+              as the CSV-import result). The button count is the server's total
+              across ALL pages; it is 0 (button hidden) once the assessment is
+              closed or when every not-started link was just re-sent. */}
+          {(resendable > 0 || resendResult !== null) && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--aiq-space-sm)",
+                flexWrap: "wrap",
+                marginBottom: "var(--aiq-space-md)",
+              }}
+            >
+              {resendable > 0 && (
+                <HelpTip helpId="admin.assessments.invitations.resend_all">
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                    data-help-id="admin.assessments.invitations.resend_all"
+                    disabled={resendingAll || resendingId !== null}
+                    onClick={() => {
+                      setResendError(null);
+                      setShowResendAll(true);
+                    }}
+                  >
+                    {resendingAll
+                      ? "Resending…"
+                      : `Resend to everyone who hasn't started (${resendable})`}
+                  </button>
+                </HelpTip>
+              )}
+              {resendResult !== null && (
+                <div
+                  role="status"
+                  data-help-id="admin.assessments.invitations.resend_result"
+                  style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}
+                >
+                  <Chip variant="success">{resendResult.resent} resent</Chip>
+                  {resendResult.skipped.length > 0 && (
+                    <Chip variant="warn">
+                      {resendResult.skipped.length} skipped:{" "}
+                      {[
+                        ...new Set(
+                          resendResult.skipped.map((s) => RESEND_SKIP_REASON[s.code] ?? s.code),
+                        ),
+                      ].join(", ")}
+                    </Chip>
+                  )}
+                  {resendResult.remaining > 0 && (
+                    <Chip variant="accent">
+                      {resendResult.remaining} more still to send — press the button again
+                    </Chip>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {resendError && (
+            <div
+              role="alert"
+              style={{
+                color: "var(--aiq-color-danger)",
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+                marginBottom: "var(--aiq-space-md)",
+              }}
+            >
+              {resendError}
             </div>
           )}
 
