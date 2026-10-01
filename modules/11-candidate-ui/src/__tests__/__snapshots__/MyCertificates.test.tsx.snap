@@ -5,11 +5,68 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
   <main
     style="padding: var(--aiq-space-xl); max-width: 720px;"
   >
-    <h1
-      style="margin: 0 0 var(--aiq-space-lg); font-size: var(--aiq-text-2xl); color: var(--aiq-color-fg-primary); font-weight: 700;"
+    <div
+      style="margin-bottom: 12px;"
     >
-      My Certificates
+      <span
+        class="aiq-chip"
+      >
+        <svg
+          aria-hidden="true"
+          fill="none"
+          height="10"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          style="flex-shrink: 0;"
+          viewBox="0 0 24 24"
+          width="10"
+        >
+          <rect
+            height="7"
+            rx="1"
+            width="7"
+            x="3"
+            y="3"
+          />
+          <rect
+            height="7"
+            rx="1"
+            width="7"
+            x="14"
+            y="3"
+          />
+          <rect
+            height="7"
+            rx="1"
+            width="7"
+            x="3"
+            y="14"
+          />
+          <rect
+            height="7"
+            rx="1"
+            width="7"
+            x="14"
+            y="14"
+          />
+        </svg>
+        3
+         certificate
+        s
+      </span>
+    </div>
+    <h1
+      style="font-family: var(--aiq-font-serif); font-size: var(--aiq-h1-size); font-weight: 400; margin: 0px; letter-spacing: -0.02em;"
+    >
+      My Certificates.
     </h1>
+    <p
+      style="font-size: 14px; color: var(--aiq-color-fg-secondary); margin: 8px 0 var(--aiq-space-lg); line-height: 1.5;"
+    >
+      Your earned certificates across all completed assessments.
+    </p>
     <div>
       <article
         aria-labelledby="cert-CERT-001"
@@ -66,6 +123,7 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
             Download PDF
           </a>
           <button
+            data-help-id="candidate.cert.share-linkedin"
             style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
             type="button"
           >
@@ -149,6 +207,7 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
             Download PDF
           </button>
           <button
+            data-help-id="candidate.cert.share-linkedin"
             disabled=""
             style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: default; font-family: inherit; line-height: 1.5; opacity: 0.4; pointer-events: none;"
             type="button"
@@ -231,6 +290,7 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
             Download PDF
           </a>
           <button
+            data-help-id="candidate.cert.share-linkedin"
             style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
             type="button"
           >
