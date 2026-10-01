@@ -143,4 +143,18 @@ describe('TokenLanding pre-test screen', () => {
     await screen.findByText('ATTEMPT PAGE');
     expect(takeStart).toHaveBeenCalledWith('tok_0123456789abcdef', { consent: false });
   });
+
+  it('L6 - an expired or replaced link (404) says so and tells the student to ask for a resend', async () => {
+    const { CandidateApiError } = (await import('@assessiq/candidate-ui')) as unknown as {
+      CandidateApiError: new (status: number, e: { code: string; message: string }) => Error;
+    };
+    takePreview.mockRejectedValue(
+      new CandidateApiError(404, { code: 'INVITATION_NOT_FOUND', message: 'not found' }),
+    );
+    renderLanding();
+    await screen.findByText("We couldn't open this link.");
+    expect(screen.getByText(/may have expired/i)).toBeTruthy();
+    expect(screen.getByText(/replaced it/i)).toBeTruthy();
+    expect(screen.getByText(/ask the person who\s+invited you to resend your invitation/i)).toBeTruthy();
+  });
 });

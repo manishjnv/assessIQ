@@ -168,6 +168,13 @@ export interface AssessmentInvitation {
   total_max?: number | null;
   auto_pct?: number | null;
   pending_review?: boolean | null;
+  /**
+   * Optional — populated by listInvitations (admin list view only). True when
+   * POST /api/admin/invitations/:id/resend would be accepted: the assessment is
+   * published/active AND the candidate has not started. Revoked and lapsed
+   * invitations are resendable; started / submitted ones are not.
+   */
+  can_resend?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +253,22 @@ export interface PaginatedInvitations {
   page: number;
   pageSize: number;
   total: number;
+  /**
+   * How many invitations of this assessment (across ALL pages, not just the
+   * returned one) the bulk "resend to everyone who hasn't started" action
+   * would send right now. 0 when the assessment is not published/active.
+   */
+  resendable: number;
+}
+
+/** Response of POST /api/admin/assessments/:id/invitations/resend. */
+export interface BulkResendResult {
+  /** Invitations re-issued and emailed in this call. */
+  resent: number;
+  /** Rows that could not be resent (race with the candidate starting, disabled account, email failure…). */
+  skipped: Array<{ id: string; code: string }>;
+  /** Eligible invitations beyond the per-call cap that were NOT touched — call again to continue. */
+  remaining: number;
 }
 
 /**
@@ -317,6 +340,14 @@ export const AL_ERROR_CODES = {
   POOL_TOO_SMALL_CRITERION: "POOL_TOO_SMALL_CRITERION",
   // Slice A.2 — opens_at mandatory
   OPENS_AT_REQUIRED: "OPENS_AT_REQUIRED",
+  // Invitation resend / re-invite (2026-10-01)
+  // 409 — the candidate already has an attempt (or the invitation is started /
+  // submitted), so the link can no longer be replaced.
+  INVITATION_ALREADY_STARTED: "INVITATION_ALREADY_STARTED",
+  // 409 — the invited user is disabled / not a candidate any more.
+  USER_INACTIVE: "USER_INACTIVE",
+  // 502 — the link was re-issued and committed but the email could not be queued.
+  INVITATION_EMAIL_FAILED: "INVITATION_EMAIL_FAILED",
 } as const;
 
 export type AlErrorCode = (typeof AL_ERROR_CODES)[keyof typeof AL_ERROR_CODES];

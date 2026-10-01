@@ -1,12 +1,13 @@
 // AssessIQ — assessment-lifecycle Fastify route layer.
 //
-// Mounts the @assessiq/assessment-lifecycle service surface as 11 admin
+// Mounts the @assessiq/assessment-lifecycle service surface as admin
 // endpoints under /api/admin/{assessments,invitations}. The 7 endpoints in
 // docs/03-api-contract.md § "Admin — Assessments & invitations" are covered;
-// four additional endpoints (GET /:id, PATCH /:id, POST /:id/reopen,
-// GET /:id/preview, GET /:id/invitations, DELETE /invitations/:id) extend the
-// contract table — same admin-only gate; docs/03-api-contract.md is updated in
-// the same PR per CLAUDE.md rule #5.
+// additional endpoints (GET /:id, PATCH /:id, POST /:id/reopen,
+// GET /:id/preview, GET /:id/invitations, DELETE /invitations/:id, and — added
+// 2026-10-01 — POST /invitations/:id/resend + POST /assessments/:id/invitations/
+// resend) extend the contract table — same admin-only gate;
+// docs/03-api-contract.md is updated in the same PR per CLAUDE.md rule #5.
 //
 // Auth: every route uses the same admin-gated authChain injected via
 // RegisterAssessmentLifecycleRoutesOptions.adminOnly —
@@ -50,6 +51,8 @@ import {
   listInvitations,
   inviteUsers,
   revokeInvitation,
+  resendInvitation,
+  resendInvitations,
   getInvitationCounts,
 } from "./service.js";
 import type {
@@ -488,6 +491,25 @@ export async function registerAssessmentLifecycleRoutes(
     },
   );
 
+  // POST /api/admin/assessments/:id/invitations/resend  — extension (2026-10-01)
+  // Bulk "resend to everyone who hasn't started": every pending / viewed /
+  // lapsed invitation whose candidate has no attempt (NOT revoked — only the
+  // single resend revives those). Max 200 per call, oldest first; each row is
+  // its own transaction and its email goes out right after its commit.
+  // 200 { resent, skipped: [{ id, code }], remaining }. 404 assessment not in
+  // this tenant; 409 ASSESSMENT_NOT_ACTIVE when it is draft/closed/cancelled.
+  // No body.
+  app.post(
+    "/api/admin/assessments/:id/invitations/resend",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      return resendInvitations(tenantId, id, userId);
+    },
+  );
+
   // -------------------------------------------------------------------------
   // Invitation item routes (separate resource path — /api/admin/invitations/:id)
   // -------------------------------------------------------------------------
@@ -502,6 +524,28 @@ export async function registerAssessmentLifecycleRoutes(
       const { id } = req.params as { id: string };
       await revokeInvitation(tenantId, id, userId);
       return reply.code(204).send();
+    },
+  );
+
+  // POST /api/admin/invitations/:id/resend  — extension (2026-10-01)
+  // Replace the link and extend: fresh token (the old link stops working),
+  // expires_at = now + 7 days, status back to 'pending', one audit row in the
+  // same transaction, then the invitation email after the commit. Works for
+  // pending / viewed / lapsed AND revoked invitations — which makes it the
+  // "extend" and "re-invite after revoke" action too. No body.
+  // 200 → the updated invitation. 404 not in this tenant; 409 with
+  // details.code INVITATION_ALREADY_STARTED (candidate started/submitted),
+  // ASSESSMENT_NOT_ACTIVE (draft/closed/cancelled) or USER_INACTIVE; 502
+  // INVITATION_EMAIL_FAILED if the email could not be queued (the new link is
+  // already saved — pressing Resend again is safe).
+  app.post(
+    "/api/admin/invitations/:id/resend",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      return resendInvitation(tenantId, id, userId);
     },
   );
 }
