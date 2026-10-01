@@ -49,6 +49,14 @@ export const ACTION_CATALOG = [
   'assessment.cancelled',
   'assessment.deleted',
   'assessment.invite',
+  // 2026-10-01 — admin pressed Resend (single or bulk) on a candidate invitation:
+  // the link was replaced (new token_hash), expires_at extended to now + 7 days,
+  // status back to 'pending'. One row per invitation; after = { kind:'resend',
+  // status, expires_at, assessment_id, user_id }, before = { status, expires_at }.
+  // Re-inviting a revoked/lapsed candidate through the invite path audits as
+  // 'assessment.invite' with after.kind='reinvite'. Naming mirrors
+  // 'admin.invitation.resent'.
+  'assessment.invitation.resent',
   // Attempt
   'attempt.started',
   'attempt.submitted',

@@ -22,9 +22,11 @@ publishAssessment(id): Promise<Assessment>      // draft → published
 closeAssessment(id): Promise<Assessment>        // → closed; submitted attempts can still be graded
 reopenAssessment(id): Promise<Assessment>       // closed → published if not past closes_at
 
-inviteUsers(assessmentId, userIds): Promise<{ invited, skipped }>
-listInvitations(assessmentId, { status? }): Promise<Invitation[]>
+inviteUsers(assessmentId, userIds): Promise<{ invited, skipped }>   // re-activates revoked/lapsed invitations (see "Resend")
+listInvitations(assessmentId, { status? }): Promise<{ items, page, pageSize, total, resendable }>  // items carry can_resend
 revokeInvitation(id): Promise<void>
+resendInvitation(id, actorUserId): Promise<Invitation>              // new token + 7 days + email (after commit)
+resendInvitations(assessmentId, actorUserId): Promise<{ resent, skipped: [{ id, code }], remaining }>  // bulk, max 200/call
 
 previewAssessment(id): Promise<PreviewQuestionSet>   // admin-only; doesn't create attempt
 ```
@@ -67,6 +69,7 @@ Owns: `assessments`, `assessment_invitations`.
 - `admin.assessments.publish` — what changes when you publish (irreversible parts)
 - `admin.assessments.close.early` — what happens to in-progress attempts
 - `admin.assessments.invite.bulk` — CSV format
+- `admin.assessments.invitations.resend` / `.resend_all` / `.resend_result` — resend one / resend everyone who hasn't started / the outcome chips (migration `16-help-system/0120`)
 
 ## Open questions
 - Re-attempts (one user, multiple attempts) — v1 caps at 1 per assessment via DB UNIQUE; v2 may allow with new `attempt_number` column
@@ -99,7 +102,7 @@ Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps 
 - The `13-notifications` module owns the driver + template rendering. `05-assessment-lifecycle` calls `notifications.sendInvitationEmail(invitation)` and never touches SMTP directly.
 - Inbound webhooks + outbound webhook delivery still deferred to Phase 3.
 
-**`assessment_invitations.token_hash` generation:** `randomBytes(32).toString('base64url')` → sha256, stored in `token_hash`. TTL 72 hours (decided by parallel session — see prior observation 147 in claude-mem). The plaintext token goes ONLY into the email body, never logged.
+**`assessment_invitations.token_hash` generation:** `randomBytes(32).toString('base64url')` → sha256, stored in `token_hash`. **TTL 7 days / 168 h** (`DEFAULT_INVITATION_TTL_HOURS` in `tokens.ts`; it was 72 h until 2026-10-01 while the candidate help + admin guide already promised 7 days — fixed so behaviour matches the copy; invitations issued before that keep their old `expires_at` until resent). The plaintext token goes ONLY into the email body, never logged.
 
 **Magic-link flow assumption:** invitations target users that ALREADY exist in `users` (decision #19 in Phase 1 plan). JIT user creation from magic link is explicitly out of Phase 1 scope; defer to Phase 4 embed where host apps mint user records via JWT claims.
 
@@ -138,6 +141,24 @@ Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps 
 - **#20** — RNG / no playback — Phase 1 lands on attempt.start in module 06; the lifecycle module does not perform selection.
 - **#22** — `(assessment_id, user_id)` UNIQUE constraint on `assessment_invitations` enforces v1's "one invitation per user per assessment" cap.
 
+## Invitation resend / re-invite (2026-10-01)
+
+**Why:** links expired after 72 h (copy promised 7 days), a student who missed the window was locked out with no UI fix, and a revoked invitation blocked re-inviting the same student (UNIQUE `(assessment_id, user_id)` → `INVITATION_EXISTS`). First real user = a campus placement drive (100+ students).
+
+**What exists**
+- `DEFAULT_INVITATION_TTL_HOURS = 168` — used by invite, resend and re-invite.
+- `POST /api/admin/invitations/:id/resend` — same `adminOnly` chain as `DELETE /api/admin/invitations/:id`. One transaction (`withTenant`): row lock → assessment must be `published`/`active` → candidate must NOT have started → user must be an active candidate → **fresh token, `expires_at = now + 7 d`, `status = 'pending'`, `last_resent_at = now()`, exactly one audit row** (`reissueInvitationInTx`). The email goes out **after commit** via the same `sendInvitationEmail` shim as invite (a rollback must never leave a student holding a link whose hash was never saved). 200 = updated invitation; 404 `INVITATION_NOT_FOUND` (other tenant / unknown / malformed id); 409 `INVITATION_ALREADY_STARTED`, `ASSESSMENT_NOT_ACTIVE` (draft/closed/cancelled), `USER_INACTIVE`; 502 `INVITATION_EMAIL_FAILED` (link already rotated — Resend again is safe). Domain codes live in `error.details.code`.
+- `POST /api/admin/assessments/:id/invitations/resend` — bulk. Eligible = `pending`/`viewed` (this includes links that **lapsed by time**: they keep status `pending`/`viewed`), candidate has no attempt, account active, link not re-issued in the last 10 minutes. **Revoked rows are excluded** (only the single resend revives them). Max 200 per call, oldest first, each invitation in its OWN transaction with its email right after ITS commit; returns `{ resent, skipped: [{ id, code }], remaining }` where `remaining` = eligible rows beyond the cap that were not touched. 409 `ASSESSMENT_NOT_ACTIVE` / 404 for the assessment.
+- `inviteUsers` (and therefore the CSV import, which calls it) now **re-activates** an existing invitation instead of skipping when its link is dead (revoked, or lapsed) and the candidate has not started — same effect as Resend, audited as `assessment.invite` `after.kind=reinvite`. A live link, or a candidate who already started, stays `INVITATION_EXISTS` with no new email. (Unlike resend, the re-invite email is dispatched inline inside the batch transaction, exactly like the new-invite branch.)
+- `listInvitations` items carry `can_resend`; the response carries `resendable` (bulk count across ALL pages) — drives the admin UI buttons.
+
+**Decisions / rejected alternatives**
+- **"Revoked" = `status = 'expired'`** (that is what `revokeInvitation` writes); a link that merely ran out of time keeps `pending`/`viewed` with `expires_at` in the past. No `revoked` status was introduced (would break the existing revoke contract, candidate queries and tests). The UI labels status `expired` as "revoked".
+- **Started check = invitation status OR an attempt row** (`attempts.status <> 'draft'`): `revokeInvitation` overwrites ANY status with `expired`, so a revoked-after-start invitation is only recognisable by its attempt.
+- **Migration `0117` adds `last_resent_at`** (nullable, additive). Without it the capped bulk resend would re-select the same first 200 rows on every click (they stay pending + not started) — duplicate emails and just-sent links killed. Originals keep NULL, so bulk right after the first invite still reaches everyone. Rejected: deriving "recently re-issued" from `expires_at − created_at` (couples the SQL to the TTL constant and clock skew).
+- Re-invite also covers **lapsed** links (not only revoked): the old link is dead either way, and re-importing the same CSV after day 7 is the natural "send it again". Live links are untouched.
+- Not done: no automatic extension of invitations issued under the old 72 h TTL (forward-only; Resend extends them); the admin invitations list still loads the first 100 rows (bulk resend covers all pages).
+
 ## Audit-write coverage (G3.D slice, 2026-05-11)
 
 Every admin-mutating service method writes one `audit_log` row inside the same `withTenant` Postgres transaction as the domain mutation, via `auditInTx()` from `@assessiq/audit-log`. A successful state change without a corresponding audit row (or vice-versa) is structurally impossible — the transaction either commits both or rolls back both.
@@ -151,10 +172,12 @@ Every admin-mutating service method writes one `audit_log` row inside the same `
 | `reopenAssessment` | `assessment.published` (`after.kind=reopen`) | `assessment` | Reuses `assessment.published` with marker to keep the action catalog tight — same pattern as `04-question-bank`'s `restoreVersion → question.updated kind=restore` |
 | `inviteUsers` | `assessment.invite` × N | `assessment_invitation` | One row per invitation issued. Skipped users (USER_NOT_FOUND / USER_NOT_CANDIDATE / USER_INACTIVE / INVITATION_EXISTS) intentionally produce no audit row — nothing mutated |
 | `revokeInvitation` | `assessment.invite` (`after.kind=revoke`) | `assessment_invitation` | Reuses `assessment.invite` with marker. Idempotent path (already-expired) writes NO new row |
+| `resendInvitation` / `resendInvitations` (per row) | `assessment.invitation.resent` (`after.kind=resend`) | `assessment_invitation` | Added 2026-10-01 (naming mirrors `admin.invitation.resent`). Exactly one row per invitation, written by the shared `reissueInvitationInTx` in the SAME tx as the token rotation. `before`: status + expires_at; `after`: kind, status, expires_at, assessment_id, user_id |
+| `inviteUsers` (revoked / lapsed invitation re-activated) | `assessment.invite` (`after.kind=reinvite`) | `assessment_invitation` | Same helper, same one-row rule; keeps the invite path's own action so "when was user X invited" stays one query |
 
 `actor_kind` is always `"user"`; `actor_user_id` is the admin's session userId threaded through the service signature (added to `updateAssessment`, `publishAssessment`, `closeAssessment`, `reopenAssessment`, `revokeInvitation` in this slice).
 
-ACTION_CATALOG additions to `modules/14-audit-log/src/types.ts`: one entry — `assessment.updated`. The reopen and revoke events fold under existing `assessment.published` / `assessment.invite` namespaces using `after.kind` markers (minimal-catalog-footprint pattern from the 04-question-bank G3.D template).
+ACTION_CATALOG additions to `modules/14-audit-log/src/types.ts`: `assessment.updated` (G3.D) and `assessment.invitation.resent` (2026-10-01). The reopen and revoke events fold under existing `assessment.published` / `assessment.invite` namespaces using `after.kind` markers (minimal-catalog-footprint pattern from the 04-question-bank G3.D template).
 
 **Not wired in this slice:**
 
@@ -165,6 +188,6 @@ ACTION_CATALOG additions to `modules/14-audit-log/src/types.ts`: one entry — `
 
 Tests:
 
-- `src/__tests__/audit-writes.test.ts` — happy-path test per wired function + atomicity proof (`publishAssessment` on non-existent id throws and writes no audit row) + coverage assertion (count of `auditInTx(` call-sites in service.ts equals 7).
+- `src/__tests__/audit-writes.test.ts` — happy-path test per wired function + atomicity proof (`publishAssessment` on non-existent id throws and writes no audit row) + coverage assertion (count of `auditInTx(` call-sites in service.ts equals 10 — the 9 admin-mutating functions plus the shared `reissueInvitationInTx`).
 - `src/__tests__/lifecycle.test.ts` — testcontainer migration set extended to apply `14-audit-log/migrations/0050_audit_log.sql` plus the `assessiq_app` / `assessiq_system` role setup. All call-sites updated to thread `adminA` for the new signatures.
 - `src/__tests__/invite-email.test.ts` — `@assessiq/audit-log` added to the vi.mock list (this is a pure-mock unit test, no testcontainer).

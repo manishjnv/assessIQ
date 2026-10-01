@@ -550,9 +550,15 @@ export async function bulkUpdateBoundaries(
 export async function findInvitationById(
   client: PoolClient,
   id: string,
+  opts?: { forUpdate?: boolean },
 ): Promise<AssessmentInvitation | null> {
+  // forUpdate: resend takes the row lock so a concurrent markInvitationStarted
+  // (06) or a second resend serialises behind it instead of racing the
+  // started-check below.
   const result = await client.query<InvitationRow>(
-    `SELECT ${INVITATION_COLUMNS} FROM assessment_invitations WHERE id = $1 LIMIT 1`,
+    `SELECT ${INVITATION_COLUMNS} FROM assessment_invitations WHERE id = $1 LIMIT 1${
+      opts?.forUpdate === true ? " FOR UPDATE" : ""
+    }`,
     [id],
   );
   const row = result.rows[0];
@@ -717,6 +723,117 @@ export async function updateInvitationStatus(
     throw new Error(`updateInvitationStatus: no row found for id ${id}`);
   }
   return mapInvitationRow(row);
+}
+
+// ---------------------------------------------------------------------------
+// Resend / re-invite (2026-10-01)
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-issue the link on an EXISTING invitation row: new token hash (the old
+ * link stops resolving the instant this commits), new expiry, status back to
+ * 'pending', `last_resent_at` stamped. Returns null — and changes nothing —
+ * when the row is started / submitted (belt-and-braces behind the service's
+ * started-check, which also looks at the attempts table).
+ */
+export async function reissueInvitation(
+  client: PoolClient,
+  id: string,
+  tokenHash: string,
+  expiresAt: Date,
+): Promise<AssessmentInvitation | null> {
+  const result = await client.query<InvitationRow>(
+    `UPDATE assessment_invitations
+        SET token_hash = $1, expires_at = $2, status = 'pending', last_resent_at = now()
+      WHERE id = $3 AND status IN ('pending', 'viewed', 'expired')
+      RETURNING ${INVITATION_COLUMNS}`,
+    [tokenHash, expiresAt, id],
+  );
+  const row = result.rows[0];
+  return row !== undefined ? mapInvitationRow(row) : null;
+}
+
+/**
+ * True when the candidate has an attempt beyond the not-started ('draft')
+ * state for this assessment. Needed on top of invitation.status because
+ * revokeInvitation overwrites ANY status with 'expired' — a revoked-after-
+ * start invitation looks like a plain revoked one without this check.
+ */
+export async function hasStartedAttempt(
+  client: PoolClient,
+  assessmentId: string,
+  userId: string,
+): Promise<boolean> {
+  const result = await client.query(
+    `SELECT 1 FROM attempts
+      WHERE assessment_id = $1 AND user_id = $2 AND status <> 'draft'
+      LIMIT 1`,
+    [assessmentId, userId],
+  );
+  return result.rows.length > 0;
+}
+
+/**
+ * Shared FROM/WHERE of the bulk-resend selector ($1 = assessment id, $2 =
+ * "recently resent" cutoff). An invitation is bulk-resendable when it is
+ * pending/viewed (this covers links that lapsed by time — they keep status
+ * pending/viewed; REVOKED rows have status 'expired' and are deliberately NOT
+ * here: only the single resend revives those), the candidate has no attempt,
+ * the candidate account is active, and the link was not re-issued within the
+ * cutoff window (see migration 0117 for why).
+ */
+const RESENDABLE_FROM_WHERE = `
+  FROM assessment_invitations ai
+  JOIN users u ON u.id = ai.user_id
+               AND u.role = 'candidate'
+               AND u.status = 'active'
+               AND u.deleted_at IS NULL
+  WHERE ai.assessment_id = $1
+    AND ai.status IN ('pending', 'viewed')
+    AND (ai.last_resent_at IS NULL OR ai.last_resent_at < $2)
+    AND NOT EXISTS (
+      SELECT 1 FROM attempts a
+       WHERE a.assessment_id = ai.assessment_id
+         AND a.user_id = ai.user_id
+         AND a.status <> 'draft'
+    )`;
+
+/**
+ * Oldest-first page of bulk-resendable invitation ids plus the TOTAL number of
+ * eligible rows (window count, computed before LIMIT) — `total - ids.length`
+ * is the `remaining` figure the bulk endpoint reports.
+ */
+export async function listResendableInvitationIds(
+  client: PoolClient,
+  assessmentId: string,
+  recentCutoff: Date,
+  limit: number,
+): Promise<{ ids: string[]; total: number }> {
+  const result = await client.query<{ id: string; total: string }>(
+    `SELECT ai.id, count(*) OVER () AS total
+     ${RESENDABLE_FROM_WHERE}
+     ORDER BY ai.created_at, ai.id
+     LIMIT $3`,
+    [assessmentId, recentCutoff, limit],
+  );
+  const first = result.rows[0];
+  return {
+    ids: result.rows.map((r) => r.id),
+    total: first !== undefined ? parseInt(first.total, 10) : 0,
+  };
+}
+
+/** Count of bulk-resendable invitations (the "(n)" on the Resend-to-everyone button). */
+export async function countResendableInvitations(
+  client: PoolClient,
+  assessmentId: string,
+  recentCutoff: Date,
+): Promise<number> {
+  const result = await client.query<{ n: string }>(
+    `SELECT count(*) AS n ${RESENDABLE_FROM_WHERE}`,
+    [assessmentId, recentCutoff],
+  );
+  return parseInt(result.rows[0]?.n ?? "0", 10);
 }
 
 // ---------------------------------------------------------------------------

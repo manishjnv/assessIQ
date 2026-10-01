@@ -73,7 +73,7 @@ vi.mock("../email.js", () => ({
 vi.mock("../tokens.js", () => ({
   hashInvitationToken: vi.fn().mockReturnValue("hash"),
   generateInvitationToken: vi.fn().mockReturnValue({ plaintext: "tok", hash: "hash" }),
-  DEFAULT_INVITATION_TTL_HOURS: 72,
+  DEFAULT_INVITATION_TTL_HOURS: 168,
 }));
 
 // Mock tenancy repo

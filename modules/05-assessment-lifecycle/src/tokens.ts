@@ -19,8 +19,8 @@
 //     token_hash. Constant-time comparison happens at the DB layer (the
 //     UNIQUE index lookup is one row).
 //
-// TTL is owned by the service layer (defaults to 72 hours per SKILL.md);
-// this module does not encode it.
+// TTL is owned by the service layer (defaults to 7 days / 168 hours per
+// SKILL.md); this module only exports the constant.
 
 import { createHash, randomBytes } from "node:crypto";
 
@@ -59,8 +59,14 @@ export function hashInvitationToken(plaintext: string): string {
 }
 
 /**
- * Default invitation TTL — 72 hours from issuance. Service layer reads this
- * to compute `expires_at`. Pulled into a constant rather than scattered
- * literal so a future "configurable per tenant" change has one edit point.
+ * Default invitation TTL — 7 days (168 hours) from issuance. Service layer
+ * reads this to compute `expires_at` on invite, resend and re-invite. Pulled
+ * into a constant rather than scattered literal so a future "configurable per
+ * tenant" change has one edit point.
+ *
+ * History: was 72 h until 2026-10-01, while the candidate help and the admin
+ * guide both promised 7 days (copy/behaviour mismatch).
+ * Invitations issued before that change keep their original `expires_at`;
+ * "Resend" re-issues them with the full 7 days.
  */
-export const DEFAULT_INVITATION_TTL_HOURS = 72;
+export const DEFAULT_INVITATION_TTL_HOURS = 168;
