@@ -5,12 +5,15 @@
 // handled separately under /api/admin/super/tenants/:tenantId/* via
 // admin-super.ts.
 //
-// Currently exposes the Module 20 S5 surface only:
+// Exposes:
+//   GET   /api/admin/tenant-settings                  — { result_release_mode, result_release_auto_since,
+//                                                         retention_days, company_name }
+//   PATCH /api/admin/tenant-settings/result-release-mode — body { mode: 'manual'|'auto' }  (SP2)
 //   PATCH /api/admin/tenant-settings/retention-days   — body { retention_days }
 //   PATCH /api/admin/tenant                           — body { name }  (rename own company)
 //   POST  /api/admin/retention/run-now                — query ?dryRun=true
 //
-// Both gated on { roles: ['admin'], freshMfaWithinMinutes: 15 }. Super-admins
+// Mutations gated on { roles: ['admin'], freshMfaWithinMinutes: 15 }. Super-admins
 // hit /api/admin/super/* instead (this route file does NOT accept super_admin
 // because a super-admin does not have a single tenantId to act on — they must
 // target one explicitly via the /super/ prefix).
@@ -23,8 +26,16 @@
 //     chain joins on tenantId + at.
 
 import type { FastifyInstance } from 'fastify';
-import { ValidationError } from '@assessiq/core';
-import { updateRetentionDays, renameTenant, assertTenantActive } from '@assessiq/tenancy';
+import { NotFoundError, ValidationError } from '@assessiq/core';
+import {
+  updateRetentionDays,
+  updateResultReleaseMode,
+  renameTenant,
+  assertTenantActive,
+  findTenantSettings,
+  getTenantById,
+  withTenant,
+} from '@assessiq/tenancy';
 import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
 
@@ -80,6 +91,68 @@ export async function registerAdminTenantSettingsRoutes(
     const result = await renameTenant(session.userId, session.tenantId, body.name);
     return reply.code(200).send(result);
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/tenant-settings
+  //
+  // The caller's OWN tenant settings the admin settings page edits (tenant is
+  // always session.tenantId). Read-only: no fresh-MFA gate.
+  //
+  // 200: { result_release_mode: 'manual'|'auto',
+  //        result_release_auto_since: ISO | null,   // when it was switched to auto
+  //        retention_days: number, company_name: string }
+  // 403: caller not 'admin'   404: tenant has no tenant_settings row
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get('/api/admin/tenant-settings', { preHandler: adminReadOnly }, async (req, reply) => {
+    const session = req.session!;
+    const settings = await withTenant(session.tenantId, (client) => findTenantSettings(client));
+    if (settings === null) {
+      throw new NotFoundError('tenant_settings not found for current tenant');
+    }
+    const tenant = await getTenantById(session.tenantId);
+    return reply.code(200).send({
+      result_release_mode: settings.result_release_mode,
+      result_release_auto_since: settings.result_release_auto_since,
+      retention_days: settings.retention_days,
+      company_name: tenant.name,
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PATCH /api/admin/tenant-settings/result-release-mode      (SP2, 2026-10-01)
+  //
+  // Choose how a finished result reaches the candidate:
+  //   manual — hidden until an admin publishes it (default);
+  //   auto   — published as soon as it is complete (worker sweep).
+  // Only results that become ready AFTER switching to auto are released by the
+  // sweep; switching never releases the results already waiting (the admin uses
+  // "release all ready" for those). Same-mode request is a no-op (no audit).
+  // Tenant + actor come from the session; the body only carries { mode }.
+  //
+  // 200: { tenantId, result_release_mode, previous, result_release_auto_since,
+  //        updatedAt, auditId | null }
+  // 400: INVALID_RESULT_RELEASE_MODE   409: TENANT_NOT_ACTIVE
+  // 401: fresh TOTP required (requireAuth throws AuthnError "fresh totp required")
+  // 403: caller not 'admin'
+  // ──────────────────────────────────────────────────────────────────────────
+  app.patch(
+    '/api/admin/tenant-settings/result-release-mode',
+    { preHandler: adminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const body = (req.body ?? {}) as { mode?: unknown };
+      await assertTenantActive(session.tenantId);
+      const result = await updateResultReleaseMode(session.userId, session.tenantId, body.mode);
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        result_release_mode: result.result_release_mode,
+        previous: result.previous,
+        result_release_auto_since: result.result_release_auto_since,
+        updatedAt: result.updatedAt,
+        auditId: result.auditId,
+      });
+    },
+  );
 
   // ──────────────────────────────────────────────────────────────────────────
   // PATCH /api/admin/tenant-settings/retention-days
