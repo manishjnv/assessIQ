@@ -21,7 +21,9 @@
 // ---------------------------------------------------------------------------
 export { sendEmail } from './email/index.js';
 export { processEmailSendJob } from './email/index.js';
-export type { EmailSendJobData } from './email/index.js';
+export type { EmailSendJobData, EmailSendAttempt } from './email/index.js';
+// Email delivery classes (auth vs bulk) + the worker's single custom backoff strategy.
+export { notificationsBackoffStrategy } from './email/delivery-policy.js';
 
 // SP4: candidate result email, sent after the release tx commits (best-effort,
 // never throws). Called by 07 (manual release / release-all) and the worker sweep.
@@ -58,7 +60,7 @@ export type { WebhookDeliverJobData } from './webhooks/deliver-job.js';
 export { handleAuditFanout } from './webhooks/audit-fanout-handler.js';
 export type { AuditRow } from './webhooks/audit-fanout-handler.js';
 export { WEBHOOK_RETRY_DELAYS_MS, delayFor, webhookBackoffStrategy } from './webhooks/retry-schedule.js';
-export { signPayload, verifySignature } from './webhooks/signature.js';
+export { signPayload, verifySignature, signPayloadV2, verifySignatureV2 } from './webhooks/signature.js';
 
 // ---------------------------------------------------------------------------
 // In-app notifications

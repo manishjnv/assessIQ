@@ -6,9 +6,15 @@
  * Flow:
  *   1. Render template (Handlebars, Zod-validated vars).
  *   2. Write email_log row with status='queued'.
- *   3. Enqueue 'email.send' BullMQ job.
+ *   3. Enqueue 'email.send' BullMQ job. Priority + retry policy depend on the
+ *      template's class (delivery-policy.ts): auth emails jump the queue with
+ *      short retries; bulk emails are low priority and retried for ~45 h.
  *      The job processor (registered in apps/api/src/worker.ts) opens the
  *      SMTP connection, sends, and updates the email_log row.
+ *
+ * email_log.status: queued -> sending -> sent. A failure BullMQ will retry goes
+ * back to 'queued' (+ last_error, attempts); 'failed' means final — attempts
+ * exhausted or a permanent recipient error (SMTP 5.1.x), as 0055 documents.
  *
  * Stub-fallback (P3.D9):
  *   If SMTP_URL is empty/unset AND no per-tenant smtp_url → fall back to
@@ -21,12 +27,18 @@
 import { appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { Queue } from 'bullmq';
+import { Queue, UnrecoverableError } from 'bullmq';
 import { Redis } from 'ioredis';
 import { config, streamLogger, uuidv7 } from '@assessiq/core';
 import { withTenant, getPool } from '@assessiq/tenancy';
 import { renderTemplate } from './render.js';
 import { resolveTransport } from './transport.js';
+import {
+  describeSmtpFailure,
+  emailClassOf,
+  emailJobOptions,
+  isPermanentRecipientError,
+} from './delivery-policy.js';
 import * as repo from '../repository.js';
 import type { SendEmailInput, EmailTemplateName } from '../types.js';
 
@@ -144,15 +156,10 @@ export async function sendEmail<T extends EmailTemplateName>(
       bodyText: rendered.text,
       templateId: template,
     },
-    {
-      attempts: 5,
-      backoff: { type: 'exponential', delay: 5000 },
-      removeOnComplete: 50,
-      removeOnFail: 50,
-    },
+    emailJobOptions(template),
   );
 
-  log.info({ emailLogId, to, template, tenantId }, 'email.queued');
+  log.info({ emailLogId, to, template, tenantId, emailClass: emailClassOf(template) }, 'email.queued');
 }
 
 // ---------------------------------------------------------------------------
@@ -169,8 +176,17 @@ export interface EmailSendJobData {
   templateId: string;
 }
 
+/** Where this run sits in the BullMQ retry sequence (the worker passes it). */
+export interface EmailSendAttempt {
+  /** 1-based number of this attempt (job.attemptsMade + 1). */
+  attempt: number;
+  /** job.opts.attempts. */
+  maxAttempts: number;
+}
+
 export async function processEmailSendJob(
   data: EmailSendJobData,
+  ctx?: EmailSendAttempt,
 ): Promise<{ emailLogId: string; status: string; providerMessageId?: string }> {
   const { emailLogId, tenantId, to, subject, bodyHtml, bodyText, templateId } = data;
 
@@ -193,7 +209,7 @@ export async function processEmailSendJob(
     const rowsAffected = await withTenant(tenantId, (client) =>
       repo.updateEmailLogStatus(client, emailLogId, {
         status: 'sending',
-        attempts: 1,
+        attempts: ctx?.attempt ?? 1,
       }),
     );
     if (rowsAffected === 0) {
@@ -220,7 +236,7 @@ export async function processEmailSendJob(
           status: 'sent',
           providerMessageId,
           sentAt: new Date(),
-          attempts: 1,
+          attempts: ctx?.attempt ?? 1,
         }),
       );
       if (rowsAffected === 0) {
@@ -235,33 +251,61 @@ export async function processEmailSendJob(
 
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
+    const smtp = describeSmtpFailure(err);
+    const permanent = isPermanentRecipientError(err);
+    // "Final" = no BullMQ retry follows. Callers that pass no attempt info
+    // (legacy / tests) keep the old behaviour: every failure is final.
+    const isFinal = permanent || ctx === undefined || ctx.attempt >= ctx.maxAttempts;
+
+    // One warning per failed attempt. SMTP codes only — the reply text echoes
+    // the recipient address, so it is not logged here.
+    log.warn(
+      {
+        emailLogId,
+        template: templateId,
+        emailClass: emailClassOf(templateId),
+        attempt: ctx?.attempt,
+        maxAttempts: ctx?.maxAttempts,
+        smtpCode: smtp.responseCode,
+        enhancedCode: smtp.enhancedCode,
+        errCode: smtp.code,
+        permanent,
+        willRetry: !isFinal,
+      },
+      'email.send.attempt_failed',
+    );
 
     if (tenantId !== null) {
-      // Get current attempts from log
-      let currentAttempts = 1;
-      try {
-        const pool = getPool();
-        const client = await pool.connect();
+      // BullMQ's attempt number when the worker passes it; otherwise the
+      // legacy read-modify-write on the log row.
+      let attempts = ctx?.attempt ?? 1;
+      if (ctx === undefined) {
         try {
-          const row = await client.query<{ attempts: number }>(
-            'SELECT attempts FROM email_log WHERE id = $1',
-            [emailLogId],
-          );
-          if (row.rows[0] !== undefined) {
-            currentAttempts = (row.rows[0].attempts ?? 0) + 1;
+          const pool = getPool();
+          const client = await pool.connect();
+          try {
+            const row = await client.query<{ attempts: number }>(
+              'SELECT attempts FROM email_log WHERE id = $1',
+              [emailLogId],
+            );
+            if (row.rows[0] !== undefined) {
+              attempts = (row.rows[0].attempts ?? 0) + 1;
+            }
+          } finally {
+            client.release();
           }
-        } finally {
-          client.release();
+        } catch {
+          // ignore secondary error
         }
-      } catch {
-        // ignore secondary error
       }
 
       const failRowsAffected = await withTenant(tenantId, (client) =>
         repo.updateEmailLogStatus(client, emailLogId, {
-          status: 'failed',
+          // 'failed' = final. A failure BullMQ will retry goes back to 'queued'
+          // so a 45 h bulk retry window does not read as a failed email.
+          status: isFinal ? 'failed' : 'queued',
           lastError: errorMessage,
-          attempts: currentAttempts,
+          attempts,
         }),
       );
       if (failRowsAffected === 0) {
@@ -269,6 +313,13 @@ export async function processEmailSendJob(
       } else {
         log.debug({ emailLogId, rowsAffected: failRowsAffected }, 'email_log.update.ok');
       }
+    }
+
+    if (permanent) {
+      // BullMQ fails an UnrecoverableError at once — no retry.
+      throw new UnrecoverableError(
+        `Permanent recipient error (SMTP ${smtp.responseCode ?? '5xx'} ${smtp.enhancedCode ?? ''}), not retried: ${errorMessage}`,
+      );
     }
 
     // Re-throw so BullMQ retries.

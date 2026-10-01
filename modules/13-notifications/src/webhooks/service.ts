@@ -22,16 +22,22 @@
  * - Operational paths (emitWebhook, emitWebhookToEndpoint, deliver-job) are
  *   intentionally NOT audited — they are delivery-tracking telemetry, not admin
  *   config mutations.
+ *
+ * SSRF (2026-10-01): createWebhookEndpoint rejects URLs that break the policy in
+ * url-policy.ts (https only, no userinfo, no localhost / blocked IP literal) with
+ * 400 WEBHOOK_URL_NOT_ALLOWED. This is only the fast, friendly check: it does no
+ * DNS. The real guard is the connect-time address check in safe-post.ts.
  */
 
 import { randomBytes } from 'node:crypto';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
-import { config, streamLogger, uuidv7 } from '@assessiq/core';
+import { AppError, config, streamLogger, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
 import * as repo from '../repository.js';
 import { encrypt, decrypt } from './crypto.js';
+import { validateWebhookUrl } from './url-policy.js';
 import type {
   WebhookEndpoint,
   WebhookDelivery,
@@ -77,6 +83,17 @@ export interface CreateWebhookEndpointResult {
 export async function createWebhookEndpoint(
   input: CreateWebhookEndpointInput,
 ): Promise<CreateWebhookEndpointResult> {
+  // http: is allowed outside production only (local tests).
+  const urlCheck = validateWebhookUrl(input.url, { allowHttp: config.NODE_ENV !== 'production' });
+  if (!urlCheck.ok) {
+    throw new AppError(
+      `Webhook URL is not allowed (${urlCheck.reason}). Use a public https:// URL without credentials.`,
+      'WEBHOOK_URL_NOT_ALLOWED',
+      400,
+      { details: { reason: urlCheck.reason } },
+    );
+  }
+
   // Generate a high-entropy secret.
   const plaintextSecret = randomBytes(32).toString('base64url');
   const secretEnc = encrypt(plaintextSecret);
