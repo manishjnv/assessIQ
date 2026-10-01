@@ -271,8 +271,8 @@ export function ConsentBlock({
         </span>
       </label>
       <p style={{ margin: '8px 0 0 26px', fontSize: 12, lineHeight: 1.5, color: 'var(--aiq-color-fg-muted)' }}>
-        Multiple-choice answers are scored automatically. Written answers, if any, are evaluated
-        with AI assistance and reviewed by the assessment admin.
+        Multiple-choice answers are scored automatically. Written answers are evaluated by
+        AssessIQ evaluators with AI assistance before your organisation releases results.
       </p>
     </section>
   );
