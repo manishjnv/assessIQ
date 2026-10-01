@@ -1605,7 +1605,34 @@ LIVE placement-cell export (reads live tables, NOT `attempt_summary_mv`). Roles:
 
 **Columns:** `name, email, status, started_at, submitted_at, score, max_score, percent, result, <Category name> (%)...` (categories alphabetical). `status` = attempt status, or `invited` / `expired` when no attempt exists. score/max/percent/per-category are blank unless the attempt is `graded`/`released`; score = sum of the latest grading per question (`graded_at DESC`, admin_override wins); percent has 1 decimal; `result` = Pass/Fail vs `levels.passing_score_pct`.
 
+**Query (2026-10-01, `1a4f82d`):** `sort` = `name` (default; previous behaviour) | `rank` | `branch` (branch A→Z, then rank, then name; rows without a branch last). Any other value → 400.
+
+**Columns since `1a4f82d`:** `name, email, roll_number, branch, status, started_at, submitted_at, score, max_score, percent, result, rank, tab_switches, paste_count, fullscreen_exits, <Category name> (%)...`
+- `roll_number` / `branch` come from `users.metadata` (set by the CSV import, see 02).
+- `rank` is competition ranking ("1,2,2,4") by percent DESC over rows with a visible score. It is blank for rows still awaiting evaluation, or not started.
+- `tab_switches`, `paste_count` and `fullscreen_exits` count `tab_blur` / `paste` / `fullscreen_exit` events. They are integrity signals, not scores, so they show whatever the release state. They are 0 for an attempt with no events and blank when there's no attempt.
+- **Why:** the university placement cell needs a ranked, branch-wise list.
+- **Rejected:** a separate "rank list" endpoint. One CSV with a sort option keeps a single export path and one audit action.
+- **Not included:** rank within branch as its own column. `sort=branch` orders by overall rank inside each branch.
+
 **Audit:** `action: 'attempt.exported'`, `entityType: 'assessments'`, `entityId` = assessment id.
+
+---
+
+### `GET /api/admin/attempts/:id/integrity`
+
+LIVE 2026-10-01 (`0d9999e`, `79a853a`). Module 06 (`routes.admin.ts`). Roles: admin. Tenant from the session; `attempt_events` RLS scopes the rows. Invalid UUID → 400; attempt in another tenant or absent → 404.
+
+**Response 200:** `{ tab_switches, copy, paste, paste_blocked, fullscreen_exits, multi_tab_conflicts }`, all integers (counts of `attempt_events`; `paste_blocked` = paste events with payload `blocked: true`).
+- **Why:** this feeds the `Integrity` card on the admin attempt page.
+- **Release state:** counts are visible whatever the state, because they are not scores.
+- **Not included:** event timelines and per-question breakdown. Counts only, for v1.
+
+**Candidate side (same release):**
+- `GET /api/me/attempts/:id` now also returns `integrity: { fullscreen: boolean, block_copy_paste: boolean }`, read from `assessments.settings.integrity` (default false/false).
+- `POST /api/me/attempts/:id/events` accepts two new event types, `fullscreen_enter` and `fullscreen_exit` (payload `{}`).
+- `copy` / `paste` payloads accept an optional `blocked: boolean`.
+- Event catalog: `modules/06-attempt-engine/EVENTS.md`.
 
 ---
 

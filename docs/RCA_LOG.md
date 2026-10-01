@@ -2006,3 +2006,13 @@ with a dated note in `docs/06-deployment.md` § DR.
 - the activity avg now excludes unreleased fixtures.
 
 When a new "visibility" state is added to `attempts`, grep every `attempt_scores` / `gradings` / `attempt_summary_mv` reader in the same change.
+
+## 2026-10-01 — New roll-number field would have survived right-to-erasure
+
+**Symptom:** Caught in Opus review of the roll-number / branch import (`1a4f82d`) before any real student data used it, not by a user. The import stores roll number and branch in `users.metadata`; erasure kept them.
+
+**Cause:** `modules/20-data-rights/src/erasure.ts` (the `UPDATE users` at ~line 106) pseudonymises `name` / `email` and sets `erased_at`, but never touches `users.metadata`. Any PII written there later was silently out of erasure's reach.
+
+**Fix:** the same UPDATE now sets `metadata = COALESCE(metadata, '{}'::jsonb) - 'roll_number' - 'branch'`. The expression was checked read-only on prod Postgres: `{"roll_number":…,"branch":…,"keep":1}` → `{"keep": 1}`. Docs: `docs/02-data-model.md` § users.metadata keys.
+
+**Prevention:** manual discipline. Module 20 has no DB test harness (see the 2026-05-29 entry). Rule: any change that writes new personal data, including into JSONB, must update `erasure.ts` in the same commit. Add it to the Phase 3 checklist for 03-users and 20-data-rights.

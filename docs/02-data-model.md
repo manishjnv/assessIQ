@@ -1460,6 +1460,30 @@ Indexes:
 - `consent_events_user_purpose_idx` — `(tenant_id, user_id, purpose, created_at DESC)` for "what is this user's current consent for X?"
 - `consent_events_tenant_created_idx` — `(tenant_id, created_at DESC)` for admin ledger view.
 
+### `users.metadata` keys `roll_number`, `branch` (2026-10-01, `1a4f82d`, no migration)
+
+- **What:** the candidate CSV import (`modules/03-users/src/import.ts`) accepts optional header columns.
+  - Roll number: `roll_number` (aliases `roll no`, `roll`, `enrollment`).
+  - Branch: `branch` (aliases `department`, `dept`).
+  - Matching ignores case, spaces, `_` and `-`. Values are trimmed and capped at 64 characters; control or bidi characters drop the value.
+  - Values are stored as `users.metadata->>'roll_number'` / `->>'branch'`.
+  - A re-import updates the stored value only from non-empty cells, so an empty cell never wipes it.
+- **Read by:** the results CSV (03 § results.csv).
+- **Why metadata, not columns:** `users.metadata` already exists, is covered by `users` RLS, and needs no migration. Rejected: new `users.roll_number` / `users.branch` columns (a schema change for two display-only fields).
+- **Not included:** editing roll/branch in the admin UI, and search or filter by branch.
+- **DPDP:** module 20 erasure removes both keys from `users.metadata` (`modules/20-data-rights/src/erasure.ts`; added in the same session after review found erasure left `metadata` untouched).
+
+### `assessments.settings.integrity` (2026-10-01, `0d9999e`, no migration)
+
+- **What:** `settings.integrity = { fullscreen?: boolean, block_copy_paste?: boolean }`. Both default to false.
+  - Validated with a strict Zod schema (`AssessmentIntegritySettingsSchema`, `modules/05-assessment-lifecycle/src/types.ts`) on create and update.
+  - Set from the admin create form, in the `Test integrity` box.
+  - Exposed to the runner on `CandidateAttemptView.integrity`.
+- **Events:** `fullscreen_enter` / `fullscreen_exit` are new `attempt_events.event_type` values (closed catalog in `modules/06-attempt-engine/src/types.ts`, narrative in `EVENTS.md`). Integrity counts are read by `GET /api/admin/attempts/:id/integrity` and the results CSV.
+- **Not included:**
+  - An edit UI for an existing assessment's switches. `updateAssessment` replaces `settings` wholesale, so an editor would have to send the full object.
+  - Server-side enforcement. Full screen can be exited and clipboard blocking can be bypassed. Both are recorded, not prevented; the help text says so.
+
 ### `users.erased_at` (migration `0102_users_erased_at.sql`)
 
 DPDP / GDPR erasure marker. **Distinct from `users.deleted_at`** — see
