@@ -17,7 +17,7 @@ const serviceSchema = {
     "name": "AssessIQ"
   },
   "areaServed": ["India", "Worldwide"],
-  "description": "Coding tests, technical skills assessments, and proctored developer screening for IT companies in India. Evaluate Python, Java, SQL, React, .NET, and more — with anti-cheat controls and structured scoring.",
+  "description": "Skills assessments for IT companies in India — aptitude, scenario and written-answer questions with randomised delivery and structured anchor-and-band scoring. Coding tests and language-specific packs are coming soon.",
   "url": `${site}/solutions/it-hiring`
 };
 
@@ -31,15 +31,15 @@ const faqSchema = {
       "name": "What kinds of technical assessments does AssessIQ support?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ supports coding tests with live execution and test-case evaluation, multi-skill screening batteries (Python, Java, SQL, React, .NET, data structures, algorithms), aptitude and logical reasoning, and role-specific assessment packs. Tests can be used standalone or combined into a single timed session."
+        "text": "AssessIQ supports multiple-choice, scenario, log-analysis, and written-answer questions from licensed question packs, including a live aptitude pack. Tests can be used standalone or combined into a single timed session. Coding tests with live execution and language-specific packs (Python, Java, SQL, React) are coming soon."
       }
     },
     {
       "@type": "Question",
-      "name": "How does AssessIQ prevent cheating in online coding tests?",
+      "name": "How does AssessIQ reduce cheating in online tests?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, and copy-paste restriction on question text. Every attempt produces a timestamped event log that admins can review. Scores and flags are visible side by side in the admin dashboard."
+        "text": "AssessIQ randomises question order, shuffles MCQ options per student, enforces timers on the server (the timer starts when the candidate begins and consents), and issues invite links to individual candidates. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon."
       }
     },
     {
@@ -47,15 +47,15 @@ const faqSchema = {
       "name": "Can I screen for a specific programming language or tech stack?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ lets you build role-specific packs targeting a single language (e.g. Python, Java, JavaScript) or a full-stack combination. Question packs can mix coding problems, multiple-choice theory, and output-prediction questions in a single timed test."
+        "text": "Language-specific packs (for example Python, Java, JavaScript) are coming soon. Today the live pack is aptitude; talk to us about the domains you need."
       }
     },
     {
       "@type": "Question",
-      "name": "How are coding submissions scored?",
+      "name": "How are answers scored?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Coding submissions run against hidden test cases and return a pass/fail count. The admin view shows the submitted code, test-case results, and execution time. For subjective questions, AssessIQ uses structured rubrics — anchors and scoring bands — so reviewers apply a consistent standard."
+        "text": "Multiple-choice answers are scored deterministically. Subjective, scenario, and log-analysis answers are evaluated with AI assistance by AssessIQ evaluators using structured rubrics (anchors and scoring bands) with a written rationale, then released to your company. Students only ever see complete scores."
       }
     },
     {
@@ -63,7 +63,7 @@ const faqSchema = {
       "name": "Is AssessIQ suitable for bulk technical hiring campaigns?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ supports bulk candidate invite via CSV, shareable test links, and concurrent session handling. Admins can monitor live attempt counts, export results to CSV or PDF, and set per-test time limits and attempt windows. There is no per-seat cap on simultaneous candidates."
+        "text": "Yes. AssessIQ supports bulk candidate import via CSV (up to 200 per import) and email invite links that are valid for 7 days and can be resent, singly or in bulk. Admins can export results to CSV."
       }
     },
     {
@@ -71,7 +71,7 @@ const faqSchema = {
       "name": "How does AssessIQ compare with HackerRank or HackerEarth for Indian IT hiring?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes. Unlike HackerRank and HackerEarth, AssessIQ is a B2B platform — no public leaderboards, no gamification — focused on structured, auditable selection for companies that need defensible hiring decisions."
+        "text": "AssessIQ is a B2B platform: structured, auditable selection with no public leaderboards and no gamification, for companies that need defensible hiring decisions. It does not yet offer coding tests, so if live code execution is a hard requirement, those platforms are the better fit today."
       }
     }
   ]
@@ -106,16 +106,16 @@ const breadcrumbSchema = {
 // Capability cards — honest descriptions, no fabricated stats
 const capabilities = [
   {
-    label: "Live Coding Tests",
-    body: "Browser-based coding environment with test-case execution. Candidates write real code; you see pass rates, not just answers."
+    label: "Scenario & Written Answers",
+    body: "Scenario and log-analysis questions evaluated with AI assistance by AssessIQ evaluators against anchor and band rubrics, with a written rationale for each score."
   },
   {
     label: "Multi-Skill Batteries",
-    body: "Combine Python, Java, SQL, React, aptitude, and logical reasoning into a single timed session — or run them as separate screening stages."
+    body: "Combine aptitude, logical reasoning, and scenario questions into a single timed session. Language-specific packs (Python, Java, SQL, React) are coming soon."
   },
   {
-    label: "Proctoring & Anti-Cheat",
-    body: "Tab-switch detection, webcam monitoring, full-screen enforcement, and a timestamped anomaly log for every attempt."
+    label: "Randomised Delivery",
+    body: "Randomised question order, per-student MCQ option shuffle, and server-side timers on every attempt. Proctoring is coming soon."
   },
   {
     label: "Structured Scoring",
@@ -123,11 +123,11 @@ const capabilities = [
   },
   {
     label: "Bulk Invite & Scheduling",
-    body: "CSV import, shareable test links, and timed access windows. Run hundreds of concurrent sessions without per-seat friction."
+    body: "CSV student import (up to 200 per import) and email invite links valid for 7 days, with single and bulk resend."
   },
   {
     label: "Admin Dashboard",
-    body: "Real-time attempt monitoring, per-candidate and cohort-level reports, and one-click export to CSV or PDF."
+    body: "Per-candidate and cohort-level reports, with results export to CSV."
   }
 ];
 
@@ -136,7 +136,7 @@ const useCases = [
   {
     label: "Product & Engineering Teams",
     heading: "Screen before the interview.",
-    body: "Replace first-round calls with a structured coding test. See who can actually solve the problem before you spend an engineer's time on a phone screen."
+    body: "Replace first-round calls with a structured skills test. See who can actually solve the problem before you spend an engineer's time on a phone screen."
   },
   {
     label: "Talent Acquisition",
@@ -146,14 +146,14 @@ const useCases = [
   {
     label: "HR & Compliance",
     heading: "An audit trail for every hire.",
-    body: "Full attempt logs, proctoring flags, and per-answer scoring rationale. If a decision is ever questioned, the evidence is there."
+    body: "Full attempt logs, an append-only audit log, and per-answer scoring rationale. If a decision is ever questioned, the evidence is there."
   }
 ];
 ---
 
 <BaseLayout
   title="IT & Technical Hiring Assessment Platform"
-  description="AssessIQ helps IT companies in India screen developers with coding tests, technical skills assessments, and proctored online exams. Structured scoring, anti-cheat controls, bulk invite."
+  description="AssessIQ helps IT companies in India screen candidates with structured skills assessments, AI-assisted evaluation of written answers, and bulk invite. Randomised delivery and anchor-and-band scoring."
   canonicalPath="/solutions/it-hiring"
 >
   <!-- JSON-LD: Service (separate block per §3.6) -->
@@ -200,17 +200,17 @@ const useCases = [
 
       <!-- Featured-snippet target: 40–60 word definitional intro -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        AssessIQ is a technical assessment platform for IT companies in India. It lets you run coding tests, multi-skill screening batteries, and proctored developer exams — with structured scoring and anti-cheat controls — so every hiring decision rests on the same evidence.
+        AssessIQ is a technical assessment platform for IT companies in India. It lets you run aptitude and scenario-based screening tests with structured scoring and randomised delivery, so every hiring decision rests on the same evidence.
       </p>
 
       <div class="flex flex-wrap items-center gap-aiq-md">
         <a
-          href="https://assessiq.in/admin/login"
+          href="/contact"
           class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Get started free
+          Request a demo
         </a>
         <a
           href="/contact"
@@ -223,7 +223,7 @@ const useCases = [
       </div>
 
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-aiq-2xl mb-0">
-        Alternative to HackerRank &middot; HackerEarth &middot; Mercer Mettl &middot; iMocha &middot; Codility
+        Alternative to Mercer Mettl &middot; iMocha &middot; HackerEarth
       </p>
 
     </div>
@@ -259,7 +259,7 @@ const useCases = [
               Online tests that are easy to game.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Many platforms let candidates look up answers in another tab, share screens, or use AI code completion during a "live" coding test. Proctoring that surfaces anomalies without being punitive is a harder engineering problem than most platforms solve.
+              Many platforms let candidates look up answers in another tab or share answers with each other. Randomised question order, per-student option shuffle, and server-side timers raise the cost of sharing answers.
             </p>
           </div>
           <div>
@@ -344,16 +344,16 @@ const useCases = [
             What kinds of technical assessments does AssessIQ support?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ supports coding tests with live execution and test-case evaluation, multi-skill screening batteries (Python, Java, SQL, React, .NET, data structures, algorithms), aptitude and logical reasoning, and role-specific assessment packs. Tests can be used standalone or combined into a single timed session.
+            AssessIQ supports multiple-choice, scenario, log-analysis, and written-answer questions from licensed question packs, including a live aptitude pack. Tests can be used standalone or combined into a single timed session. Coding tests with live execution and language-specific packs (Python, Java, SQL, React) are coming soon.
           </p>
         </div>
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-            How does AssessIQ prevent cheating in online coding tests?
+            How does AssessIQ reduce cheating in online tests?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, and copy-paste restriction on question text. Every attempt produces a timestamped event log that admins can review. Scores and flags are visible side by side in the admin dashboard.
+            AssessIQ randomises question order, shuffles MCQ options per student, enforces timers on the server (the timer starts when the candidate begins and consents), and issues invite links to individual candidates. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon.
           </p>
         </div>
 
@@ -362,16 +362,16 @@ const useCases = [
             Can I screen for a specific programming language or tech stack?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Yes. AssessIQ lets you build role-specific packs targeting a single language (e.g. Python, Java, JavaScript) or a full-stack combination. Question packs can mix coding problems, multiple-choice theory, and output-prediction questions in a single timed test.
+            Language-specific packs (for example Python, Java, JavaScript) are coming soon. Today the live pack is aptitude; talk to us about the domains you need.
           </p>
         </div>
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-            How are coding submissions scored?
+            How are answers scored?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Coding submissions run against hidden test cases and return a pass/fail count. The admin view shows the submitted code, test-case results, and execution time. For subjective questions, AssessIQ uses structured rubrics — anchors and scoring bands — so reviewers apply a consistent standard.
+            Multiple-choice answers are scored deterministically. Subjective, scenario, and log-analysis answers are evaluated with AI assistance by AssessIQ evaluators using structured rubrics (anchors and scoring bands) with a written rationale, then released to your company. Students only ever see complete scores.
           </p>
         </div>
 
@@ -380,7 +380,7 @@ const useCases = [
             Is AssessIQ suitable for bulk technical hiring campaigns?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Yes. AssessIQ supports bulk candidate invite via CSV, shareable test links, and concurrent session handling. Admins can monitor live attempt counts, export results to CSV or PDF, and set per-test time limits and attempt windows. There is no per-seat cap on simultaneous candidates.
+            Yes. AssessIQ supports bulk candidate import via CSV (up to 200 per import) and email invite links that are valid for 7 days and can be resent, singly or in bulk. Admins can export results to CSV.
           </p>
         </div>
 
@@ -389,7 +389,7 @@ const useCases = [
             How does AssessIQ compare with HackerRank or HackerEarth for Indian IT hiring?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ is built India-first: calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team sizes. Unlike HackerRank and HackerEarth, AssessIQ is a B2B platform — no public leaderboards, no gamification — focused on structured, auditable selection for companies that need defensible hiring decisions.
+            AssessIQ is a B2B platform: structured, auditable selection with no public leaderboards and no gamification, for companies that need defensible hiring decisions. It does not yet offer coding tests, so if live code execution is a hard requirement, those platforms are the better fit today.
           </p>
         </div>
 
@@ -411,12 +411,12 @@ const useCases = [
           </h2>
           <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
             <a
-              href="https://assessiq.in/admin/login"
+              href="/contact"
               class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Request a demo
             </a>
             <a
               href="/contact"
@@ -428,7 +428,7 @@ const useCases = [
             </a>
           </div>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
-            Questions about data residency or security controls? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+            Questions about security controls? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
           </p>
         </div>
 
@@ -443,13 +443,13 @@ const useCases = [
               <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 Campus &amp; Fresher Recruitment
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, coding, and English at bulk scale for campus placement drives.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude assessments at bulk scale for campus placement drives.</p>
             </li>
             <li>
               <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 Educational Institutions
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Online proctored exams and skill certification for colleges and universities.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Online exams and skill certification for colleges and universities.</p>
             </li>
             <li>
               <a href="/solutions/team-skill-gap" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">

@@ -45,7 +45,7 @@ const faqSchema = {
       "name": "Is there a free trial?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. You can access the platform and run a limited set of assessments before committing. Sign in at assessiq.in/admin/login to explore. For a guided walkthrough of your specific use case, reach out to connect@assessiq.in."
+        "text": "There is no free trial or self-serve signup. Accounts are set up by the AssessIQ team. Reach out to connect@assessiq.in and we will arrange a demo for your specific use case."
       }
     },
     {
@@ -53,15 +53,15 @@ const faqSchema = {
       "name": "What is included in the Enterprise tier?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Enterprise customers get full proctoring (webcam + browser lockdown), custom question packs, ATS/HRMS integrations, SSO, dedicated support, and SLA-backed uptime. Volume and pricing are agreed on contract."
+        "text": "Enterprise is for large organisations and institutions that need a custom contract, higher volumes, and dedicated support. Volume and pricing are agreed on contract."
       }
     },
     {
       "@type": "Question",
-      "name": "Do you charge separately for proctoring?",
+      "name": "Is AI evaluation of written answers included?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Proctoring (webcam monitoring, browser lockdown, anomaly flagging) is a capability tier, not a per-attempt add-on. It is included from the Growth tier upward. Starter plans use honour-mode only."
+        "text": "Multiple-choice questions are scored automatically. Subjective, scenario, and log-analysis answers are evaluated with AI assistance by AssessIQ evaluators, who release results to your company afterwards. Companies cannot run AI grading themselves. Webcam proctoring and browser lockdown are not available yet."
       }
     },
     {
@@ -85,19 +85,17 @@ const tiers = [
     price: "Custom",
     priceNote: "Talk to us",
     features: [
-      "Skills tests (MCQ, short-answer)",
-      "Coding assessment environment",
-      "Honour-mode only (no proctoring)",
-      "Up to 5 active question packs",
+      "Skills tests (MCQ, scenario, short-answer)",
+      "Licensed question packs",
+      "Per-student option shuffle + question randomisation",
       "Admin dashboard + attempt logs",
-      "CSV result export",
+      "CSV student import + results export",
       "Email support",
     ],
     notIncluded: [
-      "Webcam / browser-lockdown proctoring",
-      "Custom question pack authoring",
-      "ATS / HRMS integrations",
-      "SSO",
+      "Webcam / browser-lockdown proctoring (Coming soon)",
+      "ATS / HRMS integrations (Coming soon)",
+      "SAML / enterprise SSO (Coming soon)",
     ],
     cta: "Talk to us",
     ctaHref: "/contact",
@@ -106,23 +104,22 @@ const tiers = [
   {
     name: "Growth",
     audience: "IT companies & campus teams",
-    description: "Full proctoring, larger candidate volumes, and the reporting depth your HR team actually needs.",
+    description: "Larger candidate volumes, bulk invites, and the reporting depth your HR team actually needs.",
     price: "Custom",
     priceNote: "Talk to us",
     features: [
       "Everything in Starter",
-      "Webcam monitoring + browser lockdown",
-      "AI-flagged anomaly review",
-      "Unlimited question packs",
-      "Bulk candidate invite",
+      "AI-assisted evaluation of written answers, run by AssessIQ evaluators",
+      "Bulk candidate invite with resend",
       "Cohort & skill-gap analytics",
-      "ATS webhook integration",
-      "Priority email + chat support",
+      "Signed webhooks",
+      "Certificates with public verification",
+      "Priority email support",
     ],
     notIncluded: [
-      "Custom SSO / SAML",
-      "Dedicated account manager",
-      "SLA-backed uptime",
+      "Webcam / browser-lockdown proctoring (Coming soon)",
+      "SAML / enterprise SSO (Coming soon)",
+      "SLA-backed uptime (Coming soon)",
     ],
     cta: "Request a quote",
     ctaHref: "/contact",
@@ -131,19 +128,14 @@ const tiers = [
   {
     name: "Enterprise",
     audience: "Large organisations & institutions",
-    description: "Custom contracts, integrations, and SLA-backed uptime for high-volume, high-stakes assessment programmes.",
+    description: "Custom contracts and dedicated support for high-volume, high-stakes assessment programmes.",
     price: "Custom",
     priceNote: "On contract",
     features: [
       "Everything in Growth",
-      "Custom question pack authoring support",
-      "SSO / SAML integration",
-      "HRMS / LMS integrations",
       "Dedicated account manager",
-      "SLA-backed uptime",
-      "Audit log export",
-      "Data residency confirmation (India region)",
-      "Custom branding on candidate-facing screens",
+      "Custom contract and volume terms",
+      "Roadmap access: proctoring, SSO, and integrations (Coming soon)",
     ],
     notIncluded: [],
     cta: "Contact sales",
@@ -160,15 +152,15 @@ const faqs = [
   },
   {
     q: "Is there a free trial?",
-    a: "Yes. You can access the platform and run a limited set of assessments before committing. Sign in at assessiq.in to explore. For a guided walkthrough of your specific use case, reach out to connect@assessiq.in.",
+    a: "There is no free trial or self-serve signup. Accounts are set up by the AssessIQ team. Reach out to connect@assessiq.in and we will arrange a demo for your specific use case.",
   },
   {
     q: "What is included in the Enterprise tier?",
-    a: "Enterprise customers get full proctoring (webcam + browser lockdown), custom question packs, ATS/HRMS integrations, SSO, dedicated support, and SLA-backed uptime. Volume and pricing are agreed on contract.",
+    a: "Enterprise is for large organisations and institutions that need a custom contract, higher volumes, and dedicated support. Volume and pricing are agreed on contract.",
   },
   {
-    q: "Do you charge separately for proctoring?",
-    a: "Proctoring (webcam monitoring, browser lockdown, anomaly flagging) is a capability tier, not a per-attempt add-on. It is included from the Growth tier upward. Starter plans use honour-mode only.",
+    q: "Is AI evaluation of written answers included?",
+    a: "Multiple-choice questions are scored automatically. Subjective, scenario, and log-analysis answers are evaluated with AI assistance by AssessIQ evaluators, who release results to your company afterwards. Companies cannot run AI grading themselves. Webcam proctoring and browser lockdown are not available yet.",
   },
   {
     q: "Can educational institutions get a different rate?",
@@ -179,7 +171,7 @@ const faqs = [
 
 <BaseLayout
   title="Pricing — AssessIQ"
-  description="AssessIQ pricing is structured by capability — Starter, Growth, and Enterprise tiers for IT hiring, campus recruitment, and educational institutions. All pricing is custom. Contact us for a quote."
+  description="AssessIQ pricing is structured by capability — Starter, Growth, and Enterprise tiers for IT hiring, campus recruitment, and educational institutions. All pricing is custom. Contact us for a quote or a demo."
   canonicalPath="/pricing"
 >
   <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
@@ -213,7 +205,7 @@ const faqs = [
       </h1>
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
         AssessIQ is a B2B platform. Pricing depends on your hiring volume, the assessment types you need,
-        and whether proctoring and integrations are in scope. The tiers below describe what each level
+        and the level of support you need. The tiers below describe what each level
         includes — reach out and we'll put together the right proposal.
       </p>
     </div>
@@ -316,16 +308,16 @@ const faqs = [
             body: "How many candidates or employees you assess per month or per drive. Occasional use looks different from ongoing hiring pipelines.",
           },
           {
-            label: "Proctoring level",
-            body: "Honour-mode, browser lockdown only, or full webcam + AI-flagged monitoring. Proctoring infrastructure is the biggest cost driver.",
+            label: "Evaluation load",
+            body: "How many written, scenario, and log-analysis answers need AI-assisted evaluation by our team. Multiple-choice scoring is automatic.",
           },
           {
             label: "Integrations",
-            body: "Whether you need ATS webhooks, HRMS sync, SSO/SAML, or LMS connectors changes the setup scope.",
+            body: "Whether you need signed webhooks or custom data exports changes the setup scope.",
           },
           {
             label: "Support level",
-            body: "Self-serve email support versus dedicated account management and SLA-backed uptime are tiered separately.",
+            body: "Email support versus dedicated account management is tiered separately.",
           },
         ].map(item => (
           <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
@@ -421,7 +413,7 @@ const faqs = [
                    text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
           >
-            Try the platform
+            Sign in
           </a>
         </div>
       </div>

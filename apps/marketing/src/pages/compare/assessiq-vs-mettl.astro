@@ -50,7 +50,7 @@ const faqSchema = {
       "name": "How does AssessIQ differ from Mercer Mettl for Indian IT companies?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ is designed specifically for structured, auditable B2B hiring decisions — with anchor-based rubrics, scoring bands, and full attempt logs that let teams defend every shortlist decision. Mercer Mettl offers a wider enterprise assessment library and a large-scale proctoring infrastructure. For Indian IT companies that need a focused coding-and-skills screening workflow with transparent scoring rationale, AssessIQ is the more direct fit. For enterprise exam programs, certification delivery, or very large question library breadth, Mercer Mettl is worth evaluating."
+        "text": "AssessIQ is designed specifically for structured, auditable B2B hiring decisions — with anchor-based rubrics, scoring bands, and full attempt logs that let teams defend every shortlist decision. Mercer Mettl offers a wider enterprise assessment library and a large-scale proctoring infrastructure. For Indian IT companies that need a focused screening workflow with transparent scoring rationale, AssessIQ is the more direct fit. For enterprise exam programs, certification delivery, or very large question library breadth, Mercer Mettl is worth evaluating."
       }
     },
     {
@@ -58,7 +58,7 @@ const faqSchema = {
       "name": "Does AssessIQ support AI-powered proctoring like Mercer Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
+        "text": "AssessIQ's proctoring features (webcam, browser lockdown, tab-switch detection) are coming soon and are not available today; what exists now is server-side timers, an append-only audit log, and role-separated access. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
       }
     },
     {
@@ -66,7 +66,7 @@ const faqSchema = {
       "name": "Is Mercer Mettl suitable for small and mid-size Indian companies?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mercer Mettl serves a wide range of business sizes from startups to enterprises. Some user reviews note that pricing can be a consideration for smaller organizations. AssessIQ is designed with Indian team sizes and hiring workflows in mind, and offers a free starting point. Both platforms are worth evaluating based on your volume and feature requirements — check current pricing directly with each vendor."
+        "text": "Mercer Mettl serves a wide range of business sizes from startups to enterprises. Some user reviews note that pricing can be a consideration for smaller organizations. AssessIQ is designed with Indian team sizes and hiring workflows in mind. Both platforms are worth evaluating based on your volume and feature requirements — check current pricing directly with each vendor."
       }
     },
     {
@@ -74,15 +74,15 @@ const faqSchema = {
       "name": "Which platform has a larger question library — AssessIQ or Mercer Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mercer Mettl publicly states a library of 100,000+ technical questions across many domains. AssessIQ's question packs are curated for Indian IT hiring role stacks — Python, Java, SQL, React, .NET, aptitude, and logical reasoning — with an emphasis on quality and calibration for Indian candidate pools rather than breadth alone. If raw library count is the primary criterion, Mercer Mettl has more volume. If calibration for Indian hiring contexts matters more, AssessIQ's curated approach is designed for that."
+        "text": "Mercer Mettl publicly states a library of 100,000+ technical questions across many domains. AssessIQ ships a smaller set of curated question packs, including an aptitude pack; more technical packs (Python, Java, SQL, React) are coming soon. If raw library count is the primary criterion, Mercer Mettl has far more volume."
       }
     },
     {
       "@type": "Question",
-      "name": "Can I try AssessIQ before committing?",
+      "name": "How can I evaluate AssessIQ before committing?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ has a free starting point — you can create an account and run assessments without a credit card. This makes it practical to evaluate the platform against your real hiring workflow before deciding."
+        "text": "Contact us and we will set up a company account so you can run a real assessment against your hiring workflow before deciding."
       }
     }
   ]
@@ -118,22 +118,22 @@ const breadcrumbSchema = {
 const tableRows = [
   {
     criterion: "India focus",
-    assessiq: "Built India-first — calibrated packs for Indian IT role stacks, local data residency, pricing designed for Indian teams",
+    assessiq: "Built for Indian hiring and campus programs — structured scoring, audit trail, and an aptitude question pack",
     mettl: "Founded and headquartered in India (Gurugram); serves 100+ countries; strong India enterprise presence"
   },
   {
     criterion: "Proctoring",
-    assessiq: "Tab-switch detection, full-screen enforcement, webcam monitoring, copy-paste restriction, timestamped event log per attempt",
+    assessiq: "Proctoring features (Coming soon); server-side timers and an append-only audit log today",
     mettl: "AI-powered proctoring at enterprise scale; 200,000+ proctored assessments per day; listed in Gartner's proctoring category"
   },
   {
     criterion: "Question types",
-    assessiq: "Coding (live execution + test cases), MCQ, output prediction, aptitude, logical reasoning — curated for Indian IT hiring",
+    assessiq: "MCQ with per-student option shuffle, scenario and log-analysis questions, aptitude pack; coding tests (Coming soon)",
     mettl: "Broad library of 100,000+ questions across technical and behavioral domains; supports many assessment categories"
   },
   {
     criterion: "Code evaluation",
-    assessiq: "Browser-based coding environment; submissions run against hidden test cases; pass/fail count + execution time visible to admin",
+    assessiq: "Coding tests and live code execution (Coming soon); MCQ scored deterministically, written answers graded with AI assistance by AssessIQ evaluators",
     mettl: "Auto-graded coding simulators with support for multiple languages; part of their technical assessment suite"
   },
   {
@@ -143,17 +143,17 @@ const tableRows = [
   },
   {
     criterion: "Integrations",
-    assessiq: "Admin dashboard, CSV export, PDF reports; ATS integrations — varies by plan (check current docs)",
+    assessiq: "Admin dashboard, results CSV per assessment, signed webhooks; ATS/HRMS integrations (Coming soon)",
     mettl: "Integrates with major HRMS and LMS platforms; wide enterprise integration catalog"
   },
   {
     criterion: "Deployment",
-    assessiq: "Cloud SaaS; bulk invite via CSV or shareable link; no per-seat cap on concurrent sessions",
+    assessiq: "Cloud SaaS; bulk invite via CSV import (up to 200 per import) and email invites; invite links valid 7 days with resend",
     mettl: "Cloud SaaS; enterprise on-premise options may vary — confirm with vendor"
   },
   {
     criterion: "Support",
-    assessiq: "Email and chat support; direct access for setup and configuration questions",
+    assessiq: "Direct access to the team for setup and configuration questions",
     mettl: "Dedicated customer success for enterprise accounts; support scale varies by tier"
   },
   {
@@ -175,23 +175,23 @@ const faqs = [
   },
   {
     q: "How does AssessIQ differ from Mercer Mettl for Indian IT companies?",
-    a: "AssessIQ is designed specifically for structured, auditable B2B hiring decisions — with anchor-based rubrics, scoring bands, and full attempt logs that let teams defend every shortlist decision. Mercer Mettl offers a wider enterprise assessment library and a large-scale proctoring infrastructure. For Indian IT companies that need a focused coding-and-skills screening workflow with transparent scoring rationale, AssessIQ is the more direct fit. For enterprise exam programs, certification delivery, or very large question library breadth, Mercer Mettl is worth evaluating."
+    a: "AssessIQ is designed specifically for structured, auditable B2B hiring decisions — with anchor-based rubrics, scoring bands, and full attempt logs that let teams defend every shortlist decision. Mercer Mettl offers a wider enterprise assessment library and a large-scale proctoring infrastructure. For Indian IT companies that need a focused screening workflow with transparent scoring rationale, AssessIQ is the more direct fit. For enterprise exam programs, certification delivery, or very large question library breadth, Mercer Mettl is worth evaluating."
   },
   {
     q: "Does AssessIQ support AI-powered proctoring like Mercer Mettl?",
-    a: "AssessIQ's proctoring layer includes browser tab-switch detection, full-screen enforcement, webcam monitoring with anomaly flagging, copy-paste restriction, and a timestamped event log per attempt. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
+    a: "AssessIQ's proctoring features (webcam, browser lockdown, tab-switch detection) are coming soon and are not available today; what exists now is server-side timers, an append-only audit log, and role-separated access. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
   },
   {
     q: "Is Mercer Mettl suitable for small and mid-size Indian companies?",
-    a: "Mercer Mettl serves a wide range of business sizes from startups to enterprises. Some user reviews note that pricing can be a consideration for smaller organizations. AssessIQ is designed with Indian team sizes and hiring workflows in mind, and offers a free starting point. Both platforms are worth evaluating based on your volume and feature requirements — check current pricing directly with each vendor."
+    a: "Mercer Mettl serves a wide range of business sizes from startups to enterprises. Some user reviews note that pricing can be a consideration for smaller organizations. AssessIQ is designed with Indian team sizes and hiring workflows in mind. Both platforms are worth evaluating based on your volume and feature requirements — check current pricing directly with each vendor."
   },
   {
     q: "Which platform has a larger question library — AssessIQ or Mercer Mettl?",
-    a: "Mercer Mettl publicly states a library of 100,000+ technical questions across many domains. AssessIQ's question packs are curated for Indian IT hiring role stacks — Python, Java, SQL, React, .NET, aptitude, and logical reasoning — with an emphasis on quality and calibration for Indian candidate pools rather than breadth alone. If raw library count is the primary criterion, Mercer Mettl has more volume. If calibration for Indian hiring contexts matters more, AssessIQ's curated approach is designed for that."
+    a: "Mercer Mettl publicly states a library of 100,000+ technical questions across many domains. AssessIQ ships a smaller set of curated question packs, including an aptitude pack; more technical packs (Python, Java, SQL, React) are coming soon. If raw library count is the primary criterion, Mercer Mettl has far more volume."
   },
   {
-    q: "Can I try AssessIQ before committing?",
-    a: "Yes. AssessIQ has a free starting point — you can create an account and run assessments without a credit card. This makes it practical to evaluate the platform against your real hiring workflow before deciding."
+    q: "How can I evaluate AssessIQ before committing?",
+    a: "Contact us and we will set up a company account so you can run a real assessment against your hiring workflow before deciding."
   }
 ];
 ---
@@ -250,7 +250,7 @@ const faqs = [
       <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-2xl max-w-2xl">
         <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">TL;DR</p>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-          AssessIQ offers structured, rubric-based hiring assessments built for Indian IT teams — anchor scoring, audit trails, and a simple admin workflow. Mercer Mettl brings a larger question library, enterprise-scale proctoring, and global reach backed by Mercer. The right choice depends on whether you need breadth or structured-scoring depth.
+          AssessIQ offers structured, rubric-based hiring assessments built for Indian IT teams — anchor scoring, audit trails, and a simple admin workflow. Mercer Mettl brings a larger question library, proctoring at enterprise scale, and global reach backed by Mercer. The right choice depends on whether you need breadth or structured-scoring depth.
         </p>
       </div>
 
@@ -323,13 +323,13 @@ const faqs = [
               You are an Indian IT company running structured pre-interview screening and need scoring that explains itself — anchors, bands, and per-answer rationale your hiring team can act on.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You want coding tests, MCQ, and aptitude in a single timed session, with a proctoring log your team can actually review.
+              You want MCQ, aptitude, and written-answer questions in a single timed session with server-side timers and an append-only audit log your team can review.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You are a campus team or educational institution running bulk invite drives with CSV import and no per-seat concurrency limits.
+              You are a campus team or educational institution running bulk invite drives with CSV import (up to 200 students per import).
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You want to start without a lengthy procurement cycle — free account, no credit card.
+              You want a guided setup — talk to us and we will create your company account.
             </li>
           </ul>
         </div>
@@ -400,7 +400,7 @@ const faqs = [
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Sign in
             </a>
             <a
               href="/contact"

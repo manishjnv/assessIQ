@@ -73,7 +73,7 @@ const faqSchema = {
       "name": "How long should a backend developer assessment take?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "A full three-component backend battery (Python or Java + SQL + one language) runs 75–105 minutes: roughly 30–45 minutes per language component and 30 minutes for SQL. If both Python and Java are included for polyglot roles, budget 90–120 minutes. Admins can scope the battery to the specific stack and configure time limits per segment."
+        "text": "Duration depends on which tests are combined. This role assessment is coming soon, so contact us to discuss scope and timing before you plan a campaign."
       }
     },
     {
@@ -105,7 +105,7 @@ const faqSchema = {
       "name": "Can this battery be used for campus backend developer hiring in India?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. For campus hiring, the battery is typically scoped to Python or Java (based on curriculum alignment) plus SQL basics, with question difficulty set to entry level. AssessIQ supports bulk invite via CSV and concurrent session handling at scale — suitable for campus drives across engineering colleges in India."
+        "text": "This role assessment is coming soon, so contact us about it. AssessIQ already supports CSV student import (up to 200 students per import) and invite links valid for 7 days with resend, which suit campus drives."
       }
     }
   ]
@@ -183,8 +183,8 @@ const batteryTests = [
 ---
 
 <BaseLayout
-  title="Backend Developer Assessment Test"
-  description="Assess backend developers in India with Python, Java, and SQL tests. Competency matrix, benchmark guidance, and scorecard for server-side role hiring. Structured, proctored, no fabricated stats."
+  title="Backend Developer Assessment Test (Coming soon)"
+  description="Coming soon: AssessIQ role assessment for hiring backend developers in India. Competency matrix, benchmark guidance and scorecard outline. Contact us about this test."
   canonicalPath={canonicalPath}
   ogType="article"
 >
@@ -209,7 +209,7 @@ const batteryTests = [
   <!-- HERO -->
   <section class="bg-aiq-bg-base border-b border-aiq-border">
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
-      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Backend Developer</p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Role Assessment &middot; Backend Developer <span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span></p>
       <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
         Backend Developer Assessment Test: Skills, Battery &amp; Scorecard
       </h1>
@@ -217,11 +217,11 @@ const batteryTests = [
         Assessing a backend developer means verifying three things: fluency in a server-side language, the ability to write and reason about SQL, and a working mental model of how backend systems fail. A structured battery covering Python or Java plus SQL gives hiring teams objective, comparable evidence across every candidate in the pool.
       </p>
       <div class="flex flex-wrap items-center gap-aiq-md">
-        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-          Get started free
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Contact us about this test
         </a>
-        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-          Talk to us
+        <a href="/tests" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          See available tests
         </a>
       </div>
     </div>
@@ -299,7 +299,7 @@ const batteryTests = [
           </div>
         </div>
         <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
-          AssessIQ shows per-cohort score distribution alongside each result, so you can set a percentile cutoff that is calibrated to the actual applicant pool for each campaign.
+          Set shortlist thresholds relative to your actual applicant pool, using AssessIQ results and the results CSV export.
         </p>
       </div>
     </div>
@@ -333,7 +333,7 @@ const batteryTests = [
             </div>
           </div>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">
-            The dashboard shows band scores per component, a per-question breakdown with the candidate&#39;s submitted answer and the scoring rationale, and any proctoring event flags (tab switches, webcam anomalies). Reviewers see structured evidence, not just a number.
+            The dashboard shows band scores per component, a per-question breakdown with the candidate&#39;s submitted answer and the scoring rationale. Reviewers see structured evidence, not just a number.
           </p>
         </div>
         <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
@@ -360,7 +360,7 @@ const batteryTests = [
         </div>
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long should a backend developer assessment take?</h3>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A full three-component backend battery runs 75&#8211;105 minutes: roughly 30&#8211;45 minutes per language component and 30 minutes for SQL. If scoped to one language plus SQL, budget 60&#8211;75 minutes. Admins can configure time limits per segment.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Duration depends on which tests are combined. This role assessment is coming soon, so contact us to discuss scope and timing before you plan a campaign.</p>
         </div>
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Should you test both Python and Java for a backend role?</h3>
@@ -376,7 +376,7 @@ const batteryTests = [
         </div>
         <div>
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can this battery be used for campus backend developer hiring in India?</h3>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. For campus hiring, scope to Python or Java (based on curriculum alignment) plus SQL basics at entry level. AssessIQ supports bulk invite via CSV and concurrent sessions at scale &#8212; suitable for large campus drives across Indian engineering colleges.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">This role assessment is coming soon, so contact us about it. AssessIQ already supports CSV student import (up to 200 students per import) and invite links valid for 7 days with resend, which suit campus drives.</p>
         </div>
       </div>
     </div>
@@ -392,11 +392,11 @@ const batteryTests = [
             Ready to screen backend developers?
           </h2>
           <div class="flex flex-wrap gap-aiq-md">
-            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-              Start free
+            <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+          Contact us about this test
             </a>
-            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
-              Pricing
+            <a href="/tests" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">
+              All skill tests
             </a>
           </div>
         </div>

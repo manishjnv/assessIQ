@@ -2,7 +2,7 @@
 // tests.astro — Skill Tests hub page (/tests)
 // JSON-LD: ItemList (8 skill pages) + BreadcrumbList (per SEO §15)
 // NO aggregateRating — no real data (SEO §13 hard rule)
-// India-first positioning per SEO §17
+// Only the Aptitude pack is live; others are labelled Coming soon
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
@@ -40,6 +40,7 @@ const skills = [
   },
   {
     slug: 'aptitude',
+    live: true,
     name: 'Aptitude Test',
     tagline: 'Numerical reasoning, data interpretation, time-speed-distance',
     forRoles: 'All campus / fresher hiring roles, analyst tracks',
@@ -63,7 +64,7 @@ const itemListSchema = {
   "@context": "https://schema.org",
   "@type": "ItemList",
   "name": "Online Skill Tests for Hiring — AssessIQ",
-  "description": "Pre-employment skill tests for IT companies and recruiters in India. Python, Java, SQL, JavaScript, React, Aptitude, Logical Reasoning, and English.",
+  "description": "Pre-employment skill tests from AssessIQ. The Aptitude test is live; Python, Java, SQL, JavaScript, React, Logical Reasoning, and English are coming soon.",
   "itemListElement": skills.map((s, i) => ({
     "@type": "ListItem",
     "position": i + 1,
@@ -95,7 +96,7 @@ const breadcrumbSchema = {
 
 <BaseLayout
   title="Online Skill Tests for Hiring & Assessment"
-  description="Assess candidates with pre-employment skill tests for Python, Java, SQL, JavaScript, React, Aptitude, Logical Reasoning, and English. Structured scoring, anti-cheat, built for India hiring."
+  description="AssessIQ skill tests for hiring. The Aptitude test is live; Python, Java, SQL, JavaScript, React, Logical Reasoning, and English are coming soon. Structured, rubric-based scoring."
   canonicalPath="/tests"
 >
   <!-- JSON-LD: ItemList -->
@@ -135,25 +136,25 @@ const breadcrumbSchema = {
       </h1>
 
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        AssessIQ's pre-employment skill tests let you screen candidates on real ability — not self-reported experience. Each test combines structured questions, anti-cheat proctoring, and anchor-based scoring, so every shortlisting decision rests on the same evidence.
+        AssessIQ's pre-employment skill tests let you screen candidates on demonstrated ability — not self-reported experience. The Aptitude test is live today; the other tests listed here are coming soon. Multiple-choice answers are scored automatically, and written answers are scored against anchor-based rubrics with AI assistance by AssessIQ evaluators.
       </p>
 
       <div class="flex flex-wrap items-center gap-aiq-md">
         <a
-          href="https://assessiq.in/admin/login"
+          href="/contact"
           class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Get started free
+          Talk to us
         </a>
         <a
-          href="/pricing"
+          href="/tests/aptitude"
           class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
                  text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          See pricing
+          See the live Aptitude test
         </a>
       </div>
 
@@ -166,7 +167,7 @@ const breadcrumbSchema = {
 
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Available tests</p>
       <h2 id="tests-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
-        Eight skill tests, ready to deploy.
+        One skill test live, seven coming soon.
       </h2>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-aiq-lg">
@@ -179,7 +180,7 @@ const breadcrumbSchema = {
                    flex flex-col gap-aiq-sm no-underline group"
           >
             <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">
-              {skill.name}
+              {skill.name}{skill.live ? '' : ' (Coming soon)'}
             </p>
             <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed m-0">
               {skill.tagline}
@@ -208,21 +209,21 @@ const breadcrumbSchema = {
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">01 &mdash; Build</p>
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Select and configure your test.</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Choose from skill-specific question packs — or mix skills into a single timed session. Set time limits, difficulty mix, and the passing threshold.
+            Choose from question packs and set the time limit for your test. More skill packs are coming soon.
           </p>
         </div>
         <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">02 &mdash; Invite</p>
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Send to candidates in bulk.</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Upload a CSV or share a link. Candidates get a proctored, timed session — browser-lock, tab-switch detection, and webcam anomaly flagging included.
+            Upload a CSV of up to 200 students, or invite them individually. Candidates get an emailed invite link, valid for 7 days, and a timed session with a server-side timer.
           </p>
         </div>
         <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">03 &mdash; Review</p>
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Scores that explain themselves.</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Every submission shows the score, a per-question breakdown, the scoring rationale, and any proctoring flags — side by side in the admin dashboard.
+            Every submission shows the score, a per-question breakdown, and the scoring rationale — side by side in the admin dashboard. Results can be exported as CSV.
           </p>
         </div>
       </div>
@@ -236,10 +237,10 @@ const breadcrumbSchema = {
 
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Assess by role</p>
       <h2 id="roles-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
-        Pre-built batteries for common engineering roles.
+        Role batteries for common engineering roles (coming soon).
       </h2>
       <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-3xl max-w-2xl">
-        Each role page combines the right skill tests into a single battery, with a competency matrix, benchmark guidance, and scorecard overview — so you can start screening without building the battery from scratch.
+        Each role page describes a planned battery of skill tests. These batteries depend on tests that are coming soon, so they are not available yet.
       </p>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-aiq-lg">
@@ -249,7 +250,7 @@ const breadcrumbSchema = {
         >
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">Frontend Developer</p>
           <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed m-0">JavaScript, React, Aptitude</p>
-          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">3-test battery &middot; 60&#8211;90 min</p>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">3-test battery &middot; Coming soon</p>
         </a>
         <a
           href="/tests/role/backend-developer"
@@ -257,7 +258,7 @@ const breadcrumbSchema = {
         >
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">Backend Developer</p>
           <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed m-0">Python, Java, SQL</p>
-          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">3-test battery &middot; 75&#8211;105 min</p>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">3-test battery &middot; Coming soon</p>
         </a>
         <a
           href="/tests/role/full-stack-developer"
@@ -265,7 +266,7 @@ const breadcrumbSchema = {
         >
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">Full-Stack Developer</p>
           <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed m-0">JavaScript, React, SQL, Python</p>
-          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">4-test battery &middot; 90&#8211;120 min</p>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">4-test battery &middot; Coming soon</p>
         </a>
         <a
           href="/tests/role/data-analyst"
@@ -273,7 +274,7 @@ const breadcrumbSchema = {
         >
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">Data Analyst</p>
           <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed m-0">SQL, Python, Aptitude, English</p>
-          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">4-test battery &middot; 80&#8211;100 min</p>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">4-test battery &middot; Coming soon</p>
         </a>
         <a
           href="/tests/role/software-engineer"
@@ -281,7 +282,7 @@ const breadcrumbSchema = {
         >
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase m-0 font-medium">Software Engineer</p>
           <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed m-0">Python, Java, SQL, Logical Reasoning</p>
-          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">4-test battery &middot; 90&#8211;120 min</p>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono m-0 mt-auto pt-aiq-sm border-t border-aiq-border">4-test battery &middot; Coming soon</p>
         </a>
       </div>
 
@@ -301,20 +302,20 @@ const breadcrumbSchema = {
           </h2>
           <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
             <a
-              href="https://assessiq.in/admin/login"
+              href="/contact"
               class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Talk to us
             </a>
             <a
-              href="/pricing"
+              href="/tests/aptitude"
               class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
                      text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Pricing
+              See the live Aptitude test
             </a>
           </div>
         </div>
@@ -326,19 +327,19 @@ const breadcrumbSchema = {
               <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 IT &amp; Technical Hiring
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests and technical skills batteries for developer screening.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Technical skills batteries for developer screening (most skill packs coming soon).</p>
             </li>
             <li>
               <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 Campus &amp; Fresher Recruitment
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, English, and coding at bulk scale for campus drives.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude tests at bulk scale for campus drives; English and other packs coming soon.</p>
             </li>
             <li>
               <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 Educational Institutions
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Proctored skill certification for colleges and universities.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Skill assessment and certificates for colleges and universities.</p>
             </li>
             <li>
               <a href="/solutions/team-skill-gap" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">

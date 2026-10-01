@@ -12,7 +12,7 @@ const serviceSchema = {
   "serviceType": "Aptitude skills assessment",
   "provider": { "@type": "Organization", "name": "AssessIQ" },
   "areaServed": ["India", "Worldwide"],
-  "description": "Online aptitude test for pre-employment screening and campus hiring in India. Covers numerical reasoning, data interpretation, time-speed-distance, percentages, and quantitative problem-solving. Structured scoring, anti-cheat proctoring, bulk invite.",
+  "description": "Online aptitude test for pre-employment screening and campus hiring. Multiple-choice, scored automatically. Covers quantitative aptitude, logical reasoning, and verbal ability. CSV student import and results export.",
   "url": `${site}/tests/aptitude`
 };
 
@@ -22,26 +22,26 @@ const faqSchema = {
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "How long is an aptitude test for campus hiring?",
+      "name": "How is the aptitude test scored?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Campus aptitude tests on AssessIQ typically run 30–45 minutes for a 20–30 question MCQ format covering numerical reasoning, data interpretation, and quantitative problem-solving. Duration is configurable; some organisations run 60-minute tests with a wider question mix."
+        "text": "The aptitude test is multiple-choice. Answers are scored automatically and deterministically, and the answer key is never shown to candidates. Question order can be randomised, and options are shuffled per student."
       }
     },
     {
       "@type": "Question",
-      "name": "Is the aptitude test free on AssessIQ?",
+      "name": "How do I invite students to the aptitude test?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "The free tier allows you to run aptitude tests and review results. Bulk invite, concurrent session handling for campus drives, and advanced proctoring controls are part of paid plans. See the pricing page for current limits."
+        "text": "Import a CSV of up to 200 students, or invite them individually. Each student gets an emailed invite link valid for 7 days, and you can resend it. The timer runs on the server."
       }
     },
     {
       "@type": "Question",
-      "name": "What is a good aptitude test score for shortlisting?",
+      "name": "Can I export the results?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Shortlist thresholds depend on the role and competition in your candidate pool. For mass campus hiring in India, teams often shortlist the top 25–40% of applicants at the aptitude stage before moving to a technical screen. AssessIQ shows the cohort distribution per test run so you can set a percentile threshold rather than a fixed score."
+        "text": "Yes. Results can be exported as CSV, and the admin dashboard shows per-test reports so you can compare candidates."
       }
     },
     {
@@ -49,23 +49,7 @@ const faqSchema = {
       "name": "Can the aptitude test be combined with a coding or English test?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. A common campus hiring pattern combines aptitude, a coding question, and English comprehension in a single timed session. AssessIQ lets admins mix question packs from different skill areas within one test."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Is the aptitude test suitable for both engineering and non-engineering roles?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. Numerical reasoning and data interpretation questions are role-neutral. The quantitative difficulty level is adjustable: a junior operations analyst and a fresher engineer can be screened with different difficulty mixes from the same question bank."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Does AssessIQ aptitude test support bulk candidates for placement drives?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. AssessIQ supports CSV bulk invite, shareable test links, and concurrent session handling with no per-seat cap. Proctoring controls (tab-switch detection, webcam monitoring, full-screen enforcement) are active for all candidates simultaneously."
+        "text": "Not yet. The English test is coming soon, and coding tests are not available. Today the live skill pack is Aptitude. Contact us if you need a combined battery."
       }
     }
   ]
@@ -82,18 +66,15 @@ const breadcrumbSchema = {
 };
 
 const topics = [
-  { name: "Numerical reasoning", detail: "Arithmetic, ratio and proportion, percentage calculations, profit and loss, simple and compound interest — the quantitative core of every Indian campus placement test." },
-  { name: "Data interpretation", detail: "Reading bar charts, pie charts, line graphs, and tables accurately. Identifying trends, computing derived values, and making valid inferences from incomplete data." },
-  { name: "Time, speed, and distance", detail: "Train problems, relative speed, average speed over two legs, pipes and cisterns, work-rate problems — the classic categories that appear in TCS, Infosys, Wipro, and similar mass-hiring tests." },
-  { name: "Algebra and number systems", detail: "Linear equations, simple quadratics, divisibility rules, HCF and LCM, prime factorisation, number properties, and digit-based problems." },
-  { name: "Permutation and probability", detail: "Factorial-based counting, combinations vs permutations, basic probability (equally likely outcomes, conditional probability at introductory level), and seating/arrangement problems." },
-  { name: "Series and sequences", detail: "Number series completion (arithmetic, geometric, mixed), letter-number sequences, and odd-one-out in a numerical pattern — overlaps with logical reasoning at the boundary." },
+  { name: "Quantitative aptitude", detail: "Numerical problem-solving: arithmetic, percentages, ratios, and related quantitative questions." },
+  { name: "Logical reasoning", detail: "Questions that test drawing valid conclusions and spotting patterns from given information." },
+  { name: "Verbal ability", detail: "Questions on language use and comprehension in a verbal-ability section." },
 ];
 ---
 
 <BaseLayout
   title="Aptitude Online Test for Hiring & Assessment"
-  description="Run an aptitude online test for campus hiring and fresher recruitment in India. Covers numerical reasoning, data interpretation, time-speed-distance, and quantitative problem-solving. Bulk invite, anti-cheat."
+  description="Run an aptitude online test for campus hiring and fresher recruitment. Multiple-choice, scored automatically. Covers quantitative aptitude, logical reasoning, and verbal ability. CSV student import."
   canonicalPath="/tests/aptitude"
 >
   <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
@@ -119,11 +100,11 @@ const topics = [
         Aptitude Online Test for Hiring &amp; Assessment
       </h1>
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        An aptitude test measures a candidate's quantitative and analytical reasoning ability — numerical reasoning, data interpretation, and problem-solving under time pressure. In India's bulk hiring context, an aptitude screen is the first filter that separates candidates who can handle data-intensive work from those who cannot, before spending interviewer time on technical rounds.
+        An aptitude test measures a candidate's quantitative and analytical reasoning ability under time pressure. The AssessIQ aptitude pack is a multiple-choice test covering quantitative aptitude, logical reasoning, and verbal ability, scored automatically. It works well as a first filter before spending interviewer time on later rounds.
       </p>
       <div class="flex flex-wrap items-center gap-aiq-md">
-        <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Get started free</a>
-        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+        <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+        <a href="/tests" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">All skill tests</a>
       </div>
     </div>
   </section>
@@ -145,7 +126,7 @@ const topics = [
 
   <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
-      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sample question</p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Illustrative example (not an item from the live test)</p>
       <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">The kind of question candidates answer</h2>
       <div class="max-w-3xl">
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-xl">
@@ -170,7 +151,7 @@ const topics = [
         </div>
         <div class="bg-aiq-accent-soft border border-aiq-border rounded-aiq-lg p-aiq-xl">
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">What this question tests</p>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Multi-step percentage calculation with an intermediate averaging step. Candidates who rush will compute the wrong base (using Q1 alone, or summing all four quarters). This pattern appears across analyst, operations, and management-trainee role assessments in India.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Multi-step percentage calculation with an intermediate averaging step. Candidates who rush will compute the wrong base (using Q1 alone, or summing all four quarters). </p>
         </div>
       </div>
     </div>
@@ -183,18 +164,18 @@ const topics = [
       <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg max-w-4xl">
         <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Campus / Fresher Hiring</p>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The standard first filter in Indian campus placement. Shortlist hundreds of applicants before technical rounds. Pair with an <a href="/tests/english" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">English test</a> and coding for a full drive pack.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">A first filter for campus placement: import a CSV of up to 200 students and shortlist before later rounds. An <a href="/tests/english" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">English test</a> is coming soon.</p>
         </div>
         <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Analyst / Operations Roles</p>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Business analyst, operations analyst, and management-trainee screening. Numerical and data interpretation questions are directly predictive of on-the-job analytical work.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Business analyst, operations analyst, and management-trainee screening, where numerical and analytical ability matters.</p>
         </div>
         <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
           <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Banking &amp; Finance</p>
-          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Quantitative aptitude is a core competency for banking sector recruitment (BFSI). The numerical reasoning pack aligns with the quantitative section of standard BFSI screening batteries.</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Quantitative aptitude is a core competency for banking and finance recruitment.</p>
         </div>
       </div>
-      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">Relevant for <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">campus recruitment</a> and <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; technical hiring</a> in India.</p>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">Relevant for <a href="/solutions/campus-recruitment" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">campus recruitment</a> and <a href="/solutions/it-hiring" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">IT &amp; technical hiring</a>.</p>
     </div>
   </section>
 
@@ -205,18 +186,18 @@ const topics = [
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-aiq-lg max-w-3xl">
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Duration</p>
-          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">30–60 min</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Set per test</p>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Configurable per test</p>
         </div>
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Format</p>
           <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">MCQ</p>
-          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Single-correct, timed</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Single-correct, server-side timer</p>
         </div>
         <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl text-center">
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0">Levels</p>
-          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Foundation — Advanced</p>
-          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Fresher to senior analyst</p>
+          <p class="font-serif text-aiq-2xl font-normal text-aiq-fg-primary mb-aiq-xs mt-0">Easy to hard</p>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0">Difficulty set per question</p>
         </div>
       </div>
     </div>
@@ -227,12 +208,10 @@ const topics = [
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
       <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Common questions about the aptitude online test</h2>
       <div class="flex flex-col gap-aiq-xl max-w-3xl">
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How long is an aptitude test for campus hiring?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Campus aptitude tests on AssessIQ typically run 30–45 minutes for a 20–30 question MCQ format. Duration is configurable; some organisations run 60-minute tests with a wider question mix.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the aptitude test free on AssessIQ?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The free tier allows you to run aptitude tests and review results. Bulk invite and advanced proctoring are part of paid plans. See the <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing page</a>.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is a good aptitude test score for shortlisting?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">For mass campus hiring, teams often shortlist the top 25–40% at the aptitude stage. AssessIQ shows the cohort distribution per test run so you can set a percentile threshold rather than a fixed score.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can the aptitude test be combined with a coding or English test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. Combining aptitude, coding, and English in a single timed session is a common campus hiring pattern. AssessIQ lets admins mix question packs from different skill areas within one test.</p></div>
-        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is the aptitude test suitable for both engineering and non-engineering roles?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. Numerical reasoning and data interpretation questions are role-neutral. The quantitative difficulty level is adjustable for different role seniorities and domain contexts.</p></div>
-        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does AssessIQ aptitude test support bulk candidates for placement drives?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. AssessIQ supports CSV bulk invite, shareable test links, and concurrent session handling with no per-seat cap. Proctoring controls are active for all candidates simultaneously.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How is the aptitude test scored?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The test is multiple-choice. Answers are scored automatically and deterministically, and the answer key is never shown to candidates. Question order can be randomised, and options are shuffled per student.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How do I invite students to the aptitude test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Import a CSV of up to 200 students, or invite them individually. Each student gets an emailed invite link valid for 7 days, and you can resend it. The timer runs on the server.</p></div>
+        <div class="border-b border-aiq-border pb-aiq-xl"><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can I export the results?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Yes. Results can be exported as CSV, and the admin dashboard shows per-test reports.</p></div>
+        <div><h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can the aptitude test be combined with a coding or English test?</h3><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Not yet. The English test is coming soon, and coding tests are not available. Today the live skill pack is Aptitude. <a href="/contact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">Contact us</a> if you need a combined battery.</p></div>
       </div>
     </div>
   </section>
@@ -244,16 +223,16 @@ const topics = [
           <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
           <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Ready to screen candidates on aptitude?</h2>
           <div class="flex flex-wrap gap-aiq-md">
-            <a href="https://assessiq.in/admin/login" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Start free</a>
-            <a href="/pricing" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Pricing</a>
+            <a href="/contact" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">Talk to us</a>
+            <a href="/tests" class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2">All skill tests</a>
           </div>
         </div>
         <div>
           <p id="related-heading" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Related tests</p>
           <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
-            <li><a href="/tests/logical-reasoning" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Logical Reasoning Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Pair with aptitude for a complete reasoning battery.</p></li>
-            <li><a href="/tests/english" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">English Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Communication and comprehension screening for campus drives.</p></li>
-            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Add a coding screen for engineering campus hiring.</p></li>
+            <li><a href="/tests/logical-reasoning" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Logical Reasoning Test</a> <span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">A standalone reasoning test.</p></li>
+            <li><a href="/tests/english" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">English Test</a> <span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Communication and comprehension screening.</p></li>
+            <li><a href="/tests/python" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Python Online Test</a> <span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span><p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">A Python knowledge test.</p></li>
             <li><a href="/tests" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">All skill tests &rarr;</a></li>
           </ul>
         </div>

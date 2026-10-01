@@ -17,7 +17,7 @@ const serviceSchema = {
     "name": "AssessIQ"
   },
   "areaServed": ["India", "Worldwide"],
-  "description": "Skill-gap assessment platform for L&D and HR teams in India. Map your existing team's competencies, identify upskilling needs, and benchmark individuals against role requirements — with structured scoring and cohort-level analytics.",
+  "description": "Skill-gap assessment platform for L&D and HR teams in India. Assess your team with structured scoring, individual scorecards, and cohort-level analytics.",
   "url": `${site}/solutions/team-skill-gap`
 };
 
@@ -31,7 +31,7 @@ const faqSchema = {
       "name": "What is a team skill-gap assessment and how does AssessIQ run one?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "A skill-gap assessment measures where your team's current competencies fall short of what a role or project requires. In AssessIQ, you define the target competency profile for a role, invite team members to complete a structured assessment, and receive individual and cohort-level reports showing where gaps exist. The results feed directly into training plans or internal mobility decisions."
+        "text": "A skill-gap assessment measures where your team's current competencies fall short of what a role or project requires. In AssessIQ, you invite team members to complete a structured assessment and receive individual scorecards and cohort-level reports showing score bands and where gaps exist. The results can feed into training plans or internal mobility decisions. Role-specific target competency profiles are coming soon."
       }
     },
     {
@@ -39,7 +39,7 @@ const faqSchema = {
       "name": "Which skills can AssessIQ assess for an existing team?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ covers technical skills (Python, Java, SQL, React, .NET, data analysis, cloud fundamentals), aptitude (quantitative, logical reasoning), and domain knowledge packs. For L&D use cases, assessments are typically less timed and less proctored than hiring screens — the goal is an honest competency map, not a high-stakes gatekeeping event."
+        "text": "Today the live question pack is aptitude and reasoning; scenario and written-answer questions are also supported. Technical domain packs (Python, Java, SQL, React, .NET) are coming soon. Internal assessments are usually less high-stakes than hiring screens — the goal is an honest competency map, not a gatekeeping event."
       }
     },
     {
@@ -47,7 +47,7 @@ const faqSchema = {
       "name": "How are team assessment results reported?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ produces individual scorecards and cohort-level reports. The cohort view shows score distributions by band (for example, what percentage of the team meets a 'proficient' threshold on Python), per-competency breakdowns, and exportable data for HR systems or training-provider briefings. No individual's data is shared without their awareness."
+        "text": "AssessIQ produces individual scorecards and cohort-level reports. The cohort view shows score distributions by band and exportable data (CSV) for HR systems or training-provider briefings. No individual's data is shared without their awareness."
       }
     },
     {
@@ -55,7 +55,7 @@ const faqSchema = {
       "name": "Can AssessIQ be used for internal mobility and promotion decisions?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ's structured rubrics and scoring bands make assessment results usable for internal benchmarking — not just as a number, but as a documented competency profile. For promotion or role-change decisions, the audit trail ensures the decision is backed by consistent evidence, not just a manager's impression."
+        "text": "Yes. AssessIQ's structured rubrics and scoring bands make assessment results usable for internal benchmarking — not just as a number, but as a documented result with rationale. For promotion or role-change decisions, the audit log helps ensure the decision is backed by consistent evidence, not just a manager's impression."
       }
     },
     {
@@ -63,7 +63,7 @@ const faqSchema = {
       "name": "How does a skill-gap assessment differ from a hiring assessment on AssessIQ?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "The platform is the same, but the configuration differs. For internal skill-gap work: proctoring is typically lighter or off (employees are not anonymous candidates), time pressure is reduced, and the output is a development profile rather than a pass/fail shortlist. Admins control all three parameters per assessment."
+        "text": "The platform is the same, but the configuration differs. For internal skill-gap work: time pressure can be reduced, and the output is a development profile rather than a pass/fail shortlist. Admins control these settings per assessment."
       }
     },
     {
@@ -71,7 +71,7 @@ const faqSchema = {
       "name": "Can we benchmark our team against an external standard or role definition?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ lets you define a target competency profile for a role — the skills, levels, and bands that constitute 'ready for this role.' Each team member's assessment is then scored against that profile, producing a gap view: who is ready, who needs development in which area, and how much. External benchmarking against industry standards is on the roadmap; today the comparison is against the organisation's own defined role profiles."
+        "text": "Defining a target competency profile for a role, and scoring each team member against it to produce a gap view, is coming soon. External benchmarking against industry standards is also on the roadmap. Today, assessments produce individual scorecards and cohort score distributions by band."
         // TODO(content): real data — update when external benchmark library is live
       }
     }
@@ -108,15 +108,15 @@ const breadcrumbSchema = {
 const capabilities = [
   {
     label: "Competency Mapping",
-    body: "Define the target skill profile for any role. Assess your team against it and see exactly where individuals and cohorts fall relative to that bar."
+    body: "Assess your team and see where individuals and cohorts fall by score band. Role-specific target skill profiles are coming soon."
   },
   {
     label: "Technical Skill Assessments",
-    body: "Python, Java, SQL, React, .NET, data analysis, cloud fundamentals — the skills that matter most for Indian IT and tech teams. Configured for internal development, not high-stakes gatekeeping."
+    body: "Aptitude and reasoning assessments are live today. Technical packs (Python, Java, SQL, React, .NET) are coming soon. Configured for internal development, not high-stakes gatekeeping."
   },
   {
     label: "Cohort-Level Analytics",
-    body: "Score distributions by band, per-competency breakdowns, and team-wide gap views. Export data for L&D planning, training-provider briefings, or HR systems."
+    body: "Score distributions by band and team-wide results. Export data to CSV for L&D planning, training-provider briefings, or HR systems."
   },
   {
     label: "Individual Scorecards",
@@ -127,8 +127,8 @@ const capabilities = [
     body: "Structured evidence for promotion and role-change decisions. Consistent rubrics mean every candidate for an internal move is assessed against the same bar."
   },
   {
-    label: "Configurable Proctoring",
-    body: "Internal assessments don't need the same controls as candidate screening. Admins configure proctoring per assessment — full controls for high-stakes certifications, lighter touch for development surveys."
+    label: "Configurable Assessments",
+    body: "Internal assessments don't need the same controls as candidate screening. Admins configure each assessment, with lighter time pressure for development surveys. Proctoring is coming soon."
   }
 ];
 
@@ -137,12 +137,12 @@ const useCases = [
   {
     label: "Learning & Development",
     heading: "Spend training budget where it matters.",
-    body: "A baseline skill assessment tells you exactly which competencies need development — before training begins, not six months into a programme that missed the mark."
+    body: "A baseline skill assessment tells you which competencies need development — before training begins, not six months into a programme that missed the mark."
   },
   {
     label: "HR & People Teams",
     heading: "Internal mobility with a paper trail.",
-    body: "Structured scoring and audit logs make promotion and role-change decisions defensible. Every candidate assessed against the same rubric, every decision backed by the same evidence."
+    body: "Structured scoring and an append-only audit log make promotion and role-change decisions defensible. Every candidate assessed against the same rubric, every decision backed by the same evidence."
   },
   {
     label: "Engineering & Tech Leads",
@@ -154,7 +154,7 @@ const useCases = [
 
 <BaseLayout
   title="Team Skill-Gap Analysis & Upskilling Assessment"
-  description="AssessIQ maps your team's current competencies against role requirements, identifies upskilling gaps, and supports internal mobility decisions in India. Cohort analytics, individual scorecards, structured scoring."
+  description="AssessIQ assesses your team's current competencies, highlights upskilling gaps, and supports internal mobility decisions in India. Cohort analytics, individual scorecards, structured scoring."
   canonicalPath="/solutions/team-skill-gap"
 >
   <!-- JSON-LD: Service (separate block per §3.6) -->
@@ -201,17 +201,17 @@ const useCases = [
 
       <!-- Featured-snippet target: 40–60 word definitional intro -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        AssessIQ is a team skill-gap assessment platform for L&D and HR teams in India. It maps your workforce's current competencies against role requirements, identifies upskilling needs, and produces cohort-level analytics to guide training investment and internal mobility decisions.
+        AssessIQ is a team skill-gap assessment platform for L&D and HR teams in India. It assesses your workforce with structured scoring and produces cohort-level analytics to guide training investment and internal mobility decisions.
       </p>
 
       <div class="flex flex-wrap items-center gap-aiq-md">
         <a
-          href="https://assessiq.in/admin/login"
+          href="/contact"
           class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Get started free
+          Request a demo
         </a>
         <a
           href="/contact"
@@ -345,7 +345,7 @@ const useCases = [
             What is a team skill-gap assessment and how does AssessIQ run one?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            A skill-gap assessment measures where your team's current competencies fall short of what a role or project requires. In AssessIQ, you define the target competency profile for a role, invite team members to complete a structured assessment, and receive individual and cohort-level reports showing where gaps exist. The results feed directly into training plans or internal mobility decisions.
+            A skill-gap assessment measures where your team's current competencies fall short of what a role or project requires. In AssessIQ, you invite team members to complete a structured assessment and receive individual scorecards and cohort-level reports showing score bands and where gaps exist. The results can feed into training plans or internal mobility decisions. Role-specific target competency profiles are coming soon.
           </p>
         </div>
 
@@ -354,7 +354,7 @@ const useCases = [
             Which skills can AssessIQ assess for an existing team?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ covers technical skills (Python, Java, SQL, React, .NET, data analysis, cloud fundamentals), aptitude (quantitative, logical reasoning), and domain knowledge packs. For L&D use cases, assessments are typically less timed and less proctored than hiring screens — the goal is an honest competency map, not a high-stakes gatekeeping event.
+            Today the live question pack is aptitude and reasoning; scenario and written-answer questions are also supported. Technical domain packs (Python, Java, SQL, React, .NET) are coming soon. Internal assessments are usually less high-stakes than hiring screens — the goal is an honest competency map, not a gatekeeping event.
           </p>
         </div>
 
@@ -363,7 +363,7 @@ const useCases = [
             How are team assessment results reported?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ produces individual scorecards and cohort-level reports. The cohort view shows score distributions by band (for example, what percentage of the team meets a "proficient" threshold on Python), per-competency breakdowns, and exportable data for HR systems or training-provider briefings. No individual's data is shared without their awareness.
+            AssessIQ produces individual scorecards and cohort-level reports. The cohort view shows score distributions by band and exportable data (CSV) for HR systems or training-provider briefings. No individual's data is shared without their awareness.
           </p>
         </div>
 
@@ -372,7 +372,7 @@ const useCases = [
             Can AssessIQ be used for internal mobility and promotion decisions?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Yes. AssessIQ's structured rubrics and scoring bands make assessment results usable for internal benchmarking — not just as a number, but as a documented competency profile. For promotion or role-change decisions, the audit trail ensures the decision is backed by consistent evidence, not just a manager's impression.
+            Yes. AssessIQ's structured rubrics and scoring bands make assessment results usable for internal benchmarking — not just as a number, but as a documented result with rationale. For promotion or role-change decisions, the audit log helps ensure the decision is backed by consistent evidence, not just a manager's impression.
           </p>
         </div>
 
@@ -381,7 +381,7 @@ const useCases = [
             How does a skill-gap assessment differ from a hiring assessment on AssessIQ?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            The platform is the same, but the configuration differs. For internal skill-gap work: proctoring is typically lighter or off (employees are not anonymous candidates), time pressure is reduced, and the output is a development profile rather than a pass/fail shortlist. Admins control all three parameters per assessment.
+            The platform is the same, but the configuration differs. For internal skill-gap work: time pressure can be reduced, and the output is a development profile rather than a pass/fail shortlist. Admins control these settings per assessment.
           </p>
         </div>
 
@@ -390,7 +390,7 @@ const useCases = [
             Can we benchmark our team against an external standard or role definition?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ lets you define a target competency profile for a role — the skills, levels, and bands that constitute "ready for this role." Each team member's assessment is then scored against that profile, producing a gap view: who is ready, who needs development in which area, and how much. External benchmarking against industry standards is on the roadmap; today the comparison is against the organisation's own defined role profiles.
+            Defining a target competency profile for a role, and scoring each team member against it to produce a gap view, is coming soon. External benchmarking against industry standards is also on the roadmap. Today, assessments produce individual scorecards and cohort score distributions by band.
             {/* TODO(content): real data — update when external benchmark library is live */}
           </p>
         </div>
@@ -413,12 +413,12 @@ const useCases = [
           </h2>
           <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
             <a
-              href="https://assessiq.in/admin/login"
+              href="/contact"
               class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Request a demo
             </a>
             <a
               href="/contact"
@@ -430,7 +430,7 @@ const useCases = [
             </a>
           </div>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
-            See <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a> or review our <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security and data residency</a> practices.
+            See <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a> or review our <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security</a> practices.
           </p>
         </div>
 
@@ -445,19 +445,19 @@ const useCases = [
               <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 IT &amp; Technical Hiring
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, technical screening, and proctored developer assessments for IT companies.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude and skills assessments for IT companies.</p>
             </li>
             <li>
               <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 Campus &amp; Fresher Recruitment
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, coding, and English at bulk scale for campus placement drives.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude assessments at bulk scale for campus placement drives.</p>
             </li>
             <li>
               <a href="/solutions/educational-institutions" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 Educational Institutions
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Online proctored exams and skill certification for colleges and universities.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Online exams and skill certification for colleges and universities.</p>
             </li>
           </ul>
         </div>

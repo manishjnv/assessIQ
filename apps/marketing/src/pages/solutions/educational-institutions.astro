@@ -2,7 +2,7 @@
 // solutions/educational-institutions.astro — Educational Institutions solution page
 // JSON-LD: THREE separate blocks — Service, FAQPage, BreadcrumbList (per SEO §3.6 / §15 template)
 // NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
-// India-first positioning per SEO §17: colleges/universities — proctored exams, skill certification
+// India-first positioning per SEO §17: colleges/universities — online exams, skill certification
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
@@ -11,13 +11,13 @@ const site = 'https://assessiq.in';
 const serviceSchema = {
   "@context": "https://schema.org",
   "@type": "Service",
-  "serviceType": "Online proctored examination and skill assessment for educational institutions",
+  "serviceType": "Online examination and skill assessment for educational institutions",
   "provider": {
     "@type": "Organization",
     "name": "AssessIQ"
   },
   "areaServed": ["India", "Worldwide"],
-  "description": "Online proctored exam platform for colleges and universities in India. Run end-semester exams, skill certification tests, and outcome assessments — with browser lockdown, webcam monitoring, and tamper-evident digital credentials.",
+  "description": "Online exam and skill certification platform for colleges and universities in India. Run skill certification tests and outcome assessments with server-side timers and certificates that anyone can verify online.",
   "url": `${site}/solutions/educational-institutions`
 };
 
@@ -28,18 +28,18 @@ const faqSchema = {
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "Can AssessIQ be used for end-semester and university examinations?",
+      "name": "Can AssessIQ be used for online tests and examinations?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ supports timed, proctored online examinations with question-type flexibility (MCQ, short answer, coding, essay prompts). Institutions can configure multi-section papers, per-section time limits, and individual or batch scheduling. Every attempt produces a full audit log suitable for institutional review."
+        "text": "AssessIQ supports timed online assessments with multiple-choice (scored deterministically), scenario, and written-answer questions. Timers are enforced on the server and start when the student begins and consents. Every attempt is logged and auditable. Multi-section papers and proctoring are not available yet; proctoring is coming soon."
       }
     },
     {
       "@type": "Question",
-      "name": "What proctoring controls are available for online exams?",
+      "name": "What integrity controls are available for online exams?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ's proctoring layer includes browser lockdown (full-screen enforcement, tab-switch detection), webcam monitoring with AI-flagged anomalies, copy-paste restriction, and a timestamped event log for every session. Institutions can review flagged events alongside the submitted answers in the admin dashboard."
+        "text": "AssessIQ randomises question order, shuffles MCQ options per student, enforces server-side timers, and issues invite links to individual students. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon."
       }
     },
     {
@@ -47,7 +47,7 @@ const faqSchema = {
       "name": "How does AssessIQ handle skill certification for students?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ can issue tamper-evident digital credentials for skills assessed on the platform. Each credential is linked to the underlying assessment attempt and scoring rubric — so an employer or institution receiving the credential can verify both the score and the evidence behind it. Credential sharing is candidate-controlled."
+        "text": "AssessIQ issues certificates for assessments taken on the platform, each with a public verification page. An employer or institution receiving a certificate can confirm it is genuine. Credential sharing is candidate-controlled."
       }
     },
     {
@@ -60,10 +60,10 @@ const faqSchema = {
     },
     {
       "@type": "Question",
-      "name": "Is candidate data stored in India?",
+      "name": "Where is candidate data stored?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. All candidate data, assessment results, and proctoring records are stored on India-region infrastructure. AssessIQ is designed to align with India's Digital Personal Data Protection Act (DPDP) requirements. Institutions retain control over their data and can request exports or deletion in compliance with their own data governance obligations."
+        "text": "Candidate data and assessment results are held on managed infrastructure with tenant isolation enforced at the database layer. AssessIQ is built with India's Digital Personal Data Protection Act (DPDP) in mind. Written answers evaluated with AI assistance are sent to Anthropic's Claude service in the United States. Ask us if you have specific data-location requirements."
       }
     },
     {
@@ -71,7 +71,7 @@ const faqSchema = {
       "name": "Does AssessIQ require candidates to install any software?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "No. AssessIQ is entirely browser-based. Students need a modern browser (Chrome or Edge recommended for full proctoring support) and a webcam for monitored sessions. No desktop client, plugin, or app installation is required — which makes BYOD exam setups and remote examination straightforward to administer."
+        "text": "No. AssessIQ is entirely browser-based. Students need a modern browser and a stable internet connection. No desktop client, plugin, or app installation is required — which makes BYOD exam setups and remote examination straightforward to administer."
       }
     }
   ]
@@ -106,28 +106,28 @@ const breadcrumbSchema = {
 // Capability cards
 const capabilities = [
   {
-    label: "Online Proctored Exams",
-    body: "Browser lockdown, webcam monitoring, tab-switch detection, and a timestamped event log. Run examinations with confidence in the result integrity."
+    label: "Fair Online Exams",
+    body: "Randomised question order, per-student option shuffle, server-side timers, and a full audit log. Proctoring is coming soon."
   },
   {
-    label: "Flexible Question Types",
-    body: "MCQ, short answer, coding problems, essay prompts. Build multi-section papers with per-section time limits and question-pool randomisation."
+    label: "Question Types",
+    body: "MCQ scored deterministically, plus scenario and written-answer questions evaluated with AI assistance by AssessIQ evaluators."
   },
   {
     label: "Skill Certification",
-    body: "Issue tamper-evident digital credentials linked to the assessment rubric and attempt record. Students share them; employers can verify them."
+    body: "Issue certificates with a public verification page, linked to the assessment attempt. Students share them; employers can verify them."
   },
   {
     label: "Outcome Assessment Reports",
     body: "Score distributions, pass rates, and per-competency breakdowns at cohort level. Export data for NAAC, NBA, or internal programme review."
   },
   {
-    label: "Batch Scheduling",
-    body: "Create multiple exam windows for different student groups. Admins manage scheduling, invites, and access from a single dashboard — no per-exam manual coordination."
+    label: "Bulk Invite",
+    body: "Import students from CSV (up to 200 per import) and send invite links by email, valid for 7 days, with single and bulk resend."
   },
   {
-    label: "India Data Residency",
-    body: "All data stored in India. Aligned with DPDP requirements. Institutions control their data and can request exports or deletion on demand."
+    label: "Data Protection",
+    body: "Tenant isolation at the database layer and an append-only audit log. Built with DPDP requirements in mind."
   }
 ];
 
@@ -135,25 +135,25 @@ const capabilities = [
 const useCases = [
   {
     label: "Academic Institutions",
-    heading: "Run exams online without compromising integrity.",
-    body: "Replace in-hall paper exams with a proctored online alternative — or supplement them with skill assessments that measure what graduates can actually do, not just what they memorise."
+    heading: "Run exams online with a clear audit trail.",
+    body: "Replace in-hall paper exams with an online alternative — or supplement them with skill assessments that measure what graduates can actually do, not just what they memorise."
   },
   {
     label: "Examination Departments",
     heading: "An audit trail for every attempt.",
-    body: "Proctoring flags, timestamped events, and per-answer scoring rationale are available for every submitted paper. If a result is disputed, the evidence is there."
+    body: "Timestamped attempt logs and per-answer scoring rationale are available for every submitted paper. If a result is disputed, the evidence is there."
   },
   {
     label: "Placement & Career Cells",
     heading: "Certify skills, not just grades.",
-    body: "Issue skill credentials tied to assessed competencies — Python, data analysis, communication, logical reasoning — that students can take to recruiters alongside their transcript."
+    body: "Issue skill certificates tied to assessed competencies that students can take to recruiters alongside their transcript."
   }
 ];
 ---
 
 <BaseLayout
-  title="Online Proctored Exams for Educational Institutions"
-  description="AssessIQ provides online proctored exam and skill certification tools for colleges and universities in India. Browser lockdown, webcam monitoring, digital credentials, and outcome assessment reports for NAAC/NBA."
+  title="Online Exams for Educational Institutions"
+  description="AssessIQ provides online exam and skill certification tools for colleges and universities in India. Server-side timers, certificates with public verification, and cohort reports."
   canonicalPath="/solutions/educational-institutions"
 >
   <!-- JSON-LD: Service (separate block per §3.6) -->
@@ -200,17 +200,17 @@ const useCases = [
 
       <!-- Featured-snippet target: 40–60 word definitional intro -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        AssessIQ is an online proctored exam and skill certification platform for colleges and universities in India. It runs timed, supervised assessments with browser lockdown, webcam monitoring, and tamper-evident digital credentials — so results are defensible and meaningful.
+        AssessIQ is an online exam and skill certification platform for colleges and universities in India. It runs timed assessments with server-side timers and certificates anyone can verify — so results are defensible and meaningful.
       </p>
 
       <div class="flex flex-wrap items-center gap-aiq-md">
         <a
-          href="https://assessiq.in/admin/login"
+          href="/contact"
           class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Get started free
+          Request a demo
         </a>
         <a
           href="/contact"
@@ -251,7 +251,7 @@ const useCases = [
               Remote exams that can't be trusted.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Online exams without proctoring are trivially circumvented. But proctoring that is intrusive or technically unreliable creates a different problem — student grievances, disputed results, and institutional liability. The right level of monitoring is auditable, not adversarial.
+              Online exams are easy to game when every student sees the same questions in the same order. Randomised ordering, per-student option shuffle, and an auditable record of every attempt help — and proctoring is coming soon.
             </p>
           </div>
           <div>
@@ -259,7 +259,7 @@ const useCases = [
               Credentials that employers can't verify.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              A PDF certificate issued by a college says nothing about what was assessed, at what standard, or whether the result is genuine. A digital credential linked to an auditable attempt and a structured rubric says all three.
+              A PDF certificate issued by a college says nothing about what was assessed, at what standard, or whether the result is genuine. A certificate with a public verification page, linked to an auditable attempt and a structured rubric, says all three.
             </p>
           </div>
           <div>
@@ -267,7 +267,7 @@ const useCases = [
               Outcome data in the wrong format for accreditation.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              NAAC and NBA frameworks require evidence of programme learning outcomes. Most institutions produce that evidence from aggregated marks, not from competency-mapped assessments. A platform that maps each question to an outcome makes that reporting straightforward.
+              NAAC and NBA frameworks require evidence of programme learning outcomes. AssessIQ provides cohort-level score reports and CSV exports that institutions can use in their own outcome reporting.
             </p>
           </div>
         </div>
@@ -341,19 +341,19 @@ const useCases = [
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-            Can AssessIQ be used for end-semester and university examinations?
+            Can AssessIQ be used for online tests and examinations?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Yes. AssessIQ supports timed, proctored online examinations with question-type flexibility (MCQ, short answer, coding, essay prompts). Institutions can configure multi-section papers, per-section time limits, and individual or batch scheduling. Every attempt produces a full audit log suitable for institutional review.
+            AssessIQ supports timed online assessments with multiple-choice (scored deterministically), scenario, and written-answer questions. Timers are enforced on the server and start when the student begins and consents. Every attempt is logged and auditable. Multi-section papers and proctoring are not available yet; proctoring is coming soon.
           </p>
         </div>
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-            What proctoring controls are available for online exams?
+            What integrity controls are available for online exams?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ's proctoring layer includes browser lockdown (full-screen enforcement, tab-switch detection), webcam monitoring with AI-flagged anomalies, copy-paste restriction, and a timestamped event log for every session. Institutions can review flagged events alongside the submitted answers in the admin dashboard.
+            AssessIQ randomises question order, shuffles MCQ options per student, enforces server-side timers, and issues invite links to individual students. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon.
           </p>
         </div>
 
@@ -362,7 +362,7 @@ const useCases = [
             How does AssessIQ handle skill certification for students?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ can issue tamper-evident digital credentials for skills assessed on the platform. Each credential is linked to the underlying assessment attempt and scoring rubric — so an employer or institution receiving the credential can verify both the score and the evidence behind it. Credential sharing is candidate-controlled.
+            AssessIQ issues certificates for assessments taken on the platform, each with a public verification page. An employer or institution receiving a certificate can confirm it is genuine. Credential sharing is candidate-controlled.
           </p>
         </div>
 
@@ -377,10 +377,10 @@ const useCases = [
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-            Is candidate data stored in India?
+            Where is candidate data stored?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Yes. All candidate data, assessment results, and proctoring records are stored on India-region infrastructure. AssessIQ is designed to align with India's Digital Personal Data Protection Act (DPDP) requirements. Institutions retain control over their data and can request exports or deletion in compliance with their own data governance obligations.
+            Candidate data and assessment results are held on managed infrastructure with tenant isolation enforced at the database layer. AssessIQ is built with India's Digital Personal Data Protection Act (DPDP) in mind. Written answers evaluated with AI assistance are sent to Anthropic's Claude service in the United States. Ask us if you have specific data-location requirements.
           </p>
         </div>
 
@@ -389,7 +389,7 @@ const useCases = [
             Does AssessIQ require candidates to install any software?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            No. AssessIQ is entirely browser-based. Students need a modern browser (Chrome or Edge recommended for full proctoring support) and a webcam for monitored sessions. No desktop client, plugin, or app installation is required — which makes BYOD exam setups and remote examination straightforward to administer.
+            No. AssessIQ is entirely browser-based. Students need a modern browser and a stable internet connection. No desktop client, plugin, or app installation is required — which makes BYOD exam setups and remote examination straightforward to administer.
           </p>
         </div>
 
@@ -411,12 +411,12 @@ const useCases = [
           </h2>
           <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
             <a
-              href="https://assessiq.in/admin/login"
+              href="/contact"
               class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Request a demo
             </a>
             <a
               href="/contact"
@@ -428,7 +428,7 @@ const useCases = [
             </a>
           </div>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
-            Questions about data residency or DPDP compliance? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+            Questions about data protection or DPDP? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
           </p>
         </div>
 
@@ -443,13 +443,13 @@ const useCases = [
               <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 IT &amp; Technical Hiring
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, technical screening, and proctored developer assessments for IT companies.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude and skills assessments for IT companies.</p>
             </li>
             <li>
               <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 Campus &amp; Fresher Recruitment
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude, coding, and English at bulk scale for campus placement drives.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Aptitude assessments at bulk scale for campus placement drives.</p>
             </li>
             <li>
               <a href="/solutions/team-skill-gap" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">

@@ -30,7 +30,7 @@ const articleSchema = {
     }
   },
   "mainEntityOfPage": `${site}${slug}`,
-  "description": "Looking for a HackerEarth alternative? See how AssessIQ compares for India-first hiring — structured scoring, proctoring, and private B2B assessments without a public developer community."
+  "description": "Looking for a HackerEarth alternative? See how AssessIQ compares for India-first hiring — structured scoring and private B2B assessments without a public developer community."
 };
 
 const faqSchema = {
@@ -50,7 +50,7 @@ const faqSchema = {
       "name": "How does AssessIQ differ from HackerEarth?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth's strength is its developer community and sourcing capabilities — hackathons and hiring challenges can attract candidates beyond your existing pipeline. AssessIQ is a private B2B assessment platform with no public community or leaderboards, focused on structured, rubric-based assessments with audit trails. AssessIQ suits teams that want a controlled, branded process; HackerEarth suits teams that want to source candidates via community engagement."
+        "text": "HackerEarth's strength is its developer community and sourcing capabilities — hackathons and hiring challenges can attract candidates beyond your existing pipeline. AssessIQ is a private B2B assessment platform with no public community or leaderboards, focused on structured, rubric-based assessments with audit trails. AssessIQ suits teams that want a controlled, private process; HackerEarth suits teams that want to source candidates via community engagement."
       }
     },
     {
@@ -58,7 +58,7 @@ const faqSchema = {
       "name": "Does HackerEarth have a free tier?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth has offered free starter access historically. Pricing varies by plan and usage; check hackerearth.com/recruit for current terms. AssessIQ also offers a free tier — see /pricing for details."
+        "text": "HackerEarth has offered free starter access historically. Pricing varies by plan and usage; check hackerearth.com/recruit for current terms. AssessIQ does not offer a free tier — contact us for pricing."
       }
     },
     {
@@ -66,7 +66,7 @@ const faqSchema = {
       "name": "Is HackerEarth India-focused?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes — HackerEarth is headquartered in Bengaluru and has strong India roots, with active developer communities across Indian cities. Its enterprise hiring platform is used globally, including by large multinationals. AssessIQ is similarly India-first, with calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team budgets."
+        "text": "Yes — HackerEarth is headquartered in Bengaluru and has strong India roots, with active developer communities across Indian cities. Its enterprise hiring platform is used globally, including by large multinationals. AssessIQ is similarly India-first, with a ready aptitude question pack for campus-style hiring."
       }
     },
     {
@@ -74,7 +74,7 @@ const faqSchema = {
       "name": "Which is better for coding tests — HackerEarth or AssessIQ?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Both platforms support live coding tests with test-case execution. HackerEarth's question library is larger (36,000+ questions, 40+ languages) and its community-sourcing tools are a genuine differentiator. AssessIQ's coding tests are paired with structured rubric scoring — the admin sees test-case pass rates, submitted code, and a rationale band — making results easier to defend in a structured hiring process."
+        "text": "HackerEarth is the clear choice for coding tests: live code execution, a 36,000+ question library across 40+ languages, and community-sourcing tools. AssessIQ does not offer coding tests, a code sandbox or auto-graded code yet. Its strength is structured rubric scoring for MCQ, subjective, scenario and log-analysis questions, with a rationale for every band."
       }
     },
     {
@@ -82,7 +82,7 @@ const faqSchema = {
       "name": "When should I choose AssessIQ over HackerEarth?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ is likely a better fit if: (a) you want private, branded assessments without exposing your hiring pipeline to a public developer community; (b) structured scoring with per-answer rationale matters for your review process; or (c) you need bulk hiring assessments across multiple roles without paying for community or hackathon features you won't use."
+        "text": "AssessIQ is likely a better fit if: (a) you want private assessments without exposing your hiring pipeline to a public developer community; (b) structured scoring with per-answer rationale matters for your review process; or (c) you need assessments for batches of candidates without paying for community or hackathon features you won't use."
       }
     }
   ]
@@ -116,18 +116,18 @@ const criteria = [
   { criterion: "Primary category",        hackerearth: "Developer community + assessment",   assessiq: "Structured hiring assessment" },
   { criterion: "India headquarters",       hackerearth: "Yes (Bengaluru)",                   assessiq: "Yes" },
   { criterion: "Developer community",      hackerearth: "10M+ registered developers",         assessiq: "B2B only — no public community" },
-  { criterion: "Question library",         hackerearth: "36,000+ questions, 40+ languages",   assessiq: "Curated packs for Indian IT roles" },
+  { criterion: "Question library",         hackerearth: "36,000+ questions, 40+ languages",   assessiq: "Aptitude pack (live); other packs on the roadmap (Coming soon)" },
   { criterion: "Hackathon / challenges",   hackerearth: "Yes — sourcing feature",             assessiq: "Not applicable" },
-  { criterion: "Proctoring",              hackerearth: "Computer vision, tab-switch, AI",     assessiq: "Webcam, tab-switch, full-screen, event log" },
+  { criterion: "Proctoring",              hackerearth: "Computer vision, tab-switch, AI",     assessiq: "Coming soon" },
   { criterion: "Scoring model",           hackerearth: "Test-case pass/fail + scoring",       assessiq: "Anchor-based rubrics + scoring bands" },
-  { criterion: "Pricing model",           hackerearth: "Contact-based / tiered plans",        assessiq: "See /pricing" },
+  { criterion: "Pricing model",           hackerearth: "Contact-based / tiered plans",        assessiq: "Contact sales" },
   { criterion: "Ideal fit",               hackerearth: "Sourcing + screening combined",       assessiq: "Screening-stage structured assessment" },
 ];
 ---
 
 <BaseLayout
   title="Best HackerEarth Alternatives in 2026"
-  description="Looking for a HackerEarth alternative? See how AssessIQ compares for India-first hiring & assessment — structured scoring, proctored, private B2B with no public leaderboards."
+  description="Looking for a HackerEarth alternative? See how AssessIQ compares for India-first hiring & assessment — structured scoring, private B2B with no public leaderboards."
   canonicalPath="/alternatives/hackerearth"
   ogType="article"
 >
@@ -178,7 +178,7 @@ const criteria = [
                  hover:bg-aiq-accent-hover transition-colors duration-150
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
         >
-          Try AssessIQ free
+          Sign in to AssessIQ
         </a>
         <a
           href="/contact"
@@ -288,10 +288,10 @@ const criteria = [
           <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
             <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">AssessIQ may suit you if…</p>
             <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
-              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want a private, branded assessment process — no public leaderboards, no shared candidate community.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want a private assessment process — no public leaderboards, no shared candidate community.</span></li>
               <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>Structured scoring with per-answer rationale and audit trails matters for your hiring reviews or compliance.</span></li>
-              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You are running bulk hiring across multiple roles and need a lean admin workflow without community-management overhead.</span></li>
-              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>India-first pricing and local data residency are requirements.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You are assessing batches of candidates and need a lean admin workflow without community-management overhead.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want a simple CSV-based student import and results export.</span></li>
             </ul>
           </div>
         </div>
@@ -320,35 +320,35 @@ const criteria = [
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How does AssessIQ differ from HackerEarth?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            HackerEarth's strength is its developer community and sourcing capabilities — hackathons and hiring challenges can attract candidates beyond your existing pipeline. AssessIQ is a private B2B assessment platform with no public community or leaderboards, focused on structured, rubric-based assessments with audit trails. AssessIQ suits teams that want a controlled, branded process; HackerEarth suits teams that want to source candidates via community engagement.
+            HackerEarth's strength is its developer community and sourcing capabilities — hackathons and hiring challenges can attract candidates beyond your existing pipeline. AssessIQ is a private B2B assessment platform with no public community or leaderboards, focused on structured, rubric-based assessments with audit trails. AssessIQ suits teams that want a controlled, private process; HackerEarth suits teams that want to source candidates via community engagement.
           </p>
         </div>
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does HackerEarth have a free tier?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            HackerEarth has offered free starter access historically. Pricing varies by plan and usage; check hackerearth.com/recruit for current terms. AssessIQ also offers a free tier — see <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">/pricing</a> for details.
+            HackerEarth has offered free starter access historically. Pricing varies by plan and usage; check hackerearth.com/recruit for current terms. AssessIQ does not offer a free tier — <a href="/contact" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">contact us</a> for pricing.
           </p>
         </div>
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Is HackerEarth India-focused?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Yes — HackerEarth is headquartered in Bengaluru and has strong India roots, with active developer communities across Indian cities. Its enterprise hiring platform is used globally. AssessIQ is similarly India-first, with calibrated question packs for Indian IT role stacks, local data residency, and pricing designed for Indian team budgets.
+            Yes — HackerEarth is headquartered in Bengaluru and has strong India roots, with active developer communities across Indian cities. Its enterprise hiring platform is used globally. AssessIQ is similarly India-first, with a ready aptitude question pack for campus-style hiring.
           </p>
         </div>
 
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Which is better for coding tests — HackerEarth or AssessIQ?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Both platforms support live coding tests with test-case execution. HackerEarth's question library is larger (36,000+ questions, 40+ languages) and its community-sourcing tools are a genuine differentiator. AssessIQ's coding tests are paired with structured rubric scoring — the admin sees test-case pass rates, submitted code, and a rationale band — making results easier to defend in a structured hiring process.
+            HackerEarth is the clear choice for coding tests: live code execution, a 36,000+ question library across 40+ languages, and community-sourcing tools. AssessIQ does not offer coding tests, a code sandbox or auto-graded code yet. Its strength is structured rubric scoring for MCQ, subjective, scenario and log-analysis questions, with a rationale for every band.
           </p>
         </div>
 
         <div>
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">When should I choose AssessIQ over HackerEarth?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ is likely a better fit if: (a) you want private, branded assessments without exposing your hiring pipeline to a public developer community; (b) structured scoring with per-answer rationale matters for your review process; or (c) you need bulk hiring assessments across multiple roles without paying for community or hackathon features you won't use.
+            AssessIQ is likely a better fit if: (a) you want private assessments without exposing your hiring pipeline to a public developer community; (b) structured scoring with per-answer rationale matters for your review process; or (c) you need assessments for batches of candidates without paying for community or hackathon features you won't use.
           </p>
         </div>
 
@@ -373,7 +373,7 @@ const criteria = [
                      hover:bg-aiq-accent-hover transition-colors duration-150
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
             >
-              Start free
+              Sign in
             </a>
             <a
               href="/contact"
@@ -385,7 +385,7 @@ const criteria = [
             </a>
           </div>
           <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
-            Questions about security or data residency? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
+            Questions about security? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a> or <a href="/pricing" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">pricing</a>.
           </p>
         </div>
 
@@ -408,13 +408,13 @@ const criteria = [
               <a href="/alternatives/amcat" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 AssessIQ vs AMCAT
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">India's fresher employability test vs custom branded assessment.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">India's fresher employability test vs private assessment.</p>
             </li>
             <li>
               <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
                 IT &amp; Technical Hiring with AssessIQ
               </a>
-              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Coding tests, structured scoring, and audit trails for IT teams.</p>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Structured scoring and audit trails for IT teams.</p>
             </li>
           </ul>
         </div>

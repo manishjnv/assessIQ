@@ -36,14 +36,14 @@ const pillars = [
     body: "India's Digital Personal Data Protection (DPDP) Act 2023 places obligations on how personal data is collected, processed, and stored. AssessIQ is built to support those obligations: candidate data is collected only for the purpose of assessment, processing is scoped to that purpose, and we aim to give data principals — candidates — meaningful control over their data. We continue to monitor DPDP rulemaking as it matures.",
   },
   {
-    label: "Data residency",
-    heading: "Candidate data stays in India.",
-    body: "All assessment data, candidate records, proctoring footage, and attempt logs are stored on India-region infrastructure. We do not route personal data through overseas servers for routine processing. This matters for institutions and employers who need to demonstrate that candidate information remains within Indian jurisdiction.",
+    label: "Data location",
+    heading: "Where your data is processed.",
+    body: "Assessment data, candidate records, and attempt logs are stored on our managed hosting infrastructure. Written answers for subjective questions are evaluated with AI assistance by AssessIQ evaluators, which sends the answer text to Anthropic's Claude service, operated in the United States. If you have data-location requirements, ask us before you sign up.",
   },
   {
-    label: "Encryption in transit and at rest",
-    heading: "TLS everywhere. Data encrypted at rest.",
-    body: "All traffic between candidates, administrators, and AssessIQ is encrypted in transit using TLS 1.2+. Sensitive data — including candidate PII and assessment responses — is encrypted at rest in the underlying database. Access credentials are never stored in plaintext.",
+    label: "Encryption in transit",
+    heading: "TLS for all traffic.",
+    body: "All traffic between candidates, administrators, and AssessIQ is encrypted in transit using TLS. Data is held on managed infrastructure. Sign-in codes and session tokens are never stored in plaintext.",
   },
   {
     label: "Multi-tenant isolation",
@@ -53,12 +53,12 @@ const pillars = [
   {
     label: "Audit logging",
     heading: "Every action is logged and auditable.",
-    body: "AssessIQ maintains append-only audit logs for all administrative actions: assessment creation and publication, candidate invitations, result access, and configuration changes. Logs are timestamped and cannot be modified or deleted by administrators. Enterprise customers can export full audit trails for internal compliance review.",
+    body: "AssessIQ maintains append-only audit logs for all administrative actions: assessment creation and publication, candidate invitations, result access, and configuration changes. Logs are timestamped and cannot be modified or deleted by administrators.",
   },
   {
     label: "Access controls",
     heading: "Role-separated access across the platform.",
-    body: "The platform enforces strict role separation: super-admins, company administrators, reviewers, and candidates each see only what their role permits. Reviewer access to candidate answers is scoped by assignment — a reviewer can see only the assessments they are assigned to. Admin credentials require email-based multi-factor authentication.",
+    body: "The platform enforces strict role separation: super-admins, company administrators, reviewers, and candidates each see only what their role permits. Sign-in uses an email one-time code or Google sign-in, with optional authenticator-app (TOTP) multi-factor authentication.",
   },
 ];
 
@@ -66,26 +66,26 @@ const pillars = [
 const integrityPractices = [
   {
     label: "Proctoring",
-    body: "Full proctoring (Growth and Enterprise tiers) combines browser lockdown — candidates cannot switch tabs or open other applications — with webcam monitoring. Suspicious events are flagged automatically and surfaced to administrators for review. Every flag is accompanied by a timestamp and a screenshot or recording clip.",
+    body: "Webcam proctoring, browser lockdown, and automated flagging of suspicious activity are not available today (Coming soon). Today, integrity rests on the measures below: server-side timers, randomisation, and per-candidate invite links.",
   },
   {
     label: "Anti-cheat measures",
-    body: "Question packs support randomisation of question order and, for MCQ, answer option order. Time limits are enforced server-side, not only in the browser. Copy-paste is restricted in the coding environment. These measures reduce the value of answer-sharing between candidates in the same drive.",
+    body: "Assessments can randomise question order, and MCQ answer options are shuffled per student when randomisation is on. Time limits are enforced server-side, not only in the browser. Timers start when the candidate begins and consents, and each invite link is issued to one candidate. These measures reduce the value of answer-sharing between candidates in the same drive.",
   },
   {
     label: "Fairness & bias mitigation",
-    body: "AssessIQ uses anchor-based, rubric-driven scoring rather than subjective judgment. Every assessment outcome carries rationale — what the candidate demonstrated, and at which band. This makes the basis for a score inspectable and challenges to it addressable. Question packs can be reviewed for language neutrality before deployment.",
+    body: "AssessIQ uses anchor-based, rubric-driven scoring rather than subjective judgment. Every assessment outcome carries rationale — what the candidate demonstrated, and at which band. This makes the basis for a score inspectable and challenges to it addressable.",
   },
   {
     label: "Answer-key protection",
-    body: "Correct answers and scoring rationale are never exposed to candidates — not in the assessment UI, not in share links, and not in any API response that a candidate can reach. Access to correct answers is gated to administrator and reviewer roles only.",
+    body: "Correct answers are never exposed to candidates — not in the assessment UI, not in invite links, and not in any API response that a candidate can reach. Access to correct answers is gated to administrator and reviewer roles only. Students only ever see complete scores.",
   },
 ];
 ---
 
 <BaseLayout
   title="Security & Data Protection — AssessIQ"
-  description="How AssessIQ handles data protection, India DPDP Act alignment, data residency, encryption, multi-tenant isolation, audit logging, access controls, and assessment integrity."
+  description="How AssessIQ handles data protection, India DPDP Act awareness, data location, encryption in transit, multi-tenant isolation, audit logging, access controls, and assessment integrity."
   canonicalPath="/security"
 >
   <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
@@ -207,7 +207,7 @@ const integrityPractices = [
               Containerised, isolated services.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              The platform runs as a set of containerised services. The candidate-facing application, the admin application, the API layer, and the database run in separate containers with scoped network access. A vulnerability in the candidate UI does not give access to the admin API.
+              The platform runs as a set of containerised services. The web application, the API, background workers, and the database run as separate containers with scoped network access.
             </p>
           </div>
           <div>
@@ -215,7 +215,7 @@ const integrityPractices = [
               Dependency management.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              AssessIQ's technology stack is maintained with security updates as a routine part of development — not an afterthought. Dependencies are kept current; known critical CVEs are resolved before they reach production.
+              AssessIQ's technology stack is maintained with security updates as a routine part of development — not an afterthought. We aim to keep dependencies current and to resolve known critical vulnerabilities promptly.
             </p>
           </div>
         </div>
