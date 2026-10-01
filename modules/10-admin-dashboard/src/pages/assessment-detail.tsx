@@ -33,7 +33,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Chip, Table } from "@assessiq/ui-system";
+import { Chip, Modal, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
@@ -91,6 +91,18 @@ interface UserItem {
 interface UsersResponse {
   items: UserItem[];
 }
+
+/** POST /admin/assessments/:id/release-all */
+interface ReleaseAllResponse {
+  released: string[];
+  skipped: Array<{ id: string; code: string }>;
+}
+
+/** Plain-language reasons for the skip codes release-all returns. */
+const SKIP_REASON: Record<string, string> = {
+  RESULT_NOT_READY: "not ready yet",
+  ATTEMPT_NOT_RELEASABLE_ERASED: "candidate data erased",
+};
 
 type SortDir = "asc" | "desc";
 
@@ -157,6 +169,14 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
+  // "Publish all ready": publish every evaluated attempt of this assessment to
+  // its candidate in one go (POST /release-all). Attempts that are not ready are
+  // skipped by the server and reported back.
+  const [showPublishAll, setShowPublishAll] = useState(false);
+  const [publishingAll, setPublishingAll] = useState(false);
+  const [publishAllResult, setPublishAllResult] = useState<ReleaseAllResponse | null>(null);
+  const [publishAllError, setPublishAllError] = useState<string | null>(null);
+
   // Delete / Cancel confirm-modal state. confirmMode drives the single shared
   // DangerConfirmModal: "delete" = hard delete (zero-attempts), "cancel" = soft
   // retire (→ cancelled). Both outcomes remove the row from the default list,
@@ -222,6 +242,27 @@ export function AdminAssessmentDetail(): React.ReactElement {
       );
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handlePublishAll() {
+    if (!id) return;
+    setPublishingAll(true);
+    setPublishAllError(null);
+    setPublishAllResult(null);
+    try {
+      const res = await adminApi<ReleaseAllResponse>(`/admin/assessments/${id}/release-all`, {
+        method: "POST",
+      });
+      setPublishAllResult(res);
+      await fetchData();
+    } catch (err) {
+      setPublishAllError(
+        err instanceof AdminApiError ? err.apiError.message : "Failed to publish results.",
+      );
+    } finally {
+      setShowPublishAll(false);
+      setPublishingAll(false);
     }
   }
 
@@ -708,31 +749,94 @@ export function AdminAssessmentDetail(): React.ReactElement {
           </div>
         )}
 
-        {/* Link to attempts */}
-        <div
-          style={{
-            padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-            background: "var(--aiq-color-bg-raised)",
-            border: "1px solid var(--aiq-color-border)",
-            borderRadius: "var(--aiq-radius-md)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "var(--aiq-space-xs)",
-            alignSelf: "flex-start",
-          }}
-        >
-          <Link
-            to={`/admin/attempts?assessmentId=${assessment.id}`}
+        {/* Link to attempts + bulk publish */}
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
+          <div
             style={{
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              color: "var(--aiq-color-accent)",
-              textDecoration: "none",
+              padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+              background: "var(--aiq-color-bg-raised)",
+              border: "1px solid var(--aiq-color-border)",
+              borderRadius: "var(--aiq-radius-md)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "var(--aiq-space-xs)",
             }}
           >
-            View attempts for this assessment →
-          </Link>
+            <Link
+              to={`/admin/attempts?assessmentId=${assessment.id}`}
+              style={{
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+                color: "var(--aiq-color-accent)",
+                textDecoration: "none",
+              }}
+            >
+              View attempts for this assessment →
+            </Link>
+          </div>
+          {hasAttempts && (
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-outline"
+              data-help-id="admin.assessments.release_all"
+              disabled={publishingAll}
+              onClick={() => { setPublishAllError(null); setShowPublishAll(true); }}
+            >
+              {publishingAll ? "Publishing…" : "Publish all ready"}
+            </button>
+          )}
         </div>
+
+        {publishAllResult && (
+          <div role="status" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
+            <Chip variant="success">
+              Published {publishAllResult.released.length} result{publishAllResult.released.length === 1 ? "" : "s"}
+            </Chip>
+            {publishAllResult.skipped.length > 0 && (
+              <Chip variant="warn">
+                Skipped {publishAllResult.skipped.length}:{" "}
+                {[...new Set(publishAllResult.skipped.map((s) => SKIP_REASON[s.code] ?? s.code))].join(", ")}
+              </Chip>
+            )}
+          </div>
+        )}
+
+        {publishAllError && (
+          <div
+            role="alert"
+            style={{
+              color: "var(--aiq-color-danger)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+            }}
+          >
+            {publishAllError}
+          </div>
+        )}
+
+        <Modal open={showPublishAll} onClose={() => setShowPublishAll(false)} title="Publish all ready results?" width={480}>
+          <p
+            style={{
+              margin: 0,
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              color: "var(--aiq-color-fg-secondary)",
+              lineHeight: 1.6,
+            }}
+          >
+            Every attempt of this assessment that AssessIQ has finished evaluating will be published to its
+            candidate, who is emailed the result. Attempts that are not ready yet are skipped. Published
+            results can't be changed.
+          </p>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--aiq-space-sm)" }}>
+            <button type="button" className="aiq-btn aiq-btn-ghost" onClick={() => setShowPublishAll(false)} disabled={publishingAll}>
+              Cancel
+            </button>
+            <button type="button" className="aiq-btn aiq-btn-primary" onClick={() => void handlePublishAll()} disabled={publishingAll}>
+              {publishingAll ? "Publishing…" : "Publish all ready"}
+            </button>
+          </div>
+        </Modal>
 
         {/* Invitations section */}
         <div>

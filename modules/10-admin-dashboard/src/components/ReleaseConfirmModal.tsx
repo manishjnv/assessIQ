@@ -13,6 +13,7 @@
 
 import React from "react";
 import type { GradingsRow } from "@assessiq/ai-grading";
+import { effectiveGradings } from "../lib/evaluation.js";
 
 export interface ReleaseConfirmModalProps {
   open: boolean;
@@ -65,14 +66,9 @@ export function ReleaseConfirmModal({
 
   if (!open) return null;
 
-  // Active gradings: no override_of (they are the canonical committed grades)
-  const activeGradings = gradings.filter((g) => g.override_of === null);
-
-  // Map question_id → active grading for quick lookup
-  const gradingByQuestion = new Map<string, GradingsRow>();
-  for (const g of activeGradings) {
-    gradingByQuestion.set(g.question_id, g);
-  }
+  // question_id → the EFFECTIVE grading (newest row; an override wins), i.e. the
+  // grade that is actually counted — so scores changed by an override show here.
+  const gradingByQuestion = effectiveGradings(gradings);
 
   // Summary stats
   let sumScoreEarned = 0;
@@ -162,7 +158,7 @@ export function ReleaseConfirmModal({
               fontWeight: 600,
             }}
           >
-            Release evaluation to candidate?
+            Publish result to candidate?
           </h2>
           <p
             style={{
@@ -318,8 +314,8 @@ export function ReleaseConfirmModal({
             style={{ fontSize: "var(--aiq-text-sm)" }}
           >
             {aiFailCount} question{aiFailCount === 1 ? "" : "s"} are flagged for
-            review (AIG_* error class) and were NOT auto-committed. Releasing
-            publishes only the questions that have committed grades.
+            review (AIG_* error class) and were NOT auto-committed. Publishing
+            shows only the questions that have committed grades.
           </div>
         )}
 
@@ -488,7 +484,7 @@ export function ReleaseConfirmModal({
             data-help-id="admin.attempts.release_confirm"
             type="button"
           >
-            {releasing ? "Releasing…" : "Release to candidate"}
+            {releasing ? "Publishing…" : "Publish to candidate"}
           </button>
         </div>
       </div>

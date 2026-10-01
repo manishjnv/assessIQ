@@ -2566,3 +2566,186 @@ admin.assessments.results.download_csv:
       released. Score, percent and Pass/Fail stay blank until the attempt is graded.
     - **Pass/Fail** uses the passing score of the assessment's level.
     - Opens correctly in Excel, including Indian names. Up to 10,000 rows.
+
+# ─── Scoring / result release, Phase II (spec 2026-10-01 §5b) ────────────────────
+
+admin.evaluations.queue:
+  audience: admin
+  short_text: "Every company's attempts with written answers that are waiting for AssessIQ to evaluate, oldest first."
+  long_md: |
+    ## Evaluation queue
+
+    This is AssessIQ's work list. Each row is one attempt, from any company, that
+    has written answers and has not yet been released back to its company.
+
+    - **Oldest first.** Work from the top. **Evaluate next** opens the oldest row.
+    - **Blind evaluation.** You see the company, assessment and level, never the
+      candidate's name or email.
+    - **Status.** *Awaiting evaluation* still needs grading. *Ready to release* is
+      fully graded and only needs releasing to the company.
+    - **Sent back** means the company asked for another look; its note says why.
+
+    The list refreshes by itself every 30 seconds.
+
+admin.evaluations.age_badge:
+  audience: admin
+  short_text: "How long the attempt has been waiting. Amber from 24 hours, red from 48 hours."
+  long_md: |
+    ## Age
+
+    Time since the candidate submitted.
+
+    - **Grey** — under 24 hours.
+    - **Amber** — 24 hours or more.
+    - **Red** — 48 hours or more.
+
+    Candidates are told to expect their result within a set time, so clear the red
+    and amber rows first.
+
+admin.evaluations.tenant_filter:
+  audience: admin
+  short_text: "Show only one company's attempts. The counts above the table follow the filter."
+  long_md: |
+    ## Company filter
+
+    Narrow the queue to a single company. The two counts above the table recount
+    for that company. Choose **All companies** to see everything again.
+
+admin.evaluations.evaluate_next:
+  audience: admin
+  short_text: "Opens the oldest attempt in the list, honouring the company filter, so you can evaluate it."
+  long_md: |
+    ## Evaluate next
+
+    Opens the oldest attempt currently in the list. If a company filter is set, it
+    opens that company's oldest attempt.
+
+    Work one attempt at a time: grade, accept or score each answer, then release
+    the attempt to its company.
+
+admin.evaluations.release_selected:
+  audience: admin
+  short_text: "Release every ticked, fully graded attempt to its company in one step."
+  long_md: |
+    ## Release selected to company
+
+    Only attempts that are **Ready to release** (every question has a final grade)
+    have a tick box. Releasing hands the evaluation to the company, which then
+    reviews the scores and publishes them to candidates.
+
+    You may be asked for a fresh authenticator code. Afterwards you see how many
+    attempts were released and how many were skipped, and why.
+
+admin.evaluations.sent_back:
+  audience: admin
+  short_text: "The company sent this attempt back for re-evaluation. Its note says what to look at again."
+  long_md: |
+    ## Sent back
+
+    After you release an evaluation, the company can send an attempt back with a
+    note, for example when a score looks wrong. The attempt returns to this queue
+    marked **Sent back** and keeps its existing grades.
+
+    Read the note, adjust the grades if needed, then release the attempt again.
+
+admin.evaluations.accept_all:
+  audience: admin
+  short_text: "Accepts every AI proposal that did not fail. Failed ones are skipped so you can re-run or score them by hand."
+  long_md: |
+    ## Accept all
+
+    Commits every AI proposal on this attempt that has no failure. Proposals that
+    failed, or where the two AI models disagreed by two bands or more, are skipped
+    so you can **Re-run** them or enter a **manual score**.
+
+    Accepting records the grade but does not release the attempt. Once every
+    question has a final grade you can **Release to company**.
+
+admin.evaluations.manual_score:
+  audience: admin
+  short_text: "Score an answer by hand when it has no grade, such as KQL. A reason is required."
+  long_md: |
+    ## Manual score
+
+    Use this when an answer has no grade, for example a KQL answer (the AI does not
+    grade those), or an AI proposal you do not want to accept.
+
+    - Enter a score from 0 up to the question's points.
+    - A reason is required. It is saved with the grade but kept out of the audit
+      log.
+    - You may be asked for a fresh authenticator code.
+
+    A question can be scored manually only once. After that, use **Override grade**.
+
+admin.evaluations.release_to_company:
+  audience: admin
+  short_text: "Hands the finished evaluation to the company so it can review and publish it. Needs every question graded."
+  long_md: |
+    ## Release to company
+
+    Enabled when every question on the attempt has a final grade and none is
+    flagged for review.
+
+    Releasing does not publish anything to the candidate. The company sees the
+    final scores and decides when to publish them, or has them published
+    automatically if it chose Automatic release. The company can send the attempt
+    back to this queue with a note.
+
+    You may be asked for a fresh authenticator code.
+
+admin.attempts.awaiting_evaluation:
+  audience: admin
+  short_text: "AssessIQ is still evaluating the written answers. Scores appear here once the evaluation is released to you."
+  long_md: |
+    ## Awaiting AssessIQ evaluation
+
+    Multiple-choice answers are scored automatically, but written answers are
+    evaluated by AssessIQ evaluators with AI assistance. Until they release the
+    evaluation to you, no scores are shown here and the result cannot be published.
+
+    When the evaluation is released the attempt becomes **Ready to publish**.
+
+admin.attempts.send_back:
+  audience: admin
+  short_text: "Return this attempt to AssessIQ for another look, with a note saying why. It leaves your Ready to publish list."
+  long_md: |
+    ## Send back for re-evaluation
+
+    Use this when a score looks wrong and you would rather AssessIQ re-check it than
+    change it yourself. You must write a note that says what to look at.
+
+    - The attempt goes back to AssessIQ's queue and shows as **Awaiting evaluation**.
+    - It cannot be published until AssessIQ releases it to you again.
+    - You can still **Override** a single score yourself instead, with a reason.
+
+    Results that are already published cannot be sent back.
+
+admin.attempts.release_button:
+  audience: admin
+  short_text: "Publish this result to the candidate, who is emailed. Published results can't be changed."
+  long_md: |
+    ## Publish to candidate
+
+    Shows the candidate their final result and emails them. A summary of the scores
+    opens first so you can check them before confirming.
+
+    - Available when the attempt is **Ready to publish**.
+    - A certificate is issued if the candidate qualifies.
+    - Published results are final: scores can no longer be overridden.
+
+    With Automatic release turned on in Settings, results publish themselves as soon
+    as AssessIQ releases the evaluation to you.
+
+admin.assessments.release_all:
+  audience: admin
+  short_text: "Publish every evaluated attempt of this assessment to its candidate at once. Attempts not ready are skipped."
+  long_md: |
+    ## Publish all ready
+
+    Publishes, in one step, every attempt of this assessment that is **Ready to
+    publish**. Each candidate is emailed their result.
+
+    - Attempts that are still awaiting evaluation, were sent back, or whose
+      candidate data was erased are skipped, and you see how many.
+    - Published results are final and cannot be changed.
+    - To publish one attempt at a time, open it from the Attempts page instead.
