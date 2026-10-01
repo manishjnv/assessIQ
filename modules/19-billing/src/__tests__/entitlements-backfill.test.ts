@@ -25,8 +25,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
 import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
-import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
 
@@ -34,13 +32,7 @@ import { execSync } from 'node:child_process';
 // Path helpers
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, '$1');
-}
 
-const THIS_DIR = toFsPath(new URL('.', import.meta.url));
-const BILLING_MODULE_ROOT = join(THIS_DIR, '..', '..');
-const MODULES_ROOT = join(BILLING_MODULE_ROOT, '..');
 
 
 // The backfill SQL — MUST stay byte-identical to the INSERT in

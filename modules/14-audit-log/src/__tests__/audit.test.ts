@@ -36,9 +36,6 @@ import { audit, list } from '../index.js';
 // Path helpers
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, '$1');
-}
 
 
 

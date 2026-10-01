@@ -16,7 +16,6 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 import { Client } from "pg";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import Fastify, { type FastifyInstance } from "fastify";
-import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
 const { sendInvitationEmail } = vi.hoisted(() => ({
@@ -50,12 +49,6 @@ import {
 // Paths (Windows-safe, same helper as lifecycle.test.ts)
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
-const AL_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT = join(AL_MODULE_ROOT, "..");
 
 const DAY_MS = 86_400_000;
 const SEVEN_DAYS_MS = 7 * DAY_MS;
