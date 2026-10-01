@@ -4,6 +4,8 @@
 // the session, never the URL; RLS on attempt_events scopes the rows.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import { z } from "zod";
+import { ValidationError } from "@assessiq/core";
 import { getAttemptIntegritySummary } from "./service.js";
 
 export interface RegisterAttemptAdminRoutesOptions {
@@ -15,7 +17,8 @@ export async function registerAttemptAdminRoutes(
   opts: RegisterAttemptAdminRoutesOptions,
 ): Promise<void> {
   app.get("/api/admin/attempts/:id/integrity", { preHandler: opts.adminOnly }, async (req) => {
-    const { id } = req.params as { id: string };
-    return getAttemptIntegritySummary(req.session!.tenantId, id);
+    const id = z.string().uuid().safeParse((req.params as { id: string }).id);
+    if (!id.success) throw new ValidationError("invalid attempt id");
+    return getAttemptIntegritySummary(req.session!.tenantId, id.data);
   });
 }
