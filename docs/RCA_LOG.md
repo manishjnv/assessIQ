@@ -4,6 +4,31 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-01 — Candidate timer started when the link was opened, not at "Begin" (plus a consent bypass)
+
+**Symptom:** Opening the invite link started the clock straight away. A student who read the instructions lost test time. There was also no consent step, and "Phase 1" / "Session 4b" developer copy was visible to candidates.
+**Cause:** `TokenLanding.tsx`'s mount effect called `POST /take/start`, which ran `startAttempt` (`modules/06-attempt-engine/src/service.ts` ~306: `started_at = now()`). Review then found that `POST /api/me/assessments/:id/start` (`routes.candidate.ts`) could also create attempts without consent, and that two Begin clicks at once returned a 500 (unhandled 23505).
+**Fix:** commit `0d19011`.
+- `/take/start {preview:true}` is read-only (no attempt, no cookie). Begin `{consent:true}` records a `consent_events` row, then starts the attempt.
+- `startAttempt` enforces consent for every new non-embed attempt (embed = host-asserted).
+- The 23505 race now returns the existing attempt.
+- Consent rows are deduped.
+- New pre-test UI (system check, practice MCQ, consent) and a submit Modal with answered/unanswered counts.
+- Per-token throttle on `/take/start`.
+**Prevention:** route and service tests (preview creates nothing and sets no cookie; 422 without consent; Begin twice gives the same `ends_at`; concurrent start; `/me` consent). The invariant lives in ONE place (`startAttempt`), not in each route.
+
+## 2026-10-01 — A campus lab behind one IP would have hit "too many requests" mid-test
+
+**Symptom (pre-incident, found in review):** candidate traffic was capped at 30 requests/min per IP and 600/min per tenant (hardcoded). One college lab means one public IP, so a placement drive would 429 mid-test. The DB pool was also capped at 10.
+**Cause:** `modules/01-auth/src/middleware/rate-limit.ts` keyed candidate limits by IP; `modules/02-tenancy/src/pool.ts` had `max: 10`.
+**Fix:** commit `38a1f34`.
+- Valid candidate sessions are keyed per student (120/min) with a lifted IP cap (3000/min).
+- The tenant cap is configurable (6000/min).
+- A dedicated entry bucket covers `/take/start` and `verify-link` (2000/min per IP; tokens are 256-bit), plus a per-token throttle (30/min).
+- `PG_POOL_MAX` defaults to 30.
+- Removed the unused global tenant-context hooks.
+**Prevention:** `rate-limit-campus.test.ts` (300 sessions from one IP give no 429) and `tools/load/candidate-drive.k6.js` for staging load tests. **Not yet done:** the k6 run itself (staging only, never prod). Residual R11: session DB checks run before the limiter (pre-existing).
+
 ## 2026-10-01 — Exam content (questions + answer keys) committed to the public repo
 
 **Symptom:** A full product review found a platform question pack, including every answer key, committed as a seed migration and pushed to the public GitHub repo.
