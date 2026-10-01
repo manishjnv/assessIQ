@@ -62,6 +62,13 @@ import type {
   ToggleFlagInput,
 } from "./types.js";
 import { RATE_CAP_CONSTANTS, tryAdmitEvent } from "./rate-cap.js";
+import {
+  answerToOriginal,
+  buildOptionOrder,
+  displayAnswers,
+  displayQuestions,
+  usableOrder,
+} from "./option-shuffle.js";
 
 const log = streamLogger("app");
 
@@ -354,10 +361,20 @@ export async function startAttempt(
     }
 
     // i. Snapshot the question set + empty answer rows.
+    //
+    // Per-student MCQ option shuffle (migration 0119): every attempt draws its own
+    // option permutation for each eligible MCQ (option_order[display] = original
+    // index); NULL = authored order (non-MCQ, or options that refer to each other —
+    // "All of the above", "Both A and B" — see option-shuffle.ts). This is the ONLY
+    // place attempt_questions rows are created — standard and embed starts both
+    // arrive here — so every new attempt gets its order from this one site. Old and
+    // in-flight attempts keep NULL. No per-assessment toggle: always on when eligible.
+    const mcqOptions = await repo.listMcqOptionsForPicks(client, chosen);
     const aqRows = chosen.map((q, i) => ({
       questionId: q.id,
       position: i + 1,
       questionVersion: q.version,
+      optionOrder: buildOptionOrder(mcqOptions.get(q.id)),
     }));
     await repo.insertAttemptQuestions(client, attempt.id, aqRows);
     await repo.insertEmptyAttemptAnswers(client, attempt.id, chosen.map((q) => q.id));
@@ -516,11 +533,14 @@ export async function getAttemptForCandidate(
 
     const questions = await repo.listFrozenQuestionsForAttempt(client, attempt.id);
     const answers = await repo.listAttemptAnswers(client, attempt.id);
+    // Candidate-facing: serve shuffled MCQs in THIS attempt's order and the saved
+    // selection as the displayed position. The order itself is never returned.
+    const orders = await repo.listOptionOrders(client, attempt.id);
 
     return {
       attempt: effectiveAttempt,
-      questions,
-      answers,
+      questions: displayQuestions(questions, orders),
+      answers: displayAnswers(answers, orders),
       remaining_seconds: computeRemainingSeconds(effectiveAttempt, now),
     };
   });
@@ -577,10 +597,17 @@ export async function saveAnswer(
 
     const incomingRevision = input.client_revision ?? 0;
 
+    // Shuffled MCQ: the candidate sent the DISPLAYED index; store the ORIGINAL index
+    // so scoring, admin review, exports and analytics stay in original-index space.
+    // An out-of-range / malformed answer is stored exactly as sent (as before the
+    // shuffle) and still scores 0 — a translation never makes an invalid answer valid.
+    const order = usableOrder(aq.option_order);
+    const answer = order === null ? input.answer : answerToOriginal(input.answer, order);
+
     const repoInput: Parameters<typeof repo.saveAttemptAnswer>[1] = {
       attemptId: input.attemptId,
       questionId: input.questionId,
-      answer: input.answer,
+      answer,
       incomingRevision,
       editsCount: input.edits_count,
       timeSpentSeconds: input.time_spent_seconds,
@@ -828,7 +855,9 @@ export async function listAnswersForAttempt(
       });
     }
     assertAttemptOwnedBy(attempt, userId);
-    return repo.listAttemptAnswers(client, attemptId);
+    // Owner-facing read: same display-space translation as the candidate view.
+    const answers = await repo.listAttemptAnswers(client, attemptId);
+    return displayAnswers(answers, await repo.listOptionOrders(client, attemptId));
   });
 }
 
