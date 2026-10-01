@@ -109,19 +109,87 @@ export interface TakePreviewResponseWire {
   };
 }
 
-// POST /api/me/attempts/:id/submit — Phase 1 placeholder shape per
-// docs/03-api-contract.md § Candidate.
+// ─── Result release (owner rules P1/P2, spec 2026-10-01 §2 SP3) ──────────────
+//
+// A candidate only ever sees a COMPLETE, final result: total, percent, pass/fail
+// and a certificate link. Never per-question data, bands or justifications.
+
+/** 'soon' = scored + published within about a minute; 'email' = emailed later. */
+export type ResultExpectation = "soon" | "email";
+
+/** Tenant release mode. Optional hint on the wire — see `release_mode` below. */
+export type ReleaseMode = "manual" | "auto";
+
+// POST /api/me/attempts/:id/submit
 export interface SubmitAttemptResponseWire {
   attempt_id: string;
   status: "submitted";
+  /** Compatibility field: 60 when result_expectation is 'soon', else null. */
   estimated_grading_seconds: number | null;
+  result_expectation: ResultExpectation;
+  /** Registered email, masked server-side (r***@gmail.com). */
+  email_masked: string;
+  /** Trailing phrase for the email message, e.g. "within 72 hours". */
+  turnaround_text: string;
+  /**
+   * OPTIONAL hint (not in the SP3 spec): lets the Submitted page say "once
+   * {tenant} releases it" for manual tenants. When absent the page falls back
+   * to `turnaround_text` — the wire contract alone cannot tell manual tenants
+   * from auto tenants whose attempt has written answers.
+   */
+  release_mode?: ReleaseMode;
 }
 
-// GET /api/me/attempts/:id/result — Phase 1 placeholder; module 07/08
-// will return real results in Phase 2.
+/** Certificate reference on a released result. */
+export interface ResultCertificateWire {
+  credential_id: string;
+  verify_url: string;
+}
+
+// GET /api/me/attempts/:id/result → 202 while the result is not published.
+// Older servers answered { status: "grading_pending" }; callers must treat any
+// status other than "released" as pending.
 export interface AttemptResultPendingWire {
-  status: "grading_pending";
-  message?: string;
+  status: "pending";
+  result_expectation: ResultExpectation;
+  email_masked: string;
+  turnaround_text: string;
+  tenant_name: string;
+  /** Optional hint — see SubmitAttemptResponseWire.release_mode. */
+  release_mode?: ReleaseMode;
+}
+
+// GET /api/me/attempts/:id/result → 200 once the result is published.
+export interface AttemptResultReleasedWire {
+  status: "released";
+  total_earned: number;
+  total_max: number;
+  /** 0-100, one decimal place. */
+  percent: number;
+  passed: boolean;
+  assessment_name: string;
+  released_at: string;
+  certificate: ResultCertificateWire | null;
+}
+
+export type AttemptResultWire =
+  | AttemptResultPendingWire
+  | AttemptResultReleasedWire;
+
+// GET /api/me/results — released attempts only, newest first.
+export interface MyResultItemWire {
+  attempt_id: string;
+  assessment_name: string;
+  released_at: string;
+  total_earned: number;
+  total_max: number;
+  percent: number;
+  passed: boolean;
+  certificate: ResultCertificateWire | null;
+}
+
+export interface MyResultsResponseWire {
+  items: MyResultItemWire[];
 }
 
 // Event types the candidate UI emits. Matches the closed catalog in
