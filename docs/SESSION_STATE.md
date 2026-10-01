@@ -1,3 +1,86 @@
+# Session — 2026-10-01 (f) / 02 — pilot batch 2: five tasks built and live, CI lint and scan gates green
+
+**Headline:** Five tasks shipped, all live: company reports hide unreleased scores; roll number + branch import with a ranked results CSV; integrity v1 (full screen, copy/paste block, tab-leave warning, admin card); marketing truth pass + privacy fixes; CI lint/scan gates green plus one shared test-DB migration helper.
+**Commits (pushed, `20b9779..HEAD`):**
+- `76c3014` fix(09,15,05): tenant reports show a score only after release (migration 0122) · `5435288` docs
+- `1a4f82d` feat(03,15,10): roll/branch import; ranked, branch-sortable results CSV (help 0125)
+- `0d9999e` feat(06,11,10,05): integrity v1 (help 0123) · `79a853a` fix(06): uuid check on the integrity route
+- `4870daa` / `e28cebb` / `a6057f1` / `863acff` / `2cd0064`: lint + CI gates, TODO tags
+- `e030245` fix(20): erasure drops roll_number / branch from users.metadata · `408c3c3` docs
+- `8441172` docs(marketing): truth pass (owner approved 2026-10-02)
+- `ceb3188` + follow-up: shared `tools/test-support/apply-all-migrations.ts`, 37 DB test files migrated
+**Deploy:** LIVE at `e030245` (api, worker, frontend) plus marketing at `8441172`. Migrations 0122, 0123 and 0125 were applied by hand and recorded in `schema_migrations`. No AI run was in flight at any recreate.
+**Tests:** Full `pnpm test` on the merged main (Docker up): 2,296 passed, 3 failed, 6 skipped. Lint 0 errors and typecheck 0 errors.
+- Fixed after that run:
+  - the help seeded count, 157 → 160, for the 0123 rows;
+  - `score-attempt-route`: its fixture cited KB id `kb-src-001`, which doesn't exist, so it used a real L2 id. This was pre-existing and hidden because CI never reached the Test step. 4/4 pass now.
+- Left: `admin-generate-stderr` is the container-startup flake; it passes alone (3/3).
+**Next (owner):** run `docs/testing/AssessIQ_Pilot_Batch2_Test_Script.docx` (local; 36 steps, 13 ★), then T11 create Rajneesh's company.
+**Open questions:**
+- An edit UI for an existing assessment's integrity switches? (Today they are set on the create form only.)
+- Residual test flakes: the `01-auth/totp.test.ts` constant-time check under load, and an occasional "database system is starting up" at a test's own connect(). A connect-retry in the helper is the next fix if CI hits them.
+- R9 remainder: numeric and multi-select question types, sections with timers, calculator. Not started.
+
+## What this session did, in detail
+
+1. **Unreleased scores hidden from company reports (`76c3014`, 0122).** One rule everywhere: `status='released' OR (status='graded' AND evaluation_released_at IS NOT NULL)`.
+   - The analytics view keeps its rows but blanks the score columns until that rule holds.
+   - Module 09 exports `TENANT_VISIBLE_ATTEMPT_SQL`; `/score` returns null until visible.
+   - The same condition is applied to the topic breakdown, the home average KPI and the assessment invitee list.
+   - Docs: 02 § materialized view, 03 `/score`, plus an RCA entry.
+2. **Roll number / branch + ranked CSV (`1a4f82d`).**
+   - The import accepts roll/branch header aliases and stores the values in `users.metadata`; no migration.
+   - The results CSV gains roll_number, branch, rank (1,2,2,4), tab_switches, paste_count and fullscreen_exits, plus `?sort=name|rank|branch`.
+   - Docs: 02 § users.metadata, 03 § results.csv.
+3. **Integrity v1 (`0d9999e`, `79a853a`).**
+   - New setting `settings.integrity {fullscreen, block_copy_paste}`.
+   - Runner: a full-screen gate that records exits but doesn't block them, the clipboard block, and a tab-leave warning.
+   - New events `fullscreen_enter` / `fullscreen_exit`.
+   - New route `GET /api/admin/attempts/:id/integrity` feeds the Integrity card.
+   - Docs: 02 § settings.integrity, 03 § integrity route, `06/EVENTS.md`.
+4. **Erasure gap (`e030245`).** Review found that module 20 erasure never cleared `users.metadata`, which would have kept the roll number. Fixed, with an RCA entry.
+5. **Marketing truth pass (`8441172`).**
+   - Unbuilt features are removed or marked "Coming soon": webcam/lockdown proctoring, coding tests, free trial, SSO, ATS, white-label.
+   - Privacy page: lists the sub-processors (Hostinger, Cloudflare, Brevo, Google, Anthropic), adds an AI-evaluation disclosure and a cross-border note. Legal placeholders are left for the lawyer.
+   - Checked live: 5 key pages return 200.
+6. **CI (D7).**
+   - On GitHub, Lint and Typecheck now pass for the first time since May.
+   - Scan allowlists fixed: the no-Anthropic path was missing `src/`.
+   - Help seed 0011 regenerated. The CI diff ignores its timestamp header.
+   - Frozen lockfile in CI.
+   - Shared migration helper; DB tests went from 31 failed / 410 skipped to about 1 flaky failure (builder's run).
+   - `docs/` is ignored by eslint (gitignored local files).
+
+**Considered and rejected:**
+- Dropping unreleased rows from the analytics view; the Activity completions KPI would then undercount.
+- New `users` columns for roll/branch; a migration for two display-only fields.
+- A separate rank-list endpoint.
+
+**Explicitly NOT included:** server-side integrity enforcement, editing integrity switches on an existing assessment, numeric/multi-select question types.
+
+---
+
+## Agent utilization (2026-10-01 f / 02)
+- **Opus:** task 1 build; Phase 3 review of all 5 builder diffs; fixes found in review (integrity uuid check, erasure gap, lint fallout, TODO tags, merge conflicts); every deploy (3 migrations, 5 recreates); docs 02/03/RCA; Word test script; this handoff.
+- **Sonnet:** 5 parallel worktree builders:
+  - lint + CI gates;
+  - marketing truth pass;
+  - roll/branch + ranked CSV;
+  - integrity v1;
+  - test-DB migration helper.
+  Three of them were resumed after a session crash.
+- **Haiku:** n/a (live checks were small inline curl/psql commands).
+- **codex:rescue:** n/a. No load-bearing auth/tenancy/07 logic changed: 07 and 01 got test-file edits only, and the 06/09/15/05/20 changes were Opus line-reviewed. Erasure (20) is compliance-adjacent: a one-line jsonb key removal, checked read-only on prod PG.
+- **claude-mem:** honoured docs-folder-gitignored (`git add -f` in its own command), parallel-session-shared-working-tree (branch checked before each commit), vps-shared-host (additive, namespaced, in-flight check before every recreate).
+- **Routing telemetry:**
+  - Sonnet · lint + CI gates · reworked: Y (missed TODOs that CI scans beyond its local run; I fixed them)
+  - Sonnet · marketing truth pass · reworked: N
+  - Sonnet · roll/branch ranked CSV · reworked: Y (missed erasure of the new PII; I fixed it)
+  - Sonnet · integrity v1 · reworked: Y (non-uuid id → 500; I fixed it)
+  - Sonnet · test-DB helper · reworked: Y (unused-var lint fallout across 11 files; I fixed it)
+
+---
+
 # Session — 2026-10-01 (e) — orchestrator session wrap-up: owner decisions recorded, loose artifacts saved
 
 **Headline:** No new product code in this slice. This session (status review, P0, pilot hardening; entries "P0" and "(b)" below) recorded two owner decisions, which the parallel session then built or deferred. It also saved every artifact that existed only in a temp scratchpad.
