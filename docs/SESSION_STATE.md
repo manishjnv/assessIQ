@@ -9,7 +9,7 @@
 **Commits (pushed `ecea951`…`a7b4596`; Phase I went live earlier today at `ecea951`):**
 - Phase I: `b8163e1` backend · `7d56d75` frontend · `b41916c` codex fixes · `ecea951` override uses the question's score_max
 - Phase II: `ee8a28f` backend · `1564489` frontend · `a7b4596` codex fix: super grade/re-run only on queue items
-- Docs + RCAs: this commit
+- Docs: `c896a6b` reference docs + 11 RCAs; this commit adds the feature doc `docs/plans/SCORING_RESULT_RELEASE.md` (what / why / files / verify / rollback) and this handoff
 
 **Tests:**
 - 07 super-evaluation 7/7; 10-admin-dashboard 85; apps/web 44; typecheck 0 errors; lint:ambient-ai OK.
@@ -22,11 +22,19 @@
 - Worker: `result.auto_release` runs every 15 s; `evaluation.queue_alert` is scheduled hourly in Redis.
 - `claude` 2.1.286 runs in the api container.
 
-**Next (owner):** two dry runs.
-1. An MCQ test: submit, then check the result screen and email in both auto and manual mode.
-2. A written test: queue → Evaluate → Accept → Release to company → company publishes → the candidate sees the result and gets the email.
+**Next (owner):** run the Word test script `docs/testing/AssessIQ_Scoring_Release_Test_Script.docx`. It is a local file, not in git. Run it after the P0 script, because it reuses that script's test company.
+- T1–T2: an MCQ test in Manual, then in Auto.
+- T3: a written test through the queue.
+- T4–T8: send back, override, publish all, the company has no AI button, published results are final.
+- T9: next-day owner alert.
 
 **Open questions:**
+- Two owner decisions were recorded in the plan at 15:59 by another session and are **not built**:
+  - release to the company automatically when the last grade is accepted;
+  - an `AI_PIPELINE_MODE` switch so companies can run AI once an API key exists.
+  
+  Build them next? They touch 07, so they need the codex gate.
+- An attempt the company sends back can only be fixed with Override on the evaluate page. It has no `Grade all` or `Re-run`, because the panel only offers AI for pre-graded statuses (`AttemptGradingPanel.tsx:83`). Should re-running AI on a sent-back attempt be added?
 - Is the Brevo free tier (300 emails/day) enough for pilot result emails? (A5)
 - SP5–SP8 not started. Known Phase II gaps are listed in the local `PENDING_TASKS_2026-10-01.md`.
 
@@ -36,8 +44,13 @@
 - **Opus:**
   - checked the 5 tasks against the plan, roadmap and pending tasks; wrote the spec and the Phase II wire contract;
   - diff reviews; fixed `bandToScore` and the queue-eligibility gate;
-  - migrations, both VPS deploys, and triage of the verification results.
-- **Sonnet:** code-seam map; contradiction review; Phase I backend + frontend; Phase II backend + frontend; docs.
+  - migrations, both VPS deploys, and triage of the verification results;
+  - review of the docs and test-script output; wrote the feature doc `docs/plans/SCORING_RESULT_RELEASE.md` and this handoff.
+- **Sonnet:**
+  - code-seam map; contradiction review;
+  - Phase I backend + frontend; Phase II backend + frontend;
+  - reference docs (02/03/05/11, RCA, SKILL files);
+  - the owner's Word test script (UI wording taken from the deployed code).
 - **Haiku:** Phase II live verification sweep. It raised two false alarms that Opus re-checked:
   - it tested the old domain through a 301, so the POST became a GET;
   - it reported the hourly job "missing" before its first run.
@@ -57,6 +70,8 @@
   - Sonnet · Phase II backend · reworked: Y (codex: queue eligibility, fixed by Opus)
   - Sonnet · Phase II frontend · reworked: N
   - Haiku · deploy verify sweep · reworked: Y (false alarms; re-checked against assessiq.in)
+  - Sonnet · reference docs + RCAs · reworked: N (Opus corrected one sentence)
+  - Sonnet · owner test script (docx) · reworked: N (Opus checked T7.5's redirect against the code)
 
 ---
 
