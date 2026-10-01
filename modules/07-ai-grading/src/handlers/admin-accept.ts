@@ -21,6 +21,8 @@ import { withTenant } from "@assessiq/tenancy";
 import {
   findGradingByIdempotencyKey,
   insertGrading,
+  isAttemptCandidateErased,
+  isProposalNewerThanGradings,
 } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { AppError, streamLogger } from "@assessiq/core";
@@ -51,13 +53,15 @@ export interface HandleAdminAcceptInput {
   /** Per-question accepted proposals; admin may have edited fields. */
   proposals: Array<GradingProposal & { edits?: AcceptEdits }>;
   /**
-   * Phase II (platform evaluation queue): when this accept completes the attempt,
-   * also set attempts.evaluation_released_at ("the tenant may see and publish it")?
-   * DEFAULT false — fail-closed: the platform evaluator (super admin) never hands an
-   * evaluation to the tenant implicitly; that is the separate, audited
-   * release-to-tenant step. Pass true only for a flow where the evaluation and its
-   * hand-off are the same act (none today: tenants cannot call this handler — the
-   * tenant /accept route answers 403 AI_EVALUATION_BY_ASSESSIQ).
+   * Phase II (platform evaluation queue): when this accept COMPLETES the attempt (the
+   * flip pre-graded -> 'graded' in this very tx), also set attempts.evaluation_released_at
+   * / _by ("the tenant may see and publish it")? DEFAULT false — fail-closed: a caller
+   * that does not say so never hands an evaluation to the tenant. The platform
+   * evaluator's route passes true (owner decision 2026-10-01: accepting the last grade
+   * IS the review, no separate click); tenants cannot call this handler — the tenant
+   * /accept route answers 403 AI_EVALUATION_BY_ASSESSIQ. Never applied to an erased
+   * candidate, and never to an attempt that was already 'graded' (a sent-back attempt
+   * is handed back with the explicit release-to-tenant step).
    */
   markEvaluationReleased?: boolean;
 }
@@ -65,12 +69,13 @@ export interface HandleAdminAcceptInput {
 export interface HandleAdminAcceptOutput {
   gradings: GradingsRow[];
   /**
-   * Completion gate (SP1, 2026-10-01): `status` is `"graded"` only when EVERY
-   * frozen question (all five types, incl. KQL) has a final, non-flagged grade
-   * (module 09 finalizeAttemptIfComplete). Partial accepts — or accepts that
-   * leave a review_needed grade / an ungraded KQL question — return
-   * `"pending_admin_grading"` so the attempt is NOT marked complete until every
-   * AI-failure is re-run or overridden and every KQL question is scored.
+   * Completion gate (SP1, 2026-10-01): `status` is `"graded"` when EVERY frozen question
+   * (all five types, incl. KQL) has a final, non-flagged grade (module 09
+   * finalizeAttemptIfComplete) — or when the attempt already was 'graded' (a re-run
+   * accepted on a sent-back result). Partial accepts — or accepts that leave a
+   * review_needed grade / an ungraded KQL question — return `"pending_admin_grading"`
+   * so the attempt is NOT marked complete until every AI-failure is re-run or
+   * overridden and every KQL question is scored.
    */
   attempt: { id: string; status: "graded" | "pending_admin_grading" };
 }
@@ -170,7 +175,7 @@ async function acceptProposals(
   attemptId: string,
   proposals: HandleAdminAcceptInput["proposals"],
   markEvaluationReleased: boolean,
-): Promise<{ gradings: GradingsRow[]; flipped: boolean }> {
+): Promise<{ gradings: GradingsRow[]; flipped: boolean; statusNow: "graded" | "pending_admin_grading" }> {
   // Lock the attempt row FIRST — the same row lock Release (09), override and
   // manual-score take — so the lock order is always attempt row -> everything
   // else. Without it a Release could check "no flagged grade" and publish while
@@ -237,17 +242,35 @@ async function acceptProposals(
       proposal.question_id,
       proposal.prompt_version_sha,
     );
+    // Id of the same-SHA row a re-evaluation row supersedes (see below); null = a plain insert.
+    let supersedes: string | null = null;
     if (existing !== null) {
-      log.info(
-        {
-          attemptId,
-          questionId: proposal.question_id,
-          gradingId: existing.id,
-        },
-        "grading.accept.idempotent_skip",
-      );
-      gradings.push(existing);
-      continue;
+      // Re-evaluation of an ALREADY-GRADED attempt (sent back by the tenant, then re-run):
+      // an unchanged prompt SHA only means the prompts did not change — it does not make a
+      // fresh AI pass a replay of the old one, and skipping it would silently drop the
+      // re-run. A proposal generated AFTER the question's newest grading (any grader) is a
+      // new verdict: write it as a NEW row (newest wins) that points at the same-SHA row it
+      // supersedes — override_of keeps the D7 partial unique index satisfied. A proposal at
+      // or before the newest grading is a replay (double click) or a stale tab and is
+      // skipped exactly as before, so it can never overwrite a newer grade or an override.
+      // Pre-graded attempts keep the plain D7 behaviour.
+      if (
+        attemptStatus === "graded" &&
+        (await isProposalNewerThanGradings(client, attemptId, proposal.question_id, proposal.generated_at))
+      ) {
+        supersedes = existing.id;
+      } else {
+        log.info(
+          {
+            attemptId,
+            questionId: proposal.question_id,
+            gradingId: existing.id,
+          },
+          "grading.accept.idempotent_skip",
+        );
+        gradings.push(existing);
+        continue;
+      }
     }
 
     const scoreEarned = edits?.score_earned ?? proposal.score_earned;
@@ -273,7 +296,7 @@ async function acceptProposals(
       model: proposal.model,
       escalation_chosen_stage: proposal.escalation_chosen_stage,
       graded_by: userId,
-      override_of: null,
+      override_of: supersedes,
       override_reason: null,
     });
 
@@ -290,13 +313,23 @@ async function acceptProposals(
   // Revenue-leak invariant (memory: billing-events-grade-commit-critical-path):
   // billing is tied to a TRUE completion, in the same tx as the flip; a partial
   // accept never bills. markEvaluationReleased comes from the caller (default
-  // false): the platform evaluator's accept completes the evaluation but does NOT
-  // hand it to the tenant — release-to-tenant is its own audited step.
+  // false). The platform evaluator's route passes true (owner decision 2026-10-01):
+  // the accept that completes the evaluation also hands it to the tenant — same
+  // statement as the flip, released_by = this admin — except for an erased
+  // candidate, whose result is never handed over (same gate as release-to-tenant).
+  // An attempt that was ALREADY 'graded' is not re-flipped by finalize, so a
+  // sent-back re-evaluation is never auto-released: that is the explicit
+  // release-to-tenant step.
+  const handOver = markEvaluationReleased && !(await isAttemptCandidateErased(client, attemptId));
   const { finalized: flipped } = await finalizeAttemptIfComplete(client, {
     tenantId,
     attemptId,
-    markEvaluationReleased,
+    markEvaluationReleased: handOver,
+    releasedBy: userId,
   });
+  const released = flipped && handOver;
+  const statusNow: "graded" | "pending_admin_grading" =
+    flipped || attemptStatus === "graded" ? "graded" : "pending_admin_grading";
 
   // finalize rolls attempt_scores up only when it flips the status. Every other
   // accept (partial, or a re-run accepted on an already-'graded' result) rolls up
@@ -310,7 +343,10 @@ async function acceptProposals(
   // One summary audit row for the whole accept batch (mirrors
   // help.content.imported precedent — N inserts, one audit row summarising
   // the batch). `attempt_status_now` reflects the actual post-gate state so
-  // partial accepts are honestly recorded as `pending_admin_grading`.
+  // partial accepts are honestly recorded as `pending_admin_grading`. When THIS
+  // accept completed the attempt and handed it to the tenant, the same row says so
+  // (`evaluation_released: true`) — there is no separate release audit row for that
+  // hand-over, so this is where an auditor finds it (actor = the releasing admin).
   await auditInTx(client, {
     action: "grading.accepted",
     actorKind: "user",
@@ -322,7 +358,8 @@ async function acceptProposals(
       attempt_id: attemptId,
       grading_count: gradings.length,
       grading_ids: gradings.map((g) => g.id).slice(0, 50),
-      attempt_status_now: flipped ? "graded" : "pending_admin_grading",
+      attempt_status_now: statusNow,
+      ...(released ? { evaluation_released: true } : {}),
     },
   });
 
@@ -330,7 +367,7 @@ async function acceptProposals(
   // robustness) now happen inside finalizeAttemptIfComplete, in the same tx as
   // the status flip: either all of {flip, bill, cache clear} commit or none.
 
-  return { gradings, flipped };
+  return { gradings, flipped, statusNow };
 }
 
 // ---------------------------------------------------------------------------
@@ -367,7 +404,7 @@ export async function handleAdminAccept(
 
   assertScoresInRange(proposals);
 
-  const { gradings, flipped } = await withTenant(tenantId, (client) =>
+  const { gradings, flipped, statusNow } = await withTenant(tenantId, (client) =>
     acceptProposals(
       client,
       tenantId,
@@ -395,7 +432,7 @@ export async function handleAdminAccept(
     gradings,
     attempt: {
       id: attemptId,
-      status: flipped ? "graded" : "pending_admin_grading",
+      status: statusNow,
     },
   };
 }
