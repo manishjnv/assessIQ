@@ -19,6 +19,10 @@
 //      COMPLETE result: status 'graded' AND evaluation_released_at set (the
 //      tenant may publish it — migration 0113) AND no effective grade still
 //      flagged review_needed (a re-run can add one after finalisation).
+//  10. An AUTO release re-checks the tenant's mode inside this tx (FOR SHARE on
+//      tenant_settings): still 'auto', and the result became ready at or after
+//      result_release_auto_since. The sweep's candidate read can be stale by the
+//      time it gets here (admin switched back to manual in between).
 //
 // No AI call, no model, no network.
 
@@ -50,7 +54,8 @@ export interface ReleaseAttemptInput {
    * What caused the release, recorded in the audit row. Defaults from the actor
    * (user -> 'manual', system -> 'auto'). The auto-release sweep passes 'auto'
    * explicitly even when it attributes the release to the user who released the
-   * evaluation.
+   * evaluation. An 'auto' release is additionally gated on the tenant's CURRENT
+   * result_release_mode (see the auto-release gate below); 'manual' is not.
    */
   trigger?: "manual" | "auto";
 }
@@ -58,8 +63,10 @@ export interface ReleaseAttemptInput {
 /**
  * Publish a finished result. Must run inside withTenant (RLS) on the caller's
  * open transaction. Throws AppError: 404 attempt not found, 422 erased
- * candidate, 409 RESULT_NOT_READY (not 'graded', evaluation not released, or
- * already released — the caller treats this as "skip").
+ * candidate, 409 RESULT_NOT_READY (not 'graded', evaluation not released,
+ * already released, a grade still flagged for review, or — for an 'auto'
+ * release — the tenant is no longer in auto mode / the result predates the
+ * switch to auto; the caller treats this as "skip").
  */
 export async function releaseAttemptInTx(
   client: PoolClient,
@@ -109,6 +116,37 @@ export async function releaseAttemptInTx(
       RELEASE_ERROR_CODES.RESULT_NOT_READY,
       409,
     );
+  }
+
+  // Auto-release gate. The sweep chooses its candidates in an earlier, separate
+  // read, so by the time this tx holds the attempt lock the admin may have
+  // switched the tenant back to manual (or manual -> auto -> manual -> auto,
+  // moving result_release_auto_since past this result). Re-check the setting HERE
+  // under a FOR SHARE lock on the tenant_settings row: a concurrent switch (02
+  // updateResultReleaseMode takes FOR UPDATE) has either committed already and is
+  // seen now, or waits until this tx commits, so "publish" and "switch to manual"
+  // can never both win. Lock order: attempt row, then tenant_settings row (the
+  // switch only ever locks tenant_settings). The timestamp comparison stays in SQL
+  // so it is exact to the microsecond. A manual release (admin click / bulk) is an
+  // explicit decision and skips this gate.
+  if (trigger === "auto") {
+    const gate = await client.query<{ ok: boolean | null }>(
+      `SELECT (ts.result_release_mode = 'auto'
+               AND ts.result_release_auto_since IS NOT NULL
+               AND a.evaluation_released_at >= ts.result_release_auto_since) AS ok
+         FROM tenant_settings ts
+         JOIN attempts a ON a.id = $1
+        WHERE ts.tenant_id = $2
+          FOR SHARE OF ts`,
+      [attemptId, tenantId],
+    );
+    if (gate.rows[0]?.ok !== true) {
+      throw new AppError(
+        "Result is not eligible for automatic release (the tenant is not in auto-release mode, or the result was ready before auto-release was switched on)",
+        RELEASE_ERROR_CODES.RESULT_NOT_READY,
+        409,
+      );
+    }
   }
 
   // P1 re-check: finalize (finalize.ts) guarantees no flagged grade when an attempt

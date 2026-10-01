@@ -4,6 +4,8 @@
  * The sweep publishes finished results for tenants in result_release_mode='auto', but
  * ONLY results that became ready after the tenant switched to auto; a manual tenant's
  * queue is never touched. Module 13's email is mocked (covered by 13's own tests).
+ * The release re-checks the tenant mode itself (09 gate): a switch back to manual that lands
+ * between the sweep's candidate read and its release must win (race tests below).
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
@@ -57,6 +59,21 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
     return await fn(c);
   } finally {
     await c.end();
+  }
+}
+
+/** Resolves once some backend is blocked on a row/transaction lock (i.e. the code under test reached its lock). */
+async function waitForLockWait(timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const n = await sup((c) =>
+      c
+        .query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`)
+        .then((r) => r.rows[0].n as number),
+    );
+    if (n > 0) return;
+    if (Date.now() > deadline) throw new Error("nothing is waiting on a lock: the release never blocked on the attempt row");
+    await new Promise((r) => setTimeout(r, 25));
   }
 }
 
@@ -406,6 +423,38 @@ describe("auto-release sweep", () => {
     }
     expect(emailed().filter((id) => ids.includes(id)).sort()).toEqual([...ids].sort());
   });
+
+  it.each([
+    ["the admin switches the tenant back to manual", ["manual"]],
+    ["the admin switches to manual and back to auto (auto_since moves past the result)", ["manual", "auto"]],
+  ] as const)(
+    "race: %s AFTER the sweep selected the attempt but before its release -> NOT published (skipped; no audit, no email, no certificate)",
+    async (_label, switches) => {
+      const t = await seedTenant({ mode: "auto", sinceMinAgo: 60 });
+      const id = await addAttempt(t, { evalAgoMin: 1, pct: 85 });
+      const holder = new Client({ connectionString: url });
+      await holder.connect();
+      let r: Awaited<ReturnType<typeof processAutoReleaseTick>> | undefined;
+      try {
+        await holder.query("BEGIN");
+        // park the sweep's release on the attempt row, AFTER its candidate read has happened
+        await holder.query(`SELECT 1 FROM attempts WHERE id = $1 FOR UPDATE`, [id]);
+        const ticking = processAutoReleaseTick(); // candidate read sees the committed 'auto' ...
+        await waitForLockWait(); // ... and the release is now queued behind the holder
+        for (const mode of switches) await updateResultReleaseMode(t.admin, t.id, mode); // real 02 service, committed
+        await holder.query("COMMIT");
+        r = await ticking;
+      } finally {
+        await holder.query("ROLLBACK").catch(() => undefined);
+        await holder.end();
+      }
+      expect(r).toMatchObject({ released: 0, skipped: 1, failed: 0 });
+      expect(await status(id)).toBe("graded");
+      expect(await releasedAudit(id)).toHaveLength(0);
+      expect(emailed()).not.toContain(id);
+      expect(await sup((c) => c.query(`SELECT COUNT(*)::int n FROM certificates WHERE attempt_id=$1`, [id]).then((x) => x.rows[0].n))).toBe(0);
+    },
+  );
 
   it("never throws: a broken candidate query is logged and the tick returns zeros", async () => {
     await sup((c) => c.query(`ALTER TABLE tenant_settings RENAME COLUMN result_release_mode TO result_release_mode_x`));
