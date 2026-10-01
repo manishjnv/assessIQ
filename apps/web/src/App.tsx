@@ -37,6 +37,7 @@ const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => (
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
 
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
+const MyResults = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyResults })));
 const CandidateShell = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateShell })));
 const CandidateActivity = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateActivity })));
 
@@ -118,6 +119,20 @@ export function App(): JSX.Element {
           {/* Candidate auth routes — no RequireSession (public pages). */}
           <Route path="/candidate/login" element={<CandidateLogin />} />
           <Route path="/candidate/login/verify" element={<CandidateLoginVerify />} />
+
+          {/* Candidate results — released results only (owner rule P1). This is
+              where the emailed magic-link sign-in lands (verify-link redirects
+              here). Same gate as certificates below. */}
+          <Route
+            path="/candidate/results"
+            element={
+              <RequireSession unauthRedirect="/candidate/login">
+                <CandidateShell>
+                  <MyResults />
+                </CandidateShell>
+              </RequireSession>
+            }
+          />
 
           {/* Candidate certificate dashboard.
               RequireSession with no role admits any authenticated user

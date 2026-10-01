@@ -90,7 +90,8 @@ describe('MyCertificates', () => {
     // Never resolves — stays in loading state for the duration of the test.
     mockListMyCertificates.mockReturnValue(new Promise(() => {}));
     render(<MyCertificates />);
-    expect(screen.getByText(/Loading your certificates/)).toBeDefined();
+    // The Spinner primitive carries the label as aria-label (role="status").
+    expect(screen.getByRole('status', { name: 'Loading certificates' })).toBeDefined();
   });
 
   it('snapshot: renders all three cert rows after load', async () => {

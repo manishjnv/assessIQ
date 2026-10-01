@@ -6,6 +6,8 @@
 //   - Presentation primitives (AttemptTimer, AutosaveIndicator, IntegrityBanner, QuestionNavigator)
 //   - Resilience layer (localStorage backup; retry/throttle live in the hooks)
 //   - Hooks (useAutosave, useIntegrityHooks, useMultiTabWarning)
+//   - Result surface (2026-10-01 scoring/release): ResultSummary, MyResults,
+//     listMyResults, wire types for submit/result/results
 //
 // Page-level routes live in apps/web/src/pages/take/ and import from this barrel.
 
@@ -21,6 +23,13 @@ export type {
   TakePreviewResponseWire,
   SubmitAttemptResponseWire,
   AttemptResultPendingWire,
+  AttemptResultReleasedWire,
+  AttemptResultWire,
+  ResultExpectation,
+  ReleaseMode,
+  ResultCertificateWire,
+  MyResultItemWire,
+  MyResultsResponseWire,
   CandidateEventType,
   CandidateEventInput,
   ApiErrorEnvelope,
@@ -39,6 +48,7 @@ export {
   recordEvent,
   submitAttempt,
   getResult,
+  listMyResults,
 } from "./api";
 export type { SaveAnswerArgs } from "./api";
 
@@ -51,6 +61,8 @@ export {
   CandidateHelp,
   CompletionModal,
   MyCertificates,
+  MyResults,
+  ResultSummary,
   CandidateShell,
   CandidateSessionBanner,
   CandidateActivity,
@@ -65,6 +77,7 @@ export type {
   NavigatorItem,
   CandidateHelpProps,
   CompletionModalProps,
+  ResultSummaryProps,
   CandidateShellProps,
   CandidateSessionBannerProps,
 } from "./components";

@@ -9,10 +9,11 @@
 
 import type {
   AttemptAnswerWire,
-  AttemptResultPendingWire,
+  AttemptResultWire,
   CandidateAttemptViewWire,
   CandidateEventInput,
   InvitedAssessmentWire,
+  MyResultsResponseWire,
   SubmitAttemptResponseWire,
   TakePreviewResponseWire,
   TakeStartResponseWire,
@@ -205,12 +206,22 @@ export async function submitAttempt(
   );
 }
 
+/**
+ * GET /api/me/attempts/:id/result — 200 `released` (complete result) or 202
+ * `pending`. Both are `res.ok`, so `call()` resolves for either; callers switch
+ * on `status` and must treat anything other than "released" as pending.
+ */
 export async function getResult(
   attemptId: string,
-): Promise<AttemptResultPendingWire> {
-  return call<AttemptResultPendingWire>(
+): Promise<AttemptResultWire> {
+  return call<AttemptResultWire>(
     `/me/attempts/${encodeURIComponent(attemptId)}/result`,
   );
+}
+
+/** GET /api/me/results — the candidate's released results, newest first. */
+export async function listMyResults(): Promise<MyResultsResponseWire> {
+  return call<MyResultsResponseWire>("/me/results");
 }
 
 // Re-exported for callers that need to switch on the wire types.
