@@ -4,6 +4,13 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-01 — Exam content (questions + answer keys) committed to the public repo
+
+**Symptom:** A full product review found a platform question pack, including every answer key, committed as a seed migration and pushed to the public GitHub repo.
+**Cause:** `tools/gen-aptitude-migration.ts` wrote its SQL into the tracked `modules/04-question-bank/migrations/` folder by default, and content seeds were treated like schema migrations. Nothing stops content from being committed to a public repo.
+**Fix:** File moved to `docs/exam-content/` (gitignored) and untracked; `.gitignore` blocks the old path and the new folder; generator default output moved (`tools/gen-aptitude-migration.ts` CLI `out` default); test reads the new path (`aptitude-seed-migration.test.ts`, skips in CI). DB content in prod is unchanged. Owner chose to keep the repo public, so the copy in git history remains: the pack is treated as leaked and will be replaced before any real drive.
+**Prevention:** Rule in `modules/04-question-bank/SKILL.md` § "Exam content is never committed" — question text and answer keys never enter git; load content via the admin JSON import or apply generated SQL on the VPS by hand. Manual discipline plus the `.gitignore` guard (no automated content scanner).
+
 ## 2026-10-01 — Documented daily DB backups were never installed (no backup existed)
 
 **Symptom:** A 2026-10-01 status review found **no database backup of any kind** on the prod VPS. There was no `/etc/cron.daily/assessiq-backup`, no `/var/backups/assessiq`, no rclone and no backup timer (checked as root). A disk or VPS loss would have lost all data.

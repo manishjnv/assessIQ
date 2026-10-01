@@ -39,6 +39,12 @@ pnpm-debug.log*
 # Internal docs — kept local (public repo). Files already tracked stay tracked
 # until removed with `git rm -r --cached docs`; new docs need `git add -f`.
 docs/
+
+# Exam content (question text + answer keys) — NEVER commit: the repo is public.
+# Generated seed SQL lives in docs/exam-content/ (local only). The second line
+# blocks the aptitude seed from being regenerated back into the migrations folder.
+docs/exam-content/
+modules/04-question-bank/migrations/0109_seed_platform_aptitude_pack.sql
 *.pem
 *.key
 *.crt

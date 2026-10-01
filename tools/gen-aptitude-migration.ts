@@ -1,8 +1,10 @@
 /**
  * tools/gen-aptitude-migration.ts
  *
- * Generates modules/04-question-bank/migrations/0109_seed_platform_aptitude_pack.sql
- * from an aptitude-question JSON file. The migration is idempotent (safe to re-run).
+ * Generates docs/exam-content/0109_seed_platform_aptitude_pack.sql (gitignored, local only)
+ * from an aptitude-question JSON file. The SQL is idempotent (safe to re-run).
+ * It holds question text + answer keys, so it must never be committed (public repo):
+ * apply it on the VPS by hand, or load questions via POST /api/admin/questions/import.
  *
  * Usage:
  *   pnpm tsx tools/gen-aptitude-migration.ts <questions.json> [--out <file.sql>] [--publish]
@@ -20,7 +22,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -264,13 +266,15 @@ if (isMain) {
       ? args[outIdx + 1]!
       : path.resolve(
           path.dirname(fileURLToPath(import.meta.url)),
-          "../modules/04-question-bank/migrations/0109_seed_platform_aptitude_pack.sql",
+          // ponytail: exam content stays out of git (public repo) — docs/ is gitignored.
+          "../docs/exam-content/0109_seed_platform_aptitude_pack.sql",
         );
   const raw = readFileSync(input, "utf8");
   const sql = generateAptitudeSql(JSON.parse(raw) as AptitudeInput, {
     publish: args.includes("--publish"),
     inputSha: createHash("sha256").update(raw).digest("hex"),
   });
+  mkdirSync(path.dirname(out), { recursive: true }); // docs/ is gitignored, so the folder may not exist
   writeFileSync(out, sql, "utf8");
   console.log(`wrote ${out} (${sql.length} bytes)`);
 }

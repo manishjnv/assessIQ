@@ -9,7 +9,8 @@
  * Covers: domain + categories (platform + propagation, tenant-local domain untouched),
  * pack/levels/questions, MCQ content vs the repo's McqContentSchema, SQL-escape
  * round-trip, re-apply is a no-op, publish mode invariants, clone-on-use of the
- * published pack, and the real committed 0109 file (when present).
+ * published pack, and the real 0109 file in docs/exam-content/ (when present locally;
+ * it is gitignored because it holds answer keys, so CI skips that block).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -29,7 +30,8 @@ import {
 const toFs = (u: URL) => u.pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const HERE = toFs(new URL(".", import.meta.url));
 const MODULES = join(HERE, "..", "..", "..");
-const REAL_0109 = join(MODULES, "04-question-bank", "migrations", "0109_seed_platform_aptitude_pack.sql");
+// Real content lives outside git (public repo) — present only on a machine that holds docs/exam-content/.
+const REAL_0109 = join(MODULES, "..", "docs", "exam-content", "0109_seed_platform_aptitude_pack.sql");
 
 let container: StartedTestContainer;
 let baseUrl: (db: string) => string;
