@@ -3,9 +3,9 @@
  * live integration tests.
  *
  *   1. New tenants default to 'manual'; findTenantSettings maps the column.
- *   2. manual -> auto writes the column, bumps result_release_mode_changed_at,
- *      and writes exactly ONE tenant.settings.updated audit row (before/after, no PII).
- *   3. Same-mode request is an idempotent no-op (no write, no audit, changed_at untouched).
+ *   2. manual -> auto writes the column, stamps result_release_auto_since (auto -> manual
+ *      clears it), and writes exactly ONE tenant.settings.updated audit row (before/after, no PII).
+ *   3. Same-mode request is an idempotent no-op (no write, no audit, auto_since untouched).
  *   4. Invalid mode -> ValidationError, nothing written.
  *   5. Another tenant's row is never touched (RLS-scoped withTenant).
  *   6. Atomicity: audit INSERT failure rolls the change back.
@@ -54,8 +54,8 @@ async function applyDir(c: Client, dir: string, only?: string[]): Promise<void> 
 
 const modeOf = async (id: string): Promise<string> =>
   (await sql<{ m: string }>(`SELECT result_release_mode AS m FROM tenant_settings WHERE tenant_id = $1`, [id]))[0]!.m;
-const changedAt = async (id: string): Promise<string> =>
-  (await sql<{ t: string }>(`SELECT result_release_mode_changed_at::text AS t FROM tenant_settings WHERE tenant_id = $1`, [id]))[0]!.t;
+const autoSince = async (id: string): Promise<string | null> =>
+  (await sql<{ t: string | null }>(`SELECT result_release_auto_since::text AS t FROM tenant_settings WHERE tenant_id = $1`, [id]))[0]!.t;
 const auditRows = (id: string) =>
   sql<{ entity_id: string; actor_user_id: string; before: Record<string, unknown>; after: Record<string, unknown> }>(
     `SELECT entity_id::text, actor_user_id::text, before, after FROM audit_log
@@ -112,7 +112,7 @@ afterAll(async () => {
 }, 30_000);
 
 beforeEach(async () => {
-  await sql(`UPDATE tenant_settings SET result_release_mode = 'manual' WHERE tenant_id = ANY($1::uuid[])`, [[A, B]]);
+  await sql(`UPDATE tenant_settings SET result_release_mode = 'manual', result_release_auto_since = NULL WHERE tenant_id = ANY($1::uuid[])`, [[A, B]]);
   await sql(`DELETE FROM audit_log WHERE tenant_id = ANY($1::uuid[])`, [[A, B]]);
 });
 
@@ -126,13 +126,17 @@ describe("result_release_mode setting", () => {
     expect(s?.result_release_mode).toBe("manual");
   });
 
-  it("manual -> auto: writes the column, bumps changed_at, exactly one tenant.settings.updated audit row", async () => {
-    const t0 = await changedAt(A);
+  it("manual -> auto: writes the column, stamps result_release_auto_since, exactly one tenant.settings.updated audit row", async () => {
+    expect(await autoSince(A)).toBeNull(); // manual tenants have no auto_since
+    const before = Date.now();
     const r = await updateResultReleaseMode(ACTOR, A, "auto");
     expect(r).toMatchObject({ tenantId: A, result_release_mode: "auto", previous: "manual" });
     expect(r.auditId).not.toBeNull();
     expect(await modeOf(A)).toBe("auto");
-    expect(new Date(await changedAt(A)).getTime()).toBeGreaterThan(new Date(t0).getTime());
+    const stamp = await autoSince(A);
+    expect(stamp).not.toBeNull();
+    expect(new Date(stamp!).getTime()).toBeGreaterThanOrEqual(before - 5_000);
+    expect(r.result_release_auto_since?.getTime()).toBe(new Date(stamp!).getTime());
 
     const rows = await auditRows(A);
     expect(rows).toHaveLength(1);
@@ -144,22 +148,35 @@ describe("result_release_mode setting", () => {
     });
     const s = await withTenant(A, (c) => findTenantSettings(c));
     expect(s?.result_release_mode).toBe("auto");
+    expect(s?.result_release_auto_since?.getTime()).toBe(new Date(stamp!).getTime());
   });
 
-  it("auto -> manual works too", async () => {
+  it("auto -> manual works too and clears result_release_auto_since", async () => {
     await updateResultReleaseMode(ACTOR, A, "auto");
+    expect(await autoSince(A)).not.toBeNull();
     const r = await updateResultReleaseMode(ACTOR, A, "manual");
-    expect(r).toMatchObject({ result_release_mode: "manual", previous: "auto" });
+    expect(r).toMatchObject({ result_release_mode: "manual", previous: "auto", result_release_auto_since: null });
     expect(await modeOf(A)).toBe("manual");
+    expect(await autoSince(A)).toBeNull();
     expect(await auditRows(A)).toHaveLength(2);
   });
 
-  it("same mode is an idempotent no-op: no audit row, changed_at untouched", async () => {
-    const t0 = await changedAt(A);
+  it("same mode is an idempotent no-op: no audit row, auto_since untouched (a repeat 'auto' never re-stamps it)", async () => {
+    // manual -> manual: nothing changes
     const r = await updateResultReleaseMode(ACTOR, A, "manual");
-    expect(r).toMatchObject({ result_release_mode: "manual", previous: "manual", auditId: null });
+    expect(r).toMatchObject({ result_release_mode: "manual", previous: "manual", auditId: null, result_release_auto_since: null });
     expect(await auditRows(A)).toHaveLength(0);
-    expect(await changedAt(A)).toBe(t0);
+    expect(await autoSince(A)).toBeNull();
+
+    // auto -> auto: the original switch moment survives (otherwise a repeated click
+    // would silently move the "released before the switch" boundary forward)
+    await updateResultReleaseMode(ACTOR, A, "auto");
+    const first = await autoSince(A);
+    await sql(`SELECT pg_sleep(0.05)`);
+    const again = await updateResultReleaseMode(ACTOR, A, "auto");
+    expect(again.auditId).toBeNull();
+    expect(await autoSince(A)).toBe(first);
+    expect(await auditRows(A)).toHaveLength(1);
   });
 
   it.each([["bogus"], [""], [null], [undefined], [1], [true]])(

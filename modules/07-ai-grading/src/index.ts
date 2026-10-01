@@ -123,6 +123,12 @@ export {
 } from "./handlers/admin-claim-release.js";
 
 export type {
+  HandleAdminReleaseAllInput,
+  HandleAdminReleaseAllOutput,
+} from "./handlers/admin-release-all.js";
+export { handleAdminReleaseAll } from "./handlers/admin-release-all.js";
+
+export type {
   HandleAdminListGradingJobsInput,
   HandleAdminListGradingJobsOutput,
   HandleAdminRetryGradingJobInput,

@@ -657,10 +657,11 @@ export async function updateRetentionDays(
 // the only mutator. UPDATE + exactly one audit row commit in one withTenant tx.
 //
 // Switching the mode never releases anything by itself (no side effect here).
-// result_release_mode_changed_at is bumped on every real change so the
-// auto-release sweep (apps/api worker) only publishes attempts that became
-// ready AFTER the switch — results already waiting stay for an explicit
-// (bulk) release by the admin. An idempotent same-mode request writes nothing.
+// result_release_auto_since is set to now() on manual -> auto and cleared on
+// auto -> manual, so the auto-release sweep (apps/api worker) only publishes
+// attempts that became ready AFTER the switch — results already waiting stay
+// for an explicit (bulk) release by the admin. An idempotent same-mode request
+// writes nothing.
 
 export type ResultReleaseMode = "manual" | "auto";
 
@@ -668,6 +669,8 @@ export interface UpdateResultReleaseModeResult {
   tenantId: string;
   result_release_mode: ResultReleaseMode;
   previous: ResultReleaseMode;
+  /** When the tenant switched to 'auto' (null while 'manual'). */
+  result_release_auto_since: Date | null;
   updatedAt: Date;
   /** null on an idempotent no-op (nothing changed, nothing audited). */
   auditId: string | null;
@@ -688,11 +691,16 @@ export async function updateResultReleaseMode(
   log.info({ targetTenantId, mode }, "updateResultReleaseMode");
 
   return await withTenant(targetTenantId, async (client) => {
-    // Narrow, locking read (only the two columns we need): serialises two
+    // Narrow, locking read (only the columns we need): serialises two
     // concurrent flips and does not depend on unrelated columns (webhook_secret,
     // module-20 retention_days) existing in the schema under test.
-    const currentRes = await client.query<{ result_release_mode: ResultReleaseMode; updated_at: Date }>(
-      `SELECT result_release_mode, updated_at FROM tenant_settings LIMIT 1 FOR UPDATE`,
+    const currentRes = await client.query<{
+      result_release_mode: ResultReleaseMode;
+      result_release_auto_since: Date | null;
+      updated_at: Date;
+    }>(
+      `SELECT result_release_mode, result_release_auto_since, updated_at
+         FROM tenant_settings LIMIT 1 FOR UPDATE`,
     );
     const current = currentRes.rows[0];
     if (current === undefined) {
@@ -704,17 +712,23 @@ export async function updateResultReleaseMode(
         tenantId: targetTenantId,
         result_release_mode: previous,
         previous,
+        result_release_auto_since: current.result_release_auto_since,
         updatedAt: current.updated_at,
         auditId: null,
       };
     }
 
-    const updateResult = await client.query<{ result_release_mode: ResultReleaseMode; updated_at: Date }>(
+    // manual -> auto stamps "auto since now"; auto -> manual clears it.
+    const updateResult = await client.query<{
+      result_release_mode: ResultReleaseMode;
+      result_release_auto_since: Date | null;
+      updated_at: Date;
+    }>(
       `UPDATE tenant_settings
-          SET result_release_mode = $1,
-              result_release_mode_changed_at = now(),
+          SET result_release_mode = $1::text,
+              result_release_auto_since = CASE WHEN $1::text = 'auto' THEN now() ELSE NULL END,
               updated_at = now()
-        RETURNING result_release_mode, updated_at`,
+        RETURNING result_release_mode, result_release_auto_since, updated_at`,
       [mode],
     );
     const updatedRow = updateResult.rows[0];
@@ -739,6 +753,7 @@ export async function updateResultReleaseMode(
       tenantId: targetTenantId,
       result_release_mode: updatedRow.result_release_mode,
       previous,
+      result_release_auto_since: updatedRow.result_release_auto_since,
       updatedAt: updatedRow.updated_at,
       auditId: auditRow.id,
     };
