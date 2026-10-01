@@ -42,6 +42,7 @@ import {
   WeeklyDigestAdminVarsSchema,
   AdminEmailOtpVarsSchema,
   ResultReleasedVarsSchema,
+  EvaluationQueueAlertVarsSchema,
 } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -68,6 +69,7 @@ const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   // P2: Email-OTP sign-in code (admin/reviewer only).
   admin_email_otp: AdminEmailOtpVarsSchema,
   result_released: ResultReleasedVarsSchema,
+  evaluation_queue_alert: EvaluationQueueAlertVarsSchema,
 };
 
 // ---------------------------------------------------------------------------
@@ -193,6 +195,11 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
         { k: 'Company', v: escapeHtml(p.tenantName) },
         { k: 'Score', v: `<strong>${escapeHtml(p.scoreText)}</strong>` },
         { k: 'Result', v: `<strong>${escapeHtml(p.resultText)}</strong>` },
+      ];
+    case 'evaluation_queue_alert':
+      return [
+        { k: 'Waiting', v: `<strong>${escapeHtml(String(p.count))}</strong> over 24 hours` },
+        { k: 'Oldest', v: `${escapeHtml(String(p.oldestAgeHours))} hours` },
       ];
     case 'attempt_ready_for_review_admin':
       return [

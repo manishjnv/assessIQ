@@ -42,6 +42,12 @@
     "cta": "View your result",
     "certificate_cta": "View your certificate"
   },
+  "evaluation_queue_alert": {
+    "page_title": "Evaluations are waiting",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Evaluations are waiting.",
+    "cta": "Open the evaluation queue"
+  },
   "attempt_ready_for_review_admin": {
     "page_title": "Attempt ready for review",
     "brand_wordmark": "AssessIQ",
