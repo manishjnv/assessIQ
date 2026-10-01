@@ -71,6 +71,13 @@ export interface AttemptQuestion {
   question_id: string;
   position: number;
   question_version: number;
+  /**
+   * INTERNAL — never serialised to a candidate. Per-attempt MCQ option shuffle
+   * (migration 0119): option_order[displayPosition] = originalIndex, or null =
+   * original order (legacy / non-MCQ / options that refer to each other).
+   * See option-shuffle.ts.
+   */
+  option_order: number[] | null;
 }
 
 export interface AttemptAnswer {
