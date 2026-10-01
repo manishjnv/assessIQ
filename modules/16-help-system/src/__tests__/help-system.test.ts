@@ -270,7 +270,7 @@ describe("Block 1 — RLS visibility", () => {
   // forward migrations 0092/0093/0094 that never bumped it); corrected to the
   // true post-migration count 125 (124 pre-existing + 1 for
   // admin.question_bank.pack.revise, migration 0097). 2026-10-01: 125 -> 131
-  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139; 2026-10-01 scoring/result-release Phase II FE +13 admin keys (0116: 9 admin.evaluations.* + admin.attempts.{awaiting_evaluation,send_back,release_button} + admin.assessments.release_all) -> 152.
+  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139; 2026-10-01 scoring/result-release Phase II FE +13 admin keys (0116: 9 admin.evaluations.* + admin.attempts.{awaiting_evaluation,send_back,release_button} + admin.assessments.release_all) -> 152; 2026-10-01 release-on-last-accept +1 admin key (0118: admin.evaluations.rerun_ai; its 7 UPDATEs add no rows) -> 153.
   it("tenant A sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_A, async (client) => {
@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(152);
+    expect(count).toBe(153);
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,33 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(152);
+    expect(count).toBe(153);
+  });
+
+  // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt
+  // to the company) and adds admin.evaluations.rerun_ai. A WHERE that matched nothing would fail
+  // silently, so assert the new copy and that the old "separate release step" copy is gone.
+  it("0118 rewrote the evaluation release help and added admin.evaluations.rerun_ai", async () => {
+    if (skipAll) return;
+    const rows = await withSuperClient(async (client) => {
+      const res = await client.query<{ key: string; audience: string; short_text: string; long_md: string }>(
+        `SELECT key, audience, short_text, long_md FROM help_content
+          WHERE tenant_id IS NULL AND status = 'active' AND key LIKE 'admin.evaluations.%'`,
+      );
+      return new Map(res.rows.map((r) => [r.key, r]));
+    });
+    const accept = rows.get("admin.evaluations.accept_all");
+    expect(accept?.long_md).toContain("released to the company in that same step");
+    expect(accept?.long_md).not.toContain("does not release the attempt");
+    expect(rows.get("admin.evaluations.release_to_company")?.short_text).toContain("The last accept already does this");
+    expect(rows.get("admin.evaluations.manual_score")?.long_md).toContain("releases the attempt to the company");
+    expect(rows.get("admin.evaluations.sent_back")?.long_md).toContain("Re-run AI");
+    expect(rows.get("admin.evaluations.queue")?.long_md).not.toContain("only needs releasing");
+    expect(rows.get("admin.evaluations.evaluate_next")?.long_md).not.toContain("then release");
+    expect(rows.get("admin.evaluations.release_selected")?.short_text).toContain("The last accept already does this");
+    const rerun = rows.get("admin.evaluations.rerun_ai");
+    expect(rerun?.audience).toBe("admin");
+    expect(rerun?.short_text).toContain("Nothing changes until you accept");
   });
 
   // 0115 UPDATEs the two global rows that predate the result-release change.

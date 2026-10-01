@@ -15,6 +15,13 @@
 // Four zones per question — Question / Expected answer / Candidate answer /
 // Evaluation — keep what was asked, expected, written and scored strictly apart.
 //
+// Release hand-over (owner decision 2026-10-01): in evaluate mode the accept /
+// manual score / override that completes the attempt releases it to the company on
+// the server, in the same step — there is no separate click. The panel warns before
+// the action that would do it (inline notice, no extra confirm) and the page shows the
+// "Released to <company>" state afterwards. A sent-back attempt (already graded) is
+// not auto-released; it gets "Re-run AI" here and the page's "Release to company".
+//
 // INVARIANTS:
 //  - No claude/anthropic imports.
 //  - ai_justification + candidate answer displayed as plain text only.
@@ -36,12 +43,15 @@ import { adminApi, AdminApiError } from "../api.js";
 import { bandToScore } from "../lib/band-score.js";
 import {
   apiMessage,
+  completesWith,
   effectiveGradings,
+  evaluationMeta,
   isAiFailure,
   isErrorCode,
+  isNewerThanGrade,
 } from "../lib/evaluation.js";
 import type { AttemptDetailResponse, FrozenQuestion } from "../lib/evaluation.js";
-import type { GradingProposal } from "@assessiq/ai-grading";
+import type { GradingProposal, GradingsRow } from "@assessiq/ai-grading";
 
 export interface AttemptGradingPanelProps {
   detail: AttemptDetailResponse;
@@ -361,6 +371,35 @@ function AuditZone({
 }
 
 // ---------------------------------------------------------------------------
+// ReleaseNotice — shown BEFORE the action that would complete the evaluation. The
+// server releases the result to the company in that same step, so the evaluator
+// is told up front instead of being asked to confirm a second time.
+// ---------------------------------------------------------------------------
+
+function ReleaseNotice({ tenantName, action }: { tenantName: string; action: string }): React.ReactElement {
+  return (
+    <p
+      role="note"
+      className="aiq-no-print"
+      data-test-id="release-notice"
+      style={{
+        margin: 0,
+        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+        borderLeft: "3px solid var(--aiq-color-info, #3177dc)",
+        backgroundColor: "var(--aiq-color-info-subtle, #eef4ff)",
+        borderRadius: "var(--aiq-radius-sm, 4px)",
+        fontFamily: "var(--aiq-font-sans)",
+        fontSize: "var(--aiq-text-sm)",
+        lineHeight: 1.5,
+        color: "var(--aiq-color-fg-secondary)",
+      }}
+    >
+      {action} releases this result to {tenantName}. If {tenantName} publishes automatically, the student gets it within a minute.
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ManualScoreForm — a score entered by hand for a question with no grade
 // (KQL, or an AI answer the evaluator would rather score directly).
 // ---------------------------------------------------------------------------
@@ -370,11 +409,14 @@ function ManualScoreForm({
   busy,
   onSubmit,
   onCancel,
+  releaseNotice,
 }: {
   max: number;
   busy: boolean;
   onSubmit: (score: number, reason: string) => void;
   onCancel?: () => void;
+  /** Rendered above the buttons when saving this score would release the result. */
+  releaseNotice?: React.ReactNode;
 }): React.ReactElement {
   const [score, setScore] = useState("");
   const [reason, setReason] = useState("");
@@ -418,6 +460,7 @@ function ManualScoreForm({
           style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", padding: "var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", resize: "vertical" }}
         />
       </label>
+      {releaseNotice}
       <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
         <button
           type="button"
@@ -497,18 +540,52 @@ export function AttemptGradingPanel({
   const gradingStalled = startedAt != null && gradingElapsedSec > STALE_MARKER_SEC;
   const gradingActive = startedAt != null && !gradingStalled;
 
-  const pending = useMemo(
-    () => Object.values(proposals).filter((p) => !effective.has(p.question_id)),
-    [proposals, effective],
-  );
+  // Evaluation hand-over state (evaluate mode). The company's name is only used for wording.
+  const meta = evaluationMeta(detail);
+  const tenantName = meta.tenant_name ?? "the company";
+  // Sent back by the company, re-evaluated by AssessIQ: graded, not with the company, send-back
+  // marker set. Only here does the panel offer the attempt-level "Re-run AI" (Grade all is
+  // refused by the server for a graded attempt) and show re-run proposals over existing grades.
+  const canRerunAi =
+    evaluate && attempt.status === "graded" && !meta.evaluation_released_at && !!meta.evaluation_sent_back_at;
+  // Finalising only happens on a pre-graded attempt; a graded one is never auto-released.
+  const completesOnAction = (questionIds: readonly string[]): boolean =>
+    isGradeable &&
+    completesWith(
+      questionIds,
+      frozen_questions.map((q) => q.id),
+      effective,
+    );
+
+  // The proposals that still call for a decision. A question with no grade yet: its proposal.
+  // A question that already has a grade: only a RE-RUN proposal (canRerunAi) and only while it
+  // is newer than that grade — accepting it, or an override, makes the grade newer and the
+  // card goes away. Everything else stays hidden, as before.
+  const shown = useMemo(() => {
+    const m = new Map<string, GradingProposal>();
+    for (const p of Object.values(proposals)) {
+      const g = effective.get(p.question_id);
+      if (g === undefined || (canRerunAi && isNewerThanGrade(p, g))) m.set(p.question_id, p);
+    }
+    return m;
+  }, [proposals, effective, canRerunAi]);
+  const pending = useMemo(() => [...shown.values()], [shown]);
   const acceptable = pending.filter((p) => !isAiFailure(p));
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  async function handleGrade(): Promise<void> {
+  // Grade all (pre-graded attempt) and Re-run AI (sent-back attempt) are the same shape:
+  // one synchronous whole-attempt AI batch on the admin's click, proposals back, nothing
+  // committed until Accept. The server marks the run in progress and caches the result, so
+  // a proxy timeout is recoverable by polling.
+  async function runBatch(endpoint: "grade" | "rerun"): Promise<void> {
     setGrading(true);
     try {
-      const res = await adminApi<{ proposals: GradingProposal[] }>(`${apiBase}/grade`, { method: "POST" });
+      const res = await adminApi<{ proposals: GradingProposal[] }>(`${apiBase}/${endpoint}`, {
+        method: "POST",
+        // The rerun route validates { forceEscalate? }; the attempt-level run sends none.
+        ...(endpoint === "rerun" ? { body: JSON.stringify({}) } : {}),
+      });
       const map: Record<string, GradingProposal> = {};
       for (const p of res.proposals) map[p.question_id] = p;
       onError(null);
@@ -516,20 +593,23 @@ export function AttemptGradingPanel({
       // Reload to pick up the cleared grading_started_at in the same tick.
       void reload();
     } catch (err) {
-      // A CF/proxy timeout (504/524/408) on a slow Grade-all is non-fatal: the
+      // A CF/proxy timeout (504/524/408) on a slow batch is non-fatal: the
       // server persists the batch, so reload (starts the poll) instead of failing.
       const isTimeout =
         err instanceof AdminApiError && (err.status === 504 || err.status === 524 || err.status === 408);
       onError(
         isTimeout
-          ? "Grading is taking longer than the connection timeout — it continues on the server. This page will refresh automatically when proposals arrive."
-          : apiMessage(err, "Grade request failed."),
+          ? `${endpoint === "grade" ? "Grading" : "Re-running"} is taking longer than the connection timeout — it continues on the server. This page will refresh automatically when ${endpoint === "grade" ? "proposals" : "the new grades"} arrive.`
+          : apiMessage(err, endpoint === "grade" ? "Grade request failed." : "Re-run failed."),
       );
       void reload();
     } finally {
       setGrading(false);
     }
   }
+
+  const handleGrade = (): Promise<void> => runBatch("grade");
+  const handleRerunAll = (): Promise<void> => runBatch("rerun");
 
   // The accept body must carry the FULL GradingProposal objects (not ids).
   async function acceptProposals(list: Array<GradingProposal & { edits?: Record<string, unknown> }>): Promise<void> {
@@ -585,6 +665,17 @@ export function AttemptGradingPanel({
     setActing(false);
   }
 
+  function openOverrideForm(questionId: string, g: GradingsRow): void {
+    setOverrideForm({
+      questionId,
+      gradingId: g.id,
+      band: g.reasoning_band,
+      scoreMax: Number(g.score_max),
+      justification: g.ai_justification ?? "",
+      reason: "",
+    });
+  }
+
   async function handleOverrideSubmit(): Promise<void> {
     const f = overrideForm;
     if (!f.gradingId || f.band === null || f.scoreMax === null || !f.reason.trim()) return;
@@ -631,35 +722,60 @@ export function AttemptGradingPanel({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
-      {/* Evaluate toolbar */}
-      {isGradeable && (
-        <div className="aiq-no-print" style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className={`aiq-btn ${pending.length === 0 ? "aiq-btn-primary" : "aiq-btn-outline"}`}
-            data-help-id="admin.attempts.grading_dispatch"
-            disabled={grading || gradingActive}
-            onClick={() => void handleGrade()}
-            title={
-              gradingActive
-                ? "A grading run is already in progress on the server — wait for it to finish."
-                : gradingStalled
-                  ? "Previous grading appears to have stalled (>10 min). Click to retry — the backend single-flight is fresh after a restart."
-                  : undefined
-            }
-          >
-            {grading || gradingActive ? "Grading…" : gradingStalled ? "Re-grade (previous stalled)" : "Grade all"}
-          </button>
-          {acceptable.length > 0 && (
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-primary"
-              data-help-id="admin.evaluations.accept_all"
-              disabled={acting}
-              onClick={() => void handleAcceptAll()}
-            >
-              {acting ? "Accepting…" : `Accept all (${acceptable.length})`}
-            </button>
+      {/* Evaluate toolbar: Grade all on a pre-graded attempt, Re-run AI on a sent-back one */}
+      {(isGradeable || canRerunAi) && (
+        <div className="aiq-no-print" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+          <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
+            {isGradeable && (
+              <button
+                type="button"
+                className={`aiq-btn ${pending.length === 0 ? "aiq-btn-primary" : "aiq-btn-outline"}`}
+                data-help-id="admin.attempts.grading_dispatch"
+                disabled={grading || gradingActive}
+                onClick={() => void handleGrade()}
+                title={
+                  gradingActive
+                    ? "A grading run is already in progress on the server — wait for it to finish."
+                    : gradingStalled
+                      ? "Previous grading appears to have stalled (>10 min). Click to retry — the backend single-flight is fresh after a restart."
+                      : undefined
+                }
+              >
+                {grading || gradingActive ? "Grading…" : gradingStalled ? "Re-grade (previous stalled)" : "Grade all"}
+              </button>
+            )}
+            {canRerunAi && (
+              <button
+                type="button"
+                className={`aiq-btn ${pending.length === 0 ? "aiq-btn-primary" : "aiq-btn-outline"}`}
+                data-help-id="admin.evaluations.rerun_ai"
+                disabled={grading || gradingActive}
+                onClick={() => void handleRerunAll()}
+                title={
+                  gradingActive
+                    ? "A re-run is already in progress on the server — wait for it to finish."
+                    : gradingStalled
+                      ? "The previous re-run appears to have stalled (>10 min). Click to retry — the backend single-flight is fresh after a restart."
+                      : "Grade every written answer again. Nothing changes until you accept the new grades."
+                }
+              >
+                {grading || gradingActive ? "Re-running…" : gradingStalled ? "Re-run AI (previous stalled)" : "Re-run AI"}
+              </button>
+            )}
+            {acceptable.length > 0 && (
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary"
+                data-help-id="admin.evaluations.accept_all"
+                disabled={acting}
+                onClick={() => void handleAcceptAll()}
+              >
+                {acting ? "Accepting…" : `Accept all (${acceptable.length})`}
+              </button>
+            )}
+          </div>
+          {acceptable.length > 0 && completesOnAction(acceptable.map((p) => p.question_id)) && (
+            <ReleaseNotice tenantName={tenantName} action="Accepting the last grade" />
           )}
         </div>
       )}
@@ -724,7 +840,7 @@ export function AttemptGradingPanel({
             <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
               {frozen_questions.map((q, idx) => {
                 const g = effective.get(q.id);
-                const p = g ? undefined : proposals[q.id];
+                const p = shown.get(q.id);
                 let label: string;
                 let bg: string;
                 let fg: string;
@@ -732,6 +848,11 @@ export function AttemptGradingPanel({
                   label = `Q${idx + 1} needs review`;
                   bg = "var(--aiq-color-danger-subtle, #fff0f0)";
                   fg = "var(--aiq-color-danger)";
+                } else if (g && p) {
+                  // graded, with a fresh re-run result waiting for a decision
+                  label = `Q${idx + 1} re-run ready`;
+                  bg = "var(--aiq-color-warning-subtle, #fff8e0)";
+                  fg = "var(--aiq-color-warning, #b08000)";
                 } else if (g) {
                   label = `Q${idx + 1} graded`;
                   bg = "var(--aiq-color-success-subtle, #e8f5ec)";
@@ -764,7 +885,7 @@ export function AttemptGradingPanel({
       {frozen_questions.map((q, idx) => {
         const answer = answers.find((a) => a.question_id === q.id);
         const existing = effective.get(q.id);
-        const proposal = existing ? undefined : proposals[q.id];
+        const proposal = shown.get(q.id);
         const escalation = proposal ? escalationProposals[q.id] : undefined;
         const manualShown = manualOpen[q.id] ?? q.type === "kql";
 
@@ -775,6 +896,10 @@ export function AttemptGradingPanel({
           stLabel = "needs review";
           stBg = "var(--aiq-color-danger-subtle, #fff0f0)";
           stFg = "var(--aiq-color-danger)";
+        } else if (existing && proposal) {
+          stLabel = "re-run ready";
+          stBg = "var(--aiq-color-warning-subtle, #fff8e0)";
+          stFg = "var(--aiq-color-warning, #b08000)";
         } else if (existing) {
           stLabel = "graded";
           stBg = "var(--aiq-color-success-subtle, #e8f5ec)";
@@ -889,6 +1014,9 @@ export function AttemptGradingPanel({
                         style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", padding: "var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", resize: "vertical" }}
                       />
                     </label>
+                    {completesOnAction([q.id]) && (
+                      <ReleaseNotice tenantName={tenantName} action="Saving this override" />
+                    )}
                     <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
                       <button
                         type="button"
@@ -910,16 +1038,7 @@ export function AttemptGradingPanel({
                       <button
                         type="button"
                         className="aiq-btn aiq-btn-outline aiq-btn-sm aiq-no-print"
-                        onClick={() =>
-                          setOverrideForm({
-                            questionId: q.id,
-                            gradingId: existing.id,
-                            band: existing.reasoning_band,
-                            scoreMax: Number(existing.score_max),
-                            justification: existing.ai_justification ?? "",
-                            reason: "",
-                          })
-                        }
+                        onClick={() => openOverrideForm(q.id, existing)}
                       >
                         Override grade
                       </button>
@@ -927,14 +1046,29 @@ export function AttemptGradingPanel({
                   )
                 )}
 
-                {/* Fresh AI proposal (evaluate mode) */}
+                {/* Fresh AI proposal (evaluate mode). On a graded question it is a RE-RUN result
+                    that is newer than the grade above: accepting it replaces that grade. */}
+                {proposal && existing && (
+                  <p className="aiq-no-print" style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>
+                    New AI result from the re-run. Accepting it replaces the current grade above; Override lets you set your own score instead.
+                  </p>
+                )}
+                {proposal && !isAiFailure(proposal) && completesOnAction([q.id]) && (
+                  <ReleaseNotice tenantName={tenantName} action="Accepting the last grade" />
+                )}
                 {proposal && (
                   <GradingProposalCard
                     proposal={proposal}
                     submitting={acting || grading}
                     onAccept={() => void acceptProposals([proposal])}
-                    onOverride={() => setManualOpen((m) => ({ ...m, [q.id]: true }))}
-                    onRerun={() => void handleRerun(q.id)}
+                    onOverride={() =>
+                      existing && canOverride
+                        ? openOverrideForm(q.id, existing)
+                        : setManualOpen((m) => ({ ...m, [q.id]: true }))
+                    }
+                    // The per-question Opus re-run is the pre-graded helper; a sent-back attempt
+                    // has the attempt-level "Re-run AI" in the toolbar instead.
+                    {...(canRerunAi ? {} : { onRerun: () => void handleRerun(q.id) })}
                   />
                 )}
 
@@ -962,6 +1096,11 @@ export function AttemptGradingPanel({
                       max={q.points}
                       busy={acting}
                       onSubmit={(score, reason) => void handleManualScore(q, score, reason)}
+                      releaseNotice={
+                        completesOnAction([q.id]) ? (
+                          <ReleaseNotice tenantName={tenantName} action="Saving the last score" />
+                        ) : undefined
+                      }
                       {...(q.type === "kql" ? {} : { onCancel: () => setManualOpen((m) => ({ ...m, [q.id]: false })) })}
                     />
                   ) : (
