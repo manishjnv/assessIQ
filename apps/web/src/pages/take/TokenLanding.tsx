@@ -213,8 +213,10 @@ function Error404Content(): JSX.Element {
         We couldn't open this link.
       </h1>
       <p style={BODY_P}>
-        Check that you copied the whole link, or ask your assessment admin to
-        send a new invitation.
+        This link may have expired, or a newer invitation email may have
+        replaced it. Check that you copied the whole link and use the link in
+        your most recent email. If it still won&rsquo;t open, ask the person who
+        invited you to resend your invitation.
       </p>
       <Link
         to="/"
@@ -242,8 +244,9 @@ function InvalidContent(): JSX.Element {
         Invalid magic link.
       </h1>
       <p style={BODY_P}>
-        This link is no longer valid. Ask your assessment admin to send a new
-        invitation.
+        This link has expired or was replaced by a newer invitation. Ask the
+        person who invited you to resend it, then use the link in your most
+        recent email.
       </p>
       <Link
         to="/"
@@ -366,7 +369,7 @@ export function TokenLanding(): JSX.Element {
         err instanceof CandidateApiError && err.status === 422
           ? 'Please accept the consent statement to begin.'
           : err instanceof CandidateApiError && (err.status === 404 || err.status === 410)
-            ? 'This link is no longer valid. Ask your assessment admin for a new invitation.'
+            ? 'This link has expired or was replaced. Ask the person who invited you to resend your invitation, then use the link in your most recent email.'
             : 'We could not start your test. Check your connection and try again.',
       );
     }

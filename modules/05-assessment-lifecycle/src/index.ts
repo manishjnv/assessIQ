@@ -34,6 +34,8 @@ export {
   inviteUsers,
   listInvitations,
   revokeInvitation,
+  resendInvitation,
+  resendInvitations,
   previewAssessment,
   resolveInvitationToken,
   markInvitationViewedByToken,
@@ -89,6 +91,7 @@ export type {
   ListInvitationsInput,
   PaginatedInvitations,
   InviteUsersResult,
+  BulkResendResult,
   PreviewQuestionSet,
   // error code union
   AlErrorCode,

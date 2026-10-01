@@ -516,7 +516,10 @@ export function AdminGuide(): React.ReactElement {
                 <strong>+ Invite to assessment</strong> → select candidates →
                 Send. Each candidate receives a magic-link email
                 (single-use, 7-day TTL). Track invitation status on the cycle
-                detail page.
+                detail page. If a candidate misses the window, press{" "}
+                <strong>Resend</strong> on their row (or{" "}
+                <strong>Resend to everyone who hasn&apos;t started</strong>) —
+                they get a fresh 7-day link and the old one stops working.
               </P>
               <div style={{ marginTop: "var(--aiq-space-sm)" }}>
                 <button

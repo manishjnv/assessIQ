@@ -270,7 +270,7 @@ describe("Block 1 — RLS visibility", () => {
   // forward migrations 0092/0093/0094 that never bumped it); corrected to the
   // true post-migration count 125 (124 pre-existing + 1 for
   // admin.question_bank.pack.revise, migration 0097). 2026-10-01: 125 -> 131
-  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139; 2026-10-01 scoring/result-release Phase II FE +13 admin keys (0116: 9 admin.evaluations.* + admin.attempts.{awaiting_evaluation,send_back,release_button} + admin.assessments.release_all) -> 152.
+  // (0099 candidate-fields, 0105 data-rights x2, 0107 csv-import x2, 0108 admin.settings.company_name, 0110 results download_csv, 0112 admin.auth.mfa.skip); now 133; 2026-10-01 R4 +3 candidate pre-test keys (0111) -> 136; 2026-10-01 scoring/result-release FE +3 keys (0115: admin.settings.result_release_mode, candidate.results.list, candidate.auth.org_code; its 2 UPDATEs add no rows) -> 139; 2026-10-01 scoring/result-release Phase II FE +13 admin keys (0116: 9 admin.evaluations.* + admin.attempts.{awaiting_evaluation,send_back,release_button} + admin.assessments.release_all) -> 152; 2026-10-01 invitation resend +3 admin keys (0120: admin.assessments.invitations.{resend,resend_all,resend_result}; its UPDATE of admin.platform.admin_email adds no rows) -> 155.
   it("tenant A sees all global rows (seeded count)", async () => {
     if (skipAll) return;
     const count = await withTenant(TENANT_A, async (client) => {
@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(152);
+    expect(count).toBe(155);
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,24 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(152);
+    expect(count).toBe(155);
+  });
+
+  // 0120 UPDATEs the first-admin invitation help (72 h -> 7 days, matching
+  // 03-users). Same guard as 0115: a WHERE that matched nothing fails silently.
+  it("0120 rewrote admin.platform.admin_email to say 7 days, not 72 hours", async () => {
+    if (skipAll) return;
+    const rows = await withSuperClient(async (client) => {
+      const res = await client.query<{ short_text: string; long_md: string }>(
+        `SELECT short_text, long_md FROM help_content
+          WHERE tenant_id IS NULL AND status = 'active' AND key = 'admin.platform.admin_email'`,
+      );
+      return res.rows;
+    });
+    expect(rows).toHaveLength(1);
+    const text = `${rows[0]!.short_text}\n${rows[0]!.long_md}`;
+    expect(text).toMatch(/7 days/);
+    expect(text).not.toMatch(/72 ?h/i);
   });
 
   // 0115 UPDATEs the two global rows that predate the result-release change.
