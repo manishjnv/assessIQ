@@ -58,10 +58,21 @@ Visibility transition. Client-side write.
 Clipboard event. Client-side write.
 
 ```json
-{ "length": 247 }   // optional — character count of clipboard payload
+{ "length": 247, "blocked": true }   // both optional
 ```
 
+`blocked: true` (Integrity v1) means the runner cancelled the event because the
+assessment has `settings.integrity.block_copy_paste`. Cut and the right-click menu
+are cancelled the same way but are not recorded (not in the catalog).
+
 > **Privacy:** never include the clipboard *content* in the payload. Only length.
+
+### `fullscreen_enter` / `fullscreen_exit`
+
+Integrity v1. Emitted by the runner on `fullscreenchange` when the assessment has
+`settings.integrity.fullscreen` and the browser supports full screen. Payload `{}`.
+Exits are recorded, not prevented; the server timer is never paused. The admin
+integrity card counts `fullscreen_exit`.
 
 ### `nav_back`
 

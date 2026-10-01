@@ -54,6 +54,7 @@ import type {
   Attempt,
   AttemptAnswer,
   AttemptEvent,
+  AttemptIntegritySummary,
   CandidateAttemptView,
   EventType,
   RecordEventInput,
@@ -540,12 +541,40 @@ export async function getAttemptForCandidate(
     // selection as the displayed position. The order itself is never returned.
     const orders = await repo.listOptionOrders(client, attempt.id);
 
+    // Integrity v1: read the runner switches from the assessment settings.
+    const assessment = await alRepo.findAssessmentById(client, attempt.assessment_id);
+    const integ = (assessment?.settings as { integrity?: { fullscreen?: unknown; block_copy_paste?: unknown } } | undefined)
+      ?.integrity;
+
     return {
       attempt: effectiveAttempt,
       questions: displayQuestions(questions, orders),
       answers: displayAnswers(answers, orders),
       remaining_seconds: computeRemainingSeconds(effectiveAttempt, now),
+      integrity: {
+        fullscreen: integ?.fullscreen === true,
+        block_copy_paste: integ?.block_copy_paste === true,
+      },
     };
+  });
+}
+
+// ===========================================================================
+// getAttemptIntegritySummary — admin card (counts only, never scores)
+// ===========================================================================
+
+export async function getAttemptIntegritySummary(
+  tenantId: string,
+  attemptId: string,
+): Promise<AttemptIntegritySummary> {
+  return withTenant(tenantId, async (client) => {
+    const attempt = await repo.findAttemptById(client, attemptId);
+    if (attempt === null) {
+      throw new NotFoundError(`Attempt not found: ${attemptId}`, {
+        details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
+      });
+    }
+    return repo.countIntegrityEvents(client, attemptId);
   });
 }
 

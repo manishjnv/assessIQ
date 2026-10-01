@@ -11,6 +11,8 @@ export type IntegrityBannerKind =
 
 export interface IntegrityBannerProps {
   kind: IntegrityBannerKind;
+  /** Overrides the default copy for the kind (e.g. a count-bearing tab-leave warning). */
+  message?: string;
   /** Optional dismiss callback. If provided, render a close X. */
   onDismiss?: () => void;
   /** Optional primary action — e.g. "Reload page" for stale_connection. */
@@ -69,6 +71,7 @@ const VARIANT_CONFIG: Record<IntegrityBannerKind, VariantConfig> = {
 
 export function IntegrityBanner({
   kind,
+  message,
   onDismiss,
   action,
   "data-test-id": testId,
@@ -102,7 +105,7 @@ export function IntegrityBanner({
       />
 
       {/* Message */}
-      <span style={{ flex: 1 }}>{copy}</span>
+      <span style={{ flex: 1 }}>{message ?? copy}</span>
 
       {/* Optional primary action */}
       {action !== undefined && (

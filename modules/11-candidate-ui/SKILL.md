@@ -62,8 +62,11 @@ Side panel (collapsible on mobile): question grid (12 squares), each colored by 
 - KQL: `<KqlEditor>` — Monaco-based with KQL keywords syntax highlighting, no execution; tab key indents, escape exits to next focus
 - Scenario: stepper UI; each step is one of the above; "Step 2 of 4" indicator
 
+## Integrity v1 (2026-10-01)
+`useIntegrityHooks` now takes `blockCopyPaste` / `fullscreenRequired` (from `CandidateAttemptView.integrity`) and returns state: tab-leave count + warning, copy-blocked notice, full-screen gate state. Behaviour: (1) always warns "You left the test window n time(s). This is recorded and shared with the organiser." on return (count in sessionStorage, best effort); (2) fullscreen required and `document.fullscreenEnabled`: `FullscreenGate` blocking dialog (focus trapped, Esc swallowed, timer not paused), emits `fullscreen_enter`/`fullscreen_exit`, exits full screen on submit/unmount; unsupported browsers (iPhone Safari) are never blocked; (3) block_copy_paste cancels copy/cut/paste/contextmenu, still emits copy/paste with `blocked: true`, throttled notice (5 s). Exits and clipboard use are recorded, not prevented: a determined candidate can bypass all of it.
+
 ## Integrity hooks (passive)
-Recorded but never blocking — friction here costs more than it gains:
+Recorded but never blocking unless the assessment opts in (above) — friction here costs more than it gains:
 - Tab visibility transitions
 - Copy/paste events on answer fields
 - Window resize / fullscreen exit

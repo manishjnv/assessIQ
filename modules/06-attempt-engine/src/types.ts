@@ -130,6 +130,18 @@ export interface CandidateAttemptView {
   questions: FrozenQuestion[];
   answers: AttemptAnswer[];
   remaining_seconds: number;
+  /** Integrity v1: runner switches from assessments.settings.integrity (default off). */
+  integrity: { fullscreen: boolean; block_copy_paste: boolean };
+}
+
+/** Admin integrity card: counts of recorded attempt_events. Not scores. */
+export interface AttemptIntegritySummary {
+  tab_switches: number;
+  copy: number;
+  paste: number;
+  paste_blocked: number;
+  fullscreen_exits: number;
+  multi_tab_conflicts: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,10 +169,13 @@ const TabBlurPayload = z.object({
 const TabFocusPayload = z.object({});
 const CopyPayload = z.object({
   length: z.number().int().nonnegative().optional(),
+  blocked: z.boolean().optional(),
 });
 const PastePayload = z.object({
   length: z.number().int().nonnegative().optional(),
+  blocked: z.boolean().optional(),
 });
+const FullscreenPayload = z.object({});
 const NavBackPayload = z.object({
   from_position: z.number().int().nonnegative().optional(),
   to_position: z.number().int().nonnegative().optional(),
@@ -191,6 +206,8 @@ export const EVENT_PAYLOAD_SCHEMAS = {
   tab_focus: TabFocusPayload,
   copy: CopyPayload,
   paste: PastePayload,
+  fullscreen_enter: FullscreenPayload,
+  fullscreen_exit: FullscreenPayload,
   nav_back: NavBackPayload,
   time_milestone: TimeMilestonePayload,
   multi_tab_conflict: MultiTabConflictPayload,

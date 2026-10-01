@@ -1018,6 +1018,7 @@ export interface CreateAssessmentFromSetRequest {
   closes_at?: string | null;
   randomize?: boolean;
   description?: string;
+  settings?: Record<string, unknown>;
 }
 
 /**

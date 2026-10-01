@@ -63,6 +63,8 @@ export interface CandidateAttemptViewWire {
   questions: FrozenQuestionWire[];
   answers: AttemptAnswerWire[];
   remaining_seconds: number;
+  /** Integrity v1 runner switches (assessment settings.integrity; default off). */
+  integrity?: { fullscreen: boolean; block_copy_paste: boolean };
 }
 
 export interface InvitedAssessmentWire {
@@ -206,6 +208,8 @@ export type CandidateEventType =
   | "tab_focus"
   | "copy"
   | "paste"
+  | "fullscreen_enter"
+  | "fullscreen_exit"
   | "nav_back"
   | "time_milestone";
 

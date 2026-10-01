@@ -70,6 +70,7 @@ export type { BoundaryRow } from "./state-machine.js";
 
 export {
   AssessmentSettingsSchema,
+  AssessmentIntegritySettingsSchema,
   AL_ERROR_CODES,
   INVITATION_STATUSES,
 } from "./types.js";

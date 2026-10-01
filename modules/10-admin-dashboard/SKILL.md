@@ -68,6 +68,9 @@ The administrator's command center. Authoring, monitoring, reviewing, exporting.
 - No global Redux/Zustand — server state and URL state cover 95% of needs
 - URL is source of truth for filters, pagination, selected items
 
+## Integrity (Integrity v1, 2026-10-01)
+Create-assessment form: "Test integrity" fieldset with "Require full screen" and "Block copy and paste" (written to `settings.integrity`; help_ids `admin.assessment.integrity.fullscreen` / `.block_copy_paste`). Attempt detail: `IntegrityCard` (help_id `admin.attempt.integrity`) from `GET /api/admin/attempts/:id/integrity`; counts are not scores so it shows whatever the release state; "No events recorded" when all zero. There is no edit form for an existing assessment's integrity switches yet.
+
 ## Help/tooltip surface
 Every page has a `<HelpProvider page="admin.<area>.<page>" audience="admin">` wrapper that loads help on mount. Every non-obvious control wrapped in `<HelpTip helpId="...">`. See `docs/07-help-system.md` for the convention.
 

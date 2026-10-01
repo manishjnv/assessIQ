@@ -33,6 +33,7 @@ import {
   AttemptTimer,
   AutosaveIndicator,
   IntegrityBanner,
+  FullscreenGate,
   QuestionNavigator,
   useAutosave,
   useIntegrityHooks,
@@ -822,10 +823,13 @@ export function AttemptPage(): JSX.Element {
 
   const autosave = useAutosave({ attemptId, locked });
 
-  useIntegrityHooks({
+  const integrityCfg = pageState.tag === 'ready' ? pageState.view.integrity : undefined;
+  const integrity = useIntegrityHooks({
     attemptId,
     currentQuestionId,
     enabled: !locked,
+    blockCopyPaste: integrityCfg?.block_copy_paste === true,
+    fullscreenRequired: integrityCfg?.fullscreen === true,
   });
 
   const { multiTabActive } = useMultiTabWarning({ attemptId });
@@ -1107,6 +1111,10 @@ export function AttemptPage(): JSX.Element {
         background: 'var(--aiq-color-bg-base)',
       }}
     >
+      {integrity.fullscreenGateOpen && (
+        <FullscreenGate exitCount={integrity.fullscreenExitCount} onEnter={integrity.enterFullscreen} />
+      )}
+
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
       <header className="aiq-attempt-top" style={TOP_BAR}>
         <Logo />
@@ -1191,6 +1199,28 @@ export function AttemptPage(): JSX.Element {
           {multiTabActive && (
             <div style={{ marginBottom: 'var(--aiq-space-md)' }}>
               <IntegrityBanner kind="multi_tab" />
+            </div>
+          )}
+          {integrity.showLeaveWarning && (
+            <div style={{ marginBottom: 'var(--aiq-space-md)' }}>
+              <IntegrityBanner
+                kind="tab_was_blurred"
+                message={`You left the test window ${integrity.leaveCount} time${integrity.leaveCount === 1 ? '' : 's'}. This is recorded and shared with the organiser.`}
+                onDismiss={integrity.dismissLeaveWarning}
+              />
+            </div>
+          )}
+          {integrity.copyBlockedNotice && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                marginBottom: 'var(--aiq-space-md)',
+                fontSize: 'var(--aiq-text-sm)',
+                color: 'var(--aiq-color-fg-secondary)',
+              }}
+            >
+              Copy and paste are turned off for this test.
             </div>
           )}
 

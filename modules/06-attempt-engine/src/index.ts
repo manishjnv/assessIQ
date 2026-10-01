@@ -23,6 +23,7 @@ export {
   saveAnswer,
   toggleFlag,
   recordEvent,
+  getAttemptIntegritySummary,
   submitAttempt,
   listAnswersForAttempt,
 } from "./service.js";
@@ -98,6 +99,9 @@ export type {
 
 export { registerAttemptCandidateRoutes } from "./routes.candidate.js";
 export type { RegisterAttemptCandidateRoutesOptions } from "./routes.candidate.js";
+
+export { registerAttemptAdminRoutes } from "./routes.admin.js";
+export type { RegisterAttemptAdminRoutesOptions } from "./routes.admin.js";
 
 export { registerAttemptTakeRoutes } from "./routes.take.js";
 export type { RegisterAttemptTakeRoutesOptions } from "./routes.take.js";
