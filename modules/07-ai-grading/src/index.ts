@@ -59,7 +59,13 @@ export { withConcurrencyLimit } from "./concurrency.js";
 export type { GenerateByTypeInput, QuestionType } from "./types.js";
 
 // Repository (Session 1.b)
-export type { InsertGradingInput, QueueRow, AttemptListRow } from "./repository.js";
+export type {
+  InsertGradingInput,
+  QueueRow,
+  AttemptListRow,
+  EvaluationStatus,
+  SuperEvaluationRow,
+} from "./repository.js";
 export {
   findGradingById,
   findGradingsForAttempt,
@@ -68,6 +74,9 @@ export {
   findTenantBudget,
   listGradingQueue,
   listAttemptsForAdmin,
+  deriveEvaluationStatus,
+  getAttemptProgress,
+  listSuperEvaluationQueue,
 } from "./repository.js";
 
 // Single-flight mutex (D7, Session 1.b)
@@ -113,6 +122,7 @@ export { handleAdminQueue } from "./handlers/admin-queue.js";
 
 export type {
   AttemptAnswerRow,
+  AttemptScoreSummary,
   FrozenQuestionRow,
   HandleAdminClaimAttemptOutput,
   HandleAdminReleaseAttemptOutput,
@@ -121,6 +131,27 @@ export {
   handleAdminClaimAttempt,
   handleAdminReleaseAttempt,
 } from "./handlers/admin-claim-release.js";
+
+// Phase II (2026-10-01): tenant send-back + the platform evaluation queue handlers.
+export type {
+  HandleAdminSendBackInput,
+  HandleAdminSendBackOutput,
+} from "./handlers/admin-send-back.js";
+export { handleAdminSendBack } from "./handlers/admin-send-back.js";
+
+export type {
+  HandleSuperListEvaluationsOutput,
+  HandleSuperGetEvaluationOutput,
+  HandleSuperReleaseToTenantOutput,
+  HandleSuperReleaseToTenantBulkOutput,
+} from "./handlers/super-evaluations.js";
+export {
+  handleSuperListEvaluations,
+  handleSuperGetEvaluation,
+  handleSuperReleaseToTenant,
+  handleSuperReleaseToTenantBulk,
+  resolveEvaluationTenant,
+} from "./handlers/super-evaluations.js";
 
 export type {
   HandleAdminReleaseAllInput,
@@ -155,6 +186,8 @@ export type {
 } from "./handlers/admin-generate.js";
 export { handleAdminGenerate } from "./handlers/admin-generate.js";
 
-// Fastify route registrar — Session 1.c (routes sonnet's scope)
+// Fastify route registrars — Session 1.c (tenant surface) + Phase II (platform queue).
 export { registerGradingRoutes } from "./routes.js";
 export type { RegisterGradingRoutesOptions } from "./routes.js";
+export { registerSuperEvaluationRoutes } from "./routes-super.js";
+export type { RegisterSuperEvaluationRoutesOptions } from "./routes-super.js";

@@ -163,6 +163,7 @@ vi.mock('@assessiq/attempt-engine', () => ({
 }));
 vi.mock('@assessiq/ai-grading', () => ({
   registerGradingRoutes: vi.fn().mockResolvedValue(undefined),
+  registerSuperEvaluationRoutes: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@assessiq/help-system', () => ({
   registerHelpPublicRoutes: vi.fn().mockResolvedValue(undefined),

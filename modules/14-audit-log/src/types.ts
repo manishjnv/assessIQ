@@ -71,6 +71,14 @@ export const ACTION_CATALOG = [
   'grading.accepted',
   'grading.claimed',
   'grading.released',
+  // Phase II (2026-10-01) — platform evaluation queue. Both are written in the
+  // TARGET tenant's audit log, in the same withTenant tx as the attempts UPDATE.
+  // - grading.evaluation_released: the platform super admin hands a finished
+  //   evaluation to the tenant (attempts.evaluation_released_at set).
+  // - grading.sent_back: the tenant admin returns a released evaluation to the
+  //   platform queue. The send-back note is NEVER copied into `after` (PII).
+  'grading.evaluation_released',
+  'grading.sent_back',
   // G3.D 07-ai-grading sweep — admin question generation via Claude Code CLI.
   // Distinct from question.created (manual admin authoring) so audit queries
   // can separate AI-drafted vs human-authored creation paths. One audit row
