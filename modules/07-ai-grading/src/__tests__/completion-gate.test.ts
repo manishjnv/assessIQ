@@ -9,6 +9,9 @@
  *   - handleAdminOverride: recomputes attempt_scores in-tx, can complete a flagged
  *     attempt, and is refused once the result is published.
  *   - POST .../manual-score route: body/param validation + chain wiring.
+ *   - Adversarial-review fix: accept locks the attempt row first and refuses a
+ *     released attempt (409, nothing written — incl. the real lock race against a
+ *     Release).
  *
  * No AI anywhere: runtime-selector is mocked and never called.
  */
@@ -59,6 +62,21 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
     return await fn(c);
   } finally {
     await c.end();
+  }
+}
+
+/** Resolves once some backend is blocked on a row/transaction lock (i.e. the code under test reached its lock). */
+async function waitForLockWait(timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const n = await sup((c) =>
+      c
+        .query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`)
+        .then((r) => r.rows[0].n as number),
+    );
+    if (n > 0) return;
+    if (Date.now() > deadline) throw new Error("nothing is waiting on a lock: the code under test never blocked on the expected row");
+    await new Promise((r) => setTimeout(r, 25));
   }
 }
 
@@ -268,6 +286,78 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
         .then((x) => x.rows.map((y) => y.s as string)),
     );
     expect(audits[0]).toBe("graded");
+  });
+});
+
+describe("handleAdminAccept — a published result is final; attempt row lock first (review fix: accept/release race)", () => {
+  /** The AI-failure placeholder the runtime produces: accepting it writes a review_needed grade. */
+  const failedProposal = (attemptId: string, qid: string) =>
+    proposal(attemptId, qid, {
+      band: { reasoning_band: 0, ai_justification: "", error_class: "AIG_RUNTIME_FAILURE", needs_escalation: false },
+      score_earned: 0,
+      prompt_version_sha: "error:no-sha",
+    });
+  const gradingCount = (id: string) => count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1`, id);
+  const acceptAudits = (id: string) => count(`SELECT COUNT(*) n FROM audit_log WHERE entity_id=$1 AND action='grading.accepted'`, id);
+
+  it("accept on a released attempt -> 409 RESULT_ALREADY_PUBLISHED; zero new gradings, no audit row, score untouched", async () => {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 6 })]); // completes it -> graded
+    await sup((c) => c.query(`UPDATE attempts SET status='released' WHERE id=$1`, [attemptId]));
+    const gradingsBefore = await gradingCount(attemptId);
+    const totalsBefore = await totals(attemptId);
+
+    await expect(accept(attemptId, [failedProposal(attemptId, qids[1]!)])).rejects.toMatchObject({
+      code: "RESULT_ALREADY_PUBLISHED",
+      status: 409,
+    });
+    expect(await gradingCount(attemptId)).toBe(gradingsBefore);
+    expect(await totals(attemptId)).toEqual(totalsBefore);
+    expect(await acceptAudits(attemptId)).toBe(1); // only the first accept
+    expect((await att(attemptId)).status).toBe("released");
+  });
+
+  it("accept on an unknown attempt -> 404 AIG_ATTEMPT_NOT_FOUND (was a misleading 422)", async () => {
+    const ghost = randomUUID();
+    await expect(accept(ghost, [proposal(ghost, randomUUID())])).rejects.toMatchObject({
+      code: "AIG_ATTEMPT_NOT_FOUND",
+      status: 404,
+    });
+  });
+
+  it("a proposal addressed to ANOTHER attempt than attemptId is refused (422) before anything is written — the lock cannot be sidestepped to grade a published attempt", async () => {
+    const published = await seed("released", ["subjective"]);
+    const open = await seed("pending_admin_grading", ["subjective"]);
+    await expect(accept(open.attemptId, [failedProposal(published.attemptId, published.qids[0]!)])).rejects.toMatchObject({
+      code: "AIG_INVALID_BODY",
+      status: 422,
+    });
+    expect(await gradingCount(published.attemptId)).toBe(0);
+    expect(await gradingCount(open.attemptId)).toBe(0);
+  });
+
+  it("race: a Release holds the attempt lock when accept arrives -> accept waits, then sees 'released' and writes nothing", async () => {
+    const { attemptId, qids } = await seed("graded", ["subjective"]);
+    const releasing = new Client({ connectionString: url });
+    await releasing.connect();
+    try {
+      await releasing.query("BEGIN");
+      // the first thing module 09 releaseAttemptInTx does
+      await releasing.query(`SELECT status FROM attempts WHERE id=$1 FOR UPDATE`, [attemptId]);
+      const accepting = accept(attemptId, [failedProposal(attemptId, qids[0]!)]).then(
+        () => "accepted" as const,
+        (e: unknown) => e,
+      );
+      await waitForLockWait(); // accept is queued behind the release on the attempt row
+      await releasing.query(`UPDATE attempts SET status='released' WHERE id=$1`, [attemptId]);
+      await releasing.query("COMMIT");
+      expect(await accepting).toMatchObject({ code: "RESULT_ALREADY_PUBLISHED", status: 409 });
+    } finally {
+      await releasing.query("ROLLBACK").catch(() => undefined);
+      await releasing.end();
+    }
+    expect(await gradingCount(attemptId)).toBe(0);
+    expect((await att(attemptId)).status).toBe("released");
   });
 });
 
