@@ -273,27 +273,31 @@ async function seedFixtures(): Promise<CandidateActivityFixture> {
       };
     }
 
-    // attemptA1: candidateA1 / packA / today / graded
+    // P1 (SP3, 2026-10-01): the candidate activity stats / leaderboard count only
+    // RELEASED attempts, so every attempt that these assertions expect to be counted
+    // is 'released'. The not-yet-released leak guards live in 'P1 leak guard' below.
+
+    // attemptA1: candidateA1 / packA / today / released
     const d1 = makeDates(now);
     await client.query(
       `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
-       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600)`,
+       VALUES ($1,$2,$3,$4,'released',$5,$6,$7,3600)`,
       [attemptA1, tenantA, assessmentA1, candidateA1, d1.started, now, d1.ends],
     );
 
-    // attemptA2: candidateA2 / packA / today / submitted
+    // attemptA2: candidateA2 / packA / today / released
     const d2 = makeDates(now);
     await client.query(
       `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
-       VALUES ($1,$2,$3,$4,'submitted',$5,$6,$7,3600)`,
+       VALUES ($1,$2,$3,$4,'released',$5,$6,$7,3600)`,
       [attemptA2, tenantA, assessmentA2, candidateA2, d2.started, now, d2.ends],
     );
 
-    // attemptA3: candidateA1 / packA / 3 days ago / graded
+    // attemptA3: candidateA1 / packA / 3 days ago / released
     const d3d = makeDates(d3);
     await client.query(
       `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
-       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600)`,
+       VALUES ($1,$2,$3,$4,'released',$5,$6,$7,3600)`,
       [attemptA3, tenantA, assessmentA3, candidateA1, d3d.started, d3, d3d.ends],
     );
 
@@ -564,5 +568,107 @@ describe('getCandidateActivityLeaderboard', () => {
     } else {
       expect(result.totalItems).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — P1 leak guard (SP3, 2026-10-01)
+//
+// A candidate sees only COMPLETE, FINAL results. attempt_scores rows (and so MV rows)
+// exist from the first partial accept on; stats + leaderboard must still count ONLY
+// attempts whose status is 'released' — their own AND the ranking population's.
+// ---------------------------------------------------------------------------
+
+describe('P1 leak guard — candidate activity counts only released results', () => {
+  let candidate: string;
+  const attemptIds: Record<string, string> = {};
+
+  async function addAttempt(status: string, pct: number): Promise<string> {
+    return withSuperClient(async (client) => {
+      const assessment = randomUUID();
+      const attempt = randomUUID();
+      await client.query(
+        `INSERT INTO assessments (id, tenant_id, pack_id, level_id, name, status, pack_version, question_count, created_by)
+         VALUES ($1,$2,$3,$4,'P1-guard','active',1,1,$5)`,
+        [assessment, F.tenantA, F.packA, F.levelA, F.adminA],
+      );
+      await client.query(
+        `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
+         VALUES ($1,$2,$3,$4,$5, now() - interval '20 minutes', now() - interval '5 minutes', now() + interval '40 minutes', 3600)`,
+        [attempt, F.tenantA, assessment, candidate, status],
+      );
+      await client.query(
+        `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version) VALUES ($1,$2,1,1)`,
+        [attempt, F.questionA],
+      );
+      await client.query(
+        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, archetype, computed_at)
+         VALUES ($1,$2,$3,100,$3,false,'confident_correct',now())`,
+        [attempt, F.tenantA, pct],
+      );
+      return attempt;
+    });
+  }
+
+  const refreshMv = () => withSuperClient((c) => c.query('REFRESH MATERIALIZED VIEW attempt_summary_mv'));
+
+  beforeAll(async () => {
+    candidate = randomUUID();
+    await withSuperClient((c) =>
+      c.query(
+        `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Candidate Guard','candidate','active')`,
+        [candidate, F.tenantA, `guard-${candidate.slice(0, 8)}@ca.test`],
+      ),
+    );
+    // scores that would TOP the pack leaderboard if they leaked
+    attemptIds['graded'] = await addAttempt('graded', 99);
+    attemptIds['pending'] = await addAttempt('pending_admin_grading', 97);
+    attemptIds['submitted'] = await addAttempt('submitted', 95);
+    attemptIds['auto'] = await addAttempt('auto_submitted', 93);
+    await refreshMv();
+  });
+
+  it('stats: a candidate with only unreleased attempts sees zero completions / avgScore / assessmentsTaken', async () => {
+    const r = await getCandidateActivityStats(F.tenantA, candidate, {});
+    expect(r.completions.total).toBe(0);
+    expect(r.assessmentsTaken.total).toBe(0);
+    expect(r.avgScore.total).toBe(0);
+  });
+
+  it('leaderboard: unreleased attempts are not listed for their owner', async () => {
+    const r = await getCandidateActivityLeaderboard(F.tenantA, candidate, { page: 1, pageSize: 10 });
+    expect(r.totalItems).toBe(0);
+    expect(r.items).toHaveLength(0);
+  });
+
+  it('leaderboard: unreleased scores of OTHER candidates never enter the ranking population', async () => {
+    const r = await getCandidateActivityLeaderboard(F.tenantA, F.candidateA1, { page: 1, pageSize: 10 });
+    const packA = r.items.find((i) => i.packId === F.packA)!;
+    expect(packA.rankInPack).toBe(1); // the leaked 99 would have made A1 rank 2+
+    expect(packA.totalCandidatesInPack).toBe(2); // A1 + A2 only
+    expect(packA.bestScore).toBe(80);
+  });
+
+  it('once an attempt is released it appears — and ranks — normally', async () => {
+    await withSuperClient((c) =>
+      c.query(`UPDATE attempts SET status = 'released' WHERE id = $1`, [attemptIds['graded']]),
+    );
+    await refreshMv();
+
+    const stats = await getCandidateActivityStats(F.tenantA, candidate, {});
+    expect(stats.completions.total).toBe(1);
+    expect(stats.avgScore.total).toBe(99);
+    expect(stats.assessmentsTaken.total).toBe(1);
+
+    const lb = await getCandidateActivityLeaderboard(F.tenantA, candidate, { page: 1, pageSize: 10 });
+    expect(lb.totalItems).toBe(1);
+    expect(lb.items[0]!.bestScore).toBe(99);
+    expect(lb.items[0]!.attemptCount).toBe(1); // the other three unreleased attempts still do not count
+    expect(lb.items[0]!.rankInPack).toBe(1);
+    expect(lb.items[0]!.totalCandidatesInPack).toBe(3);
+
+    // and A1 is now ranked behind the released 99
+    const a1 = await getCandidateActivityLeaderboard(F.tenantA, F.candidateA1, { page: 1, pageSize: 10 });
+    expect(a1.items.find((i) => i.packId === F.packA)!.rankInPack).toBe(2);
   });
 });

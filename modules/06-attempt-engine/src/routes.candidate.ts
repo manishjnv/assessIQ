@@ -1,6 +1,6 @@
 // AssessIQ — attempt-engine candidate-facing Fastify route layer.
 //
-// Mounts seven endpoints under /api/me/* per docs/03-api-contract.md
+// Mounts the candidate endpoints under /api/me/* per docs/03-api-contract.md
 // § "Candidate (self) — `me`":
 //
 //   GET    /api/me/assessments
@@ -11,6 +11,7 @@
 //   POST   /api/me/attempts/:id/event
 //   POST   /api/me/attempts/:id/submit
 //   GET    /api/me/attempts/:id/result
+//   GET    /api/me/results
 //
 // Auth chain: candidate-only — `roles: ['candidate']`. Phase 1 admin
 // preview/result is OUT of scope here; admin-side attempt routes will land
@@ -20,7 +21,7 @@
 // this layer does not try/catch service throws.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { ValidationError, NotFoundError } from "@assessiq/core";
+import { ValidationError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { isIP } from "node:net";
 import {
@@ -32,7 +33,11 @@ import {
   recordEvent,
   submitAttempt,
 } from "./service.js";
-import * as repo from "./repository.js";
+import {
+  getCandidateResult,
+  getSubmitExpectation,
+  listCandidateResults,
+} from "./result.js";
 import { AE_ERROR_CODES } from "./types.js";
 import type { RecordEventInput, SaveAnswerInput, ToggleFlagInput } from "./types.js";
 
@@ -287,23 +292,33 @@ export async function registerAttemptCandidateRoutes(
       const { id } = req.params as { id: string };
 
       const result = await submitAttempt(tenantId, userId, id);
-      // Phase 1 stops at 'submitted' — the response shape promises a future
-      // grading status; the body { status: 'grading' } is preserved in the
-      // contract but the actual attempt.status is 'submitted'. Per
-      // docs/03-api-contract.md Worked example § 4 (`/submit → 202`).
+      // SP3 (2026-10-01, owner rule P2): tell the candidate right away what to
+      // expect — wait a minute on screen ('soon') or an email to the masked
+      // address ('email') — so the Submitted page never has to guess. Never a
+      // score here (P1). getSubmitExpectation cannot fail the submit.
+      const expectation = await getSubmitExpectation(tenantId, userId, id);
       return reply.code(202).send({
         attempt_id: result.attempt.id,
         status: "submitted",
-        // Phase 1 placeholder — Phase 2 will replace with a real ETA once
-        // the grading job is enqueued. Keep the field so the SDK shape
-        // doesn't change between phases.
-        estimated_grading_seconds: null,
+        // Kept for SDK compatibility: ~60 s when the result is expected on screen, else null.
+        estimated_grading_seconds: expectation.result_expectation === "soon" ? 60 : null,
+        result_expectation: expectation.result_expectation,
+        release_mode: expectation.release_mode,
+        email_masked: expectation.email_masked,
+        turnaround_text: expectation.turnaround_text,
       });
     },
   );
 
   // -------------------------------------------------------------------------
-  // GET /api/me/attempts/:id/result — Phase 1: returns 202 grading-pending
+  // GET /api/me/attempts/:id/result
+  //
+  //   released → 200 { status:'released', total_earned, total_max, percent (1 dp),
+  //                    passed, assessment_name, released_at, certificate|null }
+  //   otherwise → 202 { status:'pending', result_expectation, release_mode,
+  //                     email_masked, turnaround_text, tenant_name }
+  // The complete, final result only — never per-question data, bands or
+  // justifications, never a partial score (P1).
   // -------------------------------------------------------------------------
 
   app.get(
@@ -314,30 +329,23 @@ export async function registerAttemptCandidateRoutes(
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
 
-      return withTenant(tenantId, async (client) => {
-        const attempt = await repo.findAttemptById(client, id);
-        if (attempt === null) {
-          throw new NotFoundError(`Attempt not found: ${id}`, {
-            details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
-          });
-        }
-        if (attempt.user_id !== userId) {
-          throw new NotFoundError(`Attempt not found: ${id}`, {
-            details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
-          });
-        }
-        // Phase 1: every result endpoint returns 202 grading-pending until
-        // module 07 + 08 land in Phase 2. The `attempt.status` itself can be
-        // 'submitted', 'auto_submitted', 'pending_admin_grading', or 'graded'
-        // — but candidates only see results after 'released', which never
-        // happens in Phase 1.
-        return reply.code(202).send({
-          attempt_id: attempt.id,
-          status: "grading_pending",
-          message:
-            "Your attempt is submitted. Results will be available after admin review.",
-        });
-      });
+      const view = await getCandidateResult(tenantId, userId, id);
+      return reply.code(view.status === "released" ? 200 : 202).send(view);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/me/results — the candidate's released results, newest first
+  // (the portal "My results" page). Released attempts only.
+  // -------------------------------------------------------------------------
+
+  app.get(
+    "/api/me/results",
+    { preHandler: candidateOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      return listCandidateResults(tenantId, userId);
     },
   );
 }

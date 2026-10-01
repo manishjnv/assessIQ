@@ -27,6 +27,25 @@ export {
   listAnswersForAttempt,
 } from "./service.js";
 
+// Candidate result contract (SP3): what to promise at submit, the released
+// result (complete + final only, P1), and the portal list.
+export {
+  getSubmitExpectation,
+  getCandidateResult,
+  listCandidateResults,
+  maskEmail,
+  resultPercent,
+} from "./result.js";
+export type {
+  SubmitExpectation,
+  ReleasedResult,
+  PendingResult,
+  CandidateResultView,
+  ResultListItem,
+  ResultExpectation,
+  ReleaseMode,
+} from "./result.js";
+
 // ---------------------------------------------------------------------------
 // 2. Sweeper (cron-callable; BullMQ scheduling deferred)
 // ---------------------------------------------------------------------------
