@@ -15,6 +15,9 @@ export default tseslint.config(
       // sibling copy too and the error count explodes (~9K stale errors from
       // worktrees of previous sessions).
       ".claude/worktrees/**",
+      // Astro-generated reference stub (`/// <reference path="../.astro/types.d.ts" />`).
+      "apps/marketing/src/env.d.ts",
+      "apps/marketing/.astro/**",
     ],
   },
 
@@ -72,5 +75,11 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  // CLI tools and one-off scripts print to stdout by design (not request-path
+  // code); the pino/streamLogger convention applies to services and modules.
+  {
+    files: ["tools/**", "modules/*/scripts/**"],
+    rules: { "no-console": "off" },
   },
 );

@@ -316,7 +316,7 @@ async function seedFixtures(): Promise<FeedFixture> {
     // -----------------------------------------------------------------------
 
     // Admin audit row — Tenant A
-    const auditAdminRow = randomUUID();
+    const _auditAdminRow = randomUUID();
     await client.query(
       `INSERT INTO audit_log (tenant_id, actor_user_id, actor_kind, action, entity_type, entity_id, at)
        VALUES ($1,$2,'user','pack.published','question_pack',$3::uuid,now())`,

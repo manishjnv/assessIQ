@@ -59,7 +59,6 @@ import {
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type UserRole = "admin" | "reviewer";
 type UserStatus = "active" | "pending" | "disabled";
 
 export interface AdminUser {
