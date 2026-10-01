@@ -235,7 +235,7 @@ beforeAll(
         POSTGRES_PASSWORD: "test",
         POSTGRES_DB: "testdb",
       })
-      .withWaitStrategy(Wait.forListeningPorts())
+      .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
       .withExposedPorts(5432)
       .start();
 
