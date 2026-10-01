@@ -3,8 +3,13 @@
 // Phase 10 — GET /api/me/activity/leaderboard
 //
 // Returns the candidate personal pack leaderboard: one row per pack the
-// candidate has attempted, showing their best score and rank among all tenant
-// candidates who took that same pack.
+// candidate has a RELEASED result for, showing their best score and rank among all
+// tenant candidates who have a released result for that same pack.
+//
+// P1 (SP3, 2026-10-01): only attempts with status 'released' count — for the
+// candidate own rows AND for the ranking population. Before this, graded-but-
+// unreleased attempts (partial / provisional scores) were counted and ranked, which
+// leaked scores the owner rule forbids showing before release.
 //
 // Data source: live `attempts` table (NOT attempt_summary_mv).
 // RLS is enforced via withTenant GUC; no explicit tenant_id filter needed on
@@ -113,7 +118,7 @@ export async function queryCandidateLeaderboardRows(
        LEFT JOIN attempt_scores ats ON ats.attempt_id = a.id
        WHERE a.user_id = $1
          AND a.submitted_at IS NOT NULL
-         AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')
+         AND a.status = 'released'
        GROUP BY ass.pack_id
      ),
      all_best AS (
@@ -126,7 +131,7 @@ export async function queryCandidateLeaderboardRows(
        LEFT JOIN attempt_scores ats ON ats.attempt_id = a.id
        WHERE ass.pack_id IN (SELECT pack_id FROM my_packs)
          AND a.submitted_at IS NOT NULL
-         AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')
+         AND a.status = 'released'
        GROUP BY ass.pack_id, a.user_id
      ),
      ranked AS (
@@ -175,7 +180,7 @@ export async function queryCandidateLeaderboardTotal(
      JOIN assessments ass ON ass.id = a.assessment_id
      WHERE a.user_id = $1
        AND a.submitted_at IS NOT NULL
-       AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')`,
+       AND a.status = 'released'`,
     [userId],
   );
   return parseInt(result.rows[0]?.total ?? '0', 10);

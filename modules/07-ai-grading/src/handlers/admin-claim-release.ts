@@ -16,15 +16,17 @@
  *   withTenant() — RLS on attempts, attempt_answers, attempt_questions,
  *   question_versions, gradings all enforce tenant isolation.
  *
- * Module 13 notification:
- *   Imported via dynamic try/catch. The module may not exist yet — we log a
- *   warning rather than throwing. The candidate sees results on next reload;
- *   email is best-effort.
+ * Release (SP2, 2026-10-01):
+ *   handleAdminReleaseAttempt delegates to module 09 releaseAttemptInTx (shared
+ *   with bulk release and the worker auto-release sweep) and then sends the
+ *   result email via module 13 — both static imports now.
  */
 
 import { AppError, streamLogger, displayCandidate } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
+import { releaseAttemptInTx } from "@assessiq/scoring";
+import { sendResultReleasedEmail } from "@assessiq/notifications";
 import { findGradingsForAttempt } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
@@ -310,11 +312,20 @@ export async function handleAdminClaimAttempt(input: {
 }
 
 /**
- * Release handler: transitions 'graded' → 'released'.
+ * Release handler: transitions 'graded' → 'released' (publish to the candidate).
  *
- * Triggers 13-notifications.sendResultReleasedEmail if the module is
- * available. Notification failure is logged but does NOT block the release —
- * the candidate can see results on next reload; email is best-effort.
+ * SP2 (2026-10-01): the release itself lives in module 09 releaseAttemptInTx —
+ * one shared core for this manual click, the bulk "release all ready" and the
+ * worker auto-release sweep. It enforces the erasure gate (422), requires a
+ * COMPLETE result (status 'graded' + evaluation released to the tenant, else 409
+ * RESULT_NOT_READY), writes the grading.released audit row, and issues the
+ * certificate inside a SAVEPOINT (a certificate failure never undoes the
+ * release). The static imports at the top of this file replace the old
+ * Function-constructor dynamic imports, which also hid the fact that
+ * sendResultReleasedEmail never existed.
+ *
+ * The result email is sent AFTER the release transaction commits and is
+ * best-effort (sendResultReleasedEmail never throws; failures are only logged).
  */
 export async function handleAdminReleaseAttempt(input: {
   tenantId: string;
@@ -323,150 +334,33 @@ export async function handleAdminReleaseAttempt(input: {
 }): Promise<HandleAdminReleaseAttemptOutput> {
   const { tenantId, userId, attemptId } = input;
 
-  await withTenant(tenantId, async (client) => {
-    // DPDP/GDPR erasure gate (2026-05-30): refuse to release results for an
-    // erased candidate. Display-layer masking (displayCandidate) hides the
-    // identity but does NOT gate this action, so without this check the FE
-    // could be bypassed and a release would (a) email the tombstone address
-    // and (b) mint a fresh certificate via issueCertificateOnRelease below.
-    // Fail-closed and precise: 404 if the attempt is invisible/missing, 422
-    // if the candidate is erased. The check runs inside the same tx as the
-    // transition; erasure is a one-way monotonic state so the TOCTOU window
-    // is negligible and safe either way.
-    const candidateCheck = await client.query<{ erased_at: string | null }>(
-      `SELECT u.erased_at
-         FROM attempts a
-         LEFT JOIN users u ON u.id = a.user_id
-        WHERE a.id = $1
-        LIMIT 1`,
-      [attemptId],
-    );
-    const candidateRow = candidateCheck.rows[0];
-    if (candidateRow === undefined) {
-      throw new AppError(
-        `Attempt ${attemptId} not found`,
-        AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
-        404,
-      );
-    }
-    if (candidateRow.erased_at !== null) {
-      throw new AppError(
-        `Attempt ${attemptId} belongs to an erased candidate — results cannot be released`,
-        AI_GRADING_ERROR_CODES.ATTEMPT_NOT_RELEASABLE_ERASED,
-        422,
-      );
-    }
-
-    const result = await client.query<{ id: string }>(
-      `UPDATE attempts
-       SET status = 'released'
-       WHERE id = $1 AND status = 'graded'
-       RETURNING id`,
-      [attemptId],
-    );
-    if (result.rowCount === 0) {
-      // Either not found (RLS filters it) or wrong status
-      const check = await client.query<{ status: string }>(
-        `SELECT status FROM attempts WHERE id = $1 LIMIT 1`,
-        [attemptId],
-      );
-      const row = check.rows[0];
-      if (row === undefined) {
-        throw new AppError(
-          `Attempt ${attemptId} not found`,
-          AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
-          404,
-        );
-      }
-      throw new AppError(
-        `Attempt is in status '${row.status}' — must be 'graded' to release`,
-        AI_GRADING_ERROR_CODES.ATTEMPT_NOT_GRADEABLE,
-        422,
-      );
-    }
-
-    // G3.D audit: release succeeded; row is now 'released'. Inside the same
-    // withTenant tx so the UPDATE and audit_log INSERT are atomic.
-    await auditInTx(client, {
-      action: "grading.released",
-      actorKind: "user",
-      actorUserId: userId,
+  await withTenant(tenantId, (client) =>
+    releaseAttemptInTx(client, {
       tenantId,
-      entityType: "attempt",
-      entityId: attemptId,
-      before: { attempt_status: "graded" },
-      after: { attempt_status: "released" },
-    });
+      attemptId,
+      actor: { kind: "user", userId },
+    }),
+  );
 
-    // Best-effort certificate issuance — must run inside this withTenant
-    // transaction so issueCertificate's R2 open-tx precondition is satisfied.
-    // Dynamic import mirrors the 13-notifications pattern: the Function
-    // constructor avoids a static import that would fail when the package is
-    // absent (test envs, stripped builds). Cert failure must NOT block release.
-    try {
-      const importFn = new Function(
-        "specifier",
-        "return import(specifier)",
-      ) as (s: string) => Promise<unknown>;
-      const certModule = await importFn("@assessiq/certification").catch(() => null);
-      if (certModule !== null) {
-        const fn = (certModule as Record<string, unknown>).issueCertificateOnRelease;
-        if (typeof fn === "function") {
-          await (fn as (
-            c: PoolClient,
-            a: { tenantId: string; attemptId: string; actorUserId: string },
-          ) => Promise<unknown>)(client, {
-            tenantId,
-            attemptId,
-            actorUserId: userId,
-          }).catch((certErr: unknown) => {
-            log.warn(
-              { attemptId, error: String(certErr) },
-              "grading.release.cert_issuance_failed",
-            );
-          });
-        }
-      }
-    } catch {
-      log.warn({ attemptId }, "grading.release.cert_module_unavailable");
-    }
-  });
-
-  // Best-effort notification — module 13 may not exist yet.
-  // Dynamic import via Function constructor avoids a hard static import that
-  // would fail TS compilation when the module is absent. The indirection also
-  // keeps the D2 lint clean: this file does not statically reference any
-  // grading runtime symbol.
-  try {
-    const importFn = new Function(
-      "specifier",
-      "return import(specifier)",
-    ) as (s: string) => Promise<unknown>;
-    const notifications = (await importFn("@assessiq/notifications").catch(
-      () => null,
-    )) as { sendResultReleasedEmail?: (args: { tenantId: string; attemptId: string }) => Promise<void> } | null;
-
-    if (
-      notifications !== null &&
-      typeof notifications.sendResultReleasedEmail === "function"
-    ) {
-      await notifications
-        .sendResultReleasedEmail({ tenantId, attemptId })
-        .catch((notifErr: unknown) => {
-          log.warn(
-            { attemptId, error: String(notifErr) },
-            "grading.release.notification_failed",
-          );
-        });
-    }
-  } catch {
-    log.warn(
-      { attemptId },
-      "grading.release.notifications_module_unavailable",
-    );
-  }
+  await sendReleaseEmailSafely(tenantId, attemptId);
 
   log.info({ attemptId }, "grading.release.complete");
 
   return { attempt: { id: attemptId, status: "released" } };
+}
+
+/**
+ * Post-commit, best-effort result email. sendResultReleasedEmail already never
+ * throws; the extra guard keeps an unexpected failure from turning a successful,
+ * committed release into an error response.
+ */
+export async function sendReleaseEmailSafely(
+  tenantId: string,
+  attemptId: string,
+): Promise<void> {
+  try {
+    await sendResultReleasedEmail({ tenantId, attemptId });
+  } catch (err) {
+    log.warn({ attemptId, error: String(err) }, "grading.release.notification_failed");
+  }
 }

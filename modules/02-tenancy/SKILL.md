@@ -92,3 +92,8 @@ Every new domain table MUST get this two-policy template in the **same migration
 - 11/11 vitest cases passing (1 documented `test.todo` for production-NODE_ENV header rejection — blocked by 00-core's eager config singleton, unblocks in Phase 1 with config injection).
 - Public surface: `getTenantById`, `updateTenantSettings`, `suspendTenant`, `tenantContextMiddleware`, `withTenant`, `getPool`/`closePool`. `getTenantBySlug` deferred to Phase 1 (`withSystemRole` dependency).
 - codex:rescue verdict: **accepted** with one Phase 4 revision (INSERT-policy test added) — see `docs/SESSION_STATE.md` agent-utilization footer.
+
+
+## Tenant result release mode (SP2, 2026-10-01)
+
+Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | `auto`) and `result_release_auto_since` (NULL while manual). `updateResultReleaseMode(adminUserId, tenantId, mode)` is the only mutator (not part of the generic settings patch): UPDATE + one `tenant.settings.updated` audit row in one tx; manual→auto stamps `result_release_auto_since = now()`, auto→manual clears it; a same-mode request is a no-op (no write, no audit). The auto-release sweep (apps/api worker) only publishes attempts whose evaluation was released at/after `result_release_auto_since`, so switching to auto never releases results already waiting (the admin uses bulk release for those).

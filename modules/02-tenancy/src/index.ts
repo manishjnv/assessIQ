@@ -13,6 +13,7 @@ export {
   unarchiveTenant,
   updateAiGenerateMode,
   updateRetentionDays,
+  updateResultReleaseMode,
   renameTenant,
   normalizeTenantName,
   createTenant,
@@ -21,6 +22,8 @@ export {
 export type {
   UpdateAiGenerateModeResult,
   UpdateRetentionDaysResult,
+  UpdateResultReleaseModeResult,
+  ResultReleaseMode,
   RenameTenantResult,
   CreateTenantInput,
   CreateTenantResult,

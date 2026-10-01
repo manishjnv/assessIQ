@@ -34,9 +34,11 @@ import { handleAdminGrade } from "./handlers/admin-grade.js";
 import { handleAdminAccept } from "./handlers/admin-accept.js";
 import type { AcceptEdits } from "./handlers/admin-accept.js";
 import { handleAdminOverride } from "./handlers/admin-override.js";
+import { handleAdminManualScore } from "./handlers/admin-manual-score.js";
 import { handleAdminRerun } from "./handlers/admin-rerun.js";
 import { handleAdminQueue } from "./handlers/admin-queue.js";
 import { handleAdminClaimAttempt, handleAdminReleaseAttempt } from "./handlers/admin-claim-release.js";
+import { handleAdminReleaseAll } from "./handlers/admin-release-all.js";
 import { handleAdminListGradingJobs, handleAdminRetryGradingJob } from "./handlers/admin-grading-jobs.js";
 import { handleAdminBudget } from "./handlers/admin-budget.js";
 import { handleAdminListAttempts } from "./handlers/admin-attempts-list.js";
@@ -132,6 +134,21 @@ const OVERRIDE_BODY_SCHEMA = z.object({
   error_class: z.string().nullable().optional(),
   reason: z.string().min(1),
 });
+
+/**
+ * POST /api/admin/attempts/:id/questions/:questionId/manual-score — first human
+ * score for a question that has no grading yet (KQL, or any ungraded question).
+ * `reason` is mandatory (stored on the immutable gradings row, never in audit).
+ * The upper bound (score_max = questions.points) is enforced by the handler.
+ */
+const MANUAL_SCORE_BODY_SCHEMA = z
+  .object({
+    score_earned: z.number().finite().min(0),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+const UUID_SCHEMA = z.string().uuid();
 
 /**
  * POST /api/admin/attempts/:id/rerun — force a fresh grading run.
@@ -415,6 +432,33 @@ export async function registerGradingRoutes(
   );
 
   // -------------------------------------------------------------------------
+  // POST /api/admin/assessments/:id/release-all
+  //
+  // "Release all ready" (SP2 / A9): publishes every finished result of the
+  // assessment (status 'graded' + evaluation released + non-erased candidate),
+  // each in its own tx via module 09 releaseAttemptInTx, emailing after each
+  // commit. 200 { released: [attemptIds], skipped: [{ id, code }] }.
+  // -------------------------------------------------------------------------
+
+  app.post(
+    "/api/admin/assessments/:id/release-all",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id: assessmentId } = req.params as { id: string };
+
+      if (!UUID_SCHEMA.safeParse(assessmentId).success) {
+        throw new ValidationError("id must be a UUID", {
+          details: { code: AI_GRADING_ERROR_CODES.INVALID_BODY, param: "id" },
+        });
+      }
+
+      return handleAdminReleaseAll({ tenantId, userId, assessmentId });
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // POST /api/admin/attempts/:id/rerun
   //
   // Discards existing proposals and triggers a fresh grading run.
@@ -534,6 +578,54 @@ export async function registerGradingRoutes(
       if (result.data.error_class !== undefined) override.error_class = result.data.error_class;
 
       return handleAdminOverride({ tenantId, userId, gradingId, override });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /api/admin/attempts/:id/questions/:questionId/manual-score
+  //
+  // First human score for a question that has no grading yet (KQL has no
+  // grader). NO AI call. Requires fresh MFA like override. Inserts one
+  // admin_override gradings row (override_of NULL, sha 'manual:v1'), recomputes
+  // the rollup and finalises the attempt when this was the last missing grade.
+  // 409 if the question already has a grade (use override) or the result is
+  // already published. (Phase II moves this route to the platform evaluator.)
+  // -------------------------------------------------------------------------
+
+  app.post(
+    "/api/admin/attempts/:id/questions/:questionId/manual-score",
+    { preHandler: adminFreshMfa },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id, questionId } = req.params as { id: string; questionId: string };
+
+      for (const [name, value] of [["id", id], ["questionId", questionId]] as const) {
+        if (!UUID_SCHEMA.safeParse(value).success) {
+          throw new ValidationError(`${name} must be a UUID`, {
+            details: { code: AI_GRADING_ERROR_CODES.INVALID_BODY, param: name },
+          });
+        }
+      }
+
+      const result = MANUAL_SCORE_BODY_SCHEMA.safeParse(req.body);
+      if (!result.success) {
+        throw new ValidationError("Invalid manual-score body", {
+          details: {
+            code: AI_GRADING_ERROR_CODES.INVALID_BODY,
+            issues: result.error.issues,
+          },
+        });
+      }
+
+      return handleAdminManualScore({
+        tenantId,
+        userId,
+        attemptId: id,
+        questionId,
+        scoreEarned: result.data.score_earned,
+        reason: result.data.reason,
+      });
     },
   );
 

@@ -166,8 +166,12 @@ export const IssueCertificateInputSchema = z.object({
   course_title: z.string().min(1),
   level: z.string().min(1),
   tier: TierSchema,
-  /** UUID of the admin issuing the cert — recorded on the audit_log row. */
-  actor_user_id: z.string().uuid(),
+  /**
+   * UUID of the admin issuing the cert — recorded on the audit_log row.
+   * null = the SYSTEM issued it (auto-release sweep with no human actor): the
+   * audit row is written with actor_kind='system' and actor_user_id NULL.
+   */
+  actor_user_id: z.string().uuid().nullable(),
 });
 
 export type IssueCertificateInput = z.infer<typeof IssueCertificateInputSchema>;

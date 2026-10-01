@@ -10,6 +10,13 @@
 // CRITICAL: every MV query MUST include:
 //   WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
 //   AND mv.user_id = $3
+//   AND mv.attempt_status = 'released'      (SP3 / owner rule P1)
+//
+// P1 (2026-10-01): a candidate sees only COMPLETE, FINAL results. The MV holds an
+// attempt_scores row from the first partial accept on, so without the status
+// filter these stats leaked partial / provisional scores of attempts that were
+// not yet released. Only 'released' attempts count here (the MV snapshot status
+// is final once released — released results can no longer be overridden).
 //
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
@@ -84,6 +91,7 @@ export async function queryCandidateActivityStats(
        LEFT JOIN levels        lv ON lv.id = mv.level_id
        WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
          AND mv.user_id = $3
+         AND mv.attempt_status = 'released'
          AND mv.submitted_at >= $1::timestamptz
          AND mv.submitted_at <  $2::timestamptz + interval '1 day'
      )
@@ -119,6 +127,7 @@ export async function queryCandidateActivityStats(
      FROM attempt_summary_mv mv
      WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
        AND mv.user_id = $3
+       AND mv.attempt_status = 'released'
        AND mv.submitted_at >= $1::timestamptz
        AND mv.submitted_at <  $2::timestamptz + interval '1 day'`,
     [from, to, userId],
@@ -143,6 +152,7 @@ export async function queryCandidateActivityStats(
        FROM attempt_summary_mv mv
        WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
          AND mv.user_id = $3
+         AND mv.attempt_status = 'released'
          AND mv.submitted_at >= $1::timestamptz
          AND mv.submitted_at <  $2::timestamptz + interval '1 day'
          AND auto_pct IS NOT NULL

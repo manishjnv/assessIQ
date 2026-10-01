@@ -387,6 +387,12 @@ describe('email template rendering', () => {
         completedAttempts: 8, pendingReview: 2, gradedThisWeek: 6,
         dashboardLink: 'https://x.com/dashboard',
       }},
+      // SP4 (2026-10-01): result_released joins the closed template list.
+      { name: 'result_released' as const, vars: {
+        candidateName: 'Jane', assessmentName: 'SOC', tenantName: 'X',
+        scoreText: '42 / 60 (70%)', resultText: 'Passed',
+        portalLink: 'https://x.com/candidate/login?tenant=x',
+      }},
     ] as const;
 
     for (const { name, vars } of templates) {
@@ -431,6 +437,65 @@ describe('email template rendering', () => {
     expect(() =>
       renderTemplate('admin_email_otp', { code: '12345', expires_minutes: 10 } as Parameters<typeof renderTemplate<'admin_email_otp'>>[1]),
     ).toThrow();
+  });
+
+  // SP4 (2026-10-01): result_released — final score only (owner rule P1).
+  describe('result_released', () => {
+    const base = {
+      candidateName: 'Priya Sharma',
+      assessmentName: 'SOC Analyst L1',
+      tenantName: 'Acme University',
+      scoreText: '42 / 60 (70%)',
+      resultText: 'Passed' as const,
+      portalLink: 'https://assessiq.test/candidate/login?tenant=acme',
+    };
+
+    it('renders subject, score, result and the portal link in both variants', () => {
+      const r = renderTemplate('result_released', base);
+      expect(r.subject).toBe('Your result for SOC Analyst L1 is ready');
+      // Handlebars HTML-escapes "=" inside attribute values as &#x3D; (valid HTML).
+      for (const body of [r.html.replace(/&#x3D;/g, '='), r.text]) {
+        expect(body).toContain('42 / 60 (70%)');
+        expect(body).toContain('Passed');
+        expect(body).toContain('Priya Sharma');
+        expect(body).toContain('Acme University');
+        expect(body).toContain('https://assessiq.test/candidate/login?tenant=acme');
+      }
+      expect(r.html).not.toContain('{{');
+      expect(r.text).not.toContain('{{');
+    });
+
+    it('certificate link appears only when provided', () => {
+      const without = renderTemplate('result_released', base);
+      expect(without.html).not.toContain('/verify/');
+      expect(without.text).not.toContain('View your certificate');
+
+      const withCert = renderTemplate('result_released', {
+        ...base,
+        certificateLink: 'https://assessiq.test/verify/AIQ-2026-10-ABC123',
+      });
+      expect(withCert.html).toContain('https://assessiq.test/verify/AIQ-2026-10-ABC123');
+      expect(withCert.text).toContain('https://assessiq.test/verify/AIQ-2026-10-ABC123');
+    });
+
+    it('"Not passed" renders and nothing per-question / band-like leaks into the email', () => {
+      const r = renderTemplate('result_released', { ...base, resultText: 'Not passed' as const, scoreText: '20 / 60 (33.3%)' });
+      expect(r.text).toContain('Not passed');
+      expect(r.text).toContain('20 / 60 (33.3%)');
+      expect(`${r.html}\n${r.text}`.toLowerCase()).not.toMatch(/\bbands?\b|justification|answer key|correct answer/);
+    });
+
+    it('HTML-escapes interpolated names (no markup injection)', () => {
+      const r = renderTemplate('result_released', { ...base, candidateName: 'A<script>x</script>B', tenantName: 'T&C <b>' });
+      expect(r.html).not.toContain('<script>x</script>');
+      expect(r.html).toContain('&lt;script&gt;');
+    });
+
+    it('rejects an invalid resultText / non-URL link (closed Zod schema)', () => {
+      expect(() => renderTemplate('result_released', { ...base, resultText: 'Maybe' })).toThrow();
+      expect(() => renderTemplate('result_released', { ...base, portalLink: 'not-a-url' })).toThrow();
+      expect(() => renderTemplate('result_released', { ...base, scoreText: '' })).toThrow();
+    });
   });
 });
 
@@ -989,6 +1054,12 @@ describe('brand color compliance (post-rebrand guard)', () => {
         completedAttempts: 8, pendingReview: 2, gradedThisWeek: 6,
         dashboardLink: 'https://x.com/dashboard',
       }},
+      { name: 'result_released' as const, vars: {
+        candidateName: 'Jane', assessmentName: 'SOC', tenantName: 'X',
+        scoreText: '42 / 60 (70%)', resultText: 'Passed',
+        portalLink: 'https://x.com/candidate/login?tenant=x',
+        certificateLink: 'https://x.com/verify/AIQ-1',
+      }},
     ] as const;
 
     for (const { name, vars } of allTemplates) {
@@ -1142,6 +1213,12 @@ describe('voice compliance', () => {
       completedAttempts: 8, pendingReview: 2, gradedThisWeek: 6,
       dashboardLink: 'https://x.com/dashboard',
     }},
+    { name: 'result_released' as const, vars: {
+      candidateName: 'Jane', assessmentName: 'SOC', tenantName: 'X',
+      scoreText: '42 / 60 (70%)', resultText: 'Passed',
+      portalLink: 'https://x.com/candidate/login?tenant=x',
+      certificateLink: 'https://x.com/verify/AIQ-1',
+    }},
   ] as const;
 
   it('no template uses "click here" or "click below" (copy-and-voice.md)', () => {
@@ -1199,6 +1276,29 @@ describe('template snapshots — invitation_candidate', () => {
 
   it('text renders to a stable snapshot', () => {
     const { text, subject } = renderTemplate('invitation_candidate', SNAPSHOT_VARS);
+    expect(subject).toMatchSnapshot();
+    expect(text).toMatchSnapshot();
+  });
+});
+
+describe('template snapshots — result_released (SP4)', () => {
+  const SNAPSHOT_VARS = {
+    candidateName: 'Alice Patel',
+    assessmentName: 'SOC L1 Skills Assessment',
+    tenantName: 'Wipro',
+    scoreText: '42 / 60 (70%)',
+    resultText: 'Passed' as const,
+    portalLink: 'https://assessiq.test/candidate/login?tenant=wipro',
+    certificateLink: 'https://assessiq.test/verify/AIQ-2026-10-SNAP01',
+  };
+
+  it('HTML renders to a stable snapshot', () => {
+    const { html } = renderTemplate('result_released', SNAPSHOT_VARS);
+    expect(html).toMatchSnapshot();
+  });
+
+  it('text renders to a stable snapshot', () => {
+    const { text, subject } = renderTemplate('result_released', SNAPSHOT_VARS);
     expect(subject).toMatchSnapshot();
     expect(text).toMatchSnapshot();
   });

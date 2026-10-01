@@ -2,7 +2,8 @@
  * AssessIQ background worker — BullMQ scheduler.
  *
  * Runs as a separate process (apps/api Docker image, second container) and
- * schedules two repeating jobs per the current Phase 1 surface:
+ * schedules these repeating jobs (plus the nightly MV refresh + DPDP retention
+ * purge, and result.auto_release every 15 s — SP2, see jobs/auto-release.ts):
  *
  *   1. assessment-boundary-cron — every 60s.
  *      Drives module 05's processBoundariesForTenant for every active tenant.
@@ -47,6 +48,11 @@ import {
   ANALYTICS_REFRESH_MV_JOB_NAME,
 } from "@assessiq/analytics";
 import { runRetentionPurgeAllTenants } from "@assessiq/data-rights";
+import {
+  AUTO_RELEASE_JOB_NAME,
+  AUTO_RELEASE_INTERVAL_MS,
+  processAutoReleaseTick,
+} from "./jobs/auto-release.js";
 
 const log = streamLogger("worker");
 
@@ -104,6 +110,10 @@ export const JOB_RETRY_POLICY: Record<
   // attempts than other crons because a misfire could erase additional PII on
   // re-run (it won't — alreadyErased guards — but conservative is fine).
   [RETENTION_JOB_NAME]: { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
+  // result.auto_release — attempts 1: the sweep re-runs every 15 s anyway, and a
+  // retry of a failed tick would only double the work. processAutoReleaseTick never
+  // throws (per-attempt errors are logged + cooled down), so this is belt and braces.
+  [AUTO_RELEASE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
 };
 
 // ---------------------------------------------------------------------------
@@ -327,7 +337,8 @@ async function start(): Promise<void> {
       r.name === BOUNDARY_JOB_NAME ||
       r.name === TIMER_SWEEP_JOB_NAME ||
       r.name === MV_REFRESH_JOB_NAME ||
-      r.name === RETENTION_JOB_NAME
+      r.name === RETENTION_JOB_NAME ||
+      r.name === AUTO_RELEASE_JOB_NAME
     ) {
       await queue.removeRepeatableByKey(r.key);
     }
@@ -397,6 +408,22 @@ async function start(): Promise<void> {
     },
   );
 
+  // SP2 — auto-release sweep: publishes finished results of tenants in
+  // result_release_mode='auto' (no AI; see jobs/auto-release.ts). Every 15 s.
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const autoReleasePolicy = JOB_RETRY_POLICY[AUTO_RELEASE_JOB_NAME]!;
+  await queue.add(
+    AUTO_RELEASE_JOB_NAME,
+    {},
+    {
+      repeat: { every: AUTO_RELEASE_INTERVAL_MS },
+      attempts: autoReleasePolicy.attempts,
+      backoff: autoReleasePolicy.backoff,
+      removeOnComplete: 50,
+      removeOnFail: 50,
+    },
+  );
+
   // Consumer: processes any job that lands on the queue.
   // Concurrency: cron jobs run at 1 (never two boundary/timer ticks simultaneously
   // — would race on the bulk UPDATE). Email + webhook jobs can run at higher
@@ -421,6 +448,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processRefreshMvJob);
         case RETENTION_JOB_NAME:
           return runJobWithLogging(job, processRetentionTick);
+        case AUTO_RELEASE_JOB_NAME:
+          return runJobWithLogging(job, () => processAutoReleaseTick());
         default:
           throw new Error(`Unknown job name: ${job.name}`);
       }

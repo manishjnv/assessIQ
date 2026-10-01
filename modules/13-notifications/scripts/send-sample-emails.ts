@@ -126,6 +126,15 @@ const FIXTURES: { [K in EmailTemplateName]: TemplateVarsMap[K] } = {
     code: '482917',
     expires_minutes: 10,
   },
+  result_released: {
+    candidateName: 'Priya Sharma',
+    assessmentName: 'SOC Analyst — L1 Triage',
+    tenantName: 'Wipro SOC Practice',
+    scoreText: '42 / 60 (70%)',
+    resultText: 'Passed',
+    portalLink: 'https://app.assessiq.in/candidate/login?tenant=wipro-soc',
+    certificateLink: 'https://app.assessiq.in/verify/AIQ-2026-10-SAMPLE',
+  },
   weekly_digest_admin: {
     tenantName: 'Wipro SOC Practice',
     weekEnding: WEEK_END.toISOString().split('T')[0]!,

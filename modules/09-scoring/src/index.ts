@@ -57,3 +57,19 @@ export {
   isMcqAnswerCorrect,
   MCQ_SENTINEL_SHA,
 } from "./mcq.js";
+
+// One shared finalize (SP1): the single definition of "complete" and the only
+// place (besides tests) that flips an attempt to 'graded' and bills it.
+export {
+  finalizeAttemptIfComplete,
+  type FinalizeAttemptInput,
+} from "./finalize.js";
+
+// One shared release (SP2): the only place a finished result is published to the
+// candidate. Called inside the caller's withTenant tx; emails are sent AFTER commit.
+export {
+  releaseAttemptInTx,
+  RELEASE_ERROR_CODES,
+  type ReleaseActor,
+  type ReleaseAttemptInput,
+} from "./release.js";

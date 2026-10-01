@@ -115,6 +115,9 @@ export async function getAttempt(
 // "Latest" = highest graded_at. override_of IS NOT NULL rows are the override
 // themselves — we still pick the LATEST row per question regardless, which is
 // the override row. This correctly reflects the post-override score.
+// An admin_override row wins a graded_at tie (same transaction => same now()):
+// the same "effective grading" rule as finalizeAttemptIfComplete and
+// 15-analytics results-export.
 // ---------------------------------------------------------------------------
 
 export async function getGradingsForAttempt(
@@ -141,7 +144,7 @@ export async function getGradingsForAttempt(
      FROM gradings g
      JOIN questions q ON q.id = g.question_id
      WHERE g.attempt_id = $1
-     ORDER BY g.question_id, g.graded_at DESC`,
+     ORDER BY g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC`,
     [attemptId],
   );
   return res.rows.map((r) => ({
