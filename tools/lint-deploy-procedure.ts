@@ -337,10 +337,14 @@ async function checkSkillBindMounts(
   // 1. Find skill subdirectories that contain SKILL.md
   const skillsWithMd: string[] = [];
   let allSkillEntries: Dirent[] = [];
+  let skillsDirExists = true;
   try {
     allSkillEntries = await fsp.readdir(skillsDir, { withFileTypes: true });
   } catch {
-    // Skills directory doesn't exist — check for inverse (mount with no dir)
+    // Skills directory doesn't exist. Since 2026-10-01 prompts/skills is
+    // gitignored (prompt IP stays out of the public repo) and lives only on the
+    // VPS host, so a fresh checkout (CI) legitimately has no directory.
+    skillsDirExists = false;
   }
 
   for (const entry of allSkillEntries) {
@@ -391,7 +395,9 @@ async function checkSkillBindMounts(
 
   // 4. Inverse: service has skill mount but skills dir is empty / has no SKILL.md
   for (const svc of services) {
-    if (serviceHasSkillMount(svc) && skillsWithMd.length === 0) {
+    // Only when the directory EXISTS but is empty — a missing directory is the
+    // normal out-of-repo deployment (see skillsDirExists above).
+    if (serviceHasSkillMount(svc) && skillsDirExists && skillsWithMd.length === 0) {
       violations.push({
         checkId: "A",
         severity: "ERROR",
@@ -828,6 +834,15 @@ services:
       aInverseViolations.some((v) => v.message.includes("SKILL MOUNT EMPTY")),
       "A-4: inverse — mount exists but skills dir empty → violation"
     );
+
+    // Missing skills dir (gitignored, deployed out-of-repo) → no violation
+    const aMissingViolations = await checkSkillBindMounts({
+      skillsDir: path.join(tmpDir, "prompts", "does-not-exist"),
+      composePath: aComposeCleanPath,
+      services: ["assessiq-api", "assessiq-worker"],
+      relBase: tmpDir,
+    });
+    assert(aMissingViolations.length === 0, "A-5: missing skills dir (out-of-repo) → no violation");
 
     // ── CHECK B self-test ──────────────────────────────────────────────────────
     process.stdout.write("\nCHECK B — Migration apply chain\n");

@@ -45,6 +45,12 @@ docs/
 # blocks the aptitude seed from being regenerated back into the migrations folder.
 docs/exam-content/
 modules/04-question-bank/migrations/0109_seed_platform_aptitude_pack.sql
+
+# AI prompt skills (grading + generation prompts = product IP) — NEVER commit: the
+# repo is public. Source of truth is the VPS host copy at /srv/assessiq/prompts/skills
+# (bind-mounted ro into api + worker; tarballed by the daily backup). Deploy prompt
+# edits by copying files to the VPS, not via git. See docs/06-deployment.md.
+prompts/skills/
 *.pem
 *.key
 *.crt
