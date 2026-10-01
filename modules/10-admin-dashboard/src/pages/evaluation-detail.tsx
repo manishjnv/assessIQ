@@ -6,8 +6,14 @@
 // 2026-10-01 §11, wire contract §5b). The shared <AttemptGradingPanel
 // mode="evaluate"> does the work — Grade all, per-question proposals, Accept,
 // Re-run (Opus), manual score for KQL / ungraded questions, Override — against
-// /admin/super/evaluations/:attemptId/*. "Release to company" hands the finished
-// evaluation to the tenant, which then reviews and publishes it.
+// /admin/super/evaluations/:attemptId/*.
+//
+// Hand-over (owner decision 2026-10-01): accepting / scoring the LAST grade releases
+// the evaluation to the company in that same step (server-side) — there is no
+// separate click. This page then shows the "Released to <company>" state with a way
+// back to the queue. "Release to company" stays as the RECOVERY action: an attempt
+// the company sent back and that was re-evaluated (Re-run AI / override) is graded but
+// not released, and the server never auto-releases it again.
 //
 // INVARIANTS:
 //  - Blind evaluation: NO candidate name or email is rendered here, even if the
@@ -15,7 +21,7 @@
 //  - No claude/anthropic imports.
 //  - Fresh-MFA failures open the inline step-up and retry (useMfaGuard).
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Chip, Modal, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
@@ -80,6 +86,20 @@ export function AdminEvaluationDetail(): React.ReactElement {
   }, [fetchDetail]);
 
   const effective = useMemo(() => effectiveGradings(detail?.gradings ?? []), [detail]);
+
+  // The moment an accept / score releases the attempt (false -> true after the first load)
+  // bring the "Released to <company>" banner into view: the action may have been taken far
+  // down a long page. role="status" announces it to assistive tech.
+  const releasedBannerRef = useRef<HTMLDivElement | null>(null);
+  const wasReleasedRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!detail) return;
+    const nowReleased = !!evaluationMeta(detail).evaluation_released_at;
+    if (wasReleasedRef.current === false && nowReleased) {
+      releasedBannerRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }
+    wasReleasedRef.current = nowReleased;
+  }, [detail]);
 
   async function handleRelease(): Promise<void> {
     setShowRelease(false);
@@ -198,6 +218,29 @@ export function AdminEvaluationDetail(): React.ReactElement {
           </div>
         )}
 
+        {/* Success state: the evaluation is with the company (released by the last accept /
+            score, or by the recovery button). It is no longer in the queue. */}
+        {released && (
+          <div
+            ref={releasedBannerRef}
+            className="aiq-banner aiq-no-print"
+            role="status"
+            style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", flexWrap: "wrap", padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-success-subtle, #e8f5ec)", border: "1px solid var(--aiq-color-success, #2a8a4a)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}
+          >
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontWeight: 500 }}>Released to {tenantName}.</div>
+              <div style={{ color: "var(--aiq-color-fg-secondary)" }}>
+                {attempt.status === "released"
+                  ? "It has been published to the candidate and is no longer in the evaluation queue."
+                  : `It is no longer in the evaluation queue. ${tenantName} can review and publish it${scoreMax > 0 ? ` (score ${+scoreEarned.toFixed(2)} / ${+scoreMax.toFixed(2)})` : ""}.`}
+              </div>
+            </div>
+            <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" onClick={() => navigate(QUEUE_PATH)}>
+              Back to the queue
+            </button>
+          </div>
+        )}
+
         {/* Sent back by the company — the note says what to look at again. */}
         {meta.evaluation_sent_back_at && (
           <div
@@ -209,6 +252,11 @@ export function AdminEvaluationDetail(): React.ReactElement {
             <div style={{ fontWeight: 500 }}>Sent back by {tenantName} for re-evaluation.</div>
             {meta.evaluation_note && (
               <div style={{ whiteSpace: "pre-wrap", color: "var(--aiq-color-fg-secondary)" }}>{meta.evaluation_note}</div>
+            )}
+            {!released && (
+              <div style={{ color: "var(--aiq-color-fg-secondary)" }}>
+                Re-run the AI or override the grades, then use Release to company to hand it back.
+              </div>
             )}
           </div>
         )}

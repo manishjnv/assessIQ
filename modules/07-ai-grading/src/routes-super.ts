@@ -172,9 +172,12 @@ export async function registerSuperEvaluationRoutes(
   // POST /api/admin/super/evaluations/:attemptId/accept
   //
   // Commits the (optionally edited) AI proposals as gradings rows. When this
-  // completes the attempt it flips to 'graded' + bills in the same tx, but does NOT
-  // release the evaluation to the tenant (markEvaluationReleased: false) — that is
-  // the separate release-to-tenant step.
+  // completes the attempt it flips to 'graded' + bills AND releases the evaluation
+  // to the tenant in the same tx (markEvaluationReleased: true — owner decision
+  // 2026-10-01: accepting the last grade IS the review; evaluation_released_by = the
+  // calling super admin). A sent-back attempt is already 'graded', so a re-run
+  // accepted on it is never auto-released: that stays the explicit
+  // release-to-tenant step (also the recovery action).
   // -------------------------------------------------------------------------
 
   app.post(
@@ -236,7 +239,7 @@ export async function registerSuperEvaluationRoutes(
         userId,
         attemptId,
         proposals,
-        markEvaluationReleased: false,
+        markEvaluationReleased: true,
       });
     },
   );
@@ -245,7 +248,9 @@ export async function registerSuperEvaluationRoutes(
   // POST /api/admin/super/evaluations/:attemptId/rerun   { forceEscalate?: boolean }
   //
   // A fresh AI pass (returns new proposals; also valid on an already-graded attempt
-  // that the tenant sent back). Same single-flight + heartbeat gates as grade.
+  // that the tenant sent back — there it is the attempt-level "Re-run AI": the same
+  // grading-in-progress marker + review cache as grade, so the page can poll and a
+  // proxy timeout loses nothing). Same single-flight + heartbeat gates as grade.
   // -------------------------------------------------------------------------
 
   app.post(
@@ -282,6 +287,7 @@ export async function registerSuperEvaluationRoutes(
   //   { score_earned, reason }                                  (fresh MFA)
   //
   // First human score for a question with no grading yet (KQL has no grader). NO AI.
+  // When it completes the attempt it also releases it to the tenant (see accept).
   // -------------------------------------------------------------------------
 
   app.post(
@@ -305,7 +311,7 @@ export async function registerSuperEvaluationRoutes(
         questionId,
         scoreEarned: result.data.score_earned,
         reason: result.data.reason,
-        markEvaluationReleased: false,
+        markEvaluationReleased: true,
       });
     },
   );
@@ -315,7 +321,9 @@ export async function registerSuperEvaluationRoutes(
   //   { score_earned, reasoning_band?, ai_justification?, error_class?, reason } (fresh MFA)
   //
   // Part of the evaluation itself (no "released first" gate, unlike the tenant's own
-  // override). The grading must belong to the attempt in the URL.
+  // override). The grading must belong to the attempt in the URL. When it completes
+  // the attempt (e.g. it resolves the last review_needed grade) it also releases it
+  // to the tenant (see accept); on an already-graded (sent-back) attempt it does not.
   // -------------------------------------------------------------------------
 
   app.post(
@@ -353,7 +361,7 @@ export async function registerSuperEvaluationRoutes(
         gradingId,
         override,
         expectedAttemptId: attemptId,
-        markEvaluationReleased: false,
+        markEvaluationReleased: true,
       });
     },
   );
@@ -364,6 +372,9 @@ export async function registerSuperEvaluationRoutes(
   //
   // Hand a finished evaluation to the tenant (409/422 when not complete, flagged,
   // erased, already released or already published). Audit grading.evaluation_released.
+  // Since 2026-10-01 the last accept / manual score / override releases by itself, so
+  // this is the RECOVERY action: sent-back attempts (finalize never re-flips them),
+  // and anything completed before the change. Single and bulk both stay.
   // -------------------------------------------------------------------------
 
   app.post(

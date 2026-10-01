@@ -2582,10 +2582,12 @@ admin.evaluations.queue:
     - **Blind evaluation.** You see the company, assessment and level, never the
       candidate's name or email.
     - **Status.** *Awaiting evaluation* still needs grading. *Ready to release* is
-      fully graded and only needs releasing to the company.
+      fully graded but not yet with the company, for example an attempt the company
+      sent back that you have re-evaluated.
     - **Sent back** means the company asked for another look; its note says why.
 
-    The list refreshes by itself every 30 seconds.
+    Accepting the last grade of an attempt releases it to its company by itself and
+    takes it off this list. The list refreshes by itself every 30 seconds.
 
 admin.evaluations.age_badge:
   audience: admin
@@ -2620,18 +2622,22 @@ admin.evaluations.evaluate_next:
     Opens the oldest attempt currently in the list. If a company filter is set, it
     opens that company's oldest attempt.
 
-    Work one attempt at a time: grade, accept or score each answer, then release
-    the attempt to its company.
+    Work one attempt at a time: grade, accept or score each answer. The last accept
+    or score releases the attempt to its company by itself.
 
 admin.evaluations.release_selected:
   audience: admin
-  short_text: "Release every ticked, fully graded attempt to its company in one step."
+  short_text: "Releases every ticked, fully graded attempt to its company at once. The last accept already does this."
   long_md: |
     ## Release selected to company
 
-    Only attempts that are **Ready to release** (every question has a final grade)
-    have a tick box. Releasing hands the evaluation to the company, which then
-    reviews the scores and publishes them to candidates.
+    You rarely need this: accepting the last grade of an attempt already releases it
+    to its company. It is for attempts that are still listed as **Ready to
+    release**, for example ones the company sent back and you re-evaluated.
+
+    Only fully graded attempts (every question has a final grade) have a tick box.
+    Releasing hands the evaluation to the company, which then reviews the scores and
+    publishes them to candidates.
 
     You may be asked for a fresh authenticator code. Afterwards you see how many
     attempts were released and how many were skipped, and why.
@@ -2642,15 +2648,18 @@ admin.evaluations.sent_back:
   long_md: |
     ## Sent back
 
-    After you release an evaluation, the company can send an attempt back with a
+    After an evaluation is released, the company can send an attempt back with a
     note, for example when a score looks wrong. The attempt returns to this queue
     marked **Sent back** and keeps its existing grades.
 
-    Read the note, adjust the grades if needed, then release the attempt again.
+    Read the note, then use **Re-run AI** to grade the written answers again, or
+    **Override grade** to set a score yourself. Because the attempt is already
+    graded, accepting a new grade does not release it again: use **Release to
+    company** when you are done.
 
 admin.evaluations.accept_all:
   audience: admin
-  short_text: "Accepts every AI proposal that did not fail. Failed ones are skipped so you can re-run or score them by hand."
+  short_text: "Accepts every AI proposal that did not fail. The accept that completes the attempt releases it to the company."
   long_md: |
     ## Accept all
 
@@ -2658,8 +2667,32 @@ admin.evaluations.accept_all:
     failed, or where the two AI models disagreed by two bands or more, are skipped
     so you can **Re-run** them or enter a **manual score**.
 
-    Accepting records the grade but does not release the attempt. Once every
-    question has a final grade you can **Release to company**.
+    When the accept gives every question a final grade, the evaluation is complete
+    and the attempt is **released to the company in that same step**. There is no
+    separate release click. Before that last accept the page tells you so, for
+    example "Accepting the last grade releases this result to Acme". If the company
+    publishes automatically, the student gets the result within a minute.
+
+    An attempt the company sent back is already graded, so accepting new grades on
+    it does not release it again. Use **Release to company** for that.
+
+admin.evaluations.rerun_ai:
+  audience: admin
+  short_text: "Grades the written answers of a sent-back attempt again. Nothing changes until you accept the new grades."
+  long_md: |
+    ## Re-run AI
+
+    Shown only on an attempt the company sent back (graded, not yet released). It runs
+    the AI over every written answer again, one attempt at a time. The run itself
+    commits nothing: each new result appears next to the grade it would replace.
+
+    - **Accept** a result to replace that question's grade, or **Accept all** to take
+      every new result that did not fail. **Override** sets your own score instead.
+    - Accepting does not release the attempt. When the grades are right, use
+      **Release to company**.
+    - It can take a few minutes. You can leave the page; the results are here when you
+      come back.
+    - Only one grading run can be in progress at a time.
 
 admin.evaluations.manual_score:
   audience: admin
@@ -2674,17 +2707,25 @@ admin.evaluations.manual_score:
     - A reason is required. It is saved with the grade but kept out of the audit
       log.
     - You may be asked for a fresh authenticator code.
+    - If it is the last missing grade, saving it completes the evaluation and
+      releases the attempt to the company, just like the last accept.
 
     A question can be scored manually only once. After that, use **Override grade**.
 
 admin.evaluations.release_to_company:
   audience: admin
-  short_text: "Hands the finished evaluation to the company so it can review and publish it. Needs every question graded."
+  short_text: "Hands a finished evaluation to the company. The last accept already does this; use it for sent-back attempts."
   long_md: |
     ## Release to company
 
-    Enabled when every question on the attempt has a final grade and none is
-    flagged for review.
+    Accepting the last grade (or saving the last score or override) already releases
+    the attempt to the company, so most attempts never need this button. The page then
+    shows **Released to** the company, with a way back to the queue.
+
+    Use it for an attempt that is fully graded but still with AssessIQ. That is
+    mostly an attempt the company **sent back** and you re-evaluated: it was already
+    graded, so it is never released automatically. It is enabled when every question
+    has a final grade and none is flagged for review.
 
     Releasing does not publish anything to the candidate. The company sees the
     final scores and decides when to publish them, or has them published

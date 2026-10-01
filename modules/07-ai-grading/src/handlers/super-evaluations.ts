@@ -240,6 +240,14 @@ export interface HandleSuperReleaseToTenantOutput {
  * clear any send-back marker, plus one grading.evaluation_released audit row (the
  * target tenant's audit log, super admin as actor), all in one tx.
  *
+ * Since 2026-10-01 (owner decision) this is the RECOVERY action, not the normal path:
+ * the platform accept / manual score / override that COMPLETES an attempt releases it in
+ * that same tx (finalize, evaluation_released_by = the admin; the hand-over is recorded
+ * in that call's own audit row). What still needs this explicit step is an attempt that
+ * is already 'graded' but unreleased — one the tenant sent back and the evaluator then
+ * re-evaluated (finalize never re-flips a graded attempt) — and anything completed
+ * before the change. Single and bulk stay.
+ *
  * Refused (nothing written):
  *   404 AIG_ATTEMPT_NOT_FOUND                 not in this tenant
  *   422 AIG_ATTEMPT_NOT_RELEASABLE_ERASED     candidate erased (invariant 3: never listed / released)
@@ -320,11 +328,16 @@ export async function handleSuperReleaseToTenant(input: {
       );
     }
 
+    // ai_proposals: the review cache of a sent-back re-run (finalize already cleared it
+    // for a first completion) — the evaluation is over once it is with the tenant, so
+    // proposals the evaluator did not accept must not resurface on a later send-back.
+    // grading_started_at is left alone: a re-run still in flight owns that marker.
     const upd = await client.query<{ evaluation_released_at: Date }>(
       `UPDATE attempts
           SET evaluation_released_at  = now(),
               evaluation_released_by  = $2,
-              evaluation_sent_back_at = NULL
+              evaluation_sent_back_at = NULL,
+              ai_proposals            = NULL
         WHERE id = $1
         RETURNING evaluation_released_at`,
       [attemptId, userId],
