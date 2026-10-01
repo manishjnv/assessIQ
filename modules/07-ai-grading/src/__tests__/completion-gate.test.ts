@@ -9,9 +9,9 @@
  *   - handleAdminOverride: recomputes attempt_scores in-tx, can complete a flagged
  *     attempt, and is refused once the result is published.
  *   - POST .../manual-score route: body/param validation + chain wiring.
- *   - Adversarial-review fix: accept locks the attempt row first and refuses a
+ *   - Adversarial-review fixes: accept locks the attempt row first and refuses a
  *     released attempt (409, nothing written — incl. the real lock race against a
- *     Release).
+ *     Release); override rejects a score outside 0..score_max (422).
  *
  * No AI anywhere: runtime-selector is mocked and never called.
  */
@@ -465,20 +465,82 @@ describe("handleAdminOverride — rollup + published-is-final (SP1)", () => {
   });
 });
 
-describe("POST /api/admin/attempts/:id/questions/:questionId/manual-score (route)", () => {
-  async function buildApp() {
-    const app = Fastify();
-    app.setErrorHandler((err, _req, reply) => {
-      if (err instanceof AppError) return reply.code(err.status).send({ error: err.toJson() });
-      return reply.code(500).send({ error: { code: "INTERNAL", message: String(err) } });
-    });
-    const session = async (req: { session?: unknown }) => {
-      req.session = { tenantId: tenant, userId: admin, lastSeenAt: new Date().toISOString() };
-    };
-    await registerGradingRoutes(app, { adminOnly: [session as never], adminFreshMfa: [session as never] });
-    return app;
+describe("handleAdminOverride — score_earned must be within 0..score_max (review fix)", () => {
+  /** An AI-graded subjective question (score_max 10, earned 5) in an otherwise complete attempt. */
+  async function aiGraded(): Promise<{ attemptId: string; gradingId: string }> {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    const r = await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 5 })]);
+    return { attemptId, gradingId: r.gradings[0]!.id };
   }
+  const override = (gradingId: string, score: number) =>
+    handleAdminOverride({ tenantId: tenant, userId: admin, gradingId, override: { score_earned: score, reason: "range check" } });
 
+  it.each([[-1], [-0.01], [10.01], [11], [1e9], [NaN], [Infinity], [-Infinity]])(
+    "422 AIG_INVALID_BODY (details.score_max 10) for score_earned=%s; nothing written, rollup unchanged",
+    async (score) => {
+      const { attemptId, gradingId } = await aiGraded();
+      const before = await totals(attemptId);
+      await expect(override(gradingId, score)).rejects.toMatchObject({
+        code: "AIG_INVALID_BODY",
+        status: 422,
+        details: { score_max: 10 },
+      });
+      expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='admin_override'`, attemptId)).toBe(0);
+      expect(await count(`SELECT COUNT(*) n FROM audit_log WHERE action='grading.override' AND after->>'override_of'=$1`, gradingId)).toBe(0);
+      expect(await totals(attemptId)).toEqual(before);
+    },
+  );
+
+  it("accepts both bounds: 0 (incorrect) and score_max (correct); the rollup follows the newest override", async () => {
+    const { attemptId, gradingId } = await aiGraded();
+    expect((await override(gradingId, 0)).grading).toMatchObject({ score_earned: 0, score_max: 10, status: "incorrect" });
+    expect(await totals(attemptId)).toMatchObject({ e: 10, m: 20 });
+    expect((await override(gradingId, 10)).grading).toMatchObject({ score_earned: 10, score_max: 10, status: "correct" });
+    expect(await totals(attemptId)).toMatchObject({ e: 20, m: 20 });
+  });
+});
+
+async function buildApp() {
+  const app = Fastify();
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof AppError) return reply.code(err.status).send({ error: err.toJson() });
+    return reply.code(500).send({ error: { code: "INTERNAL", message: String(err) } });
+  });
+  const session = async (req: { session?: unknown }) => {
+    req.session = { tenantId: tenant, userId: admin, lastSeenAt: new Date().toISOString() };
+  };
+  await registerGradingRoutes(app, { adminOnly: [session as never], adminFreshMfa: [session as never] });
+  return app;
+}
+
+describe("POST /api/admin/gradings/:id/override (route) — score range", () => {
+  it("422 AIG_INVALID_BODY with details.score_max when score_earned is out of range; 200 at the boundary", async () => {
+    const app = await buildApp();
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    const gradingId = (await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 5 })])).gradings[0]!.id;
+    for (const bad of [-1, 11]) {
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/admin/gradings/${gradingId}/override`,
+        payload: { score_earned: bad, reason: "out of range" },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json()).toMatchObject({ error: { code: "AIG_INVALID_BODY", details: { score_max: 10 } } });
+    }
+    expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='admin_override'`, attemptId)).toBe(0);
+
+    const ok = await app.inject({
+      method: "POST",
+      url: `/api/admin/gradings/${gradingId}/override`,
+      payload: { score_earned: 10, reason: "full marks" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ grading: { score_earned: 10, score_max: 10 } });
+    await app.close();
+  });
+});
+
+describe("POST /api/admin/attempts/:id/questions/:questionId/manual-score (route)", () => {
   it("200 with the new grading; the chain is the fresh-MFA chain (session injected by it)", async () => {
     const app = await buildApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["kql"]);
