@@ -117,3 +117,8 @@ Email-template copy is externalized through a tiny string-registry layer at `src
 **Brand-string exception.** `AssessIQ` (and any future white-label wordmark per tenant) is intentionally routed through the same `brand_wordmark` key so per-tenant rebranding can be added later without a template diff. Today it is constant English. URLs (invitation links, dashboard links, results links) are **never** placed in the strings bundle — they are vars passed by the caller, since a translated URL would be a phishing vector.
 
 **Partial-state note.** This pass externalizes page titles, greetings, headings, CTAs, table labels, and security warnings. Body-copy sentences ("You have been invited to take …") remain inline in the HTML templates, marked with `<!-- i18n: body copy not yet externalized -->` so the gap is visible. The `.txt` plain-text variants are also still inline. Closing both is a follow-up pass.
+
+
+## `result_released` email (SP4, 2026-10-01)
+
+Closed-enum template `result_released` (vars: `candidateName, assessmentName, tenantName, scoreText "42 / 60 (70%)", resultText Passed|Not passed, portalLink ${ASSESSIQ_BASE_URL}/candidate/login?tenant=<slug>, certificateLink?`). `sendResultReleasedEmail({tenantId, attemptId})` (`src/email/result-released.ts`) loads the data itself (withTenant), emails only an attempt that is actually `released`, skips erased candidates (DPDP) and embed attempts, and is best-effort — it never throws into the release flow (07 manual Release / release-all, apps/api auto-release sweep call it AFTER the release tx commits). Final score only — nothing per-question (P1). It replaces a dynamic import in 07 that silently never found the function.
