@@ -7,6 +7,11 @@
 // row it overrides, and wins graded_at ties), per-category %, pass/fail
 // against levels.passing_score_pct.
 //
+// Phase II (2026-10-01): an attempt whose evaluation the platform has not released
+// to the tenant yet (still unevaluated, or graded but evaluation_released_at IS NULL —
+// e.g. sent back) shows result "Awaiting evaluation" and NO score / percent / category
+// columns. Published ('released') and released-to-tenant rows show their score.
+//
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
 import { withTenant } from '@assessiq/tenancy';
@@ -49,13 +54,15 @@ export async function buildAssessmentResultsCsv(
       user_id: string; name: string | null; email: string; inv_status: string;
       attempt_id: string | null; status: string | null;
       started_at: Date | null; submitted_at: Date | null;
+      evaluation_released_at: Date | null;
     }>(
       `SELECT i.user_id, u.name, u.email, i.status AS inv_status,
-              at.id AS attempt_id, at.status, at.started_at, at.submitted_at
+              at.id AS attempt_id, at.status, at.started_at, at.submitted_at,
+              at.evaluation_released_at
          FROM assessment_invitations i
          JOIN users u ON u.id = i.user_id
          LEFT JOIN LATERAL (
-           SELECT id, status, started_at, submitted_at FROM attempts
+           SELECT id, status, started_at, submitted_at, evaluation_released_at FROM attempts
             WHERE assessment_id = i.assessment_id AND user_id = i.user_id
             ORDER BY created_at DESC LIMIT 1) at ON true
         WHERE i.assessment_id = $1
@@ -113,10 +120,24 @@ export async function buildAssessmentResultsCsv(
     const lines = [header.map(csvCell).join(',')];
     for (const c of cands.rows) {
       const status = c.status ?? (c.inv_status === 'expired' ? 'expired' : 'invited');
-      const graded = c.attempt_id !== null && (c.status === 'graded' || c.status === 'released');
+      // Phase II: while the platform has not released its evaluation to the tenant
+      // (still queued with AssessIQ, or sent back), the row shows "Awaiting
+      // evaluation" and NO score — the tenant sees scores only after release-to-tenant.
+      // 'released' (published) rows always show their score.
+      const awaiting =
+        c.attempt_id !== null &&
+        (c.status === 'submitted' ||
+          c.status === 'auto_submitted' ||
+          c.status === 'pending_admin_grading' ||
+          (c.status === 'graded' && c.evaluation_released_at === null));
+      const graded =
+        c.attempt_id !== null &&
+        (c.status === 'released' || (c.status === 'graded' && c.evaluation_released_at !== null));
       const t = graded ? byAttempt.get(c.attempt_id!) : undefined;
       const percent = t && t.m > 0 ? Math.round((t.e / t.m) * 1000) / 10 : null;
-      const result = percent !== null && passing !== null ? (percent >= passing ? 'Pass' : 'Fail') : '';
+      const result = awaiting
+        ? 'Awaiting evaluation'
+        : percent !== null && passing !== null ? (percent >= passing ? 'Pass' : 'Fail') : '';
       const cells: Array<string | number | null> = [
         c.name ?? '', c.email, status,
         c.started_at?.toISOString() ?? '', c.submitted_at?.toISOString() ?? '',
