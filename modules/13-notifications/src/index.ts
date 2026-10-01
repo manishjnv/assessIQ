@@ -27,6 +27,10 @@ export type { EmailSendJobData } from './email/index.js';
 // never throws). Called by 07 (manual release / release-all) and the worker sweep.
 export { sendResultReleasedEmail } from './email/result-released.js';
 
+// Phase II SP11: platform-owner alert when evaluations wait > 24 h (worker job
+// evaluation.queue_alert; best-effort per recipient, never throws).
+export { sendEvaluationQueueAlertEmail } from './email/evaluation-queue-alert.js';
+
 // ---------------------------------------------------------------------------
 // Contact-form enquiry (public, unauthenticated — no tenant context)
 // ---------------------------------------------------------------------------

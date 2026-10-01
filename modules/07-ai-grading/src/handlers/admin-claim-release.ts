@@ -1,12 +1,10 @@
 /**
- * Handlers: GET /admin/attempts/:attemptId (page-load claim) and
+ * Handlers: GET /admin/attempts/:attemptId (attempt review payload) and
  *           POST /admin/attempts/:attemptId/release
  *
  * Phase 2 G2.A Session 1.b — service-layer handlers (no Fastify req/reply).
  *
  * Decision references:
- *   D3 — Claim transitions attempts.status from 'submitted' →
- *        'pending_admin_grading' (idempotent). No grading_jobs in Phase 1.
  *   D8 — Release transitions 'graded' → 'released'. This is the admin
  *        confirming the candidate can see results. Triggers result-released
  *        notification via module 13 (attempted safely, never blocks on failure).
@@ -20,14 +18,28 @@
  *   handleAdminReleaseAttempt delegates to module 09 releaseAttemptInTx (shared
  *   with bulk release and the worker auto-release sweep) and then sends the
  *   result email via module 13 — both static imports now.
+ *
+ * Phase II (2026-10-01) — platform evaluation queue:
+ *   The GET is now READ-ONLY. It used to claim the attempt (submitted →
+ *   pending_admin_grading) and write a grading.claimed audit row on every first
+ *   open — a side effect on a GET, and meaningless now that tenants no longer
+ *   grade. (The catalog action name stays for historical rows.) The payload is
+ *   built by loadAttemptReview(), shared with the platform evaluator's view
+ *   (handlers/super-evaluations.ts) with a per-audience projection:
+ *     - 'tenant'   : candidate identity included (the tenant's own data); while
+ *                    the evaluation is still with AssessIQ (awaiting_evaluation)
+ *                    gradings / score / ai_proposals are HIDDEN; ai_proposals is
+ *                    always null for tenants (AI review state is platform-only).
+ *     - 'platform' : NO candidate name / email / erasure flag (blind evaluation);
+ *                    everything the evaluator needs, plus tenant + evaluation meta.
  */
 
 import { AppError, streamLogger, displayCandidate } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
-import { auditInTx } from "@assessiq/audit-log";
 import { releaseAttemptInTx } from "@assessiq/scoring";
 import { sendResultReleasedEmail } from "@assessiq/notifications";
-import { findGradingsForAttempt } from "../repository.js";
+import { deriveEvaluationStatus, findGradingsForAttempt } from "../repository.js";
+import type { EvaluationStatus } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
@@ -83,6 +95,14 @@ export interface FrozenQuestionRow {
 // Public types
 // ---------------------------------------------------------------------------
 
+/** attempt_scores summary shown next to the grades (the visible subset of 09 AttemptScore). */
+export interface AttemptScoreSummary {
+  total_earned: number;
+  total_max: number;
+  auto_pct: number;
+  pending_review: boolean;
+}
+
 export interface HandleAdminClaimAttemptOutput {
   attempt: {
     id: string;
@@ -97,29 +117,29 @@ export interface HandleAdminClaimAttemptOutput {
   };
   answers: AttemptAnswerRow[];
   frozen_questions: FrozenQuestionRow[];
+  /** Phase II: [] while the evaluation is still with AssessIQ (awaiting_evaluation). */
   gradings: GradingsRow[];
   /**
-   * Phase 2 cache (Bug A robustness, 2026-05-29): the most-recent batch of
-   * `GradingProposal[]` written by handleAdminGrade. Lets the FE hydrate
-   * its proposals state on page load even if the original POST /grade
-   * response was lost to a CF/proxy timeout. NOT committed grades — these
-   * are review-state artifacts that still require admin Accept click
-   * before any gradings row is written. Null when no grading has run or
-   * after a successful gate-flip accept.
-   *
-   * Shape matches the runtime's `GradingProposal` shape exactly. Type left
-   * `unknown` here to avoid pulling the runtime types into the handler
-   * surface; the FE narrows it via the shared GradingProposal type from
-   * `@assessiq/admin-api-types` (or equivalent).
+   * Phase II: ALWAYS null for tenant roles. The AI review cache (the latest
+   * `GradingProposal[]` from handleAdminGrade, Bug A robustness 2026-05-29) is
+   * platform-evaluator state — it is only served by the platform evaluation view
+   * (handlers/super-evaluations.ts). Tenants no longer run or accept AI grading.
    */
   ai_proposals: unknown[] | null;
   /**
-   * Phase 2 cache: ISO-8601 timestamp set when handleAdminGrade started a
-   * batch, nulled when the batch finishes (success or error path). Drives
-   * the FE "Grading in progress" banner + 15s auto-poll cadence. Null
-   * when no grading is running.
+   * Phase II: ALWAYS null for tenant roles (the in-flight AI marker is platform
+   * state; see ai_proposals).
    */
   grading_started_at: string | null;
+  /** Phase II: tenant-facing evaluation state (repository.deriveEvaluationStatus). */
+  evaluation_status: EvaluationStatus;
+  /** ISO timestamp the platform released the evaluation to the tenant; null until then. */
+  evaluation_released_at: string | null;
+  /** The tenant's own "send back" note (null when the attempt was never sent back). */
+  evaluation_note: string | null;
+  evaluation_sent_back_at: string | null;
+  /** attempt_scores summary; null while awaiting_evaluation (provisional totals are never shown). */
+  score: AttemptScoreSummary | null;
 }
 
 export interface HandleAdminReleaseAttemptOutput {
@@ -182,131 +202,174 @@ async function loadFrozenQuestions(
 // Handlers
 // ---------------------------------------------------------------------------
 
+/** attempt_scores totals for the review payload; null when no rollup row exists yet. */
+async function loadScoreSummary(
+  client: PoolClient,
+  attemptId: string,
+): Promise<AttemptScoreSummary | null> {
+  const res = await client.query<AttemptScoreSummary>(
+    `SELECT total_earned::float8 AS total_earned,
+            total_max::float8    AS total_max,
+            auto_pct::float8     AS auto_pct,
+            pending_review
+       FROM attempt_scores
+      WHERE attempt_id = $1`,
+    [attemptId],
+  );
+  return res.rows[0] ?? null;
+}
+
+/** Raw attempt row behind the review payload (identity columns are NULL for the platform audience). */
+export interface AttemptReviewRow {
+  status: string;
+  ai_proposals: unknown[] | null;
+  grading_started_at: Date | null;
+  evaluation_released_at: Date | null;
+  evaluation_note: string | null;
+  evaluation_sent_back_at: Date | null;
+  candidate_email: string | null;
+  candidate_name: string | null;
+  erased_at: string | null;
+  assessment_name: string | null;
+  level_label: string | null;
+  started_at: Date | null;
+  submitted_at: Date | null;
+  tenant_name: string | null;
+}
+
+export interface AttemptReview {
+  row: AttemptReviewRow;
+  evaluation_status: EvaluationStatus;
+  answers: AttemptAnswerRow[];
+  frozen_questions: FrozenQuestionRow[];
+  gradings: GradingsRow[];
+  score: AttemptScoreSummary | null;
+}
+
 /**
- * Page-load handler for /admin/attempts/:id.
+ * Read-only loader behind the attempt review payload (NO writes, no audit).
+ * Must run inside withTenant(<the attempt's tenant>) — RLS scopes every read.
  *
- * Idempotently transitions attempts.status from 'submitted' to
- * 'pending_admin_grading', then loads answers + frozen_questions + gradings.
- * Second call (status already 'pending_admin_grading') is a no-op on the
- * UPDATE, but still returns the full page data.
+ * `audience` decides what is projected (see the file header):
+ *   'tenant'   joins users for the candidate identity (DPDP erasure is applied by
+ *              the caller via displayCandidate) and HIDES gradings + score while the
+ *              evaluation is still with AssessIQ — a tenant never sees AI grades or a
+ *              provisional total before the platform releases the evaluation.
+ *   'platform' never selects candidate columns at all (blind evaluation) and always
+ *              returns gradings + score: the evaluator needs them.
+ * Throws 404 AIG_ATTEMPT_NOT_FOUND when RLS hides the row or it does not exist.
+ */
+export async function loadAttemptReview(
+  client: PoolClient,
+  attemptId: string,
+  audience: "tenant" | "platform",
+): Promise<AttemptReview> {
+  // Static SQL fragments (never user input).
+  const identityCols =
+    audience === "tenant"
+      ? "u.email AS candidate_email, u.name AS candidate_name, u.erased_at"
+      : "NULL::text AS candidate_email, NULL::text AS candidate_name, NULL::text AS erased_at";
+  const identityJoin = audience === "tenant" ? "LEFT JOIN users u ON u.id = a.user_id" : "";
+
+  // Phase 2 cache (2026-05-29 Bug A robustness): `ai_proposals` carries the latest
+  // GradingProposal[] from handleAdminGrade (or null if no grading run / cleared
+  // after the completing accept); `grading_started_at` is the in-flight marker.
+  // Both feed the platform evaluator's hydration + banner + auto-poll so a
+  // Grade-all whose response was lost to a CF/proxy timeout can be picked up again.
+  const statusResult = await client.query<AttemptReviewRow>(
+    `SELECT
+       a.status,
+       a.ai_proposals,
+       a.grading_started_at,
+       a.evaluation_released_at,
+       a.evaluation_note,
+       a.evaluation_sent_back_at,
+       ${identityCols},
+       asm.name      AS assessment_name,
+       lvl.label     AS level_label,
+       a.started_at,
+       a.submitted_at,
+       t.name        AS tenant_name
+     FROM attempts a
+     ${identityJoin}
+     LEFT JOIN assessments asm ON asm.id = a.assessment_id
+     LEFT JOIN levels      lvl ON lvl.id = asm.level_id
+     LEFT JOIN tenants     t   ON t.id   = a.tenant_id
+     WHERE a.id = $1
+     LIMIT 1`,
+    [attemptId],
+  );
+  const row = statusResult.rows[0];
+  if (row === undefined) {
+    throw new AppError(
+      `Attempt ${attemptId} not found`,
+      AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
+      404,
+    );
+  }
+
+  const evaluation_status = deriveEvaluationStatus(row.status, row.evaluation_released_at !== null);
+  const hidden = audience === "tenant" && evaluation_status === "awaiting_evaluation";
+
+  const [answers, frozen_questions, gradings, score] = await Promise.all([
+    loadAnswers(client, attemptId),
+    loadFrozenQuestions(client, attemptId),
+    hidden ? Promise.resolve<GradingsRow[]>([]) : findGradingsForAttempt(client, attemptId),
+    hidden ? Promise.resolve<AttemptScoreSummary | null>(null) : loadScoreSummary(client, attemptId),
+  ]);
+
+  return { row, evaluation_status, answers, frozen_questions, gradings, score };
+}
+
+/**
+ * GET /admin/attempts/:id — the tenant's attempt review payload.
+ *
+ * READ-ONLY (Phase II): no claim transition, no audit row. The handler name is kept
+ * for the route + callers; "claim" is historical. `userId` is accepted for signature
+ * stability and is not used.
  */
 export async function handleAdminClaimAttempt(input: {
   tenantId: string;
   userId: string;
   attemptId: string;
 }): Promise<HandleAdminClaimAttemptOutput> {
-  const { tenantId, userId, attemptId } = input;
+  const { tenantId, attemptId } = input;
 
   return withTenant(tenantId, async (client) => {
-    // Idempotent claim: transitions 'submitted' → 'pending_admin_grading'.
-    // No-op when already 'pending_admin_grading' (rowCount = 0 is fine).
-    const claimResult = await client.query(
-      `UPDATE attempts
-       SET status = 'pending_admin_grading'
-       WHERE id = $1 AND status = 'submitted'`,
-      [attemptId],
-    );
-    const wasClaimed = (claimResult.rowCount ?? 0) > 0;
-
-    // Read current status + Phase 2 cache fields + candidate identity.
-    // Phase 2 cache (2026-05-29 Bug A robustness): `ai_proposals` carries
-    // the latest GradingProposal[] from handleAdminGrade (or null if no
-    // grading run / cleared after gate-flip accept). `grading_started_at`
-    // is the in-flight marker. Both feed the FE's hydration + banner +
-    // 15s auto-poll logic so a Grade-all whose response was lost to a
-    // CF/proxy timeout can still be picked up by the admin on return.
-    // DPDP (2026-05-30): LEFT JOIN users/assessments/levels here so that
-    // candidate identity is returned alongside attempt status in one query.
-    // erased_at is included so displayCandidate() can substitute.
-    const statusResult = await client.query<{
-      status: string;
-      ai_proposals: unknown[] | null;
-      grading_started_at: Date | null;
-      candidate_email: string | null;
-      candidate_name: string | null;
-      erased_at: string | null;
-      assessment_name: string | null;
-      level_label: string | null;
-      started_at: Date | null;
-      submitted_at: Date | null;
-    }>(
-      `SELECT
-         a.status,
-         a.ai_proposals,
-         a.grading_started_at,
-         u.email       AS candidate_email,
-         u.name        AS candidate_name,
-         u.erased_at,
-         asm.name      AS assessment_name,
-         lvl.label     AS level_label,
-         a.started_at,
-         a.submitted_at
-       FROM attempts a
-       LEFT JOIN users       u   ON u.id   = a.user_id
-       LEFT JOIN assessments asm ON asm.id = a.assessment_id
-       LEFT JOIN levels      lvl ON lvl.id = asm.level_id
-       WHERE a.id = $1
-       LIMIT 1`,
-      [attemptId],
-    );
-    const statusRow = statusResult.rows[0];
-    if (statusRow === undefined) {
-      throw new AppError(
-        `Attempt ${attemptId} not found`,
-        AI_GRADING_ERROR_CODES.ATTEMPT_NOT_FOUND,
-        404,
-      );
-    }
+    const r = await loadAttemptReview(client, attemptId, "tenant");
+    const { row } = r;
 
     // Apply displayCandidate substitution for DPDP erasure
     const candidateDisplay = displayCandidate({
       id: attemptId,
-      name: statusRow.candidate_name,
-      email: statusRow.candidate_email,
-      erased_at: statusRow.erased_at,
+      name: row.candidate_name,
+      email: row.candidate_email,
+      erased_at: row.erased_at,
     });
-
-    // G3.D audit: only on the actual transition. Re-claim of an already-claimed
-    // attempt produces no audit row, matching the idempotent UPDATE semantic.
-    if (wasClaimed) {
-      await auditInTx(client, {
-        action: "grading.claimed",
-        actorKind: "user",
-        actorUserId: userId,
-        tenantId,
-        entityType: "attempt",
-        entityId: attemptId,
-        before: { attempt_status: "submitted" },
-        after: { attempt_status: "pending_admin_grading" },
-      });
-    }
-
-    const [answers, frozen_questions, gradings] = await Promise.all([
-      loadAnswers(client, attemptId),
-      loadFrozenQuestions(client, attemptId),
-      findGradingsForAttempt(client, attemptId),
-    ]);
 
     return {
       attempt: {
         id: attemptId,
-        status: statusRow.status,
+        status: row.status,
         candidate_email: candidateDisplay.email,
         candidate_name: candidateDisplay.name,
         isErased: candidateDisplay.isErased,
-        assessment_name: statusRow.assessment_name ?? '(unknown)',
-        level_label: statusRow.level_label ?? '(unknown)',
-        started_at: statusRow.started_at?.toISOString() ?? null,
-        submitted_at: statusRow.submitted_at?.toISOString() ?? null,
+        assessment_name: row.assessment_name ?? '(unknown)',
+        level_label: row.level_label ?? '(unknown)',
+        started_at: row.started_at?.toISOString() ?? null,
+        submitted_at: row.submitted_at?.toISOString() ?? null,
       },
-      answers,
-      frozen_questions,
-      gradings,
-      ai_proposals: statusRow.ai_proposals,
-      grading_started_at:
-        statusRow.grading_started_at !== null
-          ? statusRow.grading_started_at.toISOString()
-          : null,
+      answers: r.answers,
+      frozen_questions: r.frozen_questions,
+      gradings: r.gradings,
+      // AI review state is platform-only (see HandleAdminClaimAttemptOutput).
+      ai_proposals: null,
+      grading_started_at: null,
+      evaluation_status: r.evaluation_status,
+      evaluation_released_at: row.evaluation_released_at?.toISOString() ?? null,
+      evaluation_note: row.evaluation_note,
+      evaluation_sent_back_at: row.evaluation_sent_back_at?.toISOString() ?? null,
+      score: r.score,
     };
   });
 }

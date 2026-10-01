@@ -300,6 +300,29 @@ export async function findTenantBudget(
 }
 
 // ---------------------------------------------------------------------------
+// Evaluation status (Phase II — platform evaluation queue)
+// ---------------------------------------------------------------------------
+
+/**
+ * Where an attempt is in the platform-evaluation lifecycle, as the TENANT sees it.
+ * Derived (never stored) from attempts.status + attempts.evaluation_released_at:
+ *   - 'published'           status 'released' (the candidate can see the result)
+ *   - 'ready_to_publish'    status 'graded' AND the platform released the evaluation
+ *   - 'awaiting_evaluation' everything else (still queued with AssessIQ, or sent back)
+ * The attempts.status enum is untouched (spec invariant 7).
+ */
+export type EvaluationStatus = "awaiting_evaluation" | "ready_to_publish" | "published";
+
+export function deriveEvaluationStatus(
+  status: string,
+  evaluationReleased: boolean,
+): EvaluationStatus {
+  if (status === "released") return "published";
+  if (status === "graded" && evaluationReleased) return "ready_to_publish";
+  return "awaiting_evaluation";
+}
+
+// ---------------------------------------------------------------------------
 // Admin attempts list query
 // ---------------------------------------------------------------------------
 
@@ -313,6 +336,8 @@ export async function findTenantBudget(
 export interface AttemptListRow {
   id: string;
   status: string;
+  /** Phase II: tenant-facing evaluation state (see deriveEvaluationStatus). */
+  evaluation_status: EvaluationStatus;
   started_at: string;
   submitted_at: string | null;
   candidate_email: string;
@@ -366,6 +391,7 @@ export async function listAttemptsForAdmin(
   interface AttemptListDbRow {
     id: string;
     status: string;
+    evaluation_released: boolean;
     started_at: string;
     submitted_at: string | null;
     candidate_email: string | null;
@@ -379,6 +405,7 @@ export async function listAttemptsForAdmin(
     `SELECT
        a.id::text                                                                   AS id,
        a.status,
+       (a.evaluation_released_at IS NOT NULL)                                       AS evaluation_released,
        to_char(a.started_at  AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')     AS started_at,
        CASE WHEN a.submitted_at IS NULL THEN NULL
             ELSE to_char(a.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
@@ -408,6 +435,7 @@ export async function listAttemptsForAdmin(
     return {
       id: r.id,
       status: r.status,
+      evaluation_status: deriveEvaluationStatus(r.status, r.evaluation_released),
       started_at: r.started_at,
       submitted_at: r.submitted_at,
       candidate_email: display.email ?? '(erased)',
@@ -432,6 +460,8 @@ export interface QueueRow {
   level_label: string;
   submitted_at: Date | null;
   status: string;
+  /** Phase II: tenant-facing evaluation state (see deriveEvaluationStatus). */
+  evaluation_status: EvaluationStatus;
   /** Always false in Phase 2 G2 — drift detection deferred to later session. */
   prompt_version_sha_drift: boolean;
 }
@@ -443,6 +473,7 @@ interface QueueDbRow {
   level_label: string;
   submitted_at: Date | null;
   status: string;
+  evaluation_released: boolean;
 }
 
 /**
@@ -473,7 +504,8 @@ export async function listGradingQueue(
        asmnt.name            AS assessment_name,
        COALESCE(al.label, '') AS level_label,
        a.submitted_at,
-       a.status
+       a.status,
+       (a.evaluation_released_at IS NOT NULL) AS evaluation_released
      FROM attempts a
      JOIN users u ON u.id = a.user_id
      JOIN assessments asmnt ON asmnt.id = a.assessment_id
@@ -490,6 +522,182 @@ export async function listGradingQueue(
     level_label: r.level_label,
     submitted_at: r.submitted_at,
     status: r.status,
+    evaluation_status: deriveEvaluationStatus(r.status, r.evaluation_released),
     prompt_version_sha_drift: false,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Attempt completeness (shared by release-to-tenant)
+// ---------------------------------------------------------------------------
+
+/**
+ * How many frozen questions the attempt has, and how many of them have an
+ * EFFECTIVE grading that is not 'review_needed'. Same rule as module 09
+ * finalizeAttemptIfComplete (newest row per question; an admin_override row wins a
+ * graded_at tie) — release-to-tenant re-checks it because a later re-run / accept
+ * can add a newer flagged row to an attempt that is already 'graded'.
+ * Complete iff total > 0 AND done = total. Runs inside the caller's withTenant tx.
+ */
+export async function getAttemptProgress(
+  client: PoolClient,
+  attemptId: string,
+): Promise<{ total: number; done: number }> {
+  const res = await client.query<{ total: number; done: number }>(
+    `WITH effective AS (
+       SELECT DISTINCT ON (g.question_id) g.question_id, g.status
+         FROM gradings g
+        WHERE g.attempt_id = $1
+        ORDER BY g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC
+     )
+     SELECT COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE e.question_id IS NOT NULL AND e.status <> 'review_needed')::int AS done
+       FROM attempt_questions aq
+       LEFT JOIN effective e ON e.question_id = aq.question_id
+      WHERE aq.attempt_id = $1`,
+    [attemptId],
+  );
+  return res.rows[0] ?? { total: 0, done: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Platform evaluation queue (cross-tenant — super admin only)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of the platform evaluation queue. DELIBERATELY carries no candidate
+ * name / email / user id: the platform evaluator reviews blind (owner decision
+ * 2026-10-01). Everything here is tenant/assessment metadata or a count.
+ */
+export interface SuperEvaluationRow {
+  attempt_id: string;
+  tenant_id: string;
+  tenant_name: string;
+  assessment_id: string;
+  assessment_name: string;
+  level_label: string;
+  submitted_at: string | null;
+  /** Hours since submission, 1 decimal place. */
+  age_hours: number;
+  /** subjective + scenario + log_analysis answers (the AI-evaluated types). */
+  written_count: number;
+  kql_count: number;
+  status: string;
+  /** status === 'graded': fully evaluated, waiting for release-to-tenant. */
+  complete: boolean;
+  /** An AI run started within the last 10 minutes (attempts.grading_started_at). */
+  grading_in_progress: boolean;
+  /** The tenant sent it back for re-evaluation (evaluation_sent_back_at set). */
+  sent_back: boolean;
+  sent_back_note: string | null;
+}
+
+interface SuperEvaluationDbRow {
+  attempt_id: string;
+  tenant_id: string;
+  tenant_name: string;
+  assessment_id: string;
+  assessment_name: string;
+  level_label: string;
+  submitted_at: Date | null;
+  age_hours: number;
+  written_count: number;
+  kql_count: number;
+  status: string;
+  grading_in_progress: boolean;
+  sent_back: boolean;
+  sent_back_note: string | null;
+  total: number;
+  older_than_24h: number;
+}
+
+/** Hard cap on one queue response; counts below are over the WHOLE queue, not the page. */
+export const SUPER_QUEUE_LIMIT = 500;
+
+/**
+ * List the platform evaluation queue across ALL tenants, oldest first.
+ *
+ * MUST run on a client inside `BEGIN … SET LOCAL ROLE assessiq_system` (RLS
+ * bypass — there is no tenant context). Same read-only cross-tenant pattern as
+ * apps/api admin-super.ts and 02-tenancy listActiveTenantIds. The explicit tenant
+ * predicate is the optional UI filter, NOT an isolation mechanism.
+ *
+ * Eligible = at least one non-MCQ question (MCQ-only attempts complete at submit
+ * and never need the platform) AND either still unevaluated (submitted /
+ * auto_submitted / pending_admin_grading) or graded-but-not-yet-released (sent back
+ * by the tenant, or finished and not yet released), the candidate is not erased,
+ * and the tenant is active. KEEP IN SYNC with the overdue count in
+ * apps/api/src/jobs/evaluation-queue-alert.ts (the worker may not import this
+ * module — lint:ambient-ai — so that predicate is duplicated there).
+ */
+export async function listSuperEvaluationQueue(
+  client: PoolClient,
+  opts: { tenantId?: string } = {},
+): Promise<{ items: SuperEvaluationRow[]; counts: { pending: number; older_than_24h: number } }> {
+  const res = await client.query<SuperEvaluationDbRow>(
+    `SELECT a.id                                   AS attempt_id,
+            a.tenant_id,
+            t.name                                 AS tenant_name,
+            a.assessment_id,
+            COALESCE(asm.name, '(unknown)')        AS assessment_name,
+            COALESCE(lvl.label, '')                AS level_label,
+            a.submitted_at,
+            ROUND((EXTRACT(EPOCH FROM (now() - COALESCE(a.submitted_at, a.started_at))) / 3600.0)::numeric, 1)::float8
+                                                   AS age_hours,
+            qc.written_count,
+            qc.kql_count,
+            a.status,
+            (a.grading_started_at IS NOT NULL
+               AND a.grading_started_at > now() - interval '10 minutes') AS grading_in_progress,
+            (a.evaluation_sent_back_at IS NOT NULL) AS sent_back,
+            a.evaluation_note                      AS sent_back_note,
+            (COUNT(*) OVER ())::int                AS total,
+            (COUNT(*) FILTER (WHERE COALESCE(a.submitted_at, a.started_at) <= now() - interval '24 hours') OVER ())::int
+                                                   AS older_than_24h
+       FROM attempts a
+       JOIN tenants t ON t.id = a.tenant_id AND t.status = 'active'
+       JOIN users u   ON u.id = a.user_id  AND u.erased_at IS NULL
+       LEFT JOIN assessments asm ON asm.id = a.assessment_id
+       LEFT JOIN levels lvl      ON lvl.id = asm.level_id
+       JOIN LATERAL (
+         SELECT COUNT(*) FILTER (WHERE q.type IN ('subjective', 'scenario', 'log_analysis'))::int AS written_count,
+                COUNT(*) FILTER (WHERE q.type = 'kql')::int                                       AS kql_count,
+                COUNT(*) FILTER (WHERE q.type <> 'mcq')::int                                      AS non_mcq
+           FROM attempt_questions aq
+           JOIN questions q ON q.id = aq.question_id
+          WHERE aq.attempt_id = a.id
+       ) qc ON qc.non_mcq > 0
+      WHERE (a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
+             OR (a.status = 'graded' AND a.evaluation_released_at IS NULL))
+        AND ($1::uuid IS NULL OR a.tenant_id = $1::uuid)
+      ORDER BY COALESCE(a.submitted_at, a.started_at) ASC, a.id ASC
+      LIMIT ${SUPER_QUEUE_LIMIT}`,
+    [opts.tenantId ?? null],
+  );
+
+  const items: SuperEvaluationRow[] = res.rows.map((r) => ({
+    attempt_id: r.attempt_id,
+    tenant_id: r.tenant_id,
+    tenant_name: r.tenant_name,
+    assessment_id: r.assessment_id,
+    assessment_name: r.assessment_name,
+    level_label: r.level_label,
+    submitted_at: r.submitted_at !== null ? r.submitted_at.toISOString() : null,
+    age_hours: r.age_hours,
+    written_count: r.written_count,
+    kql_count: r.kql_count,
+    status: r.status,
+    complete: r.status === "graded",
+    grading_in_progress: r.grading_in_progress,
+    sent_back: r.sent_back,
+    sent_back_note: r.sent_back ? r.sent_back_note : null,
+  }));
+
+  return {
+    items,
+    counts: {
+      pending: res.rows[0]?.total ?? 0,
+      older_than_24h: res.rows[0]?.older_than_24h ?? 0,
+    },
+  };
 }

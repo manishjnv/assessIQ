@@ -431,8 +431,13 @@ export async function getTakePreview(
   });
 }
 
-/** Policy text version recorded with each Begin consent (bump when Terms/Privacy/AI-use copy changes). */
-export const TAKE_CONSENT_POLICY_VERSION = "2026-10-01";
+/**
+ * Policy text version recorded with each Begin consent (bump when Terms/Privacy/AI-use copy changes).
+ * 2026-10-02: the consent copy now says written answers are evaluated by AssessIQ
+ * evaluators with AI assistance before the organisation releases results (platform
+ * evaluation queue). Candidates who consented to the older text are asked again.
+ */
+export const TAKE_CONSENT_POLICY_VERSION = "2026-10-02";
 
 export async function recordTakeConsent(
   tenantId: string,
