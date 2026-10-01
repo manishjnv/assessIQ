@@ -104,3 +104,25 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 **Not included.** Phase II (platform evaluation queue, send-back). 09 still must not import 07.
 
 **Impact.** 09 now depends on `@assessiq/certification`. `finalize` clears `attempts.ai_proposals/grading_started_at` (07 migration 0100) — test DBs that finalise must apply it. `getGradingsForAttempt` gained the same admin_override tie-break.
+
+## Callers, hand-over flag and invariants (2026-10-01, Phase II addendum)
+
+**New files:** `src/finalize.ts` (`finalizeAttemptIfComplete`) and `src/release.ts` (`releaseAttemptInTx`, `RELEASE_ERROR_CODES`, `ReleaseActor`), exported from `index.ts`; tests `finalize.test.ts` and `release.test.ts`. `mcq.ts` delegates to `finalize.ts` (the old `mcq > 0 && other == 0` shortcut is gone).
+
+| Caller | Calls | `markEvaluationReleased` |
+|---|---|---|
+| 09 `scoreMcqAndFinalizeIfComplete` (submit, timer sweep, read-time auto-submit, `handleAdminGrade` on legacy all-MCQ attempts) | `finalizeAttemptIfComplete` | `true`: an all-MCQ attempt is complete and visible to the company at once |
+| 07 platform `accept`, `override`, `manual-score` (super admin) | `finalizeAttemptIfComplete` | `false` (default): evaluating never hands the result to the company |
+| 07 `handleSuperReleaseToTenant` | its own SQL (not 09) | sets `evaluation_released_at/_by` itself |
+| 07 `handleAdminReleaseAttempt`, `handleAdminReleaseAll`, worker `result.auto_release` | `releaseAttemptInTx` | not applicable (`trigger` is `manual` for the first two, `auto` for the sweep) |
+
+**Invariants.**
+
+1. `finalizeAttemptIfComplete` is the only writer of `status = 'graded'`: it locks the attempt row, bills in the same tx and writes no audit row (callers keep theirs).
+2. A result is complete only when every `attempt_questions` row has an effective grade (newest row, `admin_override` wins a tie) that is not `review_needed`. The rule is mirrored in 07 `getAttemptProgress` and 15 `results-export`; change them together.
+3. `releaseAttemptInTx` is the only writer of `status = 'released'`: erased candidate 422, not ready 409, exactly one `grading.released` audit row, certificate inside a SAVEPOINT, no email inside (callers email after commit).
+4. The auto gate inside `releaseAttemptInTx` re-reads the tenant mode under `FOR SHARE`.
+5. `computeAttemptScoreInTx` runs inside the caller's tx for every writer (accept, override, manual score, finalize), so `attempt_scores` always matches the grades a concurrent release sees.
+6. 09 never imports 07, and nothing in the module calls AI, a model or the network.
+
+**Superseded.** The "Integration: 07-ai-grading → 09-scoring" paragraph above (a post-commit `computeAttemptScore`, log key `grading.scoring.error_after_accept`) no longer exists in code: accept rolls up inside its own locked tx.
