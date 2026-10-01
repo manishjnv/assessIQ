@@ -30,6 +30,7 @@
  */
 
 import {
+  AppError,
   AuthzError,
   ConflictError,
   NotFoundError,
@@ -41,6 +42,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
 import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
+import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import * as repo from "./repository.js";
 import {
   AE_ERROR_CODES,
@@ -176,6 +178,24 @@ export async function startAttempt(
         });
       }
       invitationId = invitation.id;
+
+      // c2. Consent invariant (R4) — enforced HERE so EVERY non-embed path that
+      //     creates a new attempt (/take/start Begin, /api/me/assessments/:id/start)
+      //     needs a consent_events row for the current policy version. Resume
+      //     (step a) never reaches this point. Embed attempts are exempt:
+      //     consent is host-asserted (the host app's signed JWT authorises the
+      //     candidate and the host collects consent under its own terms).
+      if (!(await repo.hasConsentEvent(client, {
+        userId: input.userId,
+        policyVersion: TAKE_CONSENT_POLICY_VERSION,
+      }))) {
+        throw new AppError(
+          "Consent is required before beginning the assessment.",
+          AE_ERROR_CODES.CONSENT_REQUIRED,
+          422,
+          { details: { code: AE_ERROR_CODES.CONSENT_REQUIRED } },
+        );
+      }
     }
 
     // d. Resolve level for duration_minutes (timer source).
@@ -320,6 +340,18 @@ export async function startAttempt(
       durationSeconds,
       embedOrigin: input.embedOrigin ?? false,
     });
+    if (attempt === null) {
+      // Lost a concurrent-Begin race (UNIQUE(assessment_id,user_id)): return the
+      // winner's attempt, clock untouched.
+      const winner = await repo.findAttemptByAssessmentAndUser(
+        client,
+        input.assessmentId,
+        input.userId,
+      );
+      if (winner === null) throw new Error("startAttempt: unique violation but no attempt found");
+      assertAttemptOwnedBy(winner, input.userId);
+      return winner;
+    }
 
     // i. Snapshot the question set + empty answer rows.
     const aqRows = chosen.map((q, i) => ({
@@ -349,6 +381,84 @@ export async function startAttempt(
     }
 
     return attempt;
+  });
+}
+
+// ===========================================================================
+// getTakePreview — read-only landing data; NEVER creates an attempt / starts
+// the clock. The timer starts only when startAttempt runs (candidate clicks
+// Begin on /take/:token).
+// ===========================================================================
+
+export interface TakePreview {
+  existing: Attempt | null;
+  questionCount: number;
+  companyName: string;
+}
+
+export async function getTakePreview(
+  tenantId: string,
+  input: StartAttemptInput,
+): Promise<TakePreview> {
+  return withTenant(tenantId, async (client) => {
+    const assessment = await alRepo.findAssessmentById(client, input.assessmentId);
+    if (assessment === null) {
+      throw new NotFoundError(`Assessment not found: ${input.assessmentId}`, {
+        details: { code: AE_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+      });
+    }
+    const existing = await repo.findAttemptByAssessmentAndUser(
+      client,
+      input.assessmentId,
+      input.userId,
+    );
+    if (existing !== null) assertAttemptOwnedBy(existing, input.userId);
+    if (existing === null && assessment.status !== "active") {
+      throw new ConflictError(
+        `Assessment must be 'active' to start an attempt (current: '${assessment.status}')`,
+        { details: { code: AE_ERROR_CODES.ASSESSMENT_NOT_ACTIVE, status: assessment.status } },
+      );
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const criteria = (assessment.settings as any)?.blueprint?.criteria as
+      | Array<{ count: number }>
+      | undefined;
+    const questionCount = Array.isArray(criteria)
+      ? criteria.reduce((n, c) => n + c.count, 0)
+      : assessment.question_count;
+    const tenant = await tenancyRepo.findTenantById(client, tenantId);
+    return { existing, questionCount, companyName: tenant?.name?.trim() ?? "" };
+  });
+}
+
+/** Policy text version recorded with each Begin consent (bump when Terms/Privacy/AI-use copy changes). */
+export const TAKE_CONSENT_POLICY_VERSION = "2026-10-01";
+
+export async function recordTakeConsent(
+  tenantId: string,
+  input: { userId: string; ip: string | null; userAgent: string | null },
+): Promise<void> {
+  await withTenant(tenantId, async (client) => {
+    // Serialise per (tenant,user) so double-click / retry can't race past the
+    // existence check; skip the INSERT when a row for this policy version exists.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `consent:${tenantId}:${input.userId}`,
+    ]);
+    if (
+      await repo.hasConsentEvent(client, {
+        userId: input.userId,
+        policyVersion: TAKE_CONSENT_POLICY_VERSION,
+      })
+    ) {
+      return;
+    }
+    await repo.insertConsentEvent(client, {
+      tenantId,
+      userId: input.userId,
+      policyVersion: TAKE_CONSENT_POLICY_VERSION,
+      ip: input.ip,
+      userAgent: input.userAgent,
+    });
   });
 }
 

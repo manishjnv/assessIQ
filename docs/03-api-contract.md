@@ -125,7 +125,19 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 | Method | Path | Purpose |
 |---|---|---|
 | `GET`  | `/take/:token`         | Renders landing; marks invitation viewed |
-| `POST` | `/take/start`          | Mints session, creates `attempt`, returns assessment shape |
+| `POST` | `/take/start`          | Two modes (R4, 2026-10-01): `{ token, preview: true }` returns the landing summary and creates NOTHING; `{ token, consent: true }` (the Begin click) mints the session, records consent, creates the `attempt` and starts the clock |
+
+#### `POST /take/start` modes (R4)
+
+The attempt timer (`attempts.started_at` / `ends_at`) starts when the candidate clicks **Begin assessment** after the pre-test screen, never when the link is opened.
+
+- **Preview** - body `{ "token": "...", "preview": true }`. Read-only: no attempt row, no session cookie, no timer. Marks the invitation `viewed` only.
+  `200 { attempt_id: string | null, resumed: boolean, candidate: { name }, assessment: { id, name, duration_seconds, question_count, company_name } }`. `attempt_id` is non-null only when the candidate already began (resume).
+- **Begin** - body `{ "token": "...", "consent": true }`. First call: appends a `consent_events` row (`purpose='data_processing'`, `lawful_basis='consent'`, policy version, ip, UA), then creates the attempt (`started_at = now`, `ends_at = started_at + level duration`) and sets the `aiq_sess` cookie. `201` with the same shape as preview plus `attempt_id`.
+  Without `consent: true` and with no existing attempt: `422 CONSENT_REQUIRED` (no attempt, no cookie).
+  Resume (attempt already exists): `consent` not required, `201` returns the SAME attempt with its ORIGINAL `ends_at`; calling Begin twice never resets the clock.
+- Errors unchanged: generic `404 INVITATION_NOT_FOUND`; `410 ALREADY_SUBMITTED`. A non-`active` assessment with no existing attempt also returns the generic 404 (in preview too).
+- Backward compatibility: the response gained fields only (`resumed`, `candidate`, `assessment.question_count`, `assessment.company_name`). The only caller is the SPA landing.
 
 ### Public — Contact form
 
@@ -1258,7 +1270,7 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | Method | Path | Purpose | Status |
 |---|---|---|---|
 | `GET`  | `/api/me/assessments`             | List active assessments the candidate is invited to | **live 2026-05-02** |
-| `POST` | `/api/me/assessments/:id/start`   | Begin attempt — creates `attempt`, freezes question set into `attempt_questions`, returns `201 Attempt` (idempotent — re-call returns existing) | **live 2026-05-02** |
+| `POST` | `/api/me/assessments/:id/start`   | Begin attempt — creates `attempt`, freezes question set into `attempt_questions`, returns `201 Attempt` (idempotent — re-call returns existing). A NEW attempt requires a consent row on file: optional body `{consent:true}` records it, else `422 CONSENT_REQUIRED` (same invariant as `POST /take/start` Begin; resume and embed attempts exempt) | **live 2026-05-02** |
 | `GET`  | `/api/me/attempts/:id`            | Server-authoritative attempt view — `{ attempt, questions[], answers[], remaining_seconds }`. Auto-submits the attempt if `ends_at` has passed. Each `questions[]` item carries `answer_guidance` (always a non-empty string — authored value or per-type default; instructional/candidate-safe, never a rubric/answer key) (0098). | **live 2026-05-02** |
 | `POST` | `/api/me/attempts/:id/answer`     | Autosave one answer (last-write-wins, decision #7) — body `{ question_id, answer, client_revision?, edits_count?, time_spent_seconds? }`; returns `204` + `X-Client-Revision` header | **live 2026-05-02** |
 | `POST` | `/api/me/attempts/:id/flag`       | Toggle flag on a question — body `{ question_id, flagged }`; returns `200 { flagged }` | **live 2026-05-02** |

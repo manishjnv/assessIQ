@@ -54,6 +54,7 @@ vi.mock("../repository.js", () => ({
   // countFrozenPool → 0 keeps useFrozen=false so these tests exercise the LIVE
   // draw (listActiveQuestionPoolFor*), which is what they assert against. The
   // frozen list fns are stubbed for completeness; useFrozen=false never calls them.
+  hasConsentEvent: vi.fn().mockResolvedValue(true), // consent invariant satisfied
   countFrozenPool: vi.fn().mockResolvedValue(0),
   listFrozenPoolForPick: vi.fn(),
   listFrozenPoolForCriterion: vi.fn(),

@@ -2,8 +2,6 @@
 // Extracted from TokenLanding.tsx's local RightPane to eliminate copy-paste.
 // Kit reference: screens/login.jsx right panel — editorial tone, serif quote.
 
-import { Chip } from '@assessiq/ui-system';
-
 export function TakeRightPane(): JSX.Element {
   return (
     <aside
@@ -24,13 +22,12 @@ export function TakeRightPane(): JSX.Element {
         }}
       >
         <div style={{ width: '100%', maxWidth: 460, textAlign: 'left' }}>
-          <Chip variant="accent" leftIcon="sparkle">Phase 1</Chip>
           <p
             className="aiq-serif"
             style={{
               fontSize: 28,
               lineHeight: 1.3,
-              margin: '24px 0 0',
+              margin: 0,
               color: 'var(--aiq-color-fg-primary)',
               letterSpacing: '-0.015em',
             }}

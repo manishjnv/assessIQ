@@ -45,13 +45,15 @@
 //     after a successful resolveInvitationToken).
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { config, NotFoundError, streamLogger, ValidationError } from "@assessiq/core";
-import { mintCandidateSession } from "@assessiq/auth";
+import { config, ConflictError, NotFoundError, streamLogger, ValidationError } from "@assessiq/core";
+import { consumeRateLimit, mintCandidateSession } from "@assessiq/auth";
+import { createHash } from "node:crypto";
 import {
   resolveInvitationToken,
   markInvitationViewedByToken,
 } from "@assessiq/assessment-lifecycle";
-import { startAttempt } from "./service.js";
+import { isIP } from "node:net";
+import { getTakePreview, recordTakeConsent, startAttempt } from "./service.js";
 
 const log = streamLogger("app");
 
@@ -81,6 +83,8 @@ const ALREADY_SUBMITTED_ENVELOPE = {
 /**
  * Hash prefix for log traceability. Never returns the plaintext.
  */
+const TAKE_TOKEN_MAX_PER_MIN = 30;
+
 function tokenLogTrace(plaintext: string): string {
   // Use a stable byte-prefix of the plaintext rather than re-hashing here —
   // the goal is correlation across log lines, not authenticity. We still
@@ -134,8 +138,20 @@ export async function registerAttemptTakeRoutes(
   // matcher must include `/take/start` (specific path) but NOT `/take/*`
   // — otherwise the SPA's GET gets routed to the API and broken.
 
+  // Two modes (R4 — the clock must start at Begin, not at link-open):
+  //   { token, preview: true }  — landing: read-only summary, NO attempt row,
+  //                               NO session cookie, NO timer. Returns
+  //                               attempt_id only when one already exists
+  //                               (resume), so the SPA can show "Resume".
+  //   { token, consent: true }  — Begin: mints the session, records consent
+  //                               (consent_events) and creates the attempt
+  //                               (started_at/ends_at set HERE). A resume of an
+  //                               existing attempt needs no consent and never
+  //                               resets the clock (startAttempt is idempotent).
   interface TakeStartBody {
     token?: unknown;
+    preview?: unknown;
+    consent?: unknown;
   }
 
   app.post<{ Body: TakeStartBody }>(
@@ -146,6 +162,22 @@ export async function registerAttemptTakeRoutes(
       const token = body.token;
       if (typeof token !== "string" || token.length < TOKEN_MIN_LEN) {
         return reply.code(404).send(NOT_FOUND_ENVELOPE);
+      }
+
+      // Per-token throttle (codex review 2026-10): the entry route's per-IP cap is
+      // lifted for campus labs, so bound the session/DB work ONE link can trigger
+      // from any number of IPs. 30/min covers preview + Begin + resumes/reloads.
+      // Key is a hash — the plaintext token never reaches Redis.
+      const tokenKey = createHash("sha256").update(token).digest("hex").slice(0, 32);
+      const tokenBucket = await consumeRateLimit(`aiq:rl:take-token:${tokenKey}`, TAKE_TOKEN_MAX_PER_MIN, 60);
+      if (!tokenBucket.allowed) {
+        reply.header("Retry-After", String(tokenBucket.retryAfterSeconds));
+        return reply.code(429).send({
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many requests for this link. Please wait a minute and try again.",
+          },
+        });
       }
 
       const resolved = await resolveInvitationToken(token).catch((err: unknown) => {
@@ -193,6 +225,54 @@ export async function registerAttemptTakeRoutes(
         (req.headers["cf-connecting-ip"] as string | undefined) ?? req.ip ?? "0.0.0.0";
       const ua = (req.headers["user-agent"] as string | undefined) ?? "unknown";
 
+      // Landing preview — read-only. Placed after the viewed-mark and before
+      // any session/attempt side effect.
+      let pv;
+      try {
+        pv = await getTakePreview(resolved.assessment.tenant_id, {
+          userId: resolved.candidate.id,
+          assessmentId: resolved.assessment.id,
+        });
+      } catch (err) {
+        if (
+          err instanceof NotFoundError ||
+          err instanceof ValidationError ||
+          err instanceof ConflictError
+        ) {
+          log.warn(
+            { err, tokenTrace: tokenLogTrace(token), assessmentId: resolved.assessment.id },
+            "/take/start: preview rejected",
+          );
+          return reply.code(404).send(NOT_FOUND_ENVELOPE);
+        }
+        throw err;
+      }
+      const durationSeconds =
+        pv.existing?.duration_seconds ?? resolved.level.duration_minutes * 60;
+      const assessmentShape = {
+        id: resolved.assessment.id,
+        name: resolved.assessment.name,
+        duration_seconds: durationSeconds,
+        question_count: pv.questionCount,
+        company_name: pv.companyName,
+      };
+      if (body.preview === true) {
+        return reply.code(200).send({
+          attempt_id: pv.existing?.id ?? null,
+          resumed: pv.existing !== null,
+          candidate: { name: resolved.candidate.name },
+          assessment: assessmentShape,
+        });
+      }
+      if (pv.existing === null && body.consent !== true) {
+        return reply.code(422).send({
+          error: {
+            code: "CONSENT_REQUIRED",
+            message: "Please accept the consent statement before beginning.",
+          },
+        });
+      }
+
       // Mint candidate session BEFORE startAttempt so the session_id is
       // available if we later wire attempt rows to a session_id. The
       // `totpVerified=true` flag inside `mintCandidateSession` reflects the
@@ -203,6 +283,17 @@ export async function registerAttemptTakeRoutes(
         ip,
         ua,
       });
+
+      if (pv.existing === null) {
+        // New attempt on this Begin click — log the consent BEFORE the row
+        // exists so a failure here fails the request with no attempt/clock
+        // (a consent-less attempt can never be created, even on retry).
+        await recordTakeConsent(resolved.assessment.tenant_id, {
+          userId: resolved.candidate.id,
+          ip: isIP(ip) !== 0 ? ip : null,
+          userAgent: ua.slice(0, 512),
+        });
+      }
 
       // Create or return existing attempt — idempotent on (assessment, user).
       let attempt;
@@ -243,13 +334,6 @@ export async function registerAttemptTakeRoutes(
       if (config.NODE_ENV === "production") cookieParts.push("Secure");
       reply.header("Set-Cookie", cookieParts.join("; "));
 
-      // duration_seconds: server-pinned at startAttempt time on the attempt
-      // row itself; we surface the canonical value (not level.duration_minutes
-      // re-derived) so a future admin extension to attempt-specific durations
-      // is one schema bump away.
-      const durationSeconds =
-        attempt.duration_seconds ?? resolved.level.duration_minutes * 60;
-
       log.info(
         {
           tokenTrace: tokenLogTrace(token),
@@ -266,10 +350,11 @@ export async function registerAttemptTakeRoutes(
       // succeeds on the next request.
       return reply.code(201).send({
         attempt_id: attempt.id,
+        resumed: pv.existing !== null,
+        candidate: { name: resolved.candidate.name },
         assessment: {
-          id: resolved.assessment.id,
-          name: resolved.assessment.name,
-          duration_seconds: durationSeconds,
+          ...assessmentShape,
+          duration_seconds: attempt.duration_seconds ?? durationSeconds,
         },
       });
     },

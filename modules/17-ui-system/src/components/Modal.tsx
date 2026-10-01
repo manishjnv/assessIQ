@@ -86,6 +86,27 @@ export function Modal({
       <div
         ref={panelRef}
         className="aiq-card"
+        onKeyDown={(e) => {
+          // Tab wraps inside the panel (focus trap).
+          if (e.key !== "Tab" || !panelRef.current) return;
+          const f = Array.from(
+            panelRef.current.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+            ),
+          );
+          const first = f[0];
+          const last = f[f.length - 1];
+          if (!first || !last) return;
+          const active = document.activeElement;
+          const onPanel = active === panelRef.current; // panel itself focused
+          if (e.shiftKey && (active === first || onPanel)) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && (active === last || onPanel)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }}
         style={{
           position: "relative",
           width,

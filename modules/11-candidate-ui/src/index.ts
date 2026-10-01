@@ -18,6 +18,7 @@ export type {
   CandidateAttemptViewWire,
   InvitedAssessmentWire,
   TakeStartResponseWire,
+  TakePreviewResponseWire,
   SubmitAttemptResponseWire,
   AttemptResultPendingWire,
   CandidateEventType,
@@ -29,6 +30,7 @@ export type {
 export {
   CandidateApiError,
   takeStart,
+  takePreview,
   listInvitedAssessments,
   startAttempt,
   getAttempt,

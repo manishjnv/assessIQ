@@ -39,7 +39,8 @@ import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
 
 import {
-  startAttempt,
+  startAttempt as rawStartAttempt,
+  recordTakeConsent,
   getAttemptForCandidate,
   saveAnswer,
   toggleFlag,
@@ -48,6 +49,20 @@ import {
   sweepStaleTimersForTenant,
 } from "../service.js";
 import * as repo from "../repository.js";
+
+// Every non-embed Begin now needs a consent row (R4 invariant lives in
+// startAttempt). Test wrapper records consent first (deduped) so the existing
+// suites keep exercising the engine; consent-specific tests use rawStartAttempt.
+async function startAttempt(
+  tenantId: string,
+  input: Parameters<typeof rawStartAttempt>[1],
+): ReturnType<typeof rawStartAttempt> {
+  if (input.embedOrigin !== true) {
+    await recordTakeConsent(tenantId, { userId: input.userId, ip: null, userAgent: null });
+  }
+  return rawStartAttempt(tenantId, input);
+}
+
 import { AE_ERROR_CODES, TERMINAL_ATTEMPT_STATUSES } from "../types.js";
 import { _resetForTesting as resetRateCap } from "../rate-cap.js";
 
@@ -308,6 +323,9 @@ beforeAll(async () => {
       "0040_gradings.sql",
     ]);
     await applyMigrationsFromDir(client, join(MODULES_ROOT, "09-scoring", "migrations"));
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "20-data-rights", "migrations"), [
+      "0101_consent_events.sql",
+    ]);
   });
 
   setPoolForTesting(containerUrl);

@@ -14,6 +14,7 @@ import type {
   CandidateEventInput,
   InvitedAssessmentWire,
   SubmitAttemptResponseWire,
+  TakePreviewResponseWire,
   TakeStartResponseWire,
   ApiErrorEnvelope,
 } from "./types";
@@ -67,18 +68,32 @@ async function call<T>(path: string, init: CallOptions = {}): Promise<T> {
 // ─── Magic-link entry (Session 4b backend) ───────────────────────────────────
 
 /**
- * POST /take/start — anonymous; mints a candidate session via the magic-link
- * token and creates (or returns) the attempt. Mounted bare-root, NOT under
- * /api/, per docs/03-api-contract.md § Magic-link. Caddy must forward
- * /take/* to assessiq-api once Session 4b lands; today this returns 404 and
- * the landing page surfaces the "magic link not yet wired" state.
+ * POST /take/start { token, preview: true } — anonymous, read-only. Returns the
+ * landing summary WITHOUT creating an attempt, minting a session or starting
+ * the timer. Mounted bare-root (NOT under /api/); Caddy forwards /take/start.
+ */
+export async function takePreview(
+  token: string,
+): Promise<TakePreviewResponseWire> {
+  return call<TakePreviewResponseWire>("/take/start", {
+    method: "POST",
+    body: JSON.stringify({ token, preview: true }),
+    base: "",
+  });
+}
+
+/**
+ * POST /take/start { token, consent } — the Begin click. Mints the candidate
+ * session, records consent and creates the attempt (the clock starts HERE).
+ * Re-calling it for an existing attempt resumes it and never resets the clock.
  */
 export async function takeStart(
   token: string,
+  opts: { consent?: boolean } = {},
 ): Promise<TakeStartResponseWire> {
   return call<TakeStartResponseWire>("/take/start", {
     method: "POST",
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token, ...(opts.consent === true ? { consent: true } : {}) }),
     base: "",
   });
 }

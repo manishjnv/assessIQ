@@ -5,9 +5,11 @@
 // Route: /take/:token  (registered in App.tsx by Opus)
 //
 // State machine:
-//   loading  → API call in flight
-//   success  → takeStart resolved  → navigate to /take/attempt/:attempt_id
-//   error404 → backend not yet wired (Session 4b deliverable)
+//   loading  → takePreview in flight (read-only: NO attempt, NO timer)
+//   success  → pre-test screen (summary, system check, practice, consent). The
+//              Begin click calls takeStart({consent}) which creates the attempt
+//              (the clock starts there) → navigate to /take/attempt/:attempt_id
+//   error404 → link not found
 //   invalid  → 401 / 403 → expired / revoked link
 //   error    → 5xx / network / unknown
 //
@@ -15,15 +17,16 @@
 //   - Token is NOT stored in localStorage (one-time credential; server marks
 //     it consumed on success — cookie-only path is the contract).
 //   - No dark-mode variants (SPA pins theme="light").
-//   - No "Pause" / "Save & continue later" (Phase 1 is session-only).
+//   - No "Pause" / "Save & continue later" (the attempt is session-only).
 //   - --aiq-color-bg-raised is the canonical token; --aiq-color-bg-elevated
 //     is the old name and must not appear in new code.
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button, Chip, Logo, Spinner } from '@assessiq/ui-system';
-import { takeStart, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
+import { takePreview, takeStart, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
 import { TakeRightPane } from './TakeRightPane.js';
+import { ConsentBlock, PracticeQuestion, SystemCheck, useSystemCheck } from './PreTest.js';
 
 // ─── shared style constants (mirrors login.tsx) ───────────────────────────────
 
@@ -56,17 +59,20 @@ const BODY_P: CSSProperties = {
 
 type PageState =
   | { tag: 'loading' }
-  | { tag: 'success'; attemptId: string; name: string; durationSeconds: number }
+  | {
+      tag: 'success';
+      resumed: boolean;
+      name: string;
+      company: string;
+      candidateName: string;
+      durationSeconds: number;
+      questionCount: number;
+    }
   | { tag: 'error404' }
   | { tag: 'invalid' }
   | { tag: 'error'; message: string };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-function _formatDuration(seconds: number): string {
-  const minutes = Math.round(seconds / 60);
-  return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-}
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max) + '…' : str;
@@ -76,46 +82,49 @@ function truncate(str: string, max: number): string {
 
 // ─── left-pane content per state ─────────────────────────────────────────────
 
-function _LoadingContent(): JSX.Element {
-  return (
-    <>
-      <span style={{ display: 'inline-block', marginBottom: 24 }}>
-        <Chip variant="default">Loading</Chip>
-      </span>
-      <h1 className="aiq-serif" style={SERIF_H1}>
-        Loading…
-      </h1>
-      <p style={BODY_P}>Verifying your invitation. This takes just a moment.</p>
-    </>
-  );
-}
-
-function SuccessContent({
+export function SuccessContent({
   name,
+  company,
+  candidateName,
   durationSeconds,
+  questionCount,
+  resumed,
   onBegin,
+  beginning,
+  beginError,
 }: {
   name: string;
+  company: string;
+  candidateName: string;
   durationSeconds: number;
+  questionCount: number;
+  resumed: boolean;
   onBegin: () => void;
+  beginning: boolean;
+  beginError: string | null;
 }): JSX.Element {
   const totalMinutes = Math.round(durationSeconds / 60);
+  const [consent, setConsent] = useState(false);
+  const { rows, blocked, recheck } = useSystemCheck();
+  // Resume: the attempt (and its clock) already exist, so no consent, practice
+  // or system check again, and the timer is NOT restarted.
+  const canBegin = resumed || (consent && !blocked);
 
   return (
     <>
-      <span style={{ display: 'inline-block', marginBottom: 24 }}>
-        <Chip variant="success">Welcome</Chip>
+      <span style={{ display: 'inline-block', marginBottom: 20 }}>
+        <Chip variant="success">{resumed ? 'Welcome back' : 'Welcome'}</Chip>
       </span>
       <h1 className="aiq-serif" style={SERIF_H1}>
-        Ready when you are.
+        {resumed ? 'Pick up where you left off.' : 'Ready when you are.'}
       </h1>
 
-      {/* ── Before you begin ─────────────────────────────────────────── */}
+      {/* ── Summary + rules ──────────────────────────────────────────── */}
       <div
         data-help-id="candidate.intro.integrity"
         style={{
-          marginBottom: 28,
-          padding: '16px 20px',
+          marginBottom: 16,
+          padding: '14px 16px',
           border: '1px solid var(--aiq-color-border)',
           borderRadius: 'var(--aiq-radius-md)',
           background: 'var(--aiq-color-bg-raised)',
@@ -126,50 +135,69 @@ function SuccessContent({
             fontFamily: 'var(--aiq-font-sans)',
             fontSize: 14,
             fontWeight: 600,
-            margin: '0 0 12px',
+            margin: '0 0 4px',
             color: 'var(--aiq-color-fg-primary)',
           }}
         >
-          Before you begin
+          {name}
         </h2>
+        <p style={{ ...META_LABEL, margin: '0 0 10px' }}>
+          {company ? `${company} · ` : ''}
+          {totalMinutes} min · {questionCount} question{questionCount !== 1 ? 's' : ''}
+        </p>
         <ul
           style={{
             margin: 0,
             paddingLeft: 20,
             fontFamily: 'var(--aiq-font-sans)',
-            fontSize: 14,
+            fontSize: 13,
             color: 'var(--aiq-color-fg-secondary)',
             lineHeight: 1.6,
           }}
         >
-          <li style={{ marginBottom: 6 }}>
-            <strong>{name}</strong> takes about {totalMinutes} minute{totalMinutes !== 1 ? 's' : ''}.
-            Once you begin, the timer starts and cannot be paused.
-          </li>
-          <li style={{ marginBottom: 6 }}>
-            Your answers save automatically as you type. You don't need to click
-            Save anywhere.
-          </li>
-          <li style={{ marginBottom: 6 }}>
-            If your browser crashes or your internet drops, just open this link
-            again — you'll resume where you left off.
-          </li>
           <li>
-            Once you click Submit at the end, you can't change your answers.
+            {resumed
+              ? 'Your timer is already running. It did not pause while you were away.'
+              : 'The timer starts when you click Begin and cannot be paused.'}
           </li>
+          <li>Your answers save automatically. You do not need to save anything.</li>
+          <li>If your connection drops, open this link again to continue.</li>
+          <li>After you submit, you cannot change your answers.</li>
         </ul>
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 8 }}>
           <CandidateHelp triggerLabel="Need more help?" />
         </div>
       </div>
 
+      {!resumed && (
+        <>
+          <SystemCheck rows={rows} onRecheck={recheck} />
+          <PracticeQuestion />
+          <ConsentBlock
+            name={candidateName}
+            company={company}
+            checked={consent}
+            onChange={setConsent}
+          />
+        </>
+      )}
+
+      {beginError !== null && (
+        <p
+          role="alert"
+          style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--aiq-color-fg-primary)' }}
+        >
+          {beginError}
+        </p>
+      )}
       <Button
         size="lg"
         variant="primary"
         onClick={onBegin}
+        disabled={!canBegin || beginning}
         style={{ width: '100%', justifyContent: 'center' }}
       >
-        Begin assessment
+        {beginning ? 'Starting…' : resumed ? 'Resume assessment' : 'Begin assessment'}
       </Button>
     </>
   );
@@ -182,11 +210,11 @@ function Error404Content(): JSX.Element {
         <Chip variant="accent" leftIcon="bell">Error</Chip>
       </span>
       <h1 className="aiq-serif" style={SERIF_H1}>
-        Connection error.
+        We couldn't open this link.
       </h1>
       <p style={BODY_P}>
-        The magic-link backend is not yet live in this environment. (Session 4b
-        deliverable.)
+        Check that you copied the whole link, or ask your assessment admin to
+        send a new invitation.
       </p>
       <Link
         to="/"
@@ -261,33 +289,32 @@ function ErrorContent({
   );
 }
 
-// ─── chip variant per state (for the left pane top chip) ─────────────────────
-
-// Note: individual content components render their own chip above — this
-// mapping is not used at runtime but documents the intent for reviewers.
-// loading → variant="default"  | success → variant="success"
-// error404/invalid/error → variant="accent" leftIcon="bell"
-
 // ─── main component ───────────────────────────────────────────────────────────
 
 export function TokenLanding(): JSX.Element {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [state, setState] = useState<PageState>({ tag: 'loading' });
+  const [beginning, setBeginning] = useState(false);
+  const [beginError, setBeginError] = useState<string | null>(null);
 
-  const runTakeStart = useCallback(async (): Promise<void> => {
+  // Read-only: shows the summary WITHOUT creating the attempt or starting the clock.
+  const runPreview = useCallback(async (): Promise<void> => {
     if (!token) {
       setState({ tag: 'invalid' });
       return;
     }
     setState({ tag: 'loading' });
     try {
-      const res = await takeStart(token);
+      const res = await takePreview(token);
       setState({
         tag: 'success',
-        attemptId: res.attempt_id,
+        resumed: res.resumed,
         name: res.assessment.name,
+        company: res.assessment.company_name,
+        candidateName: res.candidate.name,
         durationSeconds: res.assessment.duration_seconds,
+        questionCount: res.assessment.question_count,
       });
     } catch (err) {
       if (err instanceof CandidateApiError) {
@@ -310,7 +337,7 @@ export function TokenLanding(): JSX.Element {
   }, [token]);
 
   useEffect(() => {
-    void runTakeStart();
+    void runPreview();
   }, []);
 
   // Loading: spinner centered — Spinner primitive from Phase 3a.
@@ -325,9 +352,23 @@ export function TokenLanding(): JSX.Element {
     );
   }
 
-  const handleBegin = (): void => {
-    if (state.tag === 'success') {
-      navigate(`/take/attempt/${state.attemptId}`);
+  // The Begin click is the ONLY thing that creates the attempt / starts the clock.
+  const handleBegin = async (): Promise<void> => {
+    if (state.tag !== 'success' || !token || beginning) return;
+    setBeginning(true);
+    setBeginError(null);
+    try {
+      const res = await takeStart(token, { consent: !state.resumed });
+      navigate(`/take/attempt/${res.attempt_id}`);
+    } catch (err) {
+      setBeginning(false);
+      setBeginError(
+        err instanceof CandidateApiError && err.status === 422
+          ? 'Please accept the consent statement to begin.'
+          : err instanceof CandidateApiError && (err.status === 404 || err.status === 410)
+            ? 'This link is no longer valid. Ask your assessment admin for a new invitation.'
+            : 'We could not start your test. Check your connection and try again.',
+      );
     }
   };
 
@@ -336,8 +377,14 @@ export function TokenLanding(): JSX.Element {
     leftContent = (
       <SuccessContent
         name={state.name}
+        company={state.company}
+        candidateName={state.candidateName}
         durationSeconds={state.durationSeconds}
-        onBegin={handleBegin}
+        questionCount={state.questionCount}
+        resumed={state.resumed}
+        onBegin={() => void handleBegin()}
+        beginning={beginning}
+        beginError={beginError}
       />
     );
   } else if (state.tag === 'error404') {
@@ -346,7 +393,7 @@ export function TokenLanding(): JSX.Element {
     leftContent = <InvalidContent />;
   } else {
     leftContent = (
-      <ErrorContent message={state.message} onRetry={() => void runTakeStart()} />
+      <ErrorContent message={state.message} onRetry={() => void runPreview()} />
     );
   }
 
@@ -368,7 +415,7 @@ export function TokenLanding(): JSX.Element {
       >
         <Logo />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-          <div style={{ width: '100%', maxWidth: 380 }}>{leftContent}</div>
+          <div style={{ width: '100%', maxWidth: 440 }}>{leftContent}</div>
         </div>
 
         {/* Legal links — trust signal + DPDP transparency for candidates.
