@@ -427,6 +427,22 @@ export const AI_GRADING_ERROR_CODES = {
   RESULT_ALREADY_PUBLISHED: "RESULT_ALREADY_PUBLISHED",
   /** Manual first score refused: the question already has an effective grading (override it instead). */
   QUESTION_ALREADY_GRADED: "AIG_QUESTION_ALREADY_GRADED",
+  /**
+   * Phase II (2026-10-01): AI evaluation is run only by AssessIQ staff (the
+   * platform super admin, from the platform evaluation queue). The tenant routes
+   * grade / accept / rerun / manual-score / grading-jobs retry answer 403 with
+   * this code for every caller. Wire value is the bare name from the build spec.
+   */
+  AI_EVALUATION_BY_ASSESSIQ: "AI_EVALUATION_BY_ASSESSIQ",
+  /**
+   * 409: a tenant action that needs a released evaluation (override, send-back)
+   * was attempted while the platform has not released it to the tenant yet.
+   */
+  EVALUATION_NOT_RELEASED: "EVALUATION_NOT_RELEASED",
+  /** 409: release-to-tenant refused — not graded yet, or a grade is still flagged for review. */
+  EVALUATION_NOT_COMPLETE: "EVALUATION_NOT_COMPLETE",
+  /** 409: release-to-tenant on an evaluation that is already with the tenant. */
+  EVALUATION_ALREADY_RELEASED: "EVALUATION_ALREADY_RELEASED",
   /** Eval harness: case ID format invalid */
   INVALID_EVAL_CASE: "AIG_INVALID_EVAL_CASE",
 } as const;

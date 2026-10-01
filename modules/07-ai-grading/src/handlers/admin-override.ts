@@ -49,6 +49,27 @@ export interface HandleAdminOverrideInput {
     /** Required free-form justification for the override. */
     reason: string;
   };
+  /**
+   * When set, the grading being overridden must belong to this attempt (else 404
+   * AIG_GRADING_NOT_FOUND). The platform evaluator's route has the attempt id in
+   * the URL and passes it, so a stale or mismatched grading id can never override
+   * a grade on a different attempt. The tenant's id-only route leaves it unset.
+   */
+  expectedAttemptId?: string;
+  /**
+   * TENANT callers pass true: a tenant may only override once the platform released
+   * the evaluation to it (attempt 'graded' AND evaluation_released_at set) — else
+   * 409 EVALUATION_NOT_RELEASED. The platform evaluator leaves it unset: its
+   * overrides are part of the evaluation itself. The check runs under the attempt
+   * row lock, so it cannot race a send-back.
+   */
+  requireEvaluationReleased?: boolean;
+  /**
+   * When this override completes the attempt (e.g. it resolves the last
+   * review_needed grade), also set evaluation_released_at? DEFAULT false
+   * (fail-closed) — see HandleAdminAcceptInput.markEvaluationReleased.
+   */
+  markEvaluationReleased?: boolean;
 }
 
 export interface HandleAdminOverrideOutput {
@@ -68,7 +89,10 @@ export async function handleAdminOverride(
   const grading = await withTenant(tenantId, async (client: PoolClient) => {
     // Load the original row — RLS ensures it belongs to this tenant
     const original = await findGradingById(client, gradingId);
-    if (original === null) {
+    if (
+      original === null ||
+      (input.expectedAttemptId !== undefined && original.attempt_id !== input.expectedAttemptId)
+    ) {
       throw new AppError(
         `Grading ${gradingId} not found`,
         AI_GRADING_ERROR_CODES.GRADING_NOT_FOUND,
@@ -99,14 +123,31 @@ export async function handleAdminOverride(
     // The row lock also serialises this override against a concurrent release
     // (release takes the same FOR UPDATE lock), so an override can never land
     // after the release commit.
-    const attemptRes = await client.query<{ status: string }>(
-      `SELECT status FROM attempts WHERE id = $1 FOR UPDATE`,
+    const attemptRes = await client.query<{
+      status: string;
+      evaluation_released_at: Date | null;
+    }>(
+      `SELECT status, evaluation_released_at FROM attempts WHERE id = $1 FOR UPDATE`,
       [original.attempt_id],
     );
-    if (attemptRes.rows[0]?.status === "released") {
+    const lockedAttempt = attemptRes.rows[0];
+    if (lockedAttempt?.status === "released") {
       throw new AppError(
         "This result has already been published to the candidate and can no longer be changed",
         AI_GRADING_ERROR_CODES.RESULT_ALREADY_PUBLISHED,
+        409,
+      );
+    }
+    // Phase II tenant gate: the evaluation must be with the tenant (released by the
+    // platform) before the tenant may change a grade. Checked after the published
+    // check so a released attempt keeps its RESULT_ALREADY_PUBLISHED answer.
+    if (
+      input.requireEvaluationReleased === true &&
+      (lockedAttempt?.status !== "graded" || lockedAttempt.evaluation_released_at === null)
+    ) {
+      throw new AppError(
+        "This result is still being evaluated by AssessIQ — you can override a score once the evaluation is released to you",
+        AI_GRADING_ERROR_CODES.EVALUATION_NOT_RELEASED,
         409,
       );
     }
@@ -178,14 +219,14 @@ export async function handleAdminOverride(
     // is the one row for this mutation; the derived rollup is recomputable.
     await computeAttemptScoreInTx(client, tenantId, original.attempt_id);
 
-    // An override can be what completes the result (e.g. the admin overrides a
-    // review_needed AI grade). Finalise if complete — no-op when the attempt is
-    // already graded or still has pending questions. Phase I: the tenant admin
-    // is the evaluator, so evaluation is released to the tenant.
+    // An override can be what completes the result (e.g. the platform evaluator
+    // overrides a review_needed AI grade). Finalise if complete — no-op when the
+    // attempt is already graded or still has pending questions. Whether the
+    // evaluation is also handed to the tenant is the caller's decision (default no).
     await finalizeAttemptIfComplete(client, {
       tenantId,
       attemptId: original.attempt_id,
-      markEvaluationReleased: true,
+      markEvaluationReleased: input.markEvaluationReleased === true,
     });
 
     return newRow;

@@ -50,6 +50,16 @@ export interface HandleAdminAcceptInput {
   attemptId: string;
   /** Per-question accepted proposals; admin may have edited fields. */
   proposals: Array<GradingProposal & { edits?: AcceptEdits }>;
+  /**
+   * Phase II (platform evaluation queue): when this accept completes the attempt,
+   * also set attempts.evaluation_released_at ("the tenant may see and publish it")?
+   * DEFAULT false — fail-closed: the platform evaluator (super admin) never hands an
+   * evaluation to the tenant implicitly; that is the separate, audited
+   * release-to-tenant step. Pass true only for a flow where the evaluation and its
+   * hand-off are the same act (none today: tenants cannot call this handler — the
+   * tenant /accept route answers 403 AI_EVALUATION_BY_ASSESSIQ).
+   */
+  markEvaluationReleased?: boolean;
 }
 
 export interface HandleAdminAcceptOutput {
@@ -159,6 +169,7 @@ async function acceptProposals(
   userId: string,
   attemptId: string,
   proposals: HandleAdminAcceptInput["proposals"],
+  markEvaluationReleased: boolean,
 ): Promise<{ gradings: GradingsRow[]; flipped: boolean }> {
   // Lock the attempt row FIRST — the same row lock Release (09), override and
   // manual-score take — so the lock order is always attempt row -> everything
@@ -278,13 +289,13 @@ async function acceptProposals(
   //
   // Revenue-leak invariant (memory: billing-events-grade-commit-critical-path):
   // billing is tied to a TRUE completion, in the same tx as the flip; a partial
-  // accept never bills. markEvaluationReleased=true: in Phase I the tenant admin
-  // did this evaluation, so the tenant may publish the result (Phase II moves
-  // the evaluation to the platform and passes false).
+  // accept never bills. markEvaluationReleased comes from the caller (default
+  // false): the platform evaluator's accept completes the evaluation but does NOT
+  // hand it to the tenant — release-to-tenant is its own audited step.
   const { finalized: flipped } = await finalizeAttemptIfComplete(client, {
     tenantId,
     attemptId,
-    markEvaluationReleased: true,
+    markEvaluationReleased,
   });
 
   // finalize rolls attempt_scores up only when it flips the status. Every other
@@ -357,7 +368,14 @@ export async function handleAdminAccept(
   assertScoresInRange(proposals);
 
   const { gradings, flipped } = await withTenant(tenantId, (client) =>
-    acceptProposals(client, tenantId, userId, attemptId, proposals),
+    acceptProposals(
+      client,
+      tenantId,
+      userId,
+      attemptId,
+      proposals,
+      input.markEvaluationReleased === true,
+    ),
   );
 
   log.info(
