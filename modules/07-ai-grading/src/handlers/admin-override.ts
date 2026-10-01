@@ -76,6 +76,24 @@ export async function handleAdminOverride(
       );
     }
 
+    // Range guard: an override can only pick a score the question can award.
+    // Unchecked, a negative or oversized value flows straight into the attempt
+    // rollup and from there into the published percentage, pass/fail and
+    // certificate tier. gradings rows are insert-only, so original.score_max is
+    // immutable and this needs no lock.
+    if (
+      !Number.isFinite(override.score_earned) ||
+      override.score_earned < 0 ||
+      override.score_earned > original.score_max
+    ) {
+      throw new AppError(
+        `score_earned must be between 0 and ${original.score_max}`,
+        AI_GRADING_ERROR_CODES.INVALID_BODY,
+        422,
+        { details: { score_max: original.score_max } },
+      );
+    }
+
     // Published results are final (SP1): once the attempt is 'released' the
     // candidate may already have seen the score, so it can no longer change.
     // The row lock also serialises this override against a concurrent release

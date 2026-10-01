@@ -9,6 +9,12 @@
  *   - handleAdminOverride: recomputes attempt_scores in-tx, can complete a flagged
  *     attempt, and is refused once the result is published.
  *   - POST .../manual-score route: body/param validation + chain wiring.
+ *   - Adversarial-review fixes: accept locks the attempt row first and refuses a
+ *     released attempt (409, nothing written — incl. the real lock race against a
+ *     Release); accept rolls attempt_scores up inside its own tx (a rollup failure
+ *     rolls the accept back); the accept payload is bounded (0 < score_max <= 1000,
+ *     0 <= score_earned <= score_max, proposal and edit, else 422); override rejects
+ *     a score outside 0..score_max (422).
  *
  * No AI anywhere: runtime-selector is mocked and never called.
  */
@@ -24,7 +30,7 @@ vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
 
 import { AppError } from "@assessiq/core";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
-import { handleAdminAccept } from "../handlers/admin-accept.js";
+import { handleAdminAccept, type HandleAdminAcceptInput } from "../handlers/admin-accept.js";
 import { handleAdminManualScore } from "../handlers/admin-manual-score.js";
 import { handleAdminOverride } from "../handlers/admin-override.js";
 import { registerGradingRoutes } from "../routes.js";
@@ -59,6 +65,21 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
     return await fn(c);
   } finally {
     await c.end();
+  }
+}
+
+/** Resolves once some backend is blocked on a row/transaction lock (i.e. the code under test reached its lock). */
+async function waitForLockWait(timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const n = await sup((c) =>
+      c
+        .query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`)
+        .then((r) => r.rows[0].n as number),
+    );
+    if (n > 0) return;
+    if (Date.now() > deadline) throw new Error("nothing is waiting on a lock: the code under test never blocked on the expected row");
+    await new Promise((r) => setTimeout(r, 25));
   }
 }
 
@@ -183,7 +204,7 @@ function proposal(attemptId: string, questionId: string, o: Partial<GradingPropo
   };
 }
 
-const accept = (attemptId: string, proposals: GradingProposal[]) =>
+const accept = (attemptId: string, proposals: HandleAdminAcceptInput["proposals"]) =>
   handleAdminAccept({ tenantId: tenant, userId: admin, attemptId, proposals });
 const manual = (attemptId: string, questionId: string, scoreEarned: number, reason = "reviewed the query result") =>
   handleAdminManualScore({ tenantId: tenant, userId: admin, attemptId, questionId, scoreEarned, reason });
@@ -268,6 +289,194 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
         .then((x) => x.rows.map((y) => y.s as string)),
     );
     expect(audits[0]).toBe("graded");
+  });
+});
+
+describe("handleAdminAccept — a published result is final; attempt row lock first (review fix: accept/release race)", () => {
+  /** The AI-failure placeholder the runtime produces: accepting it writes a review_needed grade. */
+  const failedProposal = (attemptId: string, qid: string) =>
+    proposal(attemptId, qid, {
+      band: { reasoning_band: 0, ai_justification: "", error_class: "AIG_RUNTIME_FAILURE", needs_escalation: false },
+      score_earned: 0,
+      prompt_version_sha: "error:no-sha",
+    });
+  const gradingCount = (id: string) => count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1`, id);
+  const acceptAudits = (id: string) => count(`SELECT COUNT(*) n FROM audit_log WHERE entity_id=$1 AND action='grading.accepted'`, id);
+
+  it("accept on a released attempt -> 409 RESULT_ALREADY_PUBLISHED; zero new gradings, no audit row, score untouched", async () => {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 6 })]); // completes it -> graded
+    await sup((c) => c.query(`UPDATE attempts SET status='released' WHERE id=$1`, [attemptId]));
+    const gradingsBefore = await gradingCount(attemptId);
+    const totalsBefore = await totals(attemptId);
+
+    await expect(accept(attemptId, [failedProposal(attemptId, qids[1]!)])).rejects.toMatchObject({
+      code: "RESULT_ALREADY_PUBLISHED",
+      status: 409,
+    });
+    expect(await gradingCount(attemptId)).toBe(gradingsBefore);
+    expect(await totals(attemptId)).toEqual(totalsBefore);
+    expect(await acceptAudits(attemptId)).toBe(1); // only the first accept
+    expect((await att(attemptId)).status).toBe("released");
+  });
+
+  it("accept on an unknown attempt -> 404 AIG_ATTEMPT_NOT_FOUND (was a misleading 422)", async () => {
+    const ghost = randomUUID();
+    await expect(accept(ghost, [proposal(ghost, randomUUID())])).rejects.toMatchObject({
+      code: "AIG_ATTEMPT_NOT_FOUND",
+      status: 404,
+    });
+  });
+
+  it("a proposal addressed to ANOTHER attempt than attemptId is refused (422) before anything is written — the lock cannot be sidestepped to grade a published attempt", async () => {
+    const published = await seed("released", ["subjective"]);
+    const open = await seed("pending_admin_grading", ["subjective"]);
+    await expect(accept(open.attemptId, [failedProposal(published.attemptId, published.qids[0]!)])).rejects.toMatchObject({
+      code: "AIG_INVALID_BODY",
+      status: 422,
+    });
+    expect(await gradingCount(published.attemptId)).toBe(0);
+    expect(await gradingCount(open.attemptId)).toBe(0);
+  });
+
+  it("race: a Release holds the attempt lock when accept arrives -> accept waits, then sees 'released' and writes nothing", async () => {
+    const { attemptId, qids } = await seed("graded", ["subjective"]);
+    const releasing = new Client({ connectionString: url });
+    await releasing.connect();
+    try {
+      await releasing.query("BEGIN");
+      // the first thing module 09 releaseAttemptInTx does
+      await releasing.query(`SELECT status FROM attempts WHERE id=$1 FOR UPDATE`, [attemptId]);
+      const accepting = accept(attemptId, [failedProposal(attemptId, qids[0]!)]).then(
+        () => "accepted" as const,
+        (e: unknown) => e,
+      );
+      await waitForLockWait(); // accept is queued behind the release on the attempt row
+      await releasing.query(`UPDATE attempts SET status='released' WHERE id=$1`, [attemptId]);
+      await releasing.query("COMMIT");
+      expect(await accepting).toMatchObject({ code: "RESULT_ALREADY_PUBLISHED", status: 409 });
+    } finally {
+      await releasing.query("ROLLBACK").catch(() => undefined);
+      await releasing.end();
+    }
+    expect(await gradingCount(attemptId)).toBe(0);
+    expect((await att(attemptId)).status).toBe("released");
+  });
+});
+
+describe("handleAdminAccept — attempt_scores is rolled up inside the accept tx (review fix: no post-commit window)", () => {
+  /** graded + unpublished: mcq 10/10 + one AI-graded subjective 5/10 -> 15/20 */
+  async function gradedWithAi(): Promise<{ attemptId: string; qid: string }> {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 5 })]);
+    expect((await att(attemptId)).status).toBe("graded");
+    expect(await totals(attemptId)).toMatchObject({ e: 15, m: 20 });
+    return { attemptId, qid: qids[1]! };
+  }
+  /** What a re-run produces: same question, a new prompt sha (so D7 idempotency does not swallow it). */
+  const regraded = (attemptId: string, qid: string, scoreEarned: number) =>
+    proposal(attemptId, qid, { score_earned: scoreEarned, prompt_version_sha: `anchors:${randomUUID().slice(0, 8)};band:bbbbbbbb;escalate:-` });
+
+  it("re-accepting a better grade on a graded, unpublished attempt: stays graded, attempt_scores shows the new total IN THE SAME TX as the grade, no second bill", async () => {
+    const { attemptId, qid } = await gradedWithAi();
+    const r = await accept(attemptId, [regraded(attemptId, qid, 9)]);
+    expect((await att(attemptId)).status).toBe("graded");
+    expect(await totals(attemptId)).toMatchObject({ e: 19, m: 20, pending_review: false });
+    expect(await billing(attemptId)).toBe(1);
+    // gradings.graded_at and attempt_scores.computed_at both default to now() = the TRANSACTION start time,
+    // so they are equal only if the rollup ran in the same tx as the grade insert (a post-commit recompute is a later tx).
+    const sameTx = await sup((c) =>
+      c
+        .query(`SELECT s.computed_at = g.graded_at AS same FROM attempt_scores s, gradings g WHERE s.attempt_id = $1 AND g.id = $2`, [attemptId, r.gradings[0]!.id])
+        .then((x) => x.rows[0].same as boolean),
+    );
+    expect(sameTx).toBe(true);
+  });
+
+  it("the rollup is part of the accept tx: when it fails, the new grade, the audit row and the totals all roll back together", async () => {
+    const { attemptId, qid } = await gradedWithAi();
+    await sup((c) =>
+      c.query(`CREATE OR REPLACE FUNCTION t_gate_rollup_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.attempt_id = '${attemptId}' THEN RAISE EXCEPTION 'rollup blocked'; END IF; RETURN NEW; END $$;
+               CREATE TRIGGER t_gate_rollup_fail BEFORE INSERT OR UPDATE ON attempt_scores FOR EACH ROW EXECUTE FUNCTION t_gate_rollup_fail()`),
+    );
+    try {
+      await expect(accept(attemptId, [regraded(attemptId, qid, 9)])).rejects.toThrow(/rollup blocked/);
+    } finally {
+      await sup((c) => c.query(`DROP TRIGGER t_gate_rollup_fail ON attempt_scores`));
+    }
+    // before this fix the rollup ran after the commit and its failure was swallowed: the grade stayed, the totals were stale
+    expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='ai'`, attemptId)).toBe(1);
+    expect(await count(`SELECT COUNT(*) n FROM audit_log WHERE entity_id=$1 AND action='grading.accepted'`, attemptId)).toBe(1);
+    expect(await totals(attemptId)).toMatchObject({ e: 15, m: 20 });
+  });
+});
+
+describe("handleAdminAccept — payload scores are bounded (review fix: the body is client-echoed)", () => {
+  /** mcq (its deterministic row = the single seeded grading) + one AI question. */
+  const fresh = () => seed("pending_admin_grading", ["mcq", "subjective"]);
+  const rows = (id: string) => count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1`, id);
+  const nothingWritten = async (attemptId: string, seededGradings = 1) => {
+    expect(await rows(attemptId)).toBe(seededGradings);
+    expect(await count(`SELECT COUNT(*) n FROM audit_log WHERE entity_id=$1 AND action='grading.accepted'`, attemptId)).toBe(0);
+    expect((await att(attemptId)).status).toBe("pending_admin_grading");
+  };
+
+  it.each([[0], [-1], [-0.01], [1000.01], [1001], [1e6], [NaN], [Infinity], [-Infinity]])(
+    "422 AIG_INVALID_BODY for score_max=%s (must be > 0 and <= 1000); nothing written",
+    async (scoreMax) => {
+      const { attemptId, qids } = await fresh();
+      await expect(accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 0, score_max: scoreMax })])).rejects.toMatchObject({
+        code: "AIG_INVALID_BODY",
+        status: 422,
+        details: { question_id: qids[1] },
+      });
+      await nothingWritten(attemptId);
+    },
+  );
+
+  it.each([[-1], [-0.01], [10.01], [11], [1e6], [NaN], [Infinity], [-Infinity]])(
+    "422 AIG_INVALID_BODY (details.score_max 10) for score_earned=%s outside 0..score_max; nothing written (1e6 would overflow NUMERIC(6,2): a 422, not a 500)",
+    async (scoreEarned) => {
+      const { attemptId, qids } = await fresh();
+      await expect(accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: scoreEarned, score_max: 10 })])).rejects.toMatchObject({
+        code: "AIG_INVALID_BODY",
+        status: 422,
+        details: { score_max: 10, question_id: qids[1] },
+      });
+      await nothingWritten(attemptId);
+    },
+  );
+
+  it.each([[-1], [10.01], [1e6], [NaN]])(
+    "422 AIG_INVALID_BODY for an EDIT with score_earned=%s even though the proposal itself is in range; nothing written",
+    async (scoreEarned) => {
+      const { attemptId, qids } = await fresh();
+      const edited = { ...proposal(attemptId, qids[1]!, { score_earned: 5, score_max: 10 }), edits: { score_earned: scoreEarned } };
+      await expect(accept(attemptId, [edited])).rejects.toMatchObject({ code: "AIG_INVALID_BODY", status: 422, details: { score_max: 10 } });
+      await nothingWritten(attemptId);
+    },
+  );
+
+  it("one bad proposal rejects the whole request: its valid sibling is not accepted either", async () => {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["subjective", "scenario"]);
+    await expect(
+      accept(attemptId, [proposal(attemptId, qids[0]!, { score_earned: 5, score_max: 10 }), proposal(attemptId, qids[1]!, { score_earned: 1e6, score_max: 10 })]),
+    ).rejects.toMatchObject({ code: "AIG_INVALID_BODY", status: 422, details: { question_id: qids[1] } });
+    await nothingWritten(attemptId, 0);
+  });
+
+  it("accepts the boundaries: score_max 1000 with earned 1000; an edit at score_max and at 0 (the edit wins)", async () => {
+    const a = await fresh();
+    const top = await accept(a.attemptId, [proposal(a.attemptId, a.qids[1]!, { score_earned: 1000, score_max: 1000 })]);
+    expect(top.gradings[0]).toMatchObject({ score_earned: 1000, score_max: 1000, status: "correct" });
+
+    const b = await fresh();
+    const toMax = await accept(b.attemptId, [{ ...proposal(b.attemptId, b.qids[1]!, { score_earned: 0, score_max: 10 }), edits: { score_earned: 10 } }]);
+    expect(toMax.gradings[0]).toMatchObject({ score_earned: 10, score_max: 10, status: "correct" });
+
+    const c = await fresh();
+    const toZero = await accept(c.attemptId, [{ ...proposal(c.attemptId, c.qids[1]!, { score_earned: 5, score_max: 10 }), edits: { score_earned: 0 } }]);
+    expect(toZero.gradings[0]).toMatchObject({ score_earned: 0, score_max: 10, status: "incorrect" });
   });
 });
 
@@ -375,20 +584,113 @@ describe("handleAdminOverride — rollup + published-is-final (SP1)", () => {
   });
 });
 
-describe("POST /api/admin/attempts/:id/questions/:questionId/manual-score (route)", () => {
-  async function buildApp() {
-    const app = Fastify();
-    app.setErrorHandler((err, _req, reply) => {
-      if (err instanceof AppError) return reply.code(err.status).send({ error: err.toJson() });
-      return reply.code(500).send({ error: { code: "INTERNAL", message: String(err) } });
-    });
-    const session = async (req: { session?: unknown }) => {
-      req.session = { tenantId: tenant, userId: admin, lastSeenAt: new Date().toISOString() };
-    };
-    await registerGradingRoutes(app, { adminOnly: [session as never], adminFreshMfa: [session as never] });
-    return app;
+describe("handleAdminOverride — score_earned must be within 0..score_max (review fix)", () => {
+  /** An AI-graded subjective question (score_max 10, earned 5) in an otherwise complete attempt. */
+  async function aiGraded(): Promise<{ attemptId: string; gradingId: string }> {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    const r = await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 5 })]);
+    return { attemptId, gradingId: r.gradings[0]!.id };
   }
+  const override = (gradingId: string, score: number) =>
+    handleAdminOverride({ tenantId: tenant, userId: admin, gradingId, override: { score_earned: score, reason: "range check" } });
 
+  it.each([[-1], [-0.01], [10.01], [11], [1e9], [NaN], [Infinity], [-Infinity]])(
+    "422 AIG_INVALID_BODY (details.score_max 10) for score_earned=%s; nothing written, rollup unchanged",
+    async (score) => {
+      const { attemptId, gradingId } = await aiGraded();
+      const before = await totals(attemptId);
+      await expect(override(gradingId, score)).rejects.toMatchObject({
+        code: "AIG_INVALID_BODY",
+        status: 422,
+        details: { score_max: 10 },
+      });
+      expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='admin_override'`, attemptId)).toBe(0);
+      expect(await count(`SELECT COUNT(*) n FROM audit_log WHERE action='grading.override' AND after->>'override_of'=$1`, gradingId)).toBe(0);
+      expect(await totals(attemptId)).toEqual(before);
+    },
+  );
+
+  it("accepts both bounds: 0 (incorrect) and score_max (correct); the rollup follows the newest override", async () => {
+    const { attemptId, gradingId } = await aiGraded();
+    expect((await override(gradingId, 0)).grading).toMatchObject({ score_earned: 0, score_max: 10, status: "incorrect" });
+    expect(await totals(attemptId)).toMatchObject({ e: 10, m: 20 });
+    expect((await override(gradingId, 10)).grading).toMatchObject({ score_earned: 10, score_max: 10, status: "correct" });
+    expect(await totals(attemptId)).toMatchObject({ e: 20, m: 20 });
+  });
+});
+
+async function buildApp() {
+  const app = Fastify();
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof AppError) return reply.code(err.status).send({ error: err.toJson() });
+    return reply.code(500).send({ error: { code: "INTERNAL", message: String(err) } });
+  });
+  const session = async (req: { session?: unknown }) => {
+    req.session = { tenantId: tenant, userId: admin, lastSeenAt: new Date().toISOString() };
+  };
+  await registerGradingRoutes(app, { adminOnly: [session as never], adminFreshMfa: [session as never] });
+  return app;
+}
+
+describe("POST /api/admin/gradings/:id/override (route) — score range", () => {
+  it("422 AIG_INVALID_BODY with details.score_max when score_earned is out of range; 200 at the boundary", async () => {
+    const app = await buildApp();
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    const gradingId = (await accept(attemptId, [proposal(attemptId, qids[1]!, { score_earned: 5 })])).gradings[0]!.id;
+    for (const bad of [-1, 11]) {
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/admin/gradings/${gradingId}/override`,
+        payload: { score_earned: bad, reason: "out of range" },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json()).toMatchObject({ error: { code: "AIG_INVALID_BODY", details: { score_max: 10 } } });
+    }
+    expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='admin_override'`, attemptId)).toBe(0);
+
+    const ok = await app.inject({
+      method: "POST",
+      url: `/api/admin/gradings/${gradingId}/override`,
+      payload: { score_earned: 10, reason: "full marks" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ grading: { score_earned: 10, score_max: 10 } });
+    await app.close();
+  });
+});
+
+describe("POST /api/admin/attempts/:id/accept (route) — score bounds", () => {
+  it("422 AIG_INVALID_BODY (never a 500 numeric overflow) for out-of-range scores; 200 for an in-range body", async () => {
+    const app = await buildApp();
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    for (const bad of [
+      { score_earned: 1e6, score_max: 10 }, // would overflow NUMERIC(6,2)
+      { score_earned: 5, score_max: 1e6 },
+      { score_earned: -1, score_max: 10 },
+      { score_earned: 11, score_max: 10 },
+    ]) {
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/admin/attempts/${attemptId}/accept`,
+        payload: { proposals: [proposal(attemptId, qids[1]!, bad)] },
+      });
+      expect(res.statusCode, JSON.stringify(bad)).toBe(422);
+      expect(res.json()).toMatchObject({ error: { code: "AIG_INVALID_BODY", details: { question_id: qids[1] } } });
+    }
+    expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1`, attemptId)).toBe(1); // only the seeded MCQ row
+
+    const ok = await app.inject({
+      method: "POST",
+      url: `/api/admin/attempts/${attemptId}/accept`,
+      payload: { proposals: [proposal(attemptId, qids[1]!, { score_earned: 8, score_max: 10 })] },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ attempt: { id: attemptId, status: "graded" } });
+    await app.close();
+  });
+});
+
+describe("POST /api/admin/attempts/:id/questions/:questionId/manual-score (route)", () => {
   it("200 with the new grading; the chain is the fresh-MFA chain (session injected by it)", async () => {
     const app = await buildApp();
     const { attemptId, qids } = await seed("pending_admin_grading", ["kql"]);
