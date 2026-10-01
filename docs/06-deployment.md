@@ -1494,3 +1494,32 @@ Same as before: API replicas → managed Postgres → worker pool → multi-regi
 - Per-tenant custom domains (Phase 3+).
 - HA Postgres / Redis (Phase 4+ if a client demands it).
 - Sentry integration (placeholder env var; wire when an account is created).
+
+---
+
+## Applying new migrations by hand (pattern used 2026-10-01)
+
+`tools/migrate.ts` is not run against production today: older migrations were applied by hand, and `schema_migrations` is incomplete (some rows are missing; 0100 and 0106 are recorded without `.sql`), so `migrate.ts --check` would flag drift. New migrations are applied one by one, in number order, **before** the image rebuild, because new code may read the new columns (for example 0119 `attempt_questions.option_order` is read by `saveAnswer`).
+
+1. **Pull:** `ssh assessiq-vps 'cd /srv/assessiq && git pull --ff-only'`.
+2. **Script:** write a small LF-only bash script on the laptop, `scp` it to `/tmp`, and run it with `ssh assessiq-vps 'bash /tmp/<script>.sh < /dev/null'`.
+   - Do NOT pipe the script into `ssh … bash -s`: the `docker exec -i` inside it swallows stdin, and the run silently stops after the first command.
+3. **One transaction per file, then record it:**
+   ```bash
+   PSQL="docker exec -i assessiq-postgres psql -U assessiq -d assessiq"
+   $PSQL -1 -v ON_ERROR_STOP=1 -q < modules/<NN-module>/migrations/<file>.sql
+   sha=$(sha256sum <that file> | cut -d' ' -f1)
+   $PSQL -tA -c "INSERT INTO schema_migrations(version, checksum) VALUES ('<file>.sql', '$sha') ON CONFLICT DO NOTHING RETURNING version;"
+   ```
+4. **Post-checks in the same script:** new columns via `information_schema.columns`, new policies via `pg_policies`, and help-row counts. Then build and recreate as in the steady-state procedure:
+   - `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-frontend`;
+   - `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`. The worker uses the api image.
+5. **Before recreating:** make sure no AI grading run is in flight. `docker exec assessiq-api sh -c "ps -o args | grep -v grep | grep -c claude"` must print `0`.
+
+**Quoting gotcha:** SQL containing `$$` or nested quotes inside `ssh '…'` is mangled by the remote shell (`$$` becomes the shell's PID). Put the SQL in a file and pipe it into `psql` (`docker exec -i … psql … < /tmp/q.sql`).
+
+Applied this way on 2026-10-01:
+- 0113–0116: scoring and result release, evaluation queue;
+- 0117–0121: invitation resend, help, option shuffle, notifications UPDATE policies.
+
+See `docs/plans/SCORING_RESULT_RELEASE.md` and `docs/plans/PILOT_READINESS_BATCH.md`.

@@ -1462,8 +1462,9 @@ POST <host_endpoint>
 Content-Type: application/json
 X-AssessIQ-Event: attempt.graded
 X-AssessIQ-Delivery: del_<uuid>
-X-AssessIQ-Signature: sha256=<hmac of body using webhook secret>
-X-AssessIQ-Timestamp: 2026-04-29T11:32:14Z
+X-AssessIQ-Timestamp: 1790851200                                   (unix seconds since 2026-10-01; was ISO-8601)
+X-AssessIQ-Signature-V2: sha256=<hmac of "<timestamp>.<body>" using webhook secret>
+X-AssessIQ-Signature: sha256=<hmac of body using webhook secret>  (V1, legacy: no timestamp)
 
 {
   "event": "attempt.graded",
@@ -1483,12 +1484,21 @@ X-AssessIQ-Timestamp: 2026-04-29T11:32:14Z
 
 **Host verification:**
 ```js
-const expected = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-if (!timingSafeEqual(received, expected)) reject();
-if (Math.abs(Date.now() - Date.parse(timestamp)) > 5*60*1000) reject();   // replay window
+// V2 (2026-10-01): timestamp is unix seconds and is covered by the signature
+if (!/^\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) reject();  // replay window
+const expected = "sha256=" + crypto.createHmac("sha256", secret).update(`${timestamp}.`).update(rawBody).digest("hex");
+if (receivedV2.length !== expected.length || !timingSafeEqual(Buffer.from(receivedV2), Buffer.from(expected))) reject();
 ```
 
-**Retry policy:** 5 attempts, exponential backoff (1m, 5m, 30m, 2h, 12h). After final failure, delivery marked `failed`; admin can replay from UI.
+**Retry and delivery rules:**
+- **Retries:** 5 attempts, custom backoff, intended as 1m, 5m, 30m, 2h, 12h. A known off-by-one makes the first retry wait 5 m.
+- **Refusals that are never retried:**
+  - a 3xx answer: redirects are not followed;
+  - a destination that resolves to a private or reserved address;
+  - a 4xx answer, stored as `HTTP 4xx: <snippet>`.
+- **Timeout:** 10 s.
+- **After the final failure:** the delivery is marked `failed`, and an admin can replay it from the UI.
+- **Details:** see § "2026-10-01 (later)" at the end of this file.
 
 ## Worked example — Embed JWT (host issuing)
 

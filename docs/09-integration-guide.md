@@ -277,8 +277,9 @@ AssessIQ fires webhook events to a URL registered in Settings → Integrations �
 ```
 POST <your-registered-url>
 Content-Type: application/json
-X-AssessIQ-Signature: sha256=<HMAC-SHA256(raw-body, webhook_secret)>
-X-AssessIQ-Timestamp: 2026-05-11T10:30:00.000Z
+X-AssessIQ-Timestamp: 1790851200                     ← unix seconds (ISO-8601 before 2026-10-01)
+X-AssessIQ-Signature-V2: sha256=<HMAC-SHA256("<timestamp>.<raw-body>", webhook_secret)>
+X-AssessIQ-Signature: sha256=<HMAC-SHA256(raw-body, webhook_secret)>   ← V1, legacy: body only, cannot stop replays
 X-AssessIQ-Delivery: <unique-delivery-id>
 
 {
@@ -302,19 +303,22 @@ X-AssessIQ-Delivery: <unique-delivery-id>
 import crypto from "crypto";
 
 app.post("/webhooks/assessiq", express.raw({ type: "*/*" }), (req, res) => {
-  const sig = req.header("X-AssessIQ-Signature");
-  const ts  = req.header("X-AssessIQ-Timestamp");
+  const sig = req.header("X-AssessIQ-Signature-V2") ?? "";
+  const ts  = req.header("X-AssessIQ-Timestamp") ?? "";   // unix seconds
 
-  // Reject if timestamp is more than ±5 minutes away (replay protection)
-  if (Math.abs(Date.now() - Date.parse(ts)) > 5 * 60 * 1000)
+  // Reject if the timestamp is missing or more than ±5 minutes away (replay protection)
+  if (!/^\d+$/.test(ts) || Math.abs(Date.now() / 1000 - Number(ts)) > 300)
     return res.status(401).end();
 
+  // V2 signs "<timestamp>.<raw body>", so a captured delivery cannot be replayed later
   const expected = "sha256=" + crypto
     .createHmac("sha256", process.env.AIQ_WEBHOOK_SECRET)
+    .update(`${ts}.`)
     .update(req.body)                           // raw bytes — no JSON.parse before verify
     .digest("hex");
 
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
+  if (sig.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
     return res.status(401).end();
 
   const event = JSON.parse(req.body.toString("utf8"));
@@ -322,6 +326,13 @@ app.post("/webhooks/assessiq", express.raw({ type: "*/*" }), (req, res) => {
   res.status(204).end();
 });
 ```
+
+**Delivery rules (since 2026-10-01):**
+- **Endpoints:** must be `https://`, with no `user:pass@` and not `localhost` or a private/reserved IP. Registering one is refused with 400 `WEBHOOK_URL_NOT_ALLOWED`.
+- **Private addresses:** if the hostname resolves to a private, loopback or reserved address at send time, the delivery is refused and not retried.
+- **Redirects** are not followed: answer 2xx directly, because a 3xx counts as a failed delivery.
+- **Timeout:** the request times out after 10 s.
+- **Signatures:** verify `X-AssessIQ-Signature-V2`. The V1 header still comes for older receivers, but it does not cover the timestamp.
 
 The webhook secret is stored encrypted in `tenant_settings.webhook_secret` (AES-256-GCM). It is **distinct** from the embed secret — rotation of one never affects the other (`webhook-secret-service.ts:8–9`).
 

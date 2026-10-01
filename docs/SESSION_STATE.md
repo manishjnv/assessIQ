@@ -14,7 +14,12 @@
 - `842d75f` merge evaluation flow (`809e807`, `23c9f0b`, 0118)
 - `ef5285f` merge invites (`50ebccf`, 0117 + 0120)
 - `a86bce2` codex fix: attempt start locks the invitation row
-- Docs + handoff: this commit
+- `3593bec` docs: 02/03/05/11, 5 RCAs, this handoff
+- This commit adds:
+  - the detailed batch doc `docs/plans/PILOT_READINESS_BATCH.md` (what / why / how / files / verify / deploy / rollback);
+  - fixes to the webhook receiver samples in `docs/09` and `docs/03` (V2 signature, unix timestamp);
+  - `docs/06` § "Applying new migrations by hand";
+  - `docs/13` § 7 email delivery.
 
 **Tests:**
 - Passing: 07 evaluation + completion gate 80/80; 05 resend 14/14; 06 236/236; 09 90/90; 10 95/95; 13 107/107 here (240/240 in the builder); 16 help 20/20.

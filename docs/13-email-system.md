@@ -762,3 +762,21 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 E1 cannot start until decision #5 is resolved (the footer partial needs the literal address baked in). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.
 
 — *AssessIQ · E0 foundation · 2026-05-21*
+
+---
+
+## §7 Delivery: classes, retries, timeouts (2026-10-01)
+
+Templates are rendered as described above. Delivery is a BullMQ `email.send` job on the worker queue (`modules/13-notifications/src/email/index.ts`), and the policy lives in `email/delivery-policy.ts`.
+
+- **Auth mail** (`admin_email_otp`, `candidate_login_link`, `invitation_admin`):
+  - no job priority, so it runs before bulk mail;
+  - 5 attempts, exponential from 5 s. Codes expire, so there are no long retries.
+- **Bulk mail** (every other template: candidate invitations, result released, evaluation queue alert, …):
+  - priority 100;
+  - 11 attempts over about 45 h (1m, 5m, 15m, 1h, 2h, 4h, 6h, 8h, 12h, 12h), so hitting the provider's daily limit delays mail instead of losing it.
+- **Permanent recipient errors** (SMTP 5.1.x) fail at once.
+- **`email_log.status`:** `queued` between retries, `sent` on delivery, `failed` only when final. These writes persist since migration 0121.
+- **Timeouts:** SMTP connection 10 s, greeting 10 s, socket 30 s. They are appended to `SMTP_URL` unless set there, so a hung connection cannot hold the single worker slot.
+- **A new template must be classified:** `EMAIL_CLASS` is a `Record<EmailTemplateName, …>`, so a new template does not compile until it is marked auth or bulk.
+- **More:** log events and triage are in `docs/11-observability.md` § 35. Plan capacity (300/day on the shared free plan) is an owner decision; see `docs/PENDING_TASKS_2026-10-01.md` A5 (local).
