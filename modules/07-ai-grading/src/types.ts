@@ -419,6 +419,14 @@ export const AI_GRADING_ERROR_CODES = {
   ATTEMPT_NOT_FOUND: "AIG_ATTEMPT_NOT_FOUND",
   /** No prior grading row found to override */
   GRADING_NOT_FOUND: "AIG_GRADING_NOT_FOUND",
+  /**
+   * SP1 (2026-10-01): the attempt is already 'released' — a published result is
+   * final, so override / manual score are refused (409). Wire value is the bare
+   * name from the build spec (not AIG_-prefixed).
+   */
+  RESULT_ALREADY_PUBLISHED: "RESULT_ALREADY_PUBLISHED",
+  /** Manual first score refused: the question already has an effective grading (override it instead). */
+  QUESTION_ALREADY_GRADED: "AIG_QUESTION_ALREADY_GRADED",
   /** Eval harness: case ID format invalid */
   INVALID_EVAL_CASE: "AIG_INVALID_EVAL_CASE",
 } as const;

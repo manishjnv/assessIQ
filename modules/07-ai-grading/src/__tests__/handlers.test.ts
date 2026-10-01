@@ -110,6 +110,7 @@ const AE_MIGRATIONS_DIR = join(MODULES_ROOT, "06-attempt-engine", "migrations");
 const AI_MIGRATIONS_DIR = join(AI_MODULE_ROOT, "migrations");
 const SCORING_MIGRATIONS_DIR = join(MODULES_ROOT, "09-scoring", "migrations");
 const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
+const DATA_RIGHTS_MIGRATIONS_DIR = join(MODULES_ROOT, "20-data-rights", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state — set in beforeAll, read-only in tests
@@ -385,6 +386,9 @@ beforeAll(async () => {
     // Deterministic MCQ scoring finalises MCQ-only attempts (attempt_scores + billing_events).
     await applyMigrationsFromDir(client, SCORING_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR);
+    // The claim / release handlers read users.erased_at (module 20, 0102) for the
+    // DPDP erasure gate; the column must exist in the DB under test.
+    await applyMigrationsFromDir(client, DATA_RIGHTS_MIGRATIONS_DIR, ["0102_users_erased_at.sql"]);
   });
 
   setPoolForTesting(containerUrl);
@@ -676,24 +680,44 @@ describe("handleAdminAccept", () => {
     expect(g3.status).toBe("incorrect"); // 1.0/10 = 0.10 ≤ 0.15
   });
 
-  it("2.3 Attempt status flips to 'graded' after accepting on a submitted attempt", async () => {
-    const proposal = makeProposal(ATTEMPT_ID, QUESTION_ID_1, {
-      prompt_version_sha: "anchors:stat01;band:stat01;escalate:-",
+  it("2.3 Attempt status flips to 'graded' only once EVERY frozen question is accepted (SP1 gate)", async () => {
+    // Test 2.2 froze a third question into the shared attempt, so read the real set.
+    const qids = await withTenant(TENANT_ID, async (client) => {
+      const r = await client.query<{ question_id: string }>(
+        `SELECT question_id FROM attempt_questions WHERE attempt_id = $1 ORDER BY position`,
+        [ATTEMPT_ID],
+      );
+      return r.rows.map((x) => x.question_id);
     });
+    expect(qids.length).toBeGreaterThanOrEqual(2);
+    const prop = (qid: string, i: number) =>
+      makeProposal(ATTEMPT_ID, qid, { prompt_version_sha: `anchors:stat${i};band:stat${i};escalate:-` });
 
-    await handleAdminAccept({
+    // Partial accept (first question only): NOT complete -> stays pending.
+    const partial = await handleAdminAccept({
       tenantId: TENANT_ID,
       userId: ADMIN_ID,
       attemptId: ATTEMPT_ID,
-      proposals: [proposal],
+      proposals: [prop(qids[0]!, 0)],
     });
+    expect(partial.attempt.status).toBe("pending_admin_grading");
+
+    // Accepting the rest completes it.
+    const done = await handleAdminAccept({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId: ATTEMPT_ID,
+      proposals: qids.slice(1).map((q, i) => prop(q, i + 1)),
+    });
+    expect(done.attempt.status).toBe("graded");
 
     await withTenant(TENANT_ID, async (client) => {
-      const r = await client.query<{ status: string }>(
-        `SELECT status FROM attempts WHERE id = $1 LIMIT 1`,
+      const r = await client.query<{ status: string; released: boolean }>(
+        `SELECT status, evaluation_released_at IS NOT NULL AS released FROM attempts WHERE id = $1 LIMIT 1`,
         [ATTEMPT_ID],
       );
       expect(r.rows[0]!.status).toBe("graded");
+      expect(r.rows[0]!.released).toBe(true);
     });
   });
 });
