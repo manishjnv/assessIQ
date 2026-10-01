@@ -28,6 +28,19 @@ admin.auth.login.tenant_slug:
     is set it stays stable. Renaming a tenant is a manual operation that
     requires support.
 
+admin.auth.mfa.skip:
+  audience: admin
+  short_text: "Two-factor sign-in is optional for your company right now, so you can skip this and set it up later."
+  long_md: |
+    ## Skip authenticator setup for now
+
+    Your company does not require two-factor sign-in yet, so you can go straight
+    to the dashboard with **Skip for now**. You can set up an authenticator app
+    later from the **Set up authenticator** banner on the dashboard.
+
+    We still recommend it: it protects your company's candidate data if your
+    email account is ever compromised.
+
 admin.auth.mfa.enroll_vs_verify:
   audience: admin
   short_text: "First-time admins enroll an authenticator app here; returning admins enter their 6-digit code to sign in."
