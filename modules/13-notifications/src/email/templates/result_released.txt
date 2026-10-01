@@ -1,0 +1,19 @@
+Subject: Your result for {{assessmentName}} is ready
+
+Hi {{candidateName}},
+
+{{tenantName}} has released your result for {{assessmentName}}.
+
+Score: {{scoreText}}
+Result: {{resultText}}
+
+View your result:
+{{portalLink}}
+{{#if certificateLink}}
+
+View your certificate:
+{{certificateLink}}
+{{/if}}
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

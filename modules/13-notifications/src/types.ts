@@ -22,6 +22,9 @@ export const EmailTemplateNameSchema = z.enum([
   'weekly_digest_admin',
   // P2: email-OTP sign-in code for admin/reviewer.
   'admin_email_otp',
+  // SP4 (2026-10-01): candidate result email — sent once, after a result is
+  // published (status 'released'). Final score only; never answers or bands.
+  'result_released',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -86,6 +89,20 @@ export const AdminEmailOtpVarsSchema = z.object({
   expires_minutes: z.number().int().positive(),
 });
 
+// SP4: result_released — the complete, final result only (owner rule P1).
+export const ResultReleasedVarsSchema = z.object({
+  candidateName: z.string().min(1),
+  assessmentName: z.string().min(1),
+  tenantName: z.string().min(1),
+  /** e.g. "42 / 60 (70%)" */
+  scoreText: z.string().min(1),
+  resultText: z.enum(['Passed', 'Not passed']),
+  /** Candidate portal sign-in link: `${ASSESSIQ_BASE_URL}/candidate/login?tenant=<slug>`. */
+  portalLink: z.string().url(),
+  /** Public verify page of the issued certificate, when one was issued. */
+  certificateLink: z.string().url().optional(),
+});
+
 export const WeeklyDigestAdminVarsSchema = z.object({
   tenantName: z.string().min(1),
   weekEnding: z.string(), // ISO8601 date
@@ -105,6 +122,7 @@ export type AttemptGradedCandidateVars = z.infer<typeof AttemptGradedCandidateVa
 export type AttemptReadyForReviewAdminVars = z.infer<typeof AttemptReadyForReviewAdminVarsSchema>;
 export type WeeklyDigestAdminVars = z.infer<typeof WeeklyDigestAdminVarsSchema>;
 export type AdminEmailOtpVars = z.infer<typeof AdminEmailOtpVarsSchema>;
+export type ResultReleasedVars = z.infer<typeof ResultReleasedVarsSchema>;
 
 export type TemplateVarsMap = {
   invitation_admin: InvitationAdminVars;
@@ -117,6 +135,7 @@ export type TemplateVarsMap = {
   weekly_digest_admin: WeeklyDigestAdminVars;
   // P2: Email-OTP sign-in code (admin/reviewer only).
   admin_email_otp: AdminEmailOtpVars;
+  result_released: ResultReleasedVars;
 };
 
 // ---------------------------------------------------------------------------
