@@ -13,8 +13,10 @@
  *        AND the tenant is active, the candidate is not erased, and it is not an embed attempt
  *   2. releases each in its OWN withTenant transaction through module 09
  *      releaseAttemptInTx (same core as the manual click: erasure gate, audit row,
- *      SAVEPOINT-guarded certificate) with trigger 'auto'. The audit actor is the user who
- *      released the evaluation when there is one, else the system;
+ *      SAVEPOINT-guarded certificate) with trigger 'auto'. With that trigger the release
+ *      itself re-checks the tenant's CURRENT mode under a lock (the read in step 1 can be
+ *      stale: admin switched back to manual in between) and refuses with 409. The audit
+ *      actor is the user who released the evaluation when there is one, else the system;
  *   3. emails the candidate AFTER each commit (best-effort, module 13).
  *
  * No AI call anywhere on this path: auto release only publishes an already-finished
@@ -128,9 +130,11 @@ export async function processAutoReleaseTick(now: number = Date.now()): Promise<
     } catch (err) {
       if (err instanceof AppError) {
         // Business-rule refusal: someone released it first, erased between the read and
-        // the release, or it still has a grade flagged for review (RESULT_NOT_READY) —
-        // expected, not an error. Cool it down too: a flagged attempt would otherwise be
-        // re-selected (oldest first) on every tick and starve the rest of the batch.
+        // the release, it still has a grade flagged for review, or the tenant was switched
+        // back to manual after the candidate read above (releaseAttemptInTx re-checks the
+        // mode under a lock in its own tx) — expected, not an error. Cool it down too: a
+        // flagged attempt would otherwise be re-selected (oldest first) on every tick and
+        // starve the rest of the batch.
         result.skipped += 1;
         failedAt.set(c.attempt_id, now);
         log.info(
