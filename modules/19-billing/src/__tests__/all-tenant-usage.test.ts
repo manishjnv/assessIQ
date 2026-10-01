@@ -22,7 +22,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
-import { readdir, readFile } from 'node:fs/promises';
+import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
@@ -43,11 +43,6 @@ const THIS_DIR = toFsPath(new URL('.', import.meta.url));
 const BILLING_MODULE_ROOT = join(THIS_DIR, '..', '..');
 const MODULES_ROOT = join(BILLING_MODULE_ROOT, '..');
 
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, '02-tenancy', 'migrations');
-const USERS_MIGRATIONS_DIR   = join(MODULES_ROOT, '03-users', 'migrations');
-const QB_MIGRATIONS_DIR      = join(MODULES_ROOT, '04-question-bank', 'migrations');
-const ATTEMPT_MIGRATIONS_DIR = join(MODULES_ROOT, '06-attempt-engine', 'migrations');
-const BILLING_MIGRATIONS_DIR = join(BILLING_MODULE_ROOT, 'migrations');
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -96,19 +91,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
-  const filtered = only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), 'utf8');
-    await client.query(sql);
-  }
-}
-
 async function seedPackAndLevel(
   client: Client,
   tenantId: string,
@@ -139,12 +121,11 @@ async function seedAssessment(
   createdBy: string,
 ): Promise<string> {
   const id = randomUUID();
-  const slug = `asm-usage-${randomUUID().slice(0, 8)}`;
   await client.query(
     `INSERT INTO assessments
-       (id, tenant_id, pack_id, level_id, slug, name, question_count, status, created_by)
-     VALUES ($1, $2, $3, $4, $5, 'Usage Asm', 5, 'published', $6)`,
-    [id, tenantId, packId, levelId, slug, createdBy],
+       (id, tenant_id, pack_id, level_id, pack_version, name, question_count, status, created_by)
+     VALUES ($1, $2, $3, $4, 1, 'Usage Asm', 5, 'published', $5)`,
+    [id, tenantId, packId, levelId, createdBy],
   );
   return id;
 }
@@ -152,14 +133,20 @@ async function seedAssessment(
 async function seedAttempt(
   client: Client,
   tenantId: string,
-  candidateId: string,
+  _candidateId: string,
   assessmentId: string,
 ): Promise<string> {
   const id = randomUUID();
+  // attempts is UNIQUE (assessment_id, user_id): each seeded attempt needs its own candidate.
+  const userId = randomUUID();
   await client.query(
-    `INSERT INTO attempts (id, tenant_id, candidate_id, assessment_id, status)
+    `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, 'Test User', 'candidate')`,
+    [userId, tenantId, `c-${userId}@test.com`],
+  );
+  await client.query(
+    `INSERT INTO attempts (id, tenant_id, user_id, assessment_id, status)
      VALUES ($1, $2, $3, $4, 'graded')`,
-    [id, tenantId, candidateId, assessmentId],
+    [id, tenantId, userId, assessmentId],
   );
   return id;
 }
@@ -195,14 +182,7 @@ beforeAll(
     ADMIN_ID           = randomUUID();
 
     await withSuperClient(async (client) => {
-      await applyMigrationsFromDir(client, TENANCY_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, USERS_MIGRATIONS_DIR, ['020_users.sql']);
-      await applyMigrationsFromDir(client, QB_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, ATTEMPT_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
-        '0078_tenant_plans.sql',
-        '0079_billing_events.sql',
-      ]);
+      await applyAllMigrations(client);
 
       // Seed tenants
       await client.query(
@@ -217,8 +197,8 @@ beforeAll(
 
       // Seed admin user
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role)
-         VALUES ($1, $2, $3, 'admin')`,
+        `INSERT INTO users (id, tenant_id, email, name, role)
+         VALUES ($1, $2, $3, 'Test User', 'admin')`,
         [ADMIN_ID, FREE_TENANT_ID, `admin-all-usage-${randomUUID().slice(0, 6)}@test.com`],
       );
 
@@ -233,8 +213,8 @@ beforeAll(
       // Seed 30 billing events for the free tenant (30 > 25 → overage 5)
       const candidateId = randomUUID();
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role)
-         VALUES ($1, $2, $3, 'candidate')`,
+        `INSERT INTO users (id, tenant_id, email, name, role)
+         VALUES ($1, $2, $3, 'Test User', 'candidate')`,
         [candidateId, FREE_TENANT_ID, `cand-all-usage-${randomUUID().slice(0, 6)}@test.com`],
       );
       const { packId, levelId } = await seedPackAndLevel(client, FREE_TENANT_ID, ADMIN_ID);

@@ -23,8 +23,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { applyAllMigrations as applyAll } from '../../../../tools/test-support/apply-all-migrations.js';
 import { randomUUID } from 'node:crypto';
 
 import { setPoolForTesting, closePool } from '@assessiq/tenancy';
@@ -41,13 +40,7 @@ function toFsPath(url: URL): string {
   return url.pathname.replace(/^\/([A-Za-z]:)/, '$1');
 }
 
-const THIS_DIR = toFsPath(new URL('.', import.meta.url));
-const AUDIT_MODULE_ROOT = join(THIS_DIR, '..', '..');
-const MODULES_ROOT = join(AUDIT_MODULE_ROOT, '..');
 
-const TENANCY_DIR = join(MODULES_ROOT, '02-tenancy', 'migrations');
-const USERS_DIR = join(MODULES_ROOT, '03-users', 'migrations');
-const AUDIT_DIR = join(AUDIT_MODULE_ROOT, 'migrations');
 
 // ---------------------------------------------------------------------------
 // Container lifecycle
@@ -97,48 +90,17 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
-  const filtered = only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), 'utf8');
-    await client.query(sql);
-  }
-}
-
 async function applyAllMigrations(): Promise<void> {
   await withSuperClient(async (client) => {
     await client.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
-
-    // Grant application role and system role (matching production setup)
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
-          CREATE ROLE assessiq_app;
-        END IF;
-      END $$;
-    `);
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
-          CREATE ROLE assessiq_system BYPASSRLS;
-        END IF;
-      END $$;
-    `);
-    await client.query(`GRANT assessiq_app TO assessiq`);
-    await client.query(`GRANT assessiq_system TO assessiq`);
+    await applyAll(client);
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
 
-    await applyMigrationsFromDir(client, TENANCY_DIR);
-    await applyMigrationsFromDir(client, USERS_DIR, ['020_users.sql']);
-    await applyMigrationsFromDir(client, AUDIT_DIR);
 
     // Grant INSERT + SELECT on audit_log to assessiq_app (the REVOKE restricts UPDATE/DELETE/TRUNCATE)
     await client.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
+    // GRANT ALL above re-adds what 0050 revoked; restore the append-only grants.
+    await client.query(`REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM assessiq_app`);
     await client.query(`GRANT USAGE, SELECT ON SEQUENCE audit_log_id_seq TO assessiq_app`);
   });
 }
@@ -263,9 +225,9 @@ describe('audit() — redaction', () => {
     expect(afterObj['password']).toBe('[REDACTED]');
     expect(afterObj['totp_secret']).toBe('[REDACTED]');
     expect(afterObj['recovery_codes']).toBe('[REDACTED]');
-    // Non-sensitive fields are preserved
-    expect(afterObj['email']).toBe('user@example.com');
-    expect(afterObj['name']).toBe('Alice');
+    // PII (email/name) is redacted too since 2026-05-29 (redact.ts, DPDP D7)
+    expect(afterObj['email']).toBe('[REDACTED]');
+    expect(afterObj['name']).toBe('[REDACTED]');
   });
 
   it('redacts secret / token / key / hash fields', async () => {

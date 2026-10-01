@@ -22,9 +22,8 @@ import {
 } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 
 // jose must be mocked before google-sso loads (for mintForIdentity tests via selectLoginIdentity).
 vi.mock("jose", async (importActual) => {
@@ -45,21 +44,6 @@ import {
   peekLoginContinuation,
   selectLoginIdentity,
 } from "../login-continuation.js";
-
-// ---------------------------------------------------------------------------
-// Paths
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
-const AUTH_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT = join(THIS_DIR, "..", "..", "..");
-
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const AUTH_MIGRATIONS_DIR = join(AUTH_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -103,8 +87,8 @@ async function insertUser(overrides: {
 
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, role, status, deleted_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO users (id, tenant_id, email, name, role, status, deleted_at)
+       VALUES ($1, $2, $3, 'Test User', $4, $5, $6)`,
       [id, overrides.tenantId, overrides.email, role, status, deletedAt],
     );
   });
@@ -143,55 +127,8 @@ beforeAll(async () => {
   const redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
   // Apply migrations.
-  const tenancyFiles = (await readdir(TENANCY_MIGRATIONS_DIR))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-  const authFiles = (await readdir(AUTH_MIGRATIONS_DIR))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
   await withSuperClient(async (client) => {
-    for (const file of tenancyFiles) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS_DIR, file), "utf-8");
-      await client.query(sql);
-    }
-
-    // Users shim (same as google-sso.test.ts — includes super_admin in role check).
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        email       TEXT NOT NULL,
-        role        TEXT NOT NULL DEFAULT 'admin'
-                    CHECK (role IN ('admin','super_admin','reviewer','candidate')),
-        status      TEXT NOT NULL DEFAULT 'active'
-                    CHECK (status IN ('active','disabled','pending')),
-        deleted_at  TIMESTAMPTZ DEFAULT NULL,
-        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (tenant_id, email)
-      );
-
-      ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
-      CREATE POLICY tenant_isolation ON users
-        USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
-
-      CREATE POLICY tenant_isolation_insert ON users
-        FOR INSERT
-        WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
-    `);
-
-    // Allow assessiq_system to read all users (BYPASSRLS).
-    await client.query(`
-      ALTER TABLE users FORCE ROW LEVEL SECURITY;
-      GRANT SELECT ON users TO assessiq_system;
-    `).catch(() => { /* may already exist */ });
-
-    for (const file of authFiles) {
-      const sql = await readFile(join(AUTH_MIGRATIONS_DIR, file), "utf-8");
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
 
     // Platform tenant + super_admin user.
     await client.query(`
@@ -203,11 +140,12 @@ beforeAll(async () => {
       VALUES ('${PLATFORM_TENANT_ID}')
       ON CONFLICT DO NOTHING;
 
-      INSERT INTO users (id, tenant_id, email, role, status)
+      INSERT INTO users (id, tenant_id, email, name, role, status)
       VALUES (
         '00000000-0000-7000-0000-000000000002',
         '${PLATFORM_TENANT_ID}',
         'manishjnvk@gmail.com',
+        'Manish Kumar',
         'super_admin',
         'active'
       )

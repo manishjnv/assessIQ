@@ -15,9 +15,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 
 // setPoolForTesting / closePool are test-only helpers not on @assessiq/tenancy's
 // public surface — import from the package's internal pool.ts directly.
@@ -26,28 +25,6 @@ import { randomUUID } from "node:crypto";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
 import { apiKeys, type ApiKeyScope } from "../api-keys.js";
 import { AuthnError, AuthzError } from "@assessiq/core";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-// Strip leading slash before drive letter on Windows (e.g. /E:/code → E:/code).
-// import.meta.url on Windows: file:///E:/code/...
-// new URL('.', import.meta.url).pathname: /E:/code/.../src/__tests__/  (trailing slash)
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-// __tests__/ is at: modules/01-auth/src/__tests__/
-//   1 ..  →  modules/01-auth/src/
-//   2 ..  →  modules/01-auth/
-//   3 ..  →  modules/
-const THIS_DIR          = toFsPath(new URL(".", import.meta.url));   // .../src/__tests__/
-const AUTH_MODULE_ROOT  = join(THIS_DIR, "..", "..");                 // modules/01-auth/
-const MODULES_ROOT      = join(AUTH_MODULE_ROOT, "..");               // modules/
-
-const TENANCY_MIGRATIONS = join(MODULES_ROOT, "02-tenancy", "migrations");
-const AUTH_MIGRATIONS    = join(AUTH_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -97,41 +74,9 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
-  // 2. Apply migrations in dependency order.
-  //    02-tenancy comes first (tenants table + roles); then a users stub;
-  //    then 01-auth migrations (01x_ files in lexical order).
-  const tenancyFiles = (await readdir(TENANCY_MIGRATIONS))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
-  const authFiles = (await readdir(AUTH_MIGRATIONS))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
+  // 2. Apply every module migration (shared helper).
   await withSuperClient(async (client) => {
-    // 02-tenancy migrations (creates tenants, roles, RLS helpers).
-    for (const file of tenancyFiles) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS, file), "utf-8");
-      await client.query(sql);
-    }
-
-    // Minimal users stub — 03-users ships in Window 5.
-    // api_keys.created_by references users(id); we need the table to exist.
-    await client.query(`
-      CREATE TABLE users (
-        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id  UUID NOT NULL REFERENCES tenants(id),
-        email      TEXT NOT NULL,
-        name       TEXT NOT NULL,
-        role       TEXT NOT NULL DEFAULT 'admin'
-      )
-    `);
-
-    // 01-auth migrations (010–015, lexical).
-    for (const file of authFiles) {
-      const sql = await readFile(join(AUTH_MIGRATIONS, file), "utf-8");
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
   });
 
   // 3. Point the tenancy pool singleton at the container.
@@ -153,9 +98,9 @@ beforeAll(async () => {
       [tenantA, tenantB],
     );
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES
-         ($1, $2, 'admin-a@example.com', 'Admin A'),
-         ($3, $4, 'admin-b@example.com', 'Admin B')`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES
+         ($1, $2, 'admin-a@example.com', 'Admin A', 'admin'),
+         ($3, $4, 'admin-b@example.com', 'Admin B', 'admin')`,
       [userA, tenantA, userB, tenantB],
     );
   });

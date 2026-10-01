@@ -37,9 +37,8 @@ import {
 } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 
 // jose must be hoisted so the ESM mock resolves before google-sso.ts loads.
 vi.mock("jose", async (importActual) => {
@@ -65,16 +64,6 @@ import { requireAuth } from "../middleware/require-auth.js";
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR         = toFsPath(new URL(".", import.meta.url));
-const AUTH_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT     = join(THIS_DIR, "..", "..", "..");
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const AUTH_MIGRATIONS_DIR    = join(AUTH_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Constants matching the migration seed values
@@ -134,6 +123,8 @@ function mockGoogleFlow(claims: {
       aud: "test-client-id",
       exp: Math.floor(Date.now() / 1000) + 3600,
       iat: Math.floor(Date.now() / 1000),
+      // Product requires a Google-verified email (google-sso.ts step 4b).
+      email_verified: true,
       ...claims,
     },
     protectedHeader: { alg: "RS256" },
@@ -184,54 +175,8 @@ beforeAll(async () => {
   pgUrl = `postgres://test:test@${pgContainer.getHost()}:${pgContainer.getMappedPort(5432)}/aiq_test`;
   redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
-  const tenancyFiles = (await readdir(TENANCY_MIGRATIONS_DIR))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-  const authFiles = (await readdir(AUTH_MIGRATIONS_DIR))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
   await withSuperClient(async (client) => {
-    // Tenancy migrations.
-    for (const file of tenancyFiles) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS_DIR, file), "utf-8");
-      await client.query(sql);
-    }
-
-    // Users table shim (mirrors google-sso.test.ts; includes super_admin role).
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        email       TEXT NOT NULL,
-        role        TEXT NOT NULL DEFAULT 'admin'
-                    CHECK (role IN ('admin','super_admin','reviewer','candidate')),
-        status      TEXT NOT NULL DEFAULT 'active'
-                    CHECK (status IN ('active','disabled','pending')),
-        deleted_at  TIMESTAMPTZ DEFAULT NULL,
-        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (tenant_id, email)
-      );
-
-      ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
-      CREATE POLICY tenant_isolation ON users
-        USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
-
-      CREATE POLICY tenant_isolation_insert ON users
-        FOR INSERT
-        WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
-    `);
-
-    // Auth migrations (sessions, oauth_identities — excludes 016 which Opus applies).
-    for (const file of authFiles) {
-      // Skip 016_super_admin.sql — that updates CHECK constraints and seeds data
-      // that we replicate here via explicit SQL so tests are self-contained.
-      if (file.includes("016_super_admin")) continue;
-      const sql = await readFile(join(AUTH_MIGRATIONS_DIR, file), "utf-8");
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
 
     // Patch the sessions.role CHECK to allow 'super_admin' (mirrors C1 DDL).
     await client.query(`
@@ -483,8 +428,8 @@ describe("customer-tenant login — regression (path UNCHANGED)", () => {
     const customerId = randomUUID();
     await withSuperClient(async (client) => {
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role, status)
-         VALUES ($1, $2, $3, 'admin', 'active')
+        `INSERT INTO users (id, tenant_id, email, name, role, status)
+         VALUES ($1, $2, $3, 'Test User', 'admin', 'active')
          ON CONFLICT DO NOTHING`,
         [customerId, customerTenantId, customerEmail],
       );
@@ -544,8 +489,8 @@ describe("customer-tenant login — regression (path UNCHANGED)", () => {
     const jitUserId = randomUUID();
     await withSuperClient(async (client) => {
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role, status)
-         VALUES ($1, $2, $3, 'admin', 'active')
+        `INSERT INTO users (id, tenant_id, email, name, role, status)
+         VALUES ($1, $2, $3, 'Test User', 'admin', 'active')
          ON CONFLICT DO NOTHING`,
         [jitUserId, customerTenantId, jitEmail],
       );

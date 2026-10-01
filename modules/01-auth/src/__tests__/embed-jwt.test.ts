@@ -17,9 +17,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import * as jose from "jose";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
@@ -34,26 +33,6 @@ import {
   listEmbedSecrets,
 } from "../embed-jwt.js";
 import { AuthnError } from "@assessiq/core";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function stripWindowsDriveLead(p: string): string {
-  return p.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const TENANCY_MIGRATIONS_DIR = join(
-  stripWindowsDriveLead(new URL(".", import.meta.url).pathname),
-  "..", "..", "..", "..", // modules/01-auth/src/__tests__ -> repo root
-  "modules", "02-tenancy", "migrations",
-);
-
-const AUTH_MIGRATIONS_DIR = join(
-  stripWindowsDriveLead(new URL(".", import.meta.url).pathname),
-  "..", "..", // src/__tests__ -> modules/01-auth
-  "migrations",
-);
 
 // ---------------------------------------------------------------------------
 // Shared container state
@@ -149,52 +128,9 @@ beforeAll(async () => {
   pgUrl = `postgres://test:test@${pgContainer.getHost()}:${pgContainer.getMappedPort(5432)}/aiq_test`;
   redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
-  // Apply tenancy migrations (roles + tenants table) in lexical order.
-  const tenancyFiles = (await readdir(TENANCY_MIGRATIONS_DIR))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
   await withSuperClient(async (client) => {
-    for (const file of tenancyFiles) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS_DIR, file), "utf-8");
-      await client.query(sql);
-    }
-  });
-
-  // Create a stub users table so that auth migration FKs resolve.
-  // The real users table ships in modules/03-users (Window 5). For embed-jwt
-  // tests we only need the table to exist; no rows needed.
-  await withSuperClient(async (client) => {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id UUID NOT NULL REFERENCES tenants(id),
-        email     TEXT NOT NULL,
-        name      TEXT NOT NULL,
-        role      TEXT NOT NULL DEFAULT 'candidate',
-        status    TEXT NOT NULL DEFAULT 'active',
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    await client.query(`ALTER TABLE users ENABLE ROW LEVEL SECURITY`);
-    await client.query(`
-      CREATE POLICY tenant_isolation ON users
-        USING (tenant_id = current_setting('app.current_tenant', true)::uuid)
-    `);
-    await client.query(`
-      CREATE POLICY tenant_isolation_insert ON users
-        FOR INSERT
-        WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid)
-    `);
-    // Grant to app roles (already created by tenancy migration 0002).
+    await applyAllMigrations(client);
     await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON users TO assessiq_app, assessiq_system`);
-  });
-
-  // Apply only the embed_secrets auth migration (014). The other auth migrations
-  // reference columns we don't need for these tests.
-  const authSql = await readFile(join(AUTH_MIGRATIONS_DIR, "014_embed_secrets.sql"), "utf-8");
-  await withSuperClient(async (client) => {
-    await client.query(authSql);
   });
 
   // Point the module singletons at the containers.
@@ -515,7 +451,7 @@ it("JTI cache TTL: after verify, Redis TTL for jti key is positive and ≤ (exp 
   // Import getRedis directly to inspect the TTL.
   const { getRedis: gr } = await import("../redis.js");
   const redis = gr();
-  const ttl = await redis.ttl(`aiq:embed:jti:${jti}`);
+  const ttl = await redis.ttl(`aiq:embed:jti:${tenantId}:${jti}`);
 
   // TTL must be a positive integer.
   expect(ttl).toBeGreaterThan(0);

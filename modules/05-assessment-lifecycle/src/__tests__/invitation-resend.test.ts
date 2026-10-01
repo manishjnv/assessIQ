@@ -14,8 +14,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import Fastify, { type FastifyInstance } from "fastify";
-import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -86,15 +86,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
 
 const sql = (text: string, params: unknown[] = []) =>
   withSuperClient((c) => c.query(text, params)).then((r) => r.rows);
-
-async function applyDir(
-  client: Client,
-  dir: string,
-  only?: (f: string) => boolean,
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql") && (only?.(f) ?? true)).sort();
-  for (const f of files) await client.query(await readFile(join(dir, f), "utf-8"));
-}
 
 async function newAssessment(name: string): Promise<string> {
   const a = await createAssessment(
@@ -179,19 +170,7 @@ beforeAll(async () => {
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_resend_test`;
 
   await withSuperClient(async (client) => {
-    await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN CREATE ROLE assessiq_app; END IF; END $$;`);
-    await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN CREATE ROLE assessiq_system BYPASSRLS; END IF; END $$;`);
-    await client.query(`GRANT assessiq_app TO test`);
-    await client.query(`GRANT assessiq_system TO test`);
-
-    await applyDir(client, join(MODULES_ROOT, "02-tenancy", "migrations"));
-    await applyDir(client, join(MODULES_ROOT, "03-users", "migrations"), (f) => f.startsWith("020_"));
-    await applyDir(client, join(MODULES_ROOT, "14-audit-log", "migrations"));
-    await applyDir(client, join(MODULES_ROOT, "04-question-bank", "migrations"));
-    await applyDir(client, join(AL_MODULE_ROOT, "migrations")); // includes 0117_invitation_last_resent_at
-    await applyDir(client, join(MODULES_ROOT, "19-billing", "migrations"), (f) => f === "0078_tenant_plans.sql" || f === "0081_tenant_entitlements.sql");
-    await applyDir(client, join(MODULES_ROOT, "06-attempt-engine", "migrations"), (f) => f === "0030_attempts.sql" || f === "0113_attempts_evaluation_release.sql");
-    await applyDir(client, join(MODULES_ROOT, "09-scoring", "migrations"), (f) => f === "0050_attempt_scores.sql");
+    await applyAllMigrations(client);
 
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_system`);

@@ -19,23 +19,11 @@ import {
 } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyAllMigrations } from "../../../tools/test-support/apply-all-migrations.js";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
 import { createTenant, activateTenant } from "../src/service.js";
-
-// ---------------------------------------------------------------------------
-// Paths
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
-const TENANCY_MIGRATIONS_DIR = join(THIS_DIR, "..", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -86,15 +74,8 @@ beforeAll(async () => {
 
   pgUrl = `postgres://test:test@${pgContainer.getHost()}:${pgContainer.getMappedPort(5432)}/aiq_test`;
 
-  const tenancyFiles = (await readdir(TENANCY_MIGRATIONS_DIR))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
   await withSuperClient(async (client) => {
-    for (const file of tenancyFiles) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS_DIR, file), "utf-8");
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
   });
 
   await setPoolForTesting(pgUrl);

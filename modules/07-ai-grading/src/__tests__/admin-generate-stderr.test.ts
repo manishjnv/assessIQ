@@ -24,7 +24,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execSync } from "node:child_process";
@@ -74,10 +74,6 @@ const THIS_DIR = toFsPath(new URL(".", import.meta.url));
 const AI_MODULE_ROOT = join(THIS_DIR, "..", "..");
 const MODULES_ROOT = join(AI_MODULE_ROOT, "..");
 
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_MIGRATIONS_DIR = join(MODULES_ROOT, "03-users", "migrations");
-const QB_MIGRATIONS_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
-const AI_MIGRATIONS_DIR = join(AI_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -187,19 +183,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-  const filtered = only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), "utf8");
-    await client.query(sql);
-  }
-}
-
 async function seedPack(
   client: Client,
   tenantId: string,
@@ -273,17 +256,16 @@ beforeAll(
     ADMIN_ID = randomUUID();
 
     await withSuperClient(async (client) => {
-      await applyMigrationsFromDir(client, TENANCY_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, USERS_MIGRATIONS_DIR, ["020_users.sql"]);
-      await applyMigrationsFromDir(client, QB_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, AI_MIGRATIONS_DIR);
+      await applyAllMigrations(client);
 
       await client.query(
         `INSERT INTO tenants (id, slug, name) VALUES ($1, $2, $3)`,
         [TENANT_ID, "stderr-tenant", "Stderr Test Tenant"],
       );
+      // `config` is loaded once at import, so the AI_GENERATE_MODE env var below no longer
+      // switches mode; the handler reads tenant_settings.ai_generate_mode first.
       await client.query(
-        `INSERT INTO tenant_settings (tenant_id) VALUES ($1)`,
+        `INSERT INTO tenant_settings (tenant_id, ai_generate_mode) VALUES ($1, 'sharded')`,
         [TENANT_ID],
       );
       await client.query(

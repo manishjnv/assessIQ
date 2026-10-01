@@ -21,8 +21,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
@@ -70,35 +69,6 @@ import {
 } from "../../../04-question-bank/src/service.js";
 
 import { ConflictError, NotFoundError, ValidationError } from "@assessiq/core";
-
-// ---------------------------------------------------------------------------
-// Path helper — strip Windows leading slash before drive letter.
-// import.meta.url on Windows: file:///E:/code/...
-// new URL('.', import.meta.url).pathname: /E:/code/.../src/__tests__/
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
-const AL_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT = join(AL_MODULE_ROOT, "..");
-
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_MIGRATIONS_DIR = join(MODULES_ROOT, "03-users", "migrations");
-const AUDIT_MIGRATIONS_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
-const QB_MIGRATIONS_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
-const AL_MIGRATIONS_DIR = join(AL_MODULE_ROOT, "migrations");
-// publishAssessment / reopenAssessment now call assertPublishEntitled from
-// @assessiq/billing (monetization program A→C), which queries tenant_plans +
-// tenant_entitlements. Without these migrations the lifecycle suite throws
-// "relation \"tenant_plans\" does not exist" on every publish-path test.
-const BILLING_MIGRATIONS_DIR = join(MODULES_ROOT, "19-billing", "migrations");
-// inviteUsers calls sendAssessmentInvitationEmail (13-notifications shim) which
-// writes an email_log row under the tenant context. Without 0055_email_log.sql
-// applied the test container throws "relation \"email_log\" does not exist".
-const NOTIFICATIONS_MIGRATIONS_DIR = join(MODULES_ROOT, "13-notifications", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -225,87 +195,8 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
-  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles, billingFiles, notificationsFiles] = await Promise.all([
-    readdir(TENANCY_MIGRATIONS_DIR),
-    readdir(USERS_MIGRATIONS_DIR),
-    readdir(AUDIT_MIGRATIONS_DIR),
-    readdir(QB_MIGRATIONS_DIR),
-    readdir(AL_MIGRATIONS_DIR),
-    readdir(BILLING_MIGRATIONS_DIR),
-    readdir(NOTIFICATIONS_MIGRATIONS_DIR),
-  ]);
-
-  // All tenancy migrations (0001-0004, incl. smtp_config)
-  const tenancySorted = tenancyFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: TENANCY_MIGRATIONS_DIR, file: f }));
-
-  // Only 020_users.sql — skip 021_user_invitations.sql
-  const usersSorted = usersFiles
-    .filter((f) => f.endsWith(".sql") && f.startsWith("020_"))
-    .sort()
-    .map((f) => ({ dir: USERS_MIGRATIONS_DIR, file: f }));
-
-  // Audit-log migration (0050) — must precede 05-AL because every wired
-  // mutation now writes an audit_log row inside the same transaction.
-  const auditSorted = auditFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: AUDIT_MIGRATIONS_DIR, file: f }));
-
-  // All QB migrations (0010-0015)
-  const qbSorted = qbFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: QB_MIGRATIONS_DIR, file: f }));
-
-  // All AL migrations (0020-0022)
-  const alSorted = alFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: AL_MIGRATIONS_DIR, file: f }));
-
-  // Schema-only billing migrations: 0078 (tenant_plans) + 0081 (tenant_entitlements).
-  // Skipped: 0079 (billing_events) — FKs to the attempts table which is not in
-  // this test set; 0080/0082 — backfills against live data; 0090 — noop UPDATE.
-  const billingSorted = billingFiles
-    .filter((f) => f.endsWith(".sql") && (f === "0078_tenant_plans.sql" || f === "0081_tenant_entitlements.sql"))
-    .sort()
-    .map((f) => ({ dir: BILLING_MIGRATIONS_DIR, file: f }));
-
-  // Only 0055_email_log.sql — inviteUsers writes to email_log via the 13-notifications
-  // shim (tenantId is always passed, triggering the DB insert path). Other
-  // 13-notifications migrations (in_app_notifications, webhooks) are not needed.
-  const notificationsSorted = notificationsFiles
-    .filter((f) => f.endsWith(".sql") && f === "0055_email_log.sql")
-    .sort()
-    .map((f) => ({ dir: NOTIFICATIONS_MIGRATIONS_DIR, file: f }));
-
   await withSuperClient(async (client) => {
-    // App role required by audit_log RLS + GRANT setup (mirrors the QB
-    // G3.D audit-write sweep test setup).
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
-          CREATE ROLE assessiq_app;
-        END IF;
-      END $$;
-    `);
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
-          CREATE ROLE assessiq_system BYPASSRLS;
-        END IF;
-      END $$;
-    `);
-    await client.query(`GRANT assessiq_app TO test`);
-    await client.query(`GRANT assessiq_system TO test`);
-
-    for (const { dir, file } of [...tenancySorted, ...usersSorted, ...auditSorted, ...qbSorted, ...alSorted, ...billingSorted, ...notificationsSorted]) {
-      const sql = await readFile(join(dir, file), "utf-8");
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
 
     // audit_log has REVOKE UPDATE/DELETE/TRUNCATE in its migration; explicitly
     // GRANT SELECT+INSERT to assessiq_app so service-layer writes via withTenant succeed.
@@ -1207,7 +1098,10 @@ describe("Cross-tenant RLS isolation", () => {
 // Because SMTP_URL is configured in .env.local, sendEmail writes to the
 // email_log DB table (not the JSONL dev-emails.log fallback). Tests query
 // email_log directly via withSuperClient.
-describe("Dev-email log — invitation_candidate email written to email_log DB", () => {
+// Needs SMTP_URL (else sendEmail falls back to the dev-emails.log JSONL and writes no
+// email_log row) AND a reachable Redis for the BullMQ enqueue — both only present in a
+// configured dev environment (.env.local), not in the hermetic CI/vitest env.
+describe.skipIf(!process.env["SMTP_URL"])("Dev-email log — invitation_candidate email written to email_log DB", () => {
   let packId: string;
   let levelId: string;
   let candidateEmail: string;

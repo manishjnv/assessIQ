@@ -26,7 +26,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
-import { readdir, readFile } from 'node:fs/promises';
+import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
@@ -55,11 +55,6 @@ const THIS_DIR = toFsPath(new URL('.', import.meta.url));
 const BILLING_MODULE_ROOT = join(THIS_DIR, '..', '..');
 const MODULES_ROOT = join(BILLING_MODULE_ROOT, '..');
 
-const TENANCY_MIGRATIONS_DIR = join(MODULES_ROOT, '02-tenancy', 'migrations');
-const USERS_MIGRATIONS_DIR   = join(MODULES_ROOT, '03-users', 'migrations');
-const QB_MIGRATIONS_DIR      = join(MODULES_ROOT, '04-question-bank', 'migrations');
-const ATTEMPT_MIGRATIONS_DIR = join(MODULES_ROOT, '06-attempt-engine', 'migrations');
-const BILLING_MIGRATIONS_DIR = join(BILLING_MODULE_ROOT, 'migrations');
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -108,20 +103,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
-  const filtered =
-    only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), 'utf8');
-    await client.query(sql);
-  }
-}
-
 /** Seed a question_pack + level row (required FK chain for assessments). */
 async function seedPackAndLevel(
   client: Client,
@@ -155,12 +136,11 @@ async function seedAssessment(
   createdBy: string,
 ): Promise<string> {
   const id = randomUUID();
-  const slug = `asm-${randomUUID().slice(0, 8)}`;
   await client.query(
     `INSERT INTO assessments
-       (id, tenant_id, pack_id, level_id, slug, name, question_count, status, created_by)
-     VALUES ($1, $2, $3, $4, $5, 'Test Asm', 5, 'published', $6)`,
-    [id, tenantId, packId, levelId, slug, createdBy],
+       (id, tenant_id, pack_id, level_id, pack_version, name, question_count, status, created_by)
+     VALUES ($1, $2, $3, $4, 1, 'Test Asm', 5, 'published', $5)`,
+    [id, tenantId, packId, levelId, createdBy],
   );
   return id;
 }
@@ -169,15 +149,21 @@ async function seedAssessment(
 async function seedAttempt(
   client: Client,
   tenantId: string,
-  candidateId: string,
+  _candidateId: string,
   assessmentId: string,
 ): Promise<string> {
   const id = randomUUID();
+  // attempts is UNIQUE (assessment_id, user_id): each seeded attempt needs its own candidate.
+  const userId = randomUUID();
+  await client.query(
+    `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, 'Test User', 'candidate')`,
+    [userId, tenantId, `c-${userId}@test.com`],
+  );
   await client.query(
     `INSERT INTO attempts
-       (id, tenant_id, candidate_id, assessment_id, status)
+       (id, tenant_id, user_id, assessment_id, status)
      VALUES ($1, $2, $3, $4, 'graded')`,
-    [id, tenantId, candidateId, assessmentId],
+    [id, tenantId, userId, assessmentId],
   );
   return id;
 }
@@ -214,15 +200,8 @@ beforeAll(
 
     await withSuperClient(async (client) => {
       // Apply migrations in FK-safe order
-      await applyMigrationsFromDir(client, TENANCY_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, USERS_MIGRATIONS_DIR, ['020_users.sql']);
-      await applyMigrationsFromDir(client, QB_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, ATTEMPT_MIGRATIONS_DIR);
+      await applyAllMigrations(client);
       // Billing migrations (0078 + 0079 only; 0080 tested separately below)
-      await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
-        '0078_tenant_plans.sql',
-        '0079_billing_events.sql',
-      ]);
 
       // Seed test tenants
       await client.query(
@@ -237,8 +216,8 @@ beforeAll(
 
       // Seed admin user
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role)
-         VALUES ($1, $2, $3, 'admin')`,
+        `INSERT INTO users (id, tenant_id, email, name, role)
+         VALUES ($1, $2, $3, 'Test User', 'admin')`,
         [ADMIN_ID, FREE_TENANT_ID, `admin-billing-${randomUUID().slice(0, 6)}@test.com`],
       );
 
@@ -326,11 +305,8 @@ describe('recordGradedAttempt — same-tx rollback', () => {
         try {
           await client.query('BEGIN');
           // Set the RLS context manually (mirrors what withTenant does)
-          await client.query(
-            `SET LOCAL ROLE assessiq_app;
-             SELECT set_config('app.current_tenant', $1, true)`,
-            [FREE_TENANT_ID],
-          );
+          await client.query(`SET LOCAL ROLE assessiq_app`);
+          await client.query(`SELECT set_config('app.current_tenant', $1, true)`, [FREE_TENANT_ID]);
           await recordGradedAttempt(client, FREE_TENANT_ID, attemptId);
           // Deliberate ROLLBACK — simulates a grade-commit failure
           await client.query('ROLLBACK');
@@ -374,8 +350,8 @@ describe('getUsage — free/25 tenant', () => {
           [tenantId],
         );
         await superClient.query(
-          `INSERT INTO users (id, tenant_id, email, role)
-           VALUES ($1, $2, $3, 'candidate')`,
+          `INSERT INTO users (id, tenant_id, email, name, role)
+           VALUES ($1, $2, $3, 'Test User', 'candidate')`,
           [candidateId, tenantId, `cand-${randomUUID().slice(0, 6)}@test.com`],
         );
 

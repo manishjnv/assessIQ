@@ -7,27 +7,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import { scoreMcqForAttempt, scoreMcqAndFinalizeIfComplete, MCQ_SENTINEL_SHA } from "../mcq.js";
 
-const toFsPath = (url: URL): string => url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const MODULES_ROOT = join(toFsPath(new URL(".", import.meta.url)), "..", "..", "..");
-const DIRS: Array<[string, string[] | undefined]> = [
-  ["02-tenancy", undefined],
-  ["03-users", ["020_users.sql"]],
-  ["14-audit-log", undefined],
-  ["04-question-bank", undefined],
-  ["05-assessment-lifecycle", undefined],
-  ["06-attempt-engine", undefined],
-  // 0100: finalizeAttemptIfComplete clears the review-cache columns (ai_proposals, grading_started_at)
-  ["07-ai-grading", ["0040_gradings.sql", "0041_tenant_grading_budgets.sql", "0100_attempts_ai_proposals_cache.sql"]],
-  ["09-scoring", undefined],
-  ["19-billing", undefined],
-];
 
 let container: StartedTestContainer;
 let url: string;
@@ -55,20 +40,7 @@ beforeAll(async () => {
 
   await sup(async (c) => {
     await c.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
-    for (const r of ["assessiq_app", "assessiq_system"]) {
-      const bypass = r === "assessiq_system" ? " BYPASSRLS" : "";
-      await c.query(
-        `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${r}') THEN CREATE ROLE ${r}${bypass}; END IF; END $$;`,
-      );
-      await c.query(`GRANT ${r} TO test`);
-    }
-    for (const [mod, only] of DIRS) {
-      const dir = join(MODULES_ROOT, mod, "migrations");
-      const files = (await readdir(dir))
-        .filter((f) => f.endsWith(".sql") && (only === undefined || only.includes(f)))
-        .sort();
-      for (const f of files) await c.query(await readFile(join(dir, f), "utf-8"));
-    }
+    await applyAllMigrations(c);
     await c.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
     await c.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
   });

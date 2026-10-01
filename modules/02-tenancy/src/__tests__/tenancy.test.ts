@@ -13,8 +13,7 @@
 import { describe, it, test, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 
 import { closePool, getPool } from "../pool.js";
@@ -37,18 +36,6 @@ let tenantB: string;
 
 // Middleware hooks instance (created once, reused).
 let hooks: TenantContextHooks;
-
-// Absolute path to the migrations directory.
-// import.meta.url = file:///E:/code/.../src/__tests__/tenancy.test.ts
-// new URL(".", ...).pathname = /E:/code/.../src/__tests__/   (trailing slash)
-// On Windows the pathname has a leading slash before the drive letter; strip it.
-// With the trailing slash, two ".." steps reach the module root (02-tenancy/).
-const MIGRATIONS_DIR = join(
-  new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
-  "..",
-  "..",
-  "migrations",
-);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -107,16 +94,7 @@ beforeAll(async () => {
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
 
   // 2. Apply all migrations in lexical order using the superuser client.
-  const migrationFiles = (await readdir(MIGRATIONS_DIR))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
-  await withSuperClient(async (client) => {
-    for (const file of migrationFiles) {
-      const sql = await readFile(join(MIGRATIONS_DIR, file), "utf-8");
-      await client.query(sql);
-    }
-  });
+  await withSuperClient(applyAllMigrations);
 
   // 3. Point the module's singleton pool at the testcontainer.
   await setPoolForTesting(containerUrl);

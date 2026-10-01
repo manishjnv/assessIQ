@@ -131,7 +131,7 @@ describe("computeFixtureContent", () => {
       const fixturePath = join(FIXTURE_DIR, `${level}-sources.json`);
       let committed: string;
       try {
-        committed = await readFile(fixturePath, "utf8");
+        committed = (await readFile(fixturePath, "utf8")).replace(/\r\n/g, "\n"); // Windows autocrlf checkout
       } catch {
         // If fixture file is missing (shouldn't happen in repo), skip this sub-check
         continue;

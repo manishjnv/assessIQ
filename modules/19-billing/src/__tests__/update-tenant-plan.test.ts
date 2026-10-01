@@ -24,7 +24,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
-import { readdir, readFile } from 'node:fs/promises';
+import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
@@ -45,10 +45,6 @@ const THIS_DIR = toFsPath(new URL('.', import.meta.url));
 const BILLING_MODULE_ROOT = join(THIS_DIR, '..', '..');
 const MODULES_ROOT = join(BILLING_MODULE_ROOT, '..');
 
-const TENANCY_MIGRATIONS_DIR   = join(MODULES_ROOT, '02-tenancy', 'migrations');
-const USERS_MIGRATIONS_DIR     = join(MODULES_ROOT, '03-users', 'migrations');
-const AUDIT_MIGRATIONS_DIR     = join(MODULES_ROOT, '14-audit-log', 'migrations');
-const BILLING_MIGRATIONS_DIR   = join(BILLING_MODULE_ROOT, 'migrations');
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -96,19 +92,6 @@ async function withSuperClient<T>(fn: (client: Client) => Promise<T>): Promise<T
   }
 }
 
-async function applyMigrationsFromDir(
-  client: Client,
-  dir: string,
-  only?: string[],
-): Promise<void> {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
-  const filtered = only !== undefined ? files.filter((f) => only.includes(f)) : files;
-  for (const f of filtered) {
-    const sql = await readFile(join(dir, f), 'utf8');
-    await client.query(sql);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
@@ -140,10 +123,7 @@ beforeAll(
 
     await withSuperClient(async (client) => {
       // Apply migrations in FK-safe order
-      await applyMigrationsFromDir(client, TENANCY_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, USERS_MIGRATIONS_DIR, ['020_users.sql']);
-      await applyMigrationsFromDir(client, AUDIT_MIGRATIONS_DIR);
-      await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, ['0078_tenant_plans.sql']);
+      await applyAllMigrations(client);
 
       // Seed test tenant
       await client.query(
@@ -154,8 +134,8 @@ beforeAll(
 
       // Seed actor user in the tenant
       await client.query(
-        `INSERT INTO users (id, tenant_id, email, role)
-         VALUES ($1, $2, $3, 'admin')`,
+        `INSERT INTO users (id, tenant_id, email, name, role)
+         VALUES ($1, $2, $3, 'Test User', 'admin')`,
         [ACTOR_USER_ID, TENANT_ID, `super-admin-${randomUUID().slice(0, 6)}@test.com`],
       );
 

@@ -23,7 +23,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -56,20 +57,12 @@ function toFsPath(url: URL): string {
 
 const THIS_DIR = toFsPath(new URL(".", import.meta.url));
 const AL_MODULE_ROOT = join(THIS_DIR, "..", "..");
-const MODULES_ROOT = join(AL_MODULE_ROOT, "..");
 
-const TENANCY_DIR = join(MODULES_ROOT, "02-tenancy", "migrations");
-const USERS_DIR = join(MODULES_ROOT, "03-users", "migrations");
-const AUDIT_DIR = join(MODULES_ROOT, "14-audit-log", "migrations");
-const QB_DIR = join(MODULES_ROOT, "04-question-bank", "migrations");
-const AL_DIR = join(AL_MODULE_ROOT, "migrations");
 // publishAssessment / reopenAssessment call assertPublishEntitled which queries
 // tenant_plans. Without this the audit suite throws "relation \"tenant_plans\"
 // does not exist" on every publish-path test.
-const BILLING_DIR = join(MODULES_ROOT, "19-billing", "migrations");
 // inviteUsers writes to email_log via the 13-notifications shim; apply
 // 0055_email_log.sql so the table exists in the test container.
-const NOTIFICATIONS_DIR = join(MODULES_ROOT, "13-notifications", "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -230,79 +223,8 @@ beforeAll(async () => {
 
   containerUrl = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_al_audit_test`;
 
-  const [tenancyFiles, usersFiles, auditFiles, qbFiles, alFiles, billingFiles, notificationsFiles] = await Promise.all([
-    readdir(TENANCY_DIR),
-    readdir(USERS_DIR),
-    readdir(AUDIT_DIR),
-    readdir(QB_DIR),
-    readdir(AL_DIR),
-    readdir(BILLING_DIR),
-    readdir(NOTIFICATIONS_DIR),
-  ]);
-
-  const tenancySorted = tenancyFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: TENANCY_DIR, file: f }));
-  const usersSorted = usersFiles
-    .filter((f) => f.endsWith(".sql") && f.startsWith("020_"))
-    .sort()
-    .map((f) => ({ dir: USERS_DIR, file: f }));
-  const auditSorted = auditFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: AUDIT_DIR, file: f }));
-  const qbSorted = qbFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: QB_DIR, file: f }));
-  const alSorted = alFiles
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => ({ dir: AL_DIR, file: f }));
-
-  // Only the schema-creating billing migrations; 0079 requires the attempts
-  // table (not in this test set), 0080/0082 are backfills, 0090 is a noop UPDATE.
-  const billingSorted = billingFiles
-    .filter((f) => f.endsWith(".sql") && (f === "0078_tenant_plans.sql" || f === "0081_tenant_entitlements.sql"))
-    .sort()
-    .map((f) => ({ dir: BILLING_DIR, file: f }));
-  // Only 0055_email_log.sql - inviteUsers writes to email_log via the 13-notifications shim.
-  const notificationsSorted = notificationsFiles
-    .filter((f) => f.endsWith(".sql") && f === "0055_email_log.sql")
-    .sort()
-    .map((f) => ({ dir: NOTIFICATIONS_DIR, file: f }));
-
   await withSuperClient(async (client) => {
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN
-          CREATE ROLE assessiq_app;
-        END IF;
-      END $$;
-    `);
-    await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN
-          CREATE ROLE assessiq_system BYPASSRLS;
-        END IF;
-      END $$;
-    `);
-    await client.query(`GRANT assessiq_app TO test`);
-    await client.query(`GRANT assessiq_system TO test`);
-
-    for (const { dir, file } of [
-      ...tenancySorted,
-      ...usersSorted,
-      ...auditSorted,
-      ...qbSorted,
-      ...alSorted,
-      ...billingSorted,
-      ...notificationsSorted,
-    ]) {
-      const sql = await readFile(join(dir, file), "utf-8");
-      await client.query(sql);
-    }
+    await applyAllMigrations(client);
 
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);
     await client.query(`GRANT SELECT, INSERT ON audit_log TO assessiq_app`);
@@ -380,8 +302,9 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     expect(row!.actor_user_id).toBe(adminA);
     const before = row!.before as Record<string, unknown>;
     const after = row!.after as Record<string, unknown>;
-    expect(before.name).toBe("Audit Update Pre");
-    expect(after.name).toBe("Audit Update Post");
+    // `name` is redacted by audit() (redact.ts PII patterns)
+    expect(before.name).toBe("[REDACTED]");
+    expect(after.name).toBe("[REDACTED]");
     expect(after.question_count).toBe(2);
     expect(after.changed_fields).toEqual(
       expect.arrayContaining(["name", "questionCount"]),

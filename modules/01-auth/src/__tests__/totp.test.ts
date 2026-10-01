@@ -18,8 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { randomUUID } from "node:crypto";
 import { authenticator as _authenticatorBase } from "@otplib/preset-default";
 import { HashAlgorithms, KeyEncodings } from "@otplib/core";
@@ -43,21 +42,6 @@ const AUTH_OPTS: Partial<AuthenticatorOptions<string>> = {
   window: 1,
 };
 const authenticator = _authenticatorBase.clone(AUTH_OPTS);
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR         = toFsPath(new URL(".", import.meta.url));
-const AUTH_MODULE_ROOT = join(THIS_DIR, "..", "..");             // modules/01-auth/
-const MODULES_ROOT     = join(AUTH_MODULE_ROOT, "..");           // modules/
-
-const TENANCY_MIGRATIONS = join(MODULES_ROOT, "02-tenancy", "migrations");
-const AUTH_MIGRATIONS    = join(AUTH_MODULE_ROOT, "migrations");
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -115,42 +99,8 @@ beforeAll(async () => {
   pgUrl    = `postgres://test:test@${pgContainer.getHost()}:${pgContainer.getMappedPort(5432)}/aiq_test`;
   redisUrl = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
-  // 2. Apply tenancy migrations + stub users table + all auth migrations.
-  const tenancyFiles = (await readdir(TENANCY_MIGRATIONS))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
-  const authFiles = (await readdir(AUTH_MIGRATIONS))
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-
-  await withSuperClient(async (client) => {
-    // 02-tenancy migrations (tenants, RLS helpers, tenants RLS).
-    for (const file of tenancyFiles) {
-      const sql = await readFile(join(TENANCY_MIGRATIONS, file), "utf-8");
-      await client.query(sql);
-    }
-
-    // Minimal users stub — 03-users ships in Window 5.
-    // FK target for user_credentials.user_id and totp_recovery_codes.user_id.
-    await client.query(`
-      CREATE TABLE users (
-        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id  UUID NOT NULL REFERENCES tenants(id),
-        email      TEXT NOT NULL,
-        name       TEXT NOT NULL DEFAULT 'test',
-        role       TEXT NOT NULL DEFAULT 'admin',
-        status     TEXT NOT NULL DEFAULT 'active',
-        deleted_at TIMESTAMPTZ
-      )
-    `);
-
-    // 01-auth migrations (010–015, lexical).
-    for (const file of authFiles) {
-      const sql = await readFile(join(AUTH_MIGRATIONS, file), "utf-8");
-      await client.query(sql);
-    }
-  });
+  // 2. Apply every module migration (shared helper).
+  await withSuperClient((client) => applyAllMigrations(client));
 
   // 3. Point module singletons at the containers.
   await setPoolForTesting(pgUrl);
@@ -170,7 +120,7 @@ beforeAll(async () => {
       [tenantId],
     );
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [userId, tenantId, "admin@example.com", "Admin"],
     );
   });
@@ -211,7 +161,7 @@ it("enrollStart returns an otpauth URI with algorithm=SHA1 and issuer=AssessIQ",
   const testUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [testUserId, tenantId, "enroll-test@example.com", "Enroll Test"],
     );
   });
@@ -242,7 +192,7 @@ it("enrollStart stages an envelope in Redis at aiq:totp:enroll:<userId>; TTL ≤
   const testUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [testUserId, tenantId, "enroll-redis@example.com", "Enroll Redis"],
     );
   });
@@ -263,7 +213,7 @@ it("enrollConfirm with correct code persists totp_secret_enc, sets totp_enrolled
   const testUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [testUserId, tenantId, "enroll-confirm@example.com", "Enroll Confirm"],
     );
   });
@@ -303,7 +253,7 @@ it("enrollConfirm with wrong code throws ValidationError; staging key still pres
   const testUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [testUserId, tenantId, "enroll-bad@example.com", "Enroll Bad"],
     );
   });
@@ -436,7 +386,7 @@ it("5 failed verify calls set aiq:auth:lockedout:<userId>; 6th call throws Authn
   const lockUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [lockUserId, tenantId, "lockout@example.com", "Lockout User"],
     );
   });
@@ -472,7 +422,7 @@ it("consumeRecovery with a valid code marks used_at; second use returns false", 
   const rcUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [rcUserId, tenantId, "recovery@example.com", "Recovery User"],
     );
   });
@@ -508,7 +458,7 @@ it("consumeRecovery with an invalid code returns false, does not throw", async (
   const rcUserId2 = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [rcUserId2, tenantId, "recovery2@example.com", "Recovery User 2"],
     );
   });
@@ -530,7 +480,7 @@ it("regenerateRecoveryCodes deletes all old rows and inserts 10 fresh", async ()
   const regenUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [regenUserId, tenantId, "regen@example.com", "Regen User"],
     );
   });
@@ -566,7 +516,7 @@ it("every char of every generated recovery code is in 0123456789ABCDEFGHJKMNPQRS
   const charsetUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [charsetUserId, tenantId, "charset@example.com", "Charset User"],
     );
   });
@@ -592,7 +542,7 @@ it("getEnrollmentStatus returns enrolled:false for user with no user_credentials
   const noCredUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [noCredUserId, tenantId, "nocred@example.com", "No Cred User"],
     );
   });
@@ -609,7 +559,7 @@ it("getEnrollmentStatus returns enrolled:true after enrollConfirm", async () => 
   const esUserId = randomUUID();
   await withSuperClient(async (client) => {
     await client.query(
-      `INSERT INTO users (id, tenant_id, email, name) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, $4, 'admin')`,
       [esUserId, tenantId, "esstatus@example.com", "ES Status User"],
     );
   });
