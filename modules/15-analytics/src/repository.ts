@@ -67,7 +67,9 @@ export async function queryHomeKpis(client: PoolClient, tenantId: string): Promi
     `SELECT ROUND(AVG(ats.auto_pct)::numeric, 2)::text AS avg_pct
      FROM attempt_scores ats
      JOIN attempts a ON a.id = ats.attempt_id
-     WHERE a.created_at >= now() - interval '7 days'`,
+     WHERE a.created_at >= now() - interval '7 days'
+       -- only results released to the tenant (same rule as 09 TENANT_VISIBLE_ATTEMPT_SQL)
+       AND (a.status = 'released' OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))`,
   );
   const avgPctThisWeek = avgResult.rows[0]?.avg_pct != null
     ? parseFloat(avgResult.rows[0].avg_pct)
@@ -214,6 +216,8 @@ export async function queryCohortReport(
      JOIN questions q ON q.id = aq.question_id
      JOIN gradings g ON g.attempt_id = a.id AND g.question_id = aq.question_id
      WHERE asm.id = $1
+       -- only results released to the tenant (same rule as 09 TENANT_VISIBLE_ATTEMPT_SQL)
+       AND (a.status = 'released' OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))
      GROUP BY q.topic
      ORDER BY q.topic`,
     [assessmentId],
@@ -284,6 +288,7 @@ export async function queryIndividualReport(
             total_max, auto_pct, archetype, computed_at
      FROM attempt_summary_mv
      WHERE ${conditions.join(' AND ')}
+       AND auto_pct IS NOT NULL -- NULL = not released to the tenant yet (0122)
      ORDER BY computed_at DESC`,
     params,
   );
@@ -528,6 +533,7 @@ export async function queryAdminCohortReport(
      FROM attempt_summary_mv
      WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
        AND assessment_id = $1
+       AND auto_pct IS NOT NULL -- NULL = not released to the tenant yet (0122)
        ${archetypeClause}
      ORDER BY auto_pct DESC
      LIMIT ${COHORT_ATTEMPTS_HARD_LIMIT}`,

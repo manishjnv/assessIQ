@@ -329,8 +329,9 @@ async function seedFixtures(): Promise<TestFixture> {
     // attemptGraded: graded status, submitted today, assessmentA (soc), candidateB
     const gradedSubmittedAt = new Date();
     await client.query(
-      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
-       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600)`,
+      // evaluation_released_at set: released to the tenant, so its score is visible (0122)
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds, evaluation_released_at)
+       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600,now())`,
       [attemptGraded, tenantA, assessmentA, candidateB,
         new Date(gradedSubmittedAt.getTime() - 600_000),
         gradedSubmittedAt,
@@ -461,6 +462,14 @@ describe('cohortReport', () => {
     if (report.attemptCount > 0) {
       expect(report.averagePct).not.toBeNull();
     }
+  });
+
+  it('hides scores of results not released to the tenant (0122)', async () => {
+    // assessmentA: attemptA1 submitted 100% (not released → hidden),
+    // attemptGraded 75% (released to the tenant). Both still count as attempts.
+    const report = await cohortReport(F.tenantA, F.assessmentA);
+    expect(report.averagePct).toBeCloseTo(75, 0);
+    expect(report.p90).toBeCloseTo(75, 0);
   });
 
   it('cross-tenant isolation: cohortReport for tenant B assessment returns 0', async () => {

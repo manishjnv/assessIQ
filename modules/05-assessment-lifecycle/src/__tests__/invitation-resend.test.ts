@@ -190,7 +190,7 @@ beforeAll(async () => {
     await applyDir(client, join(MODULES_ROOT, "04-question-bank", "migrations"));
     await applyDir(client, join(AL_MODULE_ROOT, "migrations")); // includes 0117_invitation_last_resent_at
     await applyDir(client, join(MODULES_ROOT, "19-billing", "migrations"), (f) => f === "0078_tenant_plans.sql" || f === "0081_tenant_entitlements.sql");
-    await applyDir(client, join(MODULES_ROOT, "06-attempt-engine", "migrations"), (f) => f === "0030_attempts.sql");
+    await applyDir(client, join(MODULES_ROOT, "06-attempt-engine", "migrations"), (f) => f === "0030_attempts.sql" || f === "0113_attempts_evaluation_release.sql");
     await applyDir(client, join(MODULES_ROOT, "09-scoring", "migrations"), (f) => f === "0050_attempt_scores.sql");
 
     await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO assessiq_app`);

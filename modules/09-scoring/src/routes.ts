@@ -18,8 +18,7 @@ import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
 import { ValidationError } from "@assessiq/core";
 import {
-  computeAttemptScore,
-  getAttemptScoreRow,
+  getTenantVisibleAttemptScore,
   cohortStats,
   leaderboard,
   individualReport,
@@ -63,6 +62,7 @@ export async function registerScoringRoutes(
 
   // GET /api/admin/attempts/:id/score
   // Returns the current score row (computes on demand if not yet present).
+  // score: null while the result is not released to the tenant.
   app.get(
     "/api/admin/attempts/:id/score",
     { preHandler },
@@ -71,11 +71,7 @@ export async function registerScoringRoutes(
         .tenantId;
       const attemptId = (req.params as { id: string }).id;
 
-      // Try cached row first; if absent, compute on demand.
-      let score = await getAttemptScoreRow(tenantId, attemptId);
-      if (score === null) {
-        score = await computeAttemptScore(tenantId, attemptId);
-      }
+      const score = await getTenantVisibleAttemptScore(tenantId, attemptId);
 
       return reply.code(200).send({ score });
     },

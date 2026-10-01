@@ -35,6 +35,7 @@ import {
   computeAttemptScore,
   recomputeOnOverride,
   getAttemptScoreRow,
+  getTenantVisibleAttemptScore,
   cohortStats,
   leaderboard,
   individualReport,
@@ -256,8 +257,8 @@ async function seedAssessmentChain(
       [ids.candidateId, tenantId],
     );
     await client.query(
-      `INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status,started_at,duration_seconds)
-       VALUES ($1,$2,$3,$4,'graded',now() - interval '60 minutes',3600)`,
+      `INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status,started_at,duration_seconds,evaluation_released_at)
+       VALUES ($1,$2,$3,$4,'graded',now() - interval '60 minutes',3600,now())`,
       [ids.attemptId, tenantId, ids.assessmentId, ids.candidateId],
     );
     // Freeze the question in attempt_questions
@@ -749,6 +750,22 @@ describe("09-scoring", () => {
   // -------------------------------------------------------------------------
 
   describe("cohortStats", () => {
+    it("hides attempts whose result is not released to the tenant", async () => {
+      const chain = await seedAssessmentChain(tenantA, adminA);
+      await computeAttemptScore(tenantA, chain.attemptId);
+      await withSuperClient((c) =>
+        c.query(`UPDATE attempts SET evaluation_released_at = NULL WHERE id = $1`, [chain.attemptId]),
+      );
+      expect((await cohortStats(tenantA, chain.assessmentId)).attempt_count).toBe(0);
+      expect(await leaderboard(tenantA, chain.assessmentId)).toHaveLength(0);
+      expect(await getTenantVisibleAttemptScore(tenantA, chain.attemptId)).toBeNull();
+      await withSuperClient((c) =>
+        c.query(`UPDATE attempts SET evaluation_released_at = now() WHERE id = $1`, [chain.attemptId]),
+      );
+      expect((await cohortStats(tenantA, chain.assessmentId)).attempt_count).toBe(1);
+      expect(await getTenantVisibleAttemptScore(tenantA, chain.attemptId)).not.toBeNull();
+    });
+
     it("returns attempt_count=0 and null percentiles for empty assessment", async () => {
       const chain = await seedAssessmentChain(tenantA, adminA);
       const stats = await cohortStats(tenantA, chain.assessmentId);
@@ -803,8 +820,8 @@ describe("09-scoring", () => {
             [candidateId, tenantA, `c${score}@test.com`],
           );
           await client.query(
-            `INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status,started_at,duration_seconds)
-             VALUES ($1,$2,$3,$4,'graded',now(),3600)`,
+            `INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status,started_at,duration_seconds,evaluation_released_at)
+             VALUES ($1,$2,$3,$4,'graded',now(),3600,now())`,
             [attemptId, tenantA, assessmentId, candidateId],
           );
           await client.query(
@@ -869,7 +886,7 @@ describe("09-scoring", () => {
             [candidateId, tenantA, `lb${pct}@test.com`],
           );
           await client.query(
-            `INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status) VALUES ($1,$2,$3,$4,'graded')`,
+            `INSERT INTO attempts (id,tenant_id,assessment_id,user_id,status,evaluation_released_at) VALUES ($1,$2,$3,$4,'graded',now())`,
             [attemptId, tenantA, assessmentId, candidateId],
           );
           await client.query(

@@ -337,8 +337,9 @@ async function seedFixtures(): Promise<ActivityFixture> {
     // --- Attempts (Tenant A) ---
     // attemptA1: assessmentA1 + candidateA1, today, status=graded
     await client.query(
-      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds)
-       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600)`,
+      // evaluation_released_at set: released to the tenant, so its score is visible (0122)
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, submitted_at, ends_at, duration_seconds, evaluation_released_at)
+       VALUES ($1,$2,$3,$4,'graded',$5,$6,$7,3600,now())`,
       [attemptA1, tenantA, assessmentA1, candidateA1, a1dates.startedAt, now, a1dates.endsAt],
     );
     // attemptA2: assessmentA2 + candidateA2, today, status=submitted
@@ -729,8 +730,10 @@ describe('activity endpoints', () => {
       // 2 distinct candidates with scored attempts: candidateA1, candidateA2
       expect(stats.activeCandidates.total).toBe(2);
 
-      // avgScore across 4 scored attempts: (80+60+70+90)/4 = 75
-      expect(stats.avgScore.total).toBeCloseTo(75, 0);
+      // avgScore over results released to the tenant only (0122): A1 80 (graded +
+      // released to tenant) and B1 90 (released). A2 (submitted) and A3 (graded,
+      // not released to tenant) are hidden → (80+90)/2 = 85
+      expect(stats.avgScore.total).toBeCloseTo(85, 0);
 
       // avgScore breakdown always has all 4 quartile keys
       const scoreKeys = stats.avgScore.breakdown.map((b) => b.key);
