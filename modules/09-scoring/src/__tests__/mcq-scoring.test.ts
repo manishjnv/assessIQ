@@ -23,7 +23,8 @@ const DIRS: Array<[string, string[] | undefined]> = [
   ["04-question-bank", undefined],
   ["05-assessment-lifecycle", undefined],
   ["06-attempt-engine", undefined],
-  ["07-ai-grading", ["0040_gradings.sql", "0041_tenant_grading_budgets.sql"]],
+  // 0100: finalizeAttemptIfComplete clears the review-cache columns (ai_proposals, grading_started_at)
+  ["07-ai-grading", ["0040_gradings.sql", "0041_tenant_grading_budgets.sql", "0100_attempts_ai_proposals_cache.sql"]],
   ["09-scoring", undefined],
   ["19-billing", undefined],
 ];

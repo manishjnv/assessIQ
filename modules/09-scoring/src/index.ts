@@ -57,3 +57,10 @@ export {
   isMcqAnswerCorrect,
   MCQ_SENTINEL_SHA,
 } from "./mcq.js";
+
+// One shared finalize (SP1): the single definition of "complete" and the only
+// place (besides tests) that flips an attempt to 'graded' and bills it.
+export {
+  finalizeAttemptIfComplete,
+  type FinalizeAttemptInput,
+} from "./finalize.js";
