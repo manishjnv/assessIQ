@@ -10,6 +10,7 @@
 **Next:** Owner: eval run, compare, bless in the api container (check `case_count` 151), then `AI_EVAL_GATE=enforce` and recreate api. Claude: N10 argon2/storybook 10, E10 stale docs, D4 runbook.
 **Open questions:** (1) Browser check of candidate pages under React 19 on an older Chrome and of Edit sections hidden on a published test. (2) When to run the long eval (about 151 cases on the Max login).
 **Feature doc:** `docs/plans/PILOT_BATCH_7.md`. Deploy: `docs/06-deployment.md` § Batch 7 deploy. RCA: 3 entries 2026-10-02.
+**Coordination (parallel session):** a separate plan `docs/plans/BATCH_7_PROMPT.md` (local, untracked) also says "Batch 7" — different work. Already done here, drop from it: **N7** (all Dependabot majors except argon2 0.45 / storybook 10 / astro-og-canvas / canvaskit-wasm → N10; PRs not closed by hand — Dependabot auto-closes) and **N9**. Still open for it: F1, F3, F4, F5, E10, D4, E8, SP7, E9. Suggest that session call its work "batch 8".
 
 ---
 
