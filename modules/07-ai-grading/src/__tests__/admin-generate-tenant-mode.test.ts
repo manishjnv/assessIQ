@@ -380,6 +380,14 @@ describe("handleAdminGenerate — shared generation plan (RV64 / RV62)", () => {
           existingTopics: ["existing topic"],
         });
         expect(result.generated).toBe(0);
+        const dropped = await withTenant(TENANT_ID, async (client) => {
+          const r = await client.query(
+            `SELECT dedupe_dropped FROM generation_attempts WHERE pack_id = $1 AND level_id = $2`,
+            [packId, levelId],
+          );
+          return (r.rows[0] as { dedupe_dropped: number }).dedupe_dropped;
+        });
+        expect(dropped).toBe(1);
       } finally {
         await setTenantGenerateMode(TENANT_ID, null);
       }

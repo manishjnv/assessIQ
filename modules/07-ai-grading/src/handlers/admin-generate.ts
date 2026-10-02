@@ -481,13 +481,21 @@ async function runGenerationPlan(
       const stderrEntry = typeof details?.stderrTail === "string" ? details.stderrTail : "(none)";
       stderrParts.push(`--- chunk: ${chunks[i]?.label ?? "unknown"} ---\n${stderrEntry}\n`);
       if (chunkEvents !== null) {
-        log.warn({ attemptId, err: (r.reason as Error).message }, chunkEvents.fail);
+        log.warn(
+          { attemptId, err: String((r.reason as Error | undefined)?.message ?? r.reason) },
+          chunkEvents.fail,
+        );
       }
     }
   }
   stats.chunksFailed = failed;
   stats.stderrTail = stderrParts.length === 0 ? null : stderrParts.join("").slice(-1024);
-  if (fulfilled.length === 0) throw firstError;
+  if (fulfilled.length === 0) {
+    throw (
+      firstError ??
+      new AppError("no generation chunks planned", AI_GRADING_ERROR_CODES.RUNTIME_FAILURE, 500)
+    );
+  }
 
   // Citation enforcement (mechanical; see filterByCitation).
   const validSourceIds = new Set(input.sources.map((s) => s.id));
@@ -552,7 +560,7 @@ async function runGenerationPlan(
   stats.difficultyDropped = difficultyDropped;
 
   // Skill sha(s) + model come from the runtime output, never hardcoded.
-  const skillSha = fulfilled.map((o) => o.skillSha).join(",").slice(0, 200);
+  const skillSha = [...new Set(fulfilled.map((o) => o.skillSha))].join(",").slice(0, 200);
   const model = fulfilled[0]!.model;
   const mergedOutput: GenerateQuestionsOutput = {
     questions: gated,
@@ -809,7 +817,7 @@ export async function handleAdminGenerate(
     if (attemptInserted) {
       const durationMs = Date.now() - generationStartedAt;
       if (capturedErr !== undefined) {
-        const ae = capturedErr as {
+        const ae = (capturedErr ?? {}) as {
           code?: string;
           message?: string;
           details?: Record<string, unknown>;

@@ -155,6 +155,12 @@ export function parseGenerateBody(raw: unknown): {
     typeof body?.topic_focus === "string" && body.topic_focus.trim().length > 0
       ? body.topic_focus.trim()
       : undefined;
+  // topic_focus reaches the AI prompt: cap length and reject control characters.
+  if (topicFocus !== undefined && (topicFocus.length > 200 || /[\u0000-\u001f\u007f]/.test(topicFocus))) {
+    throw new ValidationError("topic_focus must be at most 200 characters with no control characters", {
+      details: { code: "INVALID_PARAM", param: "topic_focus" },
+    });
+  }
 
   // Parse domain_id / category_id — optional UUID strings (Slice 2).
   // Invalid or missing -> undefined; do NOT throw (these are optional fields).
