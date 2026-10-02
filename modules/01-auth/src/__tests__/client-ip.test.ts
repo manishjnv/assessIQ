@@ -330,3 +330,38 @@ describe("constant-time comparison (no exception, correct verdict)", () => {
     expect(extractClientIp(r)).toBe("9.9.9.9"); // verified → cf
   });
 });
+
+// ---------------------------------------------------------------------------
+// § D5a — CF header must be a valid IP literal, and honoured only when verified
+// ---------------------------------------------------------------------------
+
+describe("cf-connecting-ip validity (D5a)", () => {
+  it("enforce + verified but junk cf value → ignored, falls back to req.ip", () => {
+    mockConfig.ORIGIN_TRUST_MODE = "enforce";
+    mockConfig.ORIGIN_VERIFY_SECRET = "s3cret";
+    const r = req({
+      headers: { "cf-connecting-ip": "1.1.1.1, 2.2.2.2", "x-origin-verify": "s3cret" },
+      ip: "172.18.0.9",
+    });
+    expect(extractClientIp(r)).toBe("172.18.0.9");
+  });
+
+  it("enforce + verified IPv6 cf value → used", () => {
+    mockConfig.ORIGIN_TRUST_MODE = "enforce";
+    mockConfig.ORIGIN_VERIFY_SECRET = "s3cret";
+    const r = req({ headers: { "cf-connecting-ip": "2001:db8::1", "x-origin-verify": "s3cret" } });
+    expect(extractClientIp(r)).toBe("2001:db8::1");
+  });
+
+  it("enforce + NO origin-verify header → spoofed cf ignored", () => {
+    mockConfig.ORIGIN_TRUST_MODE = "enforce";
+    mockConfig.ORIGIN_VERIFY_SECRET = "s3cret";
+    const r = req({ headers: { "cf-connecting-ip": "6.6.6.6" }, socket: { remoteAddress: "172.18.0.5" } });
+    expect(extractClientIp(r)).toBe("172.18.0.5");
+  });
+
+  it("off mode: junk cf value is ignored too (falls back to req.ip)", () => {
+    const r = req({ headers: { "cf-connecting-ip": "not-an-ip" }, ip: "9.9.9.9" });
+    expect(extractClientIp(r)).toBe("9.9.9.9");
+  });
+});

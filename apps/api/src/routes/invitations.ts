@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { config, ValidationError } from '@assessiq/core';
+import { config, RateLimitError, ValidationError } from '@assessiq/core';
+import { consumeRateLimit, extractClientIp, isRateLimited } from '@assessiq/auth';
 import { inviteUser, acceptInvitation } from '@assessiq/users';
 import { authChain } from '../middleware/auth-chain.js';
 
@@ -10,6 +11,8 @@ const adminOnly = authChain({ roles: ['admin'] });
 // Bound the schema tightly so brute-force attempts don't get to do hash work.
 const ACCEPT_TOKEN_MIN = 43;
 const ACCEPT_TOKEN_MAX = 64;
+// Failed redemptions per IP per minute before 429 (see accept route comment).
+export const INVITE_FAIL_MAX = 30;
 
 export async function registerInvitationRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/admin/invitations — admin only; sends invitation email via 13-notifications stub
@@ -59,10 +62,11 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
 
   // POST /api/invitations/accept — pre-auth; accepts an invitation token and mints a session.
   //
-  // FIXME(rate-limit): codex:rescue MEDIUM finding (2026-05-01). Wire a strict per-IP
-  // limiter once 01-auth Window 4's rate-limit middleware lands (3 attempts / 60s
-  // per IP — token entropy is 256 bits but the brute-force surface is still real
-  // operationally; a malicious link-shortener could amplify guessing rates).
+  // Per-IP brake on FAILED redemptions only (D5a/b, replaces the old FIXME).
+  // Tokens are 256-bit so guessing is infeasible; the brake bounds DB lookups and
+  // log noise from a scanner. Successful accepts are never counted, so a campus
+  // of 300 students behind one NAT IP is unaffected; an IP is blocked only after
+  // INVITE_FAIL_MAX unknown/expired/used tokens inside a minute. 429 scope=ip.
   app.post(
     '/api/invitations/accept',
     {
@@ -88,7 +92,21 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
         });
       }
 
-      const result = await acceptInvitation(body.token);
+      const ip = extractClientIp(req);
+      const failKey = `aiq:rl:inv-accept-fail:${ip}`;
+      if (await isRateLimited(failKey, INVITE_FAIL_MAX)) {
+        reply.header('Retry-After', '60');
+        throw new RateLimitError('rate limit exceeded for scope=ip', {
+          details: { retryAfterSeconds: 60, scope: 'ip' },
+        });
+      }
+      let result;
+      try {
+        result = await acceptInvitation(body.token);
+      } catch (err) {
+        await consumeRateLimit(failKey, INVITE_FAIL_MAX, 60);
+        throw err;
+      }
 
       // codex:rescue HIGH (2026-05-01): keep the bearer cookie-only.
       // Returning sessionToken in the JSON body would defeat the httpOnly boundary

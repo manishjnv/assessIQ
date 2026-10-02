@@ -834,6 +834,9 @@ importers:
       '@assessiq/audit-log':
         specifier: workspace:*
         version: link:../14-audit-log
+      '@assessiq/auth':
+        specifier: workspace:*
+        version: link:../01-auth
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core

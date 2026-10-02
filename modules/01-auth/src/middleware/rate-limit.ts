@@ -1,6 +1,6 @@
 import { config, RateLimitError } from "@assessiq/core";
 import { getRedis } from "../redis.js";
-import { isOriginVerified } from "../client-ip.js";
+import { isOriginVerified, validCfIp } from "../client-ip.js";
 import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 
 // Auth-tier-aware rate-limiting applied to ALL routes (not only /api/auth/*).
@@ -108,6 +108,18 @@ export async function consumeRateLimit(
   return { allowed: r.remaining >= 0, retryAfterSeconds: r.ttlSeconds };
 }
 
+/**
+ * Read-only check of a bucket consumeRateLimit() fills: true once `max` hits
+ * have been consumed in the current window. Lets a route throttle FAILURES only
+ * (check before work, consume on failure). ponytail: check-then-consume is not
+ * atomic, so concurrent failures may overshoot `max` slightly; fine for a
+ * brute-force brake.
+ */
+export async function isRateLimited(key: string, max: number): Promise<boolean> {
+  const n = Number(await getRedis().get(key));
+  return Number.isFinite(n) && n >= max;
+}
+
 // Extracts the client IP. Production uses CF-Connecting-IP (Caddy normalized).
 // In non-production, falls back to x-forwarded-for first hop for dev convenience —
 // fail-closed in production: missing CF header means "no client IP", not "use XFF".
@@ -124,8 +136,8 @@ function extractRateLimitClientIp(req: AuthRequest): string | null {
   if (config.ORIGIN_TRUST_MODE === "enforce" && !isOriginVerified(req)) {
     return null;
   }
-  const cf = req.headers["cf-connecting-ip"];
-  if (typeof cf === "string" && cf.length > 0) return cf;
+  const cf = validCfIp(req.headers["cf-connecting-ip"]);
+  if (cf !== undefined) return cf;
 
   if (config.NODE_ENV !== "production") {
     const xff = req.headers["x-forwarded-for"];

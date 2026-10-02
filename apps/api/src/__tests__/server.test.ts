@@ -66,6 +66,8 @@ vi.mock('@assessiq/auth', () => {
     requestIdMiddleware: passthrough(),
     extendOnPassMiddleware: (_name: string) => passthrough(),
     extractClientIp: () => 'test-ip',
+    isRateLimited: async () => false, // invitations/accept failure brake (D5b)
+    consumeRateLimit: async () => ({ allowed: true, retryAfterSeconds: 0 }),
     parseCookieHeader: () => ({}),
 
     sessions: {

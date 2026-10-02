@@ -86,6 +86,7 @@ export {
   parseCookieHeader,
   rateLimitMiddleware,
   consumeRateLimit,
+  isRateLimited,
   extractClientIp,
   sessionLoaderMiddleware,
   apiKeyAuthMiddleware,

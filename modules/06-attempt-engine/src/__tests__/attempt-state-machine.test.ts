@@ -327,6 +327,7 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, join(MODULES_ROOT, "09-scoring", "migrations"));
     await applyMigrationsFromDir(client, join(MODULES_ROOT, "20-data-rights", "migrations"), [
       "0101_consent_events.sql",
+      "0102_users_erased_at.sql", // 05 inviteUsers reads users.erased_at (E3)
     ]);
   });
 

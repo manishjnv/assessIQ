@@ -15,6 +15,7 @@
 // NEVER THROWS. All errors are caught; worst case returns req.ip or '0.0.0.0'.
 
 import { createHash, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 import type { IncomingHttpHeaders } from "node:http";
 import { config, streamLogger } from "@assessiq/core";
 
@@ -45,6 +46,17 @@ function headerStr(v: string | string[] | undefined): string | undefined {
   if (v === undefined) return undefined;
   if (Array.isArray(v)) return v[0];
   return v;
+}
+
+/**
+ * CF-Connecting-IP value, only if it is a syntactically valid IP literal.
+ * Cloudflare always sends one; anything else (junk, comma lists, oversized
+ * strings an origin-bypasser could inject in off/log mode) must not become a
+ * rate-limit / session-bind / audit key.
+ */
+export function validCfIp(v: string | string[] | undefined): string | undefined {
+  const s = headerStr(v)?.trim();
+  return s !== undefined && isIP(s) !== 0 ? s : undefined;
 }
 
 /**
@@ -116,7 +128,7 @@ export function isOriginVerified(req: ClientIpRequest): boolean {
 export function extractClientIp(req: ClientIpRequest): string {
   try {
     const mode = config.ORIGIN_TRUST_MODE;
-    const cf = headerStr(req.headers["cf-connecting-ip"]);
+    const cf = validCfIp(req.headers["cf-connecting-ip"]);
 
     if (mode === "off") {
       // Byte-identical to the old inline expression:

@@ -11,7 +11,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any
 //   AI SDK. data-rights is not part of the AI pipeline (CLAUDE.md rule #1).
 
-import { NotFoundError } from '@assessiq/core';
+import { AppError, NotFoundError } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import type { PoolClient } from 'pg';
 import type { DataExportBundle } from './types.js';
@@ -54,6 +54,11 @@ export async function exportCandidateData(
       throw new NotFoundError('user not found', {
         details: { code: 'USER_NOT_FOUND', userId },
       });
+    }
+
+    // E3: an erased candidate holds only tombstone values — nothing to export.
+    if (profile.erasedAt !== null) {
+      throw new AppError('candidate data has been erased', 'CANDIDATE_ERASED', 409);
     }
 
     // ── Attempts (with scores via LEFT JOIN) ─────────────────────────────────

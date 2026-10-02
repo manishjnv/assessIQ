@@ -442,3 +442,7 @@ Fonts: `Newsreader, Georgia, 'Times New Roman', serif` (headlines) /
 
 2. ~~**Verify page public lookup DB strategy**~~ — Resolved in Session 3 as Option 3
    (public-tenant GUC policy: `SET LOCAL ROLE assessiq_system`). See `SKILL.md D7`.
+
+## Erased candidates (E3, 2026-10-02)
+
+`reissue` throws 409 `CANDIDATE_ERASED` (never re-write the name on an erased candidate's certificate); `issueCertificateOnRelease` returns null for an erased candidate. Revoke stays allowed. Public verify routes now take the client IP from `extractClientIp` (adds the `@assessiq/auth` dependency).

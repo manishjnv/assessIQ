@@ -213,3 +213,7 @@ Tests:
 - **Why a parallel structure and not the blueprint**: blueprint is single-domain `(category, type, count)` criteria with no time or ordering dimension and is super-admin-only; sections need a name, a deadline and a calculator flag per group and must work for the licensed-set (from-set) path that company admins use. Reusing blueprint would have forced a time model into it and coupled the two features.
 - **`minutes` is required** (the contract listed it optional): a section without its own deadline would need a second timing mode.
 - **Not validated**: `category_ids` are not checked for tenant ownership (they only filter the tenant's RLS-scoped pool; a foreign id matches nothing and fails the start with `POOL_TOO_SMALL`). Runtime behaviour lives in 06.
+
+## Erased candidates (E3, 2026-10-02)
+
+`resendInvitation` (and bulk resend, as a per-row skip) throws 409 `CANDIDATE_ERASED`; `inviteUsers` skips an erased user with reason `CANDIDATE_ERASED` (never a new token or email). Source: `users.erased_at` via `findUserForInvitation().erased`. Test DBs that call these need migration `20-data-rights/0102_users_erased_at.sql`.
