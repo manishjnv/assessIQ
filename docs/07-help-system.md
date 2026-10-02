@@ -299,3 +299,15 @@ Integrity audit performed 2026-05-14 against all 94 keys. Fixed in one pass:
 **Key form.** `AdminShell helpPage` mounts `HelpProvider page=...`. The API returns the keys `LIKE '<page>.%'`. The (?) button in the header opens the drawer at the key `<page>.page`. A page id uses only `[a-z0-9_]` in each segment.
 
 **Open (task N20).** Some help ids on a page are outside the prefix of that page, so their text cannot load: `admin.settings.company_name` and `admin.settings.result_release_mode` (in `tenant-settings.tsx`; pages `admin.settings.billing` and `admin.tenant_settings`), and `admin.question.content.*` and `admin.question.ordering.*` on the question editor (page `admin.question.editor`). Fix: rename the ids or add keys under the page prefix. The lint RV71 would catch this class.
+
+## N20: help ids under the page prefix (2026-10-03)
+
+An element help id (`data-help-id` or `HelpTip helpId`) must start with the `helpPage` id of its page. The API returns only keys `LIKE '<page>.%'`, so other ids never get text. Eight keys were renamed (text unchanged, migration `0149_rename_help_ids_page_prefix.sql`, idempotent for production and fresh databases). Each key is used by one page only, so none was copied.
+
+- `admin.settings.company_name` -> `admin.tenant_settings.company_name`
+- `admin.settings.result_release_mode` -> `admin.tenant_settings.result_release_mode`
+- `admin.question.content.{numeric,multi_select,ordering}` -> `admin.question.editor.content.*`
+- `admin.question.ordering.{items,scoring}` -> `admin.question.editor.ordering.*`
+- `admin.questions.type.subjective.rubric` -> `admin.question.editor.subjective.rubric`
+
+Guard: `modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts` scans admin pages. It lists 32 more violations in its ALLOWLIST with reason "N20 follow-up". Fix them by rename (single page) or copy (shared key), then remove the entry.

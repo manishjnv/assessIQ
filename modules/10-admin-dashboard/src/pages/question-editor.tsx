@@ -31,7 +31,7 @@ const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
   kql: { question: "", tables: [""], expected_keywords: [""] },
   scenario: { title: "", intro: "", steps: [], step_dependency: "linear" },
   log_analysis: { question: "", log_excerpt: "", log_format: "syslog", expected_findings: [""] },
-  // Deterministic types: scored automatically, no AI. See help ids admin.question.content.*
+  // Deterministic types: scored automatically, no AI. See help ids admin.question.editor.content.*
   numeric: { question: "", answer: 0, tolerance: 0 },
   multi_select: { question: "", options: ["", "", "", ""], correct: [0], scoring: "all_or_nothing" },
   // Authored via the structured items editor (CreateQuestionForm); correct_order = identity on save.
@@ -391,7 +391,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
 
         {type === "ordering" ? (
           <div className="aiq-form-group" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
-            <HelpTip helpId="admin.question.content.ordering">
+            <HelpTip helpId="admin.question.editor.content.ordering">
               <label className="aiq-label" htmlFor="q-ord-question">Question *</label>
             </HelpTip>
             <textarea
@@ -401,7 +401,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
               value={ordQuestion}
               onChange={(e) => setOrdQuestion(e.target.value)}
             />
-            <HelpTip helpId="admin.question.ordering.items">
+            <HelpTip helpId="admin.question.editor.ordering.items">
               <span className="aiq-label">Items, in the CORRECT order (2 to 10) *</span>
             </HelpTip>
             {ordItems.map((text, i) => (
@@ -423,7 +423,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
             <div>
               <button type="button" className="aiq-btn aiq-btn-ghost" disabled={ordItems.length >= 10} onClick={() => setOrdItems([...ordItems, ""])}>Add item</button>
             </div>
-            <HelpTip helpId="admin.question.ordering.scoring">
+            <HelpTip helpId="admin.question.editor.ordering.scoring">
               <label className="aiq-label" htmlFor="q-ord-scoring">Scoring</label>
             </HelpTip>
             <select id="q-ord-scoring" className="aiq-input" value={ordScoring} onChange={(e) => setOrdScoring(e.target.value as "all_or_nothing" | "partial")}>
@@ -434,7 +434,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
         ) : (
         <div className="aiq-form-group">
           {type === "numeric" || type === "multi_select" ? (
-            <HelpTip helpId={`admin.question.content.${type}`}>
+            <HelpTip helpId={`admin.question.editor.content.${type}`}>
               <label className="aiq-label" htmlFor="q-content">Content (JSON) *</label>
             </HelpTip>
           ) : (
@@ -874,7 +874,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
         {/* Rubric section */}
         <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
           <h2
-            {...(question.type === "subjective" ? { "data-help-id": "admin.questions.type.subjective.rubric" } : {})}
+            {...(question.type === "subjective" ? { "data-help-id": "admin.question.editor.subjective.rubric" } : {})}
             style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: "0 0 var(--aiq-space-lg)" }}
           >
             Rubric

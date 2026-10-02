@@ -597,7 +597,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
         )}
 
         {/* ── Company name section ────────────────────────────────────────── */}
-        <section aria-labelledby="company-name-heading" data-help-id="admin.settings.company_name">
+        <section aria-labelledby="company-name-heading" data-help-id="admin.tenant_settings.company_name">
           <div
             style={{
               paddingBottom: 16,
@@ -699,7 +699,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
         </section>
 
         {/* ── Result release section ──────────────────────────────────────── */}
-        <section aria-labelledby="result-release-heading" data-help-id="admin.settings.result_release_mode">
+        <section aria-labelledby="result-release-heading" data-help-id="admin.tenant_settings.result_release_mode">
           <div
             style={{
               paddingBottom: 16,

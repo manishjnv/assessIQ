@@ -51,7 +51,7 @@ Every PATCH to `questions` snapshots the previous content into `question_version
 
 ## Help/tooltip surface
 - `admin.packs.create.domain` — naming conventions, when to create a new pack vs new level
-- `admin.questions.type.subjective.rubric` — how anchors and reasoning bands work
+- `admin.question.editor.subjective.rubric` — how anchors and reasoning bands work
 - `admin.questions.type.kql.expected_keywords` — pattern matching limits, escape characters
 - `admin.questions.type.scenario.step_dependency` — linear vs parallel; what fails downstream
 - `admin.questions.import.format` — JSON/CSV schema with examples
