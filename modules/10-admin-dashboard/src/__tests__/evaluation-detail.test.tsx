@@ -279,7 +279,7 @@ describe("AdminEvaluationDetail", () => {
     // ... with a way back to the queue
     fireEvent.click(screen.getByRole("button", { name: "Back to the queue" }));
     await screen.findByTestId("queue-page");
-  });
+  }, 15_000); // ponytail: ~1.7 s alone, >5 s under parallel load (batch 8); raise, do not split
 
   it("E2 Release to company is disabled until the attempt is complete", async () => {
     makeServer();

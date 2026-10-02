@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- CLI script: console output is the interface */
 // Generates src/data/page-dates.json from git history (git is absent at Docker build time,
 // so the JSON is committed). Re-run and commit whenever a marketing page changes.
 import { execFileSync } from 'node:child_process';
