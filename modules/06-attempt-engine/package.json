@@ -17,7 +17,7 @@
     "@assessiq/question-bank": "workspace:*",
     "@assessiq/scoring": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
-    "fastify": "^5.0.0",
+    "fastify": "^5.12.5",
     "zod": "^3.23.8"
   }
 }
