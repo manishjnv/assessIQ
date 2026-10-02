@@ -3,7 +3,7 @@
 > See `docs/05-ai-pipeline.md` for the full design. This is the implementation orientation.
 
 ## Purpose
-Grade subjective and scenario answers using a multi-stage cascade across Claude Haiku → Sonnet → Opus. Provide deterministic grading for MCQ. Pattern-match KQL. Produce a *proposal* the admin reviews and accepts before it becomes a real `gradings` row.
+Grade subjective and scenario answers using a multi-stage cascade across Claude Haiku → Sonnet → Opus. Provide deterministic grading for MCQ. KQL answers are not auto-graded today: there is no KQL grader in code, and an admin scores them by hand. A design note for running the query exists at `docs/design/2026-10-02-kql-execution-grading.md` (design only, not built). Produce a *proposal* the admin reviews and accepts before it becomes a real `gradings` row.
 
 ## Scope
 - **In:** the `gradeSubjective(input)` interface and three runtime implementations (`claude-code-vps`, `anthropic-api`, `open-weights`); the synchronous admin-grade handler (Phase 1); the three-stage cascade (anchor extraction → reasoning band → escalation); skill-based prompt management with sha256 versioning; structured-output enforcement via a custom MCP server (Phase 1) or Agent SDK custom tools (Phase 2); golden-set evaluation harness; CI lint that blocks ambient/non-admin invocations of the grader.

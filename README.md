@@ -1,6 +1,6 @@
 # AssessIQ — Architecture & Module Documentation
 
-> Scenario-driven, tier-based, hybrid-graded role-readiness assessment platform. SOC team is the launch customer; designed multi-tenant and embeddable from day one.
+> Scenario-driven, tier-based, hybrid-graded role-readiness assessment platform. The first real use is a university aptitude pilot; designed multi-tenant and embeddable from day one.
 
 ## Local Development
 
@@ -33,11 +33,14 @@ echo "SESSION_SECRET=$(openssl rand -base64 32)" >> .env.local
 DATABASE_URL=postgres://assessiq:CHANGE_ME@localhost:5432/assessiq \
   pnpm tsx tools/migrate.ts
 
-# 5. Bootstrap first tenant + admin user (direct SQL — no script exists yet)
-#    Run this once; replace placeholders with your real values.
+# 5. Bootstrap first tenant + admin user for local dev (direct SQL).
+#    No bootstrap script exists in tools/ or package.json. Run this once;
+#    replace placeholders with your real values. In production, the platform
+#    super admin creates companies from the Platform page
+#    (docs/runbooks/customer-onboarding.md).
 docker exec aiq-pg psql -U assessiq -d assessiq -c "
   INSERT INTO tenants (id, slug, name) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'wipro-soc', 'Wipro SOC');
+    ('00000000-0000-0000-0000-000000000001', 'my-org', 'My Organisation');
   INSERT INTO tenant_settings (tenant_id) VALUES
     ('00000000-0000-0000-0000-000000000001');
   INSERT INTO users (tenant_id, email, name, role) VALUES
@@ -85,11 +88,15 @@ docs/
 ├── 03-api-contract.md          ← REST endpoint catalog
 ├── 04-auth-flows.md            ← Google SSO + TOTP + embed JWT + API keys
 ├── 05-ai-pipeline.md           ← Claude Code on VPS (Phase 1) + multi-stage grading
-├── 06-deployment.md            ← VPS, Docker Compose, nginx, ACME
+├── 06-deployment.md            ← VPS, Docker Compose, Caddy, Cloudflare
 ├── 07-help-system.md           ← Tooltip + drawer architecture
 ├── 08-ui-system.md             ← Tokens, components, theming
 ├── 09-integration-guide.md     ← Host-app embed + REST + webhook integration
-└── 10-branding-guideline.md    ← Visual identity: typography, palette, layouts, idioms
+├── 10-branding-guideline.md    ← Visual identity: typography, palette, layouts, idioms
+├── 11-observability.md         ← Logs, streams, metrics
+├── 12-test-coverage.md         ← Test coverage map
+├── 13-email-system.md          ← SMTP, templates, queue
+└── 14-credentialing.md         ← Certificates: signing, verify, PDF
 
 modules/
 ├── 00-core/SKILL.md          ← Foundation utilities
@@ -99,7 +106,7 @@ modules/
 ├── 04-question-bank/          ← Packs, levels, questions
 ├── 05-assessment-lifecycle/   ← Cycles, invitations, state machine
 ├── 06-attempt-engine/         ← Taking the assessment
-├── 07-ai-grading/             ← Claude Agent SDK pipeline
+├── 07-ai-grading/             ← AI grading pipeline (Claude Code CLI on the VPS)
 ├── 08-rubric-engine/          ← Anchors, bands, scoring DSL
 ├── 09-scoring/                ← Aggregation, archetype, leaderboard
 ├── 10-admin-dashboard/        ← Admin UI
@@ -109,7 +116,10 @@ modules/
 ├── 14-audit-log/              ← Append-only audit trail
 ├── 15-analytics/              ← Reports, exports
 ├── 16-help-system/            ← Tooltip framework + help content
-└── 17-ui-system/              ← Design tokens + components
+├── 17-ui-system/              ← Design tokens + components
+├── 18-certification/          ← Signed certificates, public verify
+├── 19-billing/                ← Usage metering, plans, entitlements
+└── 20-data-rights/            ← DPDP/GDPR access, erasure, retention
 
 infra/                          ← (populated as you build) docker-compose, nginx, scripts
 ```
@@ -132,4 +142,4 @@ Then Phase 1 (author + take), then Phase 2 (grade + report), as laid out in `PRO
 - Provide the **UI template**. Drop it under `modules/17-ui-system/templates/<vendor-name>/` and follow the integration plan in `docs/08-ui-system.md`.
 - Provision the **DNS** for `assessiq.in` in Cloudflare (proxied A record to VPS IP; zone-level Authenticated Origin Pulls ON). Canonical host as of 2026-05-22 — see `docs/06-deployment.md` § "Domain switch to assessiq.in".
 - Create a **Google Cloud OAuth client** and capture client_id + client_secret for `.env`.
-- Get an **Anthropic API key** for production AI grading (separate from your Max subscription).
+- Install and log in to the **Claude Code CLI** on the VPS. Production AI grading uses it (`AI_PIPELINE_MODE=claude-code-vps`), so no `ANTHROPIC_API_KEY` is needed. See `docs/05-ai-pipeline.md`.

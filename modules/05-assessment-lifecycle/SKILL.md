@@ -98,7 +98,7 @@ Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps 
   }
   ```
 - Driver: `nodemailer` with `pool: true` (single shared connection per tenant per worker process).
-- **Fail-closed:** if a tenant's `smtp_config` is null, `inviteUsers` returns `503 SmtpNotConfigured` — the admin sees a clear "configure SMTP first" error rather than silent send-to-nowhere.
+- **Not built:** a `503 SmtpNotConfigured` error does not exist in code (grep 2026-10-02). Email goes through the platform SMTP transport. The idea belongs to a parked per-tenant email sender feature.
 - The `13-notifications` module owns the driver + template rendering. `05-assessment-lifecycle` calls `notifications.sendInvitationEmail(invitation)` and never touches SMTP directly.
 - Inbound webhooks + outbound webhook delivery still deferred to Phase 3.
 

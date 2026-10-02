@@ -43,7 +43,7 @@ Owns: `tenants`, `tenant_settings`. Migrations at `modules/02-tenancy/migrations
 - `0002_rls_helpers.sql` — `assessiq_app` (no BYPASSRLS) and `assessiq_system` (BYPASSRLS) roles; baseline GRANTs and `ALTER DEFAULT PRIVILEGES` so future tables inherit.
 - `0003_tenants_rls.sql` — RLS + two policies on `tenants` itself (custom: `id = current_setting(...)`).
 
-Migrations apply via `psql` on the VPS; a generic `tools/migrate.ts` runner is deferred to G0.C/01-auth which has six migrations and benefits more.
+Migrations apply via `psql` on the VPS. The generic runner `tools/migrate.ts` exists, but production does not use it (state 2026-10-02): older migrations were applied by hand and `schema_migrations` is incomplete. New migrations are applied by hand, one by one, in number order, before the image rebuild. See `docs/06-deployment.md` § "Applying new migrations by hand".
 
 ## Critical: RLS policy template
 ```sql

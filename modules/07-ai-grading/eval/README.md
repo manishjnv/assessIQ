@@ -14,7 +14,7 @@ The harness is **manual-only in Phase 1**. It is never run by CI (no Max OAuth i
 
 ```
 eval/
-├── cases/                  # Hand-curated golden set; one .input + .expected per case
+├── cases/                  # Public samples only; the real golden set (150 cases) is in cases-private/ on the server, never in git
 │   ├── <id>.input.json
 │   └── <id>.expected.json
 ├── runs/                   # Each run produces a subdirectory keyed by ISO8601 timestamp
@@ -76,9 +76,9 @@ eval/
 
 1. Create `cases/<id>.input.json` and `cases/<id>.expected.json` using the shapes above.
 2. The `id` must be identical in both files and match the filename prefix.
-3. Minimum counts (D5):
-   - **50 cases per question type** (`mcq`, `subjective`, `kql`, `scenario`, `log_analysis`).
-   - **At least 10 adversarial cases per type** (see adversarial guidelines below).
+3. Case counts (D5, updated 2026-10-02):
+   - **The golden set holds 150 cases, 3 types:** 50 each for `subjective`, `scenario` and `log_analysis`. The set is stored on the server only (`cases-private/`, never in git). `mcq` is scored deterministically and `kql` has no AI grader, so neither has eval cases.
+   - **Each type has 5 adversarial cases** (see adversarial guidelines below).
 4. Cases are authored by the admin reviewing real candidate attempts — synthetic answers under-cover the long tail of real failure modes.
 
 ### Adversarial case guidelines

@@ -194,7 +194,7 @@ Postgres mirror (`sessions` table, `02-DATA:145–157`) holds the same fields in
 **Decision.**
 - **Token generation:** `crypto.randomBytes(32).toString('base64url')` → 43-character URL-safe string.
 - **Storage:** `user_invitations.token_hash = sha256(token).hex`. Plaintext token is never persisted.
-- **TTL:** 72 hours from creation (`expires_at = now() + interval '72 hours'`). Configurable per-tenant in Phase 2; hardcoded for Phase 0.
+- **TTL:** 7 days from creation (`new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)` in `modules/03-users/src/invitations.ts`; changed from 72 hours, checked 2026-10-02). Hardcoded.
 - **Single-use semantics:** the token is **link-bound**, not session-bound. The candidate may re-click the link as many times as needed *until* the underlying attempt's `status` moves past `in_progress` (i.e. submit). After that, `GET /take/<token>` returns `410 already_submitted` with a hint to contact the admin.
 - **Candidate session shape:** session is minted via `01-auth.sessions.create()` with `totpVerified=true`, `role='candidate'` (candidates do not enroll TOTP in Phase 0; the magic link itself is the auth factor). Cookie name is `aiq_sess` — same cookie as admin, role-discriminated server-side.
 

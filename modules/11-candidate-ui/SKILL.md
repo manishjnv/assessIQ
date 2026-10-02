@@ -4,9 +4,9 @@
 > workspace package + `apps/web/src/pages/take/*` route tree both deployed in
 > commits `da62760` (code) + `93a9e50` (infra Docker fix). Magic-link landing,
 > attempt runner, post-submit page, and 4 presentation primitives are all live.
-> **Deferred to Session 4b:** the magic-link **backend** (`POST /api/take/start`)
-> that mints the candidate session — the SPA calls this endpoint and surfaces a
-> branded "Connection error · Session 4b deliverable" panel until it ships.
+> **Session 4b shipped 2026-05-03 (`fae4b33`):** the magic-link **backend** (`POST /api/take/start`,
+> `modules/06-attempt-engine/src/routes.take.ts`) mints the candidate session. The
+> Playwright specs `take-happy-path` and `take-timer-expiry` are still `test.skip`'d (2026-10-02).
 > See `docs/SESSION_STATE.md` headline + agent-utilization footer.
 
 ## Purpose
@@ -123,8 +123,8 @@ Surfaced in admin attempt detail under "Integrity signals". Never auto-flag or a
 ### E2E tests (`apps/web/e2e/`)
 
 - `take-error-pages.spec.ts` — 3 tests run today against the deployed SPA (`/take/INVALID_TOKEN`, `/take/expired`, `/take/error`). Validates branded heading + no raw error spillage.
-- `take-happy-path.spec.ts` — full magic-link → submit flow; **`test.skip`'d pending Session 4b** backend mint.
-- `take-timer-expiry.spec.ts` — auto-submit edge case; **`test.skip`'d pending Session 4b** + a 60 s test fixture.
+- `take-happy-path.spec.ts` — full magic-link → submit flow; **still `test.skip`'d** (backend shipped in `fae4b33`; the unskip is open).
+- `take-timer-expiry.spec.ts` — auto-submit edge case; **still `test.skip`'d** (needs a 60 s test fixture).
 
 Run locally: `pnpm --filter @assessiq/web e2e` (after `pnpm --filter @assessiq/web exec playwright install chromium`). Run against prod: `PLAYWRIGHT_BASE_URL=https://assessiq.automateedge.cloud pnpm --filter @assessiq/web e2e -- take-error-pages`.
 

@@ -1,7 +1,7 @@
 # 19-billing — Usage metering and plan management
 
 ## Status
-**A1 COMPLETE** — Phase A1 Session 1 (2026-05-17). Scaffold, migrations, repository,
+**A1, A2, B1 and B2 shipped** (A1 2026-05-17 `111dd77`; A2 `66ea0ff`; B1 entitlements `2ba822d`; B2 publish-time entitlement enforcement `5c80aaa`; clone-on-use Step 2 followed). Detail below describes A1 and is kept as history. Scaffold, migrations, repository,
 service (including pure computeUsage), routes, wire-in to admin-accept.ts and
 server.ts. Unit tests (compute-usage) pass; DB-backed tests skip gracefully
 without Docker.
