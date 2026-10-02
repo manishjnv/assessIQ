@@ -5,7 +5,7 @@
  *
  * Decision references:
  *   D3 — Phase 1 has no grading_jobs table. Queue is derived from
- *        attempts.status IN ('submitted', 'pending_admin_grading').
+ *        attempts.status IN ('submitted', 'auto_submitted', 'pending_admin_grading').
  *        No job state machine; just attempt rows awaiting admin action.
  *
  * RLS: withTenant() scopes to current tenant. listGradingQueue query does
@@ -13,8 +13,8 @@
  */
 
 import { withTenant } from "@assessiq/tenancy";
-import { listGradingQueue } from "../repository.js";
-import type { QueueRow } from "../repository.js";
+import { countGradingQueue, listGradingQueue } from "../repository.js";
+import type { QueueCounts, QueueRow } from "../repository.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -33,6 +33,8 @@ export interface HandleAdminQueueInput {
 
 export interface HandleAdminQueueOutput {
   items: QueueRow[];
+  /** Tenant-wide totals for the dashboard cards; `items` is capped by `limit`, these are not. */
+  counts: QueueCounts;
 }
 
 // ---------------------------------------------------------------------------
@@ -47,9 +49,10 @@ export async function handleAdminQueue(
   const queueOpts: { limit?: number } = {};
   if (filters?.limit !== undefined) queueOpts.limit = filters.limit;
 
-  const items = await withTenant(tenantId, (client) =>
-    listGradingQueue(client, queueOpts),
-  );
+  const { items, counts } = await withTenant(tenantId, async (client) => ({
+    items: await listGradingQueue(client, queueOpts),
+    counts: await countGradingQueue(client),
+  }));
 
   // Post-filter by status if provided (listGradingQueue already filters to
   // gradeable statuses; this allows the caller to narrow further without
@@ -59,5 +62,5 @@ export async function handleAdminQueue(
       ? items.filter((r) => r.status === filters.status)
       : items;
 
-  return { items: filtered };
+  return { items: filtered, counts };
 }

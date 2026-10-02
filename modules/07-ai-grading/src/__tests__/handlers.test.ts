@@ -904,7 +904,7 @@ describe("handleAdminRerun", () => {
 });
 
 // ===========================================================================
-// 5. handleAdminQueue — 2 cases
+// 5. handleAdminQueue — 3 cases
 // ===========================================================================
 
 describe("handleAdminQueue", () => {
@@ -956,6 +956,45 @@ describe("handleAdminQueue", () => {
     const result = await handleAdminQueue({ tenantId: TENANT_ID });
     const ids = result.items.map((r) => r.attempt_id);
     expect(ids).not.toContain(otherAttemptId);
+  });
+
+  it("5.3 counts are tenant-wide totals, not capped by limit; auto_submitted is queued", async () => {
+    const before = (await handleAdminQueue({ tenantId: TENANT_ID })).counts;
+    const otherBefore = (await handleAdminQueue({ tenantId: OTHER_TENANT_ID })).counts;
+    const attemptIds: string[] = [];
+
+    await withSuperClient(async (client) => {
+      const { packId, levelId, questionIds } = await seedPackWithSubjectiveQuestions(
+        client, TENANT_ID, ADMIN_ID, 1,
+      );
+      for (let i = 0; i < 4; i++) {
+        const candidateId = randomUUID();
+        await insertCandidateUser(client, candidateId, TENANT_ID, `q53-${i}-${randomUUID().slice(0,8)}@test.local`);
+        const { attemptId } = await seedSubmittedAttempt(
+          client, TENANT_ID, ADMIN_ID, candidateId, packId, levelId, questionIds,
+        );
+        attemptIds.push(attemptId);
+      }
+      // [0] submitted · [1] auto_submitted · [2] graded, not released · [3] graded + released
+      await client.query(`UPDATE attempts SET status = 'auto_submitted' WHERE id = $1`, [attemptIds[1]!]);
+      await client.query(`UPDATE attempts SET status = 'graded' WHERE id = $1`, [attemptIds[2]!]);
+      await client.query(
+        `UPDATE attempts SET status = 'graded', evaluation_released_at = now() WHERE id = $1`,
+        [attemptIds[3]!],
+      );
+    });
+
+    const capped = await handleAdminQueue({ tenantId: TENANT_ID, filters: { limit: 1 } });
+    expect(capped.items).toHaveLength(1);
+    expect(capped.counts.in_queue - before.in_queue).toBe(2);
+    expect(capped.counts.awaiting_evaluation - before.awaiting_evaluation).toBe(3);
+    expect(capped.counts.ready_to_publish - before.ready_to_publish).toBe(1);
+
+    const all = await handleAdminQueue({ tenantId: TENANT_ID });
+    expect(all.items.map((r) => r.attempt_id)).toContain(attemptIds[1]!); // auto_submitted
+
+    // RLS: the other tenant's counts do not move.
+    expect((await handleAdminQueue({ tenantId: OTHER_TENANT_ID })).counts).toEqual(otherBefore);
   });
 });
 
