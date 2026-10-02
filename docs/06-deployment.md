@@ -1527,7 +1527,7 @@ See `docs/plans/SCORING_RESULT_RELEASE.md` and `docs/plans/PILOT_READINESS_BATCH
 
 ## Public "Try a sample test" demo — `/try` (apps/web, 2026-10-02)
 
-**What:** `/try` (SPA page, no `RequireSession`) and `/try/certificate` (static SAMPLE certificate). Fixed bundled content, client-side deterministic scoring, **zero network requests** (no API, DB, email or AI). Code: `apps/web/src/pages/try/`. OG image: `apps/web/public/try/og.png` (+ `og.svg` source) served at `/try/og.png`. Marketing home links to it.
+**What:** `/try` (SPA page, no `RequireSession`) and `/try/certificate` (static SAMPLE certificate). Fixed bundled content, client-side deterministic scoring, **zero network requests** (no API, DB, email or AI). Code: `apps/web/src/pages/try/`. OG image: `apps/web/public/brand/social/try-og.png` (+ `.svg` source) served at `/brand/social/try-og.png`. It must NOT live under `public/try/`: a `try/` folder makes the frontend nginx treat `/try` as a directory (301 → 403); hit and fixed 2026-10-02. Marketing home links to it.
 
 **Why not `/verify/...` for the sample certificate:** `/verify/*` is in the `@api` matcher (to the API). The demo page must be SPA-served, so it lives under `/try/`.
 
@@ -1537,6 +1537,6 @@ See `docs/plans/SCORING_RESULT_RELEASE.md` and `docs/plans/PILOT_READINESS_BATCH
 ```
 Apply with the same inode-safe procedure as the 2026-05-22 flip (backup, validate in container, truncate-write, reload). `pnpm lint:edge-routing` needs no change: it checks Fastify mounts only, and `/try` is not one.
 
-**Known limit:** the SPA serves one static `index.html`, so a shared `/try` link unfurls with the default AssessIQ OG image; link crawlers do not run JS. To unfurl with `/try/og.png`, give `/try` its own static HTML (or a Caddy rewrite) later.
+**Known limit:** the SPA serves one static `index.html`, so a shared `/try` link unfurls with the default AssessIQ OG image; link crawlers do not run JS. To unfurl with `/brand/social/try-og.png`, give `/try` its own static HTML (or a Caddy rewrite) later.
 
 **Rollback:** remove `/try /try/*` from `@app`; the page then 404s via marketing and the home CTA should be reverted.
