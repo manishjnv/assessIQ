@@ -54,8 +54,66 @@ export function isMcqAnswerCorrect(content: unknown, answer: unknown): boolean {
   return selected === correct;
 }
 
+/** Types scored here with NO AI. Keep in sync with the `q.type IN (...)` SQL below. */
+export const DETERMINISTIC_TYPES = ["mcq", "numeric", "multi_select"] as const;
+
+/** Extract the numeric value of a stored numeric answer: number, {value}, or numeric string ("1,250"). */
+export function parseNumericAnswer(answer: unknown): number | null {
+  let v: unknown = answer;
+  if (v !== null && typeof v === "object" && !Array.isArray(v)) v = (v as { value?: unknown }).value;
+  if (typeof v === "string") {
+    const t = v.trim().replace(/,/g, "");
+    if (!/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(t)) return null;
+    v = Number(t);
+  }
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** numeric: correct iff |given - answer| <= tolerance (absolute, default 0). Never throws. */
+export function isNumericAnswerCorrect(content: unknown, answer: unknown): boolean {
+  if (content === null || typeof content !== "object") return false;
+  const c = content as { answer?: unknown; tolerance?: unknown };
+  if (typeof c.answer !== "number" || !Number.isFinite(c.answer)) return false;
+  const tol = typeof c.tolerance === "number" && Number.isFinite(c.tolerance) && c.tolerance >= 0 ? c.tolerance : 0;
+  const given = parseNumericAnswer(answer);
+  if (given === null) return false;
+  // 1e-9 slack so float noise at the tolerance edge (0.1 + 0.2) does not flip a result
+  return Math.abs(given - c.answer) <= tol + 1e-9;
+}
+
+/**
+ * multi_select: fraction of the points earned, 0..1. all_or_nothing (default): 1 iff the
+ * selected set equals the correct set. partial: max(0, (right - wrong) / |correct|).
+ * Malformed answers (non-array, non-integer, out-of-range, duplicate) score 0.
+ */
+export function multiSelectFraction(content: unknown, answer: unknown): number {
+  if (content === null || typeof content !== "object") return 0;
+  const c = content as { correct?: unknown; options?: unknown; scoring?: unknown };
+  if (!Array.isArray(c.correct) || c.correct.length === 0) return 0;
+  const n = Array.isArray(c.options) ? c.options.length : Infinity;
+  const ok = (a: unknown): a is number[] =>
+    Array.isArray(a) && a.every((i) => typeof i === "number" && Number.isInteger(i) && i >= 0 && i < n) && new Set(a).size === a.length;
+  if (!ok(c.correct)) return 0;
+  let sel: unknown = answer;
+  if (answer !== null && typeof answer === "object" && !Array.isArray(answer)) sel = (answer as { selected?: unknown }).selected;
+  if (!ok(sel)) return 0;
+  const key = new Set(c.correct);
+  const right = sel.filter((i) => key.has(i)).length;
+  const wrong = sel.length - right;
+  if (c.scoring === "partial") return Math.max(0, (right - wrong) / key.size);
+  return wrong === 0 && right === key.size ? 1 : 0;
+}
+
+/** Fraction (0..1) of the question's points earned, for any deterministic type. */
+export function deterministicFraction(type: string, content: unknown, answer: unknown): number {
+  if (type === "numeric") return isNumericAnswerCorrect(content, answer) ? 1 : 0;
+  if (type === "multi_select") return multiSelectFraction(content, answer);
+  return isMcqAnswerCorrect(content, answer) ? 1 : 0;
+}
+
 interface McqRow {
   question_id: string;
+  type: string;
   points: number;
   content: unknown;
   answer: unknown;
@@ -70,7 +128,7 @@ export async function scoreMcqForAttempt(
   attemptId: string,
 ): Promise<number> {
   const res = await client.query<McqRow>(
-    `SELECT aq.question_id, aq.points, qv.content, aa.answer
+    `SELECT aq.question_id, q.type, aq.points, qv.content, aa.answer
        FROM attempt_questions aq
        JOIN questions q ON q.id = aq.question_id
        JOIN question_versions qv
@@ -80,13 +138,14 @@ export async function scoreMcqForAttempt(
          ON aa.attempt_id = aq.attempt_id
         AND aa.question_id = aq.question_id
       WHERE aq.attempt_id = $1
-        AND q.type = 'mcq'`,
+        AND q.type IN ('mcq', 'numeric', 'multi_select')`,
     [attemptId],
   );
 
   let inserted = 0;
   for (const r of res.rows) {
-    const correct = isMcqAnswerCorrect(r.content, r.answer);
+    const fraction = deterministicFraction(r.type, r.content, r.answer);
+    const earned = fraction >= 1 ? r.points : Math.round(r.points * fraction * 100) / 100;
     const ins = await client.query(
       `INSERT INTO gradings (
          tenant_id, attempt_id, question_id, grader,
@@ -102,9 +161,9 @@ export async function scoreMcqForAttempt(
       [
         attemptId,
         r.question_id,
-        correct ? r.points : 0,
+        earned,
         r.points,
-        correct ? "correct" : "incorrect",
+        fraction >= 1 ? "correct" : earned > 0 ? "partial" : "incorrect",
         MCQ_SENTINEL_SHA,
         MCQ_SENTINEL_LABEL,
         MCQ_SENTINEL_MODEL,
@@ -151,7 +210,7 @@ export async function scoreMcqAndFinalizeIfComplete(
          FROM attempt_questions aq
          JOIN questions q ON q.id = aq.question_id
         WHERE aq.attempt_id = $1
-          AND q.type = 'mcq'
+          AND q.type IN ('mcq', 'numeric', 'multi_select')
           AND NOT EXISTS (
             SELECT 1 FROM gradings g
              WHERE g.attempt_id = aq.attempt_id

@@ -180,3 +180,19 @@ AI-assisted question generation is the only AI-touching surface in this module's
 - `08-rubric-engine` (Phase 2 G2.B Session 2): canonical home for `RubricSchema`, `AnchorSchema`, `Rubric`, `Anchor`. 04 re-exports them so existing `import { RubricSchema } from "@assessiq/question-bank"` callers stay unchanged. 04's internal `validateRubric` (returning `{ ok, data | errors: ZodIssue[] }`) is unchanged and continues to drive `createQuestion`/`updateQuestion` per-issue error mapping.
 - `10-admin-dashboard` (Phase 2): replaces the CLI helper with a browser upload widget against `POST /api/admin/questions/import`.
 - `tools/lint-rls-policies.ts`: now structurally protects 4 join-based child tables; extending it for `06-attempt-engine` is a one-line addition to `JOIN_RLS_TABLES`.
+
+## Numeric and multi-select question types (2026-10-02)
+
+**What.** Two new auto-scored types: `numeric` ("enter the value") and `multi_select` ("select all that apply"). Migration `0129_question_types_numeric_multi_select.sql` widens `questions_type_check`; nothing else in the schema changes.
+
+**Why.** A university runs campus-placement aptitude tests. Aptitude papers need typed numeric answers and tick-all-that-apply items; both have one objectively right answer, so they are scored in the same deterministic path as MCQ (no AI, no admin evaluation queue).
+
+**Content shapes** (`src/types.ts`, validated at create / update / JSON import via `validateQuestionContent`):
+- `numeric`: `{ question, answer: number, tolerance?: number >= 0 (absolute, default 0), unit?: string, rationale? }`. `unit` is display-only.
+- `multi_select`: `{ question, options: 2-10 strings, correct: unique in-range indexes (>= 1), scoring?: "all_or_nothing" | "partial" (default all_or_nothing), rationale? }`.
+
+**Considered and rejected.** Relative / percentage tolerance (absolute is what aptitude keys use; one rule is easier to explain to an admin). Unit conversion (out of scope; the unit is a label). A separate scoring table (reuse `gradings`, `grader='deterministic'`). Per-option negative marks (partial scoring floors at 0, as the owner asked).
+
+**Not included.** AI generation of these types (no skill or prompt change; `DIFFICULTY_SPEC` / generation wizard / auto-weight stay at the five generated types), numeric ranges, unit conversion, blueprint (`BLUEPRINT_QUESTION_TYPES`) support: assessments draw them from the pack pool as before.
+
+**Impact.** 06 (answer shuffle, candidate sanitiser), 09 (scoring), 10 (renderers, editor), 16 (two help ids), apps/web runner. `modules/07-ai-grading` only had the "non-MCQ" queue predicates widened (see 07 SKILL.md). The AI allowlist (`AI_GRADEABLE_TYPES`) already excluded them. Docs: `docs/02-data-model.md`.

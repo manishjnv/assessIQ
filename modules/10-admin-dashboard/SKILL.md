@@ -121,3 +121,10 @@ Page count: 7 shipped G2.C + 5 shipped this session = **12 live pages**. 14 rema
 ## 2026-10-02 - paged invitations list (assessment-detail)
 
 The invitations table on `assessment-detail.tsx` shows 100 rows per page (API cap) with `Showing x-y of N` + `Previous` / `Next` (only when N > 100; help id `admin.assessments.invitations.paging`). Sorting is per page. The invite picker's "already invited" set and the Delete has-attempts guard are computed from ALL pages (ids/flags only) so they never assume the visible page is everything; "Resend to everyone who hasn't started" is server-side (`resendable`, all pages).
+
+## numeric / multi_select in the admin UI (2026-10-02)
+
+- **Question editor** (new-question form): type list gains `numeric` and `multi_select` with starter JSON; a help icon (`admin.question.content.numeric` / `.multi_select`) sits on the "Content (JSON) *" label for those types. Content stays a JSON textarea like every other type; the server validates with the Zod schemas. JSON bulk import needs no change (it validates against `QUESTION_TYPES`).
+- **Readers** (no raw JSON): `QuestionContentView` (numeric shows the correct value, tolerance and unit; multi_select reuses the option list with every correct option highlighted plus the scoring mode), `QuestionPromptView`, `ExpectedAnswerView`, and `AttemptGradingPanel`'s answer view (numeric value with a tick or cross; multi_select lists each picked option with a tick or cross). Option letters extended to J (10 options).
+- Pack-detail type filter chips include the two types.
+- Not included: field-by-field forms for the content (JSON editing only), AI generation wizard support.

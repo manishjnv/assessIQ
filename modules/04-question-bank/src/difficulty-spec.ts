@@ -93,7 +93,10 @@ export interface DifficultyTarget {
 // DIFFICULTY_SPEC — the full (QuestionType × DifficultyLevel) matrix
 // ---------------------------------------------------------------------------
 
-export const DIFFICULTY_SPEC: Record<QuestionType, Record<DifficultyLevel, DifficultyTarget>> = {
+/** AI-generated types only: numeric / multi_select are authored by hand (no generation, no difficulty spec). */
+type GeneratedQuestionType = Exclude<QuestionType, "numeric" | "multi_select">;
+
+export const DIFFICULTY_SPEC: Record<GeneratedQuestionType, Record<DifficultyLevel, DifficultyTarget>> = {
   mcq: {
     L1: {
       cognitiveLevel: ["remember", "understand"],
@@ -214,7 +217,7 @@ export const DIFFICULTY_SPEC: Record<QuestionType, Record<DifficultyLevel, Diffi
 // ---------------------------------------------------------------------------
 
 export function resolveDifficulty(
-  type: QuestionType,
+  type: GeneratedQuestionType,
   level: DifficultyLevel,
 ): DifficultyTarget {
   return DIFFICULTY_SPEC[type][level];
@@ -251,7 +254,7 @@ export function functionToNice(fn: string): string {
 // ---------------------------------------------------------------------------
 
 export function validateStructuralDifficulty(
-  type: QuestionType,
+  type: GeneratedQuestionType,
   level: DifficultyLevel,
   content: unknown,
   rubric: unknown,

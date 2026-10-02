@@ -144,7 +144,7 @@ const ANSWER_SUBLABEL_STYLE: React.CSSProperties = {
   marginBottom: "var(--aiq-space-2xs)",
 };
 
-const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
 function asAnswerObj(v: unknown): Record<string, unknown> | null {
   return v !== null && typeof v === "object" && !Array.isArray(v)
@@ -231,6 +231,47 @@ function AttemptAnswerView({ type, content, answer }: { type: string; content: u
           </span>
           {optText}
         </p>
+      );
+    }
+
+    case "numeric": {
+      const v = typeof answer === "number" ? answer : typeof a?.value === "number" ? a.value : null;
+      if (v === null) break;
+      const c = asAnswerObj(content);
+      const want = typeof c?.answer === "number" ? c.answer : null;
+      const tol = typeof c?.tolerance === "number" && c.tolerance >= 0 ? c.tolerance : 0;
+      const ok = want === null ? null : Math.abs(v - want) <= tol + 1e-9;
+      const unit = typeof c?.unit === "string" ? ` ${c.unit}` : "";
+      return (
+        <p style={ANSWER_TEXT_STYLE}>
+          <span style={{ fontFamily: "var(--aiq-font-mono)", fontWeight: 700, marginRight: "var(--aiq-space-sm)", color: ok === true ? "var(--aiq-color-success, #065f46)" : ok === false ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-muted)" }}>
+            {v}{unit}{ok === true ? " ✓" : ok === false ? " ✗" : ""}
+          </span>
+        </p>
+      );
+    }
+
+    case "multi_select": {
+      const sel = Array.isArray(a?.selected) ? (a!.selected as unknown[]).filter((x): x is number => typeof x === "number") : Array.isArray(answer) ? (answer as unknown[]).filter((x): x is number => typeof x === "number") : null;
+      if (sel === null) break;
+      if (sel.length === 0) return <NoAnswer label="No options selected." />;
+      const c = asAnswerObj(content);
+      const options = Array.isArray(c?.options) ? (c!.options as unknown[]) : [];
+      const key = Array.isArray(c?.correct) ? (c!.correct as unknown[]) : null;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+          {sel.map((i) => {
+            const ok = key === null ? null : key.includes(i);
+            return (
+              <p key={i} style={ANSWER_TEXT_STYLE}>
+                <span style={{ fontFamily: "var(--aiq-font-mono)", fontWeight: 700, marginRight: "var(--aiq-space-sm)", color: ok === true ? "var(--aiq-color-success, #065f46)" : ok === false ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-muted)" }}>
+                  {OPTION_LETTERS[i] ?? i}{ok === true ? " ✓" : ok === false ? " ✗" : ""}
+                </span>
+                {typeof options[i] === "string" ? (options[i] as string) : ""}
+              </p>
+            );
+          })}
+        </div>
       );
     }
 

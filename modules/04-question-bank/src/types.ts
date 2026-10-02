@@ -42,6 +42,37 @@ export const McqContentSchema = z.object({
 
 export type McqContent = z.infer<typeof McqContentSchema>;
 
+// Numeric — "enter the value". Deterministic: correct iff |given - answer| <= tolerance
+// (absolute, default 0). `unit` is display-only (shown after the input); no conversion.
+export const NumericContentSchema = z.object({
+  question: z.string().min(1),
+  answer: z.number().finite(),
+  tolerance: z.number().finite().min(0).optional(),
+  unit: z.string().min(1).max(20).optional(),
+  rationale: z.string().min(1).optional(),
+}).strict();
+
+export type NumericContent = z.infer<typeof NumericContentSchema>;
+
+// Multi-select — "select all that apply". Deterministic. `correct` = original option indexes.
+export const MultiSelectContentSchema = z.object({
+  question: z.string().min(1),
+  options: z.array(z.string().min(1)).min(2).max(10),
+  correct: z.array(z.number().int().min(0)).min(1),
+  scoring: z.enum(["all_or_nothing", "partial"]).optional(),
+  rationale: z.string().min(1).optional(),
+}).strict()
+  .superRefine((val, ctx) => {
+    if (new Set(val.correct).size !== val.correct.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["correct"], message: "correct must not repeat an index" });
+    }
+    if (val.correct.some((i) => i >= val.options.length)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["correct"], message: "correct must be valid indexes into options" });
+    }
+  });
+
+export type MultiSelectContent = z.infer<typeof MultiSelectContentSchema>;
+
 // Subjective (data-model lines 284-288)
 // rubric lives in the separate column â€” not embedded in content.
 export const SubjectiveContentSchema = z.object({
@@ -119,6 +150,8 @@ export const QUESTION_TYPES = [
   "kql",
   "scenario",
   "log_analysis",
+  "numeric",
+  "multi_select",
 ] as const;
 
 export type QuestionType = typeof QUESTION_TYPES[number];
@@ -129,17 +162,19 @@ const CONTENT_SCHEMA_MAP = {
   kql: KqlContentSchema,
   scenario: ScenarioContentSchema,
   log_analysis: LogAnalysisContentSchema,
+  numeric: NumericContentSchema,
+  multi_select: MultiSelectContentSchema,
 } as const satisfies Record<QuestionType, z.ZodTypeAny>;
 
 export function validateQuestionContent(
   type: QuestionType,
   content: unknown,
 ):
-  | { ok: true; data: McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent }
+  | { ok: true; data: McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent }
   | { ok: false; errors: z.ZodIssue[] } {
   const result = CONTENT_SCHEMA_MAP[type].safeParse(content);
   if (result.success) {
-    return { ok: true, data: result.data as McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent };
+    return { ok: true, data: result.data as McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent };
   }
   return { ok: false, errors: result.error.issues };
 }

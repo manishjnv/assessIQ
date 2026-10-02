@@ -52,6 +52,8 @@ export {
 export {
   // content schemas
   McqContentSchema,
+  NumericContentSchema,
+  MultiSelectContentSchema,
   SubjectiveContentSchema,
   KqlContentSchema,
   ScenarioContentSchema,
@@ -75,6 +77,8 @@ export {
 export type {
   // content types
   McqContent,
+  NumericContent,
+  MultiSelectContent,
   SubjectiveContent,
   KqlContent,
   ScenarioContent,

@@ -32,7 +32,7 @@ export function obj(v: unknown): Record<string, unknown> | null {
     : null;
 }
 
-export const OPTION_LABELS = ["A", "B", "C", "D", "E", "F"];
+export const OPTION_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
 // ── text normalisation ───────────────────────────────────────────────────────
 

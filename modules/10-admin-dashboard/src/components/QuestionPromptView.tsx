@@ -177,7 +177,17 @@ export function QuestionPromptView({ type, content }: QuestionPromptViewProps): 
 
   switch (type) {
     case "mcq":
+    case "multi_select":
       return <McqPrompt c={c} />;
+    case "numeric":
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+          <PromptText value={c.question} />
+          {typeof c.unit === "string" && c.unit !== "" && (
+            <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>Unit: {c.unit}</span>
+          )}
+        </div>
+      );
     case "subjective":
       return <PromptText value={c.question} />;
     case "kql":

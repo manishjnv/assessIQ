@@ -1005,7 +1005,7 @@ export function AdminPackDetail(): React.ReactElement {
                         {/* Type chips */}
                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px" }}>
                           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginRight: 2 }}>Type:</span>
-                          {(["", "mcq", "log_analysis", "scenario", "kql", "subjective"] as const).map((t) => {
+                          {(["", "mcq", "log_analysis", "scenario", "kql", "subjective", "numeric", "multi_select"] as const).map((t) => {
                             const count = t === "" ? levelQs.length : (typeCounts[t] ?? 0);
                             const active = levelFilter.type === t;
                             const zero = t !== "" && count === 0;

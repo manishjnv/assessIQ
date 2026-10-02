@@ -395,7 +395,7 @@ export async function listMcqOptionsForPicks(
   const result = await client.query<{ question_id: string; options: unknown }>(
     `SELECT p.question_id::text AS question_id, qv.content -> 'options' AS options
        FROM unnest($1::uuid[], $2::int[]) AS p(question_id, version)
-       JOIN questions q ON q.id = p.question_id AND q.type = 'mcq'
+       JOIN questions q ON q.id = p.question_id AND q.type IN ('mcq', 'multi_select')
        JOIN question_versions qv
          ON qv.question_id = p.question_id AND qv.version = p.version`,
     [picks.map((p) => p.id), picks.map((p) => p.version)],
@@ -458,6 +458,13 @@ export function sanitizeContentForCandidate(type: string, content: unknown): unk
   switch (type) {
     case "mcq":
       return pick(["question", "options"]);
+
+    // Answer keys (`correct`, `answer`, `tolerance`, `scoring`, `rationale`) never leave the server.
+    case "multi_select":
+      return pick(["question", "options"]);
+
+    case "numeric":
+      return pick(["question", "unit"]);
 
     case "log_analysis":
       return pick(["question", "log_format", "log_excerpt", "hint"]);

@@ -56,6 +56,10 @@ export {
   scoreMcqAndFinalizeIfComplete,
   scoreMcqAndFinalizeSafely,
   isMcqAnswerCorrect,
+  isNumericAnswerCorrect,
+  multiSelectFraction,
+  deterministicFraction,
+  DETERMINISTIC_TYPES,
   MCQ_SENTINEL_SHA,
 } from "./mcq.js";
 
