@@ -3119,3 +3119,18 @@ admin.evaluations.grading_quality:
 
     A version with few grades is not reliable yet. Use this to compare a new prompt
     version with the one before it.
+
+admin.assessment.sections.edit:
+  audience: admin
+  short_text: "Change the sections of a draft test before any student starts it."
+  long_md: |
+    ## Edit sections
+
+    Use **Edit sections** to change the name, questions, minutes and calculator of
+    each section, or to add and remove sections.
+
+    - **Only drafts.** The button is off once the test is published.
+    - **Locked after the first attempt.** Once any student has started, sections
+      cannot change. If you see this message when saving, someone started the
+      test while you were editing.
+    - If every section has a question count, the test total becomes their sum.
