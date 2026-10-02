@@ -124,7 +124,7 @@ The invitations table on `assessment-detail.tsx` shows 100 rows per page (API ca
 
 ## numeric / multi_select in the admin UI (2026-10-02)
 
-- **Question editor** (new-question form): type list gains `numeric` and `multi_select` with starter JSON; a help icon (`admin.question.content.numeric` / `.multi_select`) sits on the "Content (JSON) *" label for those types. Content stays a JSON textarea like every other type; the server validates with the Zod schemas. JSON bulk import needs no change (it validates against `QUESTION_TYPES`).
+- **Question editor** (new-question form): type list gains `numeric` and `multi_select` with starter JSON; a help icon (`admin.question.editor.content.numeric` / `.multi_select`) sits on the "Content (JSON) *" label for those types. Content stays a JSON textarea like every other type; the server validates with the Zod schemas. JSON bulk import needs no change (it validates against `QUESTION_TYPES`).
 - **Readers** (no raw JSON): `QuestionContentView` (numeric shows the correct value, tolerance and unit; multi_select reuses the option list with every correct option highlighted plus the scoring mode), `QuestionPromptView`, `ExpectedAnswerView`, and `AttemptGradingPanel`'s answer view (numeric value with a tick or cross; multi_select lists each picked option with a tick or cross). Option letters extended to J (10 options).
 - Pack-detail type filter chips include the two types.
 - Not included: field-by-field forms for the content (JSON editing only), AI generation wizard support.

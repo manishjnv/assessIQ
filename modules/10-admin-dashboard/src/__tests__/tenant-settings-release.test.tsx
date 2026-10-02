@@ -200,7 +200,7 @@ describe("TenantSettings — Result release", () => {
     mockApi({ mode: "auto" });
     await renderLoaded();
 
-    const section = document.querySelector('[data-help-id="admin.settings.result_release_mode"]');
+    const section = document.querySelector('[data-help-id="admin.tenant_settings.result_release_mode"]');
     expect(section).not.toBeNull();
     expect(radio(/Automatic/).checked).toBe(true);
 

@@ -225,7 +225,7 @@ admin.questions.type.scenario.step_dependency:
     The candidate sees a small lock icon on dependent steps and a clear
     "Submit step N to continue" prompt.
 
-admin.questions.type.subjective.rubric:
+admin.question.editor.subjective.rubric:
   audience: admin
   short_text: "Anchors describe each band (0/25/50/75/100). Write band 100 first, then 0, then fill the middle."
   long_md: |
@@ -2458,7 +2458,7 @@ admin.user.erase:
     the action before it is applied. The reason is recorded in the audit log.
 
 
-admin.settings.company_name:
+admin.tenant_settings.company_name:
   audience: admin
   short_text: "The company name shown in the app header and in emails to your candidates."
   long_md: |
@@ -2473,7 +2473,7 @@ admin.settings.company_name:
     - The new name also appears on certificates you issue or view afterwards.
     - Each change is recorded in the audit log.
 
-admin.settings.result_release_mode:
+admin.tenant_settings.result_release_mode:
   audience: admin
   short_text: "Choose whether results go to candidates automatically once complete, or only when you publish them."
   long_md: |
@@ -2995,7 +2995,7 @@ admin.attempt.integrity:
     that leaving the tab is recorded and shared with you. A candidate on a device
     that does not support the feature will show zero.
 
-admin.question.content.numeric:
+admin.question.editor.content.numeric:
   audience: admin
   short_text: "Numeric question: the candidate types a number. It is correct if it is within the tolerance of the answer."
   long_md: |
@@ -3016,7 +3016,7 @@ admin.question.content.numeric:
     Wrong or non-numeric input scores 0. The answer and tolerance are never sent to
     the candidate before results are released.
 
-admin.question.content.multi_select:
+admin.question.editor.content.multi_select:
   audience: admin
   short_text: "Multi-select question: the candidate ticks every option that applies. Scored automatically."
   long_md: |
@@ -3036,7 +3036,7 @@ admin.question.content.multi_select:
     Options are shuffled per candidate like normal MCQs. Avoid options that point at
     each other, such as "All of the above"; those questions keep their written order.
 
-admin.question.content.ordering:
+admin.question.editor.content.ordering:
   audience: admin
   short_text: "Ordering question: the candidate puts the items in the right order. Scored automatically."
   long_md: |
@@ -3051,7 +3051,7 @@ admin.question.content.ordering:
     - A blank answer scores 0. The answer key is never sent to the candidate.
     - To ask "pick the log line", use a multi-select question whose options are the log lines.
 
-admin.question.ordering.items:
+admin.question.editor.ordering.items:
   audience: admin
   short_text: "Type the items in the correct order. Candidates see them shuffled."
   long_md: |
@@ -3063,7 +3063,7 @@ admin.question.ordering.items:
     Do not write the order in the item text, for example "Step 1". The candidate sees
     the items in a shuffled order.
 
-admin.question.ordering.scoring:
+admin.question.editor.ordering.scoring:
   audience: admin
   short_text: "All or nothing, or partial credit for items in the right place."
   long_md: |
@@ -3332,8 +3332,8 @@ admin.tenant_settings.page:
     - **Erased candidates.** See the candidates whose personal data was removed. Their names and emails cannot be read.
     - You may be asked for a fresh authenticator code when you change the release mode.
   related_keys:
-    - admin.settings.company_name
-    - admin.settings.result_release_mode
+    - admin.tenant_settings.company_name
+    - admin.tenant_settings.result_release_mode
 
 admin.generate_wizard.page:
   audience: admin
