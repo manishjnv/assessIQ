@@ -29,6 +29,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { gradeSubjective } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
+import { isBlankAnswer, reuseProposal, ruleProposal } from "../least-ai.js";
 import { scoreMcqAndFinalizeIfComplete } from "@assessiq/scoring";
 import type { GradingProposal } from "../types.js";
 import type { PoolClient } from "pg";
@@ -432,6 +433,26 @@ export async function handleAdminGrade(
       questionCount++;
 
       const answer = answers.get(q.question_id) ?? null;
+
+      // Least-AI tiers 1-2 (SP5): proposals only (D8) — rule band 0 for a blank answer,
+      // then reuse of an identical accepted grade. Only what is left goes to the runtime.
+      if (isBlankAnswer(answer)) {
+        proposals.push(ruleProposal(attemptId, q.question_id, q.points));
+        continue;
+      }
+      const reused = await withTenant(tenantId, (client) =>
+        reuseProposal(client, {
+          attemptId,
+          questionId: q.question_id,
+          questionVersion: q.question_version,
+          points: q.points,
+          answer,
+        }),
+      );
+      if (reused !== null) {
+        proposals.push(reused);
+        continue;
+      }
 
       // Grade-time rubric resolution (synthesis + holistic fallback) — shared with
       // Re-run so a re-run grades exactly like the first pass. Ephemeral, D8.

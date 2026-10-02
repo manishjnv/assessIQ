@@ -65,6 +65,10 @@ export const GradingProposalSchema = z.object({
   escalation_chosen_stage: z.enum(["2", "3", "manual"]).nullable(),
   /** ISO-8601 server timestamp of proposal generation. */
   generated_at: z.string().datetime(),
+  /** SP5: where the proposal came from; absent = AI (legacy cached proposals). */
+  source: z.enum(["rule", "reuse", "ai"]).optional(),
+  /** SP5: for source 'reuse', the gradings.id whose band was reused. */
+  reused_from_grading_id: z.string().uuid().optional(),
 });
 export type GradingProposal = z.infer<typeof GradingProposalSchema>;
 
