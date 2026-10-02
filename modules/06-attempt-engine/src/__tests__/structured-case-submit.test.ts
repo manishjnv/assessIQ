@@ -162,7 +162,14 @@ describe("structured_case question end to end", () => {
     expect(JSON.stringify(view)).not.toMatch(/"correct"|SECRET-WHY|explanation|option_order/);
 
     // Bad shapes are rejected at save with the same 400 as the scenario check.
-    for (const bad of [{ steps: { ghost: [0] } }, { steps: { s1: [3] } }, { steps: { s1: [0.5] } }, { selected: 1 }, "text"]) {
+    for (const bad of [
+      { steps: { ghost: [0] } },
+      { steps: { s1: [3] } },
+      { steps: { s1: [0.5] } },
+      { steps: { s2: [0, 1] } }, // select-one step with two picks
+      { selected: 1 },
+      "text",
+    ]) {
       await expect(
         saveAnswer(tenant, userId, { attemptId, questionId: s.ids.scase, answer: bad, client_revision: 0 }),
         JSON.stringify(bad),

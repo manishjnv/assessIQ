@@ -349,12 +349,17 @@ export function checkAnswerForSave(
     const parsed = StructuredCaseAnswerPayloadSchema.safeParse(answer);
     const steps = (frozenContent as { steps?: unknown } | null | undefined)?.steps;
     if (!parsed.success || !Array.isArray(steps)) return { ok: false };
-    const byId = new Map(steps.map((s: { id?: unknown; options?: unknown }) => [s.id, s.options]));
+    const byId = new Map(
+      steps.map((s: { id?: unknown; options?: unknown; select?: unknown }) => [s.id, { options: s.options, select: s.select }]),
+    );
     for (const [id, picks] of Object.entries(parsed.data.steps)) {
-      const options = byId.get(id);
+      const step = byId.get(id);
+      const options = step?.options;
       if (!Array.isArray(options) || new Set(picks).size !== picks.length || picks.some((i) => i >= options.length)) {
         return { ok: false };
       }
+      // A select-one step takes at most one pick (review note, 2026-10-03).
+      if (step?.select === "one" && picks.length > 1) return { ok: false };
     }
     return { ok: true, answer: parsed.data };
   }
