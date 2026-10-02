@@ -28,7 +28,7 @@ export function SectionsCard({
   onSaved,
 }: {
   assessmentId: string;
-  /** Full current settings: PATCH replaces settings wholesale, so the other keys are sent back. */
+  /** Page copy of settings, used for the summary only; save() re-reads fresh settings. */
   settings: Record<string, unknown> | null | undefined;
   hasAttempts: boolean;
   isDraft: boolean;
@@ -53,10 +53,14 @@ export function SectionsCard({
       setError(built.error);
       return;
     }
-    const { sections: _drop, ...rest } = settings ?? {};
-    const next = built === null ? rest : { ...rest, ...built.settings };
     setBusy(true);
     try {
+      // PATCH replaces settings wholesale and the sibling cards (integrity, high stakes,
+      // reminders) save via their own routes without updating the page copy — so re-read
+      // the current settings right before saving, or their changes would be reverted.
+      const fresh = await adminApi<{ settings?: Record<string, unknown> | null }>(`/admin/assessments/${assessmentId}`);
+      const { sections: _drop, ...rest } = fresh.settings ?? {};
+      const next = built === null ? rest : { ...rest, ...built.settings };
       await adminApi(`/admin/assessments/${assessmentId}`, {
         method: "PATCH",
         body: JSON.stringify({

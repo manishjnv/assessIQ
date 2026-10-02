@@ -42,19 +42,24 @@ describe("SectionsCard", () => {
     expect(btn.title).toContain("after students have started");
   });
 
-  it("sends full settings and shows the inline message on 409 SECTIONS_LOCKED", async () => {
-    adminApi.mockRejectedValue(
-      new AdminApiError(409, { code: "CONFLICT", message: "x", details: { code: "SECTIONS_LOCKED" } }),
-    );
+  it("re-reads settings before saving (keeps sibling-card edits) and shows 409 SECTIONS_LOCKED inline", async () => {
+    // Integrity was changed by IntegrityCard after page load; the stale prop still says fullscreen: true.
+    const fresh = { ...settings, integrity: { fullscreen: false } };
+    adminApi
+      .mockResolvedValueOnce({ settings: fresh })
+      .mockRejectedValueOnce(
+        new AdminApiError(409, { code: "CONFLICT", message: "x", details: { code: "SECTIONS_LOCKED" } }),
+      );
     const onSaved = vi.fn();
     render(<SectionsCard assessmentId="a1" settings={settings} hasAttempts={false} isDraft onSaved={onSaved} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit sections" }));
     fireEvent.click(screen.getByRole("button", { name: "Save sections" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("after students have started"));
-    const [path, init] = adminApi.mock.calls[0] as [string, { method: string; body: string }];
+    expect(adminApi.mock.calls[0]).toEqual(["/admin/assessments/a1"]);
+    const [path, init] = adminApi.mock.calls[1] as [string, { method: string; body: string }];
     expect(path).toBe("/admin/assessments/a1");
     expect(init.method).toBe("PATCH");
-    expect(JSON.parse(init.body)).toEqual({ settings, question_count: 5 });
+    expect(JSON.parse(init.body)).toEqual({ settings: fresh, question_count: 5 });
     expect(onSaved).not.toHaveBeenCalled();
   });
 });
