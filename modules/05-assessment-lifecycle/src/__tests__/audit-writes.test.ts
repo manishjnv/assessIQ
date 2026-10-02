@@ -536,15 +536,15 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
   // -------------------------------------------------------------------------
   // Coverage assertion: service.ts contains exactly N auditInTx call-sites.
   // -------------------------------------------------------------------------
-  it("service.ts contains exactly 11 auditInTx call-sites (one per wired admin-mutating function)", async () => {
+  it("service.ts contains exactly 12 auditInTx call-sites (one per wired admin-mutating function)", async () => {
     const servicePath = join(AL_MODULE_ROOT, "src", "service.ts");
     const source = await readFile(servicePath, "utf-8");
     const matches = source.match(/auditInTx\(/g) ?? [];
-    // 11 wired call-sites: createAssessment, updateAssessment, publishAssessment,
+    // 12 wired call-sites: createAssessment, updateAssessment, publishAssessment,
     // closeAssessment, cancelAssessment, deleteAssessment, reopenAssessment,
     // inviteUsers, revokeInvitation, and reissueInvitationInTx — the single
     // audit point shared by resendInvitation, resendInvitations and the
-    // re-invite branch of inviteUsers (2026-10-01), plus updateAssessmentIntegrity (2026-10-02).
-    expect(matches.length).toBe(11);
+    // re-invite branch of inviteUsers (2026-10-01), plus updateAssessmentIntegrity (2026-10-02) and updateAssessmentGrading (high_stakes, batch 5).
+    expect(matches.length).toBe(12);
   });
 });
