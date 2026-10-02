@@ -389,6 +389,8 @@ siteverify call). **Sharp edge:** the backend (turnstile) and frontend (widget) 
 from the deployed marketing build (frontend not deployed). To rotate the secret: regen in
 Turnstile → update `.env` + recreate the API.
 
+> **History (superseded 2026-09-20):** production now sends through Brevo SMTP from `AssessIQ <connect@assessiq.in>`. See the "UPDATE 2026-09-20" block in the env section below and `docs/13-email-system.md`. This Resend record stays as history.
+
 **Platform email sender → Resend (2026-05-24).** The platform's SMTP transport was
 switched from a personal **Gmail SMTP** (`smtp.gmail.com`, From `manishjnvk@gmail.com`
 — see RCA 2026-05-24) to **Resend**. `assessiq.in` is verified in Resend (DKIM
@@ -480,9 +482,8 @@ docker compose -f /srv/assessiq/infra/docker-compose.yml up -d --no-deps --force
 
 Skills in `prompts/skills/` are bind-mounted read-only into the `assessiq-api` and
 `assessiq-worker` containers at `/home/node/.claude/skills/` (relative path
-`../prompts/skills` from `infra/docker-compose.yml`). **A `git pull` alone is sufficient
-to deploy skill changes — no image rebuild, no `scp`, no container restart needed.**
-The skill file is re-read from disk on every `skillSha()` invocation.
+`../prompts/skills` from `infra/docker-compose.yml`). **Since 2026-10-01 a `git pull` does not deploy skill changes.** Use `scp` to copy the file into `/srv/assessiq/prompts/skills/` on the VPS (see the box above). No container restart is needed for a skill-only change.
+The skill file is re-read from disk on every `skillSha()` invocation. *History: before 2026-10-01 a `git pull` alone was enough.*
 
 ```bash
 # On VPS — skill-only deploy:
@@ -809,6 +810,7 @@ GOOGLE_OAUTH_REDIRECT=https://assessiq.in/api/auth/google/cb
 # Provision: create an API key at resend.com → Sending → API Keys (SMTP scope),
 # then set SMTP_URL=smtps://apikey:<key>@smtp.resend.com:465 and restart assessiq-api + assessiq-worker.
 SMTP_URL=
+# History: the line below is the Resend-era sender. Production now uses EMAIL_FROM="AssessIQ <connect@assessiq.in>" (Brevo, 2026-09-20).
 EMAIL_FROM="AssessIQ <noreply@assessiq.in>"
 
 # Observability
@@ -835,6 +837,8 @@ AI_PIPELINE_MODE=claude-code-vps
 **Local development:** the same keys live in `.env.local` at the repo root (gitignored — `.gitignore` covers `.env.*` with `!.env.example` allowlist). Never commit values; only `.env.example` is in the repo.
 
 ## Email sender (Resend cutover)
+
+> **History.** Production moved from Resend to Brevo on 2026-09-20. The sender is now `AssessIQ <connect@assessiq.in>`.
 
 > **SUPERSEDED (2026-05-24).** This is the original 2026-05-21 *plan*, which targeted
 > `automateedge.cloud`. The cutover was actually executed on 2026-05-24 against

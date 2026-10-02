@@ -1,5 +1,7 @@
 # Phase 1 — Author & Take Kickoff Plan
 
+**Status:** DONE 2026-05-03 (2c9af6b). Phase 1 closure audit passed; re-drill 2026-05-14 (d92debc).
+
 > **Generated:** 2026-05-01 by Opus 4.7 after parallel doc-discovery sweeps (3 Haiku Explore agents, one per module cluster).
 > **Phase scope:** Modules `04-question-bank`, `05-assessment-lifecycle`, `06-attempt-engine`, `11-candidate-ui`, `16-help-system`.
 > **Outcome:** SOC pack authored end-to-end. Admin creates question packs/levels/questions, builds an assessment, invites candidates. Candidates take the assessment with autosave + integrity signals + per-element help. No grading yet — that lands Phase 2.

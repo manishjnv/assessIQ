@@ -1,5 +1,7 @@
 # Phase 0 — Closure Plan
 
+**Status:** DONE 2026-05-01 (6631d3f). Route layer and first VPS deploy closed.
+
 > **Generated:** 2026-05-01 by Opus 4.7 via `claude-mem:make-plan`.
 > **Parent:** `docs/plans/PHASE_0_KICKOFF.md` § Final phase (steps 1, 3, 4, 5 partial — closes the verification drills the kickoff plan deferred).
 > **Predecessor commits on `origin/main`:** `d9cfeb4` (W4 — `@assessiq/auth` library + DB), `be96623` (W5 mock-seam swap → real `@assessiq/auth.sessions`), `32e5e85` (handoff docs). Working tree clean at plan-write time.

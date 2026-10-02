@@ -6,7 +6,7 @@
 
 ## What AssessIQ is
 
-A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platform** for technical teams. SOC pack ships first; every other domain (DevOps, Cloud Architects, Identity, IR, etc.) plugs in as additional question packs against the same engine.
+A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platform** for technical teams. The first real use is a university aptitude pilot; every other domain (DevOps, Cloud Architects, Identity, IR, etc.) plugs in as additional question packs against the same engine.
 
 **Three product surfaces:**
 1. **Standalone web app** — `https://assessiq.in`
@@ -15,11 +15,11 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 
 ## Non-negotiable design principles
 
-1. **Multi-tenant from day one.** Every table has `tenant_id`. SOC team is `tenant: wipro-soc`.
+1. **Multi-tenant from day one.** Every table has `tenant_id`. Each customer is one tenant.
 2. **Domain-agnostic core.** No `if domain === "soc"` anywhere. Domain lives in question packs (data), not code.
 3. **Graduated scoring, never binary.** Subjective answers land in 0/25/50/75/100 bands, never raw "73%".
 4. **Auditable AI.** Every AI grade stores anchors, band, justification, error class, model, prompt version. Admin override never replaces the AI verdict — it sits beside it.
-5. **AI grading runs as the admin, not as a product.** Phase 1 uses Claude Code CLI on the VPS under the admin's Max subscription, synchronous and triggered only by an admin click — never a cron, webhook, or candidate event. Phase 2 (paid budget) switches to API-key auth via the Agent SDK. **Never** wire ambient/background AI calls under Max-OAuth — that crosses the ToS line. See `docs/05-ai-pipeline.md`.
+5. **AI grading runs as the admin, not as a product.** Phase 1 uses Claude Code CLI on the VPS under the admin's Max subscription. Only the platform super admin starts an AI evaluation. It is synchronous and triggered only by a click — never a cron, webhook, or candidate event. Phase 2 (paid budget) switches to API-key auth via the Agent SDK. **Never** wire ambient/background AI calls under Max-OAuth — that crosses the ToS line. See `docs/05-ai-pipeline.md`.
 6. **Help is a first-class module.** Every UI element with a `help_id` has tooltip + drawer content. Authoring is centralized.
 
 ## Tech stack (committed)
@@ -28,14 +28,14 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 |---|---|---|
 | Runtime | Node.js 22 LTS + Fastify | Matches IntelWatch ETIP; one mental model |
 | DB | PostgreSQL 16 + RLS | Tenant isolation enforced at row level |
-| Cache / queue | Redis 7 + BullMQ | Sessions, rate limits, async grading jobs |
+| Cache / queue | Redis 7 + BullMQ | Sessions, rate limits. BullMQ runs non-AI jobs only (email, webhooks, reminders, scheduled jobs). No AI call runs on a queue |
 | AI runtime | **Phase 1:** Claude Code CLI on VPS (Max subscription, admin-in-the-loop, sync-on-click). **Phase 2 (designed, switchable via `AI_PIPELINE_MODE`):** Claude Agent SDK (TypeScript) via `ANTHROPIC_API_KEY` | Phase 1: $0 API cost, admin-in-the-loop ToS compliance. Phase 2: unlocks async + non-admin triggers. See `docs/05-ai-pipeline.md`. |
 | AI models | Sonnet 4.6 (primary), Haiku 4.5 (anchors), Opus 4.7 (escalation) | Multi-tier pipeline by stakes |
-| Frontend | React 18 + Vite + TypeScript | Fast iteration, embeds cleanly in iframe |
+| Frontend | React 19 + Vite 8 + TypeScript | Fast iteration, embeds cleanly in iframe |
 | Styling | Tailwind + design-token CSS vars | Theming per tenant; UI template plugs in here |
-| Auth (admin) | Google SSO (OIDC) + TOTP MFA mandatory; `super_admin` role for cross-tenant ops (`d59ade4`) | Phase 1 |
+| Auth (admin) | Google sign-in or email one-time code. TOTP MFA is optional for tenant admins now (to be enabled later; owner decision 2026-10-02) and always required for `super_admin`; `super_admin` role for cross-tenant ops (`d59ade4`) | Phase 1 |
 | Auth (extensible) | OIDC, SAML, magic-link, email+password | Phase 2, admin-toggleable per tenant |
-| Hosting | Hostinger VPS, Docker Compose, nginx + Let's Encrypt | Reuses your IntelWatch infra playbook |
+| Hosting | Hostinger VPS, Docker Compose, Caddy reverse proxy behind Cloudflare | Reuses your IntelWatch infra playbook |
 | Domain | `assessiq.in` (canonical since 2026-05-22; `assessiq.automateedge.cloud` 301-redirects) | Brand domain |
 
 ## Module map
@@ -44,7 +44,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 00-core                Config, env, logging, base types, error handling
 01-auth                Google SSO + TOTP, magic link, embed JWT, API keys, sessions
 02-tenancy             Tenant CRUD, isolation, RLS policies, settings
-03-users               User model, roles (admin/reviewer/candidate), invites
+03-users               User model, roles (admin/reviewer/candidate; reviewer role is to be removed, owner decision 2026-10-02), invites
 04-question-bank       Packs, levels, questions, versioning, tags
 05-assessment-lifecycle Cycles, invitations, schedules, state machine
 06-attempt-engine      Taking the assessment, timer, autosave, integrity hooks
@@ -60,6 +60,8 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 16-help-system         Tooltip framework, help content store, contextual drawer
 17-ui-system           Design tokens, component library, theming primitives
 18-certification       Course-completion certificates: HMAC-signed credential rows, public verify URL, admin issue/revoke
+19-billing             Usage metering (one credit per graded attempt), tenant plans, entitlements
+20-data-rights         DPDP/GDPR data-subject rights: admin-mediated access export, erasure, retention cron
 ```
 
 ## Build phases
@@ -72,6 +74,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | **Phase 3** — Operate (Week 9–10) | 13, 14, 15 | ✅ G3.A audit-log (`43c0e45`) + G3.B notifications (`cae6d37`) + email i18n (`7a20ee2`) + G3.C analytics (`ce041e3`) shipped; G3.D atomic `auditInTx` sweep ✅ COMPLETE (2026-05-14): 03-users `057de7d`, 05-lifecycle `08d4b19`, 04-question-bank `eff0ba2`, 07-ai-grading, 09-scoring, 16-help-system, 18-certification, 01-auth+02-tenancy+12-embed-sdk+13-notifications `dad0d9a`. 06-attempt-engine correctly excluded (all candidate-facing); 13-notifications/in-app correctly excluded (system/user paths); 10-admin-dashboard has no backend service layer. |
 | **Phase 4** — Embed (Week 11–12) | 12 | ✅ shipped (`b20858b`, 2026-05-03); iframe + JWT embed + session minting + admin surface live; consumer integration guide at `docs/09-integration-guide.md`. |
 | **Phase 5** — Credentialize (post-MVP, 6–10 sessions) | 18-certification | ✅ shipped (Sessions 1–10, 2026-05-11 → 2026-05-14): HMAC signing, public verify, PDF, OG meta, LinkedIn PNG, auto-issue trigger, admin UI, LinkedIn share button. Out of scope for Phase 1 of cert: LinkedIn "Add to Profile" API, employer/recruiter portal, fraud detection beyond HMAC + revocation. Plan: `docs/CERTIFICATION_PLAN_GENERIC.md`. |
+| **Pilot hardening** (2026-10-01 → 2026-10-02) | pilot batches 1–8; SP1–SP4, SP7, SP9–SP11 | Live for the university aptitude pilot. Batches: readiness (invites, email and webhook hardening, release on last accept; `docs/plans/PILOT_READINESS_BATCH.md`), 3–4 (question types, sections, reminders, load hardening; `PILOT_BATCHES_3_4.md`), 5 (high-stakes vote, eval gate; `PILOT_BATCH_5.md`), 6 (CI green, dependency bumps; `PILOT_BATCH_6.md`), 7 (eval golden set, NODE_ENV required; `PILOT_BATCH_7.md`), 8 (SEO dates, IndexNow, ordering type; `PILOT_BATCH_8.md`). Scoring and result release: students see only complete scores, and only the platform super admin runs AI evaluation (`docs/plans/SCORING_RESULT_RELEASE.md`). Batch 2 detail is in `docs/SESSION_STATE.md`. |
 
 ## Decision log
 
@@ -82,7 +85,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | 2026-04-29 | **Phase 1 grading uses Claude Code CLI on VPS under admin's Max subscription** (sync-on-click, single-admin-in-the-loop, no Agent SDK, no `ANTHROPIC_API_KEY`). Phase 2 swap to paid Anthropic API stays designed but deferred. | $0 budget for AI APIs. Anthropic ToS forbids Max-auth in *products* but allows the subscriber to script their *own* use; admin-in-the-loop preserves that line. Supersedes the earlier "Agent SDK + API key" plan from the same date. See `docs/05-ai-pipeline.md`. |
 | 2026-04-29 | Hostinger VPS + Docker Compose | Reuses IntelWatch ETIP playbook; AWS migration deferred until traffic warrants it |
 | 2026-04-29 | Subdomain on automateedge.cloud | Existing infra; white-label capability via tenant-level domain mapping in v2 |
-| 2026-05-22 | **Canonical host switched to `assessiq.in`**; `assessiq.automateedge.cloud` 301-redirects to it (host-only cookies + no shared parent rule out a logged-in alias; redirect preserves in-flight magic-link/invite tokens). New domain inherits the AOP origin-lock + `x-origin-verify` defenses. `EMAIL_FROM` move to `noreply@assessiq.in` deliberately deferred (separate SPF/DKIM/DMARC workstream). **[Completed 2026-05-24: Resend cutover — production sends from `noreply@assessiq.in`; see docs/06-deployment.md.]** | Brand domain over stop-gap subdomain. See `docs/06-deployment.md` § "Domain switch to assessiq.in (2026-05-22)". |
+| 2026-05-22 | **Canonical host switched to `assessiq.in`**; `assessiq.automateedge.cloud` 301-redirects to it (host-only cookies + no shared parent rule out a logged-in alias; redirect preserves in-flight magic-link/invite tokens). New domain inherits the AOP origin-lock + `x-origin-verify` defenses. `EMAIL_FROM` move to `noreply@assessiq.in` deliberately deferred (separate SPF/DKIM/DMARC workstream). **[Completed 2026-05-24: Resend cutover — production sends from `noreply@assessiq.in`; see docs/06-deployment.md.] [Follow-up 2026-09-20: email moved to Brevo SMTP; sender is `connect@assessiq.in`; see docs/06-deployment.md and docs/13-email-system.md.]** | Brand domain over stop-gap subdomain. See `docs/06-deployment.md` § "Domain switch to assessiq.in (2026-05-22)". |
 | 2026-04-29 | Help system as separate module | First-class concern, not bolt-on; centralized authoring + i18n-ready |
 | 2026-04-30 | UI template at `modules/17-ui-system/AssessIQ_UI_Template/` adopted as the brand base; canonical guideline distilled to `docs/10-branding-guideline.md` | Reuse over redesign; the editorial typography (Newsreader serif + Geist sans + JetBrains Mono), OKLCH palette around hue 258, density-via-`--u` mechanic, and pill-button + editorial-card idioms are intentional and reusable. Future pages inherit from this guideline. Folder renamed from `AccessIQ_UI_Template` to `AssessIQ_UI_Template` 2026-05-13 when the v1.1 kit dropped. Rename commit: `9c03797`. |
 | 2026-05-01 | **Phase 1 `attempt.status` enum confirmed:** `draft → in_progress → submitted → pending_admin_grading → graded → released`; `auto_submitted` and `cancelled` are terminals. Value `grading` is reserved for Phase 2 async worker. | Resolves ambiguity between data-model.md:368 and ai-pipeline.md. Supersedes api-contract.md:217 which erroneously had `status:'grading'` for Phase 1. See PHASE_1_KICKOFF.md D2-D3. |
@@ -103,7 +106,12 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | 2026-05-13 | **`audit_log` rows for admin-override do NOT copy `gradings.override_reason` (PII policy).** Free-text admin justification is preserved only in the immutable `gradings` row; auditors pivot via `audit_log.entity_id → gradings.id`. Three defense layers: inline policy comment at `admin-override.ts:118–135`; `docs/11-observability.md §29.1`; static regression guard in `audit-writes.test.ts` asserting `override_reason` absent from the `auditInTx` call block. Retention note: any future `gradings` purge sweep must use a window ≥ `audit_log` retention or override audit rows will outlive their justification chain. Commit: `b5aa332`. | Audit table is REVOKE-protected and broadly indexed for compliance queries that run without need-to-know of PII. Forensic chain intact via entity_id pivot; PII boundary clean. |
 | 2026-05-14 | **G3.D invariant: every admin-mutating service function writes exactly one `audit_log` row inside the same Postgres transaction via `auditInTx` — never fire-and-forget, never a separate transaction.** Sweep covered all 26 catalog entries across 01-auth, 02-tenancy, 03-users, 04-question-bank, 05-lifecycle, 07-ai-grading, 09-scoring, 12-embed-sdk, 13-notifications, 16-help-system, 18-certification. Commits: `eff0ba2`, `08d4b19`, `057de7d`, `15c7728`, `dad0d9a`; sweep closed `15ed2d3`. | A graded attempt without an audit row is the worst-case compliance hole. Fire-and-forget audit calls were the pre-G3.D pattern; a separate-transaction audit could silently drop on DB contention without rolling back the business operation. The Working Agreements section cites the rule; this entry records the *why* for future sessions. |
 | 2026-05-14 | **Phase 15 quality gates: Lighthouse CI (advisory, ≥0.90, 5 unauthenticated routes) + Playwright visual regression (Docker-only baseline, Linux CI only).** Lighthouse routes: `/admin/login`, `/candidate/login`, `/take/expired`, `/take/error`, `/this-is-not-a-page`. Runs as advisory PR check (not required status check) — promote to required after auth-seeded coverage is added. Visual baselines are NOT committed; must be generated inside `mcr.microsoft.com/playwright:v1.59.1-jammy` to be byte-identical on CI. Commits: `f34f9bd` (Lighthouse CI), `10f1540` (Playwright visual regression). | Advisory status allows incremental hardening without blocking PRs. Docker-only baseline prevents host-OS font/rendering drift from causing false CI failures. Auth-seeded Lighthouse and visual coverage deferred until Playwright session fixtures exist. |
-| 2026-05-20 | **Mobile Kit Port M0–M6 SHIPPED in one day.** Seven phases (M0 foundation, M1 magic-link landing, M2a AttemptPage chrome, M2b per-Q-type sizing, M3 Submitted, M4 CandidateShell nav + Activity, M5 admin graceful-degrade, M6 docs/handoff) covering the entire candidate-facing surface for phones. **Visual-only port; no new routes, no flow changes, no API changes, no auth-semantics changes.** Same DOM both viewports throughout — mobile is a CSS-only delta keyed on M0's `data-viewport="mobile"`, plus a lazy `<Drawer>` mount for the take-flow question navigator (M2a) and a controlled-state overflow menu in CandidateShell (M4). Admin remains desktop-only with a graceful-degrade interstitial (M5); login/MFA routes excluded so admins can resolve auth challenges on the go; per-session `sessionStorage` override available. KQL question type kept the existing plain-textarea answer + a mobile-only caveat tip — Monaco/desktop-required interstitial deferred to a future M2b' when Phase 2 KQL editor lands. CandidateShell scope expansion (adding inline NavLinks for the two existing candidate routes) was explicitly user-approved via AskUserQuestion. Four new help-system entries added (navigator.toggle, kql.mobile_tip, shell.nav.mobile_menu, mobile_continue_anyway), each catch-up-committed through the `0011_seed_help_content.sql` drift gate. Commits: `b6e8f1c` M0, `eaa849b` M1, `fb1c701` M2a, `4d4b20c`+`bc4f366` M2b, `4393cbb` M3, `a385f94`+`4ee9e5a` M4, `7fede89`+`672283f` M5. Plan + status header: `docs/plans/MOBILE_KIT_PORT.md`. Visual contract: `docs/10-branding-guideline.md § 15`. API surface: `docs/08-ui-system.md § Mobile`. | Phased one-by-one over a single day rather than one-shot; each phase shipped with same-PR docs + a handoff + a help-seed catch-up where needed. North-star rule throughout: *functionality drives UI; UI never drives functionality* — the mobile kit is a palette of idioms, not a product spec. M4 was the only phase that added net-new functionality (shell-level nav between the two existing candidate routes) — surfaced as a product decision via AskUserQuestion before implementing, justified by the existing route inventory. |
+| 2026-05-20 | **Mobile Kit Port M0–M6 SHIPPED in one day.** Seven phases (M0 foundation, M1 magic-link landing, M2a AttemptPage chrome, M2b per-Q-type sizing, M3 Submitted, M4 CandidateShell nav + Activity, M5 admin graceful-degrade, M6 docs/handoff) covering the entire candidate-facing surface for phones. **Visual-only port; no new routes, no flow changes, no API changes, no auth-semantics changes.** Same DOM both viewports throughout — mobile is a CSS-only delta keyed on M0's `data-viewport="mobile"`, plus a lazy `<Drawer>` mount for the take-flow question navigator (M2a) and a controlled-state overflow menu in CandidateShell (M4). Admin stayed desktop-only with a graceful-degrade interstitial (M5) at that date; [Update 2026-05-21: the admin became responsive in the Admin Mobile Port, A0 to A6, and `ViewportLock` was removed (`c8349df`, `docs/plans/ADMIN_MOBILE_PORT_IMPL.md`)]; login/MFA routes excluded so admins can resolve auth challenges on the go; per-session `sessionStorage` override available. KQL question type kept the existing plain-textarea answer + a mobile-only caveat tip — Monaco/desktop-required interstitial deferred to a future M2b' when Phase 2 KQL editor lands. CandidateShell scope expansion (adding inline NavLinks for the two existing candidate routes) was explicitly user-approved via AskUserQuestion. Four new help-system entries added (navigator.toggle, kql.mobile_tip, shell.nav.mobile_menu, mobile_continue_anyway), each catch-up-committed through the `0011_seed_help_content.sql` drift gate. Commits: `b6e8f1c` M0, `eaa849b` M1, `fb1c701` M2a, `4d4b20c`+`bc4f366` M2b, `4393cbb` M3, `a385f94`+`4ee9e5a` M4, `7fede89`+`672283f` M5. Plan + status header: `docs/plans/MOBILE_KIT_PORT.md`. Visual contract: `docs/10-branding-guideline.md § 15`. API surface: `docs/08-ui-system.md § Mobile`. | Phased one-by-one over a single day rather than one-shot; each phase shipped with same-PR docs + a handoff + a help-seed catch-up where needed. North-star rule throughout: *functionality drives UI; UI never drives functionality* — the mobile kit is a palette of idioms, not a product spec. M4 was the only phase that added net-new functionality (shell-level nav between the two existing candidate routes) — surfaced as a product decision via AskUserQuestion before implementing, justified by the existing route inventory. |
+| 2026-10-02 | **Owner decision: the product has plan tiers.** Tier contents, prices and the payment provider are not decided. | Replaces the earlier "no customer payments" statement. Module `19-billing` holds the metering base. |
+| 2026-10-02 | **Owner decision: MFA for tenant admins is optional now and to be enabled later.** All MFA code stays. The super admin always uses TOTP. | Lower sign-in friction for the pilot; the gate stays available (`MFA_REQUIRED`). |
+| 2026-10-02 | **Owner decision: the reviewer role is to be removed.** | Keeps the product simple (owner). Company admins review and publish results. |
+| 2026-10-02 | **Rule A — dormant or stale features are never deleted because they are unused.** Review first: purpose, what operates now, a better option, a merge with a newer feature. Result: revive, merge, improve or park. A delete needs written research, an item that is absolutely useless for a professional product, and owner approval. | Prevents loss of working design. |
+| 2026-10-02 | **Rule B — before any new task, find the similar older task or feature.** Compare both. Implement the better or the combined version. Note "old task or feature checked" in the handoff. | Prevents duplicate features. |
 
 ## Working agreements (for Claude Code sessions)
 
@@ -112,7 +120,9 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 - Schema changes require updating `docs/02-data-model.md` in the same PR.
 - API changes require updating `docs/03-api-contract.md` in the same PR.
 - New UI elements require a `help_id` and content entry in `16-help-system`.
-- Every AI prompt is versioned in `modules/07-ai-grading/prompts/` and referenced by hash in grading records.
+- AI prompts are skills stored on the production server only (not in git since 2026-10-01). The sha256 of each skill is recorded on every grading row.
+- **Rule A — keep dormant features, review them.** Never delete a dormant or stale feature because it is unused. Review it first: its purpose, what operates now, a better option, a merge with a newer feature. The result is revive, merge, improve or park. A delete needs written research, an item that is absolutely useless for a professional product, and owner approval.
+- **Rule B — check the old task first.** Before any new task, find the similar older task or feature. Compare both. Implement the better or the combined version. Note "old task or feature checked" in the handoff.
 - **Every admin-mutating service function must write one `audit_log` row inside the same Postgres transaction via `auditInTx`** — never fire-and-forget, never in a separate transaction. Established by G3.D sweep (commits `eff0ba2`, `08d4b19`, `057de7d`).
 
 ## Where to look for what
@@ -127,6 +137,9 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | How to deploy | `docs/06-deployment.md` |
 | How to add tooltip/help text | `docs/07-help-system.md` |
 | How to theme / build UI | `docs/08-ui-system.md` |
+| Observability, logs, metrics | `docs/11-observability.md` |
+| Test coverage map | `docs/12-test-coverage.md` |
+| Email system (SMTP, templates, queue) | `docs/13-email-system.md` |
 | Brand visuals — typography, palette, screen-layout templates, component idioms (read before designing any new page) | `docs/10-branding-guideline.md` |
 | How a host app embeds AssessIQ | `docs/09-integration-guide.md` |
 | What a specific module does | `modules/<n>-<name>/SKILL.md` |

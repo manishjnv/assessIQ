@@ -2,7 +2,7 @@
 
 **Status:** LIVE on production (https://assessiq.in), deployed 2026-10-02 at `6336f61` (`dcded5e..6336f61`).
 **Deploy:** migrations 0144 and 0145 by hand; marketing, api, worker, frontend rebuilt. Detail: `docs/06-deployment.md` § Batch 8 deploy. Adversarial review: E8 codex revise (addressed); SP7 codex revise (HIGH fixed, re-check accept).
-**Scope:** the `docs/plans/BATCH_7_PROMPT.md` plan minus N7 and N9 (done in batch 7). Not browser-checked: the ordering flow.
+**Scope:** the `docs/plans/BATCH_8_PROMPT.md` plan minus N7 and N9 (done in batch 7). Not browser-checked: the ordering flow.
 
 ## What changed
 

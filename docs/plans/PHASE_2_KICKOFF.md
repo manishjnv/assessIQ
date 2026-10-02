@@ -1,5 +1,7 @@
 # Phase 2 — Grade & Report Kickoff Plan
 
+**Status:** DONE 2026-05-03 (18c06d9). Phase 2 modules 07 to 10 live; sharded generation followed in f449203.
+
 > **Generated:** 2026-05-02 by Opus 4.7 after parallel doc-discovery sweeps (3 Haiku Explore agents, one per module cluster).
 > **Phase scope:** Modules `07-ai-grading`, `08-rubric-engine`, `09-scoring`, `10-admin-dashboard`.
 > **Outcome:** AI grading live. Admin clicks "Grade" on a Phase 1 `pending_admin_grading` attempt; Phase 1 runtime spawns Claude Code on the VPS, returns a structured proposal (anchors + band + justification + score); admin reviews, accepts/overrides/re-runs; `gradings` row commits; `09-scoring` aggregates per-question grades into `attempt_scores` with archetype label + behavioral signals; `10-admin-dashboard` ships the queue + proposal-review + override + cohort/results UI surfaces. Phase 2 grading-on-API-key (`anthropic-api` runtime) stays designed-but-deferred per `docs/05-ai-pipeline.md` D1; the same skills, scoring math, and eval harness flip on a single `AI_PIPELINE_MODE` env var when a tenant lands paid grading credits.

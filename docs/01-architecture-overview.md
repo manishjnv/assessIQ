@@ -77,7 +77,7 @@ _Last verified: 2026-10-02 against `infra/docker-compose.yml`, `infra/docker/*/D
 - WebSocket upgrade for `/ws` (live grading-status updates)
 - See `docs/06-deployment.md` for the actual Caddyfile block and VPS topology
 
-### Frontend SPA — React 18 + Vite
+### Frontend SPA — React 19 + Vite 8
 - Single SPA, two route trees: `/admin/*` and `/take/*`
 - Embed mode toggled via `?embed=true` — strips top nav and theme overrides applied
 - Talks only to `/api/*` over fetch/WebSocket

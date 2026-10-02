@@ -1106,7 +1106,7 @@ This slice adds **0** new entries — `webhook.created`, `webhook.deleted`, `web
 
 - `emitWebhook` / `emitWebhookToEndpoint` — these queue deliveries in response to other modules' state changes (e.g. `attempt.submitted` fanout). The audit trail for *why* the webhook fired lives on the originating action's audit row, not here. Adding a `webhook.dispatched` row per delivery would inflate the audit trail by orders of magnitude and answer no compliance question that the originating row doesn't already answer.
 - BullMQ `deliver-job` (the worker that POSTs the HTTP request and records HTTP status) — purely operational. Outcome lands in `webhook.log` and `webhook_deliveries` table.
-- Email sending (`sendEmail`, `sendAssessmentInvitationEmail`, candidate magic-link emails) — Phase 1 dev-fallback writes to `dev-emails.log`. Phase 2+ will route via SMTP/SES. The send itself is downstream of an already-audited admin action (e.g. `assessment.invite`); duplicating the audit row at the email layer adds no compliance signal.
+- Email sending (`sendEmail`, `sendAssessmentInvitationEmail`, candidate magic-link emails) — Phase 1 dev-fallback writes to `dev-emails.log`. Production routes through Brevo SMTP (`SMTP_URL`, see `docs/06-deployment.md`). The send itself is downstream of an already-audited admin action (e.g. `assessment.invite`); duplicating the audit row at the email layer adds no compliance signal.
 - In-app notifications (`createInAppNotification`) — these are user-facing pings, not state changes auditors care about. Persistence is in `in_app_notifications`; lifecycle is the notification row itself.
 
 ## 28. Audit-log wiring — 18-certification (G3.D slice + Phase 5 Sessions 1/5/6)

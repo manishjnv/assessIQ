@@ -1,5 +1,7 @@
 # MFA Enrollment UX — states, transitions, and implementation slice
 
+**Status:** DONE 2026-05-14 (94d5f34). Enrollment nudge and recovery-code fix shipped. The `MFA_REQUIRED=true` flip is not part of this plan; tenant-admin MFA is optional now (owner decision 2026-10-02).
+
 > Goal: unblock `MFA_REQUIRED=true` prod flip without locking out existing Google SSO admins.
 > Scope: enrollment nudge + recovery-code safety fix only. NO `MFA_REQUIRED=true` flip this session.
 

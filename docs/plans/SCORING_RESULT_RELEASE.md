@@ -8,7 +8,7 @@ Phase I = merges `b8163e1`, `7d56d75`, `b41916c` + fix `ecea951`. Phase II = mer
 - P3: each company chooses Auto or Manual publishing.
 - P4: use as little AI as possible.
 
-**Owner decision (1 Oct 2026):** AI evaluation is run only by the platform super admin (the owner). Companies review and publish. AssessIQ is free; there are no customer payments.
+**Owner decision (1 Oct 2026):** AI evaluation is run only by the platform super admin (the owner). Companies review and publish. The product has plan tiers (owner decision, 2 Oct 2026); tier contents and prices are not decided yet.
 **Where the detail lives:**
 
 | Topic | Doc |

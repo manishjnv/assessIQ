@@ -1,6 +1,8 @@
 # Path to Best-in-Class Global Assessment Provider — prioritized roadmap
 
-**Saved:** 2026-05-27. **Status:** strategy / not started.
+**Saved:** 2026-05-27.
+
+**Status:** SUPERSEDED 2026-10-01 by docs/design/2026-10-01-product-review-competitive-strategy.md
 **Origin:** competitor + 2026-trend research (HackerRank, Mercer Mettl, iMocha, Codility, TestGorilla, SHL, Korn Ferry, Criteria) mapped against AssessIQ's current state (AI grading moat, multi-tenant, certification module, question-difficulty L1/L2/L3, strong marketing SEO, **pre-launch — no real candidate data yet**).
 
 ## Legend

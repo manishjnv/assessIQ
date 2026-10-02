@@ -51,12 +51,12 @@ Examples: `--aiq-color-bg-base`, `--aiq-color-fg-primary`, `--aiq-space-md`, `--
      docs/10-branding-guideline.md § 3 for rationale. */
   --aiq-color-bg-base:       #ffffff;
   --aiq-color-bg-raised:     #fafafa;
-  --aiq-color-bg-sunken:     #f5f5f5;
-  --aiq-color-fg-primary:    #1a1a1a;
-  --aiq-color-fg-secondary:  #5f6368;
-  --aiq-color-fg-muted:      #9aa0a6;
-  --aiq-color-border:        #e8e8e8;
-  --aiq-color-border-strong: #d4d4d4;
+  --aiq-color-bg-sunken:     #f3f3f4;
+  --aiq-color-fg-primary:    #0a0a0b;
+  --aiq-color-fg-secondary:  #3f3f46;
+  --aiq-color-fg-muted:      #71717a;
+  --aiq-color-border:        #e4e4e7;
+  --aiq-color-border-strong: #cdcdd1;
 
   --aiq-color-accent:        oklch(0.58 0.17 258);
   --aiq-color-accent-soft:   oklch(0.96 0.03 258);
@@ -128,8 +128,8 @@ Examples: `--aiq-color-bg-base`, `--aiq-color-fg-primary`, `--aiq-space-md`, `--
   --aiq-color-bg-raised:     #161618;
   --aiq-color-bg-sunken:     #1d1d20;
   --aiq-color-fg-primary:    #f5f5f7;
-  --aiq-color-fg-secondary:  #a0a0a8;
-  --aiq-color-fg-muted:      #6a6a72;
+  --aiq-color-fg-secondary:  #8a8a94;
+  --aiq-color-fg-muted:      #88889a;
   --aiq-color-border:        #2a2a2e;
   --aiq-color-border-strong: #3a3a3f;
   --aiq-color-accent:        oklch(0.70 0.16 258);
@@ -245,7 +245,7 @@ What's live (Phase 0 G0.B Session 3 — 2026-05-01):
 1. **Token namespace ported.** `styles.css` → `modules/17-ui-system/src/styles/tokens.css` with all `--*` custom properties renamed to `--aiq-*` and all utility classes prefixed `aiq-` (`.aiq-screen`, `.aiq-serif`, `.aiq-mono`, `.aiq-num`, `.aiq-btn{,-primary,-outline,-ghost,-sm,-lg}`, `.aiq-input`, `.aiq-card`, `.aiq-chip{,-accent,-success}`, `.aiq-mark` + `.aiq-mark-dot`, `.aiq-grid-bg`, `.aiq-divider`). Light + dark mode + density variants (`compact` / `cozy` / `comfortable`). `prefers-reduced-motion` override included.
 2. **Phase-0 component library** at `modules/17-ui-system/src/components/`: `Button` (pill; `primary`/`outline`/`ghost` × `sm`/`md`/`lg` + `leftIcon`/`rightIcon`/`loading`), `Card` (no shadow at rest; `interactive` and `floating` flags), `Field` plus `Input`/`Label`/`FieldHelp` (label-above, focus halo, `aria-invalid`/`aria-describedby` wiring), `Chip` (`default`/`accent`/`success` with `success` defaulting to a `check` icon), `Icon` (22-name typed SVG sprite with aria-label/aria-hidden conditional), `Logo` (mark + halo + serif "AssessIQ" wordmark — case-sensitive; the template's "AccessIQ" typo is intentionally not propagated), `Num` + `useCountUp` (cubic-out RAF loop, reduced-motion respected). All exported from the package barrel `@assessiq/ui-system`.
 3. **`ThemeProvider`** at `modules/17-ui-system/src/theme/ThemeProvider.tsx`. Reads a static fixture (`fixtures/tenants.ts`) for Phase 0; injects `--aiq-color-accent{,-soft,-hover}` overrides on a wrapper `<div>` and toggles `data-theme`/`data-density`. SSR-safe `matchMedia` for `system` theme. Live tenant wiring to `tenants.branding` JSONB lands in Phase 1 alongside `02-tenancy`.
-4. **Vite + React 18 + TypeScript SPA** at `apps/web/`. Token css imported via `@assessiq/ui-system/styles/tokens.css`. Tailwind installed for layout utilities only — editorial styling stays on the `aiq-*` classes; Tailwind theme reads `--aiq-font-*` and `--aiq-radius-*` from the same vars. `tsc -b && vite build` green.
+4. **Vite 8 + React 19 + TypeScript SPA** at `apps/web/`. Token css imported via `@assessiq/ui-system/styles/tokens.css`. Tailwind installed for layout utilities only — editorial styling stays on the `aiq-*` classes; Tailwind theme reads `--aiq-font-*` and `--aiq-radius-*` from the same vars. `tsc -b && vite build` green.
 5. **Storybook 8** at `apps/storybook/` with `@storybook/react-vite`. One story per component covering the main variants. `withThemeByDataAttribute` decorators for `data-theme` and `data-density` toolbars. Stories live next to components (`<Component>.stories.tsx`).
 
 What's live (UI v1.1 port — 2026-05-13):
@@ -501,7 +501,7 @@ modules/17-ui-system/
     └── fixtures/
         └── tenants.ts                 # Phase-0 static fixture; replaced by live tenant API in Phase 1
 
-apps/web/                              # Vite + React 18 + TS SPA host (not yet routed)
+apps/web/                              # Vite 8 + React 19 + TS SPA host (not yet routed)
 ├── index.html                         # Google Fonts link for Newsreader / Geist / JetBrains Mono
 ├── tsconfig.{json,app.json,node.json} # references-style; bundler module resolution
 ├── vite.config.ts
@@ -752,7 +752,9 @@ Later phases added scoped CSS vars on container classes (not in the global token
 
 Never remove or rename existing keys.
 
-### ViewportLock (M5 — fully implemented)
+### ViewportLock (M5 — removed 2026-05-21)
+
+> **Removed.** Commit `c8349df` (Admin Mobile Port A6) deleted `apps/web/src/lib/ViewportLock.tsx` and unwrapped it from `App.tsx`. Admin pages are now mobile-responsive, so no interstitial shows. See `docs/plans/ADMIN_MOBILE_PORT.md`. The text below is history.
 
 [`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) wraps `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx) and renders the "Admin tools work best on desktop" interstitial when ALL hold: viewport is `mobile`, path starts with `/admin/`, path is not one of `{login, login/email, select-identity, mfa}`, no `sessionStorage.aiq_admin_mobile_override='1'` is set, not in embed mode (`?embed=true`). Pass-through otherwise — candidate, take-flow, embed, 404 routes are not affected because their pathnames don't match `/admin/`. Override storage is `sessionStorage` (per-tab, clears on tab close) — the plan's "per-session" + `localStorage` wording was contradictory; M5 honors the per-session intent. Security gates (rate-limit errors, locked-account, MFA prompts) render exactly as on desktop when the override is on — the override only relaxes layout.
 
@@ -768,7 +770,7 @@ Never remove or rename existing keys.
 - Take-flow answer areas (M2b): same file — textareas + the log-analysis finding `<input>` read `--aiq-answer-input-size`; the KQL textarea reads `--aiq-answer-mono-size` and renders a mobile-only `.aiq-attempt-kql-mobile-tip` caveat above the editor.
 - Submitted page (M3): `apps/web/src/pages/take/Submitted.tsx` (class-managed header/main padding + hero h1 size).
 - Candidate portal (M4): `modules/11-candidate-ui/src/components/CandidateShell.tsx` (new shell-level nav + mobile overflow menu via controlled state + outside-click + Escape), `CandidateActivity.tsx` (stats grid 3→1 col, heatmap horizontal-scroll wrapper, leaderboard `columns={viewport === 'mobile' ? 1 : 2}` via `useViewport()`), `MyCertificates.tsx` (1-line h1 size swap to `var(--aiq-h1-size)`).
-- Admin graceful-degrade (M5): `apps/web/src/lib/ViewportLock.tsx` (above).
+- Admin graceful-degrade (M5): `ViewportLock.tsx` — removed in A6 (see above); admin pages are responsive instead.
 
 ### Help-system entries added by the port
 

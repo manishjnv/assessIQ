@@ -1,7 +1,7 @@
 # 18-certification — Tamper-evident course-completion credentials
 
 ## Status
-**COMPLETE** — Phase 5 Sessions 1–8 (2026-05-11 → 2026-05-14). All planned
+**COMPLETE** — Phase 5 Sessions 1–10 (2026-05-11 → 2026-05-14). All planned
 surfaces shipped: HMAC-SHA256 signing, credential_id generation, issuance
 engine, PDF download, public verify page, OG/LinkedIn PNG preview, LinkedIn
 share + admin list/revoke/reissue surfaces, automatic release trigger wiring.

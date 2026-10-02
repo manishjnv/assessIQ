@@ -1,9 +1,11 @@
 # 13 — Email System
 
+> **Status (2026-10-02): the port is shipped.** Phases E0, E1 (`db7d931`), E2a and E2b (`ed8252f`) are complete: all 9 templates use the partials in `modules/13-notifications/src/email/partials/`. Open decisions 1-7 were resolved on 2026-05-21; only #11 (Litmus budget, E3 only) stays open. The text below keeps the E0 design record. Read "before E1" as history.
+>
 > **Phase E0 output** (foundation: tokens reconciliation + email-safe atom designs).
 > Authored 2026-05-21 against [`docs/plans/EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md).
 >
-> **Scope of this doc.** Single source-of-truth for "what does an AssessIQ email look like." Resolves the kit-vs-production token deltas, designs the 8 email-safe atoms as table-based HTML, and surfaces the open product decisions still required before Phase E1 starts materializing Handlebars partials. **No production code lands as part of E0** — the atom HTML below is the *contract* E1 implements.
+> **Scope of this doc.** Single source-of-truth for "what does an AssessIQ email look like." Resolves the kit-vs-production token deltas, designs the 8 email-safe atoms as table-based HTML, and surfaces the product decisions that Phase E1 needed before it materialized the Handlebars partials (E1 is shipped; see the status line above). **No production code lands as part of E0** — the atom HTML below is the *contract* E1 implements.
 >
 > **What this doc is NOT.** It is not the email send pipeline reference — that lives in [`modules/13-notifications/SKILL.md`](../modules/13-notifications/SKILL.md). It is not a marketing-content style guide — voice / copy conventions live in the kit's [`copy-and-voice.md`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/design-system/copy-and-voice.md).
 
@@ -639,7 +641,7 @@ Per anti-pattern guard #12 in the plan, every deliberate divergence from the kit
 
 ---
 
-## §5 Open decisions still pending (must resolve before E1)
+## §5 Open decisions (resolved before E1; only #11 stays open)
 
 E0 applied the plan's default recommendations where the call was low-risk. **Decisions 1–7 are now resolved (operator call, 2026-05-21); only #11 (validation budget) remains, and it affects E3 only. E1 is unblocked.**
 
@@ -726,7 +728,7 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 
 **`buildVars()` extension required.** [`i18n.ts`](../modules/13-notifications/src/email/i18n.ts) currently resolves only per-template keys. E1 extends it to merge `_shared.*` into every template's flattened `_t_*` namespace. Per-template keys win on collision (no `_shared` key should collide with a template-specific key today; lint can enforce this).
 
-**Open-decision #5 blocker.** E1 cannot ship the footer partials with a placeholder address — CAN-SPAM requires the literal physical address, not a Handlebars var that resolves to "TBD". Either decision #5 lands before E1 starts, or E1 ships A9a/A9b with the address row commented-out and the partials are completed in a follow-up commit once the address is decided.
+**Open-decision #5 blocker.** E1 cannot ship the footer partials with a placeholder address — CAN-SPAM requires the literal physical address, not a Handlebars var that resolves to "TBD". Decision #5 landed before E1 started (address: "AssessIQ, Bangalore 560068, India"), so E1 shipped the footers with the address.
 
 **`cta` is already per-template** — every template's existing `<template>.cta` key is reused as-is. The partials reference `{{_t_cta}}` which resolves per-template via the existing buildVars flow.
 

@@ -1,6 +1,6 @@
 # Email Kit Port — Phased Implementation Plan
 
-> **Status: PLAN (not yet implemented).** Authored 2026-05-20 for review. No production code touched yet. Implementation gated on the open-decisions resolutions at the bottom of this doc.
+> **Status:** DONE 2026-05-21 (df041d3). E0 to E2 shipped: all 9 templates use the kit contract. E3 validation was a manual inbox review; Litmus is deferred. Old note below: PLAN text written 2026-05-20 before the work.
 
 **Goal:** Centralize AssessIQ's transactional + lifecycle email layer behind the visual contract shipped in `modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/`. Replace the 9 hand-written templates currently in `modules/13-notifications/src/email/templates/` with templates composed from a small, shared atom set so every email reads as the same product — same header, same footer, same CTA, same accent, same voice.
 

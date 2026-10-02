@@ -6,6 +6,8 @@
 ## Summary
 
 19 modules audited / well-covered: 5 / partial: 13 / thin: 1 / none: 0 / n/a: 0.
+
+> **Note (2026-10-02):** the repo now has 21 modules. Modules `19-billing` and `20-data-rights` are not covered by this audit.
 **High-risk gaps: 3** (2 high on load-bearing modules, 1 medium on load-bearing module).
 
 ---

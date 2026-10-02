@@ -122,7 +122,7 @@ Host app                              AssessIQ
 
 10. Host hides or replaces iframe
     (Async — AI grading runs server-side)
-    ◀── POST <your-webhook-url>  attempt.graded  ──────────────────
+    ◀── POST <your-webhook-url>  audit.grading.released  (see § 6)
 11. Host stores result, updates UI
 ```
 
@@ -156,7 +156,7 @@ Host app                              AssessIQ
 | `aiq.ready` | `tenantId: string`, `assessmentId: string` | SPA mounted, session verified | Sent to `targetOrigin: '*'` — no secrets; host origin not yet confirmed (`embedBus.ts:80`) |
 | `aiq.height` | `height: number` | Every body-height change (ResizeObserver) | Field name is `height`; use `msg.height + "px"` for iframe resize |
 | `aiq.attempt.started` | `attemptId: string` | Attempt transitions to `in_progress` | SKILL.md D3 |
-| `aiq.attempt.submitted` | `attemptId: string`, `summary: { questions: number, time_used_seconds: number }` | Candidate submits | Grading is async; webhook follows |
+| `aiq.attempt.submitted` | `attemptId: string`, `summary: { questions: number, time_used_seconds: number }` | Candidate submits | The result is released later; see § 6 |
 | `aiq.error` | `code: "SESSION_EXPIRED"\|"ATTEMPT_NOT_FOUND"\|"NETWORK_ERROR"\|"UNKNOWN"`, `message: string` | User-actionable error in iframe | SKILL.md D3 |
 | `aiq.close-blocked` | `reason: "attempt_in_progress"` | Response to host `aiq.close-request` when attempt is live | SKILL.md D3 |
 
@@ -183,7 +183,7 @@ window.addEventListener("message", (e) => {
       iframe.style.height = msg.height + "px"; // field name is `height`
       break;
     case "aiq.attempt.submitted":
-      // grading is async — webhook fires when results are ready
+      // the result is released later — see § 6 for the webhook events delivered today
       showToast(`Submitted (attempt ${msg.attemptId})`);
       break;
     case "aiq.error":
@@ -266,11 +266,9 @@ All 401 errors from JWT verification share the code `INVALID_TOKEN`; differentia
 
 AssessIQ fires webhook events to a URL registered in Settings → Integrations → Webhooks. Embed attempts fire the **same event types** as direct magic-link attempts (no new event type needed, D9). Filter for embed traffic using `"embed_origin": true` in the payload (migration `0073_attempt_embed_origin.sql`).
 
-**Event sequence:**
-1. `attempt.started` — attempt created and in progress
-2. `attempt.submitted` — candidate submitted (grading starts asynchronously)
-3. `attempt.graded` — AI grading complete; scores available
-4. `attempt.released` — admin published results; candidate and employer can see scores
+**Events delivered today (2026-10-02).** AssessIQ delivers only `audit.<action>` events, one for each audit-log row. Examples: `audit.grading.released`, `audit.grading.override`. Subscribe to a single action or to `audit.*`. The `audit.*` subscription needs a fresh MFA session.
+
+**Planned, not available:** the business events `attempt.started`, `attempt.submitted`, `attempt.graded` and `attempt.released`. AssessIQ does not send them yet. Do not build on them. To learn that a result is ready, use the `audit.grading.released` event.
 
 ### Webhook request shape
 
@@ -283,18 +281,16 @@ X-AssessIQ-Signature: sha256=<HMAC-SHA256(raw-body, webhook_secret)>   ← V1, l
 X-AssessIQ-Delivery: <unique-delivery-id>
 
 {
-  "event": "attempt.graded",
-  "attempt": {
-    "id": "att_01jh...",
-    "status": "graded",
-    "embed_origin": true,
-    "user": {
-      "id": "usr_01jh...",
-      "email": "alice@wipro.com",
-      "external_id": "EMP-12345"   ← echoed from JWT external_id claim
-    }
-  }
+  "event": "audit.grading.released",
+  "tenant_id": "ten_01jh...",
+  "audit_id": "aud_01jh...",
+  "actor_user_id": "usr_01jh...",
+  "action": "grading.released",
+  "entity_type": "attempt",
+  "entity_id": "att_01jh...",
+  "at": "2026-10-02T10:00:00.000Z"
 }
+// Shape built in modules/13-notifications/src/webhooks/audit-fanout-handler.ts. It carries ids only, no scores or user data.
 ```
 
 ### Signature verification

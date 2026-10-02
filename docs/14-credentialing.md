@@ -169,12 +169,12 @@ be retried.
 
 ## What's not in this doc
 
-- PDF generation and the `/api/certificates/:credentialId/pdf` endpoint —
-  Phase 5 Session 4.
-- The public `/verify/:credentialId` page and its non-RLS DB lookup
-  strategy — Phase 5 Session 3.
-- LinkedIn share counter — Phase 5 Session 6.
-- OG / LinkedIn PNG preview — Phase 5 Session 7.
+These parts are shipped (Phase 5 Sessions 3, 4, 6 and 7, May 2026). They have their own references and are not described on this page:
+
+- PDF generation and the `/api/certificates/:credentialId/pdf` endpoint: `modules/18-certification/src/pdf/` and `docs/03-api-contract.md`.
+- The public `/verify/:credentialId` page and its non-RLS DB lookup strategy: `modules/18-certification/src/routes-public.ts` and `modules/18-certification/SKILL.md`.
+- The LinkedIn share counter (`POST /api/certificates/:credentialId/share-linkedin`): `modules/18-certification/src/routes.ts`.
+- The OG and LinkedIn PNG previews (`/verify/:credentialId/og.svg` and `og.png`): `modules/18-certification/src/routes-public.ts`.
 
 ## Admin surface
 

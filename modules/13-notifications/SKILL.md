@@ -68,7 +68,7 @@ Owns: `webhook_endpoints`, `webhook_deliveries`, `email_log`. Reads: `users` (re
 
 ### What shipped (Phase 3 G3.B)
 
-- **SMTP via nodemailer + generic SMTP transport** (P3.D9). `SMTP_URL` env var; Resend as default (`smtps://apikey:<key>@smtp.resend.com:465`). Empty `SMTP_URL` → stub-fallback writes JSONL to `/var/log/assessiq/dev-emails.log` — no deploy breakage before creds provisioned.
+- **SMTP via nodemailer + generic SMTP transport** (P3.D9). `SMTP_URL` env var. Production uses Brevo SMTP (`smtp-relay.brevo.com:587`, STARTTLS) with sender `AssessIQ <connect@assessiq.in>` since 2026-09-20; Resend was the first default (see `docs/06-deployment.md`, "UPDATE 2026-09-20"). Empty `SMTP_URL` → stub-fallback writes JSONL to `/var/log/assessiq/dev-emails.log` — no deploy breakage before creds provisioned.
 - **7 Handlebars email templates** (P3.D14) — both `.html` and `.txt` variants, Zod-validated vars, HTML-escaped by default (no triple-stash). `.txt` compiled with `noEscape: true` so URLs are never entity-encoded.
 - **Signed outbound webhooks** (P3.D12) — `HMAC-SHA256` (`sha256=<hex>` format); secrets AES-256-GCM encrypted at rest under `ASSESSIQ_MASTER_KEY`; plaintext returned ONCE on create. Retry schedule: `[1m, 5m, 30m, 2h, 12h]` (published API contract — do not change without API version bump).
 - **In-app short-poll notifications** (P3.D13) — `GET /api/admin/notifications?since=<cursor>` returns `{ items, cursor }`; `POST /api/admin/notifications/:id/mark-read`. No WebSocket/SSE — deferred to Phase 4.
@@ -81,7 +81,7 @@ Owns: `webhook_endpoints`, `webhook_deliveries`, `email_log`. Reads: `users` (re
 
 | ID | Decision |
 |---|---|
-| P3.D9 | nodemailer generic SMTP transport; Resend as default provider via `SMTP_URL` |
+| P3.D9 | nodemailer generic SMTP transport via `SMTP_URL`; Resend was the first default, Brevo since 2026-09-20 |
 | P3.D12 | Webhook retry schedule `[1m,5m,30m,2h,12h]` is published API contract |
 | P3.D13 | In-app delivery = short-poll only; no SSE/WebSocket in Phase 3 |
 | P3.D14 | Handlebars templates, Zod-validated vars, HTML-escape on `.html`, no-escape on `.txt` |

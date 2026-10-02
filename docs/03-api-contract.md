@@ -1277,10 +1277,10 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | `POST` | `/api/me/attempts/:id/answer`     | Autosave one answer (last-write-wins, decision #7) — body `{ question_id, answer, client_revision?, edits_count?, time_spent_seconds? }`; returns `204` + `X-Client-Revision` header | **live 2026-05-02** |
 | `POST` | `/api/me/attempts/:id/flag`       | Toggle flag on a question — body `{ question_id, flagged }`; returns `200 { flagged }` | **live 2026-05-02** |
 | `POST` | `/api/me/attempts/:id/event`      | Push behavioral event (catalog: `modules/06-attempt-engine/EVENTS.md`) — body `{ event_type, question_id?, payload? }`; returns `201 AttemptEvent` or `204` if rate-cap dropped | **live 2026-05-02** |
-| `POST` | `/api/me/attempts/:id/submit`     | Final submit (idempotent terminal) — Phase 1 stops at `submitted`; returns `202 { attempt_id, status: 'submitted', estimated_grading_seconds: null }` | **live 2026-05-02** |
-| `GET`  | `/api/me/attempts/:id/result`     | View result — Phase 1 returns `202 { status: 'grading_pending' }` until module 07/08 land in Phase 2 | **live (placeholder) 2026-05-02** |
+| `POST` | `/api/me/attempts/:id/submit`     | Final submit (idempotent terminal) — returns `202 { attempt_id, status, estimated_grading_seconds, result_expectation, release_mode, email_masked, turnaround_text }` (`estimated_grading_seconds` is about 60 when the result shows on screen, else `null`) | **live 2026-05-02** |
+| `GET`  | `/api/me/attempts/:id/result`     | View result — `200` with the complete, final result once the attempt is released; otherwise `202 { status: 'pending', result_expectation, release_mode, … }`. Candidates never see a partial or per-question score. | **live** |
 
-> **Superseded 2026-10-01:** `submit` now also returns `result_expectation`, `release_mode`, `email_masked` and `turnaround_text`; `result` returns `200` with the complete result once it is published (otherwise `202 { status: 'pending', … }`); `GET /api/me/results` is new. See § Scoring and result release at the end of this doc.
+> **Update 2026-10-01:** `submit` returns `result_expectation`, `release_mode`, `email_masked` and `turnaround_text`. `GET /api/me/results` lists released results. See § Scoring and result release at the end of this doc.
 
 ### Embed
 
@@ -1442,13 +1442,13 @@ POST /api/me/attempts/att_.../answer
 
 # 4. Submit
 POST /api/me/attempts/att_.../submit
-→ 202 { "attempt_id":"att_...", "status":"grading", "estimated_grading_seconds": 90 }
+→ 202 { "attempt_id":"att_...", "status":"submitted", "estimated_grading_seconds": 60, "result_expectation":"soon", ... }
 
 # 5. Poll for result
 GET /api/me/attempts/att_.../result
-→ 202 { "status":"grading" }
-... after grading completes ...
-→ 200 { "status":"released", "score": { "earned": 78, "max": 100, "auto_pct": 78 }, "by_question": [...] }
+→ 202 { "status":"pending", "result_expectation":"soon", ... }
+... after the result is released ...
+→ 200 { "status":"released", "score": { ... }, "released_at": "..." }   (complete score only; see § Scoring and result release)
 ```
 
 > Note (2026-10-01): the `/submit` and `/result` bodies in steps 4 and 5 above are out of date. Current shapes: § Scoring and result release at the end of this doc.
@@ -1985,8 +1985,7 @@ Response:
 ---
 
 
-> **Status: 501 Not Implemented — Phase 5 Session 2+**
-> All endpoints below are registered in `modules/18-certification/src/routes.ts` and return `501 Not Implemented` until the issuance engine and PDF generator ship. The contracts below are the authoritative design; implementations must match them exactly.
+> **Status: live.** All endpoints below are implemented in `modules/18-certification/src/routes.ts`. They return `401` without a session, `404` for an unknown or foreign certificate, `403` for a wrong owner, `409` or `410` for revoked states, and `422` for a malformed `credential_id`. The earlier `501 Not Implemented` stub status ended when the issuance engine and PDF generator shipped.
 
 ### Candidate-facing
 
@@ -2713,7 +2712,9 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 
 **Considered and rejected.** Returning 404 for the old company grade routes (a stale client would not learn why; 403 with a stable code does). Showing a "provisional" score with a flag (owner rule P1 forbids any partial number). A new `attempts.status` value for "released to the company" (see `docs/02-data-model.md`).
 
-**Not included.** Background or API-mode grading, company-triggered AI (the owner has decided companies may evaluate once an API budget exists; not built, so these routes answer 403 in every mode), release to the company on the last accept (today an explicit `release-to-tenant` call), a per-assessment release mode, a "result updated" email (a published result is final), and a company-facing ETA beyond the candidate's `turnaround_text`.
+**Not included.** Background or API-mode grading, company-triggered AI (the owner has decided companies may evaluate once an API budget exists; not built, so these routes answer 403 in every mode), a per-assessment release mode, a "result updated" email (a published result is final), and a company-facing ETA beyond the candidate's `turnaround_text`.
+
+**Release on the last accept (built, `809e807`, `23c9f0b`).** The accept, manual score or override that completes an attempt also releases it to the company in the same transaction. `release-to-tenant` remains for sent-back attempts and recovery.
 
 **Impact.** `modules/11-candidate-ui` wire types and the post-submit / My results pages, `modules/10-admin-dashboard` (tenant settings, review states, platform queue and evaluate pages), 15 results CSV and candidate activity, 13 `result_released` template. Rollback: deploy the previous image; the new columns are additive (data model doc).
 

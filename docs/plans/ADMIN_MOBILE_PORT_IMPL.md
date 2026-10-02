@@ -1,5 +1,7 @@
 # Admin Mobile Port — implementation plan
 
+**Status:** DONE 2026-05-21 (c8349df). Phases A0 to A6 shipped; `ViewportLock` removed.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make every authenticated admin surface mobile-responsive and remove the `ViewportLock` desktop-only interstitial.

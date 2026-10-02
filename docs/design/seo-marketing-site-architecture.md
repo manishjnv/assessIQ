@@ -1,6 +1,6 @@
 # SEO marketing site — architecture decision (Phase 0)
 
-> **Status:** PROPOSED (draft for review, 2026-05-22). Implements **Phase 0** of [SEO_Strategy.md §17](SEO_Strategy.md) — the hard blocker that unblocks all other SEO work.
+> **Status:** DONE 2026-05-22 (c2fd170). Astro marketing site and additive Caddy/compose wiring shipped. Original text: PROPOSED draft.
 > **Scope:** *where* the public marketing/content site lives, *how* it renders, *how* it coexists with the existing app on `assessiq.in`, *how* it shares branding, and *how* it deploys additively on the shared VPS.
 > **Not in scope:** the content of individual pages (that's Phase 1+). This doc decides the container/route/deploy shape only.
 > **Implementation gate:** the build-out touches `infra/**` + the shared ti-platform Caddyfile = **load-bearing** (CLAUDE.md). The Caddy/compose diff must pass a `codex:rescue` adversarial sign-off before push, and follow the additive-only, inode-safe, canary-with-auto-revert procedure already documented in [06-deployment.md](../06-deployment.md).

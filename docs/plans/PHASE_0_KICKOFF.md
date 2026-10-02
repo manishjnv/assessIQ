@@ -1,5 +1,7 @@
 # Phase 0 — Foundation Kickoff Plan
 
+**Status:** DONE 2026-05-01 (6631d3f). Phase 0 closure verification and handoff.
+
 > **Generated:** 2026-04-30 by Opus 4.7 via `claude-mem:make-plan` after parallel doc-discovery sweeps.
 > **Phase scope:** Modules `00-core`, `01-auth`, `02-tenancy`, `03-users`, `17-ui-system`.
 > **Outcome:** Auth + tenancy + UI kit working end-to-end. Google SSO + TOTP login, RLS-enforced tenant isolation, design-token UI primitives wired into a Vite SPA, deploy-ready additive Compose stack on the shared VPS.
