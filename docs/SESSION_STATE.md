@@ -1,7 +1,7 @@
 # Session — 2026-10-02 (n) — review fixes RS1, RS2, RS3, RS5 + N10, N11, N12: candidate defects, true admin and help text, docs truth pass, argon2
 
-**Headline:** RS1, RS2, RS3, RS5, N10 (argon2) and N11 are LIVE on https://assessiq.in (HEAD `c788ed7`). N12 is checked in a real browser for the candidate side only.
-**Commits (`274bbc6..c788ed7`, pushed):**
+**Headline:** RS1, RS2, RS3, RS5, N10 (argon2) and N11 are LIVE on https://assessiq.in (code HEAD `c788ed7`; docs HEAD is later). N12 is checked in a real browser for the candidate side only. CI on `main` is green again (it failed on `6336f61` to `274bbc6`).
+**Commits (`274bbc6..c788ed7` code, then docs commits; all pushed):**
 - `0d02ea9` RS1 candidate defects (numeric answer box, 7-day invite text, 4 help ids, certificate link)
 - `ac531c5` N11 scenario mcq steps keep their options (Sonnet adversarial: accept)
 - `578c0aa` RS2 true text and brand on admin screens · `8113192` RS3 help text + migration 0146 · `8cc46c2` migration 0147
@@ -12,11 +12,20 @@
 - N10: `astro-og-canvas` 0.13 and `canvaskit-wasm` 0.42 need Astro 5 (marketing is on Astro 4). Storybook 10 waits for feature review FR18.
 - N12: the admin authoring screen, real-backend scoring, publish and admin view of an ordering question are not clicked yet. Behaviour check pending operator.
 - RS2: RV11 (help-content admin page, waits for FR14) and RV16 (small items). RS3: RV23 waits for owner decision RO3; two page prefixes with a hyphen and six page prefixes have no help content. RS5: RV33 (project `CLAUDE.md`) needs owner approval.
+- RS5 memory notes (RV41c): three notes wait for the owner (six are corrected).
 **Next (Claude):** RS4 marketing truth pass 2. Then RS6 feature review, PT1 (plan tiers) first.
+**Small tasks left from this session (Claude can do all 7; 1, 2, 3, 5 and 6 fit in one short session):**
+1. RV16: four small admin items (dashboard counters stop at 50; a "pending backend" text; type lists that show 5 types; no message on a role mismatch).
+2. Help content for eight page prefixes (two need a UI id without a hyphen first) — N16.
+3. Check the `pnpm audit` count — N14.
+4. Astro 5 for the marketing site, then `astro-og-canvas` 0.13 and `canvaskit-wasm` 0.42 — N13.
+5. Validate the scenario answer shape at save — N15.
+6. Remove stale header comments in `billing.tsx` and `grading-jobs.tsx` and one unused helper in `admin-guide.tsx` — N17.
+7. Check the "Money: never used" line in `docs/02-data-model.md` against the billing tables.
 **Next (Owner):** decide RO3 ("Organisation code"); approve the `CLAUDE.md` edit (RV33); click the ordering authoring flow once on the live site; items open from older sessions (eval bless, push-gate hook, MASTER_KEY rotation date).
 **Open questions:** (1) `pnpm audit --audit-level high` reported 42 high and 2 critical in the N10 run; batch 6 recorded 0 high. Check. (2) Upgrade the marketing site to Astro 5?
 **Old task or feature checked (Rule B):** RS1 against RCA 2026-05-24 (help prefix mismatch) and RCA 2026-10-01 (invite TTL); N11 "drop the step type" rejected (Rule A); RV12 `/admin/me` against `whoami`; RV14 radar kept for FR11; N12 against the old skipped take specs.
-**Docs:** deploy record `docs/06-deployment.md` § RS1–RS5 + N10–N12 deploy; RCA 2026-10-02 entries; `docs/03-api-contract.md` (scenario mcq step payload); `docs/07-help-system.md` (correction pass); `docs/08-ui-system.md` (brand consumer copies). Detail and task marks (local only): `docs/plans/REVIEW_FIX_PLAN_2026-10-02.md` § 12, `docs/PENDING_TASKS_2026-10-01.md` § P0-V.
+**Docs:** session record with every change, reason, file, check and rollback: `docs/plans/REVIEW_FIXES_RS1_RS5_N10_N12.md` (tracked). Deploy record `docs/06-deployment.md` § RS1–RS5 + N10–N12 deploy; RCA 2026-10-02 entries; `docs/03-api-contract.md` (scenario mcq step payload); `docs/07-help-system.md` (correction pass); `docs/08-ui-system.md` (brand consumer copies). Detail and task marks (local only): `docs/plans/REVIEW_FIX_PLAN_2026-10-02.md` § 12, `docs/PENDING_TASKS_2026-10-01.md` § P0-V.
 **Coordination:** another session sent two instruction messages during the work. Two points conflicted with project rules (edit the UI kit files; remove argon2) and were not followed.
 
 ---
