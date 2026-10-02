@@ -590,9 +590,9 @@ export interface QueueCounts {
  * Count attempts for the dashboard KPI cards. RLS-scoped like listGradingQueue
  * (no tenant predicate; the caller runs inside withTenant). KEEP IN SYNC with the
  * listGradingQueue status filter and with deriveEvaluationStatus.
- * ponytail: no dedicated index. The scan is bounded by the tenant's own attempts
- * (same cost class as listGradingQueue, polled every 30 s). Add a partial index on
- * attempts (tenant_id, status) if one tenant passes about 100k attempts.
+ * Index: attempts_dashboard_count_idx (migration 0150) is a partial index on
+ * (tenant_id, status) with this exact status list. KEEP the WHERE list below IN
+ * SYNC with that index, or the count falls back to a scan of the tenant's attempts.
  */
 export async function countGradingQueue(client: PoolClient): Promise<QueueCounts> {
   const result = await client.query<QueueCounts>(

@@ -566,6 +566,14 @@ CREATE TABLE attempts (
 CREATE INDEX attempts_user_idx ON attempts (tenant_id, user_id);
 CREATE INDEX attempts_timer_sweep_idx ON attempts (ends_at) WHERE status = 'in_progress';
 CREATE INDEX attempts_assessment_status_idx ON attempts (assessment_id, status);
+-- Migration 0150 (2026-10-03, N22): partial index for the tenant dashboard KPI count
+-- (countGradingQueue in modules/07-ai-grading/src/repository.ts, polled every 30 s).
+-- The WHERE list equals the status list of that query: keep both in sync. 'released'
+-- and in-progress attempts are not in the index, so it stays small for a long history.
+-- evaluation_released_at is INCLUDEd for an index-only count. Not included: a change
+-- of the query. Rejected: a full (tenant_id, status) index (larger, same benefit).
+CREATE INDEX attempts_dashboard_count_idx ON attempts (tenant_id, status) INCLUDE (evaluation_released_at)
+  WHERE status IN ('submitted', 'auto_submitted', 'pending_admin_grading', 'graded');
 -- Phase 4 partial index for embed attempt queries (sparse — most attempts are non-embed)
 CREATE INDEX attempts_embed_origin_idx ON attempts (tenant_id, embed_origin) WHERE embed_origin = TRUE;
 -- Migration 0100 partial index for the rare "find attempts currently grading" query
