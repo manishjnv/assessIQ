@@ -94,14 +94,14 @@ vi.mock('@assessiq/tenancy', () => ({
 }));
 
 vi.mock('bullmq', () => ({
-  Queue: vi.fn().mockImplementation(() => ({
+  Queue: vi.fn().mockImplementation(function () { return ({
     add: vi.fn().mockResolvedValue({ id: 'mock-job-id' }),
     close: vi.fn().mockResolvedValue(undefined),
-  })),
+  }); }),
 }));
 
 vi.mock('ioredis', () => ({
-  Redis: vi.fn().mockImplementation(() => ({ quit: vi.fn().mockResolvedValue(undefined) })),
+  Redis: vi.fn().mockImplementation(function () { return { quit: vi.fn().mockResolvedValue(undefined) }; }),
 }));
 
 vi.mock('nodemailer', () => ({

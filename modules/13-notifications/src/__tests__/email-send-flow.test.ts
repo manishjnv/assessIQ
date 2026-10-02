@@ -106,14 +106,14 @@ vi.mock('../repository.js', () => ({
 
 // Mock BullMQ (imported transitively via the module barrel).
 vi.mock('bullmq', () => ({
-  Queue: vi.fn().mockImplementation(() => ({
+  Queue: vi.fn().mockImplementation(function () { return ({
     add: vi.fn().mockResolvedValue({ id: 'mock-job-id' }),
     close: vi.fn().mockResolvedValue(undefined),
-  })),
+  }); }),
 }));
 
 vi.mock('ioredis', () => ({
-  Redis: vi.fn().mockImplementation(() => ({ quit: vi.fn() })),
+  Redis: vi.fn().mockImplementation(function () { return { quit: vi.fn() }; }),
 }));
 
 // ---------------------------------------------------------------------------

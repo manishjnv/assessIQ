@@ -55,9 +55,9 @@ vi.mock('../repository.js', () => ({
 // Real UnrecoverableError (the processor throws it); fake Queue to capture add().
 vi.mock('bullmq', async (importOriginal) => ({
   ...(await importOriginal<typeof import('bullmq')>()),
-  Queue: vi.fn().mockImplementation(() => ({ add: mockAdd })),
+  Queue: vi.fn().mockImplementation(function () { return ({ add: mockAdd }); }),
 }));
-vi.mock('ioredis', () => ({ Redis: vi.fn().mockImplementation(() => ({})) }));
+vi.mock('ioredis', () => ({ Redis: vi.fn().mockImplementation(function () { return {}; }) }));
 
 import { UnrecoverableError } from 'bullmq';
 import { EmailTemplateNameSchema } from '../types.js';

@@ -83,23 +83,23 @@ vi.mock('@assessiq/tenancy', () => ({
 
 // Mock BullMQ Queue so tests don't need Redis
 vi.mock('bullmq', () => ({
-  Queue: vi.fn().mockImplementation(() => ({
+  Queue: vi.fn().mockImplementation(function () { return ({
     add: vi.fn().mockResolvedValue({ id: 'mock-job-id' }),
     getRepeatableJobs: vi.fn().mockResolvedValue([]),
     removeRepeatableByKey: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
-  })),
-  Worker: vi.fn().mockImplementation(() => ({
+  }); }),
+  Worker: vi.fn().mockImplementation(function () { return ({
     on: vi.fn(),
     close: vi.fn().mockResolvedValue(undefined),
-  })),
+  }); }),
 }));
 
 // Mock ioredis
 vi.mock('ioredis', () => ({
-  Redis: vi.fn().mockImplementation(() => ({
+  Redis: vi.fn().mockImplementation(function () { return {
     quit: vi.fn().mockResolvedValue(undefined),
-  })),
+  }; }),
 }));
 
 // Mock nodemailer
