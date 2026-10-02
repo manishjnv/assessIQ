@@ -1662,3 +1662,66 @@ Only then set `AI_EVAL_GATE=enforce` in `.env` and recreate `assessiq-api`. Ever
 **Rollback:** `git checkout c214ef1` on the VPS, rebuild and recreate api, worker, frontend. The new mounts are harmless to the old image. No migrations to undo.
 
 **Warning:** never run `git clean -fdx` on the VPS: it would delete `cases-private`, `runs` and `baselines` (all gitignored).
+
+## Rollback and staging (E8, 2026-10-02)
+
+**What changed:** a written rollback procedure and a staging decision. Nothing was created on the VPS.
+
+**Rollback of a bad deploy (code only)**
+1. On the VPS: `cd /srv/assessiq && git log --oneline -5`. Pick the last good SHA.
+2. `git checkout <prev-sha>` (detached HEAD is expected).
+3. Rebuild the changed services: `docker compose -f infra/docker-compose.yml build <svc>` (api, worker, frontend, marketing as needed). The worker uses the api image.
+4. Recreate only those services: `docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <svc>`.
+5. Verify: `/`, `/admin`, `/api/health` return 200 and `docker logs --tail 50 assessiq-api` shows no errors. Make sure no AI grading run is in flight before recreating api or worker.
+6. When the fix has landed on main: `git checkout main && git pull --ff-only`, then deploy normally. Do not leave the VPS on a detached HEAD.
+7. Never run `git clean -fdx` there: it deletes gitignored `cases-private`, `runs`, `baselines` and `prompts/skills`.
+
+**Migrations are forward-only.** Today they are applied by hand, one transaction per file, and recorded in `schema_migrations` (see the section "Applying new migrations by hand"). Files live in `modules/*/migrations/`. There are no down migrations.
+- **Rolled-back build meets a newer schema, additive migration** (new table, new nullable column, new index, new policy): leave it. The old code ignores it. This is the normal case.
+- **Destructive or incompatible migration** (drop, rename, type change, NOT NULL without default, tightened CHECK or policy): do not hand-edit the schema. Write a numbered compensating migration, review it, apply it by the same by-hand procedure, then roll back the code. A destructive migration should name its compensating migration in its header before it is deployed.
+- **Last resort: restore from backup.** The nightly `pg_dump -Fc` is in `/var/backups/assessiq/` (script `/etc/cron.daily/assessiq-backup`, repo copy `tools/ops/assessiq-backup.sh`, 14-day retention, plus the Hostinger weekly VPS backup). See the section "Backups" for the restore-drill command and "Disaster recovery" for the full restore. A restore loses everything written after the dump (RPO about 24 h) and needs the `.env` secrets (including `ASSESSIQ_MASTER_KEY`) from the owner's password manager.
+
+**Staging: NOT built.** A second compose project (`docker compose -p assessiq-staging ...`) is not purely additive on this shared VPS. Evidence from `infra/docker-compose.yml` and the Caddyfile:
+- Every service has a hard-coded `container_name` (`assessiq-postgres`, `assessiq-api`, ...). A second project would collide with production on start, or would need every name changed.
+- Host ports `9091`, `9092`, `9093` are fixed and Caddy routes to them. Staging needs three new ports, a new Caddy host block, a new Cloudflare record and an origin cert. A new hostname is new shared-edge surface (the Caddyfile belongs to ti-platform).
+- The network is named `assessiq-net`. Volumes are `assessiq_pgdata` and `assessiq_redis` under the compose project name, and `./postgres/init` and `../secrets` are shared paths. These need care to avoid touching prod data.
+- The api runs Claude Code under the owner's Max login. A staging api would share that quota and OAuth session.
+- Staging would need its own scrubbed database, its own `.env`, and its own AOP and origin-verify setup.
+
+If staging is wanted later, build it off-box (a local compose run using `tools/test-support/apply-all-migrations.ts`) rather than on the shared VPS. Until then, the pre-deploy gates (section "Pre-deploy lint gates") plus a fast rollback are the safety net.
+
+**NOT included:** down migrations, blue/green, automated rollback.
+
+## MASTER_KEY rotation (E8)
+
+**Owner go-ahead required before running on prod.** Nothing in this section was run against production. It was proven only on a throwaway test database (`modules/01-auth/src/__tests__/master-key-rotation.test.ts`).
+
+**What it protects.** Env var: `ASSESSIQ_MASTER_KEY` (base64, 32 bytes, validated in `modules/00-core/src/config.ts`). Cipher: AES-256-GCM, 12-byte nonce. Encrypted columns (the complete list; `TARGETS` in `tools/rotate-master-key.ts` must match):
+
+| Table.column | Layout | Code |
+|---|---|---|
+| `user_credentials.totp_secret_enc` (BYTEA) | nonce, ciphertext, tag | `modules/01-auth/src/totp.ts`, `crypto-util.ts` |
+| `embed_secrets.secret_enc` (BYTEA) | nonce, ciphertext, tag | `modules/01-auth/src/embed-jwt.ts` |
+| `webhook_endpoints.secret_enc` (BYTEA) | iv, tag, ciphertext | `modules/13-notifications/src/webhooks/crypto.ts` |
+| `tenant_settings.webhook_secret` (TEXT, base64) | nonce, ciphertext, tag | `modules/12-embed-sdk/src/webhook-secret-service.ts` (write only) |
+
+`tenants.smtp_config.password_enc` is described in a migration comment but no code writes or reads it. Recovery codes are hashes, not encrypted. The older "Secret rotation procedure" row lists some column names that do not exist; this section is the correct list.
+
+**Dual-key support.** Optional `ASSESSIQ_MASTER_KEY_PREVIOUS`. Decrypt tries the current key, then the previous key. Encrypt always uses the current key. With it unset, behaviour is unchanged. A wrong key cannot return wrong plaintext because GCM authentication fails.
+
+**Procedure**
+1. Take a fresh backup and confirm it: run `/etc/cron.daily/assessiq-backup` as root, then `tail -1 /var/log/assessiq/backup.log`.
+2. Generate the new key: `openssl rand -base64 32`. Store it in the password manager now. Confirm the old key is stored there too.
+3. In `/srv/assessiq/.env`: set `ASSESSIQ_MASTER_KEY_PREVIOUS=<old value>` and `ASSESSIQ_MASTER_KEY=<new value>`. Edit with truncate-write, not `mv`.
+4. Make sure no AI grading run is in flight. Recreate api and worker: `docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-api assessiq-worker`. Check `/api/health`. Everything still works: old rows decrypt through the fallback.
+5. Dry-run (writes nothing, prints counts only): `docker exec assessiq-api pnpm exec tsx /app/tools/rotate-master-key.ts`. Expect `undecryptable=0` on every line. If not zero, stop: the old key value is wrong or a row is corrupt. Nothing was written.
+6. Apply: `docker exec assessiq-api pnpm exec tsx /app/tools/rotate-master-key.ts --apply`. It is safe to re-run. Each batch is one transaction under `SET LOCAL ROLE assessiq_system`.
+7. Verify: run the dry-run again. Expect `would_rotate=0` and `already_new=total` on every line. If any line shows `would_rotate>0` (a row written under the old key while the sweep ran — the pass-2 cursor cannot see rows inserted behind it), run `--apply` again and repeat this check. Never do step 8 until every line is zero (codex review 2026-10-02). Then do a TOTP login with an enrolled admin and list embed secrets.
+8. Remove `ASSESSIQ_MASTER_KEY_PREVIOUS` from `.env`. Recreate api and worker again. Repeat the check in step 7.
+9. Keep the OLD key offline in the password manager for at least 30 days. Any backup taken before the rotation needs the old key to read its encrypted columns (dump retention is 14 days, plus the weekly Hostinger backup). Delete it only after every older backup has aged out.
+
+**Rollback during the procedure.** Before step 8 both keys work. Put the old key back as `ASSESSIQ_MASTER_KEY`, set the new one as `ASSESSIQ_MASTER_KEY_PREVIOUS`, recreate, and re-run `--apply` to rotate back. Restoring a pre-rotation dump needs the old key.
+
+**Not included:** automatic scheduling, rotation of `SESSION_SECRET` (a different key; rotating it logs everyone out), per-tenant keys.
+
+**Downstream impact:** `modules/00-core/src/config.ts` (new optional var), `modules/01-auth/src/crypto-util.ts` and `modules/13-notifications/src/webhooks/crypto.ts` (decrypt fallback), `.env.example`. If a new encrypted column is ever added, add it to `TARGETS` in `tools/rotate-master-key.ts` or rotation will strand it.

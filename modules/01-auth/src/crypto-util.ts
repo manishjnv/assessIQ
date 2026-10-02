@@ -33,16 +33,29 @@ export function encryptEnvelope(plaintext: Buffer | string): Buffer {
   return Buffer.concat([nonce, ct, tag]);
 }
 
-export function decryptEnvelope(envelope: Buffer): Buffer {
+function decryptWithKey(envelope: Buffer, key: Buffer): Buffer {
   if (envelope.length < NONCE_LEN + TAG_LEN) {
     throw new Error("envelope too short");
   }
   const nonce = envelope.subarray(0, NONCE_LEN);
   const tag = envelope.subarray(envelope.length - TAG_LEN);
   const ct = envelope.subarray(NONCE_LEN, envelope.length - TAG_LEN);
-  const decipher = createDecipheriv("aes-256-gcm", masterKey(), nonce);
+  const decipher = createDecipheriv("aes-256-gcm", key, nonce);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]);
+}
+
+// Master-key rotation (E8): try the current key, then ASSESSIQ_MASTER_KEY_PREVIOUS
+// if set. Encrypt never uses the previous key. GCM auth makes a wrong key throw, so
+// the fallback cannot return wrong plaintext; tampered data fails under both keys.
+export function decryptEnvelope(envelope: Buffer): Buffer {
+  try {
+    return decryptWithKey(envelope, masterKey());
+  } catch (err) {
+    const prev = config.ASSESSIQ_MASTER_KEY_PREVIOUS;
+    if (!prev) throw err;
+    return decryptWithKey(envelope, Buffer.from(prev, "base64"));
+  }
 }
 
 export function sha256Hex(input: string | Buffer): string {

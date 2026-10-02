@@ -40,12 +40,7 @@ export function encrypt(plaintext: string): Buffer {
   return Buffer.concat([iv, authTag, encrypted]);
 }
 
-/**
- * Decrypt a Buffer produced by encrypt() back to a plaintext string.
- * Throws if the auth tag doesn't match (tampered ciphertext).
- */
-export function decrypt(cipherBuffer: Buffer): string {
-  const key = getMasterKey();
+function decryptWithKey(cipherBuffer: Buffer, key: Buffer): string {
   const iv = cipherBuffer.subarray(0, IV_LENGTH);
   const authTag = cipherBuffer.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
   const ciphertext = cipherBuffer.subarray(IV_LENGTH + TAG_LENGTH);
@@ -59,4 +54,19 @@ export function decrypt(cipherBuffer: Buffer): string {
   ]);
 
   return decrypted.toString('utf8');
+}
+
+/**
+ * Decrypt a Buffer produced by encrypt() back to a plaintext string.
+ * Throws if the auth tag doesn't match (tampered ciphertext).
+ * Master-key rotation (E8): tries the current key, then ASSESSIQ_MASTER_KEY_PREVIOUS.
+ */
+export function decrypt(cipherBuffer: Buffer): string {
+  try {
+    return decryptWithKey(cipherBuffer, getMasterKey());
+  } catch (err) {
+    const prev = config.ASSESSIQ_MASTER_KEY_PREVIOUS;
+    if (!prev) throw err;
+    return decryptWithKey(cipherBuffer, Buffer.from(prev, 'base64'));
+  }
 }
