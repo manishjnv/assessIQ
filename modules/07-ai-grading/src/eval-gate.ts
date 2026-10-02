@@ -62,7 +62,7 @@ function resolveMode(): EvalGateMode {
 
 function baselinesDir(): string {
   return (
-    process.env["AIQ_EVAL_BASELINES_DIR"] ??
+    process.env["AIQ_EVAL_BASELINES_DIR"] || // empty .env line = unset
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "eval", "baselines")
   );
 }
