@@ -8,12 +8,14 @@ export default defineConfig({
     host: true,
   },
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         // Separate React/router into a cacheable vendor chunk so it doesn't
         // re-download when admin-dashboard or candidate-ui chunks change.
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
+        codeSplitting: {
+          groups: [
+            { name: "vendor-react", test: /node_modules[\\/](react|react-dom|react-router-dom|react-router|scheduler)[\\/]/ },
+          ],
         },
       },
     },
