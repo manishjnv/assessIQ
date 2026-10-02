@@ -22,7 +22,7 @@ import { QuestionContentView } from "../components/QuestionContentView.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
 
-const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select"] as const;
+const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select", "ordering"] as const;
 type QuestionType = typeof QUESTION_TYPES[number];
 
 const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
@@ -34,7 +34,15 @@ const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
   // Deterministic types: scored automatically, no AI. See help ids admin.question.content.*
   numeric: { question: "", answer: 0, tolerance: 0 },
   multi_select: { question: "", options: ["", "", "", ""], correct: [0], scoring: "all_or_nothing" },
+  // Authored via the structured items editor (CreateQuestionForm); correct_order = identity on save.
+  ordering: { question: "", items: ["", ""], correct_order: [0, 1], scoring: "all_or_nothing" },
 };
+
+/** Items editor value -> content. The authored order IS the correct order, so correct_order is the identity. */
+export function buildOrderingContent(question: string, items: string[], scoring: "all_or_nothing" | "partial"): unknown {
+  const clean = items.map((s) => s.trim());
+  return { question: question.trim(), items: clean, correct_order: clean.map((_, i) => i), scoring };
+}
 
 interface QuestionDetail {
   id: string;
@@ -240,6 +248,18 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // ordering: structured editor state (the item order entered here is the correct order)
+  const [ordQuestion, setOrdQuestion] = useState("");
+  const [ordItems, setOrdItems] = useState<string[]>(["", ""]);
+  const [ordScoring, setOrdScoring] = useState<"all_or_nothing" | "partial">("all_or_nothing");
+
+  function moveOrdItem(i: number, dir: -1 | 1) {
+    const j = i + dir;
+    if (j < 0 || j >= ordItems.length) return;
+    const next = [...ordItems];
+    [next[i], next[j]] = [next[j] as string, next[i] as string];
+    setOrdItems(next);
+  }
 
   function handleTypeChange(t: QuestionType) {
     setType(t);
@@ -253,11 +273,19 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
     setSubmitError(null);
 
     let content: unknown;
-    try {
-      content = JSON.parse(contentJson) as unknown;
-    } catch {
-      setJsonError("Content is not valid JSON.");
-      return;
+    if (type === "ordering") {
+      if (!ordQuestion.trim() || ordItems.length < 2 || ordItems.some((s) => !s.trim())) {
+        setSubmitError("Ordering needs a question and 2 to 10 items, none blank.");
+        return;
+      }
+      content = buildOrderingContent(ordQuestion, ordItems, ordScoring);
+    } else {
+      try {
+        content = JSON.parse(contentJson) as unknown;
+      } catch {
+        setJsonError("Content is not valid JSON.");
+        return;
+      }
     }
 
     const pointsNum = parseInt(points, 10);
@@ -361,6 +389,49 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
           </div>
         </div>
 
+        {type === "ordering" ? (
+          <div className="aiq-form-group" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+            <HelpTip helpId="admin.question.content.ordering">
+              <label className="aiq-label" htmlFor="q-ord-question">Question *</label>
+            </HelpTip>
+            <textarea
+              id="q-ord-question"
+              className="aiq-input"
+              style={{ minHeight: 80, resize: "vertical" }}
+              value={ordQuestion}
+              onChange={(e) => setOrdQuestion(e.target.value)}
+            />
+            <HelpTip helpId="admin.question.ordering.items">
+              <span className="aiq-label">Items, in the CORRECT order (2 to 10) *</span>
+            </HelpTip>
+            {ordItems.map((text, i) => (
+              <div key={i} style={{ display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
+                <span style={{ fontFamily: "var(--aiq-font-mono)", width: 24 }}>{i + 1}.</span>
+                <input
+                  className="aiq-input"
+                  type="text"
+                  aria-label={`Item ${i + 1}`}
+                  value={text}
+                  onChange={(e) => setOrdItems(ordItems.map((s, k) => (k === i ? e.target.value : s)))}
+                  style={{ flex: 1 }}
+                />
+                <button type="button" className="aiq-btn aiq-btn-ghost" aria-label={`Move item ${i + 1} up`} disabled={i === 0} onClick={() => moveOrdItem(i, -1)}>Up</button>
+                <button type="button" className="aiq-btn aiq-btn-ghost" aria-label={`Move item ${i + 1} down`} disabled={i === ordItems.length - 1} onClick={() => moveOrdItem(i, 1)}>Down</button>
+                <button type="button" className="aiq-btn aiq-btn-ghost" aria-label={`Remove item ${i + 1}`} disabled={ordItems.length <= 2} onClick={() => setOrdItems(ordItems.filter((_, k) => k !== i))}>Remove</button>
+              </div>
+            ))}
+            <div>
+              <button type="button" className="aiq-btn aiq-btn-ghost" disabled={ordItems.length >= 10} onClick={() => setOrdItems([...ordItems, ""])}>Add item</button>
+            </div>
+            <HelpTip helpId="admin.question.ordering.scoring">
+              <label className="aiq-label" htmlFor="q-ord-scoring">Scoring</label>
+            </HelpTip>
+            <select id="q-ord-scoring" className="aiq-input" value={ordScoring} onChange={(e) => setOrdScoring(e.target.value as "all_or_nothing" | "partial")}>
+              <option value="all_or_nothing">All or nothing</option>
+              <option value="partial">Partial credit (items in the right place)</option>
+            </select>
+          </div>
+        ) : (
         <div className="aiq-form-group">
           {type === "numeric" || type === "multi_select" ? (
             <HelpTip helpId={`admin.question.content.${type}`}>
@@ -383,6 +454,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
             </div>
           )}
         </div>
+        )}
 
         <div>
           <button type="submit" className="aiq-btn aiq-btn-primary" disabled={submitting}>

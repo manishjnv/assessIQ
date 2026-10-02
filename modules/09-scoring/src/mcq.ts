@@ -55,7 +55,7 @@ export function isMcqAnswerCorrect(content: unknown, answer: unknown): boolean {
 }
 
 /** Types scored here with NO AI. Keep in sync with the `q.type IN (...)` SQL below. */
-export const DETERMINISTIC_TYPES = ["mcq", "numeric", "multi_select"] as const;
+export const DETERMINISTIC_TYPES = ["mcq", "numeric", "multi_select", "ordering"] as const;
 
 /** Extract the numeric value of a stored numeric answer: number, {value}, or numeric string ("1,250"). */
 export function parseNumericAnswer(answer: unknown): number | null {
@@ -104,10 +104,33 @@ export function multiSelectFraction(content: unknown, answer: unknown): number {
   return wrong === 0 && right === key.size ? 1 : 0;
 }
 
+/**
+ * ordering: fraction of the points earned, 0..1. `correct_order` and `answer.order` are
+ * ORIGINAL item indexes. Malformed (not a permutation of 0..n-1 of the right length) -> 0.
+ * all_or_nothing (default): 1 iff identical. partial: share of positions that match.
+ */
+export function orderingFraction(content: unknown, answer: unknown): number {
+  if (content === null || typeof content !== "object") return 0;
+  const c = content as { correct_order?: unknown; scoring?: unknown };
+  const isPerm = (a: unknown, n: number): a is number[] =>
+    Array.isArray(a) && a.length === n && new Set(a).size === n &&
+    a.every((i) => typeof i === "number" && Number.isInteger(i) && i >= 0 && i < n);
+  const key = c.correct_order;
+  if (!Array.isArray(key) || key.length < 2 || !isPerm(key, key.length)) return 0;
+  const given = answer !== null && typeof answer === "object" && !Array.isArray(answer)
+    ? (answer as { order?: unknown }).order
+    : undefined;
+  if (!isPerm(given, key.length)) return 0;
+  const hits = given.filter((v, i) => v === key[i]).length;
+  if (c.scoring === "partial") return hits / key.length;
+  return hits === key.length ? 1 : 0;
+}
+
 /** Fraction (0..1) of the question's points earned, for any deterministic type. */
 export function deterministicFraction(type: string, content: unknown, answer: unknown): number {
   if (type === "numeric") return isNumericAnswerCorrect(content, answer) ? 1 : 0;
   if (type === "multi_select") return multiSelectFraction(content, answer);
+  if (type === "ordering") return orderingFraction(content, answer);
   return isMcqAnswerCorrect(content, answer) ? 1 : 0;
 }
 
@@ -138,7 +161,7 @@ export async function scoreMcqForAttempt(
          ON aa.attempt_id = aq.attempt_id
         AND aa.question_id = aq.question_id
       WHERE aq.attempt_id = $1
-        AND q.type IN ('mcq', 'numeric', 'multi_select')`,
+        AND q.type IN ('mcq', 'numeric', 'multi_select', 'ordering')`,
     [attemptId],
   );
 
@@ -210,7 +233,7 @@ export async function scoreMcqAndFinalizeIfComplete(
          FROM attempt_questions aq
          JOIN questions q ON q.id = aq.question_id
         WHERE aq.attempt_id = $1
-          AND q.type IN ('mcq', 'numeric', 'multi_select')
+          AND q.type IN ('mcq', 'numeric', 'multi_select', 'ordering')
           AND NOT EXISTS (
             SELECT 1 FROM gradings g
              WHERE g.attempt_id = aq.attempt_id

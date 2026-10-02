@@ -281,6 +281,30 @@ export function ExpectedAnswerView({ type, content, rubric }: ExpectedAnswerView
     case "mcq":
     case "multi_select":
       return c ? <McqExpected c={c} /> : <JsonFallback value={content} />;
+    case "ordering": {
+      if (!c) return <JsonFallback value={content} />;
+      const items = safeArr<unknown>(c.items) ?? [];
+      const key = Array.isArray(c.correct_order) ? c.correct_order.filter((x): x is number => typeof x === "number") : [];
+      const expl = safeStr(c.explanation);
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+          <div>
+            <div style={SUBLABEL_STYLE}>Correct order ({c.scoring === "partial" ? "partial credit" : "all or nothing"})</div>
+            <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)" }}>
+              {key.map((i, pos) => (
+                <li key={pos} style={KEY_TEXT_STYLE}>{typeof items[i] === "string" ? cleanText(items[i] as string) : ""}</li>
+              ))}
+            </ol>
+          </div>
+          {expl != null && (
+            <div>
+              <div style={SUBLABEL_STYLE}>Explanation</div>
+              <p style={KEY_TEXT_STYLE}>{cleanText(expl)}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
     case "numeric": {
       if (!c) return <JsonFallback value={content} />;
       const tol = typeof c.tolerance === "number" && c.tolerance > 0 ? c.tolerance : 0;

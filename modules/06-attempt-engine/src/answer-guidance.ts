@@ -18,6 +18,7 @@
 export const ANSWER_GUIDANCE_DEFAULTS: Record<string, string> = {
   mcq: "Select the one best option.",
   multi_select: "Select all that apply.",
+  ordering: "Put the items in the correct order.",
   numeric: "Enter a number.",
   kql: "Write a KQL query.",
   subjective: "Write a focused answer — about 3–6 sentences.",
