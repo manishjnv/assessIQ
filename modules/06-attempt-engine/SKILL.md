@@ -180,3 +180,11 @@ For assessments with `settings.sections` (defined in 05). Assessments without it
 ## Scenario answer check at save (N15, 2026-10-03)
 
 `checkAnswerForSave(type, answer)` in `src/types.ts`, called by `saveAnswer` in `src/service.ts` after the lock, owner, status, timer and section checks. The key is the question TYPE (read by `findQuestionType` in `src/repository.ts`), never the answer shape. Only `scenario` is checked, with the existing `ScenarioAnswerPayloadSchema`: `{ steps: [{ stepIndex, response }] }` or `null`. A wrong shape gives HTTP 400 `AE_INVALID_PARAM` with `param: "answer"`. Unknown keys are removed. Other types stay "stored as sent, scores 0 when malformed": a strict check could block autosave for a client with an older shape. **Not included:** the type is read live from `questions.type`, not frozen per attempt (open task N21; the candidate view and scoring read it the same way). Tests: `answer-shape-save.test.ts` (no database) and one case in `attempt-engine.test.ts`.
+
+## Question type `structured_case` (SP7, 2026-10-03)
+
+- **Save check.** `checkAnswerForSave(type, answer, frozenContent?)` in `src/types.ts` now also validates `structured_case`: the answer is `{ steps: { [stepId]: number[] } }` (`StructuredCaseAnswerPayloadSchema`), every step id exists in the FROZEN content, every index is unique and inside that step's options. `saveAnswer` reads the type, then loads the content with `findFrozenContent(client, questionId, aq.question_version)` (`repository.ts`; server-internal, contains the key). A failure gives the same 400 `AE_INVALID_PARAM` (`param: answer`) as the scenario check; the message names the type. The key is the question TYPE, never the answer shape.
+- **Candidate view.** `sanitizeContentForCandidate` keeps `title`, `context`, `log_excerpt` and per step only `id`, `prompt`, `select`, `options`. `correct`, `scoring`, `explanation` never leave the server.
+- **No option shuffle.** Steps are served in authored order, and the stored indexes are original indexes. Upgrade path: one `option_order` per step id (ponytail note in `option-shuffle.ts`).
+- **Why.** The type is deterministic, so the save seam can reject malformed picks early.
+- **Not included.** A check that a `select: one` step has one pick (scoring treats a wrong count as wrong). `result.ts` non-mcq predicate now excludes the type.

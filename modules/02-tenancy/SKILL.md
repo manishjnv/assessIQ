@@ -97,3 +97,7 @@ Every new domain table MUST get this two-policy template in the **same migration
 ## Tenant result release mode (SP2, 2026-10-01)
 
 Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | `auto`) and `result_release_auto_since` (NULL while manual). `updateResultReleaseMode(adminUserId, tenantId, mode)` is the only mutator (not part of the generic settings patch): UPDATE + one `tenant.settings.updated` audit row in one tx; manual→auto stamps `result_release_auto_since = now()`, auto→manual clears it; a same-mode request is a no-op (no write, no audit). The auto-release sweep (apps/api worker) only publishes attempts whose evaluation was released at/after `result_release_auto_since`, so switching to auto never releases results already waiting (the admin uses bulk release for those).
+
+## `createTenant` audit row (RV59, 2026-10-03)
+
+`createTenant` now uses its super-admin id and writes one `tenant.provisioned` audit row with `auditInTx` inside its own transaction, in the NEW tenant's audit log (same rule as `suspendTenant`). Actor = the super admin, entity = the new tenant, `after = { slug, name }` (`name` is redacted by the sanitizer). The route's later `tenant.created` row and its failure row are unchanged. Tests: `audit-writes.test.ts`, `create-tenant.test.ts`. See docs/11 section 30.6.

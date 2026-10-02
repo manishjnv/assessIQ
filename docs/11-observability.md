@@ -1250,6 +1250,18 @@ Two actions were added for this module (lines reference [modules/14-audit-log/sr
 
 ---
 
+### 30.6 `tenant.provisioned` (RV59, 2026-10-03, commit `5e5aaa3`)
+
+- **What.** `createTenant` writes one `audit_log` row, action `tenant.provisioned`, `entity_type` `tenant`, `entity_id` the new tenant id, `actor_kind` `user`, actor = the calling super admin. `after = { slug, name }`; the sanitizer redacts `name`. The row lives in the NEW tenant's audit log, the same rule as `suspendTenant`. It is written with `auditInTx` inside the same transaction that creates the tenant, so a failed audit rolls the tenant back.
+- **Why.** The function ignored its super-admin id and wrote no audit row. The project rule is one audit row per admin mutation, in the same transaction.
+- **Considered and rejected.** Moving the route's `tenant.created` row into the service: that row has a different scope and a failure twin, and callers depend on it.
+- **Not included.** The route's later `tenant.created` row and its failure row are unchanged, so one company creation now produces two success rows. `tenant.provisioned` is added to `ACTION_CATALOG` (`modules/14-audit-log/src/types.ts`).
+- **Impact.** Audit viewers and exports show a new action. Test: `modules/02-tenancy/src/__tests__/audit-writes.test.ts`.
+
+### 30.7 Worker routes are super admin only (FR17, 2026-10-03, commit `59a4816`)
+
+`/api/admin/worker/*` (section 13) now uses `authChain({ roles: ['super_admin'] })` in `apps/api/src/server.ts`. The queue is shared by all tenants, so tenant admins no longer read or retry its jobs. No screen uses these routes. See 03, worker routes.
+
 ## 31. Lighthouse CI (Phase 14 — frontend quality gate)
 
 Lighthouse CI runs on every pull request against the `main` branch via `.github/workflows/lighthouse.yml`. It audits **5 unauthenticated routes** of `apps/web` — the only pages that render meaningfully without a session.

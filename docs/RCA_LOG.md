@@ -2283,3 +2283,46 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `tools/rotate-master-key.ts` sweeps with a cursor. A row inserted under the old key behind the pass-2 cursor is never visited, so removing `ASSESSIQ_MASTER_KEY_PREVIOUS` would leave it undecryptable. The first draft procedure removed the old key after one apply.
 **Fix:** `docs/06-deployment.md` § MASTER_KEY rotation, step 7: repeat the dry-run and `--apply` until `would_rotate=0` on every line before step 8. Also fixed the script path (`/app/tools/...`) and the column list (two non-existent columns removed).
 **Prevention:** the step 7 gate; the old key stays offline 30 days. New encrypted columns must be added to `TARGETS` in the tool.
+
+
+## 2026-10-03 — Help ids outside their page prefix never loaded (N20)
+
+**Symptom:** The (?) help for `admin.settings.company_name`, `admin.settings.result_release_mode`, `admin.question.content.*` and `admin.question.ordering.*` showed no text.
+**Cause:** The API returns only the keys that match `LIKE '<page>.%'` for the page that mounts `HelpProvider`. These ids sat outside the prefix of their page (`admin.tenant_settings`, `admin.question.editor`), so the page never fetched them. Sources: `modules/10-admin-dashboard/src/pages/tenant-settings.tsx`, `question-editor.tsx`.
+**Fix:** `b02bbf3`: ids renamed under the page prefix in the pages, `content/en/admin.yml`, seed `0011` and migration `0149_rename_help_ids_page_prefix.sql`.
+**Prevention:** `modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts` scans the pages and fails on an id outside its page prefix. A short `ALLOWLIST` (file, id, reason) holds the known exceptions. The SP7 keys follow the rule from the start.
+
+## 2026-10-03 — Assessment preview counted the live pool, not the frozen pool (RV63)
+
+**Symptom:** After publish, the admin preview of an assessment showed counts that could differ from what candidates draw.
+**Cause:** `previewAssessment` in `modules/05-assessment-lifecycle/src/service.ts` always counted live active questions. Candidates draw from `assessment_frozen_pool` (migration 0096) once the assessment is published.
+**Fix:** `afc5069`: for a non-draft assessment with rows in `assessment_frozen_pool`, preview uses the frozen counts (`countFrozenPoolRows`, `countFrozenForCriterion` in `repository.ts`). A draft, or an assessment from before 0096 with no rows, keeps the live path.
+**Prevention:** two tests in `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts` (frozen path, live fallback).
+
+## 2026-10-03 — Generation finalized twice on all-fail and skipped de-dup on the single path (RV64)
+
+**Symptom:** A sharded generation run where every chunk failed finalized the same row two times. The single-call path could insert a topic that already existed.
+**Cause:** `modules/07-ai-grading/src/handlers/admin-generate.ts` had three near-copies of the plan (sharded, single-call, chunked) that had drifted. The sharded all-fail branch finalized, then the common tail finalized again. The single-call copy had no de-dup step.
+**Fix:** `8723dc4`: one `runGenerationPlan` for all paths, finalize only in the `finally` block, de-dup on every path. `a7ea234`: review fixes (null-safe chunk errors, `topic_focus` cap, sha de-dup).
+**Prevention:** a trigger-based test asserts one UPDATE per generation row; a de-dup test covers the single-call path. Tests live in `modules/07-ai-grading/src/__tests__/` (`admin-generate-tenant-mode.test.ts`, `admin-generate-stderr.test.ts`, `generate-body-validation.test.ts`).
+
+## 2026-10-03 — `createTenant` wrote no audit row (RV59)
+
+**Symptom:** Creating a company left no audit row from the service. The route wrote `tenant.created` after the transaction.
+**Cause:** `createTenant` in `modules/02-tenancy/src/service.ts` ignored `_createdBySuperAdminUserId`, and the only audit write lived in the route, outside the transaction.
+**Fix:** `5e5aaa3`: `auditInTx` inside the same transaction, action `tenant.provisioned`, in the new tenant's log; action added to `ACTION_CATALOG` (`modules/14-audit-log/src/types.ts`).
+**Prevention:** `modules/02-tenancy/src/__tests__/audit-writes.test.ts` covers the new row; `create-tenant.test.ts` was updated.
+
+## 2026-10-03 — Attempts tab "Pending grading" was always empty (RV58)
+
+**Symptom:** The attempts page tab "Pending grading" showed no rows, even with submitted attempts waiting.
+**Cause:** The tab filtered `status=pending_admin_grading`. Nothing writes that status since `67ed5e2`; submitted attempts stay `submitted` or `auto_submitted`. Files: `modules/10-admin-dashboard/src/pages/attempts.tsx`, `modules/07-ai-grading/src/routes.ts` (single-value enum).
+**Fix:** `487707d`: the route accepts a comma-separated `status` list (each value validated, bad value gives 400 `AIG_INVALID_BODY`); the tab is "Awaiting evaluation" with `status=submitted,auto_submitted,pending_admin_grading`.
+**Prevention:** manual discipline: any status list or counter must follow `countGradingQueue`. Test added in `admin-attempts-list.test.ts` for the list parse.
+
+## 2026-10-03 — Worker routes were open to tenant admins (FR17)
+
+**Symptom:** None seen. Found in the feature review (RS6).
+**Cause:** `registerAdminWorkerRoutes` in `apps/api/src/server.ts` used `authChain({ roles: ['admin'] })`. The BullMQ queue is shared by all tenants, so a tenant admin could read job data and retry any job.
+**Fix:** `59a4816`: `authChain({ roles: ['super_admin'] })`. No screen uses these routes.
+**Prevention:** manual discipline. A future route-gate test should list every `/api/admin/*` route with its required role and fail on a new route without an entry.

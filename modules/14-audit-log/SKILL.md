@@ -94,3 +94,7 @@ help.content.updated
 ## Open questions
 - Cryptographic chain (each row hashes previous) — Phase 4-deferred; meaningful only for very-high compliance bars (WORM bucket + hash chain).
 - ~~Real-time SIEM forwarding~~ — **shipped in G3.A** (`43c0e45`). `audit()` fan-out calls `13-notifications.emitWebhook` post-commit (best-effort, non-blocking, dynamic import to avoid circular dep). Opt-in per tenant via `webhook_endpoints.events ⊇ ['audit.*']`. See P3.D16.
+
+## Catalog addition: `tenant.provisioned` (RV59, 2026-10-03)
+
+`tenant.provisioned` is appended to `ACTION_CATALOG` in `src/types.ts`. Emitted by 02-tenancy `createTenant`, one row per new company, in the new tenant's log. The catalog stays append-only. See docs/11 section 30.6.

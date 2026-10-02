@@ -137,3 +137,10 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 
 ## Edit sections on the assessment page (2026-10-02, N6)
 `components/SectionsCard.tsx` (mounted above HighStakes on assessment detail) reuses `pages/SectionsEditor.tsx` + `buildSections`; saves via the existing `PATCH /admin/assessments/:id` (draft only), sending the FULL settings back (PATCH replaces `settings` wholesale) plus `question_count` when every section has a count. "Edit sections" is disabled with a tooltip when the assessment has attempts or is not a draft; a 409 `SECTIONS_LOCKED` (race) shows an inline message. help_id `admin.assessment.sections.edit` (migration 0143). No new backend route. Test: `__tests__/sections-card.test.tsx`.
+
+## Structured case components (SP7, 2026-10-03)
+
+- `components/StructuredCaseEditor.tsx`: create-only authoring form (title, context, optional log excerpt, steps with radio or checkbox correct marks, scoring). Wired in `pages/question-editor.tsx`; no edit form for existing questions (same as `ordering`).
+- `components/StructuredCaseView.tsx`: one shared admin view for the prompt, key and graded-answer zones. Used by `QuestionContentView`, `QuestionPromptView`, `ExpectedAnswerView` and `AttemptGradingPanel`.
+- Candidate side (`apps/web/src/pages/take/StructuredCaseAnswerArea.tsx`): keyed by question id; a question counts as answered when any step has a pick.
+- **Attempts page (RV58, 2026-10-03).** The tab "Pending grading" is now "Awaiting evaluation" and sends `status=submitted,auto_submitted,pending_admin_grading` (the old filter was always empty).

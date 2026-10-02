@@ -200,3 +200,15 @@ AI-assisted question generation is the only AI-touching surface in this module's
 ## Generation batches (E6, 2026-10-02)
 
 `src/generation-batches.ts` registers three super-admin routes (`GET /api/admin/generation-batches/active`, `PUT/PATCH /api/admin/generation-batches/:id`) on the same guard as the generate routes, called from `routes.ts`. Table `generation_batches` is owned by 07 (migration 0142). PUT unions `completed_category_ids` (a stale tab cannot erase progress); a foreign id returns 409 without saying whose. `07 admin-generate.ts` also adds each finished category server-side, best-effort. Not included: server-side orchestration (the browser still drives categories; single-flight AI + CF 100 s timeout). Details: docs/03-api-contract.md "Batch 5 notes".
+
+## Question type `structured_case` (SP7, 2026-10-03)
+
+`StructuredCaseContentSchema` in `src/types.ts` (strict): `title`, `context`, optional `log_excerpt` (max 20000), 1-12 `steps` of `{ id, prompt, select: one|many, options (2-8), correct[] }`, optional `scoring` (`all_or_nothing` | `partial`, default partial), optional `explanation`. A `superRefine` enforces unique step ids, valid unique `correct` indexes, and one correct index for `select: one`. Migration `0152` widens `questions_type_check`. The type is in `QUESTION_TYPES` and `CONTENT_SCHEMA_MAP`.
+- **Why.** Several linked choices about one log or story, scored with no AI.
+- **Rejected.** `scenario` with all-mcq steps (determinism would depend on content), extending `multi_select`.
+- **Not included.** AI generation (`difficulty-spec.ts` excludes it), edit form for existing questions, `/try` demo.
+- **Impact.** Scoring in 09, save check and candidate sanitizer in 06, editor in 10, help keys in 16. Hand-authored only.
+
+## Generation: `topic_focus` reaches the runtime (RV62, 2026-10-03)
+
+`service.ts` passes `topicFocus` from the route body into the runtime input, so the skill variable `topic_focus` is the real string (it was always `null`). The route accepts at most 200 characters after trim and no control characters; else 400 `INVALID_PARAM`. The wizard has no field yet (API only). The generate skills must read `topic_focus` before it changes output; a prompt change is a deploy event with eval re-baseline. See 05, "Question generation: one shared plan".
