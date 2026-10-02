@@ -74,6 +74,53 @@ describe("sanitizeContentForCandidate", () => {
     expect(steps[1]).not.toHaveProperty("expected");
   });
 
+  it("scenario: mcq step (bank shape) keeps options, drops correct/trap/rationale/explanation", () => {
+    const input = {
+      title: "T",
+      intro: "I",
+      step_dependency: "linear",
+      steps: [
+        {
+          id: "s1",
+          type: "mcq",
+          prompt: "Pick one",
+          options: ["alpha", "bravo", "charlie"],
+          correct: 1,
+          trap: true,
+          rationale: "SECRET_RATIONALE",
+          explanation: "SECRET_EXPLANATION",
+          answer: "SECRET_ANSWER",
+          expected: "SECRET_EXPECTED",
+        },
+        { id: "s2", type: "kql", prompt: "q", expected_keywords: ["SECRET_KW"] },
+        { id: "s3", type: "subjective", prompt: "p", rubric_ref: "SECRET_RUBRIC" },
+      ],
+    };
+    const output = sanitizeContentForCandidate("scenario", input) as { steps: unknown[] };
+    expect(output.steps[0]).toEqual({
+      id: "s1",
+      type: "mcq",
+      prompt: "Pick one",
+      options: ["alpha", "bravo", "charlie"],
+    });
+    expect(output.steps[1]).toEqual({ prompt: "q" });
+    expect(output.steps[2]).toEqual({ prompt: "p" });
+    const json = JSON.stringify(output);
+    for (const bad of [
+      "correct", "trap", "rationale", "explanation", "answer", "expected",
+      "expected_keywords", "rubric_ref", "SECRET_",
+    ]) {
+      expect(json).not.toContain(bad);
+    }
+  });
+
+  it("scenario: generated-shape step {prompt, expected} loses expected", () => {
+    const input = { title: "T", intro: "I", steps: [{ prompt: "p", expected: "SECRET_EXPECTED", options: ["x"] }] };
+    const output = sanitizeContentForCandidate("scenario", input);
+    expect(output).toEqual({ title: "T", intro: "I", steps: [{ prompt: "p" }] });
+    expect(JSON.stringify(output)).not.toContain("SECRET_EXPECTED");
+  });
+
   // 5. subjective — only question survives
   it("subjective: keeps only question, strips everything else", () => {
     const input = { question: "Explain XSS", foo: "bar" };

@@ -473,7 +473,8 @@ export async function listOrderingQuestionIds(client: PoolClient, attemptId: str
  *   log_analysis → question, log_format, log_excerpt, hint
  *   kql          → question, tables
  *   scenario     → title, intro, step_dependency, steps
- *                  (steps elements: only `prompt` key; `expected` and others dropped)
+ *                  (steps elements: `prompt`; mcq-typed steps also id/type/options;
+ *                   `correct`, `trap`, `expected` and everything else dropped)
  *   subjective   → question
  *   <unknown>    → question only
  *
@@ -529,6 +530,16 @@ export function sanitizeContentForCandidate(type: string, content: unknown): unk
               const stepOut: Record<string, unknown> = {};
               if (Object.prototype.hasOwnProperty.call(s, "prompt")) {
                 stepOut["prompt"] = s["prompt"];
+              }
+              // Bank-schema mcq step: allowlist id/type/prompt/options only. `correct`, `trap`
+              // and everything else stay server-side. Keyed on the declared step type; the
+              // generated `{prompt, expected}` shape has no type and keeps `prompt` only.
+              if (s["type"] === "mcq" && Array.isArray(s["options"])) {
+                stepOut["type"] = "mcq";
+                if (typeof s["id"] === "string") stepOut["id"] = s["id"];
+                stepOut["options"] = (s["options"] as unknown[]).filter(
+                  (o): o is string => typeof o === "string",
+                );
               }
               return stepOut;
             }

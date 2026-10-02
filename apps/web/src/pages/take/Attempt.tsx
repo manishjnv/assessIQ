@@ -94,6 +94,8 @@ interface LogAnalysisContent {
 interface ScenarioStep {
   prompt: string;
   expected?: string; // not rendered to candidate
+  type?: string;
+  options?: string[]; // only on mcq-typed steps (server allowlist)
 }
 interface ScenarioContent {
   title: string;
@@ -677,6 +679,24 @@ function ScenarioAnswerArea({
           >
             {step.prompt}
           </p>
+          {step.type === 'mcq' && Array.isArray(step.options) ? (
+            // The chosen option TEXT is saved as the step response (same string shape as
+            // free-text steps; the AI grader reads it).
+            <div role="radiogroup" aria-label={`Step ${idx + 1} options`} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
+              {step.options.map((opt, oi) => (
+                <label key={oi} style={{ display: 'flex', gap: 'var(--aiq-space-sm)', alignItems: 'flex-start', fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-answer-input-size)', color: 'var(--aiq-color-fg-primary)' }}>
+                  <input
+                    type="radio"
+                    name={`scenario-step-${idx}`}
+                    checked={getResponse(idx) === opt}
+                    disabled={disabled}
+                    onChange={() => { updateStep(idx, opt); onBlur(); }}
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
           <textarea
             value={getResponse(idx)}
             disabled={disabled}
@@ -700,6 +720,7 @@ function ScenarioAnswerArea({
               outline: 'none',
             }}
           />
+          )}
         </div>
       ))}
     </div>
