@@ -75,6 +75,10 @@ services:
       # in modules/00-core/src/config.ts.
       - path: ../.env
         required: false
+    # R11 PG budget (max_connections=100): api 40 + worker 15 + 2x5 system pools
+    # = 65, ~32 left for migrations / psql / backups. Overrides PG_POOL_MAX from .env.
+    environment:
+      PG_POOL_MAX: ${API_PG_POOL_MAX:-40}
     # Operational logs: bind /var/log/assessiq from host so logrotate (system
     # daemon, on host) and pino (in container) share the file inodes. Path
     # MUST match the LOG_DIR env var. See docs/11-observability.md § 7.
@@ -151,6 +155,8 @@ services:
       # in modules/00-core/src/config.ts.
       - path: ../.env
         required: false
+    environment:
+      PG_POOL_MAX: ${WORKER_PG_POOL_MAX:-15}
     # Operational logs: same bind as assessiq-api. Worker logs go to the same
     # JSONL files (stream binding distinguishes per-process emitters).
     # Skills + claude: same binds as assessiq-api (see comment there).

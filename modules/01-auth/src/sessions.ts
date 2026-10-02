@@ -263,6 +263,9 @@ async function destroyByHash(userId: string, tokenHash: string, tenantId: string
 // not O(all_sessions).
 async function destroyAllForUser(userId: string, tenantId: string): Promise<number> {
   const redis = getRedis();
+  // R11: drop the sessionLoader status-cache entry FIRST so lockout is instant
+  // (key format mirrors middleware/session-loader.ts userStatusKey).
+  await redis.del(`aiq:sess-status:u:${userId}`);
   const hashes = await redis.smembers(USER_INDEX_KEY(userId));
 
   if (hashes.length > 0) {
@@ -296,6 +299,10 @@ async function destroyAllForUser(userId: string, tenantId: string): Promise<numb
 async function destroyAllForTenant(
   tenantId: string,
 ): Promise<{ revokedCount: number; affectedUsers: string[] }> {
+  // 0. R11: drop the tenant status-cache entry so suspend/archive is instant
+  //    (mirrors middleware/session-loader.ts tenantStatusKey).
+  await getRedis().del(`aiq:sess-status:t:${tenantId}`);
+
   // 1. Collect distinct user_ids that have at least one session row in Postgres.
   //    withTenant pins RLS to tenantId so we only see sessions for this tenant.
   const userIds = await withTenant(tenantId, async (client) => {

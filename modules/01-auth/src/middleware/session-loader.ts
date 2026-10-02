@@ -2,6 +2,7 @@ import { config, AuthnError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 import { sessions, isIdleExpired } from "../sessions.js";
+import { getRedis } from "../redis.js";
 import type { AuthHook } from "./types.js";
 // TenantStatusRow is a local interface — session-loader must not import from
 // 02-tenancy/src/lifecycle.ts (that would create a circular dep path via
@@ -27,6 +28,34 @@ import type { AuthHook } from "./types.js";
 interface UserStatusRow {
   status: string;
   deleted_at: string | null;
+  erased_at: string | null;
+}
+
+// R11: positive-only status cache (30 s). Only an "active" verdict is ever
+// cached — a negative is never cached, so the cache can only delay a lockout
+// (bounded by TTL, and deleted immediately by sessions.destroyAllForUser /
+// destroyAllForTenant / 03-users sweepUserSessions), never extend one. Values
+// carry no PII: the user key stores the tenantId it was verified under (a hit
+// must equal session.tenantId), the tenant key stores "1". Any Redis error
+// falls through to the DB check (fail-safe, never fail-open).
+export const SESS_STATUS_TTL_SEC = 30;
+export const userStatusKey = (userId: string): string => `aiq:sess-status:u:${userId}`;
+export const tenantStatusKey = (tenantId: string): string => `aiq:sess-status:t:${tenantId}`;
+
+async function cacheHit(key: string, expected: string): Promise<boolean> {
+  try {
+    return (await getRedis().get(key)) === expected;
+  } catch {
+    return false;
+  }
+}
+
+async function cachePut(key: string, value: string): Promise<void> {
+  try {
+    await getRedis().set(key, value, "EX", SESS_STATUS_TTL_SEC);
+  } catch {
+    // best-effort; next request re-checks the DB
+  }
 }
 
 interface TenantStatusRow {
@@ -44,12 +73,12 @@ async function userIsActive(tenantId: string, userId: string): Promise<boolean> 
   // the integration is type-safe and ready when 03-users lands.
   return withTenant(tenantId, async (client: PoolClient) => {
     const result = await client.query<UserStatusRow>(
-      `SELECT status, deleted_at FROM users WHERE id = $1`,
+      `SELECT status, deleted_at, erased_at FROM users WHERE id = $1`,
       [userId],
     );
     const row = result.rows[0];
     if (row === undefined) return false;
-    return row.status === "active" && row.deleted_at === null;
+    return row.status === "active" && row.deleted_at === null && row.erased_at === null;
   });
 }
 
@@ -119,7 +148,12 @@ export function sessionLoaderMiddleware(opts: SessionLoaderOptions = {}): AuthHo
       // User check runs FIRST — a disabled user should receive a user-scope
       // error, not a tenant-scope error (per Phase A architectural principle #4).
       try {
-        const active = await userIsActive(session.tenantId, session.userId);
+        const uKey = userStatusKey(session.userId);
+        let active = await cacheHit(uKey, session.tenantId);
+        if (!active) {
+          active = await userIsActive(session.tenantId, session.userId);
+          if (active) await cachePut(uKey, session.tenantId);
+        }
         if (!active) {
           await sessions.destroy(token);
           throw new AuthnError("session rejected", {
@@ -145,7 +179,12 @@ export function sessionLoaderMiddleware(opts: SessionLoaderOptions = {}): AuthHo
       // individually active, a suspended or archived tenant blocks all sessions.
       // skipUserStatusCheck gates both checks together (dev/test scaffolding).
       try {
-        const tenantActive = await tenantIsActive(session.tenantId);
+        const tKey = tenantStatusKey(session.tenantId);
+        let tenantActive = await cacheHit(tKey, "1");
+        if (!tenantActive) {
+          tenantActive = await tenantIsActive(session.tenantId);
+          if (tenantActive) await cachePut(tKey, "1");
+        }
         if (!tenantActive) {
           await sessions.destroy(token);
           throw new AuthnError("session rejected", {
