@@ -158,9 +158,9 @@ describe("tier 1 - rule", () => {
 });
 
 describe("tier 2 - reuse", () => {
-  it("identical answer (whitespace/case-insensitive) reuses the accepted band, runtime never called", async () => {
+  it("identical answer (whitespace-insensitive) reuses the accepted band, runtime never called", async () => {
     const src = await gradedAttempt({ response: "The  attacker used PsExec" });
-    const id = await mkAttempt(tA, "submitted", [[q1, { response: "  the attacker used psexec " }]]);
+    const id = await mkAttempt(tA, "submitted", [[q1, { response: "  The attacker   used PsExec " }]]);
     const out = await grade(tA, id);
     expect(gradeSubjectiveMock).not.toHaveBeenCalled();
     const srcGrading = await sup((c) => c.query(`SELECT id FROM gradings WHERE attempt_id=$1`, [src]).then((r) => r.rows[0].id as string));
@@ -170,6 +170,13 @@ describe("tier 2 - reuse", () => {
     expect(await sup((c) => c.query(`SELECT COUNT(*)::int n FROM gradings WHERE attempt_id=$1`, [id]).then((r) => r.rows[0].n))).toBe(0);
     await handleAdminAccept({ tenantId: tA, userId: infra[tA]!.admin, attemptId: id, proposals: out.proposals });
     expect(await sup((c) => c.query(`SELECT COUNT(*)::int n FROM gradings WHERE attempt_id=$1`, [id]).then((r) => r.rows[0].n))).toBe(1);
+  });
+
+  it("case matters: a case-changed answer is not reused (KQL/code identifiers)", async () => {
+    await gradedAttempt({ response: "The attacker used PsExec" });
+    const id = await mkAttempt(tA, "submitted", [[q1, { response: "the attacker used psexec" }]]);
+    await grade(tA, id);
+    expect(gradeSubjectiveMock).toHaveBeenCalled();
   });
 
   it("no reuse across tenants (RLS)", async () => {
@@ -231,7 +238,7 @@ describe("mixed attempt", () => {
   it("blank -> rule, repeat -> reuse, new -> AI: only the remainder reaches the runtime", async () => {
     const q3 = await mkQuestion(1);
     await gradedAttempt({ response: "known answer here" }, tA, q2);
-    const id = await mkAttempt(tA, "submitted", [[q1, { response: "" }], [q2, { response: "Known answer here" }], [q3, { response: "brand new answer" }]]);
+    const id = await mkAttempt(tA, "submitted", [[q1, { response: "" }], [q2, { response: " known  answer here " }], [q3, { response: "brand new answer" }]]);
     const out = await grade(tA, id);
     expect(gradeSubjectiveMock).toHaveBeenCalledTimes(1);
     expect(gradeSubjectiveMock.mock.calls[0]![0]).toMatchObject({ question_id: q3 });
