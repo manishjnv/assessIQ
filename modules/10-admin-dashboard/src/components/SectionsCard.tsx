@@ -40,11 +40,8 @@ export function SectionsCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reason = hasAttempts
-    ? "Sections can't be changed after students have started this test."
-    : !isDraft
-      ? "Sections can only be changed while the test is a draft."
-      : null;
+  // Owner decision 2026-10-02: no edit button at all once published or started.
+  const canEdit = isDraft && !hasAttempts;
 
   async function save(): Promise<void> {
     setError(null);
@@ -113,12 +110,11 @@ export function SectionsCard({
               ? "No sections. The test runs as one timed test."
               : saved.map((s) => `${s.name} (${s.minutes} min)`).join(" · ")}
           </p>
+          {canEdit && (
           <div>
             <button
               type="button"
               className="aiq-btn aiq-btn-outline aiq-btn-sm"
-              disabled={reason !== null}
-              title={reason ?? undefined}
               onClick={() => {
                 setRows(toRows(saved));
                 setError(null);
@@ -128,6 +124,7 @@ export function SectionsCard({
               Edit sections
             </button>
           </div>
+          )}
         </>
       )}
       {editing && (
