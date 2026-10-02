@@ -15,7 +15,6 @@ import * as repo from "../repository.js";
 import type {
   CreateQuestionInput,
   ImportReport,
-  Level,
   ListQuestionsInput,
   PaginatedQuestions,
   Question,
