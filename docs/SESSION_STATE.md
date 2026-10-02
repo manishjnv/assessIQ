@@ -15,6 +15,8 @@
 **Feature doc:** `docs/plans/PILOT_BATCH_8.md`. Deploy: `docs/06-deployment.md` § Batch 8 deploy. RCA: 4 entries 2026-10-02. Observability: § 36 Marketing Core Web Vitals.
 **Coordination:** this was the plan `docs/plans/BATCH_7_PROMPT.md` minus N7/N9 (done in batch 7). F3 Lighthouse: font render-blocking removed on all pages (for example `/` mobile 1149 to 0 ms); score and LCP changes are within noise.
 
+**SEO old vs new:** existing SEO kept and reused (inline sitemap + its 54 URLs, 17 dated Article/BlogPosting nodes, visible date lines, preconnect + `display=swap`, canonical/OG/robots/llms.txt untouched); only date values, missing `WebPage` nodes, non-blocking font link and IndexNow were added. No page deleted (ever). Detail: `docs/plans/PILOT_BATCH_8.md` § "SEO: existing work vs new work".
+**Working tree left as found (not this session's work, not committed):** `.claude/scheduled_tasks.lock`, `MyCertificates.test.tsx.snap` (modified); `BingTrackingCode.md`, `modules/01-auth/src/__tests__/totp-enrollment-status.test.ts`, `modules/01-auth/src/google-sso.ts.p1bak` (auth-adjacent — needs review before any commit), `AssessIQ-Email-Kit/` (untracked). All were present at session start.
 ---
 
 ## Agent utilization

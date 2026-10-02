@@ -45,6 +45,21 @@ The stylesheet loads with `preload` + `onload` swap + `<noscript>` fallback. It 
 - 18-certification: 36 `as any` removed (all in test files) to 0.
 - `44be09e`: `no-console` disable in the two marketing CLI scripts (root lint showed 6 errors); E1 evaluation-detail test timeout 15 s.
 
+## SEO: existing work vs new work (F1/F3/F4/F5)
+
+Rule used: keep what exists and reuse it. Add only what is missing. Never keep two copies of the same SEO data.
+
+| Item | Before batch 8 | Batch 8 action |
+|---|---|---|
+| Sitemap | Inline integration in `apps/marketing/astro.config.mjs` (54 hand-written URLs, `lastmod` = build day for every URL) | Kept the integration and the URL list. Only `lastmod` changed: the real per-page date from `src/data/page-dates.json`. Build fails if a URL has no date. `@astrojs/sitemap` not used (crashes with `trailingSlash: 'never'`). |
+| JSON-LD dates | 17 pages had an Article/BlogPosting node with hand-typed dates (2026-05-23 / 2026-05-24); 37 pages had no dated node | Kept the 17 existing nodes; only their date values now come from `getPageDates()` (`src/lib/page-dates.ts`). They pass `hasDatedNode`, so `BaseLayout.astro` does not add a second node. The other pages get one layout `WebPage` node with dates. `noindex` pages get none. |
+| Visible dates | "Published 23 May 2026" (3 resource pages), "Updated May 2026" (3 compare pages) | Kept the same lines; value now from the helper (`formatDate`). Compare pages now read "October 2026" because git shows they changed 2026-10-01. No new visible text anywhere. |
+| Fonts | `preconnect` + `display=swap` already present; no CSS `@import` | Kept both. Only the stylesheet `<link>` became non-blocking (preload + onload + noscript). Fixed the stale "@import" comment. |
+| Canonical, OG, Twitter, robots meta, `robots.txt`, `llms.txt`, `BingSiteAuth.xml`, OG images, page copy | Present | Not touched. |
+| IndexNow | Absent | New: key file `public/51c5d2964f070d2482eecaaa2ef236e7.txt` + `scripts/indexnow-submit.mjs` (post-deploy ping). |
+
+Checks done: no marketing page was deleted in this batch or ever (`git log --diff-filter=D -- apps/marketing/src/pages` is empty); the sitemap had 54 URLs before and 54 after; the only lines removed from the 16 edited pages are hand-typed date values.
+
 ## Why
 SEO items were open since the product review (no dates, no IndexNow, blocking font). Ops gaps (key rotation, Caddy only on the box, no rollback text) were open since the 2026-05-15 audit. Placement tests need more auto-gradable types: ordering needs no AI. Stale docs misled sessions.
 
