@@ -50,6 +50,7 @@ import {
   EVENT_PAYLOAD_SCHEMAS,
   KNOWN_EVENT_TYPES,
   TERMINAL_ATTEMPT_STATUSES,
+  checkAnswerForSave,
 } from "./types.js";
 import type {
   Attempt,
@@ -773,6 +774,17 @@ export async function saveAnswer(
 
     const incomingRevision = input.client_revision ?? 0;
 
+    // Scenario answers must be {steps:[{stepIndex, response}]} (see checkAnswerForSave).
+    const checked = checkAnswerForSave(
+      input.answer === null ? null : await repo.findQuestionType(client, input.questionId),
+      input.answer,
+    );
+    if (!checked.ok) {
+      throw new ValidationError("answer does not have the shape of a scenario answer", {
+        details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "answer" },
+      });
+    }
+
     // Shuffled MCQ: the candidate sent the DISPLAYED index; store the ORIGINAL index
     // so scoring, admin review, exports and analytics stay in original-index space.
     // An out-of-range / malformed answer is stored exactly as sent (as before the
@@ -782,7 +794,7 @@ export async function saveAnswer(
       order !== null && (await repo.listOrderingQuestionIds(client, input.attemptId)).has(input.questionId)
         ? "order"
         : "selected";
-    const answer = order === null ? input.answer : answerToOriginal(input.answer, order, answerKey);
+    const answer = order === null ? checked.answer : answerToOriginal(checked.answer, order, answerKey);
 
     const repoInput: Parameters<typeof repo.saveAttemptAnswer>[1] = {
       attemptId: input.attemptId,

@@ -462,6 +462,19 @@ export async function listOrderingQuestionIds(client: PoolClient, attemptId: str
 }
 
 /**
+ * Type of one question (RLS-scoped), or null when the row is not visible.
+ * The type is read live from `questions`: question_versions does not store it, and
+ * listFrozenQuestionsForAttempt (candidate view) and scoring read it the same way.
+ */
+export async function findQuestionType(client: PoolClient, questionId: string): Promise<string | null> {
+  const result = await client.query<{ type: string }>(
+    `SELECT type FROM questions WHERE id = $1`,
+    [questionId],
+  );
+  return result.rows[0]?.type ?? null;
+}
+
+/**
  * Strip answer-key fields from a question's `content` JSONB for the candidate
  * take-flow. CANDIDATE-PATH-ONLY — the admin grading path
  * (modules/07-ai-grading) must NEVER call this function; admins must see the

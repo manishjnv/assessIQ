@@ -851,6 +851,26 @@ describe("saveAnswer", () => {
     expect(r2.client_revision).toBeGreaterThan(r1.client_revision);
   });
 
+  it("scenario question: a wrong answer shape is rejected, the canonical shape is saved (N15)", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Cscen"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 3);
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
+    const view = await getAttemptForCandidate(tenantA, attempt.id, candidate);
+    const qid = view.questions[0]!.question_id;
+    // The check is keyed on the question TYPE, read from the questions row.
+    await withSuperClient((c) => c.query(`UPDATE questions SET type = 'scenario' WHERE id = $1`, [qid]));
+
+    await expect(
+      saveAnswer(tenantA, candidate, { attemptId: attempt.id, questionId: qid, answer: "free text", client_revision: 0 }),
+    ).rejects.toMatchObject({ details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "answer" } });
+
+    const ok = await saveAnswer(tenantA, candidate, {
+      attemptId: attempt.id, questionId: qid, answer: { steps: [{ stepIndex: 0, response: "a" }] }, client_revision: 0,
+    });
+    expect(ok.client_revision).toBeGreaterThan(0);
+  });
+
   it("logs multi_tab_conflict event when incoming revision < stored", async () => {
     const candidate = randomUUID();
     await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Cconf"));
