@@ -1,0 +1,94 @@
+# AssessIQ Caddy site blocks - REFERENCE COPY (E8, captured 2026-10-02)
+#
+# Source on the VPS : /opt/ti-platform/caddy/Caddyfile (container ti-platform-caddy-1,
+#                     bind-mounted at /etc/caddy/Caddyfile). Lines 8-19 = the shared
+#                     (security-headers) snippet the blocks import; lines 51-112 = the
+#                     assessiq.automateedge.cloud, assessiq.in and www.assessiq.in blocks.
+#                     The global options block (lines 1-6) and all other tenants' blocks
+#                     are deliberately NOT copied.
+# Secrets           : none found in these blocks. The x-origin-verify value lives in the
+#                     Cloudflare Transform Rule and the API env, not in Caddy. So no
+#                     {env.*} placeholders were needed. If one is ever added, template it
+#                     as {env.ASSESSIQ_ORIGIN_VERIFY} here and note it in this header.
+# Compare with live : (run from repo root; no output = identical body)
+#   diff <(sed '1,/^# ---- END HEADER ----$/d' infra/caddy/assessiq.caddy) <(ssh assessiq-vps "sed -n '8,19p' /opt/ti-platform/caddy/Caddyfile; echo; sed -n '51,112p' /opt/ti-platform/caddy/Caddyfile")
+# Policy            : this repo copy is a reference; the live file is edited on the VPS by
+#                     hand (truncate-write only, never mv/sed -i; back up first; see
+#                     docs/06-deployment.md). infra/caddyfile/assessiq.snippet is the older
+#                     annotated rollout source and is kept as-is.
+# ---- END HEADER ----
+(security-headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "frame-ancestors 'none'"
+		-Server
+	}
+}
+
+# ═══ AssessIQ — assessiq.automateedge.cloud ═══
+# Phase 1 G1.A Session 2: /api/* + /embed* + /help/* → assessiq-api on 9092.
+# /help/* is the anonymous embed-friendly help endpoint shipped by
+# modules/16-help-system (registerHelpPublicRoutes mounts /help/:key directly,
+# without the /api prefix, so embed contexts can use a short public URL —
+# matches the /embed* convention for the same reason).
+# Default route → assessiq-frontend container on host port 9091 (live 2026-05-02).
+# See docs/06-deployment.md § Reverse-proxy plan.
+# Backup before any edit: /opt/ti-platform/caddy/Caddyfile.bak.<UTC-ts>.
+# Edits MUST use truncate-write (cat >), NEVER mv — bind-mount inode trap
+# from RCA 2026-04-30.
+# ═══ AssessIQ — legacy assessiq.automateedge.cloud → 301 assessiq.in (2026-05-22) ═══
+assessiq.automateedge.cloud {
+    tls /etc/caddy/ssl/assessiq.automateedge.cloud.pem /etc/caddy/ssl/assessiq.automateedge.cloud.key {
+        client_auth {
+            mode require_and_verify
+            trusted_ca_cert_file /etc/caddy/ssl/cf-origin-pull-ca.pem
+        }
+    }
+    redir https://assessiq.in{uri} permanent
+}
+
+# ═══ AssessIQ — assessiq.in (canonical, added 2026-05-22) ═══
+assessiq.in {
+    tls /etc/caddy/ssl/assessiq.in.pem /etc/caddy/ssl/assessiq.in.key {
+        client_auth {
+            mode require_and_verify
+            trusted_ca_cert_file /etc/caddy/ssl/cf-origin-pull-ca.pem
+        }
+    }
+    import security-headers
+    encode zstd gzip
+
+    @api path /api/* /embed* /help/* /take/start /verify/*
+    handle @api {
+        reverse_proxy 172.17.0.1:9092 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+    @app path /admin /admin/* /candidate /candidate/* /take /take/* /try /try/* /assets/* /brand/*
+    handle @app {
+        reverse_proxy 172.17.0.1:9091 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+    handle {
+        reverse_proxy 172.17.0.1:9093 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+}
+
+# ═══ AssessIQ — www.assessiq.in → apex 301 ═══
+www.assessiq.in {
+    tls /etc/caddy/ssl/assessiq.in.pem /etc/caddy/ssl/assessiq.in.key {
+        client_auth {
+            mode require_and_verify
+            trusted_ca_cert_file /etc/caddy/ssl/cf-origin-pull-ca.pem
+        }
+    }
+    redir https://assessiq.in{uri} permanent
+}

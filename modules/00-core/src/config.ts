@@ -52,6 +52,18 @@ const ConfigSchema = z
         message:
           "ASSESSIQ_MASTER_KEY must be a base64 string that decodes to exactly 32 bytes",
       }),
+    // Rotation-only: the PREVIOUS master key. Decrypt tries ASSESSIQ_MASTER_KEY, then this;
+    // encrypt always uses ASSESSIQ_MASTER_KEY. Blank .env line = unset. See docs/06-deployment.md.
+    ASSESSIQ_MASTER_KEY_PREVIOUS: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z
+        .string()
+        .refine(is32ByteBase64, {
+          message:
+            "ASSESSIQ_MASTER_KEY_PREVIOUS must be a base64 string that decodes to exactly 32 bytes",
+        })
+        .optional(),
+    ),
     SESSION_SECRET: z
       .string()
       .min(1)
