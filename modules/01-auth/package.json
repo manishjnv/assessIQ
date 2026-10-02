@@ -18,7 +18,7 @@
     "@assessiq/core": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
-    "argon2": "^0.40.0",
+    "argon2": "^0.45.1",
     "ioredis": "^5.4.0",
     "jose": "^6.2.12",
     "@otplib/core": "^12.0.0",
