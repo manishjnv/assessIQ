@@ -684,7 +684,11 @@ export async function getAttemptForCandidate(
     return {
       attempt: effectiveAttempt,
       questions: displayQuestions(visibleQuestions, orders),
-      answers: displayAnswers(visibleAnswers, orders),
+      answers: displayAnswers(
+        visibleAnswers,
+        orders,
+        new Set(questions.filter((q) => q.type === "ordering").map((q) => q.question_id)),
+      ),
       remaining_seconds: computeRemainingSeconds(effectiveAttempt, now),
       integrity: {
         fullscreen: integ?.fullscreen === true,
@@ -774,7 +778,11 @@ export async function saveAnswer(
     // An out-of-range / malformed answer is stored exactly as sent (as before the
     // shuffle) and still scores 0 — a translation never makes an invalid answer valid.
     const order = usableOrder(aq.option_order);
-    const answer = order === null ? input.answer : answerToOriginal(input.answer, order);
+    const answerKey =
+      order !== null && (await repo.listOrderingQuestionIds(client, input.attemptId)).has(input.questionId)
+        ? "order"
+        : "selected";
+    const answer = order === null ? input.answer : answerToOriginal(input.answer, order, answerKey);
 
     const repoInput: Parameters<typeof repo.saveAttemptAnswer>[1] = {
       attemptId: input.attemptId,
@@ -1082,7 +1090,11 @@ export async function listAnswersForAttempt(
     assertAttemptOwnedBy(attempt, userId);
     // Owner-facing read: same display-space translation as the candidate view.
     const answers = await repo.listAttemptAnswers(client, attemptId);
-    return displayAnswers(answers, await repo.listOptionOrders(client, attemptId));
+    return displayAnswers(
+      answers,
+      await repo.listOptionOrders(client, attemptId),
+      await repo.listOrderingQuestionIds(client, attemptId),
+    );
   });
 }
 

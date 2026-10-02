@@ -449,6 +449,18 @@ export async function listOptionOrders(
   return new Map(result.rows.map((r) => [r.question_id, r.option_order]));
 }
 
+/** Question ids of an attempt's `ordering` questions: their answers translate under `order`, not `selected`. */
+export async function listOrderingQuestionIds(client: PoolClient, attemptId: string): Promise<Set<string>> {
+  const result = await client.query<{ question_id: string }>(
+    `SELECT aq.question_id::text AS question_id
+       FROM attempt_questions aq
+       JOIN questions q ON q.id = aq.question_id
+      WHERE aq.attempt_id = $1 AND q.type = 'ordering'`,
+    [attemptId],
+  );
+  return new Set(result.rows.map((r) => r.question_id));
+}
+
 /**
  * Strip answer-key fields from a question's `content` JSONB for the candidate
  * take-flow. CANDIDATE-PATH-ONLY — the admin grading path

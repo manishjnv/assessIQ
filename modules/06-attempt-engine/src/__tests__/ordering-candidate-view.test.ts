@@ -102,21 +102,38 @@ describe("ordering display + answer mapping reuse the option-order mechanism", (
 
   it("display -> original and back is the identity", () => {
     const sent = { order: [3, 2, 1, 0] }; // displayed positions, in the candidate's arrangement
-    const stored = answerToOriginal(sent, order) as { order: number[] };
+    const stored = answerToOriginal(sent, order, "order") as { order: number[] };
     expect(stored.order).toEqual([1, 3, 0, 2]); // order[3], order[2], order[1], order[0]
-    expect(answerToDisplayed(stored, order)).toEqual(sent);
+    expect(answerToDisplayed(stored, order, "order")).toEqual(sent);
   });
 
   it("the correct arrangement as shown is stored as the original order", () => {
     const shownSeq = [1, 3, 0, 2]; // displayed positions that hold originals 0,1,2,3
-    expect((answerToOriginal({ order: shownSeq }, order) as { order: number[] }).order).toEqual([0, 1, 2, 3]);
+    expect((answerToOriginal({ order: shownSeq }, order, "order") as { order: number[] }).order).toEqual([0, 1, 2, 3]);
   });
 
   it("an invalid element leaves the answer untouched (fail-safe)", () => {
-    expect(answerToOriginal({ order: [0, 1, 2, 9] }, order)).toEqual({ order: [0, 1, 2, 9] });
+    expect(answerToOriginal({ order: [0, 1, 2, 9] }, order, "order")).toEqual({ order: [0, 1, 2, 9] });
   });
 
   it("has an answer-guidance default", () => {
     expect(answerGuidanceFor("ordering", null)).toBe("Put the items in the correct order.");
+  });
+  // codex review 2026-10-02: the key comes from the question type, never from the answer's shape.
+  it("a crafted {selected, order} MCQ answer still translates `selected`", () => {
+    const mcqOrder = [2, 0, 1];
+    expect(answerToOriginal({ selected: 0, order: [0, 1, 2] }, mcqOrder)).toEqual({ selected: 2, order: [0, 1, 2] });
+  });
+
+  it("an ordering answer with an extra `selected` still translates `order`", () => {
+    const order = [3, 2, 1, 0];
+    const stored = answerToOriginal({ order: [0, 1, 2, 3], selected: 0 }, order, "order") as { order: number[] };
+    expect(stored.order).toEqual([3, 2, 1, 0]);
+  });
+
+  it("ordering with no usable display order serves no items (fails closed)", () => {
+    const q = { question_id: "q1", type: "ordering", content: { question: "x", items: ["a", "b", "c"] } } as unknown as FrozenQuestion;
+    const shown = displayQuestions([q], new Map())[0]!;
+    expect((shown.content as { items: unknown[] }).items).toEqual([]);
   });
 });

@@ -146,7 +146,9 @@ export function buildOptionOrder(options: unknown, rng: () => number = Math.rand
  * order[displayPosition] = original item index, same model as the MCQ option order.
  */
 export function buildOrderingOrder(items: unknown, correctOrder: unknown, rng: () => number = Math.random): number[] | null {
-  if (!Array.isArray(items) || items.length < MIN_OPTIONS || items.length > MAX_SHUFFLE_OPTIONS) return null;
+  // No MAX_SHUFFLE_OPTIONS cap here: a null order would serve the authored (= correct) order.
+  // The content schema caps items at 10.
+  if (!Array.isArray(items) || items.length < MIN_OPTIONS) return null;
   const n = items.length;
   const key = usableOrder(correctOrder);
   if (key === null || key.length !== n) return null;
@@ -186,12 +188,13 @@ export function usableOrder(raw: unknown): number[] | null {
  * always returns the canonical object when it translates. Anything that is not an
  * integer in [0, order.length) comes back untouched (see FAIL-SAFE above).
  */
-function remapSelected(answer: unknown, order: readonly number[], toDisplay: boolean): unknown {
+export type AnswerKey = "selected" | "order";
+
+function remapSelected(answer: unknown, order: readonly number[], toDisplay: boolean, key: AnswerKey): unknown {
   const isObject = answer !== null && typeof answer === "object" && !Array.isArray(answer);
-  // ordering answers are `{ order: number[] }` (the candidate's arrangement, as displayed positions);
-  // the same array translation applies, just under the `order` key.
-  const key = isObject && Array.isArray((answer as { order?: unknown }).order) ? "order" : "selected";
-  const raw = isObject ? (answer as Record<string, unknown>)[key] : answer;
+  // `key` comes from the QUESTION TYPE (ordering -> "order", else "selected"), never from the
+  // answer's shape: a crafted `{selected, order}` must not skip translation (codex review 2026-10-02).
+  const raw = isObject ? (answer as Record<string, unknown>)[key] : key === "selected" ? answer : undefined;
   const mapOne = (v: unknown): number | undefined => {
     if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v >= order.length) return undefined;
     const m = toDisplay ? order.indexOf(v) : order[v];
@@ -202,21 +205,22 @@ function remapSelected(answer: unknown, order: readonly number[], toDisplay: boo
   if (Array.isArray(raw)) {
     const mapped = raw.map(mapOne);
     if (mapped.some((m) => m === undefined)) return answer;
-    return isObject ? { ...(answer as object), [key]: mapped } : { selected: mapped };
+    return isObject ? { ...(answer as object), [key]: mapped } : { [key]: mapped };
   }
+  if (key === "order") return answer; // ordering answers are arrays only
   const mapped = mapOne(raw);
   if (mapped === undefined) return answer;
   return isObject ? { ...(answer as object), selected: mapped } : { selected: mapped };
 }
 
 /** Candidate-sent DISPLAYED index -> ORIGINAL index (what is stored and scored). */
-export function answerToOriginal(answer: unknown, order: readonly number[]): unknown {
-  return remapSelected(answer, order, false);
+export function answerToOriginal(answer: unknown, order: readonly number[], key: AnswerKey = "selected"): unknown {
+  return remapSelected(answer, order, false, key);
 }
 
 /** Stored ORIGINAL index -> the DISPLAYED index the candidate chose. */
-export function answerToDisplayed(answer: unknown, order: readonly number[]): unknown {
-  return remapSelected(answer, order, true);
+export function answerToDisplayed(answer: unknown, order: readonly number[], key: AnswerKey = "selected"): unknown {
+  return remapSelected(answer, order, true, key);
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +234,8 @@ export function displayQuestions(
 ): FrozenQuestion[] {
   return questions.map((q) => {
     const order = usableOrder(orders.get(q.question_id));
-    if (order === null) return q;
+    // ordering without a usable order: never serve the authored (= correct) item order. Fail closed.
+    if (order === null) return q.type === "ordering" ? { ...q, content: { ...(q.content as object), items: [] } } : q;
     const content = q.content as { options?: unknown; items?: unknown } | null;
     // MCQ / multi_select shuffle `options`; ordering shuffles `items` (same permutation model).
     const field = q.type === "ordering" ? "items" : "options";
@@ -249,9 +254,11 @@ export function displayQuestions(
 export function displayAnswers(
   answers: AttemptAnswer[],
   orders: ReadonlyMap<string, readonly number[]>,
+  orderingIds: ReadonlySet<string> = new Set(),
 ): AttemptAnswer[] {
   return answers.map((a) => {
     const order = usableOrder(orders.get(a.question_id));
-    return order === null ? a : { ...a, answer: answerToDisplayed(a.answer, order) };
+    const key: AnswerKey = orderingIds.has(a.question_id) ? "order" : "selected";
+    return order === null ? a : { ...a, answer: answerToDisplayed(a.answer, order, key) };
   });
 }
