@@ -69,8 +69,9 @@ candidate.intro.consent:
     invited you. We record when you agreed.
 
     **How answers are scored:** multiple-choice answers are scored
-    automatically. Written answers, if any, are evaluated with AI assistance and
-    reviewed by the assessment admin.
+    automatically. Written answers, if any, are evaluated by AssessIQ
+    evaluators with AI assistance, before the company that invited you
+    releases the results.
 
 # ─── During the attempt ───
 
@@ -110,26 +111,17 @@ candidate.attempt.flag:
 
 candidate.attempt.kql.editor:
   audience: candidate
-  short_text: "Write your KQL query. Syntax highlighting + autocomplete. Press Ctrl+Enter to validate."
+  short_text: "Type your KQL query in this box. It is saved as you work and scored later by an AssessIQ evaluator."
   long_md: |
-    ## KQL editor
+    ## KQL answer box
 
-    The editor offers:
+    This is a plain text box. Type or paste your KQL query. There is no syntax
+    highlighting, autocomplete or automatic check in this box.
 
-    - **Syntax highlighting** for KQL keywords, operators, and built-in
-      functions.
-    - **Autocomplete** for table names referenced in the question scenario.
-    - **Bracket / paren matching** to spot mismatches early.
-    - **Format on save** (Ctrl+Shift+F) — opinionated, optional.
-
-    **Validation** (Ctrl+Enter) checks for:
-
-    - Parse errors (red underline).
-    - Required keyword presence — the question lists tokens that must appear
-      somewhere in your query for it to score above band 0.
-
-    Validation does not run your query against real data. The grader judges
-    correctness by combining keyword presence with AI rubric review.
+    - Your query is saved as you work.
+    - Your query is not run against real data.
+    - Your query is not scored automatically. An AssessIQ evaluator reads and
+      scores it.
 
 candidate.shell.nav.mobile_menu:
   audience: candidate
