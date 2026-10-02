@@ -65,8 +65,15 @@ describe('invitation accept per-IP failure limit', () => {
     const blocked = await accept('60.0.0.1');
     expect(blocked.statusCode).toBe(429);
     expect(blocked.json()).toMatchObject({ error: { code: 'RATE_LIMITED', details: { scope: 'ip' } } });
-    expect(mockAccept).toHaveBeenCalledTimes(INVITE_FAIL_MAX); // blocked call never reached the lookup
+    expect(mockAccept).toHaveBeenCalledTimes(INVITE_FAIL_MAX + 1); // failure-only brake: lookup still runs
     expect((await accept('60.0.0.2')).statusCode).toBe(404);
+  });
+
+  it('after the failure cap, a VALID accept from the same IP still succeeds (campus NAT)', async () => {
+    mockAccept.mockRejectedValue(new NotFoundError('nope'));
+    for (let i = 0; i <= INVITE_FAIL_MAX; i++) await accept('60.0.0.9');
+    mockAccept.mockResolvedValue({ user: { id: 'u' }, sessionToken: 't', expiresAt: new Date().toISOString() });
+    expect((await accept('60.0.0.9')).statusCode).toBe(200);
   });
 
   it('successful accepts from one IP are never counted (campus NAT)', async () => {

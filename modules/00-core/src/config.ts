@@ -275,6 +275,16 @@ const ConfigSchema = z
         path: ["ORIGIN_TRUST_MODE"],
       });
     }
+    // codex 2026-10-02: client-IP trust (CF-Connecting-IP) is only safe when origin
+    // verification is enforced. Production must never run off/log — refuse to boot
+    // (same loud-failure reasoning as above; prod runs enforce since 2026-05-19).
+    if (data.NODE_ENV === "production" && data.ORIGIN_TRUST_MODE !== "enforce") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "NODE_ENV=production requires ORIGIN_TRUST_MODE=enforce (with ORIGIN_VERIFY_SECRET).",
+        path: ["ORIGIN_TRUST_MODE"],
+      });
+    }
     if (
       data.NODE_ENV === "production" &&
       data.ENABLE_E2E_TEST_MINTER === true
