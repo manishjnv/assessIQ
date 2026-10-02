@@ -94,17 +94,22 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
 
       const ip = extractClientIp(req);
       const failKey = `aiq:rl:inv-accept-fail:${ip}`;
-      if (await isRateLimited(failKey, INVITE_FAIL_MAX)) {
-        reply.header('Retry-After', '60');
-        throw new RateLimitError('rate limit exceeded for scope=ip', {
-          details: { retryAfterSeconds: 60, scope: 'ip' },
-        });
-      }
+      // Failure-only brake (codex 2026-10-02): a VALID accept is never blocked, so a
+      // scanner behind a campus NAT cannot lock out students. Failures past the cap
+      // get 429 instead of the specific error (no oracle). Lookups are a cheap indexed
+      // hash query and tokens are 256-bit, so redeeming before checking is safe.
       let result;
       try {
         result = await acceptInvitation(body.token);
       } catch (err) {
+        const over = await isRateLimited(failKey, INVITE_FAIL_MAX);
         await consumeRateLimit(failKey, INVITE_FAIL_MAX, 60);
+        if (over) {
+          reply.header('Retry-After', '60');
+          throw new RateLimitError('rate limit exceeded for scope=ip', {
+            details: { retryAfterSeconds: 60, scope: 'ip' },
+          });
+        }
         throw err;
       }
 
