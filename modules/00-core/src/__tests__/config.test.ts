@@ -233,3 +233,55 @@ describe("loadConfig", () => {
     ).toThrow("Configuration validation failed");
   });
 });
+
+describe("test-only session minters are never on in production", () => {
+  const PROD = {
+    ...VALID_BASE_ENV,
+    NODE_ENV: "production",
+    ORIGIN_TRUST_MODE: "enforce",
+    ORIGIN_VERIFY_SECRET: "x".repeat(32),
+  };
+
+  it("production baseline (flags unset) parses with both minters off", () => {
+    const cfg = loadConfig(PROD);
+    expect(cfg.ENABLE_E2E_TEST_MINTER).toBe(false);
+    expect(cfg.ENABLE_EMBED_TEST_MINTER).toBe(false);
+  });
+
+  it("production + ENABLE_E2E_TEST_MINTER=true fails", () => {
+    expect(() => loadConfig({ ...PROD, ENABLE_E2E_TEST_MINTER: "true" })).toThrow(
+      "ENABLE_E2E_TEST_MINTER MUST be false in production",
+    );
+  });
+
+  it("E2E flag only accepts 'true'/'false' ('1' is rejected, never silently coerced)", () => {
+    expect(() => loadConfig({ ...PROD, ENABLE_E2E_TEST_MINTER: "1" })).toThrow();
+  });
+
+  it.each(["true", "1"])("production + ENABLE_EMBED_TEST_MINTER=%s fails", (v) => {
+    expect(() => loadConfig({ ...PROD, ENABLE_EMBED_TEST_MINTER: v })).toThrow(
+      "ENABLE_EMBED_TEST_MINTER MUST be false in production",
+    );
+  });
+
+  it.each(["false", "0"])("production + ENABLE_EMBED_TEST_MINTER=%s is accepted", (v) => {
+    expect(loadConfig({ ...PROD, ENABLE_EMBED_TEST_MINTER: v }).ENABLE_EMBED_TEST_MINTER).toBe(false);
+  });
+
+  it("non-production still allows both (dev/test e2e use)", () => {
+    const cfg = loadConfig({
+      ...VALID_BASE_ENV,
+      ENABLE_E2E_TEST_MINTER: "true",
+      ENABLE_EMBED_TEST_MINTER: "1",
+    });
+    expect(cfg.ENABLE_E2E_TEST_MINTER).toBe(true);
+    expect(cfg.ENABLE_EMBED_TEST_MINTER).toBe(true);
+  });
+
+  it("NODE_ENV unset defaults to development, so the prod refine does NOT fire", () => {
+    // Documents the residual gap: prod must set NODE_ENV=production (compose does).
+    const env = { ...VALID_BASE_ENV, ENABLE_E2E_TEST_MINTER: "true" };
+    delete env.NODE_ENV;
+    expect(loadConfig(env).NODE_ENV).toBe("development");
+  });
+});

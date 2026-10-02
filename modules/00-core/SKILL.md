@@ -68,6 +68,10 @@ None directly. Other modules' help content references config-derived limits (e.g
 ## Open questions
 - Telemetry tracer (OpenTelemetry) — defer to Phase 3 unless we hit perf debugging needs earlier.
 
+## Test-only minters (E5)
+
+`ENABLE_E2E_TEST_MINTER` and `ENABLE_EMBED_TEST_MINTER` are both declared in `config.ts` and both rejected when `NODE_ENV=production` (tests in `__tests__/config.test.ts`). Caveat: `NODE_ENV` defaults to `development` when unset, so prod relies on compose setting `NODE_ENV=production`. The CI quality step "No test-minter enabled in prod templates" greps tracked env templates/compose/Dockerfiles for either flag set to true/1.
+
 ## Status
 
 - 2026-05-01: implemented in Phase 0 G0.A. Vitest suite green. Public surface frozen at the contract above.

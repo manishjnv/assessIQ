@@ -117,6 +117,12 @@ const ConfigSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((s) => s === "true"),
+    // Sibling dev-only flag read directly by apps/api/src/routes/auth/embed.ts
+    // (=== '1'). Declared here so the production refine below covers it too.
+    ENABLE_EMBED_TEST_MINTER: z
+      .enum(["true", "false", "1", "0"])
+      .default("false")
+      .transform((s) => s === "true" || s === "1"),
 
     // ── Super-admin platform login ──────────────────────────────────────────
     //
@@ -295,6 +301,18 @@ const ConfigSchema = z
           "ENABLE_E2E_TEST_MINTER MUST be false in production. The dev session " +
           "minter bypasses Google SSO + TOTP and must never be reachable in prod.",
         path: ["ENABLE_E2E_TEST_MINTER"],
+      });
+    }
+    if (
+      data.NODE_ENV === "production" &&
+      data.ENABLE_EMBED_TEST_MINTER === true
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "ENABLE_EMBED_TEST_MINTER MUST be false in production. The embed " +
+          "sdk-mint route issues test JWTs and must never be reachable in prod.",
+        path: ["ENABLE_EMBED_TEST_MINTER"],
       });
     }
   });
