@@ -114,14 +114,12 @@ const ConfigSchema = z
     // MUST be absent (or "false") in production .env.
     // See apps/web/e2e/README.md and docs/06-deployment.md § E2E test minter.
     ENABLE_E2E_TEST_MINTER: z
-      .enum(["true", "false"])
-      .default("false")
+      .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
       .transform((s) => s === "true"),
     // Sibling dev-only flag read directly by apps/api/src/routes/auth/embed.ts
     // (=== '1'). Declared here so the production refine below covers it too.
     ENABLE_EMBED_TEST_MINTER: z
-      .enum(["true", "false", "1", "0"])
-      .default("false")
+      .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false", "1", "0"]).default("false")) // blank .env line = unset
       .transform((s) => s === "true" || s === "1"),
 
     // ── Super-admin platform login ──────────────────────────────────────────

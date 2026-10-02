@@ -248,6 +248,12 @@ describe("test-only session minters are never on in production", () => {
     expect(cfg.ENABLE_EMBED_TEST_MINTER).toBe(false);
   });
 
+  it("blank flag values (KEY= in .env) count as unset and boot", () => {
+    const cfg = loadConfig({ ...PROD, ENABLE_E2E_TEST_MINTER: "", ENABLE_EMBED_TEST_MINTER: "" });
+    expect(cfg.ENABLE_E2E_TEST_MINTER).toBe(false);
+    expect(cfg.ENABLE_EMBED_TEST_MINTER).toBe(false);
+  });
+
   it("production + ENABLE_E2E_TEST_MINTER=true fails", () => {
     expect(() => loadConfig({ ...PROD, ENABLE_E2E_TEST_MINTER: "true" })).toThrow(
       "ENABLE_E2E_TEST_MINTER MUST be false in production",
@@ -279,8 +285,8 @@ describe("test-only session minters are never on in production", () => {
   });
 
   it("NODE_ENV unset defaults to development, so the prod refine does NOT fire", () => {
-    // Documents the residual gap: prod must set NODE_ENV=production (compose does).
-    const env = { ...VALID_BASE_ENV, ENABLE_E2E_TEST_MINTER: "true" };
+    // Documents the residual gap: prod must set NODE_ENV=production (the api Dockerfile does).
+    const env: Record<string, string | undefined> = { ...VALID_BASE_ENV, ENABLE_E2E_TEST_MINTER: "true" };
     delete env.NODE_ENV;
     expect(loadConfig(env).NODE_ENV).toBe("development");
   });
