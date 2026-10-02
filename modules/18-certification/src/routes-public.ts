@@ -39,6 +39,7 @@ import { Resvg } from '@resvg/resvg-js';
 import type { FastifyInstance } from 'fastify';
 import { withTenant, getTenantById } from '@assessiq/tenancy';
 import { ERASED_CANDIDATE_LABEL } from '@assessiq/core';
+import { extractClientIp } from '@assessiq/auth';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
 import {
@@ -499,7 +500,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Params: { credentialId: string } }>(
     '/verify/:credentialId',
     async (req, reply) => {
-      const ip = req.ip;
+      const ip = extractClientIp(req);
       const rawId = req.params.credentialId;
 
       // Reject malformed IDs before touching the DB.

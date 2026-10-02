@@ -34,6 +34,7 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 
 import { auditInTx } from '@assessiq/audit-log';
+import { AppError } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 
 import {
@@ -518,6 +519,18 @@ export async function reissue(
     if (cert.revoked_at !== null) {
       throw new CertificateRevokedException(credentialId);
     }
+    // E3: never re-write the name on a certificate of an erased candidate.
+    const erasedRes = await client.query<{ erased_at: string | null }>(
+      'SELECT erased_at FROM users WHERE id = $1',
+      [cert.candidate_id],
+    );
+    if (erasedRes.rows[0]?.erased_at != null) {
+      throw new AppError(
+        "This candidate's data has been erased — the certificate can no longer be reissued",
+        'CANDIDATE_ERASED',
+        409,
+      );
+    }
     const newDisplayName = displayName ?? cert.display_name;
     // Re-sign with potentially updated display_name.
     // display_name IS in CANONICAL_FIELDS — changing it produces a different
@@ -627,13 +640,15 @@ export async function issueCertificateOnRelease(
     course_title: string;
     level: string;
     auto_pct: string | null; // NUMERIC returns as string from node-postgres
+    erased: boolean;
   }>(
     `SELECT
        a.user_id               AS candidate_id,
        u.name              AS display_name,
        ass.name            AS course_title,
        l.label             AS level,
-       ats.auto_pct
+       ats.auto_pct,
+       (u.erased_at IS NOT NULL) AS erased
      FROM attempts      a
      JOIN users         u   ON u.id   = a.user_id
      JOIN assessments   ass ON ass.id = a.assessment_id
@@ -645,6 +660,7 @@ export async function issueCertificateOnRelease(
 
   const row = result.rows[0];
   if (row === undefined) return null;
+  if (row.erased) return null; // E3: no certificate for an erased candidate
   if (row.auto_pct === null) return null; // scores not yet computed
 
   const pct = parseFloat(row.auto_pct);

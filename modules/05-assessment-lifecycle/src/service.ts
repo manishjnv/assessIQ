@@ -1628,6 +1628,13 @@ function assertAssessmentAcceptsResend(assessment: Assessment): void {
   }
 }
 
+function candidateErasedError(): ConflictError {
+  return new ConflictError(
+    "This candidate's data has been erased, so no invitation can be sent.",
+    { details: { code: AL_ERROR_CODES.CANDIDATE_ERASED } },
+  );
+}
+
 function alreadyStartedError(): ConflictError {
   return new ConflictError(
     "This candidate has already started this assessment, so their invitation can't be resent.",
@@ -1748,6 +1755,8 @@ async function reissueForResend(
         { details: { code: AL_ERROR_CODES.USER_INACTIVE } },
       );
     }
+
+    if (user.erased) throw candidateErasedError();
 
     const reissued = await reissueInvitationInTx(client, {
       tenantId,
@@ -1935,6 +1944,12 @@ export async function inviteUsers(
       // User must be active (not disabled / soft-deleted)
       if (user.status !== "active") {
         skipped.push({ userId, reason: "USER_INACTIVE" });
+        continue;
+      }
+
+      // Erased candidates (users.erased_at) are never invited / re-invited.
+      if (user.erased) {
+        skipped.push({ userId, reason: "CANDIDATE_ERASED" });
         continue;
       }
 

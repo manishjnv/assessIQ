@@ -354,3 +354,11 @@ No audit row is emitted when `request-link` receives an email that does not matc
 - Known bounded race: a DB read that straddles a suspend can re-populate "active" after the DEL; it expires within 30 s.
 
 **Not done.** Middleware order unchanged (no pre-guard before sessionLoader). PG pool budget: compose sets api 40 / worker 15 (`API_PG_POOL_MAX` / `WORKER_PG_POOL_MAX`), see `.env.example`.
+
+## Client IP invariant (D5a, 2026-10-02)
+
+- The ONLY client-IP source is `extractClientIp(req)` (`src/client-ip.ts`, re-exported from `@assessiq/auth`). Rate limiting (`extractRateLimitClientIp`), session/OTP/magic-link IP binding, audit context and consent rows all route through it; never read `req.ip` / `cf-connecting-ip` / `x-forwarded-for` directly in a route.
+- Trust rule: `CF-Connecting-IP` is honoured only when the request passed origin verification (`isOriginVerified`: `x-origin-verify` constant-time-equals `ORIGIN_VERIFY_SECRET`; mode `enforce` in prod). Unverified in `enforce` -> socket peer IP; the rate limiter returns null -> prod fail-closed 429. Modes `off`/`log` keep legacy behaviour (dev/test).
+- The header value must also be a valid IP literal (`validCfIp`, `node:net isIP`): junk / comma lists / oversized values are ignored, so they can never become a Redis key, session binding or audit value.
+- `trustProxy: true` stays in `apps/api/src/server.ts`: it only affects `req.ip`, which is now just the verified-path fallback. Changing it would alter the unverified fallback with no security gain.
+- `isRateLimited(key, max)` (read-only peek) + `consumeRateLimit` let a route throttle FAILURES only (used by `POST /api/invitations/accept`: 30 failed redemptions / IP / minute, 429 scope=ip; successful accepts never counted, campus NAT safe).

@@ -130,7 +130,7 @@ describe('reissue', () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(orig);
     vi.mocked(repo.reissueCertificate).mockResolvedValue(updatedCert);
     vi.mocked(auditInTx as any).mockResolvedValue(undefined);
-    const mockClient = { query: vi.fn() };
+    const mockClient = { query: vi.fn().mockResolvedValue({ rows: [{ erased_at: null }] }) }; // E3 erased-candidate lookup
     vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
 
     const result = await reissue(TENANT, CRED_ID, newDisplayName, ACTOR);
@@ -181,7 +181,7 @@ describe('reissue', () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(orig);
     vi.mocked(repo.reissueCertificate).mockResolvedValue({ ...orig });
     vi.mocked(auditInTx as any).mockResolvedValue(undefined);
-    const mockClient = { query: vi.fn() };
+    const mockClient = { query: vi.fn().mockResolvedValue({ rows: [{ erased_at: null }] }) }; // E3 erased-candidate lookup
     vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
 
     await reissue(TENANT, CRED_ID, undefined, ACTOR);
@@ -238,7 +238,7 @@ describe('reissue', () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(orig);
     vi.mocked(repo.reissueCertificate).mockResolvedValue(updated);
     vi.mocked(auditInTx as any).mockRejectedValue(new Error('audit_log INSERT failed'));
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({ query: vi.fn().mockResolvedValue({ rows: [{ erased_at: null }] }) } as any));
 
     await expect(reissue(TENANT, CRED_ID, 'Name', ACTOR))
       .rejects.toThrow(/audit_log INSERT failed/);

@@ -93,6 +93,10 @@ export async function handleAdminManualScore(
         404,
       );
     }
+    // E3: an erased candidate's grades are frozen (users.erased_at).
+    if (await isAttemptCandidateErased(client, attemptId)) {
+      throw new AppError("This candidate's data has been erased — scores can no longer be changed", "CANDIDATE_ERASED", 409);
+    }
     if (status === "released") {
       throw new AppError(
         "This result has already been published to the candidate and can no longer be changed",

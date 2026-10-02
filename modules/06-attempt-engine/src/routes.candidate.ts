@@ -24,6 +24,7 @@ import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ValidationError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { isIP } from "node:net";
+import { extractClientIp } from "@assessiq/auth";
 import {
   recordTakeConsent,
   startAttempt,
@@ -130,10 +131,10 @@ export async function registerAttemptCandidateRoutes(
       // 422 CONSENT_REQUIRED (resume of an existing attempt never needs it).
       const body = (req.body ?? {}) as { consent?: unknown };
       if (body.consent === true) {
-        const ip = req.ip ?? null;
+        const ip = extractClientIp(req);
         await recordTakeConsent(tenantId, {
           userId,
-          ip: ip !== null && isIP(ip) !== 0 ? ip : null,
+          ip: isIP(ip) !== 0 ? ip : null,
           userAgent: ((req.headers["user-agent"] as string | undefined) ?? "unknown").slice(0, 512),
         });
       }

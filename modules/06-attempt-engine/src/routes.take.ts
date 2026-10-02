@@ -46,7 +46,7 @@
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { config, ConflictError, NotFoundError, streamLogger, ValidationError } from "@assessiq/core";
-import { consumeRateLimit, mintCandidateSession } from "@assessiq/auth";
+import { consumeRateLimit, extractClientIp, mintCandidateSession } from "@assessiq/auth";
 import { createHash } from "node:crypto";
 import {
   resolveInvitationToken,
@@ -221,8 +221,7 @@ export async function registerAttemptTakeRoutes(
       // Derive client IP + UA — same fields the SSO + invitation-accept
       // flows record. Falls back to a sentinel rather than null to keep
       // downstream session-row schema clean.
-      const ip =
-        (req.headers["cf-connecting-ip"] as string | undefined) ?? req.ip ?? "0.0.0.0";
+      const ip = extractClientIp(req);
       const ua = (req.headers["user-agent"] as string | undefined) ?? "unknown";
 
       // Landing preview — read-only. Placed after the viewed-mark and before

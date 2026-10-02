@@ -387,6 +387,8 @@ export const AL_ERROR_CODES = {
   INVITATION_ALREADY_STARTED: "INVITATION_ALREADY_STARTED",
   // 409 — the invited user is disabled / not a candidate any more.
   USER_INACTIVE: "USER_INACTIVE",
+  // 409 — the candidate was erased (DPDP/GDPR, users.erased_at); no invitation may be sent.
+  CANDIDATE_ERASED: "CANDIDATE_ERASED",
   // 502 — the link was re-issued and committed but the email could not be queued.
   INVITATION_EMAIL_FAILED: "INVITATION_EMAIL_FAILED",
 } as const;

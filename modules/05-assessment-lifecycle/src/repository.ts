@@ -896,17 +896,18 @@ export async function countResendableInvitations(
 export async function findUserForInvitation(
   client: PoolClient,
   userId: string,
-): Promise<{ id: string; role: string; status: string; email: string; name: string } | null> {
+): Promise<{ id: string; role: string; status: string; email: string; name: string; erased: boolean } | null> {
   interface UserRow {
     id: string;
     role: string;
     status: string;
     email: string;
     name: string;
+    erased: boolean;
   }
 
   const result = await client.query<UserRow>(
-    `SELECT id, role, status, email, name FROM users WHERE id = $1 LIMIT 1`,
+    `SELECT id, role, status, email, name, (erased_at IS NOT NULL) AS erased FROM users WHERE id = $1 LIMIT 1`,
     [userId],
   );
   const row = result.rows[0];
@@ -919,6 +920,7 @@ export async function findUserForInvitation(
     status: row.status,
     email: row.email,
     name: row.name,
+    erased: row.erased,
   };
 }
 

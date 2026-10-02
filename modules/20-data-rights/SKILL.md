@@ -437,3 +437,7 @@ write SKILL.md at first build session start, not in a planning sprint):
 - The 0104 backfill (if needed) is the only append-only exception this
   module ever introduces; pinning the path here prevents an S3 author from
   re-litigating it.
+
+## Erased candidates (E3, 2026-10-02)
+
+`exportCandidateData` throws 409 `CANDIDATE_ERASED` for an erased user (only tombstone values remain; nothing to export).

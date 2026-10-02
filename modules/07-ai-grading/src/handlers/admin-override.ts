@@ -139,6 +139,10 @@ export async function handleAdminOverride(
         409,
       );
     }
+    // E3: an erased candidate's grades are frozen (users.erased_at).
+    if (await isAttemptCandidateErased(client, original.attempt_id)) {
+      throw new AppError("This candidate's data has been erased — scores can no longer be changed", "CANDIDATE_ERASED", 409);
+    }
     // Phase II tenant gate: the evaluation must be with the tenant (released by the
     // platform) before the tenant may change a grade. Checked after the published
     // check so a released attempt keeps its RESULT_ALREADY_PUBLISHED answer.
