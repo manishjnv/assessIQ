@@ -65,6 +65,7 @@ import type {
 import { RATE_CAP_CONSTANTS, tryAdmitEvent } from "./rate-cap.js";
 import {
   answerToOriginal,
+  MAX_SHUFFLE_OPTIONS,
   buildOptionOrder,
   displayAnswers,
   displayQuestions,
@@ -378,7 +379,7 @@ export async function startAttempt(
       questionId: q.id,
       position: i + 1,
       questionVersion: q.version,
-      optionOrder: buildOptionOrder(mcqOptions.get(q.id)),
+      optionOrder: buildOptionOrder(mcqOptions.get(q.id), Math.random, MAX_SHUFFLE_OPTIONS),
     }));
     await repo.insertAttemptQuestions(client, attempt.id, aqRows);
     await repo.insertEmptyAttemptAnswers(client, attempt.id, chosen.map((q) => q.id));

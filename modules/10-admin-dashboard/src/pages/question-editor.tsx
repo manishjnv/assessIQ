@@ -14,6 +14,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Spinner } from "@assessiq/ui-system";
+import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { RubricEditor } from "../components/RubricEditor.js";
 import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
@@ -21,7 +22,7 @@ import { QuestionContentView } from "../components/QuestionContentView.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
 
-const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis"] as const;
+const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select"] as const;
 type QuestionType = typeof QUESTION_TYPES[number];
 
 const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
@@ -30,6 +31,9 @@ const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
   kql: { question: "", tables: [""], expected_keywords: [""] },
   scenario: { title: "", intro: "", steps: [], step_dependency: "linear" },
   log_analysis: { question: "", log_excerpt: "", log_format: "syslog", expected_findings: [""] },
+  // Deterministic types: scored automatically, no AI. See help ids admin.question.content.*
+  numeric: { question: "", answer: 0, tolerance: 0 },
+  multi_select: { question: "", options: ["", "", "", ""], correct: [0], scoring: "all_or_nothing" },
 };
 
 interface QuestionDetail {
@@ -358,7 +362,13 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
         </div>
 
         <div className="aiq-form-group">
-          <label className="aiq-label" htmlFor="q-content">Content (JSON) *</label>
+          {type === "numeric" || type === "multi_select" ? (
+            <HelpTip helpId={`admin.question.content.${type}`}>
+              <label className="aiq-label" htmlFor="q-content">Content (JSON) *</label>
+            </HelpTip>
+          ) : (
+            <label className="aiq-label" htmlFor="q-content">Content (JSON) *</label>
+          )}
           <textarea
             id="q-content"
             className="aiq-input"

@@ -262,3 +262,7 @@ Why this matters: Phase 1 grading's compliance frame in [docs/05-ai-pipeline.md 
 9. **The queue predicate lives in three places** (`listSuperEvaluationQueue`, `assertInEvaluationQueue`, `apps/api/src/jobs/evaluation-queue-alert.ts`); change them together.
 
 **Considered and rejected.** A new `attempts.status` value for the hand-over (columns instead); tenant-triggered AI (the compliance frame). **Not included.** Async grading, API mode, per-tenant AI. **Impact.** 06 `result.ts` reads the evaluation columns; 15 results CSV and candidate stats key on `evaluation_released_at` / `released`; 10 admin-dashboard shares `AttemptGradingPanel` between the platform evaluate page and the company review page.
+
+## numeric / multi_select are never sent to AI (2026-10-02)
+
+Only the "non-MCQ" evaluation-queue predicates changed: `q.type <> 'mcq'` became `q.type NOT IN ('mcq','numeric','multi_select')` in `repository.ts` (super-admin queue lateral join) and `handlers/super-evaluations.ts` (`assertInEvaluationQueue`), so an attempt made only of deterministic types never enters the queue. `AI_GRADEABLE_TYPES` (`admin-grade.ts`, `admin-rerun.ts`) is an allowlist (subjective / scenario / log_analysis) and needed no change. The lint guard `ci/lint-no-ambient-claude.ts` is untouched.

@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(162); // +1 invitations paging (0127), +1 integrity edit (0130)
+    expect(count).toBe(164); // +0127 paging, +0130 integrity edit, +2 0131 question types
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(162); // +1 invitations paging (0127), +1 integrity edit (0130)
+    expect(count).toBe(164); // +0127 paging, +0130 integrity edit, +2 0131 question types
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt

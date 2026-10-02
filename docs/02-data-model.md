@@ -1609,3 +1609,17 @@ Commits: `50ebccf` (invites), `def48bb` + `e33f1e6` (notifications), `55023bf` (
   - storing shuffled answers in display space (that would have touched scoring, review, exports and analytics);
   - a per-assessment shuffle toggle (`randomize` already exists).
 - **Not included:** invitation reminder emails; a public drive link with self-registration (design-gated); DSAR export translation of option order (it stays in original indexes).
+
+
+## Question types numeric and multi_select (2026-10-02)
+
+`questions.type` CHECK is now `('mcq','subjective','kql','scenario','log_analysis','numeric','multi_select')` (module 04 migration `0129_question_types_numeric_multi_select.sql`; constraint `questions_type_check` dropped and re-added, idempotent).
+
+Content shapes (`questions.content` / `question_versions.content`):
+
+- `numeric`: `{ "question": str, "answer": number, "tolerance"?: number >= 0 (absolute, default 0), "unit"?: str, "rationale"?: str }`.
+- `multi_select`: `{ "question": str, "options": [2-10 str], "correct": [unique in-range int, >= 1], "scoring"?: "all_or_nothing" | "partial", "rationale"?: str }`.
+
+Answers (`attempt_answers.answer`): numeric = a JSON number (or null); multi_select = `{ "selected": [int] }` in original option indexes (the per-student shuffle in `attempt_questions.option_order` is translated at the save seam, as for mcq).
+
+Scoring: `gradings` rows with `grader='deterministic'`, status `correct` / `partial` / `incorrect`; partial multi_select writes `score_earned = round(points x (right - wrong) / |correct|, 2)` floored at 0. No schema change to `gradings`. Help ids: migration `0131` in module 16. Not included: AI generation of these types, unit conversion, numeric ranges.

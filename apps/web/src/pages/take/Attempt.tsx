@@ -52,6 +52,8 @@ import type {
 } from '@assessiq/candidate-ui';
 import { CandidateHelp } from '@assessiq/candidate-ui';
 import { McqAnswerArea } from './McqAnswerArea.js';
+import { NumericAnswerArea } from './NumericAnswerArea.js';
+import { MultiSelectAnswerArea } from './MultiSelectAnswerArea.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1481,6 +1483,27 @@ function AnswerArea({
           answer={answer}
           disabled={disabled}
           onAnswerChange={onAnswerChange}
+        />
+      );
+
+    case 'multi_select':
+      return (
+        <MultiSelectAnswerArea
+          question={question}
+          answer={answer}
+          disabled={disabled}
+          onAnswerChange={onAnswerChange}
+        />
+      );
+
+    case 'numeric':
+      return (
+        <NumericAnswerArea
+          question={question}
+          answer={answer}
+          disabled={disabled}
+          onAnswerChange={onAnswerChange}
+          onBlur={onBlur}
         />
       );
 

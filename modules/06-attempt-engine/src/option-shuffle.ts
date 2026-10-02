@@ -21,6 +21,8 @@ import type { AttemptAnswer, FrozenQuestion } from "./types.js";
 /** content.options is 2-8 strings (McqContentSchema); anything else is not shuffled. */
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 8;
+/** multi_select allows up to 10 options; startAttempt passes this as the cap (MCQ content is capped at 8 by its schema). */
+export const MAX_SHUFFLE_OPTIONS = 10;
 
 // ---------------------------------------------------------------------------
 // 1. Which MCQs may be shuffled — options that refer to each other must not be
@@ -120,8 +122,8 @@ export function optionsCrossReference(options: readonly string[]): boolean {
  * for tests; production uses Math.random, like the question-order shuffle
  * (decision #20: not reproducible by design).
  */
-export function buildOptionOrder(options: unknown, rng: () => number = Math.random): number[] | null {
-  if (!Array.isArray(options) || options.length < MIN_OPTIONS || options.length > MAX_OPTIONS) return null;
+export function buildOptionOrder(options: unknown, rng: () => number = Math.random, maxOptions: number = MAX_OPTIONS): number[] | null {
+  if (!Array.isArray(options) || options.length < MIN_OPTIONS || options.length > maxOptions) return null;
   if (!options.every((o) => typeof o === "string" && o.trim() !== "")) return null;
   if ((options as string[]).some((o) => FOREIGN_LETTER.test(o))) return null; // cannot read it: leave it alone
   if (optionsCrossReference(options as string[])) return null;
@@ -163,9 +165,20 @@ export function usableOrder(raw: unknown): number[] | null {
 function remapSelected(answer: unknown, order: readonly number[], toDisplay: boolean): unknown {
   const isObject = answer !== null && typeof answer === "object" && !Array.isArray(answer);
   const raw = isObject ? (answer as { selected?: unknown }).selected : answer;
-  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0 || raw >= order.length) return answer;
-  const mapped = toDisplay ? order.indexOf(raw) : order[raw];
-  if (mapped === undefined || mapped < 0) return answer;
+  const mapOne = (v: unknown): number | undefined => {
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v >= order.length) return undefined;
+    const m = toDisplay ? order.indexOf(v) : order[v];
+    return m === undefined || m < 0 ? undefined : m;
+  };
+  // multi_select: an array of indexes. All-or-nothing translation: one bad element
+  // leaves the whole answer untouched (FAIL-SAFE above).
+  if (Array.isArray(raw)) {
+    const mapped = raw.map(mapOne);
+    if (mapped.some((m) => m === undefined)) return answer;
+    return isObject ? { ...(answer as object), selected: mapped } : { selected: mapped };
+  }
+  const mapped = mapOne(raw);
+  if (mapped === undefined) return answer;
   return isObject ? { ...(answer as object), selected: mapped } : { selected: mapped };
 }
 

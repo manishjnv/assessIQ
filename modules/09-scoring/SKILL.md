@@ -130,3 +130,13 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 ## Score max is frozen per attempt (E12, migration 0128)
 
 `score_max` for a question is `attempt_questions.points`, copied from `questions.points` when the attempt started (06). `scoreMcqForAttempt` (`mcq.ts`) reads `aq.points`, not `questions.points`, so editing a question's points after start cannot change the score of an attempt that is not yet graded. The same frozen source feeds 07 AI grading rows, manual-score and admin rerun, so MCQ and AI rows of one attempt always agree. Totals (`service.ts`) and 15 analytics/exports sum `gradings.score_max`, which is already per-row frozen, so they needed no change. Grading algorithm, band scoring and which grader runs are untouched.
+
+## Deterministic types: numeric and multi_select (2026-10-02)
+
+`mcq.ts` (name kept; it is the deterministic scorer) now scores `mcq`, `numeric` and `multi_select` through `deterministicFraction(type, content, answer)` (0..1 of the question's points). `scoreMcqForAttempt` selects `q.type IN ('mcq','numeric','multi_select')`; points sourcing is untouched.
+
+- **numeric**: correct iff `|given - answer| <= tolerance` (absolute; default 0; 1e-9 slack so float noise at the edge does not flip). Accepts a number, `{value}` or a numeric string with commas. Anything else scores 0.
+- **multi_select** all_or_nothing (default): 1 iff the selected set equals the correct set. partial: `max(0, (right - wrong) / |correct|)`; `score_earned = round(points x fraction, 2)`, status `partial` (an existing `gradings.status`). Malformed / duplicate / out-of-range selections score 0.
+- No negative marking overall; unanswered = 0. Same sentinel (`deterministic-mcq-v1`), idempotency and frozen-version rules as MCQ. `archetype` MCQ-percentage signal still counts `mcq` only.
+- Why in this file and not a new one: one shared path means the same finalisation, billing and "auto-grade at submit when every question is deterministic" behaviour with no new code path to audit.
+- Tests: `deterministic-types.test.ts` (tolerance edges, all-or-nothing, partial incl. floor at 0) and, in 06, `numeric-multiselect-submit.test.ts` (DB).

@@ -151,3 +151,12 @@ Owner rules: **P1** a candidate sees only a complete, final score (never partial
 - **Backfill / backstop:** migration 0128 backfills existing rows from the current `questions.points` (the old behaviour; there is no earlier value to recover), then sets NOT NULL. A BEFORE INSERT trigger fills a missing value from `questions.points` at insert time, so raw inserters (tests, future paths) never hit the constraint and never leave a lazily-read NULL.
 - **Not included:** no per-version points history; authoring views (04 question editor, 07 `admin-generate`, 05 blueprint pool) keep reading the live `questions.points` on purpose. Apply the migration before deploying the code.
 - **Test:** `src/__tests__/points-freeze.test.ts`.
+
+## numeric / multi_select in the attempt engine (2026-10-02)
+
+- **Candidate view**: `sanitizeContentForCandidate` keeps `question, unit` for `numeric` and `question, options` for `multi_select`. `answer`, `tolerance`, `correct`, `scoring`, `rationale` never leave the server (tests: `new-question-types.test.ts`).
+- **Answer storage**: numeric = a bare number (or `null` when cleared / not a number); multi_select = `{ selected: number[] }` in ORIGINAL option indexes. `saveAnswer` is unchanged: it stores what it is given after the shuffle translation.
+- **Option shuffle**: `listMcqOptionsForPicks` now includes `multi_select`; `answerToOriginal` / `answerToDisplayed` translate an array `selected` element by element and, if any element is invalid, leave the whole answer untouched (same fail-safe as a single index). `buildOptionOrder` takes a `maxOptions` argument; `startAttempt` passes `MAX_SHUFFLE_OPTIONS` (10), the default stays 8. A bare array is also translated (and stored canonically as `{selected}`); the existing "array passes through" case in `option-shuffle.test.ts` now uses a non-integer array.
+- **Default answer hints**: "Select all that apply." / "Enter a number."
+- **Submit expectation** (`result.ts`): the "result soon" promise counts only types outside mcq / numeric / multi_select as needing an evaluator.
+- Not included: server-side numeric parsing at save time. The runner sends a number; scoring also tolerates `"1,250"` strings and `{value}`.

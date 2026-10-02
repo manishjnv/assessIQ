@@ -248,7 +248,7 @@ describe("answer translation", () => {
     ["bare string", "1"],
     ["bare out-of-range integer", 7],
     ["null", null],
-    ["array", [1]],
+    ["array of non-integers", ["1"]],
   ])("passes %s through unchanged in both directions (never turned into a valid answer)", (_label, answer) => {
     const order = [2, 0, 1, 3];
     expect(answerToOriginal(answer, order)).toBe(answer);

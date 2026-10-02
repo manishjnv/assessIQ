@@ -118,6 +118,34 @@ function anchorsOf(rubric: ExpectedAnswerViewProps["rubric"]): RubricAnchorForRe
 
 function McqExpected({ c }: { c: Record<string, unknown> }): React.ReactElement {
   const options = safeArr<unknown>(c.options);
+  if (Array.isArray(c.correct)) {
+    // multi_select: list every correct option
+    const idx = c.correct.filter((x): x is number => typeof x === "number");
+    const rat = safeStr(c.rationale);
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+        <div>
+          <div style={SUBLABEL_STYLE}>Correct answers ({c.scoring === "partial" ? "partial credit" : "all or nothing"})</div>
+          {idx.length === 0 ? (
+            <p style={MUTED_NOTE_STYLE}>No correct options recorded.</p>
+          ) : idx.map((i) => (
+            <p key={i} style={KEY_TEXT_STYLE}>
+              <span style={{ fontFamily: "var(--aiq-font-mono)", fontWeight: 700, marginRight: "var(--aiq-space-sm)", color: "var(--aiq-color-success, #065f46)" }}>
+                {OPTION_LABELS[i] ?? i} ✓
+              </span>
+              {options && typeof options[i] === "string" ? cleanText(options[i] as string) : ""}
+            </p>
+          ))}
+        </div>
+        {rat != null && (
+          <div>
+            <div style={SUBLABEL_STYLE}>Rationale</div>
+            <p style={KEY_TEXT_STYLE}>{cleanText(rat)}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
   const correct = typeof c.correct === "number" ? c.correct : null;
   const rationale = safeStr(c.rationale);
   const optText = correct != null && options && typeof options[correct] === "string" ? (options[correct] as string) : null;
@@ -251,7 +279,22 @@ export function ExpectedAnswerView({ type, content, rubric }: ExpectedAnswerView
 
   switch (type) {
     case "mcq":
+    case "multi_select":
       return c ? <McqExpected c={c} /> : <JsonFallback value={content} />;
+    case "numeric": {
+      if (!c) return <JsonFallback value={content} />;
+      const tol = typeof c.tolerance === "number" && c.tolerance > 0 ? c.tolerance : 0;
+      return (
+        <div>
+          <div style={SUBLABEL_STYLE}>Correct value</div>
+          <p style={KEY_TEXT_STYLE}>
+            {typeof c.answer === "number" ? c.answer : "not set"}
+            {typeof c.unit === "string" && c.unit !== "" ? ` ${c.unit}` : ""}
+            {tol > 0 ? ` (accepted within ± ${tol})` : " (exact)"}
+          </p>
+        </div>
+      );
+    }
     case "subjective":
       // Subjective has no answer-key fields in content — the rubric IS the
       // expected answer.

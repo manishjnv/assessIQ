@@ -111,11 +111,20 @@ const OPTION_LABELS = ["A", "B", "C", "D", "E", "F"];
 function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
   const question = safeStr(c.question);
   const options = safeArr<unknown>(c.options);
-  const correct = typeof c.correct === "number" ? c.correct : null;
+  // mcq: correct is one index; multi_select: an array of indexes.
+  const correctSet: number[] = Array.isArray(c.correct)
+    ? c.correct.filter((x): x is number => typeof x === "number")
+    : typeof c.correct === "number" ? [c.correct] : [];
   const rationale = safeStr(c.rationale);
+  const multi = Array.isArray(c.correct);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+      {multi && (
+        <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+          Select all that apply · scoring: {c.scoring === "partial" ? "partial credit" : "all or nothing"}
+        </span>
+      )}
       {question != null ? (
         <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
           {cleanText(question)}
@@ -136,7 +145,7 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
           }}
         >
           {options.map((opt, i) => {
-            const isCorrect = correct === i;
+            const isCorrect = correctSet.includes(i);
             return (
               <li
                 key={i}
@@ -500,6 +509,35 @@ function LogAnalysisView({ c }: { c: Record<string, unknown> }): React.ReactElem
   );
 }
 
+function NumericView({ c }: { c: Record<string, unknown> }): React.ReactElement {
+  const question = safeStr(c.question);
+  const answer = typeof c.answer === "number" ? c.answer : null;
+  const tol = typeof c.tolerance === "number" && c.tolerance > 0 ? c.tolerance : 0;
+  const unit = safeStr(c.unit);
+  const rationale = safeStr(c.rationale);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+      {question != null ? (
+        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {cleanText(question)}
+        </p>
+      ) : (
+        <JsonFallback value={c.question} />
+      )}
+      <div style={{ padding: "var(--aiq-space-xs) var(--aiq-space-sm)", borderRadius: 4, background: "var(--aiq-color-success-bg, #d1fae5)", color: "var(--aiq-color-success, #065f46)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+        <strong>Correct value:</strong> {answer ?? "not set"}{unit != null ? ` ${unit}` : ""}
+        {tol > 0 ? ` (accepted within ± ${tol})` : " (exact)"}
+      </div>
+      {rationale != null && (
+        <div style={{ padding: "var(--aiq-space-sm)", borderLeft: "3px solid var(--aiq-color-border, #e5e7eb)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)", whiteSpace: "pre-wrap" }}>
+          <span style={{ fontWeight: 600, marginRight: "var(--aiq-space-xs)" }}>Rationale:</span>
+          {cleanText(rationale)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function QuestionContentView({ type, content }: QuestionContentViewProps): React.ReactElement {
@@ -521,7 +559,10 @@ export function QuestionContentView({ type, content }: QuestionContentViewProps)
 
   switch (type) {
     case "mcq":
+    case "multi_select":
       return <McqView c={c} />;
+    case "numeric":
+      return <NumericView c={c} />;
     case "subjective":
       return <SubjectiveView c={c} />;
     case "kql":
