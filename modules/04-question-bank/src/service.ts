@@ -1762,6 +1762,7 @@ export async function generateQuestions(
     ...(domainId !== undefined ? { domainId } : {}),
     ...(categoryId !== undefined ? { categoryId } : {}),
     ...(batchId !== undefined ? { batchId } : {}),
+    ...(topicFocus !== undefined ? { topicFocus } : {}),
   });
 }
 

@@ -122,6 +122,11 @@ export interface HandleAdminGenerateInput {
    */
   batchId?: string | undefined;
   /**
+   * Optional KbSource.function focus (RV62). Forwarded to the runtime input so
+   * the skill receives it as `topic_focus`; absent = no focus (null).
+   */
+  topicFocus?: string | undefined;
+  /**
    * Difficulty injection (Phase A3). Built by the caller (04 service.ts) which
    * owns difficulty-spec.ts; passed as in-process data + bound closures to
    * preserve the ai-grading → question-bank no-import boundary (04 depends on
@@ -438,7 +443,7 @@ async function runGenerationPlan(
   chunkEvents: { ok: string; fail: string } | null,
   stats: GenerationStats,
 ): Promise<HandleAdminGenerateOutput & { _model?: string }> {
-  const focus: { topicFocus?: string } = {};
+  const focus = input.topicFocus !== undefined ? { topicFocus: input.topicFocus } : {};
   const settled = await withConcurrencyLimit(chunks, PLAN_CONCURRENCY, (c) => {
     const start = Date.now();
     return c.run(focus).then((output) => {
