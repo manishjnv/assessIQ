@@ -24,7 +24,7 @@ export function NumericAnswerArea({
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const unit = (question.content as { unit?: unknown } | null)?.unit;
   // Local draft so "12." or a half-typed value is not rewritten under the cursor.
   const [text, setText] = useState<string>(typeof answer === 'number' ? String(answer) : '');

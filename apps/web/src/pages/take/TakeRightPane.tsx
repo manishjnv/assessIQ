@@ -2,7 +2,7 @@
 // Extracted from TokenLanding.tsx's local RightPane to eliminate copy-paste.
 // Kit reference: screens/login.jsx right panel — editorial tone, serif quote.
 
-export function TakeRightPane(): JSX.Element {
+export function TakeRightPane(): React.JSX.Element {
   return (
     <aside
       style={{

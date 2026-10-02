@@ -52,7 +52,7 @@ const META_LABEL: CSSProperties = {
 
 type Mode = 'pending' | 'success' | 'error';
 
-export function InviteAccept(): JSX.Element {
+export function InviteAccept(): React.JSX.Element {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const token = params.get('token');

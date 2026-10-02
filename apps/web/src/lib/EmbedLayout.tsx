@@ -16,7 +16,7 @@ interface EmbedLayoutProps {
   children: React.ReactNode;
 }
 
-export function EmbedLayout({ children }: EmbedLayoutProps): JSX.Element {
+export function EmbedLayout({ children }: EmbedLayoutProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

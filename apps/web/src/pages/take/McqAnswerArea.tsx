@@ -20,7 +20,7 @@ export function McqAnswerArea({
   answer: unknown;
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const content = question.content as McqContent;
   const options: string[] = Array.isArray(content?.options) ? (content.options as string[]) : [];
   // Canonical answer shape: { selected: number } — index into options[].

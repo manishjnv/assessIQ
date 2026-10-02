@@ -175,7 +175,7 @@ function SubjectiveAnswerArea({
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   // Canonical answer shape: { response: string }
   const answerObj =
     answer !== null && typeof answer === 'object'
@@ -237,7 +237,7 @@ function KqlAnswerArea({
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   // TODO(phase-2): Monaco-based <KqlEditor> with KQL grammar — Phase 2 deferred
   // (decision #11 in PHASE_1_KICKOFF.md). Phase 1 uses a textarea.
   const content = question.content as KqlContent;
@@ -315,7 +315,7 @@ function KqlAnswerArea({
 }
 
 /** Shown when question content contains a forbidden synonym key (Stage 1.5d shape lock). */
-function MalformedQuestion(): JSX.Element {
+function MalformedQuestion(): React.JSX.Element {
   return (
     <Card padding="md">
       <p
@@ -334,7 +334,7 @@ function MalformedQuestion(): JSX.Element {
 }
 
 /** Shown for any type string not in the known set (future-proofing). */
-function UnknownTypeArea({ type }: { type: string }): JSX.Element {
+function UnknownTypeArea({ type }: { type: string }): React.JSX.Element {
   return (
     <Card padding="md">
       <p
@@ -364,7 +364,7 @@ function LogAnalysisAnswerArea({
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const content = question.content as LogAnalysisContent;
   const logExcerpt = typeof content?.log_excerpt === 'string' ? content.log_excerpt : '';
   const logFormat = typeof content?.log_format === 'string' ? content.log_format : '';
@@ -587,7 +587,7 @@ function ScenarioAnswerArea({
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const content = question.content as ScenarioContent;
   const intro = typeof content?.intro === 'string' ? content.intro : '';
   const steps: ScenarioStep[] = Array.isArray(content?.steps)
@@ -723,7 +723,7 @@ export function isAnsweredValue(ans: unknown): boolean {
   return true;
 }
 
-export function AttemptPage(): JSX.Element {
+export function AttemptPage(): React.JSX.Element {
   const { id: attemptId = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -1651,7 +1651,7 @@ function AnswerArea({
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
   onBlur: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   // Stage 1.5d shape lock: any forbidden synonym key in content triggers a
   // hard malformed fallback — no partial render of legacy rows.
   if (hasForbiddenSynonym(question.content)) {

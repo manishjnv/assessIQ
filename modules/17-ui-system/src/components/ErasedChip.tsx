@@ -15,7 +15,7 @@ export interface ErasedChipProps {
  *
  * Intentionally has no icon, no tooltip, no animation. Dead simple.
  */
-export function ErasedChip({ className }: ErasedChipProps): JSX.Element {
+export function ErasedChip({ className }: ErasedChipProps): React.JSX.Element {
   return (
     <Chip variant="default" className={className}>
       Erased

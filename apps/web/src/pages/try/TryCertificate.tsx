@@ -23,7 +23,7 @@ const LABEL: CSSProperties = {
   margin: 0,
 };
 
-export function TryCertificatePage(): JSX.Element {
+export function TryCertificatePage(): React.JSX.Element {
   useEffect(() => {
     const prev = document.title;
     document.title = 'Sample certificate | AssessIQ';

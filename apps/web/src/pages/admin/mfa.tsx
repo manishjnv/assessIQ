@@ -54,7 +54,7 @@ const META_LABEL: CSSProperties = {
   color: 'var(--aiq-color-fg-muted)',
 };
 
-export function AdminMfa(): JSX.Element {
+export function AdminMfa(): React.JSX.Element {
   const { session, loading } = useSession();
   const nav = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

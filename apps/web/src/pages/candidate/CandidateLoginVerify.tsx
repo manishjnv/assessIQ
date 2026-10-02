@@ -20,7 +20,7 @@ import { Spinner } from '@assessiq/ui-system';
 //   - Network error / unexpected response                    → same failure landing
 //   - Missing token in URL                                   → same failure landing
 
-export function CandidateLoginVerify(): JSX.Element {
+export function CandidateLoginVerify(): React.JSX.Element {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [message, setMessage] = useState<string>('Verifying…');

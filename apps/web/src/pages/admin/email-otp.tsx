@@ -28,7 +28,7 @@ const SERIF_H1: CSSProperties = {
 
 type Step = 'email' | 'code';
 
-export function AdminEmailOtp(): JSX.Element {
+export function AdminEmailOtp(): React.JSX.Element {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
