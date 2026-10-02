@@ -196,3 +196,7 @@ AI-assisted question generation is the only AI-touching surface in this module's
 **Not included.** AI generation of these types (no skill or prompt change; `DIFFICULTY_SPEC` / generation wizard / auto-weight stay at the five generated types), numeric ranges, unit conversion, blueprint (`BLUEPRINT_QUESTION_TYPES`) support: assessments draw them from the pack pool as before.
 
 **Impact.** 06 (answer shuffle, candidate sanitiser), 09 (scoring), 10 (renderers, editor), 16 (two help ids), apps/web runner. `modules/07-ai-grading` only had the "non-MCQ" queue predicates widened (see 07 SKILL.md). The AI allowlist (`AI_GRADEABLE_TYPES`) already excluded them. Docs: `docs/02-data-model.md`.
+
+## Generation batches (E6, 2026-10-02)
+
+`src/generation-batches.ts` registers three super-admin routes (`GET /api/admin/generation-batches/active`, `PUT/PATCH /api/admin/generation-batches/:id`) on the same guard as the generate routes, called from `routes.ts`. Table `generation_batches` is owned by 07 (migration 0142). PUT unions `completed_category_ids` (a stale tab cannot erase progress); a foreign id returns 409 without saying whose. `07 admin-generate.ts` also adds each finished category server-side, best-effort. Not included: server-side orchestration (the browser still drives categories; single-flight AI + CF 100 s timeout). Details: docs/03-api-contract.md "Batch 5 notes".

@@ -441,3 +441,7 @@ write SKILL.md at first build session start, not in a planning sprint):
 ## Erased candidates (E3, 2026-10-02)
 
 `exportCandidateData` throws 409 `CANDIDATE_ERASED` for an erased user (only tombstone values remain; nothing to export).
+
+## Tests (2026-10-02)
+
+The module now has 11 DB integration tests (commit `e5090b1`): erasure, export, retention and the erased list. It had 0 tests before. They run with the module suite in CI.

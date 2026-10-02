@@ -171,3 +171,7 @@ For assessments with `settings.sections` (defined in 05). Assessments without it
 - **`POST /api/me/attempts/:id/finish-section`** => `{section_index}`: opens the next section now and re-pins `ends_at = now + remaining sections' minutes`. 409 `AE_SECTION_NOT_FINISHABLE` on the last section (submit instead) or a plain test.
 - **Not included**: editing `settings.sections` after attempts started would move their deadlines (not guarded); no per-section score breakdown; sweep still keys on `ends_at` only.
 - **Tests**: `sections.test.ts` (DB), `sections-timing.test.ts` (pure).
+
+## Sections summary (N1c, 2026-10-02)
+
+`src/sections.ts` `buildSectionsSummary` + `isAnsweredValue`. `getAttemptForCandidate` adds `sections_summary` (every section: index, name, question_count, answered_count, status done/current/upcoming) for sectioned attempts. Counts only, no ids or content, so it leaks nothing about locked sections. Used by the final submit dialog to count unanswered across ALL sections (it only counted the running one before). "Answered" matches the take page rule. Test: `sections-summary.test.ts`.

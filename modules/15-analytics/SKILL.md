@@ -135,3 +135,7 @@ The activity test file spins up its own postgres container (`aiq_activity_test`)
 - **`?sort=name|rank|branch`** on `GET /api/admin/assessments/:id/results.csv` (zod enum, unknown -> 400). `branch` = branch A-Z (blank last), then rank, then name. Default `name` is unchanged.
 - **Why:** the placement cell needs a ranked, branch-wise list. Roll/branch come from `users.metadata` (see 03-users SKILL).
 - **Not included:** no per-branch rank, no percentile, no cut-off filtering.
+
+## Section columns in results CSV (N1a, 2026-10-02)
+
+`results-export.ts` appends one column `Section: <name> (%)` per `settings.sections` entry (names from the assessment; none for unsectioned tests), after the existing columns. Values use the same visible-score rule as `percent`: blank unless the score is released to the tenant. Not included: per-section rank, earned/max columns.

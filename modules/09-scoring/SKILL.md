@@ -140,3 +140,7 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 - No negative marking overall; unanswered = 0. Same sentinel (`deterministic-mcq-v1`), idempotency and frozen-version rules as MCQ. `archetype` MCQ-percentage signal still counts `mcq` only.
 - Why in this file and not a new one: one shared path means the same finalisation, billing and "auto-grade at submit when every question is deterministic" behaviour with no new code path to audit.
 - Tests: `deterministic-types.test.ts` (tolerance edges, all-or-nothing, partial incl. floor at 0) and, in 06, `numeric-multiselect-submit.test.ts` (DB).
+
+## Per-section scores (N1a, 2026-10-02)
+
+`getSectionScoresForAttempt(client, attemptId)` in `repository.ts` (exported from `index.ts`): `[{index, name, earned, max}]` per `attempt_questions.section_index`, same effective-grading rule as the total (latest `graded_at`, an admin_override wins ties); `[]` without sections; name falls back to "Section N". CALLERS decide visibility: never call it for an unreleased score. Used by 07 admin attempt detail (`section_scores`) and the 15 results CSV (which computes its own grouping). Test: `section-scores.test.ts`.
