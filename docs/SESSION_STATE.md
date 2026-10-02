@@ -1,3 +1,33 @@
+# Session — 2026-10-02 (k) — batch 7: eval golden set on the VPS, NODE_ENV required, Dependabot majors (React 19, Vite 8, jose 6)
+
+**Headline:** Batch 7 is LIVE on https://assessiq.in (HEAD `05beab3`): 150-case eval golden set on the VPS only (never in git), `NODE_ENV` required at boot, Edit sections hidden after publish/start, and the Dependabot majors taken (actions, minor group, jose 6, React 19.3, Vite 8).
+**Commits (`c89b326..05beab3`, pushed):**
+- `b7373af` N8 NODE_ENV required · `92b3a8b` SectionsCard hides Edit sections unless draft and no attempts
+- `635f3fb` N5/N9 eval mounts + CLI honours `AIQ_EVAL_BASELINES_DIR` · `05beab3` Vite target pin, mfa test typing, `.dockerignore` for eval data (Sonnet trailer)
+- `99a5d57` ci actions v7/v6 · `d5b0076` minor/patch group · `0e30e4e` jose 6 · `cc17b5f` React 19.3 · `000d2b9` Vite 8 + vitest 4 (web)
+**Deploy:** no migrations; pull c214ef1 to 05beab3; api/worker/frontend rebuilt only; 24 containers before/after; 0 error lines; `NODE_ENV=production`; 300 case files visible via mount, none in the image; React 19.3.0, no ES2021+ syntax; `/`, `/admin`, `/try`, `/api/health` 200.
+**Tests:** typecheck 0, lint 0 errors (19 warnings), web build OK; 00 133, 01 276/277 (totp constant-time flake, 16/16 alone), 10 102, 11 114, 12 30, 13 246, 16 93, 17 44, apps/api 131 (+7 todo), web 57.
+**Next:** Owner: eval run, compare, bless in the api container (check `case_count` 151), then `AI_EVAL_GATE=enforce` and recreate api. Claude: N10 argon2/storybook 10, E10 stale docs, D4 runbook.
+**Open questions:** (1) Browser check of candidate pages under React 19 on an older Chrome and of Edit sections hidden on a published test. (2) When to run the long eval (about 151 cases on the Max login).
+**Feature doc:** `docs/plans/PILOT_BATCH_7.md`. Deploy: `docs/06-deployment.md` § Batch 7 deploy. RCA: 3 entries 2026-10-02.
+
+---
+
+## Agent utilization
+- Opus: applied the owner decisions, wrote N8 + section hide + N9 + mounts, reviewed all diffs, resolved merge conflicts, caught the mfa typecheck failure and the browser-target risk, pushed, deployed, ran checks.
+- Sonnet: 3 case authors, N7a + N7b builders, 1 adversarial review, 1 docs writer.
+- Haiku: n/a — checks were a few inline ssh/curl calls.
+- codex:rescue: n/a — Sonnet takeover: b7373af accept, 635f3fb revise (addressed in 05beab3), jose 0e30e4e accept, 99a5d57 accept, d5b0076 accept.
+- claude-mem: honoured docs-folder-gitignored, vps-shared-host, grading-accuracy-no-expert (claim "AI-assisted, consistency-tested"), feedback-status-claude-tasks-only.
+- Routing telemetry:
+  - Sonnet · N5 cases x3 · reworked: N
+  - Sonnet · N7a actions/minor/jose · reworked: N
+  - Sonnet · N7b react19/vite8 · reworked: Y (typecheck + browser target, Opus fix)
+  - Sonnet · adversarial review · reworked: N
+  - Sonnet · batch 7 docs · reworked: N
+
+---
+
 # Session — 2026-10-02 (j) — batch 6: CI green, dependency security bumps, section editor, test-minter guard
 
 **Headline:** Batch 6 is LIVE on https://assessiq.in (HEAD `c214ef1`): CI on main is green again, 17 high advisories cleared (fastify 5.12.5, nodemailer 10.0.13), admins can edit sections on a draft assessment (N6), and prod boot refuses a test-minter flag (E5).

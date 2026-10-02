@@ -1392,3 +1392,6 @@ Trigger or accept AI grading, re-run, enter a manual first score or retry a grad
 - **Privacy.** These files contain student answers. The directory is gitignored. Never commit or copy it off the server.
 - **Not included.** No automatic prompt tuning; anchors are not harvested (the expected side has only a band).
 - **Impact.** A rising override rate for a prompt sha is the signal to edit the skill, which then goes through the gate.
+
+### Eval golden set (batch 7, 2026-10-02)
+The golden set lives on the VPS only, in `modules/07-ai-grading/eval/cases-private` (bind-mounted into `assessiq-api`; gitignored and dockerignored). It is never committed because the repo is public (owner decision). It holds 150 AI-seeded cases: 50 each for subjective, scenario and log_analysis; per type 9 cases at each of bands 0-4 plus 5 adversarial (injection, empty, off-topic, keyword stuffing, pasted question or logs). Questions come from the already-public `golden-questions/`. `eval/runs` is mounted rw too, so runs survive recreates. Flow: eval run, compare, bless inside the api container (expect `case_count` 151), then `AI_EVAL_GATE=enforce`. Claim "AI-assisted, consistency-tested", not expert-verified. Detail: `docs/06-deployment.md` § Batch 7 deploy.

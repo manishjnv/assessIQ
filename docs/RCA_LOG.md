@@ -2150,3 +2150,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** (1) A blank `ENABLE_*_TEST_MINTER=` line is rejected by `z.enum`, a boot failure; the CI grep also missed compose `${VAR:-true}`. (2) The E5 and N6 builders reported typecheck clean, but a 00-core test and a 10 page failed typecheck on merged main.
 **Fix:** `9a89654`: blank counts as unset; CI grep catches `${VAR:-true}`; typecheck errors fixed.
 **Prevention:** Opus re-runs the full `pnpm typecheck` on merged main before push; never trust a builder's "typecheck clean".
+
+## 2026-10-02 — Builder reported "typecheck clean" again; `mfa.test.tsx` failed after vitest 4
+
+**Symptom:** None live; caught in Opus verification of the N7b merge before deploy.
+**Cause:** The N7b builder (React 19 + Vite 8 + vitest 4 for apps/web) reported typecheck clean, but `apps/web` `mfa.test.tsx` no longer typed under vitest 4. Second time a builder's claim was wrong (see the test-minter entry above).
+**Fix:** `05beab3`: `mfa.test.tsx` typing fixed.
+**Prevention:** Opus runs `pnpm typecheck` plus `apps/web` `tsc -b` on merged main and counts "error TS" lines itself, never relying on a builder's report.
+
+## 2026-10-02 — `.dockerignore` gap would have baked the private eval golden set into images
+
+**Symptom:** None live; caught in the adversarial review of `635f3fb` before deploy.
+**Cause:** The new compose bind-mounts keep `eval/cases-private` out of git, but a VPS `docker build` copies the whole context, so the golden set would have landed in image layers (likewise `eval/runs`, `eval/baselines`).
+**Fix:** `05beab3`: `.dockerignore` excludes `eval/cases-private`, `eval/runs/*/`, `eval/baselines/*.json`. Verified live: the fresh image has no `cases-private`.
+**Prevention:** Any new gitignored private data dir gets a `.dockerignore` entry in the same change; the post-deploy check lists the dir inside a fresh image.
+
+## 2026-10-02 — Vite 8 raised the default browser target; campus lab PCs run older browsers
+
+**Symptom:** None live; caught in Opus review of the Vite 5 to 8 bump (`000d2b9`).
+**Cause:** Vite 7+ raised the default build target above what older lab-PC browsers run, so the bundle could fail to parse there.
+**Fix:** `05beab3`: `apps/web` `build.target` pinned to Vite 5's floor (es2020, edge88, firefox78, chrome87, safari14). Verified: served chunks have no ES2021+ syntax.
+**Prevention:** Check the served bundle's syntax level after any build-tool major bump; still open: a real older-Chrome check of candidate pages under React 19.

@@ -1633,3 +1633,32 @@ Only then set `AI_EVAL_GATE=enforce` in `.env` and recreate `assessiq-api`. Ever
 - Code: `git checkout 27f6357` on the VPS, rebuild and recreate api, worker, frontend.
 - 0143 is help rows only; the old image ignores them.
 - Dependencies: the code checkout restores the previous lockfile; rebuild gives the previous image (or retag the previous image).
+
+## Batch 7 deploy (2026-10-02, HEAD `05beab3`; commits `c89b326..05beab3`) — DONE
+
+**Migrations:** none.
+
+**New mounts (compose, `635f3fb`):** `../modules/07-ai-grading/eval/cases-private` and `../eval/runs` are bind-mounted rw into `assessiq-api` (both gitignored). Host dirs must exist before `up`: `mkdir -p /srv/assessiq/modules/07-ai-grading/eval/{cases-private,runs,baselines}`. `eval/cli.ts` now honours `AIQ_EVAL_BASELINES_DIR` (empty = default), the same rule as `eval-gate.ts` (N9).
+
+**NODE_ENV is required (`b7373af`, N8):** `modules/00-core/src/config.ts` has no default; boot fails if unset. Prod sets it in `.env` and the api Dockerfile `ENV`; vitest.setup sets `test`; `.env.example` has `development`. Host or laptop runs of tools (`aiq-import-pack.ts`, `cleanup-*.ts`, `migrate.ts`) now need `NODE_ENV` set (fail closed).
+
+**Dockerignore (`05beab3`):** `.dockerignore` excludes `eval/cases-private`, `eval/runs/*/` and `eval/baselines/*.json`, so a VPS build never bakes the golden set into image layers.
+
+**Golden set:** the 150 cases (300 files) were copied to `/srv/assessiq/modules/07-ai-grading/eval/cases-private` (chmod 700). They are never in git (owner decision: the repo is public). See `docs/05-ai-pipeline.md` § Eval golden set.
+
+**Deploy steps** (additive only): `test -d /srv/assessiq/.git`; `git pull` (c214ef1 to 05beab3); host dirs present; confirm no `claude` in flight; `docker compose -f infra/docker-compose.yml build api worker frontend`; `up -d --no-deps --force-recreate` each. Dependencies changed (React 19.3, Vite 8, jose 6, minor group), so images were rebuilt from the new lockfile.
+
+**Post-deploy checks (all passed 2026-10-02):**
+- 24 containers before and after; only api, worker, frontend recreated; api/worker 0 error lines.
+- `NODE_ENV=production` in the container; jose 6.2.12.
+- 300 case files visible in the container through the mount; the fresh image has NO `cases-private` (dockerignore works).
+- `/`, `/admin`, `/try`, `/api/health` 200.
+- Served vendor-react chunk is React 19.3.0 with no ES2021+ syntax (the pinned build target is honoured).
+
+**Eval bootstrap (owner, N5 finish):** inside the api container run eval run, compare, bless (commands in § Batch 5 deploy; `runs/` now survives recreates). Check `run.json` `case_count` = 151 (150 + 1 sample). Then set `AI_EVAL_GATE=enforce` in `/srv/assessiq/.env` and recreate `assessiq-api`. A full run grades about 151 cases through Claude Code on the Max login: expect a long run and subscription quota use.
+
+**Not verified in a browser:** Edit sections hidden on a published test; candidate pages under React 19 on an older Chrome.
+
+**Rollback:** `git checkout c214ef1` on the VPS, rebuild and recreate api, worker, frontend. The new mounts are harmless to the old image. No migrations to undo.
+
+**Warning:** never run `git clean -fdx` on the VPS: it would delete `cases-private`, `runs` and `baselines` (all gitignored).
