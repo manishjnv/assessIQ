@@ -9,6 +9,12 @@
     "greeting": "Hi {{candidateName}},",
     "cta": "Start your assessment"
   },
+  "invitation_reminder": {
+    "page_title": "Assessment reminder",
+    "brand_wordmark": "AssessIQ",
+    "greeting": "Hi {{candidateName}},",
+    "cta": "Start your assessment"
+  },
   "candidate_login_link": {
     "page_title": "Your AssessIQ sign-in link",
     "brand_wordmark": "AssessIQ",

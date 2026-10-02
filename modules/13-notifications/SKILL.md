@@ -129,6 +129,9 @@ Closed-enum template `result_released` (vars: `candidateName, assessmentName, te
 
 Closed-enum template `evaluation_queue_alert` (vars: `count` int, `oldestAgeHours` number, `queueLink` = `${ASSESSIQ_BASE_URL}/admin/platform/evaluations`) — the platform owner's "evaluations are waiting more than 24 hours" alert. Counts and a link only: never a tenant, assessment or candidate name. `sendEvaluationQueueAlertEmail({to[], count, oldestAgeHours})` (`src/email/evaluation-queue-alert.ts`) sends one email per address, logged under `PLATFORM_TENANT_ID`, best-effort per recipient (a failing address is logged and skipped; returns `{sent}` so the caller can retry when nothing went out). Called only by the worker job `evaluation.queue_alert` (apps/api `jobs/evaluation-queue-alert.ts`, hourly, at most once per 24 h via Redis key `aiq:alert:evaluation_queue`, recipients = `SUPER_ADMIN_EMAILS`).
 
+## `invitation_reminder` email (2026-10-02)
+Closed-enum template `invitation_reminder` (same vars as `invitation_candidate`; `expiresAt` carries the effective deadline as a readable UTC string). Subject `Reminder: your <assessment> closes soon`. `sendInvitationReminderEmail({to, candidateName, assessmentName, invitationLink, deadline, tenantName, tenantId})` (`src/email/invitation-reminder.ts`) THROWS on failure so module 05's sweep can release its claim. Class `bulk`. Called only by module 05 `sweepInvitationReminders` (worker job `invitation.reminders`).
+
 ## Email delivery classes — auth vs bulk (2026-10-01)
 
 **What.** Every `email.send` job belongs to one of two classes, decided by template name in `src/email/delivery-policy.ts` (`EMAIL_CLASS` is a `Record<EmailTemplateName, …>`, so a new template does not compile until it is classified).

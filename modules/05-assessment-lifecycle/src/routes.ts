@@ -34,6 +34,8 @@
 import type { FastifyInstance } from "fastify";
 import { AuthzError, ValidationError } from "@assessiq/core";
 import { z } from "zod";
+import { updateAssessmentReminders } from "./reminders.js";
+import { AssessmentRemindersSettingsSchema } from "./types.js";
 import {
   listAssessments,
   createAssessment,
@@ -394,6 +396,24 @@ export async function registerAssessmentLifecycleRoutes(
         );
       }
       return updateAssessmentIntegrity(req.session!.tenantId, id, parsed.data, req.session!.userId);
+    },
+  );
+
+  // PATCH /api/admin/assessments/:id/reminders — change only the automatic
+  // invitation-reminder setting (any status); merged into settings server-side.
+  app.patch(
+    "/api/admin/assessments/:id/reminders",
+    { preHandler: adminOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const parsed = AssessmentRemindersSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Invalid reminders body: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+          { details: { code: "INVALID_PARAM", param: "body" } },
+        );
+      }
+      return updateAssessmentReminders(req.session!.tenantId, id, parsed.data, req.session!.userId);
     },
   );
 

@@ -15,7 +15,7 @@
 //     touches this file + 13-notifications/src/email-stub.ts.
 //   * Mirrors the pattern 03-users uses for sendInvitationEmail.
 
-import { sendAssessmentInvitationEmail } from "@assessiq/notifications";
+import { sendAssessmentInvitationEmail, sendInvitationReminderEmail } from "@assessiq/notifications";
 
 export interface SendAssessmentInvitationInput {
   to: string;
@@ -49,4 +49,11 @@ export async function sendInvitationEmail(
     tenantName: input.tenantName,
     ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
   });
+}
+
+/** Reminder ("closes soon") email — same shim rationale as above; throws on failure. */
+export async function sendReminderEmail(
+  input: Parameters<typeof sendInvitationReminderEmail>[0],
+): Promise<void> {
+  await sendInvitationReminderEmail(input);
 }
