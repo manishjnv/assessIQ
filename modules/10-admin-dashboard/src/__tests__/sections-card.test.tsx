@@ -35,11 +35,13 @@ afterEach(() => {
 });
 
 describe("SectionsCard", () => {
-  it("disables Edit sections with a reason when attempts exist", () => {
+  it("shows no Edit sections button once published or started (summary only)", () => {
+    render(<SectionsCard assessmentId="a1" settings={settings} hasAttempts={false} isDraft={false} onSaved={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Edit sections" })).toBeNull();
+    expect(screen.getByText("Quant (10 min)")).toBeTruthy();
+    cleanup();
     render(<SectionsCard assessmentId="a1" settings={settings} hasAttempts isDraft onSaved={vi.fn()} />);
-    const btn = screen.getByRole("button", { name: "Edit sections" }) as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
-    expect(btn.title).toContain("after students have started");
+    expect(screen.queryByRole("button", { name: "Edit sections" })).toBeNull();
   });
 
   it("re-reads settings before saving (keeps sibling-card edits) and shows 409 SECTIONS_LOCKED inline", async () => {
