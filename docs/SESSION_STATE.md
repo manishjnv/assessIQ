@@ -1,6 +1,6 @@
 # Session — 2026-10-03 (o) — small tasks: RV16, N13 to N18 (dashboard counts, scenario answer check, page help, Astro 5)
 
-**Headline:** All seven small tasks from session (n) are done and LIVE on https://assessiq.in (code HEAD `38c76e3`; docs HEAD is later). Five code commits, one migration (0148, help rows only), one deploy.
+**Headline:** All seven small tasks from session (n) are done and LIVE on https://assessiq.in (code HEAD `38c76e3`; docs `36aeaf6`, then the commit of this handoff update). Five code commits, one migration (0148, help rows only), one deploy.
 **Commits (`62e01d8..38c76e3` code, then one docs commit; all pushed):**
 - `511e1af` RV16 dashboard counters from the server; auto-submitted attempts in the tenant queue (codex: revise, 2 MEDIUM accepted with reasons)
 - `e6eb22d` N15 scenario answer shape check at save
@@ -8,7 +8,7 @@
 - `2a15ce5` N16 page help for eight admin pages + migration 0148 · `38c76e3` N13 Astro 5.18.2, astro-og-canvas 0.13.2, canvaskit-wasm 0.42.0
 **Checks with no code:** N14: both audit numbers are correct. All dependencies: 42 high, 2 critical, all through development and test tools. Production only (`--prod`, the CI gate): 0 high, 0 critical, 5 moderate. N18: the "Money" line in `docs/02-data-model.md` was wrong (two `NUMERIC` USD columns exist in `tenant_grading_budgets`); corrected.
 **Deploy:** one stage, additive only. Pull to `38c76e3`; 0148 by hand and recorded; help rows 195 to 203; api, frontend and marketing built; api, worker, frontend and marketing recreated. 24 containers before and after; 0 error lines; 16 URLs return 200; served files hold the new text; no IndexNow ping (no page content change).
-**Tests:** typecheck 0; lint 0 errors (20 warnings); module 06 289 (one timing test failed under load, passed alone); module 07 handlers 31; module 10 102; module 16 93; web 66.
+**Tests:** typecheck 0; lint 0 errors (20 warnings); module 06 289 (one timing test failed under load, passed alone); module 07 handlers 31; module 10 102; module 16 93; web 66. CI is green on `38c76e3` (code) and on `36aeaf6` (docs).
 **Found during the work (not in the task list):**
 - "Ready to publish" on the dashboard was always 0, and timer-expired attempts were missing from the tenant queue. Both are fixed in `511e1af`.
 - RV16 "type lists show 5 types" is not a defect: AI generation supports exactly five types.
@@ -18,6 +18,9 @@
 **Next (Owner):** open the dashboard and one of the eight pages once and check the cards and the (?) drawer; decide RO3 ("Organisation code"); approve the `CLAUDE.md` edit (RV33); items open from older sessions (eval bless, push-gate hook, MASTER_KEY rotation date).
 **Open questions:** (1) Is a dedicated session for the development-tool updates (N19) wanted before the pilot? They do not reach production. (2) N21: accept the live question type, or freeze it for each attempt?
 **Old task or feature checked (Rule B):** dashboard counts against the platform evaluation queue and `deriveEvaluationStatus`; N15 against the existing `ScenarioAnswerPayloadSchema` (reused) and the SP7 rule "key from question type"; N16 against RCA 2026-05-24 and RS3 (0146, 0147); N13 against the N10 note; the "no access" notice against RV60.
+**Saved:** all work of this session is committed and pushed; the server clone is at the docs HEAD; the local-only task files are on disk; the memory index is corrected.
+**Working tree left as found (not this session's work, not committed):** `.claude/scheduled_tasks.lock` (modified); `BingTrackingCode.md`, `modules/01-auth/src/__tests__/totp-enrollment-status.test.ts`, `modules/01-auth/src/google-sso.ts.p1bak` (auth-adjacent: needs review before any commit), `AssessIQ-Email-Kit/` (untracked). All were present at session start.
+**Process notes for the next session:** (1) `apps/marketing` is outside the pnpm workspace and has its own lockfile: use `pnpm up --ignore-workspace` inside it, not `--filter`. (2) The module 06 test `recordEvent` per-second rate cap fails when other suites run at the same time; run it alone. (3) To read the CI result of a commit use `gh run list --commit <sha>`; `--limit 1` can return an old run. (4) A page shows only help keys that start with its page id; the page drawer key is `<page>.page`.
 **Docs:** session record `docs/plans/SMALL_TASKS_N13_N18_RV16.md`; deploy record `docs/06-deployment.md` § Small tasks deploy; RCA 2026-10-03 entries; `docs/02-data-model.md` (money line); `docs/03-api-contract.md` (queue `counts`, scenario answer rule); `docs/07-help-system.md` (page help); SKILL notes in modules 06, 07, 16. Task marks (local only): `docs/PENDING_TASKS_2026-10-01.md`, `docs/plans/REVIEW_FIX_PLAN_2026-10-02.md`.
 
 ---
