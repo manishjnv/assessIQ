@@ -2923,6 +2923,23 @@ admin.assessment.integrity.block_copy_paste:
 
     Treat the numbers as a signal to look into, not proof of cheating.
 
+admin.assessment.integrity.edit:
+  audience: admin
+  short_text: "Change the full-screen and copy-paste switches for this test, even after it is published."
+  long_md: |
+    ## Edit test integrity
+
+    Turn **Require full screen** and **Block copy and paste** on or off for this
+    test, then press **Save integrity settings**. Nothing else about the test changes.
+
+    - **You can change this after publishing.** The new setting applies to
+      attempts that start afterwards.
+    - **A student already taking the test** picks up the change the next time
+      their page loads (for example a refresh).
+    - Attempts already recorded keep their existing integrity counts.
+
+    Treat the numbers as a signal to look into, not proof of cheating.
+
 admin.attempt.integrity:
   audience: admin
   short_text: "How often this candidate left the test tab, used copy and paste, or left full screen."

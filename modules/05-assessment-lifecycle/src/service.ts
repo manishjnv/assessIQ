@@ -708,6 +708,45 @@ export async function resyncLicensedSet(
 }
 
 // ---------------------------------------------------------------------------
+// updateAssessmentIntegrity
+// ---------------------------------------------------------------------------
+
+/**
+ * Change only settings.integrity (merged server-side; blueprint and any other
+ * settings keys are untouched). Allowed in ANY status, including after publish:
+ * the candidate view reads settings live, so it affects attempts started
+ * afterwards and a student mid-test picks it up on their next page load.
+ */
+export async function updateAssessmentIntegrity(
+  tenantId: string,
+  id: string,
+  integrity: { fullscreen: boolean; block_copy_paste: boolean },
+  updatedByUserId: string,
+): Promise<Assessment> {
+  return withTenant(tenantId, async (client) => {
+    const current = await repo.findAssessmentById(client, id);
+    if (current === null) {
+      throw new NotFoundError(`Assessment not found: ${id}`, {
+        details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+      });
+    }
+    const updated = await repo.setIntegrityRow(client, id, integrity);
+    const prev = (current.settings as Record<string, unknown> | undefined)?.["integrity"] ?? null;
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: updatedByUserId,
+      action: "assessment.updated",
+      entityType: "assessment",
+      entityId: id,
+      before: { integrity: prev },
+      after: { integrity },
+    });
+    return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // updateAssessment
 // ---------------------------------------------------------------------------
 
