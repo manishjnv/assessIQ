@@ -1,24 +1,29 @@
 // AssessIQ — Admin grading jobs page.
 //
-// /admin/grading-jobs
+// /admin/grading-jobs  (apps/web/src/App.tsx, role="admin")
 //
-// User-facing: plain-language explanation of how grading works today.
-// Rewritten 2026-05-04: removed internal project jargon (Phase 1/3, BullMQ,
-// P2.D3) and replaced with answers to "what does this mean for me right now?"
-// Rewritten 2026-10-01 (scoring/release change): AssessIQ evaluates written
-// answers from the super-admin queue; the company only reviews and publishes.
+// A static explainer page: it fetches no data and shows no job table. Four
+// cards, top to bottom:
+//   1. How grading works — multiple-choice is scored automatically on submit;
+//      written answers are evaluated by AssessIQ (0/25/50/75/100 bands with
+//      evidence); until then the attempt shows "Awaiting evaluation" and no
+//      score is visible.
+//   2. Reviewing and publishing — publish, override (original kept) or send
+//      back for re-evaluation, from the Attempts page.
+//   3. If something looks wrong — nothing partial is shown to candidates.
+//   4. Where to find results — points to the Attempts page.
 //
-// Technical context (for engineers, not users):
-//   - No background grading jobs in Phase 2 mode.
-//   - AI evaluation runs only on a super-admin click (P2.D3: no BullMQ
-//     processors for AI grading); tenant routes return 403
-//     AI_EVALUATION_BY_ASSESSIQ.
-//   - Card 4 ("Coming soon") will become a live job table when async grading
-//     ships (Phase 3+).
+// Facts behind the copy: AssessIQ evaluates written answers from the
+// super-admin queue and the company only reviews and publishes. AI evaluation
+// runs only on a super-admin click (no BullMQ processors for AI grading);
+// tenant routes return 403 AI_EVALUATION_BY_ASSESSIQ.
+//
+// History: 2026-05-04 rewritten in plain language (no internal project
+// jargon). 2026-10-01 rewritten for the scoring/release change.
 //
 // INVARIANTS:
 //   - No claude/anthropic imports or user-facing references.
-//   - No new @assessiq/ui-system primitives — uses existing Card, Chip, Icon.
+//   - No new @assessiq/ui-system primitives — uses existing Card, Icon.
 
 import React from "react";
 import { useNavigate } from "react-router-dom";

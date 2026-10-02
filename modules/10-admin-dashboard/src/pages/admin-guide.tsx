@@ -275,25 +275,6 @@ function TipCard({
   );
 }
 
-// ── Inline code ───────────────────────────────────────────────────────────────
-
-function _Code({ children }: { children: string }): React.ReactElement {
-  return (
-    <code
-      style={{
-        fontFamily: "var(--aiq-font-mono)",
-        fontSize: "var(--aiq-text-xs)",
-        background: "var(--aiq-color-bg-sunken)",
-        border: "1px solid var(--aiq-color-border)",
-        borderRadius: "var(--aiq-radius-sm)",
-        padding: "1px 5px",
-      }}
-    >
-      {children}
-    </code>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function AdminGuide(): React.ReactElement {

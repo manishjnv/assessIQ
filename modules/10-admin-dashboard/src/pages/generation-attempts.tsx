@@ -192,8 +192,10 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
   const ALL_TYPES = ["mcq", "kql", "subjective", "log_analysis", "scenario"] as const;
   const typeMap = new Map(result.structural.per_type.map((r) => [r.type, r]));
 
-  // Pad rows so all five types always appear (zero rows for absent types)
-  const rows = ALL_TYPES.map((t) => typeMap.get(t) ?? { type: t, total: 0, passed: 0, failed: 0, failures: [] });
+  // The five AI-generated types always show (zero rows when absent); any other
+  // type the server returns also shows, after them in server order.
+  const allTypes: string[] = [...new Set<string>([...ALL_TYPES, ...result.structural.per_type.map((r) => r.type)])];
+  const rows = allTypes.map((t) => typeMap.get(t) ?? { type: t, total: 0, passed: 0, failed: 0, failures: [] });
 
   const tableStyle: React.CSSProperties = {
     width: "100%",

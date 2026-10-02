@@ -175,7 +175,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                   candidateName,
                   attempt.level_label,
                   attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : null,
-                ].filter(Boolean).join(" · ") || "Candidate / assessment details pending backend enrichment"}
+                ].filter(Boolean).join(" · ") || "Candidate details are not available"}
               </span>
               {attempt.isErased && <ErasedChip />}
             </div>

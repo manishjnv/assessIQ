@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useSession } from './session';
 import type { ReactNode } from 'react';
 
@@ -8,12 +8,13 @@ import type { ReactNode } from 'react';
 //   - no session  → redirect to unauthRedirect (default /admin/login),
 //                   preserving from-path in state
 //   - mfaStatus=pending and not on /admin/mfa → redirect to /admin/mfa
-//   - role mismatch → redirect to unauthRedirect
+//   - role mismatch → render a "no access" notice with a link to unauthRedirect
+//                     (children never render)
 //
 // Role hierarchy for the gate:
 //   super_admin satisfies 'admin' and 'reviewer' (super_admin > admin > reviewer > candidate).
 //   HOWEVER, when role === 'super_admin', ONLY a session with role === 'super_admin' passes.
-//   A plain 'admin' is NOT a super_admin and must be redirected — super_admin is a
+//   A plain 'admin' is NOT a super_admin and must be blocked — super_admin is a
 //   platform-level role above the tenant hierarchy, not a peer of admin. This asymmetry
 //   prevents tenant admins from accessing platform-only routes while preserving the
 //   existing behaviour for all other role gates. This is FE defense-in-depth; the
@@ -53,6 +54,28 @@ export function RequireSession({
     );
   }
 
+  const noAccess = (
+    <div
+      role="alert"
+      className="aiq-screen"
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        alignContent: 'center',
+        gap: 'var(--aiq-space-md)',
+        fontFamily: 'var(--aiq-font-sans)',
+        fontSize: 'var(--aiq-text-md)',
+        color: 'var(--aiq-color-fg-secondary)',
+      }}
+    >
+      <p style={{ margin: 0 }}>You do not have access to this page.</p>
+      <Link to={unauthRedirect} style={{ color: 'var(--aiq-color-accent)' }}>
+        Sign in with a different account
+      </Link>
+    </div>
+  );
+
   if (!session) {
     return <Navigate to={unauthRedirect} replace state={{ from: loc.pathname }} />;
   }
@@ -67,13 +90,13 @@ export function RequireSession({
   if (role !== undefined) {
     const isSuperAdmin = session.user.role === 'super_admin';
     if (role === 'super_admin') {
-      // Exact-match: only super_admin passes. A plain admin is redirected.
+      // Exact-match: only super_admin passes. A plain admin sees the notice.
       if (!isSuperAdmin) {
-        return <Navigate to={unauthRedirect} replace />;
+        return noAccess;
       }
     } else if (session.user.role !== role && !isSuperAdmin) {
       // For other roles, super_admin satisfies the gate.
-      return <Navigate to={unauthRedirect} replace />;
+      return noAccess;
     }
   }
 
