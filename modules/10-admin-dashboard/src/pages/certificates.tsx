@@ -1211,7 +1211,7 @@ export function AdminCertificates(): React.ReactElement {
                 Verify URL
               </span>
               <a
-                href={`https://assessiq.automateedge.cloud/verify/${selectedCert.credential_id}`}
+                href={`${window.location.origin}/verify/${selectedCert.credential_id}`}
                 target="_blank"
                 rel="noopener"
                 style={{
@@ -1221,7 +1221,7 @@ export function AdminCertificates(): React.ReactElement {
                   wordBreak: "break-all",
                 }}
               >
-                {`https://assessiq.automateedge.cloud/verify/${selectedCert.credential_id}`}
+                {`${window.location.origin}/verify/${selectedCert.credential_id}`}
               </a>
             </div>
 

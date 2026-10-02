@@ -280,7 +280,7 @@ function InviteForm({
         >
           {isCandidate
             ? "Candidates are added directly — no email is sent now. They'll receive a secure assessment link when you assign one."
-            : "They will receive a one-time sign-in link, valid for 72 hours."}
+            : "They will receive a one-time sign-in link, valid for 7 days."}
         </p>
 
         {toast && (

@@ -138,4 +138,21 @@ describe('Attempt runner with sections', () => {
     expect(screen.getByRole('button', { name: 'Submit' })).toBeTruthy();
     expect(screen.getByTestId('timer').textContent).toBe('2099-01-01T00:00:00.000Z');
   });
+
+  it('REGRESSION: a numeric answer box starts empty on the next numeric question', async () => {
+    const numQ = (i: number) => ({ ...mkQ(i, i), type: 'numeric', content: { question: `Numeric ${i}?` } });
+    currentView = {
+      attempt: { id: 'att1', status: 'in_progress', ends_at: '2099-01-01T00:00:00.000Z' },
+      questions: [numQ(1), numQ(2)],
+      answers: answersFor([1, 2]),
+      remaining_seconds: 600,
+    };
+    renderAttempt();
+    const box = (await screen.findByLabelText('Your answer (a number)')) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: '42' } });
+    expect(box.value).toBe('42');
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+    await screen.findByText('Question 2 of 2');
+    expect((screen.getByLabelText('Your answer (a number)') as HTMLInputElement).value).toBe('');
+  });
 });

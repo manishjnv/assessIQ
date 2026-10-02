@@ -911,7 +911,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
               </button>
             )}
             {assessment.status === "draft" && (
-              <div data-help-id="admin.assessments.content_source" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--aiq-space-xs)" }}>
+              <div data-help-id="admin.assessments.list.content_source" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--aiq-space-xs)" }}>
                 <HelpTip helpId="admin.assessments.publish">
                   <button
                     type="button"
