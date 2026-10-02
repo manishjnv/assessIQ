@@ -68,7 +68,7 @@ jobs:
       # 7. Upload full Playwright report (always, so failures are inspectable)
       - name: Upload Playwright visual report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-visual-report
           path: apps/web/playwright-report
@@ -77,7 +77,7 @@ jobs:
       # 8. Upload any snapshot diffs produced by the comparison run
       - name: Upload snapshot diffs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-visual-diffs
           path: apps/web/test-results
