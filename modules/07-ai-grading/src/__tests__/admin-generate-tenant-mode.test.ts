@@ -358,7 +358,7 @@ describe("handleAdminGenerate — per-tenant ai_generate_mode precedence (Stage 
   );
 });
 
-describe("handleAdminGenerate — shared generation plan (RV64)", () => {
+describe("handleAdminGenerate — shared generation plan (RV64 / RV62)", () => {
   // RV64: the single-call omnibus path used to skip topic de-duplication.
   it.skipIf(!dockerAvailable)(
     "single-call omnibus path drops a topic that already exists (case/space-insensitive)",
@@ -380,6 +380,42 @@ describe("handleAdminGenerate — shared generation plan (RV64)", () => {
           existingTopics: ["existing topic"],
         });
         expect(result.generated).toBe(0);
+      } finally {
+        await setTenantGenerateMode(TENANT_ID, null);
+      }
+    },
+  );
+
+  // RV62: topicFocus must reach the runtime input on every path.
+  it.skipIf(!dockerAvailable)(
+    "topicFocus reaches the runtime input (omnibus and sharded); absent when not given",
+    async () => {
+      const { packId, levelId } = await withSuperClient((c) =>
+        seedPack(c, TENANT_ID, ADMIN_ID),
+      );
+
+      try {
+        // omnibus single call
+        await setTenantGenerateMode(TENANT_ID, "omnibus");
+        mockGenerateQuestions.mockReset();
+        mockGenerateQuestionsByType.mockReset();
+        mockGenerateQuestions.mockResolvedValueOnce(makeSuccessOutput("mcq"));
+        await handleAdminGenerate({ ...makeInput(packId, levelId), topicFocus: "Detect" });
+        expect(mockGenerateQuestions.mock.calls[0]![0].topicFocus).toBe("Detect");
+
+        // sharded
+        await setTenantGenerateMode(TENANT_ID, "sharded");
+        mockGenerateQuestions.mockReset();
+        mockGenerateQuestionsByType.mockReset();
+        mockGenerateQuestionsByType.mockResolvedValueOnce(makeSuccessOutput("mcq"));
+        await handleAdminGenerate({ ...makeInput(packId, levelId), topicFocus: "Detect" });
+        expect(mockGenerateQuestionsByType.mock.calls[0]![0].topicFocus).toBe("Detect");
+
+        // not given → no topicFocus key at all
+        mockGenerateQuestionsByType.mockReset();
+        mockGenerateQuestionsByType.mockResolvedValueOnce(makeSuccessOutput("mcq"));
+        await handleAdminGenerate(makeInput(packId, levelId));
+        expect(mockGenerateQuestionsByType.mock.calls[0]![0]).not.toHaveProperty("topicFocus");
       } finally {
         await setTenantGenerateMode(TENANT_ID, null);
       }
