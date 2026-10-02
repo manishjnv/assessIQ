@@ -44,18 +44,18 @@ const S = {
 // ── Short TOC labels (one per step) ──────────────────────────────────────────
 
 const STEP_LABELS: readonly string[] = [
-  "Create a pack",       // 01
-  "Add levels",          // 02
-  "Author questions",    // 03
-  "Activate questions",  // 04
-  "Publish the pack",    // 05
-  "Create a cycle",      // 06
+  "Find your sets",      // 01
+  "Copy a set",          // 02
+  "Question types",      // 03
+  "Build an assessment", // 04
+  "Sections & timers",   // 05
+  "Integrity settings",  // 06
   "Publish assessment",  // 07
   "Invite candidates",   // 08
   "Candidates take",     // 09
-  "Trigger grading",     // 10
-  "Review & override",    // 11
-  "Generate reports",    // 12
+  "Evaluation",          // 10
+  "Review & publish",    // 11
+  "Reports & results",   // 12
 ];
 
 // ── Shared style objects ──────────────────────────────────────────────────────
@@ -277,7 +277,7 @@ function TipCard({
 
 // ── Inline code ───────────────────────────────────────────────────────────────
 
-function Code({ children }: { children: string }): React.ReactElement {
+function _Code({ children }: { children: string }): React.ReactElement {
   return (
     <code
       style={{
@@ -337,8 +337,7 @@ export function AdminGuide(): React.ReactElement {
               color: "var(--aiq-color-fg-secondary)",
             }}
           >
-            End-to-end flow from question pack to candidate report — L1
-            (foundational) through L3 (expert).
+            From a licensed question set to candidate results.
           </p>
         </div>
 
@@ -357,20 +356,20 @@ export function AdminGuide(): React.ReactElement {
             Overview — the three-layer model.
           </h2>
           <Card padding="md">
-            <P>A scenario-driven assessment in AssessIQ has three layers:</P>
+            <P>An assessment in AssessIQ uses three things:</P>
             <UL
               items={[
-                <><strong>Question Pack</strong> — a versioned bundle of questions.</>,
-                <><strong>Level</strong> — difficulty tier within a pack (L1 junior, L2 mid, L3 senior).</>,
-                <><strong>Assessment Cycle</strong> — a scheduled instance of a published pack with invited candidates.</>,
+                <><strong>Licensed set</strong> — a question set that AssessIQ writes and your company is licensed to use.</>,
+                <><strong>Your copy</strong> — a copy (clone) of a licensed set in your Question Bank. You build assessments from it.</>,
+                <><strong>Assessment</strong> — a scheduled test with invited candidates.</>,
               ]}
             />
             <P>
               End-to-end flow:{" "}
               <strong>
-                build pack → add levels → add questions → publish pack →
-                create assessment → invite candidates → candidates take →
-                AssessIQ evaluates → you review and publish → reports.
+                copy a set → build an assessment → invite candidates →
+                candidates take the test → AssessIQ evaluates written answers →
+                you review and publish → reports.
               </strong>
             </P>
           </Card>
@@ -393,8 +392,8 @@ export function AdminGuide(): React.ReactElement {
           <Card padding="md">
             <UL
               items={[
-                <><strong>Admin role</strong> in your tenant.</>,
-                <>Google Workspace account with <strong>TOTP MFA enrolled</strong>.</>,
+                <><strong>Admin role</strong> in your company account.</>,
+                <>Two-factor sign-in (MFA) is <strong>optional and recommended</strong>.</>,
                 <>List of <strong>candidate email addresses</strong> ready.</>,
               ]}
             />
@@ -421,102 +420,79 @@ export function AdminGuide(): React.ReactElement {
             }}
           >
             {/* ── Step 1 ── */}
-            <StepCard number={1} title="Create a question pack">
+            <StepCard number={1} title="Find your licensed sets">
               <P>
-                Click <strong>Question Bank</strong> in the sidebar →{" "}
-                <strong>+ New pack</strong> → name it (e.g. "SOC Analyst Q2
-                2026") → add description + tags → <strong>Save</strong>.
+                Click <strong>Question Bank</strong> in the sidebar. The
+                licensed sets section lists the sets your company can use.
+                AssessIQ writes all question sets. Your company does not write
+                them. To get more sets, contact your AssessIQ administrator.
               </P>
             </StepCard>
 
             {/* ── Step 2 ── */}
-            <StepCard number={2} title="Add three levels — L1, L2, L3">
+            <StepCard number={2} title="Copy a set">
               <P>
-                Open the pack → <strong>+ Add level</strong>. Create three
-                levels:
-              </P>
-              <UL
-                items={[
-                  <><strong>L1 Foundational</strong> — knowledge checks, basic recognition.</>,
-                  <><strong>L2 Applied</strong> — multi-step scenarios, intermediate reasoning.</>,
-                  <><strong>L3 Expert</strong> — complex incident response, edge-case judgment.</>,
-                ]}
-              />
-              <P>
-                Each level has its own pass-band threshold (defaults are
-                sensible).
+                Import a licensed set to make your own copy (a clone). The copy
+                appears in your Question Bank. When AssessIQ updates the
+                original, an update option shows on the set.
               </P>
             </StepCard>
 
             {/* ── Step 3 ── */}
-            <StepCard number={3} title="Author questions per level">
-              <P>
-                Open a level → <strong>+ Add question</strong>. Pick a type:
-              </P>
+            <StepCard number={3} title="Know the question types">
+              <P>A set can contain these question types:</P>
               <UL
                 items={[
-                  <><strong>MCQ</strong> — auto-graded.</>,
-                  <><strong>Short answer / KQL pattern</strong> — auto-graded.</>,
-                  <><strong>Long answer</strong> — evaluated by AssessIQ with AI assistance; you review and publish.</>,
-                  <><strong>Code paste</strong> — evaluated by AssessIQ with AI assistance.</>,
+                  <><strong>MCQ</strong>, <strong>Multi-select</strong>, <strong>Numeric</strong> and <strong>Ordering</strong> — scored automatically when the candidate submits.</>,
+                  <><strong>Subjective</strong>, <strong>KQL</strong>, <strong>Log analysis</strong> and <strong>Scenario</strong> — evaluated by AssessIQ. You review and publish the result.</>,
                 ]}
               />
-              <P>
-                Write the prompt and <strong>rubric anchors</strong>. For each
-                anchor band (0 / 25 / 50 / 75 / 100) describe what that level
-                of answer looks like and provide one or two example answers.
-                Add at least 5 questions per level.
-              </P>
             </StepCard>
 
             {/* ── Step 4 ── */}
-            <StepCard number={4} title="Activate questions">
+            <StepCard number={4} title="Build an assessment">
               <P>
-                Questions are <strong>draft</strong> by default. Use the{" "}
-                <strong>Activate all</strong> affordance on the level page.
-                Activated questions become eligible for assessments.
+                Click <strong>Assessments</strong> → <strong>+ New Assessment</strong>.
+                Pick a set, then set the name and the open and close window.
+                Save the assessment as a draft.
               </P>
             </StepCard>
 
             {/* ── Step 5 ── */}
-            <StepCard number={5} title="Publish the pack">
+            <StepCard number={5} title="Add sections and timers">
               <P>
-                From the pack overview → <strong>Publish</strong>. This
-                snapshots the current pack version. New edits land in a new
-                draft version; assessments stay locked to the published version
-                they were created against.
+                When you build from a set, you can split the test into
+                sections. Each section has its own time limit. You can allow
+                an on-screen calculator in a section.
               </P>
             </StepCard>
 
             {/* ── Step 6 ── */}
-            <StepCard number={6} title="Create an assessment cycle">
+            <StepCard number={6} title="Set integrity options">
               <P>
-                Use the <strong>+ New assessment</strong> affordance on the
-                Assessments page. Pick the published pack, set the open + close
-                window, optionally pre-select levels. Save as draft.
+                Turn on the options you need: a fullscreen requirement for the
+                candidate, and a block on copy and paste. You can change these
+                on the assessment page. AssessIQ does not use webcam proctoring.
               </P>
             </StepCard>
 
             {/* ── Step 7 ── */}
             <StepCard number={7} title="Publish the assessment">
               <P>
-                Review settings → <strong>Publish</strong>. The cycle is live;
-                invitations can now be sent.
+                Review the settings → <strong>Publish</strong>. The assessment
+                is live and you can send invitations.
               </P>
             </StepCard>
 
             {/* ── Step 8 ── */}
             <StepCard number={8} title="Invite candidates">
               <P>
-                <strong>Users → + Invite user</strong> → role{" "}
-                <Code>candidate</Code>, paste email, save.
+                Open the assessment page. Invite candidates one by one, or use{" "}
+                <strong>Import from CSV</strong> to add many at once (up to 1,000 rows in one file).
               </P>
               <P>
-                From the cycle detail page →{" "}
-                <strong>+ Invite to assessment</strong> → select candidates →
-                Send. Each candidate receives a magic-link email
-                (single-use, 7-day TTL). Track invitation status on the cycle
-                detail page. If a candidate misses the window, press{" "}
+                Each candidate receives an email with a link that is valid for
+                7 days. Track invitation status on the assessment page. If a candidate misses the window, press{" "}
                 <strong>Resend</strong> on their row (or{" "}
                 <strong>Resend to everyone who hasn&apos;t started</strong>) —
                 they get a fresh 7-day link and the old one stops working.
@@ -535,10 +511,8 @@ export function AdminGuide(): React.ReactElement {
             {/* ── Step 9 ── */}
             <StepCard number={9} title="Candidates take the assessment">
               <P>
-                Candidates click the magic link → token landing → Start → the
-                SPA shows the attempt UI. Autosave every 5 s, timer per level.
-                Submit moves status <Code>in_progress</Code> →{" "}
-                <Code>submitted</Code>. The attempt appears under{" "}
+                Candidates open the link and start the test. The timer starts when
+                they begin. When a candidate submits, the attempt appears under{" "}
                 <strong>Attempts</strong> in your sidebar.
               </P>
               <div style={{ marginTop: "var(--aiq-space-sm)" }}>
@@ -583,7 +557,7 @@ export function AdminGuide(): React.ReactElement {
               </P>
               <UL
                 items={[
-                  <><strong>Publish to candidate</strong> — the candidate sees the result. On the assessment page, <strong>Publish all ready</strong> does this for every ready attempt at once. With Automatic release (Settings) results publish themselves.</>,
+                  <><strong>Publish to candidate</strong> — the candidate sees the result. On the assessment page, <strong>Publish all ready</strong> does this for every ready attempt at once. In Settings you choose the result release mode: <strong>Manual</strong> (the default) or <strong>Automatic</strong>. With Automatic, results publish when they are ready. Candidates see only complete scores.</>,
                   <><strong>Override</strong> — record your own score with a reason; the evaluator's score is kept beside it (audit trail, never replaced).</>,
                   <><strong>Send back for re-evaluation</strong> — return the attempt to AssessIQ with a note.</>,
                 ]}
@@ -593,11 +567,11 @@ export function AdminGuide(): React.ReactElement {
             {/* ── Step 12 ── */}
             <StepCard number={12} title="Generate reports">
               <P>
-                <strong>Reports → Cohort report</strong> — per-cycle rollup:
-                pass rate, average band per level, archetype distribution. Or{" "}
-                <strong>Individual report</strong> — per-candidate summary with
-                anchor citations + recommendations. Export CSV from either
-                view.
+                <strong>Reports</strong> has a cohort report for each assessment
+                and an individual report for each candidate. On the assessment
+                page, <strong>Download results (CSV)</strong> exports the
+                results. <strong>Certificates</strong> in the sidebar lists the
+                certificates you have issued.
               </P>
               <div
                 style={{
@@ -618,7 +592,7 @@ export function AdminGuide(): React.ReactElement {
                   className="aiq-btn aiq-btn-outline aiq-btn-sm"
                   onClick={() => navigate("/admin/grading-jobs")}
                 >
-                  Grading jobs →
+                  How grading works →
                 </button>
               </div>
             </StepCard>
@@ -646,32 +620,32 @@ export function AdminGuide(): React.ReactElement {
             <TipCard
               icon="chart"
               title="Bands, not percentages"
-              body="AssessIQ never shows a raw '73%' — every score is one of {0, 25, 50, 75, 100}. Configure rubric anchors per question before publishing the pack."
+              body="Written answers are scored in bands: 0, 25, 50, 75 or 100. Each band comes with evidence and reasoning."
             />
             <TipCard
               icon="eye"
               title="Audit log"
-              body="Every grade trigger, override, and invite is captured in the append-only audit log. The Settings → Audit log page is coming soon. Records cannot be edited or deleted."
+              body="Admin actions are recorded."
             />
             <TipCard
               icon="sparkle"
               title="Re-evaluation"
-              body="Not happy with a score? Override it with a reason, or send the attempt back to AssessIQ for re-evaluation with a note. Companies don't run AI grading themselves."
+              body="Not happy with a score? Override it with a reason, or send the attempt back to AssessIQ for re-evaluation with a note. AssessIQ does the evaluation, not your company."
             />
             <TipCard
               icon="grid"
               title="Multi-tenant"
-              body="Every action is scoped to your tenant. You only see your tenant's data — question packs, users, grades, and reports are strictly isolated at the database row level."
+              body="Every action is scoped to your tenant. You only see your tenant's data — question sets, users, grades, and reports are strictly isolated at the database row level."
             />
             <TipCard
               icon="sparkle"
               title="Where your questions come from"
-              body="Questions are generated by your platform operator and added to a shared library. Your company works from the content it has been granted. If you try to publish an assessment with an un-granted pack, publishing will be refused and the assessment stays in draft — contact your platform operator to get more content enabled."
+              body="AssessIQ writes all question sets. Your company works from the sets it is licensed to use. If you publish an assessment with a set you are not licensed for, publishing is refused and the assessment stays in draft. Contact your AssessIQ administrator to get more sets."
             />
             <TipCard
               icon="chart"
               title="Your plan & usage"
-              body="One credit is used when a candidate attempt is graded. Re-grading the same attempt never charges again. The banner at the top of your dashboard turns amber when you reach 80% of your included credits and red when you go over — but grading never stops. Contact your platform operator to discuss your plan."
+              body="One credit is used when a candidate attempt is graded. Re-grading the same attempt never charges again. The banner at the top of your dashboard turns amber when you reach 80% of your included credits and red when you go over — but grading never stops. Contact your AssessIQ administrator to discuss your plan."
             />
           </div>
         </section>
@@ -705,20 +679,20 @@ export function AdminGuide(): React.ReactElement {
                   a: "AssessIQ handles it. An attempt stays in the AssessIQ queue until every question has a final score, and nothing is shown to the candidate before that.",
                 },
                 {
-                  q: "Can I edit a published pack?",
-                  a: "Yes, edits land in a new version. Existing assessments stay locked to the version snapshot they were created against.",
+                  q: "Does a change to a licensed set change my assessments?",
+                  a: "No. Existing assessments keep the questions they were published with.",
                 },
                 {
                   q: "What happens at the close window?",
                   a: "The cycle closes automatically. In-progress attempts auto-submit at their per-attempt timer expiry, regardless of cycle status.",
                 },
                 {
-                  q: "Why can't I generate questions?",
-                  a: "Question generation is done by your platform operator, not by company admins. Your platform operator generates questions into the shared library and then grants your company access to the relevant content. You assemble and publish assessments from that granted content. Contact your platform operator to request more question packs or subject domains.",
+                  q: "Why can't I write questions?",
+                  a: "AssessIQ writes all question sets. Company admins do not write them. You copy the sets your company is licensed for and build assessments from them. Contact your AssessIQ administrator to request more sets.",
                 },
                 {
                   q: "What does the usage banner mean — will grading stop if I go over?",
-                  a: "No — grading never stops. The banner is informational only. Green means you have used less than 80% of your included credits. Amber means 80–100% used. Red means you are over your included credits, but assigning, submitting, and grading all continue to work. Contact your platform operator if you need to discuss your plan.",
+                  a: "No — grading never stops. The banner is informational only. Green means you have used less than 80% of your included credits. Amber means 80–100% used. Red means you are over your included credits, but assigning, submitting, and grading all continue to work. Contact your AssessIQ administrator if you need to discuss your plan.",
                 },
               ] as Array<{ q: string; a: string }>
             ).map(({ q, a }) => (

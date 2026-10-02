@@ -54,7 +54,7 @@ const TokenLanding = lazy(() => import('./pages/take').then(m => ({ default: m.T
 const TryPage = lazy(() => import('./pages/try/Try').then(m => ({ default: m.TryPage })));
 const TryCertificatePage = lazy(() => import('./pages/try/TryCertificate').then(m => ({ default: m.TryCertificatePage })));
 
-const tenant = TENANT_FIXTURES['wipro-soc'];
+const tenant = TENANT_FIXTURES['default'];
 
 export function App(): React.JSX.Element {
   return (

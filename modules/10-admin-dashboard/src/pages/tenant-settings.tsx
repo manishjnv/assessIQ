@@ -53,15 +53,6 @@ const RELEASE_OPTIONS: ReadonlyArray<{ value: ReleaseMode; label: string; help: 
   },
 ];
 
-// Shape returned by GET /api/admin/me — we only care about the retention field.
-interface AdminMeResponse {
-  tenant?: {
-    retention_days?: number;
-  };
-  // other fields not used here
-  [k: string]: unknown;
-}
-
 interface RetentionReport {
   tenantId: string;
   retentionDays: number;
@@ -259,20 +250,8 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
       const is404 =
         primaryErr instanceof AdminApiError && primaryErr.status === 404;
 
-      if (is404) {
-        // Fallback: GET /api/admin/me — may carry tenant.retention_days
-        try {
-          const me = await adminApi<AdminMeResponse>("/admin/me");
-          const days = me.tenant?.retention_days;
-          if (typeof days === "number") {
-            setRetentionDays(days);
-            setInputValue(String(days));
-          }
-          // If not present: leave null — input stays empty
-        } catch {
-          // Non-fatal: show empty input, let admin set value
-        }
-      } else {
+      // 404: no settings row yet — leave empty, admin sets the value.
+      if (!is404) {
         const msg =
           primaryErr instanceof AdminApiError
             ? primaryErr.apiError.message

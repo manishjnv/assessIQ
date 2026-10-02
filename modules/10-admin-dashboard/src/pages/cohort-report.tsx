@@ -12,7 +12,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Chip, Spinner, StatCard } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { ArchetypeRadar } from "../components/ArchetypeRadar.js";
 import { adminApi, AdminApiError } from "../api.js";
 
 interface CohortStats {
@@ -134,11 +133,6 @@ export function AdminCohortReport(): React.ReactElement {
                 </div>
               ))}
             </div>
-            {Object.keys(stats.archetype_distribution).length > 0 && (
-              <div style={{ marginTop: "var(--aiq-space-lg)" }}>
-                <ArchetypeRadar signals={stats.archetype_distribution as unknown as Parameters<typeof ArchetypeRadar>[0]["signals"]} />
-              </div>
-            )}
           </div>
         )}
 

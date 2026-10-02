@@ -342,7 +342,12 @@ export function AdminPackDetail(): React.ReactElement {
       setLoading(false);
     }
     // Fetch last generation attempt for each level (best-effort; errors silently ignored)
+    // Route is super_admin-only server-side; skip for tenant admins (would 403).
     const attempts: Record<string, GenerationAttempt | null> = {};
+    if (!isSuperAdmin) {
+      setLastAttempts(attempts);
+      return;
+    }
     await Promise.allSettled(
       fetchedLevels.map(async (level) => {
         try {
@@ -356,7 +361,7 @@ export function AdminPackDetail(): React.ReactElement {
       }),
     );
     setLastAttempts(attempts);
-  }, [id]);
+  }, [id, isSuperAdmin]);
 
   /** Refresh attempts for a single level after a generate completes or fails. */
   const refreshAttempt = useCallback(async (packId: string, levelId: string) => {
