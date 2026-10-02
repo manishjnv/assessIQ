@@ -335,9 +335,9 @@ export function AdminMfa(): React.JSX.Element {
           </Card>
         </main>
         <footer style={{ ...META_LABEL, padding: '16px 32px', display: 'flex', gap: 16, borderTop: '1px solid var(--aiq-color-border)' }}>
-          <span>Phase 0 · 2026</span>
+          <span>AssessIQ</span>
           <span style={{ flex: 1 }} />
-          <span>Google SSO · TOTP-ready</span>
+          <span>Two-step sign-in</span>
         </footer>
       </div>
     );
@@ -614,9 +614,9 @@ export function AdminMfa(): React.JSX.Element {
           borderTop: '1px solid var(--aiq-color-border)',
         }}
       >
-        <span>Phase 0 · 2026</span>
+        <span>AssessIQ</span>
         <span style={{ flex: 1 }} />
-        <span>Google SSO · TOTP-ready</span>
+        <span>Two-step sign-in</span>
       </footer>
     </div>
   );

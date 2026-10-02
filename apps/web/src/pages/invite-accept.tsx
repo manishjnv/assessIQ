@@ -170,7 +170,7 @@ export function InviteAccept(): React.JSX.Element {
           {/* Mono microcopy footer — only on pending */}
           {mode === 'pending' && token !== null && (
             <p style={{ ...META_LABEL, marginTop: 22, letterSpacing: '0.06em' }}>
-              Token #{token.slice(0, 8)} · 72 h TTL
+              Link valid for 7 days
             </p>
           )}
         </Card>
@@ -186,9 +186,9 @@ export function InviteAccept(): React.JSX.Element {
           borderTop: '1px solid var(--aiq-color-border)',
         }}
       >
-        <span>Phase 0 · 2026</span>
+        <span>AssessIQ</span>
         <span style={{ flex: 1 }} />
-        <span>Single-use · 72 h TTL</span>
+        <span>Single-use link · valid 7 days</span>
       </footer>
     </div>
   );

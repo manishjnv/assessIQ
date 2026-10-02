@@ -284,13 +284,13 @@ export function MyCertificates(): React.ReactElement {
 
                   {/* Share on LinkedIn */}
                   {isRevoked ? (
-                    <button type="button" disabled data-help-id="candidate.cert.share-linkedin" style={ACTION_DISABLED_STYLE}>
+                    <button type="button" disabled data-help-id="candidate.cert.share_linkedin" style={ACTION_DISABLED_STYLE}>
                       Share on LinkedIn
                     </button>
                   ) : (
                     <button
                       type="button"
-                      data-help-id="candidate.cert.share-linkedin"
+                      data-help-id="candidate.cert.share_linkedin"
                       style={ACTION_STYLE}
                       onClick={() => {
                         void shareCertificateLinkedIn(cert.credential_id);

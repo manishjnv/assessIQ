@@ -1384,8 +1384,10 @@ export function AttemptPage(): React.JSX.Element {
                   </p>
                 )}
 
-              {/* Type-switched answer area */}
+              {/* Type-switched answer area. The key resets local draft state
+                  (numeric text box) when the question changes. */}
               <AnswerArea
+                key={currentQuestion.question_id}
                 question={currentQuestion}
                 answer={answers.get(currentQuestion.question_id) ?? null}
                 disabled={locked}
