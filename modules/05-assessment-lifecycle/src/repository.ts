@@ -184,6 +184,81 @@ export async function findAssessmentById(
   return row !== undefined ? mapAssessmentRow(row) : null;
 }
 
+// ---------------------------------------------------------------------------
+// Frozen-pool preview reads (RV63) — admin preview must match what candidates
+// draw from (assessment_frozen_pool, migration 0096). Read-only.
+// ---------------------------------------------------------------------------
+
+/** Rows frozen for this assessment; 0 => never frozen (draft or pre-0096). */
+export async function countFrozenPoolRows(
+  client: PoolClient,
+  assessmentId: string,
+): Promise<number> {
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*) FROM assessment_frozen_pool WHERE assessment_id = $1`,
+    [assessmentId],
+  );
+  return parseInt(result.rows[0]?.count ?? "0", 10);
+}
+
+/** Frozen rows matching one blueprint criterion (same filters as the live query). */
+export async function countFrozenForCriterion(
+  client: PoolClient,
+  assessmentId: string,
+  domainId: string,
+  categoryId: string,
+  type: string,
+): Promise<number> {
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*) FROM assessment_frozen_pool
+      WHERE assessment_id = $1 AND domain_id = $2 AND category_id = $3 AND type = $4`,
+    [assessmentId, domainId, categoryId, type],
+  );
+  return parseInt(result.rows[0]?.count ?? "0", 10);
+}
+
+/** Sample of frozen questions for one criterion (topic via questions; points as frozen). */
+export async function listFrozenForCriterionPreview(
+  client: PoolClient,
+  assessmentId: string,
+  domainId: string,
+  categoryId: string,
+  type: string,
+  limit: number,
+): Promise<unknown[]> {
+  const result = await client.query(
+    `SELECT q.id, q.topic, fp.type, COALESCE(fp.points, q.points) AS points
+       FROM assessment_frozen_pool fp
+       JOIN questions q ON q.id = fp.question_id
+      WHERE fp.assessment_id = $1 AND fp.domain_id = $2
+        AND fp.category_id = $3 AND fp.type = $4
+      ORDER BY q.created_at ASC, q.id ASC
+      LIMIT $5`,
+    [assessmentId, domainId, categoryId, type, limit],
+  );
+  return result.rows;
+}
+
+/** Sample of the whole frozen pool (legacy, non-blueprint preview). */
+export async function listFrozenForPreview(
+  client: PoolClient,
+  assessmentId: string,
+  limit: number,
+): Promise<unknown[]> {
+  const result = await client.query(
+    `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic,
+            COALESCE(fp.points, q.points) AS points, q.status, fp.question_version AS version,
+            q.content, q.rubric, q.created_by, q.created_at, q.updated_at
+       FROM assessment_frozen_pool fp
+       JOIN questions q ON q.id = fp.question_id
+      WHERE fp.assessment_id = $1
+      ORDER BY q.created_at ASC, q.id ASC
+      LIMIT $2`,
+    [assessmentId, limit],
+  );
+  return result.rows;
+}
+
 /**
  * Like findAssessmentById but also JOINs levels.label and question_packs.name
  * for the admin detail view. Returns level_label and pack_name as optional
