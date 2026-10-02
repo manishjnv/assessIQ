@@ -1,3 +1,41 @@
+# Session — 2026-10-02 (m) — full project review (read-only): fix plan, feature review register, two owner rules
+
+**Headline:** A read-only review of all code, docs and features is complete. No code, schema or server change. The result is a fix plan in 11 sessions, a register of 26 dormant features to review, two standing owner rules and three owner decisions.
+**Commits:** this handoff entry only (docs). No code commit.
+**Deploy:** none. Production was read only (container build times, flags, row counts, three live fetches).
+**Tests:** not run (no code change).
+**Result:** the core flows operate. Dormant code is concentrated in a few areas (audit read side, in-app notifications, embed package, AI runtime stubs, tenant grading budget and jobs, webhook delivery, about 35 routes with no screen). Text is stale in the admin UI, the help content, the marketing site and the docs (`PROJECT_BRAIN.md`, `CLAUDE.md`, `README.md` and the pending task list most of all).
+**Owner rules (apply to every session from now on):**
+- **Rule A — keep dormant features.** Do not delete a feature, screen or code path because it is stale. Review it: first purpose, what operates today, better option, possible merge with a newer feature. Result: revive, merge, improve or park. A delete needs written detailed research, an item that is absolutely useless for a professional product, and the owner's approval for that item.
+- **Rule B — check old against new.** Before any new task, look for a similar older task or feature. If one exists, compare both and implement the better or the combined version. Write "old task or feature checked: …" in the handoff.
+**Owner decisions:** the product has plan tiers (not free); the reviewer role is to be removed; MFA for tenant admins stays optional now and is enabled later (all MFA code stays).
+**Next (Claude):** RS1 = candidate-facing defects, before the first real pilot drive. Then RS2 to RS5 (brand and untrue admin text, help text, marketing truth pass 2, docs truth pass). Then RS6 = read-only feature review, with PT1 (define the plan tiers) first.
+**Next (Owner):** keep or drop the "Organisation code" on the candidate portal login; tier contents, prices and payment provider; items still open from older sessions (push-gate hook approval, eval bless).
+**Open questions:** (1) Does "MFA to enable later" mean one production switch, or a switch for each tenant? (2) Add Rules A and B to `CLAUDE.md` and `PROJECT_BRAIN.md` (planned in RS5; `CLAUDE.md` needs owner approval).
+**Docs (local only, gitignored, not in the public repo):** plan with every finding, evidence and the session record: `docs/plans/REVIEW_FIX_PLAN_2026-10-02.md` (§ 3 rules, § 4 decisions, § 5 sessions RS1 to RS11, § 6 feature register PT1 + FR1 to FR25, § 7 old ↔ new pairs, § 11 session record). Roadmap rows: `docs/PENDING_TASKS_2026-10-01.md` § P0-V.
+**Coordination:** ran beside session (l), batch 8. The review saw code up to `b3dbd7e`. It did not examine the `ordering` question type or the split `platform/` files. Line numbers in the plan can be old: search for the text.
+
+**Process notes for the next session:**
+- One "no caller found" result is not proof that code is unused. The second pass found callers that the first pass missed. Check with a second, independent search.
+- Tell read-only agents: no temporary files anywhere, use shell pipes.
+- In a script sent through `ssh … 'bash -s'`, `docker exec -i` reads the rest of the script as input. Use `docker exec` with no `-i`, or add `</dev/null`.
+
+---
+
+## Agent utilization
+- Opus: n/a — the main session ran on Fable 5.1: agent briefs, about 80 direct checks (searches, file reads, read-only production checks), the report, the plan, the roadmap section, memory notes.
+- Sonnet: 9 read-only review agents (3 in pass 1, 6 in pass 2).
+- Haiku: n/a — the checks were small inline commands.
+- codex:rescue: n/a — no code change.
+- claude-mem: honoured docs-folder-gitignored, vps-shared-host, parallel-session-shared-working-tree, feedback-status-claude-tasks-only. Saved the two owner rules and the decisions as new notes; corrected 6 stale notes.
+- Routing telemetry:
+  - Sonnet · backend dormant-code review · reworked: Y (3 rows corrected in pass 2)
+  - Sonnet · UI dormant and stale review · reworked: Y (6 of 9 "unused parts" are used; CSV limit claim wrong)
+  - Sonnet · docs contradiction review · reworked: N
+  - Sonnet · pass 2 verify and deep-read x6 · reworked: N
+
+---
+
 # Session — 2026-10-02 (l) — batch 8: SEO dates + IndexNow, ops (Caddy copy, key rotation tool), ordering question type
 
 **Headline:** Batch 8 is LIVE on https://assessiq.in (HEAD `6336f61`): page dates and IndexNow for the marketing site, a non-blocking font stylesheet, a Caddy reference copy and a MASTER_KEY rotation tool (not run on prod), the new deterministic `ordering` question type, and two refactors (platform.tsx split, `as any` removed).
