@@ -23,8 +23,8 @@ const Demo = () => (
   </Card>
 );
 
-export const WiproSoc: Story = {
-  args: { branding: TENANT_FIXTURES["wipro-soc"]!.branding, children: <Demo /> },
+export const DefaultTenant: Story = {
+  args: { branding: TENANT_FIXTURES["default"]!.branding, children: <Demo /> },
 };
 
 export const DemoBlue: Story = {
@@ -37,7 +37,7 @@ export const DemoTeal: Story = {
 
 export const Compact: Story = {
   args: {
-    branding: TENANT_FIXTURES["wipro-soc"]!.branding,
+    branding: TENANT_FIXTURES["default"]!.branding,
     density: "compact",
     children: <Demo />,
   },

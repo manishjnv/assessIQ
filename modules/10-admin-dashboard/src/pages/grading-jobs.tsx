@@ -22,7 +22,7 @@
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Chip, Icon } from "@assessiq/ui-system";
+import { Card, Icon } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 
 // ── Shared style objects ──────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export function AdminGradingJobs(): React.ReactElement {
           </div>
         </Card>
 
-        {/* Card 3 — If grading fails */}
+        {/* Card 3 — If something looks wrong */}
         <Card>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
@@ -146,19 +146,15 @@ export function AdminGradingJobs(): React.ReactElement {
           </div>
         </Card>
 
-        {/* Card 4 — Coming soon */}
+        {/* Card 4 — Where to find results */}
         <Card>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
-              <Icon name="clock" size={18} color="var(--aiq-color-fg-muted)" />
-              <h2 style={{ ...SERIF_H2, color: "var(--aiq-color-fg-muted)" }}>Coming soon</h2>
-              <Chip variant="default">Coming soon</Chip>
+              <Icon name="clock" size={18} color="var(--aiq-color-accent)" />
+              <h2 style={SERIF_H2}>Where to find results</h2>
             </div>
             <p style={BODY}>
-              A list of running, queued, and recently failed grading jobs will appear here when AssessIQ moves to background grading.
-            </p>
-            <p style={MUTED_SM}>
-              Until then, this page is informational. Evaluation happens in AssessIQ's own queue; you review the result on the attempt page.
+              This page explains the process. You review each result on the Attempts page.
             </p>
           </div>
         </Card>
@@ -176,28 +172,6 @@ export function AdminGradingJobs(): React.ReactElement {
           </button>
           {" "}for the full end-to-end assessment flow.
         </p>
-
-        {/* Technical details — for engineers / audit purposes */}
-        <details style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-          <summary style={{ cursor: "pointer", userSelect: "none", padding: "var(--aiq-space-sm) 0" }}>
-            Technical details (for engineers)
-          </summary>
-          <div
-            className="aiq-card"
-            style={{ marginTop: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", background: "var(--aiq-color-bg-sunken)" }}
-          >
-            <p style={{ margin: 0, lineHeight: 1.6 }}>
-              <strong>Phase 2 mode — sync grading.</strong> No background grading jobs exist.
-              Grading is triggered manually via POST /admin/super/evaluations/:id/grade and
-              runs synchronously on a super-admin click (P2.D3: no BullMQ processors for AI).
-              Tenant admins cannot run AI grading — their routes return 403 AI_EVALUATION_BY_ASSESSIQ.
-            </p>
-            <p style={{ margin: 0, lineHeight: 1.6 }}>
-              Background async grading (BullMQ) is deferred to Phase 3. This page will show
-              running, queued, and failed job rows when that feature ships.
-            </p>
-          </div>
-        </details>
 
       </div>
     </AdminShell>
