@@ -1116,6 +1116,17 @@ export function AttemptPage(): JSX.Element {
     isAnsweredValue(answers.get(it.questionId)),
   ).length;
   const unansweredCount = totalCount - answeredCount;
+  // Test sections: the final dialog counts EVERY section. The current section uses the
+  // live local answers (autosave may lag); finished/upcoming ones use the server counts.
+  const sectionLines = (view.sections_summary ?? []).map((s) =>
+    s.status === 'current'
+      ? { ...s, question_count: totalCount, answered_count: answeredCount }
+      : s,
+  );
+  const overallUnanswered =
+    sectionLines.length > 0
+      ? sectionLines.reduce((n, s) => n + (s.question_count - s.answered_count), 0)
+      : unansweredCount;
   const flaggedCount = sorted.filter((q) => flags.get(q.question_id) ?? false).length;
 
   // ── Navigator body (shared between desktop aside and mobile <Drawer>) ─────
@@ -1561,13 +1572,28 @@ export function AttemptPage(): JSX.Element {
         title="Submit your test?"
       >
         <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
-          <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
-            You answered {answeredCount} of {totalCount} questions.
-          </p>
-          {unansweredCount > 0 && (
+          {sectionLines.length === 0 ? (
+            <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
+              You answered {answeredCount} of {totalCount} questions.
+            </p>
+          ) : (
+            <ul
+              data-help-id="candidate.attempt.submit_sections"
+              style={{ margin: '0 0 8px', paddingLeft: 18, color: 'var(--aiq-color-fg-primary)' }}
+            >
+              {sectionLines.map((s) => (
+                <li key={s.index}>
+                  {s.name}: {s.answered_count} of {s.question_count} answered
+                  {s.status === 'done' ? ' (closed, cannot be changed)' : ''}
+                </li>
+              ))}
+            </ul>
+          )}
+          {overallUnanswered > 0 && (
             <p style={{ margin: '0 0 8px' }}>
-              {unansweredCount} question{unansweredCount !== 1 ? 's are' : ' is'} unanswered
-              {' '}— {unansweredCount !== 1 ? 'they' : 'it'} will score 0.
+              {overallUnanswered} question{overallUnanswered !== 1 ? 's are' : ' is'} unanswered
+              {sectionLines.length > 0 ? ' across all sections' : ''}
+              {' '}— {overallUnanswered !== 1 ? 'they' : 'it'} will score 0.
             </p>
           )}
           {flaggedCount > 0 && (

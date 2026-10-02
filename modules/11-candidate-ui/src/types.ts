@@ -67,6 +67,16 @@ export interface CandidateAttemptViewWire {
   integrity?: { fullscreen: boolean; block_copy_paste: boolean };
   /** Test sections: present only for sectioned tests; questions/answers are already this section's. */
   sections?: SectionsViewWire;
+  /** Test sections: per-section counts for the final-submit dialog (counts only). */
+  sections_summary?: SectionSummaryWire[];
+}
+
+export interface SectionSummaryWire {
+  index: number;
+  name: string;
+  question_count: number;
+  answered_count: number;
+  status: 'done' | 'current' | 'upcoming';
 }
 
 export interface SectionsViewWire {

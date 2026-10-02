@@ -45,14 +45,19 @@ export async function buildAssessmentResultsCsv(
 ): Promise<ResultsCsv> {
   return withTenant(tenantId, async (client) => {
     // RLS on assessments hides other tenants' rows → 404.
-    const a = await client.query<{ passing: number | null }>(
-      `SELECT l.passing_score_pct AS passing
+    const a = await client.query<{ passing: number | null; sections: unknown }>(
+      `SELECT l.passing_score_pct AS passing, a.settings->'sections' AS sections
          FROM assessments a LEFT JOIN levels l ON l.id = a.level_id
         WHERE a.id = $1`,
       [assessmentId],
     );
     if (a.rows.length === 0) throw new NotFoundError('assessment not found');
     const passing = a.rows[0]!.passing;
+    // Test sections: one extra column per section (names from settings; [] = none).
+    const rawSections = a.rows[0]!.sections;
+    const sectionNames: string[] = Array.isArray(rawSections)
+      ? rawSections.map((x, i) => String((x as { name?: unknown })?.name ?? `Section ${i + 1}`))
+      : [];
 
     const cands = await client.query<{
       user_id: string; name: string | null; email: string; inv_status: string;
@@ -94,12 +99,14 @@ export async function buildAssessmentResultsCsv(
     // Effective grading per (attempt, question) with category, for this assessment.
     const gr = await client.query<{
       attempt_id: string; earned: string; max: string; category: string | null;
+      section_index: number | null;
     }>(
       `SELECT DISTINCT ON (g.attempt_id, g.question_id)
               g.attempt_id, g.score_earned::text AS earned, g.score_max::text AS max,
-              c.name AS category
+              c.name AS category, aq.section_index
          FROM gradings g
          JOIN attempts at ON at.id = g.attempt_id AND at.assessment_id = $1
+         LEFT JOIN attempt_questions aq ON aq.attempt_id = g.attempt_id AND aq.question_id = g.question_id
          JOIN questions q ON q.id = g.question_id
          LEFT JOIN categories c ON c.id = q.category_id
         ORDER BY g.attempt_id, g.question_id,
@@ -119,13 +126,17 @@ export async function buildAssessmentResultsCsv(
     for (const r of gr.rows) if (r.category) catNames.add(r.category);
     const categories = [...catNames].sort((x, y) => x.localeCompare(y));
 
-    const byAttempt = new Map<string, { e: number; m: number; cat: Map<string, [number, number]> }>();
+    const byAttempt = new Map<string, { e: number; m: number; cat: Map<string, [number, number]>; sec: Map<number, [number, number]> }>();
     for (const r of gr.rows) {
-      const t = byAttempt.get(r.attempt_id) ?? { e: 0, m: 0, cat: new Map() };
+      const t = byAttempt.get(r.attempt_id) ?? { e: 0, m: 0, cat: new Map(), sec: new Map() };
       const e = parseFloat(r.earned);
       const m = parseFloat(r.max);
       t.e += e;
       t.m += m;
+      if (r.section_index !== null) {
+        const x = t.sec.get(r.section_index) ?? [0, 0];
+        t.sec.set(r.section_index, [x[0] + e, x[1] + m]);
+      }
       if (r.category) {
         const c = t.cat.get(r.category) ?? [0, 0];
         t.cat.set(r.category, [c[0] + e, c[1] + m]);
@@ -138,6 +149,7 @@ export async function buildAssessmentResultsCsv(
       'score', 'max_score', 'percent', 'result', 'rank',
       'tab_switches', 'paste_count', 'fullscreen_exits',
       ...categories.map((c) => `${c} (%)`),
+      ...sectionNames.map((n) => `Section: ${n} (%)`),
     ];
     const rows = cands.rows.map((c) => {
       const status = c.status ?? (c.inv_status === 'expired' ? 'expired' : 'invited');
@@ -192,6 +204,11 @@ export async function buildAssessmentResultsCsv(
         ie ? Number(ie.fs) : c.attempt_id ? 0 : '',
         ...categories.map((n) => {
           const x = t?.cat.get(n);
+          return x ? pct(x[0], x[1]) : '';
+        }),
+        // `t` is only set for visible (released) scores, so section columns blank otherwise.
+        ...sectionNames.map((_, i) => {
+          const x = t?.sec.get(i);
           return x ? pct(x[0], x[1]) : '';
         }),
       ];

@@ -283,6 +283,32 @@ export function AdminAttemptDetail(): React.ReactElement {
           </div>
         )}
 
+        {(detail.section_scores ?? []).length > 0 && (
+          <div className="aiq-card" data-help-id="admin.attempts.section_scores" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)" }}>
+            <span style={MONO_LABEL}>Section scores</span>
+            <table style={{ borderCollapse: "collapse", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "4px 12px 4px 0", ...MONO_LABEL }}>Section</th>
+                  <th style={{ textAlign: "right", padding: "4px 12px", ...MONO_LABEL }}>Score</th>
+                  <th style={{ textAlign: "right", padding: "4px 0 4px 12px", ...MONO_LABEL }}>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(detail.section_scores ?? []).map((s) => (
+                  <tr key={s.index} style={{ borderTop: "1px solid var(--aiq-color-border)" }}>
+                    <td style={{ padding: "6px 12px 6px 0" }}>{s.name}</td>
+                    <td style={{ padding: "6px 12px", textAlign: "right" }}>{s.earned} / {s.max}</td>
+                    <td style={{ padding: "6px 0 6px 12px", textAlign: "right" }}>
+                      {s.max > 0 ? `${Math.round((s.earned / s.max) * 1000) / 10}%` : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <AttemptIntegrityCard attemptId={attempt.id} />
 
         <AttemptGradingPanel

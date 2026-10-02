@@ -516,3 +516,50 @@ function mapAttemptScoreRow(r: AttemptScoreDbRow): AttemptScore {
         : String(r.computed_at),
   };
 }
+
+// ---------------------------------------------------------------------------
+// getSectionScoresForAttempt — per-section earned/max for sectioned assessments
+//
+// Same "effective grading" rule as getGradingsForAttempt (latest graded_at, an
+// admin_override wins ties); the section comes from attempt_questions.section_index
+// and the name from assessments.settings.sections. [] when the assessment has no
+// sections. CALLERS decide visibility (never call for an unreleased score).
+// ---------------------------------------------------------------------------
+
+export interface SectionScore {
+  index: number;
+  name: string;
+  earned: number;
+  max: number;
+}
+
+export async function getSectionScoresForAttempt(
+  client: PoolClient,
+  attemptId: string,
+): Promise<SectionScore[]> {
+  const res = await client.query<{ idx: number; name: string | null; earned: string; max: string }>(
+    `WITH eff AS (
+       SELECT DISTINCT ON (g.question_id) g.question_id, g.score_earned, g.score_max
+         FROM gradings g
+        WHERE g.attempt_id = $1
+        ORDER BY g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC)
+     SELECT aq.section_index AS idx,
+            (a2.settings->'sections'->aq.section_index->>'name') AS name,
+            COALESCE(SUM(eff.score_earned), 0)::text AS earned,
+            COALESCE(SUM(eff.score_max), 0)::text AS max
+       FROM attempt_questions aq
+       JOIN attempts at ON at.id = aq.attempt_id
+       JOIN assessments a2 ON a2.id = at.assessment_id
+       LEFT JOIN eff ON eff.question_id = aq.question_id
+      WHERE aq.attempt_id = $1 AND aq.section_index IS NOT NULL
+      GROUP BY aq.section_index, a2.settings
+      ORDER BY aq.section_index`,
+    [attemptId],
+  );
+  return res.rows.map((r) => ({
+    index: r.idx,
+    name: r.name ?? `Section ${r.idx + 1}`,
+    earned: parseFloat(r.earned),
+    max: parseFloat(r.max),
+  }));
+}

@@ -36,7 +36,8 @@
 
 import { AppError, streamLogger, displayCandidate } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
-import { releaseAttemptInTx } from "@assessiq/scoring";
+import { releaseAttemptInTx, getSectionScoresForAttempt } from "@assessiq/scoring";
+import type { SectionScore } from "@assessiq/scoring";
 import { sendResultReleasedEmail } from "@assessiq/notifications";
 import { deriveEvaluationStatus, findGradingsForAttempt } from "../repository.js";
 import type { EvaluationStatus } from "../repository.js";
@@ -140,6 +141,8 @@ export interface HandleAdminClaimAttemptOutput {
   evaluation_sent_back_at: string | null;
   /** attempt_scores summary; null while awaiting_evaluation (provisional totals are never shown). */
   score: AttemptScoreSummary | null;
+  /** Per-section earned/max for sectioned assessments; [] when none or while the score is hidden. */
+  section_scores: SectionScore[];
 }
 
 export interface HandleAdminReleaseAttemptOutput {
@@ -245,6 +248,7 @@ export interface AttemptReview {
   frozen_questions: FrozenQuestionRow[];
   gradings: GradingsRow[];
   score: AttemptScoreSummary | null;
+  section_scores: SectionScore[];
 }
 
 /**
@@ -313,14 +317,16 @@ export async function loadAttemptReview(
   const evaluation_status = deriveEvaluationStatus(row.status, row.evaluation_released_at !== null);
   const hidden = audience === "tenant" && evaluation_status === "awaiting_evaluation";
 
-  const [answers, frozen_questions, gradings, score] = await Promise.all([
+  const [answers, frozen_questions, gradings, score, section_scores] = await Promise.all([
     loadAnswers(client, attemptId),
     loadFrozenQuestions(client, attemptId),
     hidden ? Promise.resolve<GradingsRow[]>([]) : findGradingsForAttempt(client, attemptId),
     hidden ? Promise.resolve<AttemptScoreSummary | null>(null) : loadScoreSummary(client, attemptId),
+    // Same visibility rule as score/gradings: never leak unreleased per-section scores.
+    hidden ? Promise.resolve<SectionScore[]>([]) : getSectionScoresForAttempt(client, attemptId),
   ]);
 
-  return { row, evaluation_status, answers, frozen_questions, gradings, score };
+  return { row, evaluation_status, answers, frozen_questions, gradings, score, section_scores };
 }
 
 /**
@@ -372,6 +378,7 @@ export async function handleAdminClaimAttempt(input: {
       evaluation_note: row.evaluation_note,
       evaluation_sent_back_at: row.evaluation_sent_back_at?.toISOString() ?? null,
       score: r.score,
+      section_scores: r.section_scores,
     };
   });
 }

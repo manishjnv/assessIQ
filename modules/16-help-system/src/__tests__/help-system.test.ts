@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(168); // through 0135 reminders + 3 rows 0133 sections
+    expect(count).toBe(172); // through 0138 high-stakes (+2; 0136 sections follow-ups +2)
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(168); // through 0135 reminders + 3 rows 0133 sections
+    expect(count).toBe(172); // through 0138 high-stakes (+2; 0136 sections follow-ups +2)
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt

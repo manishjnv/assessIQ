@@ -52,6 +52,48 @@ export function resolveSection(
   return null;
 }
 
+export interface SectionSummaryItem {
+  index: number;
+  name: string;
+  question_count: number;
+  answered_count: number;
+  status: "done" | "current" | "upcoming";
+}
+
+/** Same emptiness rule as the take page (null / '' / [] / all-empty object = unanswered). */
+export function isAnsweredValue(ans: unknown): boolean {
+  const empty = (v: unknown): boolean =>
+    v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+  if (empty(ans)) return false;
+  if (typeof ans === "object" && !Array.isArray(ans)) {
+    return Object.values(ans as Record<string, unknown>).some((v) => !empty(v));
+  }
+  return true;
+}
+
+/**
+ * Counts only per section (never question ids or content). `questions` = every frozen
+ * question of the attempt (section_index + id), `answers` = saved answers by question id.
+ */
+export function buildSectionsSummary(
+  sections: readonly AssessmentSection[],
+  current: number,
+  questions: ReadonlyArray<{ question_id: string; section_index?: number | null }>,
+  answers: ReadonlyArray<{ question_id: string; answer: unknown }>,
+): SectionSummaryItem[] {
+  const answered = new Set(answers.filter((a) => isAnsweredValue(a.answer)).map((a) => a.question_id));
+  return sections.map((s, index) => {
+    const qs = questions.filter((q) => q.section_index === index);
+    return {
+      index,
+      name: s.name,
+      question_count: qs.length,
+      answered_count: qs.filter((q) => answered.has(q.question_id)).length,
+      status: index < current ? "done" : index === current ? "current" : "upcoming",
+    };
+  });
+}
+
 export function sectionDeadline(sections: readonly AssessmentSection[], pos: SectionPosition): Date {
   return new Date(pos.startedAt.getTime() + (sections[pos.current] as AssessmentSection).minutes * 60_000);
 }

@@ -3069,3 +3069,17 @@ admin.assessment.sections:
       sum of the section minutes (the level's duration is not used).
     - **No sections?** Leave this empty and the test works as before, with one timer.
     - You cannot combine sections with a blueprint.
+
+admin.attempts.section_scores:
+  audience: admin
+  short_text: "How this candidate scored in each section of the test."
+  long_md: |
+    ## Section scores
+
+    For tests with sections, this table shows the points earned and the points
+    available in each section. It uses the same final grades as the total score.
+
+    - Shown only once the score is visible to you; never while the evaluation is
+      still with AssessIQ.
+    - The results CSV has the same numbers as one **Section: name (%)** column
+      per section.
