@@ -1725,3 +1725,15 @@ If staging is wanted later, build it off-box (a local compose run using `tools/t
 **Not included:** automatic scheduling, rotation of `SESSION_SECRET` (a different key; rotating it logs everyone out), per-tenant keys.
 
 **Downstream impact:** `modules/00-core/src/config.ts` (new optional var), `modules/01-auth/src/crypto-util.ts` and `modules/13-notifications/src/webhooks/crypto.ts` (decrypt fallback), `.env.example`. If a new encrypted column is ever added, add it to `TARGETS` in `tools/rotate-master-key.ts` or rotation will strand it.
+
+## Marketing site: page dates and IndexNow (F1/F4/F5, batch 8, 2026-10-02)
+
+**Page dates.** Sitemap `lastmod` and JSON-LD `datePublished`/`dateModified` come from `apps/marketing/src/data/page-dates.json`. The Docker build context has no `.git` (`.dockerignore`), so the dates cannot be computed at build time. The JSON is generated from git history and committed:
+
+1. Edit a marketing page and commit it.
+2. Run `node apps/marketing/scripts/page-dates.mjs` and commit the updated JSON.
+3. The build fails if a sitemap URL has no entry (`astro.config.mjs` throws).
+
+**IndexNow ping (after every marketing deploy).** Key file: `https://assessiq.in/51c5d2964f070d2482eecaaa2ef236e7.txt` (public by design). Run `node apps/marketing/scripts/indexnow-submit.mjs` from the laptop. It reads the live `sitemap-0.xml`, posts all URLs to `api.indexnow.org`, prints the HTTP status, and exits non-zero on a non-2xx response. `--dry-run` prints the payload only.
+
+**Rejected:** computing dates at build time (no `.git` in the image); adding `.git` to the build context (large, and leaks history into the build); a new sitemap package (the inline integration exists because `@astrojs/sitemap` 3.x crashes with `trailingSlash: 'never'`).
