@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/share-linkedin.test.ts
 //
 // Phase 5 Session 6 — unit tests for incrementShareCount
@@ -15,6 +14,8 @@
 //   5. invalid format → CredentialIdSchema.safeParse fails → route sends 422
 
 import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
+import type { PoolClient } from 'pg';
+import type { Certificate } from '../types.js';
 import { CERT_SIGNING_SECRET_ENV } from '../crypto.js';
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,9 @@ import {
   CertificateRevokedException,
   CredentialIdSchema,
 } from '../types.js';
+
+// Partial mock client — tests only stub query(); cast to the real client type.
+const asClient = (c: unknown): PoolClient => c as PoolClient;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -100,10 +104,10 @@ afterEach(() => {
 describe('incrementShareCount', () => {
   it('owner calls their cert — resolves void and calls incrementCounter with linkedin_shares (→ 204)', async () => {
     const cert = fakeCert();
-    vi.mocked(repo.findByCredentialId).mockResolvedValue(cert as any);
+    vi.mocked(repo.findByCredentialId).mockResolvedValue(cert as unknown as Certificate);
     vi.mocked(repo.incrementCounter).mockResolvedValue(undefined);
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     await expect(incrementShareCount(TENANT, CRED_ID, CANDIDATE)).resolves.toBeUndefined();
 
@@ -113,8 +117,8 @@ describe('incrementShareCount', () => {
 
   it('wrong owner — throws CertificateAccessDeniedError without touching the counter (→ 403)', async () => {
     const cert = fakeCert(); // cert.candidate_id = CANDIDATE, caller is OTHER_USER
-    vi.mocked(repo.findByCredentialId).mockResolvedValue(cert as any);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(repo.findByCredentialId).mockResolvedValue(cert as unknown as Certificate);
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(
       incrementShareCount(TENANT, CRED_ID, OTHER_USER),
@@ -125,8 +129,8 @@ describe('incrementShareCount', () => {
 
   it('revoked cert — throws CertificateRevokedException without touching the counter (→ 410)', async () => {
     const cert = fakeCert({ revoked_at: '2026-05-10T12:00:00Z', revoke_reason: 'Compromised' });
-    vi.mocked(repo.findByCredentialId).mockResolvedValue(cert as any);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(repo.findByCredentialId).mockResolvedValue(cert as unknown as Certificate);
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(
       incrementShareCount(TENANT, CRED_ID, CANDIDATE),
@@ -137,7 +141,7 @@ describe('incrementShareCount', () => {
 
   it('non-existent credential_id — throws CertificateNotFoundError (→ 404)', async () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(null);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(
       incrementShareCount(TENANT, 'AIQ-2026-05-XXXXXX', CANDIDATE),

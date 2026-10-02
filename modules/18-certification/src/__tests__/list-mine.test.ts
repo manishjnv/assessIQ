@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/list-mine.test.ts
 //
 // Phase 5 Session 5 — unit tests for listForUser (GET /api/certificates).
@@ -8,6 +7,8 @@
 // verifyCertificateSignature call path.
 
 import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
+import type { PoolClient } from 'pg';
+import type { Certificate } from '../types.js';
 import { CERT_SIGNING_SECRET_ENV, signCertificate } from '../crypto.js';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,9 @@ vi.mock('../repository.js', async () => {
 import { withTenant } from '@assessiq/tenancy';
 import * as repo from '../repository.js';
 import { listForUser } from '../service.js';
+
+// Partial mock client — tests only stub query(); cast to the real client type.
+const asClient = (c: unknown): PoolClient => c as PoolClient;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -105,9 +109,9 @@ afterEach(() => {
 describe('listForUser', () => {
   it("returns the candidate's own certs with signed_hash_valid=true for valid hashes", async () => {
     const cert = fakeCert();
-    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as any], total: 1 });
+    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as unknown as Certificate], total: 1 });
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await listForUser(TENANT, CANDIDATE);
 
@@ -124,9 +128,9 @@ describe('listForUser', () => {
 
   it('marks a tampered cert as signed_hash_valid=false', async () => {
     const cert = fakeCert({ signed_hash: 'deadbeef' + '0'.repeat(56) });
-    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as any], total: 1 });
+    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as unknown as Certificate], total: 1 });
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await listForUser(TENANT, CANDIDATE);
     expect(result.certificates[0]!.signed_hash_valid).toBe(false);
@@ -134,9 +138,9 @@ describe('listForUser', () => {
 
   it('returns revoked cert with revoked_at and revoke_reason set', async () => {
     const cert = fakeCert({ revoked_at: '2026-05-10T12:00:00Z', revoke_reason: 'Test revoke' });
-    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as any], total: 1 });
+    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as unknown as Certificate], total: 1 });
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await listForUser(TENANT, CANDIDATE);
     expect(result.certificates[0]!.revoked_at).toBe('2026-05-10T12:00:00Z');
@@ -146,7 +150,7 @@ describe('listForUser', () => {
   it('returns empty list when candidate has no certs', async () => {
     vi.mocked(repo.listCertificates).mockResolvedValue({ items: [], total: 0 });
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await listForUser(TENANT, CANDIDATE);
     expect(result.certificates).toHaveLength(0);
@@ -154,9 +158,9 @@ describe('listForUser', () => {
 
   it('constructs verify_url and pdf_url from credential_id', async () => {
     const cert = fakeCert({ credential_id: 'AIQ-2026-05-XYZABC' });
-    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as any], total: 1 });
+    vi.mocked(repo.listCertificates).mockResolvedValue({ items: [cert as unknown as Certificate], total: 1 });
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await listForUser(TENANT, CANDIDATE);
     expect(result.certificates[0]!.verify_url).toContain('AIQ-2026-05-XYZABC');

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/admin-revoke-integration.test.ts
 //
 // PII rule test for revoke().
@@ -15,6 +14,7 @@
 //     Only revoked_at is audited in the after column.
 
 import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
+import type { PoolClient } from 'pg';
 import { CERT_SIGNING_SECRET_ENV } from '../crypto.js';
 
 // ---------------------------------------------------------------------------
@@ -37,10 +37,13 @@ vi.mock('../repository.js', async () => {
   };
 });
 
-import { auditInTx } from '@assessiq/audit-log';
+import { auditInTx, type AuditRow } from '@assessiq/audit-log';
 import { withTenant } from '@assessiq/tenancy';
 import * as repo from '../repository.js';
 import { revoke } from '../service.js';
+
+// Partial mock client — tests only stub query(); cast to the real client type.
+const asClient = (c: unknown): PoolClient => c as PoolClient;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -107,10 +110,10 @@ describe('revoke — PII rule', () => {
 
     vi.mocked(repo.findByCredentialId).mockResolvedValue(cert);
     vi.mocked(repo.revokeCertificate).mockResolvedValue(revokedCert);
-    vi.mocked(auditInTx as any).mockResolvedValue(undefined);
+    vi.mocked(auditInTx).mockResolvedValue(undefined as unknown as AuditRow); // audit result is unused
 
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await revoke(TENANT, CRED_ID, REVOKE_REASON, ACTOR);
 

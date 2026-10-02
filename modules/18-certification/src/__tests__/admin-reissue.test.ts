@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/admin-reissue.test.ts
 //
 // Phase 5 Session 5 — unit tests for reissue (POST /api/admin/certificates/:credentialId/reissue).
@@ -7,6 +6,7 @@
 // 404 not-found, 410 revoked, and signature validity after reissue.
 
 import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
+import type { PoolClient } from 'pg';
 import { CERT_SIGNING_SECRET_ENV, signCertificate, verifyCertificateSignature } from '../crypto.js';
 
 // ---------------------------------------------------------------------------
@@ -29,11 +29,14 @@ vi.mock('../repository.js', async () => {
   };
 });
 
-import { auditInTx } from '@assessiq/audit-log';
+import { auditInTx, type AuditRow } from '@assessiq/audit-log';
 import { withTenant } from '@assessiq/tenancy';
 import * as repo from '../repository.js';
 import { reissue } from '../service.js';
 import { CertificateNotFoundError, CertificateRevokedException } from '../types.js';
+
+// Partial mock client — tests only stub query(); cast to the real client type.
+const asClient = (c: unknown): PoolClient => c as PoolClient;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -129,9 +132,9 @@ describe('reissue', () => {
 
     vi.mocked(repo.findByCredentialId).mockResolvedValue(orig);
     vi.mocked(repo.reissueCertificate).mockResolvedValue(updatedCert);
-    vi.mocked(auditInTx as any).mockResolvedValue(undefined);
+    vi.mocked(auditInTx).mockResolvedValue(undefined as unknown as AuditRow); // audit result is unused
     const mockClient = { query: vi.fn().mockResolvedValue({ rows: [{ erased_at: null }] }) }; // E3 erased-candidate lookup
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await reissue(TENANT, CRED_ID, newDisplayName, ACTOR);
 
@@ -180,9 +183,9 @@ describe('reissue', () => {
     const orig = makeCert('Unchanged Name');
     vi.mocked(repo.findByCredentialId).mockResolvedValue(orig);
     vi.mocked(repo.reissueCertificate).mockResolvedValue({ ...orig });
-    vi.mocked(auditInTx as any).mockResolvedValue(undefined);
+    vi.mocked(auditInTx).mockResolvedValue(undefined as unknown as AuditRow); // audit result is unused
     const mockClient = { query: vi.fn().mockResolvedValue({ rows: [{ erased_at: null }] }) }; // E3 erased-candidate lookup
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     await reissue(TENANT, CRED_ID, undefined, ACTOR);
 
@@ -199,7 +202,7 @@ describe('reissue', () => {
     const orig = makeCert();
     orig.revoked_at = '2026-05-10T12:00:00Z';
     vi.mocked(repo.findByCredentialId).mockResolvedValue(orig);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(reissue(TENANT, CRED_ID, 'New Name', ACTOR))
       .rejects.toBeInstanceOf(CertificateRevokedException);
@@ -210,7 +213,7 @@ describe('reissue', () => {
 
   it('throws CertificateNotFoundError (404) when credential_id not found', async () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(null);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(reissue(TENANT, 'AIQ-2026-05-XXXXXX', 'Name', ACTOR))
       .rejects.toBeInstanceOf(CertificateNotFoundError);
@@ -221,7 +224,7 @@ describe('reissue', () => {
 
   it('normalises credential_id to uppercase before repo lookup', async () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(null);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await reissue(TENANT, 'aiq-2026-05-reissu', 'Name', ACTOR).catch(() => {});
 
@@ -237,8 +240,8 @@ describe('reissue', () => {
     const updated = { ...orig };
     vi.mocked(repo.findByCredentialId).mockResolvedValue(orig);
     vi.mocked(repo.reissueCertificate).mockResolvedValue(updated);
-    vi.mocked(auditInTx as any).mockRejectedValue(new Error('audit_log INSERT failed'));
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({ query: vi.fn().mockResolvedValue({ rows: [{ erased_at: null }] }) } as any));
+    vi.mocked(auditInTx).mockRejectedValue(new Error('audit_log INSERT failed'));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({ query: vi.fn().mockResolvedValue({ rows: [{ erased_at: null }] }) })));
 
     await expect(reissue(TENANT, CRED_ID, 'Name', ACTOR))
       .rejects.toThrow(/audit_log INSERT failed/);
