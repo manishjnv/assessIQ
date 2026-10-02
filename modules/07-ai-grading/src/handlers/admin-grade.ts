@@ -277,10 +277,14 @@ async function loadGradingData(
   status: string;
   questions: FrozenQuestionWithRubric[];
   answers: Map<string, unknown>;
+  highStakes: boolean;
 }> {
   // 1. Attempt status
-  const attemptResult = await client.query<{ status: string }>(
-    `SELECT status FROM attempts WHERE id = $1 LIMIT 1`,
+  const attemptResult = await client.query<{ status: string; high_stakes: boolean }>(
+    `SELECT a.status, COALESCE(s.settings->>'high_stakes' = 'true', false) AS high_stakes
+       FROM attempts a
+       LEFT JOIN assessments s ON s.id = a.assessment_id
+      WHERE a.id = $1 LIMIT 1`,
     [attemptId],
   );
   const attemptRow = attemptResult.rows[0];
@@ -326,6 +330,7 @@ async function loadGradingData(
     status: attemptRow.status,
     questions: qResult.rows,
     answers,
+    highStakes: attemptRow.high_stakes,
   };
 }
 
@@ -375,7 +380,7 @@ export async function handleAdminGrade(
 
   try {
     // Load attempt + questions + answers inside withTenant (RLS scoped)
-    const { status, questions, answers } = await withTenant(
+    const { status, questions, answers, highStakes } = await withTenant(
       tenantId,
       (client) => loadGradingData(client, attemptId),
     );
@@ -447,6 +452,7 @@ export async function handleAdminGrade(
           questionVersion: q.question_version,
           points: q.points,
           answer,
+          highStakes,
         }),
       );
       if (reused !== null) {
@@ -465,6 +471,7 @@ export async function handleAdminGrade(
           question_content: q.content,
           rubric: effectiveRubric,
           answer,
+          ...(highStakes ? { high_stakes: true } : {}),
         });
         proposals.push(proposal);
       } catch (err) {

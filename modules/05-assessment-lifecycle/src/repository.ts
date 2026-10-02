@@ -494,6 +494,24 @@ export async function setIntegrityRow(
   return mapAssessmentRow(row);
 }
 
+/** Set ONLY settings.high_stakes (other settings keys are kept) in one UPDATE. */
+export async function setHighStakesRow(
+  client: PoolClient,
+  id: string,
+  highStakes: boolean,
+): Promise<Assessment> {
+  const result = await client.query<AssessmentRow>(
+    `UPDATE assessments
+        SET settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{high_stakes}', $2::jsonb),
+            updated_at = now()
+      WHERE id = $1 RETURNING ${ASSESSMENT_COLUMNS}`,
+    [id, JSON.stringify(highStakes)],
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`setHighStakesRow: no row found for id ${id}`);
+  return mapAssessmentRow(row);
+}
+
 /** Replace ONE top-level settings key (others, e.g. blueprint, are kept) in one UPDATE. */
 export async function setSettingsKeyRow(
   client: PoolClient,

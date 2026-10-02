@@ -134,6 +134,7 @@ export const AssessmentSettingsSchema = z
     blueprint: AssessmentBlueprintSchema.optional(),
     integrity: AssessmentIntegritySettingsSchema.optional(),
     reminders: AssessmentRemindersSettingsSchema.optional(),
+    high_stakes: z.boolean().optional(),
     sections: AssessmentSectionsSchema.optional(),
   })
   .passthrough();

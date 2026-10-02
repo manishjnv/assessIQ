@@ -170,6 +170,8 @@ export interface HandleSuperGetEvaluationOutput {
     status: string;
     assessment_name: string;
     level_label: string;
+    /** Assessment runs the two-model vote (settings.high_stakes). */
+    high_stakes: boolean;
     started_at: string | null;
     submitted_at: string | null;
   };
@@ -209,6 +211,7 @@ export async function handleSuperGetEvaluation(input: {
         status: row.status,
         assessment_name: row.assessment_name ?? "(unknown)",
         level_label: row.level_label ?? "(unknown)",
+        high_stakes: row.high_stakes,
         started_at: row.started_at?.toISOString() ?? null,
         submitted_at: row.submitted_at?.toISOString() ?? null,
       },

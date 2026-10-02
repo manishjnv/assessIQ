@@ -172,6 +172,21 @@ describe("tier 2 - reuse", () => {
     expect(await sup((c) => c.query(`SELECT COUNT(*)::int n FROM gradings WHERE attempt_id=$1`, [id]).then((r) => r.rows[0].n))).toBe(1);
   });
 
+  it("high_stakes assessment: identical accepted answer is NOT reused; runtime gets high_stakes", async () => {
+    await gradedAttempt({ response: "High stakes answer text" });
+    const id = await mkAttempt(tA, "submitted", [[q1, { response: "High stakes answer text" }]]);
+    const asm = infra[tA]!.assessment;
+    await sup((c) => c.query(`UPDATE assessments SET settings = jsonb_set(coalesce(settings,'{}'::jsonb),'{high_stakes}','true') WHERE id=$1`, [asm]));
+    try {
+      const out = await grade(tA, id);
+      expect(gradeSubjectiveMock).toHaveBeenCalledTimes(1);
+      expect(gradeSubjectiveMock.mock.calls[0]![0]).toMatchObject({ high_stakes: true });
+      expect(out.proposals[0]!.source).not.toBe("reuse");
+    } finally {
+      await sup((c) => c.query(`UPDATE assessments SET settings = settings - 'high_stakes' WHERE id=$1`, [asm]));
+    }
+  });
+
   it("case matters: a case-changed answer is not reused (KQL/code identifiers)", async () => {
     await gradedAttempt({ response: "The attacker used PsExec" });
     const id = await mkAttempt(tA, "submitted", [[q1, { response: "the attacker used psexec" }]]);

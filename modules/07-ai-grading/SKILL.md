@@ -279,3 +279,7 @@ Only the "non-MCQ" evaluation-queue predicates changed: `q.type <> 'mcq'` became
 ## Erased candidates (E3, 2026-10-02)
 
 Release / release-all / release-to-tenant already refuse an erased candidate (422 `AIG_ATTEMPT_NOT_RELEASABLE_ERASED`). `handleAdminManualScore` and `handleAdminOverride` now also refuse (409 `CANDIDATE_ERASED`, via `isAttemptCandidateErased`). Accept / grade / rerun are deliberately NOT guarded: an erased candidate's already-submitted attempt may still complete (billing invariant) but is never handed over (see super-evaluation.test.ts).
+
+## High-stakes two-model vote (E1, 2026-10-02)
+
+`assessments.settings.high_stakes` (default off; set at create or `PATCH /api/admin/assessments/:id/grading`). `loadGradingData` in admin-grade / admin-rerun reads it and passes `GradingInput.high_stakes`. In `claude-code-vps.ts`: Stage 3 always runs; ANY band difference (>=1) -> `escalation_chosen_stage="manual"` (Stage 2 band primary, deriveStatus -> `review_needed`); equal bands -> `"3"`; Stage 3 failure/malformed -> `error_class=AIG_ESCALATION_FAILURE` (review, excluded from Accept-all by `isAiFailure`). Non-high-stakes behaviour is unchanged (>=2 -> manual; failure -> legacy `escalation_failure`). `least-ai.ts` skips tier 2 (reuse) under high_stakes; tier 1 (blank -> band 0) stays. The super-admin evaluation payload exposes `attempt.high_stakes` (badge). `anthropic-api.ts` has no escalation path, so it is unchanged. Still proposal-only: D8 and no-ambient-AI untouched.

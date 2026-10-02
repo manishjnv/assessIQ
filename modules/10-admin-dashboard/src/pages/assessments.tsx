@@ -862,6 +862,7 @@ export function AdminAssessments(): React.ReactElement {
   // Integrity v1: written to settings.integrity on create (both default off).
   const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
   const [integrityBlockCopy, setIntegrityBlockCopy] = useState(false);
+  const [highStakes, setHighStakes] = useState(false);
   // Test sections (from-set mode): written to settings.sections on create.
   const [sectionRows, setSectionRows] = useState<SectionRow[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -989,6 +990,7 @@ export function AdminAssessments(): React.ReactElement {
       const closesAtIso = newForm.closes_at ? new Date(newForm.closes_at).toISOString() : undefined;
       const integritySettings = {
         integrity: { fullscreen: integrityFullscreen, block_copy_paste: integrityBlockCopy },
+        ...(highStakes ? { high_stakes: true } : {}),
       };
 
       // ── From-set (clone-on-use) ───────────────────────────────────────────
@@ -1484,6 +1486,22 @@ export function AdminAssessments(): React.ReactElement {
                   </label>
                 </HelpTip>
               </fieldset>
+
+              <HelpTip helpId="admin.assessment.high_stakes">
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--aiq-space-xs)",
+                    marginBottom: "var(--aiq-space-md)",
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                  }}
+                >
+                  <input type="checkbox" checked={highStakes} onChange={(e) => setHighStakes(e.target.checked)} />
+                  High-stakes grading — two AI models must agree
+                </label>
+              </HelpTip>
 
               {createError && (
                 <div

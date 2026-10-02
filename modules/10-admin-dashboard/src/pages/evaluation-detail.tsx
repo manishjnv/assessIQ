@@ -163,6 +163,11 @@ export function AdminEvaluationDetail(): React.ReactElement {
           <div>
             <div style={{ marginBottom: 12 }}>
               <Chip variant={statusChip.variant}>{statusChip.label}</Chip>
+              {attempt.high_stakes === true && (
+                <span data-help-id="admin.assessment.high_stakes.edit" style={{ marginLeft: "var(--aiq-space-xs)" }}>
+                  <Chip variant="warn">High-stakes · two-model vote</Chip>
+                </span>
+              )}
             </div>
             <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
               {attempt.assessment_name || `Attempt ${handle}`}
