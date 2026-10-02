@@ -84,6 +84,7 @@ import {
   handleAdminCreateCategory,
   UUID_RE,
 } from "./handlers/admin-domains.js";
+import { registerGenerationBatchRoutes } from "./generation-batches.js";
 
 // ---------------------------------------------------------------------------
 // Pagination helper — shared by list endpoints
@@ -482,6 +483,9 @@ export async function registerQuestionBankRoutes(
       );
     },
   );
+
+  // E6: durable batch plan for the generate wizard (same super-admin guard).
+  registerGenerationBatchRoutes(app, superAdminOnly);
 
   // -------------------------------------------------------------------------
   // Pack routes
