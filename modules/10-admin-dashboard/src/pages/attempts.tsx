@@ -5,7 +5,7 @@
 // admin routes — candidates list merged at admin level via 07's queue).
 //
 // Filter state stored in sessionStorage (per CLAUDE.md anti-pattern guard).
-// Tabs: All | Submitted | Pending grading | Graded | Released.
+// Tabs: All | Submitted | Awaiting evaluation | Graded | Released.
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -41,7 +41,8 @@ interface AttemptsResponse {
 const STATUS_TABS: { label: string; value: string }[] = [
   { label: "All", value: "" },
   { label: "Submitted", value: "submitted" },
-  { label: "Pending grading", value: "pending_admin_grading" },
+  // RV58: same set the evaluation queue uses ('pending_admin_grading' is no longer written).
+  { label: "Awaiting evaluation", value: "submitted,auto_submitted,pending_admin_grading" },
   { label: "Graded", value: "graded" },
   { label: "Released", value: "released" },
 ];

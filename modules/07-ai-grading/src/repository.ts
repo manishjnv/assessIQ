@@ -412,14 +412,14 @@ export interface AttemptListRow {
  */
 export async function listAttemptsForAdmin(
   client: PoolClient,
-  opts: { limit: number; offset: number; status?: string },
+  opts: { limit: number; offset: number; status?: string | string[] },
 ): Promise<{ items: AttemptListRow[]; total: number }> {
   const params: unknown[] = [];
   const conditions: string[] = [];
 
   if (opts.status !== undefined) {
-    params.push(opts.status);
-    conditions.push(`a.status = $${params.length}`);
+    params.push(Array.isArray(opts.status) ? opts.status : [opts.status]);
+    conditions.push(`a.status = ANY($${params.length}::text[])`);
   }
   const whereClause =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

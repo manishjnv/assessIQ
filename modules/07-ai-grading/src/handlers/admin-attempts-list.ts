@@ -25,7 +25,7 @@ export interface HandleAdminListAttemptsInput {
   userId: string;
   limit: number;
   offset: number;
-  status?: string;
+  status?: string | string[];
 }
 
 export interface HandleAdminListAttemptsOutput {
@@ -43,7 +43,7 @@ export async function handleAdminListAttempts(
   const { tenantId, limit, offset } = input;
   // exactOptionalPropertyTypes: only spread status when defined so we don't
   // pass `{ status: undefined }` where listAttemptsForAdmin expects `status?: string`.
-  const repoOpts: { limit: number; offset: number; status?: string } = {
+  const repoOpts: { limit: number; offset: number; status?: string | string[] } = {
     limit,
     offset,
   };

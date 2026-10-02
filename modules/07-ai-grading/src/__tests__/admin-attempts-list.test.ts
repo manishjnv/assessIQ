@@ -412,6 +412,37 @@ describe("handleAdminListAttempts", () => {
     }
   });
 
+  it("2b. status list (RV58) — returns every listed status, nothing else", async () => {
+    const mk = async (status: string, hour: string) => {
+      const cand = randomUUID();
+      return withSuperClient(async (client) => {
+        await insertCandidateUser(client, cand, TENANT_ID, `sl-${randomUUID().slice(0, 8)}@test.local`);
+        return insertAttempt(client, {
+          tenantId: TENANT_ID,
+          assessmentId: ASSESSMENT_ID,
+          candidateId: cand,
+          status,
+          submittedAt: `2026-02-02T${hour}:00:00Z`,
+        });
+      });
+    };
+    const subId = await mk("submitted", "08");
+    const autoId = await mk("auto_submitted", "09");
+    const gradedId = await mk("graded", "10");
+
+    const result = await handleAdminListAttempts({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      limit: 100,
+      offset: 0,
+      status: ["submitted", "auto_submitted", "pending_admin_grading"],
+    });
+    const ids = result.items.map((r) => r.id);
+    expect(ids).toContain(subId);
+    expect(ids).toContain(autoId);
+    expect(ids).not.toContain(gradedId);
+  });
+
   // -------------------------------------------------------------------------
   // 3. RLS isolation — tenant B attempt is NOT visible when scoped to tenant A.
   // -------------------------------------------------------------------------

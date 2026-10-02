@@ -56,7 +56,7 @@ export async function queryHomeKpis(client: PoolClient, tenantId: string): Promi
   );
   const attemptsThisWeek = parseInt(attemptsWeekResult.rows[0]?.count ?? '0', 10);
 
-  // Awaiting review
+  // Awaiting review. 'pending_admin_grading' is no longer written (RV58); live counter is countGradingQueue.
   const awaitingResult = await client.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count FROM attempts WHERE status = 'pending_admin_grading'`,
   );
@@ -94,6 +94,7 @@ export async function queryQueueSummary(client: PoolClient, tenantId: string): P
     `SELECT
        COUNT(*) FILTER (WHERE status = 'in_progress')::text           AS in_progress,
        COUNT(*) FILTER (WHERE status = 'grading')::text               AS grading,
+       -- RV58: 'pending_admin_grading' no longer written; live counter is countGradingQueue.
        COUNT(*) FILTER (WHERE status = 'pending_admin_grading')::text AS pending_admin_grading,
        COUNT(*) FILTER (WHERE status = 'graded')::text                AS graded,
        COUNT(*) FILTER (WHERE status = 'released')::text              AS released
