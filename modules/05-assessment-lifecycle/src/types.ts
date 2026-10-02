@@ -110,12 +110,31 @@ export const AssessmentRemindersSettingsSchema = z
   })
   .strict();
 export type AssessmentRemindersSettings = z.infer<typeof AssessmentRemindersSettingsSchema>;
+// Test sections — each has its own server-enforced timer (module 06). A section draws
+// from the pack/level pool: `category_ids` narrows it, `question_count` caps it (at
+// least one of the two is required). Not combinable with `blueprint` (own parallel
+// structure: blueprint is single-domain criteria with no time dimension).
+export const AssessmentSectionSchema = z
+  .object({
+    name: z.string().trim().min(1, "section name is required").max(80),
+    category_ids: z.array(z.string().uuid()).min(1).max(50).optional(),
+    question_count: z.number().int().min(1).max(500).optional(),
+    minutes: z.number().int().min(1, "minutes must be at least 1").max(300, "minutes must be at most 300"),
+    calculator: z.boolean().optional(),
+  })
+  .strict()
+  .refine((s) => s.category_ids !== undefined || s.question_count !== undefined, {
+    message: "each section needs question_count and/or category_ids",
+  });
+export type AssessmentSection = z.infer<typeof AssessmentSectionSchema>;
+export const AssessmentSectionsSchema = z.array(AssessmentSectionSchema).min(1).max(10);
 
 export const AssessmentSettingsSchema = z
   .object({
     blueprint: AssessmentBlueprintSchema.optional(),
     integrity: AssessmentIntegritySettingsSchema.optional(),
     reminders: AssessmentRemindersSettingsSchema.optional(),
+    sections: AssessmentSectionsSchema.optional(),
   })
   .passthrough();
 export type AssessmentSettings = z.infer<typeof AssessmentSettingsSchema>;

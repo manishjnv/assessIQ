@@ -131,3 +131,6 @@ The invitations table on `assessment-detail.tsx` shows 100 rows per page (API ca
 
 ## Reminders card (2026-10-02)
 Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send automatic reminders" checkbox + hours select, "Save reminder settings"; help_id `admin.assessment.reminders`) which PATCHes `/admin/assessments/:id/reminders`. Pending/viewed invitation rows show "Reminder sent <time>" when `reminded_at` is set. Default off.
+## Test sections in the create form (2026-10-02)
+
+`pages/SectionsEditor.tsx`, shown in "From a set" mode of New assessment: per section a name, number of questions, minutes and a Calculator checkbox; optionally pick a domain and tick categories per section. `buildSections` validates and writes `settings.sections`; when every section has a count, the assessment's `question_count` is the sum. Help ids: `admin.assessment.sections` (content in 16). Not included: editing sections after creation (the settings are server-validated but there is no edit UI), and blueprint mode (sections cannot be combined with a blueprint).

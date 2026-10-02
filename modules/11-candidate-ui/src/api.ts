@@ -182,6 +182,14 @@ export async function toggleFlag(
   );
 }
 
+/** Test sections: move on to the next section now (the finished one stays closed). */
+export async function finishSection(attemptId: string): Promise<{ section_index: number }> {
+  return call<{ section_index: number }>(
+    `/me/attempts/${encodeURIComponent(attemptId)}/finish-section`,
+    { method: "POST" },
+  );
+}
+
 export async function recordEvent(
   attemptId: string,
   event: CandidateEventInput,

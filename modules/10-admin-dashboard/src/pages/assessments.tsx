@@ -35,6 +35,8 @@ import { domainLabel } from "../lib/domains.js";
 import type { DomainItem, CategoryItem, TenantEntitlement, CompanyUsage, AvailableSet } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { UsageBanner } from "../components/UsageBanner.js";
+import { SectionsEditor, buildSections } from "./SectionsEditor.js";
+import type { SectionRow } from "./SectionsEditor.js";
 import { useAdminSession } from "../session.js";
 
 type AssessmentStatus = "draft" | "published" | "active" | "closed";
@@ -860,6 +862,8 @@ export function AdminAssessments(): React.ReactElement {
   // Integrity v1: written to settings.integrity on create (both default off).
   const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
   const [integrityBlockCopy, setIntegrityBlockCopy] = useState(false);
+  // Test sections (from-set mode): written to settings.sections on create.
+  const [sectionRows, setSectionRows] = useState<SectionRow[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Creation method: "from-set" (clone-on-use a licensed platform set, default)
@@ -971,6 +975,12 @@ export function AdminAssessments(): React.ReactElement {
       setCreateError("Blueprint is incomplete. Select a domain, level, and at least one valid criterion.");
       return;
     }
+    const builtSections =
+      createMode === "from-set" && sectionRows.length > 0 ? buildSections(sectionRows) : null;
+    if (builtSections !== null && "error" in builtSections) {
+      setCreateError(builtSections.error);
+      return;
+    }
     setCreating(true);
     setCreateError(null);
     setCreatedAssessmentId(null);
@@ -991,10 +1001,11 @@ export function AdminAssessments(): React.ReactElement {
           source_pack_id: pendingFromSet.source_pack_id,
           level_position: pendingFromSet.level_position,
           name: newForm.name.trim(),
-          question_count: pendingFromSet.question_count,
+          // With sections the total is the sum of the section counts (when all are set).
+          question_count: builtSections?.total ?? pendingFromSet.question_count,
           opens_at: opensAtIso,
           ...(closesAtIso ? { closes_at: closesAtIso } : {}),
-          settings: integritySettings,
+          settings: { ...integritySettings, ...(builtSections?.settings ?? {}) },
         });
         navigate(`/admin/assessments/${created.id}`);
         return;
@@ -1434,6 +1445,10 @@ export function AdminAssessments(): React.ReactElement {
                     skipFilter={skipEntitlementFilter}
                   />
                 </div>
+              )}
+
+              {createMode === "from-set" && (
+                <SectionsEditor rows={sectionRows} onChange={setSectionRows} />
               )}
 
               {/* Integrity v1 — candidate runner switches */}

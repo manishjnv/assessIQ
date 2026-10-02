@@ -62,7 +62,7 @@ import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "./tokens.
 import { sendInvitationEmail } from "./email.js";
 import { assertRemindersSettings } from "./reminders.js";
 import type { SendAssessmentInvitationInput } from "./email.js";
-import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema } from "./types.js";
+import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema, AssessmentSectionsSchema } from "./types.js";
 import type {
   Assessment,
   AssessmentBlueprint,
@@ -451,6 +451,7 @@ export async function createAssessment(
   // blueprint-resolved values so the no-blueprint INSERT path below is unchanged.
   assertIntegritySettings(input.settings);
   assertRemindersSettings(input.settings);
+  assertSectionsSettings(input.settings);
   let resolvedInput = input;
   let mergedSettings: AssessmentSettings = input.settings ?? {};
 
@@ -603,6 +604,25 @@ export function assertIntegritySettings(settings: AssessmentSettings | undefined
       `settings.integrity is invalid: ${r.error.issues.map((i) => i.message).join("; ")}`,
       { details: { code: "INVALID_PARAM", param: "settings.integrity" } },
     );
+  }
+}
+
+/** Test sections: reject a malformed settings.sections, or sections combined with a blueprint. */
+export function assertSectionsSettings(settings: AssessmentSettings | undefined): void {
+  const s = settings as Record<string, unknown> | undefined;
+  const raw = s?.["sections"];
+  if (raw === undefined) return;
+  const r = AssessmentSectionsSchema.safeParse(raw);
+  if (!r.success) {
+    throw new ValidationError(
+      `settings.sections is invalid: ${r.error.issues.map((i) => i.message).join("; ")}`,
+      { details: { code: "INVALID_PARAM", param: "settings.sections" } },
+    );
+  }
+  if (s?.["blueprint"] !== undefined) {
+    throw new ValidationError("settings.sections cannot be combined with settings.blueprint", {
+      details: { code: "INVALID_PARAM", param: "settings.sections" },
+    });
   }
 }
 
@@ -767,6 +787,7 @@ export async function updateAssessment(
   // (needs the tenant-scoped client).
   assertIntegritySettings(patch.settings);
   assertRemindersSettings(patch.settings);
+  assertSectionsSettings(patch.settings);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
   let validatedBlueprint: AssessmentBlueprint | null = null;
   const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];

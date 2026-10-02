@@ -160,3 +160,14 @@ Owner rules: **P1** a candidate sees only a complete, final score (never partial
 - **Default answer hints**: "Select all that apply." / "Enter a number."
 - **Submit expectation** (`result.ts`): the "result soon" promise counts only types outside mcq / numeric / multi_select as needing an evaluator.
 - Not included: server-side numeric parsing at save time. The runner sends a number; scoring also tolerates `"1,250"` strings and `{value}`.
+
+## Test sections with per-section timers (2026-10-02, migration 0132)
+
+For assessments with `settings.sections` (defined in 05). Assessments without it take exactly the old path (regression-tested in `sections.test.ts`).
+- **Draw (`startAttempt`)**: the pack/level pool (frozen snapshot if present, else live) is partitioned per section, in section order. A section takes questions whose `category_id` is in `category_ids` (if given) that no earlier section used, up to `question_count` (all of them if absent). Too few => `POOL_TOO_SMALL` naming the section. `assessments.randomize` shuffles inside a section. `attempt_questions.section_index` is frozen with the position; `position` runs 1..N across sections.
+- **Time**: `attempts.duration_seconds`/`ends_at` = sum of section minutes (the level's duration is not used). `attempts.section_progress = {current, started_at}` (NULL = section 0 since `started_at`). `sections.ts` derives the running section: when a deadline passes the next opens at the PREVIOUS DEADLINE (lazy; applied and persisted on the next read/write), so being away loses that time and the outcome is the same whenever the server notices. Past the last deadline = `ends_at` expiry = the existing auto-submit.
+- **Locking**: `saveAnswer` / `toggleFlag` on a question whose section is not the running one => 409 `AE_SECTION_LOCKED`. The check only runs when the question has a `section_index` (no extra query for plain tests).
+- **View**: `getAttemptForCandidate` returns only the running section's questions/answers plus `sections {current,total,name,calculator,ends_at,remaining_seconds}`; later sections are not sent. Finished/terminal attempts return everything as before.
+- **`POST /api/me/attempts/:id/finish-section`** => `{section_index}`: opens the next section now and re-pins `ends_at = now + remaining sections' minutes`. 409 `AE_SECTION_NOT_FINISHABLE` on the last section (submit instead) or a plain test.
+- **Not included**: editing `settings.sections` after attempts started would move their deadlines (not guarded); no per-section score breakdown; sweep still keys on `ends_at` only.
+- **Tests**: `sections.test.ts` (DB), `sections-timing.test.ts` (pure).

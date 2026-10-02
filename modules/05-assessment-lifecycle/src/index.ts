@@ -81,6 +81,7 @@ export {
   AssessmentSettingsSchema,
   AssessmentIntegritySettingsSchema,
   AssessmentRemindersSettingsSchema,
+  AssessmentSectionsSchema,
   AL_ERROR_CODES,
   INVITATION_STATUSES,
 } from "./types.js";
@@ -93,6 +94,7 @@ export type {
   Assessment,
   AssessmentInvitation,
   AssessmentSettings,
+  AssessmentSection,
   // service-input types
   ListAssessmentsInput,
   CreateAssessmentInput,

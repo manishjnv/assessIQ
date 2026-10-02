@@ -18,6 +18,7 @@ export type {
   AttemptAnswerWire,
   FrozenQuestionWire,
   CandidateAttemptViewWire,
+  SectionsViewWire,
   InvitedAssessmentWire,
   TakeStartResponseWire,
   TakePreviewResponseWire,
@@ -45,6 +46,7 @@ export {
   getAttempt,
   saveAnswer,
   toggleFlag,
+  finishSection,
   recordEvent,
   submitAttempt,
   getResult,
@@ -55,6 +57,7 @@ export type { SaveAnswerArgs } from "./api";
 // ─── Components ───────────────────────────────────────────────────────────────
 export {
   AttemptTimer,
+  Calculator,
   AutosaveIndicator,
   IntegrityBanner,
   FullscreenGate,
