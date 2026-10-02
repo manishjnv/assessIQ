@@ -2757,3 +2757,25 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 - `GET /api/me/attempts/:id`: MCQ `content.options` come in this attempt's display order, and `answers[].answer.selected` is the displayed position.
 - `POST /api/me/attempts/:id/answer` takes the displayed index; the server stores the original one.
 - No new fields and no new errors.
+
+
+## Batch 3 API changes (2026-10-02)
+
+### `PATCH /api/admin/assessments/:id/integrity`
+
+- Auth: admin session (`adminOnly`), tenant-scoped. Body, strict (unknown keys rejected): `{ "fullscreen": boolean, "block_copy_paste": boolean }`; both required. Bad body: 400 `VALIDATION_ERROR`, `details.code = INVALID_PARAM`, `param = body`. Unknown id: 404 `ASSESSMENT_NOT_FOUND`.
+- Effect: merges only `settings.integrity` (`jsonb_set`, one UPDATE); blueprint and other settings keys are untouched. Allowed in ANY status, including published: the candidate view reads settings live, so it applies to attempts started afterwards and a student mid-test picks it up on next page load. Audit: `assessment.updated` with `before/after { integrity }`. Returns the updated assessment.
+- Why: switches could be set only on the create form. Rejected: a general PATCH of settings (wider surface, would let a published blueprint change). Not included: the tab-leave warning is not switchable.
+
+### `GET /api/admin/assessments/:id/invitations` paging
+
+`page` (1-based) and `pageSize` (cap 100) were already accepted; the admin UI now uses them: 100 per page, "Showing x-y of N", Previous/Next, page clamped to the last real page when rows shrink. The picker and has-attempts guard use ids gathered across all pages. No API shape change; `total` in the response is the paging source.
+
+### Candidate attempt payload: numeric and multi_select
+
+- `numeric`: content sent to the candidate is `{ question, unit? }` (sanitiser allowlist; `answer`, `tolerance`, `rationale` are never sent). Answer saved: a JSON number or null.
+- `multi_select`: `{ question, options }` in the student's shuffled order (shuffle covers up to 10 options); `correct`, `scoring`, `rationale` stripped. Answer saved: `{ "selected": [int] }` of displayed indexes, translated to original indexes at the save seam (all-or-nothing: one bad element leaves the answer untouched). Scoring and result shapes: see 02 and 05.
+
+### Auth note: session-status cache
+
+Every authenticated request now consults a 30 s positive-only Redis cache for the user/tenant active check. Suspend, disable, delete, erase take effect at once on the normal path; worst case 30 s. Details in 04 "Session-status cache". Responses are unchanged.

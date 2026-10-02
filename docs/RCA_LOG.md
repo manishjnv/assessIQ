@@ -2035,3 +2035,55 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Prevention:**
 - New DB tests use the shared `tools/test-support/apply-all-migrations.ts` and the 2× ready-log wait. Moving the container start into the shared helper is the next step if this recurs.
 - Never enable `ENABLE_E2E_TEST_MINTER` on prod to make e2e pass; e2e needs a staging target or an in-CI stack (backlog E5).
+
+
+## 2026-10-02 — Question points edit moved scores of attempts not yet graded (E12)
+
+**Symptom:** Found in review: changing `questions.points` after students started changed the score and `score_max` of their still-ungraded attempts.
+**Cause:** `modules/09-scoring/src/mcq.ts` and the 07 handlers `admin-grade.ts`, `admin-manual-score.ts`, `admin-rerun.ts`, `admin-claim-release.ts` read live `questions.points`.
+**Fix:** migration `modules/06-attempt-engine/migrations/0128_attempt_questions_points.sql` (column, backfill, insert trigger, NOT NULL); `modules/06-attempt-engine/src/repository.ts` writes it at start; the six readers use `aq.points` (390e39c, 1547f2b).
+**Prevention:** `points-freeze.test.ts`; rule: scoring readers use `aq.points`.
+
+## 2026-10-02 — Notification "mark as read" never persisted
+
+**Symptom:** Marking an in-app notification read appeared to work, then it was unread again.
+**Cause:** 0056 gave `in_app_notifications` SELECT and INSERT RLS policies only; `markInAppNotificationRead` (13 repository) UPDATE matched 0 rows silently.
+**Fix:** `modules/13-notifications/migrations/0126_in_app_notifications_update_policy.sql` (tenant FOR UPDATE policy) (0d5557a).
+**Prevention:** `notifications-update-policies.test.ts` (real Postgres, cross-tenant). Rule: a table updated by `assessiq_app` needs an UPDATE policy (same class as 0121).
+
+## 2026-10-02 — Webhook backoff off by one; failed deliveries stuck "pending"
+
+**Symptom:** First webhook retry waited 5 m instead of 1 m; exhausted deliveries stayed `pending`.
+**Cause:** `webhookBackoffStrategy` (module 13) indexed the schedule with BullMQ's 1-based `attemptsMade`; `deliver-job.ts` never wrote `failed` on the final attempt.
+**Fix:** index `schedule[attemptsMade-1]`; final attempt sets `failed` + `last_error` (0d5557a).
+**Prevention:** `notifications.test.ts`, `webhook-safety.test.ts`. Open: `attempts: 5` never reaches the 12 h step.
+
+## 2026-10-02 — Audit payload dates serialised to `{}`
+
+**Symptom:** Audit rows for invite, assessment update/reopen and user restore showed `{}` where a date should be.
+**Cause:** `Date` objects placed in audit `before/after` (05 and 03 services) lost their value in the JSON handling.
+**Fix:** pass ISO strings (0d5557a).
+**Prevention:** manual discipline: audit payloads carry only JSON primitives.
+
+## 2026-10-02 — PROCESS: batch 3 pushed without the Adversarial-Review trailer
+
+**Symptom:** `273e2bc` was pushed and deployed. No commit in the pushed range carries an `Adversarial-Review:` trailer, yet `.claude/hooks/push-adversarial-gate.sh` did not block the push. The same hook had blocked the same range minutes earlier.
+
+**Cause:**
+- **Reviews:** these WERE done. Codex accepted d9a0813. Codex returned revise on 390e39c / 1547f2b, which was addressed. Opus reviewed 273e2bc's two 07 predicate widenings.
+- **Amend:** the script meant to add the trailer failed. On Windows, bash `/tmp` and Python `/tmp` are different folders, so the amend reused the old message.
+- **Hook:** the hook missed the push because this machine has **no `jq`**. Its fallback extracts the command with `sed 's/.*"command"…:"\([^"]*\)".*//p'` (push-adversarial-gate.sh ~line 25), which stops at the first escaped double quote.
+- The command set `GIT_COMMITTER_EMAIL="…"` before `git push`, so the extracted text was cut off before `git push`. The `case *"git push"*` check then exited 0.
+- The first, blocked attempt had `git push` before any quote, so it matched.
+- Reproduced: `{"command":"… GIT_COMMITTER_EMAIL=\"e@x\" git commit … && git push"}` gives `… GIT_COMMITTER_EMAIL=\`.
+- An earlier subagent guess ("PreToolUse runs before the commit exists") was wrong: the security-path commits were already in `@{u}..HEAD`.
+
+**Fix:**
+- The sign-offs are recorded in `docs/SESSION_STATE.md` (2026-10-02 g). Pushed history is not rewritten; no force push.
+- Proposed hook fix, awaiting owner approval (hooks are permission config): parse the hook input with `node -e` / `python -c` JSON instead of sed when jq is absent, or fail CLOSED when the extraction looks truncated.
+
+**Prevention:**
+- Write temp files under the session scratchpad, never `/tmp`, when mixing bash and Python.
+- Run `git push` as its own command, never chained after a commit.
+- Apply the hook parser fix once approved.
+

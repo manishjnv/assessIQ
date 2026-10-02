@@ -1623,3 +1623,36 @@ Content shapes (`questions.content` / `question_versions.content`):
 Answers (`attempt_answers.answer`): numeric = a JSON number (or null); multi_select = `{ "selected": [int] }` in original option indexes (the per-student shuffle in `attempt_questions.option_order` is translated at the save seam, as for mcq).
 
 Scoring: `gradings` rows with `grader='deterministic'`, status `correct` / `partial` / `incorrect`; partial multi_select writes `score_earned = round(points x (right - wrong) / |correct|, 2)` floored at 0. No schema change to `gradings`. Help ids: migration `0131` in module 16. Not included: AI generation of these types, unit conversion, numeric ranges.
+
+
+## Batch 3 schema changes (2026-10-02, migrations 0126-0129)
+
+The numeric / multi_select section above (0129) stays as is; this section adds the rest and the reasoning.
+
+### `attempt_questions.points` (0128, module 06)
+
+- **What.** `points INT NOT NULL`, the value of `questions.points` frozen when the attempt starts (same INSERT that freezes `question_version`). Backfilled from `questions.points` for existing rows. A `BEFORE INSERT` trigger `attempt_questions_default_points` fills it from `questions` if an insert omits it. `NOT NULL` is set only when no row is left NULL. It is the `score_max` source for every grading row. Readers switched to `aq.points`: 09 MCQ/deterministic scoring, and 07 `admin-grade`, `admin-manual-score`, `admin-rerun`, `admin-claim-release` (six readers in total).
+- **Why (E12).** Scoring read live `questions.points`, so editing a question's points after a student started moved the score of attempts not yet graded.
+- **Considered and rejected.** Adding `points` to `question_versions` (versions are content snapshots, and points are not part of them today); reading points lazily at grade time (that is the bug).
+- **Not included.** `question_versions` still has no points. Rows graded before 0128 keep their old `score_max`. Residuals accepted: the insert-default trigger runs in the caller's RLS context, so a context mismatch fails loudly rather than writing a wrong value; points are read a few ms after the version freeze, not in one statement. 1547f2b made the migration fail loudly on unmatched rows.
+- **Impact.** Any new scoring reader must use `aq.points`, never `questions.points`. 02 `gradings.score_max` and 05 pipeline notes refer here.
+
+### `questions.type` CHECK (0129, module 04)
+
+Constraint `questions_type_check` is dropped and re-added with `numeric` and `multi_select` (shapes in the section above). Considered and rejected: a separate table per type (no benefit, content is JSONB). Not included: AI generation of the new types. Impact: 07 evaluation-queue predicates now exclude `numeric` and `multi_select` (see 05).
+
+### `in_app_notifications` UPDATE policy (0126, module 13)
+
+- **What.** One `FOR UPDATE` policy `tenant_isolation_update`, USING and WITH CHECK on `tenant_id = current_setting('app.current_tenant', true)::uuid`.
+- **Why.** 0056 created only SELECT and INSERT policies. Under RLS an UPDATE with no policy matches 0 rows silently, so mark-read never persisted (same class as 0121 for `email_log` / `webhook_deliveries`).
+- **Considered and rejected.** A per-user predicate in RLS (the SELECT policy has none; role/all audiences are shared rows), so per-user scoping stays in `markInAppNotificationRead`'s WHERE.
+- **Not included.** No DELETE policy (nothing deletes rows). **Rollback:** `DROP POLICY tenant_isolation_update ON in_app_notifications;`.
+- **Impact.** Rule: any table written with UPDATE under `assessiq_app` needs an explicit UPDATE policy.
+
+### `webhook_deliveries.status = 'failed'` (no migration)
+
+- **What.** `failed` was already allowed by the 0058 CHECK but never written. Now the job's final attempt (`attemptsMade + 1 >= opts.attempts`) sets `failed` plus `last_error`, `http_status`, `attempts` for transient errors (5xx/408/425/429/network/timeout) before throwing. Backoff now indexes `schedule[attemptsMade-1]` (BullMQ counts from 1): retries wait 1 m, 5 m, 30 m, 2 h.
+- **Why.** Rows stayed `pending` for ever; the first retry used the second schedule entry.
+- **Considered and rejected.** Writing `failed` from a BullMQ `failed` event (needs a second worker hook).
+- **Not included.** `attempts: 5` means 4 retries, so the 12 h step is defined but never reached; raising it changes the published contract and awaits a decision.
+- **Impact.** Dashboards counting `pending` will drop; `failed` rows can be re-sent by the existing resend path.

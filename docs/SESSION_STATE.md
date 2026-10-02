@@ -1,3 +1,33 @@
+# Session — 2026-10-02 (g) — batch 3 live
+
+**Headline:** Batch 3 is live on prod (HEAD `273e2bc`, deployed 2026-10-02): session-status cache, points frozen per attempt, numeric and multi-select question types, editable integrity switches, notification/webhook/audit fixes.
+**Commits (`0e479c8..273e2bc`):**
+- `d9a0813` perf(01): Redis 30 s positive-only session-status cache; loader rejects erased_at; PG pool api 40 / worker 15
+- `0d5557a` fix(13,05,10): in_app_notifications UPDATE policy (0126), webhook backoff + failed status, ISO dates in audit, paged invitations (help 0127)
+- `13eeebb` feat(05,10): PATCH /api/admin/assessments/:id/integrity + IntegrityCard (help 0130)
+- `390e39c` + `1547f2b` fix(06,09,07): attempt_questions.points frozen at start (0128; fails loudly on unmatched rows)
+- `83ba3ea` fix(10): AttemptIntegrityCard extracted; test mocks it
+- `273e2bc` feat(04,06,09,11,10): numeric + multi_select (0129, help 0131; 07 queue predicates widened)
+**Deploy:** migrations 0126-0131 applied by hand. Checks: UPDATE policy present, points NOT NULL, type CHECK has numeric + multi_select, 171 help rows, api PG_POOL_MAX=40 / worker 15, health 200, 0 api errors.
+**Adversarial sign-offs (the commit trailer is MISSING, see RCA 2026-10-02 PROCESS):** d9a0813 codex accept; 390e39c / 1547f2b codex revise-addressed; 273e2bc Opus review of its two 07 predicate widenings (accept).
+**Tests:** typecheck 0, lint 0; 09 102, 06 250, 04 236, 16 93, 07 374, web 47, 10 97, 13 244, 05 117 passed; 01-auth 272/273 (known totp constant-time flake).
+**Next:** batch 4 in progress (sections + calculator, reminders, least-AI tiers, /try demo, client IP + invite limit + erased guards). Owner: approve a hook fix so `git commit` checks the trailer.
+**Open questions:**
+- Hook gap: push-adversarial-gate cannot see a commit made in the same chained command; approve the proposed `git commit` check?
+- Webhook `attempts: 5` never reaches the 12 h backoff step; raise to 6?
+
+---
+
+## Agent utilization
+- Opus: plan, diff review, 273e2bc 07-predicate review, deploy checks, docs.
+- Sonnet: batch implementation in worktrees, tests, this docs pass.
+- Haiku: n/a — no bulk sweep recorded in this entry.
+- codex:rescue: d9a0813 accepted; 390e39c / 1547f2b revise, addressed in 1547f2b.
+- claude-mem: n/a — not used for this entry.
+- Routing telemetry: Sonnet · batch 3 implementation · reworked: Y (0128 migration revised after codex) · Sonnet · docs pass · reworked: N
+
+---
+
 # Session — 2026-10-01 (f) / 02 — pilot batch 2: five tasks built and live, CI lint and scan gates green
 
 **Headline:** Five tasks shipped, all live: company reports hide unreleased scores; roll number + branch import with a ranked results CSV; integrity v1 (full screen, copy/paste block, tab-leave warning, admin card); marketing truth pass + privacy fixes; CI lint/scan gates green plus one shared test-DB migration helper.

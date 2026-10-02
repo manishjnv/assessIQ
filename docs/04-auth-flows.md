@@ -1126,3 +1126,18 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 **Request-scoped tenant transaction removed.** `tenantContextMiddleware` was a global `preHandler` that checked out a pool client + `BEGIN` per request. Evidence: nothing reads `req.db`/`req.tenant` (only `server.ts` referenced `req.db`), all DB access uses `withTenant()`; and because `sessionLoader` is a per-route preHandler while Fastify runs global preHandlers first, the hook never saw `req.session` in production (it was dead code that would have pinned a second connection for the whole request if it ever fired). The registration in `server.ts` is removed; the exported helper stays in `02-tenancy` with a "do not register globally" note.
 
 **Not included.** Per-route-group candidate caps, Redis-cluster sharding of the buckets, pgbouncer. Load script: `tools/load/candidate-drive.k6.js` (staging/local only).
+
+
+## Session-status cache (R11, 2026-10-02, commit d9a0813)
+
+- **What.** `modules/01-auth/src/middleware/session-loader.ts` caches the "is this user / tenant still active?" verdict in Redis, saving two `withTenant` DB round trips per request (campus drives: hundreds of students on one IP polling). Keys: `aiq:sess-status:u:<userId>` -> the tenantId it was verified under; `aiq:sess-status:t:<tenantId>` -> `"1"`. TTL `SESS_STATUS_TTL_SEC = 30`. No PII in values.
+- **Invariants (tested in `session-status-cache.test.ts`).**
+  1. Positive-only: only an "active" verdict is stored; a negative is never cached, so the cache can delay a lockout by at most 30 s and never extend one.
+  2. Tenant-bound: a user-key hit must equal `session.tenantId`, else it is ignored.
+  3. Invalidation (DEL): `sessions.destroyAllForUser` (user key), `sessions.destroyAllForTenant` (tenant key; used by suspend/archive), `03-users/redis-sweep.sweepUserSessions` (disable / soft-delete), and the admin erase route.
+  4. Redis down or erroring on get/set: fall through to the DB check. Fail-safe, never fail-open.
+  5. The DB check now also rejects `users.erased_at IS NOT NULL`; before, erased candidates kept working sessions.
+- **Known bounded race.** A DB read that straddles a suspend can re-write "active" after the DEL; it expires within 30 s.
+- **Considered and rejected.** Caching negatives (would need invalidation on un-suspend); a longer TTL; a pre-guard before sessionLoader (middleware order unchanged).
+- **Not included.** Any change to session lifetime, JWT or MFA. PG pool budget set alongside: api 40, worker 15 (`API_PG_POOL_MAX` / `WORKER_PG_POOL_MAX`, Postgres `max_connections` 100).
+- **Impact.** Any new "kill sessions" path must DEL these keys, or lockout waits up to 30 s.

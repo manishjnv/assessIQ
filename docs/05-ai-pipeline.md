@@ -1341,3 +1341,9 @@ Trigger or accept AI grading, re-run, enter a manual first score or retry a grad
 - **Shared rubric resolution:** Re-run uses the same rubric resolution as Grade all (`resolveGradingRubric`, extracted from `admin-grade.ts`, same behaviour).
 - **Compliance frame unchanged:** AI runs only on the super admin's click, and `lint:ambient-ai` passes.
 - **Not included:** the `AI_PIPELINE_MODE` switch that would let companies run AI once a paid API key exists. It has no effect until OD2, because API mode is still a stub.
+
+
+## Batch 3 notes (2026-10-02)
+
+- **Points frozen per attempt (390e39c, 0128).** `score_max` for every grading row now comes from `attempt_questions.points` (frozen at attempt start), not live `questions.points`. 07 `admin-grade`, `admin-manual-score`, `admin-rerun`, `admin-claim-release` and 09 deterministic scoring read it. Editing a question's points mid-drive no longer changes scores of attempts not yet graded. No prompt, skill or runtime change; the AI still runs only on the super admin's click.
+- **Evaluation queue excludes numeric and multi_select (273e2bc).** The "needs evaluation" predicate was `q.type <> 'mcq'`; it is now `q.type NOT IN ('mcq','numeric','multi_select')` in `07 handlers/super-evaluations.ts`, `07 repository.ts` (`non_mcq` count) and `apps/api/src/jobs/evaluation-queue-alert.ts`. An attempt made only of MCQ / numeric / multi_select completes at submit with deterministic scoring (numeric tolerance; multi_select all_or_nothing or partial) and enters no queue. Rejected: sending the new types through AI (they are objectively scorable). Not included: AI generation of these types. A new deterministic type must widen all three predicates.
