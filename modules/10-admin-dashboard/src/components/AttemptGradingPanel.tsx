@@ -35,6 +35,7 @@ import { GradingProposalCard } from "./GradingProposalCard.js";
 import { EscalationDiff } from "./EscalationDiff.js";
 import { ScoreDetail } from "./ScoreDetail.js";
 import { BandPicker } from "./BandPicker.js";
+import { StructuredCaseView } from "./StructuredCaseView.js";
 import { QuestionPromptView } from "./QuestionPromptView.js";
 import { ExpectedAnswerView } from "./ExpectedAnswerView.js";
 import { ConceptCoverageView } from "./ConceptCoverageView.js";
@@ -232,6 +233,15 @@ function AttemptAnswerView({ type, content, answer }: { type: string; content: u
           {optText}
         </p>
       );
+    }
+
+    case "structured_case": {
+      const given = asAnswerObj(a?.steps);
+      if (given === null) break;
+      if (Object.values(given).every((v) => !Array.isArray(v) || v.length === 0)) return <NoAnswer label="No steps answered." />;
+      const c = asAnswerObj(content);
+      if (c === null) break;
+      return <StructuredCaseView c={c} mode="answer" withCase={false} answer={answer} />;
     }
 
     case "ordering": {

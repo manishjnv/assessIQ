@@ -24,6 +24,7 @@
 //  - Never crashes on malformed content (per-section fallbacks).
 
 import React from "react";
+import { StructuredCaseView } from "./StructuredCaseView.js";
 import { cleanText, safeStr, safeArr, obj, JsonFallback, SUBLABEL_STYLE, OPTION_LABELS } from "./question-format.js";
 
 export interface RubricAnchorForReview {
@@ -281,6 +282,8 @@ export function ExpectedAnswerView({ type, content, rubric }: ExpectedAnswerView
     case "mcq":
     case "multi_select":
       return c ? <McqExpected c={c} /> : <JsonFallback value={content} />;
+    case "structured_case":
+      return c ? <StructuredCaseView c={c} mode="key" withCase={false} /> : <JsonFallback value={content} />;
     case "ordering": {
       if (!c) return <JsonFallback value={content} />;
       const items = safeArr<unknown>(c.items) ?? [];

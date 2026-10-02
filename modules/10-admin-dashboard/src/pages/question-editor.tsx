@@ -19,10 +19,12 @@ import { AdminShell } from "../components/AdminShell.js";
 import { RubricEditor } from "../components/RubricEditor.js";
 import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
 import { QuestionContentView } from "../components/QuestionContentView.js";
+import { StructuredCaseEditor, EMPTY_SC, buildStructuredCaseContent, structuredCaseError } from "../components/StructuredCaseEditor.js";
+import type { ScState } from "../components/StructuredCaseEditor.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
 
-const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select", "ordering"] as const;
+const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select", "ordering", "structured_case"] as const;
 type QuestionType = typeof QUESTION_TYPES[number];
 
 const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
@@ -36,7 +38,11 @@ const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
   multi_select: { question: "", options: ["", "", "", ""], correct: [0], scoring: "all_or_nothing" },
   // Authored via the structured items editor (CreateQuestionForm); correct_order = identity on save.
   ordering: { question: "", items: ["", ""], correct_order: [0, 1], scoring: "all_or_nothing" },
+  // Authored via StructuredCaseEditor (CreateQuestionForm); the JSON here is never shown.
+  structured_case: { title: "", context: "", steps: [], scoring: "partial" },
 };
+
+const TYPE_LABELS: Partial<Record<QuestionType, string>> = { structured_case: "Structured case (auto-scored)" };
 
 /** Items editor value -> content. The authored order IS the correct order, so correct_order is the identity. */
 export function buildOrderingContent(question: string, items: string[], scoring: "all_or_nothing" | "partial"): unknown {
@@ -252,6 +258,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   const [ordQuestion, setOrdQuestion] = useState("");
   const [ordItems, setOrdItems] = useState<string[]>(["", ""]);
   const [ordScoring, setOrdScoring] = useState<"all_or_nothing" | "partial">("all_or_nothing");
+  const [sc, setSc] = useState<ScState>(EMPTY_SC);
 
   function moveOrdItem(i: number, dir: -1 | 1) {
     const j = i + dir;
@@ -279,6 +286,13 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
         return;
       }
       content = buildOrderingContent(ordQuestion, ordItems, ordScoring);
+    } else if (type === "structured_case") {
+      const problem = structuredCaseError(sc);
+      if (problem !== null) {
+        setSubmitError(problem);
+        return;
+      }
+      content = buildStructuredCaseContent(sc);
     } else {
       try {
         content = JSON.parse(contentJson) as unknown;
@@ -342,7 +356,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
             onChange={(e) => handleTypeChange(e.target.value as QuestionType)}
           >
             {QUESTION_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
             ))}
           </select>
         </div>
@@ -431,6 +445,8 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
               <option value="partial">Partial credit (items in the right place)</option>
             </select>
           </div>
+        ) : type === "structured_case" ? (
+          <StructuredCaseEditor value={sc} onChange={setSc} />
         ) : (
         <div className="aiq-form-group">
           {type === "numeric" || type === "multi_select" ? (

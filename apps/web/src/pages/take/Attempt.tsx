@@ -57,6 +57,7 @@ import { McqAnswerArea } from './McqAnswerArea.js';
 import { NumericAnswerArea } from './NumericAnswerArea.js';
 import { MultiSelectAnswerArea } from './MultiSelectAnswerArea.js';
 import { OrderingAnswerArea } from './OrderingAnswerArea.js';
+import { StructuredCaseAnswerArea } from './StructuredCaseAnswerArea.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -739,6 +740,9 @@ export function isAnsweredValue(ans: unknown): boolean {
     v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
   if (empty(ans)) return false;
   if (typeof ans === 'object' && !Array.isArray(ans)) {
+    // structured_case: { steps: { [stepId]: number[] } } is answered iff some step has a pick.
+    const st = (ans as { steps?: unknown }).steps;
+    if (st !== null && typeof st === 'object' && !Array.isArray(st)) return Object.values(st as object).some((v) => !empty(v));
     const vals = Object.values(ans as Record<string, unknown>);
     return vals.some((v) => !empty(v));
   }
@@ -1373,7 +1377,7 @@ export function AttemptPage(): React.JSX.Element {
                 if (hasForbiddenSynonym(currentQuestion.content)) return null;
                 const c = currentQuestion.content as Record<string, unknown>;
                 const text =
-                  currentQuestion.type === 'scenario'
+                  currentQuestion.type === 'scenario' || currentQuestion.type === 'structured_case'
                     ? (typeof c.title === 'string' ? c.title : null)
                     : (typeof c.question === 'string' ? c.question : null);
                 if (text === null) return null;
@@ -1706,6 +1710,16 @@ function AnswerArea({
     case 'ordering':
       return (
         <OrderingAnswerArea
+          question={question}
+          answer={answer}
+          disabled={disabled}
+          onAnswerChange={onAnswerChange}
+        />
+      );
+
+    case 'structured_case':
+      return (
+        <StructuredCaseAnswerArea
           question={question}
           answer={answer}
           disabled={disabled}

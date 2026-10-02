@@ -10,6 +10,7 @@
 //  - Never crashes on malformed content — each section falls back independently.
 
 import React from "react";
+import { StructuredCaseView } from "./StructuredCaseView.js";
 
 export interface QuestionContentViewProps {
   type: string;
@@ -602,6 +603,8 @@ export function QuestionContentView({ type, content }: QuestionContentViewProps)
       return <McqView c={c} />;
     case "ordering":
       return <OrderingView c={c} />;
+    case "structured_case":
+      return <StructuredCaseView c={c} mode="key" />;
     case "numeric":
       return <NumericView c={c} />;
     case "subjective":

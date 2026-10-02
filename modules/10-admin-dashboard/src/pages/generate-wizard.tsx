@@ -702,7 +702,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         // In omnibus mode (default) type_counts is ignored server-side; the wizard
         // at least sends the correct count total so the right number of questions generates.
         const C = cat.count;
-        // These five are the AI-generated types by design; numeric, multi_select and ordering are authored by hand (modules/04-question-bank/src/difficulty-spec.ts:96).
+        // These five are the AI-generated types by design; numeric, multi_select, ordering and structured_case are authored by hand (modules/04-question-bank/src/difficulty-spec.ts:96).
         const typeCounts: Partial<Record<"mcq" | "log_analysis" | "scenario" | "kql" | "subjective", number>> = {};
         for (const t of cat.selectedTypes) {
           typeCounts[t as "mcq" | "log_analysis" | "scenario" | "kql" | "subjective"] = C;
