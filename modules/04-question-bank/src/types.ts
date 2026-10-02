@@ -92,6 +92,40 @@ export const OrderingContentSchema = z.object({
 
 export type OrderingContent = z.infer<typeof OrderingContentSchema>;
 
+// Structured case - a log excerpt or incident narrative followed by structured choice steps.
+// Deterministic (no AI): every step is a choice. `correct` / `explanation` never go to candidates.
+export const StructuredCaseStepSchema = z.object({
+  id: z.string().min(1),
+  prompt: z.string().min(1),
+  select: z.enum(["one", "many"]),
+  options: z.array(z.string().min(1)).min(2).max(8),
+  correct: z.array(z.number().int().min(0)).min(1),
+}).strict();
+
+export const StructuredCaseContentSchema = z.object({
+  title: z.string().min(1),
+  context: z.string().min(1),
+  log_excerpt: z.string().min(1).max(20000).optional(),
+  steps: z.array(StructuredCaseStepSchema).min(1).max(12),
+  scoring: z.enum(["all_or_nothing", "partial"]).optional(),
+  explanation: z.string().min(1).optional(),
+}).strict()
+  .superRefine((val, ctx) => {
+    if (new Set(val.steps.map((s) => s.id)).size !== val.steps.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps"], message: "step ids must be unique" });
+    }
+    val.steps.forEach((s, i) => {
+      if (new Set(s.correct).size !== s.correct.length || s.correct.some((c) => c >= s.options.length)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps", i, "correct"], message: "correct must be unique, valid indexes into options" });
+      }
+      if (s.select === "one" && s.correct.length !== 1) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps", i, "correct"], message: "select 'one' needs exactly one correct index" });
+      }
+    });
+  });
+
+export type StructuredCaseContent = z.infer<typeof StructuredCaseContentSchema>;
+
 // Subjective (data-model lines 284-288)
 // rubric lives in the separate column — not embedded in content.
 export const SubjectiveContentSchema = z.object({
@@ -172,6 +206,7 @@ export const QUESTION_TYPES = [
   "numeric",
   "multi_select",
   "ordering",
+  "structured_case",
 ] as const;
 
 export type QuestionType = typeof QUESTION_TYPES[number];
@@ -185,17 +220,18 @@ const CONTENT_SCHEMA_MAP = {
   numeric: NumericContentSchema,
   multi_select: MultiSelectContentSchema,
   ordering: OrderingContentSchema,
+  structured_case: StructuredCaseContentSchema,
 } as const satisfies Record<QuestionType, z.ZodTypeAny>;
 
 export function validateQuestionContent(
   type: QuestionType,
   content: unknown,
 ):
-  | { ok: true; data: McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent }
+  | { ok: true; data: McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent | StructuredCaseContent }
   | { ok: false; errors: z.ZodIssue[] } {
   const result = CONTENT_SCHEMA_MAP[type].safeParse(content);
   if (result.success) {
-    return { ok: true, data: result.data as McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent };
+    return { ok: true, data: result.data as McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent | StructuredCaseContent };
   }
   return { ok: false, errors: result.error.issues };
 }

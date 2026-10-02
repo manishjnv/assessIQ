@@ -316,6 +316,11 @@ export const ScenarioAnswerPayloadSchema = z.object({
   steps: z.array(ScenarioStepAnswerSchema),
 });
 
+/** structured_case answer: picked option indexes per step id. Range / id checks need the frozen content (checkAnswerForSave). */
+export const StructuredCaseAnswerPayloadSchema = z.object({
+  steps: z.record(z.string(), z.array(z.number().int().min(0))),
+});
+
 export const KqlAnswerPayloadSchema = z.object({
   /** The candidate's KQL query text. */
   query: z.string(),
@@ -336,7 +341,23 @@ export const SubjectiveAnswerPayloadSchema = z.object({
 export function checkAnswerForSave(
   questionType: string | null,
   answer: unknown,
+  frozenContent?: unknown,
 ): { ok: true; answer: unknown } | { ok: false } {
+  if (questionType === "structured_case" && answer !== null) {
+    // Keyed on the question TYPE. Canonical: { steps: { [stepId]: number[] } }; every step id must
+    // exist in the frozen content and every index must be a unique integer inside that step's options.
+    const parsed = StructuredCaseAnswerPayloadSchema.safeParse(answer);
+    const steps = (frozenContent as { steps?: unknown } | null | undefined)?.steps;
+    if (!parsed.success || !Array.isArray(steps)) return { ok: false };
+    const byId = new Map(steps.map((s: { id?: unknown; options?: unknown }) => [s.id, s.options]));
+    for (const [id, picks] of Object.entries(parsed.data.steps)) {
+      const options = byId.get(id);
+      if (!Array.isArray(options) || new Set(picks).size !== picks.length || picks.some((i) => i >= options.length)) {
+        return { ok: false };
+      }
+    }
+    return { ok: true, answer: parsed.data };
+  }
   if (questionType !== "scenario" || answer === null) return { ok: true, answer };
   const parsed = ScenarioAnswerPayloadSchema.safeParse(answer);
   return parsed.success ? { ok: true, answer: parsed.data } : { ok: false };

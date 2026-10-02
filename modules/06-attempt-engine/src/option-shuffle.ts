@@ -228,6 +228,8 @@ export function answerToDisplayed(answer: unknown, order: readonly number[], key
 // ---------------------------------------------------------------------------
 
 /** Frozen questions with MCQ `content.options` rearranged into each attempt's display order. */
+// ponytail: structured_case steps are NOT shuffled (served in authored order); shuffling per step
+// (own option_order per step id) is the upgrade if option position becomes a cue.
 export function displayQuestions(
   questions: FrozenQuestion[],
   orders: ReadonlyMap<string, readonly number[]>,
