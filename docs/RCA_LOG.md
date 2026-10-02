@@ -4,6 +4,34 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-03 — Dashboard cards stopped at 50, "Ready to publish" was always 0, and timer-expired attempts were missing from the tenant queue
+
+**Symptom:** the three dashboard cards (In queue, Awaiting evaluation, Ready to publish) never showed more than 50. "Ready to publish" was always 0. An attempt that ended by timer expiry (`auto_submitted`) did not show in the tenant queue list, but it showed in the platform evaluation queue.
+**Cause:** `modules/10-admin-dashboard/src/pages/dashboard.tsx` counted the rows of the queue list fetched with `?limit=50`. That list (`listGradingQueue` in `modules/07-ai-grading/src/repository.ts`) holds only attempts that are not evaluated yet, so no row could be ready to publish. The same query did not include `auto_submitted`; `listSuperEvaluationQueue` did.
+**Fix:** new `countGradingQueue` (one RLS-scoped `COUNT(*) FILTER` query) in `modules/07-ai-grading/src/repository.ts`. `handleAdminQueue` (`modules/07-ai-grading/src/handlers/admin-queue.ts`) returns `{ items, counts }`. `listGradingQueue` adds `auto_submitted`. The dashboard reads `counts` and shows "Showing the oldest N of M" when the list is capped. Commit `511e1af`. Raising the client limit to 100 was rejected: it is still a cap.
+**Prevention:** new case 5.3 in `modules/07-ai-grading/src/__tests__/handlers.test.ts`. Rule: `listGradingQueue`, `countGradingQueue` and `deriveEvaluationStatus` must stay in sync (written in `modules/07-ai-grading/SKILL.md`). Manual discipline for that rule; no lint checks it.
+
+## 2026-10-03 — A wrong-shaped scenario answer was stored with no error
+
+**Symptom:** none reported. `saveAnswer` accepted any JSON for a scenario question. The evaluation reads `steps`, so a wrong shape was evaluated as an empty answer.
+**Cause:** `saveAnswer` in `modules/06-attempt-engine/src/service.ts` did not check the answer shape for any question type.
+**Fix:** `checkAnswerForSave(type, answer)` in `modules/06-attempt-engine/src/types.ts` checks a `scenario` answer with the existing `ScenarioAnswerPayloadSchema`. The key is the question type, never the answer shape. `null` passes and unknown keys are removed. `findQuestionType` in `repository.ts` reads the type. A wrong shape gives HTTP 400 `AE_INVALID_PARAM` with `param: "answer"`. Commit `e6eb22d`. Other types keep "stored as sent": a strict check there could block autosave for a client with an older shape.
+**Prevention:** new tests `modules/06-attempt-engine/src/__tests__/answer-shape-save.test.ts` (4 cases) and one database case in `attempt-engine.test.ts`. Open: the type is read live from `questions`, not frozen per attempt (task N21).
+
+## 2026-10-03 — Two help page ids with a hyphen could never have content, and six pages had no page help
+
+**Symptom:** the (?) button on eight admin pages opened no help text.
+**Cause:** the page ids `admin.tenant-settings` and `admin.generate-wizard` held a hyphen, but the seed generator allows only `[a-z0-9_]`, so no key could exist for them. Six more pages (`admin.attempts.detail`, `admin.evaluations.detail`, `admin.grading.jobs`, `admin.question.editor`, `admin.reports.individual`, `admin.reports.landing`) had no `<page>.page` entry. Same class as RCA 2026-05-24 (help prefix mismatch).
+**Fix:** the ids are now `admin.tenant_settings` and `admin.generate_wizard` (help ids only; the routes do not change). Eight `<page>.page` entries added to `modules/16-help-system/content/en/admin.yml`. Seed `0011` regenerated (188 to 196 rows). Migration `0148_seed_page_help.sql` applied by hand on production on 2026-10-03 (global rows 195 to 203). Commit `2a15ce5`.
+**Prevention:** `modules/16-help-system/src/__tests__/help-system.test.ts` checks the global row count. Open: some help ids on a page are outside the page prefix, so their text cannot load (task N20). The lint that compares every `data-help-id` with the content keys is still planned (RV71).
+
+## 2026-10-03 — A role mismatch sent a signed-in user to the login page with no message
+
+**Symptom:** a signed-in user with the wrong role opened an admin page and saw the login page, with no reason.
+**Cause:** `apps/web/src/lib/RequireSession.tsx` redirected silently on a role mismatch.
+**Fix:** the gate now shows "You do not have access to this page." with a link "Sign in with a different account". The gate logic did not change: children do not render, and the no-session and MFA redirects did not change. Commit `4ea20a8`.
+**Prevention:** new test file `apps/web/src/lib/RequireSession.test.tsx` (2 tests).
+
 ## 2026-10-02 — Numeric answer box kept the text of the previous question
 
 **Symptom:** when two numeric questions followed each other, the box on the second question showed the answer of the first. The second question stayed unanswered until the candidate typed.

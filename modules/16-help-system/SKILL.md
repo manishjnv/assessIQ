@@ -124,3 +124,7 @@ Not audited: `recordHelpEvent` (fire-and-forget telemetry), all read paths (`get
 ## 0131 question-type help (2026-10-02)
 
 Two new admin help ids, `admin.question.content.numeric` and `admin.question.content.multi_select`, in `content/en/admin.yml` and migration `0131_seed_question_types_help.sql` (idempotent INSERTs; 0011 is not regenerated). Seeded global count 160 -> 162 (`help-system.test.ts`).
+
+## Page help key form (N16, 2026-10-03)
+
+A page-level help entry has the key `<page>.page`. `AdminShell helpPage` mounts `HelpProvider page=...`; the API returns the keys `LIKE '<page>.%'`; the header (?) button opens the drawer at `<page>.page`. A page id must use only `[a-z0-9_]` in each segment (the seed generator and `HelpEntrySchema` reject a hyphen). `admin.tenant-settings` and `admin.generate-wizard` were renamed to `admin.tenant_settings` and `admin.generate_wizard` (help ids only; routes unchanged). Eight page entries were added in migration `0148_seed_page_help.sql` (seed 0011: 196 rows; production: 203 global rows). **Open (task N20):** some `data-help-id` values are outside the prefix of their page (`admin.settings.company_name`, `admin.settings.result_release_mode`, `admin.question.content.*`, `admin.question.ordering.*`), so their text cannot load.

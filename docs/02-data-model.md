@@ -8,7 +8,7 @@
 - **Timestamps:** `created_at`, `updated_at`, both `TIMESTAMPTZ DEFAULT now()`
 - **Soft delete:** `deleted_at TIMESTAMPTZ NULL` instead of hard deletes for any user-visible entity
 - **JSONB** for: tenant settings, question content, answer payloads, audit before/after, AI grading raw output
-- **Money:** never used (no payments in v1)
+- **Money:** no customer payment data (no prices, invoices or payments). Two amount columns exist: `tenant_grading_budgets.monthly_budget_usd` and `used_usd`, both `NUMERIC(10,2)`, an AI cost budget in US dollars (migration `0041`; no code writes them today). Module 19-billing counts usage in whole credits, not in money: `tenant_plans.included_credits` (`INTEGER`) and one `billing_events` row for each graded attempt. A new money column must use `NUMERIC`, never a floating-point type. (Checked against all migrations 2026-10-03, task N18.)
 - **Enums:** Postgres native enums, except where extensibility matters — then `TEXT CHECK (val IN (...))`
 
 ## Module → tables map

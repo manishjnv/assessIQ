@@ -284,10 +284,18 @@ Integrity audit performed 2026-05-14 against all 94 keys. Fixed in one pass:
 
 **Rule: help rows can exist outside the YAML.** Older module migrations seeded rows such as `admin.grading.rerun` and `admin.integrations.embed-origins.add`. A migration built from the YAML does not touch them. After every help-text migration, run on production and expect 0: `SELECT count(*) FROM help_content WHERE tenant_id IS NULL AND (long_md ~* '(opus|sonnet|wipro|anthropic|claude)' OR short_text ~* '(opus|sonnet|wipro|anthropic|claude)');`
 
-**Generator limit.** The seed generator allows only `[a-z0-9_]` in key segments. The page prefixes `admin.tenant-settings` and `admin.generate-wizard` contain a hyphen, so they have no content. The UI id must change first.
+**Generator limit (closed 2026-10-03, see "Page help for eight pages" below).** The seed generator allows only `[a-z0-9_]` in key segments. The page prefixes `admin.tenant-settings` and `admin.generate-wizard` contain a hyphen, so they have no content. The UI id must change first.
 
-**Page prefixes with no content yet:** `admin.attempts.detail`, `admin.evaluations.detail`, `admin.grading.jobs`, `admin.question.editor`, `admin.reports.individual`, `admin.reports.landing`.
+**Page prefixes with no content (closed 2026-10-03):** `admin.attempts.detail`, `admin.evaluations.detail`, `admin.grading.jobs`, `admin.question.editor`, `admin.reports.individual`, `admin.reports.landing`.
 
 **Not included.** The 44 keys that have no screen stay: they record the first purpose of dormant features. Key names `admin.grading.rerun.opus` and `admin.reports.cost.empty_in_claude_code_vps_mode` keep their names; their text is clean. The candidate login still asks for an "Organisation code"; that text waits for an owner decision.
 
 **Impact.** Four UI help ids were corrected to match their keys (see `docs/RCA_LOG.md`, 2026-10-02). No API or schema change.
+
+## Page help for eight pages (2026-10-03)
+
+**What changed.** Both items above are closed (commit `2a15ce5`, migration `0148_seed_page_help.sql`). The two page ids with a hyphen are now `admin.tenant_settings` and `admin.generate_wizard`. These are help ids only: the routes `/admin/tenant-settings` and `/admin/generate-wizard` do not change. Eight `<page>.page` entries are in `content/en/admin.yml`. The seed `0011` has 196 rows. Production has 203 global rows (migration 0148 applied by hand on 2026-10-03).
+
+**Key form.** `AdminShell helpPage` mounts `HelpProvider page=...`. The API returns the keys `LIKE '<page>.%'`. The (?) button in the header opens the drawer at the key `<page>.page`. A page id uses only `[a-z0-9_]` in each segment.
+
+**Open (task N20).** Some help ids on a page are outside the prefix of that page, so their text cannot load: `admin.settings.company_name` and `admin.settings.result_release_mode` (in `tenant-settings.tsx`; pages `admin.settings.billing` and `admin.tenant_settings`), and `admin.question.content.*` and `admin.question.ordering.*` on the question editor (page `admin.question.editor`). Fix: rename the ids or add keys under the page prefix. The lint RV71 would catch this class.

@@ -1,3 +1,43 @@
+# Session — 2026-10-03 (o) — small tasks: RV16, N13 to N18 (dashboard counts, scenario answer check, page help, Astro 5)
+
+**Headline:** All seven small tasks from session (n) are done and LIVE on https://assessiq.in (code HEAD `38c76e3`; docs HEAD is later). Five code commits, one migration (0148, help rows only), one deploy.
+**Commits (`62e01d8..38c76e3` code, then one docs commit; all pushed):**
+- `511e1af` RV16 dashboard counters from the server; auto-submitted attempts in the tenant queue (codex: revise, 2 MEDIUM accepted with reasons)
+- `e6eb22d` N15 scenario answer shape check at save
+- `4ea20a8` RV16 small admin items (fallback text, extra types in the score table, "no access" notice) + N17 comments and unused helper
+- `2a15ce5` N16 page help for eight admin pages + migration 0148 · `38c76e3` N13 Astro 5.18.2, astro-og-canvas 0.13.2, canvaskit-wasm 0.42.0
+**Checks with no code:** N14: both audit numbers are correct. All dependencies: 42 high, 2 critical, all through development and test tools. Production only (`--prod`, the CI gate): 0 high, 0 critical, 5 moderate. N18: the "Money" line in `docs/02-data-model.md` was wrong (two `NUMERIC` USD columns exist in `tenant_grading_budgets`); corrected.
+**Deploy:** one stage, additive only. Pull to `38c76e3`; 0148 by hand and recorded; help rows 195 to 203; api, frontend and marketing built; api, worker, frontend and marketing recreated. 24 containers before and after; 0 error lines; 16 URLs return 200; served files hold the new text; no IndexNow ping (no page content change).
+**Tests:** typecheck 0; lint 0 errors (20 warnings); module 06 289 (one timing test failed under load, passed alone); module 07 handlers 31; module 10 102; module 16 93; web 66.
+**Found during the work (not in the task list):**
+- "Ready to publish" on the dashboard was always 0, and timer-expired attempts were missing from the tenant queue. Both are fixed in `511e1af`.
+- RV16 "type lists show 5 types" is not a defect: AI generation supports exactly five types.
+- Some help ids are outside the prefix of their page, so their text cannot load (settings page, question editor). Not fixed: new task N20.
+**Not done (by design):** no browser click with an admin sign-in (behaviour check pending operator: dashboard cards, "no access" notice, the (?) drawer on the eight pages); Astro 6 or later; Storybook 10 (waits for FR18).
+**Next (Claude):** RS4 marketing truth pass 2. Then RS6 feature review, PT1 (plan tiers) first. Small new tasks: N19 (update development tools with audit findings, vitest first), N20 (help ids outside the page prefix), N21 (decide if the question type must be frozen for each attempt), N22 (index for the dashboard count, only at scale).
+**Next (Owner):** open the dashboard and one of the eight pages once and check the cards and the (?) drawer; decide RO3 ("Organisation code"); approve the `CLAUDE.md` edit (RV33); items open from older sessions (eval bless, push-gate hook, MASTER_KEY rotation date).
+**Open questions:** (1) Is a dedicated session for the development-tool updates (N19) wanted before the pilot? They do not reach production. (2) N21: accept the live question type, or freeze it for each attempt?
+**Old task or feature checked (Rule B):** dashboard counts against the platform evaluation queue and `deriveEvaluationStatus`; N15 against the existing `ScenarioAnswerPayloadSchema` (reused) and the SP7 rule "key from question type"; N16 against RCA 2026-05-24 and RS3 (0146, 0147); N13 against the N10 note; the "no access" notice against RV60.
+**Docs:** session record `docs/plans/SMALL_TASKS_N13_N18_RV16.md`; deploy record `docs/06-deployment.md` § Small tasks deploy; RCA 2026-10-03 entries; `docs/02-data-model.md` (money line); `docs/03-api-contract.md` (queue `counts`, scenario answer rule); `docs/07-help-system.md` (page help); SKILL notes in modules 06, 07, 16. Task marks (local only): `docs/PENDING_TASKS_2026-10-01.md`, `docs/plans/REVIEW_FIX_PLAN_2026-10-02.md`.
+
+---
+
+## Agent utilization
+- Opus: n/a — the main session ran on Fable 5.1: plan, module 07 count and module 06 answer check (code + tests), `dashboard.tsx`, the money line, every diff review, three help text corrections, commits, the deploy, post-deploy checks, this handoff.
+- Sonnet: 4 runs: N16 help content, RV16 text items + N17, N13 Astro 5, session docs.
+- Haiku: 2 runs: context digest, server pre-deploy check.
+- codex:rescue: modules 07 and 06 + session gate: revise (2 MEDIUM, 0 HIGH). Both accepted with written reasons (live question type; no dedicated index). No code change needed beyond two comments.
+- claude-mem: honoured docs-folder-gitignored, vps-shared-host, parallel-session-shared-working-tree, feedback-keep-dormant-features-review, feedback-check-old-task-before-new, push-gate trailer and "push as its own command".
+- Routing telemetry:
+  - Sonnet · N16 help content · reworked: Y (three sentences corrected by the lead: MFA wording, cohort report content, rubric weights)
+  - Sonnet · RV16 text items + N17 · reworked: N
+  - Sonnet · N13 Astro 5 · reworked: N (it found that marketing has its own lockfile, outside the workspace)
+  - Sonnet · session docs · reworked: N
+  - Haiku · context digest · reworked: N (10 minutes; the lead read the plan in parallel)
+  - Haiku · server pre-deploy check · reworked: Y (did not report the total container count; the lead counted)
+
+---
+
 # Session — 2026-10-02 (n) — review fixes RS1, RS2, RS3, RS5 + N10, N11, N12: candidate defects, true admin and help text, docs truth pass, argon2
 
 **Headline:** RS1, RS2, RS3, RS5, N10 (argon2) and N11 are LIVE on https://assessiq.in (code HEAD `c788ed7`; docs HEAD is later). N12 is checked in a real browser for the candidate side only. CI on `main` is green again (it failed on `6336f61` to `274bbc6`).

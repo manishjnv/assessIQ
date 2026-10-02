@@ -176,3 +176,7 @@ For assessments with `settings.sections` (defined in 05). Assessments without it
 ## Sections summary (N1c, 2026-10-02)
 
 `src/sections.ts` `buildSectionsSummary` + `isAnsweredValue`. `getAttemptForCandidate` adds `sections_summary` (every section: index, name, question_count, answered_count, status done/current/upcoming) for sectioned attempts. Counts only, no ids or content, so it leaks nothing about locked sections. Used by the final submit dialog to count unanswered across ALL sections (it only counted the running one before). "Answered" matches the take page rule. Test: `sections-summary.test.ts`.
+
+## Scenario answer check at save (N15, 2026-10-03)
+
+`checkAnswerForSave(type, answer)` in `src/types.ts`, called by `saveAnswer` in `src/service.ts` after the lock, owner, status, timer and section checks. The key is the question TYPE (read by `findQuestionType` in `src/repository.ts`), never the answer shape. Only `scenario` is checked, with the existing `ScenarioAnswerPayloadSchema`: `{ steps: [{ stepIndex, response }] }` or `null`. A wrong shape gives HTTP 400 `AE_INVALID_PARAM` with `param: "answer"`. Unknown keys are removed. Other types stay "stored as sent, scores 0 when malformed": a strict check could block autosave for a client with an older shape. **Not included:** the type is read live from `questions.type`, not frozen per attempt (open task N21; the candidate view and scoring read it the same way). Tests: `answer-shape-save.test.ts` (no database) and one case in `attempt-engine.test.ts`.

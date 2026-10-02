@@ -1806,3 +1806,33 @@ Pull `8cc46c2` to `c788ed7`. `claude` processes: 0. Built `assessiq-api` only; r
 - In the container, a hash made by 0.40.3 verifies with 0.45.1, and a wrong input is rejected (the same fixture as `modules/01-auth/src/__tests__/argon2-compat.test.ts`).
 
 **Rollback:** rebuild the api image at `8cc46c2` and recreate api and worker. Hashes made by 0.45.1 use the same algorithm and cost parameters, but the stored string lists the parameters as `m,p,t` (0.40 wrote `m,t,p`). Before a rollback, check that 0.40.3 verifies a hash made by 0.45.1; this direction was not tested.
+
+## Small tasks deploy: RV16, N13 to N18 (2026-10-03, HEAD `38c76e3`; commits `62e01d8..38c76e3`)
+
+Work in this deploy: dashboard counts from the server (`511e1af`), scenario answer check at save (`e6eb22d`), small admin items and comment cleanup (`4ea20a8`), page help for eight admin pages (`2a15ce5`), and Astro 5 for the marketing site (`38c76e3`). Detail for each change: `docs/plans/SMALL_TASKS_N13_N18_RV16.md`.
+
+**Migration:** 0148 (`modules/16-help-system/migrations/0148_seed_page_help.sql`). It inserts eight help rows (`<page>.page`) and changes nothing else. It is idempotent (`ON CONFLICT DO NOTHING`). It was applied by hand with `psql -1 -v ON_ERROR_STOP=1` and recorded in `schema_migrations`.
+
+**Procedure (one stage, additive only):**
+
+1. List the containers: 24 run. Confirm that no `claude` process runs (0).
+2. `git pull --ff-only` on `/srv/assessiq`: `62e01d8` to `38c76e3`.
+3. Apply 0148 by hand and record it. Global help rows: 195 to 203.
+4. Check: 8 new page keys present, 0 duplicate global keys, 0 rows with internal words (the check query from the RS1–RS5 deploy).
+5. Build `assessiq-api`, `assessiq-frontend` and `assessiq-marketing`. All three builds exit with 0. The marketing image builds with Astro 5.18.2 on `node:22`; the Dockerfile and the compose file did not change.
+6. Confirm again that no `claude` process runs (0). Recreate `assessiq-api`, `assessiq-worker`, `assessiq-frontend` and `assessiq-marketing` with `up -d --no-deps --force-recreate`.
+
+**Post-deploy checks (all passed):**
+- 24 containers before and after. api, frontend and marketing are healthy. 0 error lines in the api and worker logs.
+- These return 200: `/`, `/pricing`, `/contact`, `/try`, `/admin`, `/admin/login`, `/candidate/login`, `/api/health`, `/take/x`, `/og/index.png` (`image/png`), `/sitemap-index.xml`, `/sitemap-0.xml` (54 URLs), `/compare/assessiq-vs-mettl`, `/tests/python`, `/robots.txt`, `/pagefind/pagefind.js`.
+- Marketing: `/og/tests-python.png` is 26,350 bytes, the size from the local Astro 5 build (the Astro 4 build gave 26,374). `/contact` has the contact form and the Turnstile script.
+- The served app files contain "You do not have access to this page", "Candidate details are not available", "Showing the oldest", `admin.tenant_settings` and `admin.generate_wizard`. They do not contain "pending backend enrichment" or the old help ids `admin.tenant-settings` and `admin.generate-wizard` (literal search).
+- The api image has `countGradingQueue` (module 07) and `checkAnswerForSave` (module 06).
+- The page lookup query (`key LIKE '<page>.%'`, audience admin, locale en, active) returns the `<page>.page` row for each of the eight pages.
+- The count query runs on the production schema (all tenants, as the database owner): 2 in queue, 2 awaiting evaluation, 0 ready to publish.
+
+**Not done:**
+- No IndexNow ping. No marketing page content or page date changed; only the build tools changed.
+- No click test in a browser with an admin sign-in. `GET /api/help` and the dashboard queue need a session. Behaviour check pending operator: dashboard cards, the "no access" notice, the (?) help drawer on the eight pages.
+
+**Rollback:** `git revert` the commit of the item, then rebuild and recreate the service. Module 06 or 07: api and worker. Admin pages: frontend. Marketing: revert `38c76e3`, rebuild and recreate `assessiq-marketing`. Migration 0148 needs no rollback: an older build does not read the eight rows. To remove them: delete the eight `<page>.page` keys (`tenant_id IS NULL`) and the `schema_migrations` row `0148_seed_page_help.sql`. A frontend older than `511e1af` works with the new API (it ignores `counts`); the new frontend works with an older API (it falls back to the list length).
