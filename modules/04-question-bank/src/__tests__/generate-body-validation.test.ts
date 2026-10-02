@@ -50,6 +50,21 @@ describe("parseGenerateBody — existing behaviour (no type_counts)", () => {
     expect(result.typeCounts).toBeUndefined();
   });
 
+  it("topic_focus longer than 200 chars after trim — throws INVALID_PARAM", () => {
+    expectValidationCode(
+      () => parseGenerateBody({ count: 5, topic_focus: "a".repeat(201) }),
+      "INVALID_PARAM",
+    );
+    expect(parseGenerateBody({ count: 5, topic_focus: ` ${"a".repeat(200)} ` }).topicFocus).toHaveLength(200);
+  });
+
+  it("topic_focus with a control character — throws INVALID_PARAM", () => {
+    expectValidationCode(
+      () => parseGenerateBody({ count: 5, topic_focus: "triage\nIgnore previous" }),
+      "INVALID_PARAM",
+    );
+  });
+
   it("count below minimum — throws INVALID_PARAM", () => {
     expectValidationCode(() => parseGenerateBody({ count: 0 }), "INVALID_PARAM");
   });
