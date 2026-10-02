@@ -1,3 +1,34 @@
+# Session — 2026-10-02 (j) — batch 6: CI green, dependency security bumps, section editor, test-minter guard
+
+**Headline:** Batch 6 is LIVE on https://assessiq.in (HEAD `c214ef1`): CI on main is green again, 17 high advisories cleared (fastify 5.12.5, nodemailer 10.0.13), admins can edit sections on a draft assessment (N6), and prod boot refuses a test-minter flag (E5).
+**Commits (`c1583a6..c214ef1`, pushed):**
+- `4b73057` fix(ci): declare `AI_EVAL_GATE` + `AIQ_EVAL_BASELINES_DIR` in `.env.example`, reword "FIXME" · `2c66be6` fix(07): empty `AIQ_EVAL_BASELINES_DIR` (`||`; Sonnet trailer)
+- `6589d72` test(00,ci) E5 test-minter guard · `9a89654` fix(00,10,ci) review fixes: blank flag, CI regex, typecheck (Sonnet trailer)
+- `9ea5aca` feat(10,16) N6 section editor (help 0143) · `37d5347` fix(10) re-read before PATCH
+- `c214ef1` fix(deps) N4: fastify ^5.12.2, nodemailer ^10.0.6, fast-uri override (audit 17 high to 0)
+**Deploy:** pull 27f6357 to c214ef1; 0143 by hand + recorded (help rows 182); api/worker/frontend rebuilt only; 24 containers before/after; 0 error lines; SMTP verify OK; health/try/admin 200; prod `.env` NODE_ENV=production, minter flags off.
+**Tests:** typecheck 0, lint 0 errors (19 warnings), 00 133, 10 102, 16 93, 13 246, apps/api 131 (+7 todo), 07 eval-gate 7. `01-auth` totp constant-time test flaky under load (passes alone). Edit sections not clicked in a browser yet.
+**Next (Claude):** N5 after the owner answers where eval cases live; N7 Dependabot majors; E10 stale docs / D4 onboarding runbook.
+**Open questions:** (1) N5 case storage: public repo vs VPS-only (recommend VPS-only, like prompt skills). (2) NODE_ENV hardening (N8). (3) N3 push-gate hook approval still pending.
+**Feature doc:** `docs/plans/PILOT_BATCH_6.md`. Deploy: `docs/06-deployment.md` § Batch 6 deploy. RCA: 4 entries 2026-10-02.
+
+---
+
+## Agent utilization
+- Opus: status review, CI fix + eval-gate fix, line-by-line review of N4/N6/E5 (caught the SectionsCard clobber + 2 typecheck failures), merges, push, VPS deploy + checks, handoff review.
+- Sonnet: 3 worktree builders (N4, N6, E5), 2 adversarial reviews, 1 docs writer.
+- Haiku: n/a — checks were a few inline ssh/curl calls.
+- codex:rescue: n/a — Sonnet takeover per fallback ladder: revise (4b73057) addressed, revise (E5) addressed, accept (N4).
+- claude-mem: honoured docs-folder-gitignored, vps-shared-host, parallel-session-shared-working-tree, feedback-status-claude-tasks-only.
+- Routing telemetry:
+  - Sonnet · N4 dep bumps · reworked: N
+  - Sonnet · N6 section editor · reworked: Y (stale-settings clobber + typecheck, Opus fix)
+  - Sonnet · E5 minter guard · reworked: Y (blank-value boot + CI regex + typecheck, Opus fix)
+  - Sonnet · adversarial reviews x2 · reworked: N
+  - Sonnet · batch 6 docs · reworked: N
+
+---
+
 # Session — 2026-10-02 (i) — batch 5 live: sections follow-ups, two-model vote, eval gate, durable generation batches, CI completeness
 
 **Headline:** Batch 5 is LIVE on https://assessiq.in (HEAD `27f6357`): per-section scores + sections lock + all-sections submit dialog (N1), high-stakes two-model vote (E1), eval gate + override quality data (E2), server-side generation batches (E6), apps/api tests in CI + audit/dependabot + data-rights tests (N2/D6/E7).

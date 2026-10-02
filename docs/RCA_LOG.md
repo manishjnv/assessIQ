@@ -2121,3 +2121,32 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `infra/docker-compose.yml` bind-mounted `modules/07-ai-grading/eval/baselines` into `assessiq-api` as `:ro`, on the assumption that `bless` runs on the host. But the eval must run inside the api container: only there do the skills mount and Claude login match live grading. A host run hashes `/root/.claude/skills`, which may differ from the live mount, so its `skill_shas` would never match at runtime. With `:ro`, `bless` inside the container could not write the baseline, so under `AI_EVAL_GATE=enforce` all AI grading would have been blocked with no way to approve.
 **Fix:** `a789ab5` changed the mount to `:rw` (compose comment explains why) and rewrote the README bootstrap to run, compare and bless via `docker exec ... assessiq-api` before recreating the container (`runs/` is container-local).
 **Prevention:** `docs/06-deployment.md` § "Batch 5 deploy" and the eval README state that the eval runs in-container. Do not set `AI_EVAL_GATE=enforce` before the first bless.
+
+
+## 2026-10-02 — CI on main red since batch 5 (undeclared env vars + a "FIXME" word)
+
+**Symptom:** GitHub CI on `main` failed from `c1583a6` on: the deploy-procedure lint (CHECK_C) and the no-TODO grep.
+**Cause:** Batch 5 added `AI_EVAL_GATE` and `AIQ_EVAL_BASELINES_DIR` to compose/code but not to `.env.example` (CHECK_C requires every env var to be declared there), and a comment contained the word "FIXME", which the grep rejects.
+**Fix:** `4b73057` declared both vars in `.env.example` and reworded the comment. CI green: run 36994877726.
+**Prevention:** run the CI lint scripts locally before push when adding env vars; check the GitHub run after every push.
+
+## 2026-10-02 — Empty `AIQ_EVAL_BASELINES_DIR=` would stop the eval gate from ever approving
+
+**Symptom:** None in production. Found by the Sonnet adversarial review of `4b73057`.
+**Cause:** `modules/07-ai-grading` `eval-gate.ts` `baselinesDir()` used `??`. The new empty line in `.env.example` (passed through compose `env_file`) gives `""`, which `??` keeps, so `readdir("")` fails and no baseline matches. Under `AI_EVAL_GATE=enforce` all AI grading would be blocked even after a bless.
+**Fix:** `2c66be6` changed `??` to `||`. Residual, not fixed: `eval/cli.ts` ignores the variable and always writes to `eval/baselines`, so set the var only if both agree (N9).
+**Prevention:** adversarial review of env-driven paths; empty-string env values must be treated as unset.
+
+## 2026-10-02 — SectionsCard saved from a stale copy and could revert sibling settings (caught in review)
+
+**Symptom:** None live; caught in Opus review of `9ea5aca` before deploy.
+**Cause:** The new SectionsCard PATCHes `/api/admin/assessments/:id`, which replaces `settings` wholesale. IntegrityCard, HighStakesCard and RemindersCard save through their own routes and never update the page's copy of the assessment, so saving sections from that stale copy silently reverted their settings.
+**Fix:** `37d5347`: SectionsCard re-reads the assessment (GET) right before the PATCH; a test covers it.
+**Prevention:** any card that PATCHes a wholesale-replaced JSON column must re-read first; test added.
+
+## 2026-10-02 — Blank test-minter flag would fail boot; builders reported "typecheck clean" but main failed
+
+**Symptom:** None live; caught in Opus review of E5 (`6589d72`) before deploy.
+**Cause:** (1) A blank `ENABLE_*_TEST_MINTER=` line is rejected by `z.enum`, a boot failure; the CI grep also missed compose `${VAR:-true}`. (2) The E5 and N6 builders reported typecheck clean, but a 00-core test and a 10 page failed typecheck on merged main.
+**Fix:** `9a89654`: blank counts as unset; CI grep catches `${VAR:-true}`; typecheck errors fixed.
+**Prevention:** Opus re-runs the full `pnpm typecheck` on merged main before push; never trust a builder's "typecheck clean".

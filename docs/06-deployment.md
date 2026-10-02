@@ -1607,3 +1607,29 @@ Only then set `AI_EVAL_GATE=enforce` in `.env` and recreate `assessiq-api`. Ever
 - Migrations: additive; the old image ignores the table, the view and the help rows. Per-file rollback notes are in each migration header (drop `generation_batches`; drop view `grading_override_quality`).
 - Gate: set `AI_EVAL_GATE=off` in `.env` and recreate `assessiq-api`.
 - The baselines mount can stay.
+
+
+## Batch 6 deploy (2026-10-02, HEAD `c214ef1`; commits `c1583a6..c214ef1`) — DONE
+
+**Migrations applied by hand** (same procedure as "Applying new migrations by hand"): 0143 only, help row `admin.assessment.sections.edit` (16). Additive; recorded in `schema_migrations`. Help rows 181 → 182.
+
+**Env notes:**
+- `.env.example` now declares `AI_EVAL_GATE` and `AIQ_EVAL_BASELINES_DIR`. An empty `AIQ_EVAL_BASELINES_DIR=` line means unset (default `modules/07-ai-grading/eval/baselines`); since `2c66be6` the gate treats empty as unset. Leave it empty unless `eval/cli.ts` is changed to honour it too (N9): the CLI always writes to `eval/baselines`.
+- `ENABLE_EMBED_TEST_MINTER` is now declared in 00-core config. It must stay unset or false in prod; blank `ENABLE_*_TEST_MINTER=` lines count as unset. Prod `.env` was checked: `NODE_ENV=production`, `ENABLE_E2E_TEST_MINTER=false`, embed flag absent.
+- No other new env. `AI_EVAL_GATE` stays `warn` (no baseline blessed yet).
+
+**Deploy steps** (additive only, `assessiq-` namespace): `test -d /srv/assessiq/.git`; `git pull` (27f6357 → c214ef1); apply 0143; confirm no `claude` process in flight; `docker compose -f infra/docker-compose.yml build api worker frontend`; `up -d --no-deps --force-recreate` each. Dependencies changed (fastify 5.12.x, nodemailer 10), so the images were rebuilt from the new lockfile.
+
+**Post-deploy checks (all passed 2026-10-02):**
+- 24 containers before and after; only `assessiq-api`, `assessiq-worker`, `assessiq-frontend` recreated; api/worker 0 error lines.
+- In-container versions: nodemailer 10.0.13, fastify 5.12.5.
+- SMTP `transporter.verify()` OK against Brevo (no mail sent).
+- `/api/health` 200, `/try` 200, `/admin` 200; a malformed JSON POST returns 400.
+- Help rows 182.
+
+**Not clicked in a browser:** Edit sections. Owner check: draft assessment → Edit sections → change → save; a published assessment shows the button disabled.
+
+**Rollback:**
+- Code: `git checkout 27f6357` on the VPS, rebuild and recreate api, worker, frontend.
+- 0143 is help rows only; the old image ignores them.
+- Dependencies: the code checkout restores the previous lockfile; rebuild gives the previous image (or retag the previous image).

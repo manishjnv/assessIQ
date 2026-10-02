@@ -1380,6 +1380,7 @@ Trigger or accept AI grading, re-run, enter a manual first score or retry a grad
 - **Baseline match.** `eval run` writes `skill_shas` into `run.json`; `bless` copies it into `baselines/<date>.json` and refuses a run without it. At runtime `eval-gate.ts` approves iff some baseline file has all three shas equal. Baselines without `skill_shas` approve nothing.
 - **Where it runs.** `assertEvalGate()` at the start of grade-all and re-run, before any AI spawn. Never for generation, never for deterministic MCQ scoring.
 - **Modes.** `AI_EVAL_GATE`: `off`; `warn` (default, logs `grading.eval_gate.unapproved`); `enforce` (409 `AIG_EVAL_GATE`). Any other value is treated as `enforce` and logged. `AIQ_EVAL_BASELINES_DIR` overrides the baselines dir.
+- **`AIQ_EVAL_BASELINES_DIR` (batch 6).** Empty or unset means the default `eval/baselines` (the gate uses `||` since `2c66be6`, so an empty line in `.env.example` is fine). `eval/cli.ts` ignores the variable and always writes to `eval/baselines`, so set it only if both sides agree (N9).
 - **Why.** Prompts live as skill files on the VPS, so a prompt edit used to ship with no proof. Deploying a prompt edit is now: run, compare, bless inside the api container.
 - **Considered and rejected.** CI eval (no Max OAuth; D5). Default `enforce` (blocks all grading until the first bless). A host-side eval (hashes `/root/.claude/skills`, which may differ from the live mount).
 - **Not included.** A baseline does not exist yet; the golden set has about 1 case (N5); no auto-bless; no per-tenant gate.
