@@ -54,6 +54,9 @@ vi.mock("../components/ScoreDetail.js", () => ({
   ScoreDetail: () => React.createElement("div", { "data-testid": "score-detail" }),
 }));
 
+vi.mock("../components/AttemptIntegrityCard.js", () => ({
+  AttemptIntegrityCard: () => null,
+}));
 vi.mock("../components/BandPicker.js", () => ({
   BandPicker: () => React.createElement("div", { "data-testid": "band-picker" }),
 }));
