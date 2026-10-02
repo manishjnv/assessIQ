@@ -10,7 +10,7 @@ import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 //   Max is resolved per-request by resolveIpBucketMax() based on auth tier.
 //   Window is fixed at 60s.
 //
-//   verified admin (role∈{admin,reviewer,super_admin} && totpVerified===true)
+//   verified admin (role∈{admin,super_admin} && totpVerified===true)
 //                   → config.RATE_LIMIT_IP_VERIFIED_ADMIN (default 5000/min)
 //                     DoS ceiling only; credential + per-user are the real limits.
 //   pre-MFA admin   → config.RATE_LIMIT_IP_ADMIN  (default 100/min) — UNCHANGED
@@ -165,11 +165,11 @@ function setHeaders(reply: AuthReply, max: number, remaining: number, ttlSeconds
 // this middleware runs (auth-chain.ts order: sessionLoader → rateLimit).
 //
 // Tier logic (evaluated in order):
-//   verified admin  — role∈{admin,reviewer,super_admin} AND totpVerified===true
+//   verified admin  — role∈{admin,super_admin} AND totpVerified===true
 //                     → RATE_LIMIT_IP_VERIFIED_ADMIN (default 5000/min)
 //                     This is a DoS ceiling only; the credential cap (20/min) and
 //                     the per-user cap (300/min) are the meaningful constraints.
-//   pre-MFA admin   — role∈{admin,reviewer,super_admin} AND totpVerified!==true
+//   pre-MFA admin   — role∈{admin,super_admin} AND totpVerified!==true
 //                     → RATE_LIMIT_IP_ADMIN (default 100/min) — UNCHANGED from today.
 //   candidate       — RATE_LIMIT_IP_USER (default 30/min)
 //   API key         — RATE_LIMIT_IP_APIKEY (default 2000/min)
@@ -183,7 +183,7 @@ function setHeaders(reply: AuthReply, max: number, remaining: number, ttlSeconds
 function resolveIpBucketMax(req: AuthRequest): number {
   if (req.session !== undefined) {
     const role = req.session.role;
-    if (role === "admin" || role === "reviewer" || role === "super_admin") {
+    if (role === "admin" || role === "super_admin") {
       // STRICT === equality: guards against undefined/null leaking through
       // the totpVerified field (e.g. old sessions without the field set).
       if (req.session.totpVerified === true) return config.RATE_LIMIT_IP_VERIFIED_ADMIN;
@@ -286,7 +286,7 @@ export function rateLimitMiddleware(opts: RateLimitOptions = {}): AuthHook {
       // Candidate sessions get RATE_LIMIT_USER_CANDIDATE (the real per-student cap
       // now that the IP bucket is lifted). Pre-MFA admin / unknown roles stay at 60.
       const role = req.session.role;
-      const isAdminRole = role === "admin" || role === "reviewer" || role === "super_admin";
+      const isAdminRole = role === "admin" || role === "super_admin";
       const userMax = isAdminRole && req.session.totpVerified === true
         ? config.RATE_LIMIT_USER_VERIFIED_ADMIN
         : role === "candidate"

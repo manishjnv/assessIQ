@@ -73,7 +73,7 @@ interface SessionInfo {
  * Caller (apps/api/src/server.ts) supplies Fastify preHandler hook arrays.
  * Both are produced by authChain() from apps/api/src/middleware/auth-chain.ts.
  *
- * candidateAuth — any authenticated session (admin, candidate, reviewer).
+ * candidateAuth — any authenticated session (admin, candidate).
  *   Use for /api/certificates/* candidate-facing endpoints.
  *
  * adminAuth — admin/super_admin role + tenant-context middleware.

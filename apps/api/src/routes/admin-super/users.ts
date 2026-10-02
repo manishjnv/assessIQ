@@ -351,7 +351,7 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
   // MFA step-up sub-form and retries.
   //
   // Body: { name?, role?, email?, confirmEmailIdentityChange?, reason? }
-  //   - role ∈ {admin, reviewer}. candidate / super_admin are rejected — the
+  //   - role ∈ {admin} (reviewer role removed 2026-10-02). candidate / super_admin are rejected — the
   //     users CHECK blocks super_admin and candidate is a different surface.
   //   - email IS the login identity. Google SSO resolves a user purely by
   //     Google-verified email (modules/01-auth/src/google-sso.ts — "the SOLE
@@ -368,16 +368,12 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
   // (resolveUserTenant), then operate under withTenant(targetTenantId) — NEVER
   // session.tenantId (the platform tenant).
   //
-  // Last-admin guard: demoting the tenant's only active admin to reviewer is
-  // blocked (409 LAST_ADMIN). No override here by design — use the Manage-users
-  // drill-down for last-admin operations.
-  //
   // 200: { userId, email, name, role, previousEmail, emailChanged, status,
   //        sessionsSwept, reinvited, auditId }
   // 400: INVALID_ROLE / INVALID_EMAIL / MISSING_NAME / NAME_TOO_LONG / NO_CHANGES
   //      / CANNOT_EDIT_SUPER_ADMIN
   // 404: user not found
-  // 409: USER_DELETED / EMAIL_IDENTITY_CONFIRM_REQUIRED / USER_EMAIL_EXISTS / LAST_ADMIN
+  // 409: USER_DELETED / EMAIL_IDENTITY_CONFIRM_REQUIRED / USER_EMAIL_EXISTS
   // ──────────────────────────────────────────────────────────────────────────
   app.patch(
     '/api/admin/super/users/:userId',
@@ -425,10 +421,10 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
         newName = body.name.trim();
       }
 
-      let newRole: 'admin' | 'reviewer' | undefined;
+      let newRole: 'admin' | undefined;
       if (body.role !== undefined) {
-        if (body.role !== 'admin' && body.role !== 'reviewer') {
-          throw new ValidationError("Role must be 'admin' or 'reviewer'.", {
+        if (body.role !== 'admin') {
+          throw new ValidationError("Role must be 'admin'.", {
             details: { code: 'INVALID_ROLE', role: body.role },
           });
         }
@@ -477,28 +473,6 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
       let auditId: string | null = null;
       try {
         await withTenant(targetTenantId, async (client) => {
-          // Last-admin guard: block demoting the only active admin to reviewer.
-          if (
-            roleChanged &&
-            target.role === 'admin' &&
-            newRole === 'reviewer' &&
-            target.status === 'active' &&
-            target.deleted_at === null
-          ) {
-            const countRes = await client.query<{ count: string }>(
-              `SELECT count(*) FROM users
-                WHERE role = 'admin' AND status = 'active' AND deleted_at IS NULL
-                  AND id <> $1`,
-              [userId],
-            );
-            if (parseInt(countRes.rows[0]?.count ?? '0', 10) === 0) {
-              throw new ConflictError(
-                "This is the tenant's last active admin and cannot be demoted. Add another admin first, or use the Manage-users page.",
-                { details: { code: 'LAST_ADMIN' } },
-              );
-            }
-          }
-
           const sets: string[] = [];
           const vals: unknown[] = [];
           let p = 1;

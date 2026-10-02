@@ -43,8 +43,6 @@ import * as inAppService from './in-app/service.js';
 export interface RegisterNotificationsRoutesOptions {
   /** Admin-only preHandler chain */
   adminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
-  /** Any-role (admin or reviewer) preHandler chain */
-  anyRoleAuth: preHandlerHookHandler[] | preHandlerHookHandler;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,9 +73,8 @@ export async function registerNotificationsRoutes(
   app: FastifyInstance,
   opts: RegisterNotificationsRoutesOptions,
 ): Promise<void> {
-  const { adminOnly, anyRoleAuth } = opts;
+  const { adminOnly } = opts;
   const adminChain = Array.isArray(adminOnly) ? adminOnly : [adminOnly];
-  const anyRoleChain = Array.isArray(anyRoleAuth) ? anyRoleAuth : [anyRoleAuth];
 
   // ──────────────────────────────────────────────────────────────────────────
   // Webhook endpoints CRUD
@@ -242,11 +239,11 @@ export async function registerNotificationsRoutes(
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  // In-app notifications (any-role-gated — admin + reviewer)
+  // In-app notifications (admin-gated)
   // ──────────────────────────────────────────────────────────────────────────
 
   /** GET /api/admin/notifications?since=<cursor> — short-poll for in-app notifications */
-  app.get('/api/admin/notifications', { preHandler: anyRoleChain }, async (req: FastifyRequest) => {
+  app.get('/api/admin/notifications', { preHandler: adminChain }, async (req: FastifyRequest) => {
     const session = (req as AiqReq).session;
     const tenantId = session?.tenantId;
     const userId = session?.userId;
@@ -273,7 +270,7 @@ export async function registerNotificationsRoutes(
   });
 
   /** POST /api/admin/notifications/:id/mark-read — mark a notification as read */
-  app.post('/api/admin/notifications/:id/mark-read', { preHandler: anyRoleChain }, async (req: FastifyRequest, reply: FastifyReply) => {
+  app.post('/api/admin/notifications/:id/mark-read', { preHandler: adminChain }, async (req: FastifyRequest, reply: FastifyReply) => {
     const session = (req as AiqReq).session;
     const tenantId = session?.tenantId;
     const userId = session?.userId;

@@ -156,7 +156,6 @@ function buildApp() {
   };
   void registerAnalyticsRoutes(app, {
     adminOnly: roleGate(['admin']),
-    adminOrReviewer: roleGate(['admin', 'reviewer']),
     superAdminOnly: roleGate(['super_admin']),
     candidateOnly: roleGate(['candidate']),
   });
@@ -273,10 +272,10 @@ describe('assessment results.csv', () => {
     await app.close();
   });
 
-  it('reviewer allowed, candidate 403', async () => {
+  it('reviewer and candidate get 403', async () => {
     const app = buildApp();
     const ok = await app.inject({ method: 'GET', url: `/api/admin/assessments/${assessmentId}/results.csv`, headers: { 'x-role': 'reviewer' } });
-    expect(ok.statusCode).toBe(200);
+    expect(ok.statusCode).toBe(403);
     const no = await app.inject({ method: 'GET', url: `/api/admin/assessments/${assessmentId}/results.csv`, headers: { 'x-role': 'candidate' } });
     expect(no.statusCode).toBe(403);
     await app.close();

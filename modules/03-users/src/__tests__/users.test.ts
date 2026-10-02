@@ -199,7 +199,7 @@ describe('createUser + getUser', () => {
 
     expect(user.email).toBe('alice@example.com');
     expect(user.role).toBe('admin');
-    expect(user.status).toBe('pending'); // admins/reviewers are pending until they accept their invitation
+    expect(user.status).toBe('pending'); // admins are pending until they accept their invitation
 
     const fetched = await getUser(tenantA, user.id);
     expect(fetched.id).toBe(user.id);
@@ -218,7 +218,7 @@ it('normalizes email at write (trims + lowercases)', async () => {
   const user = await createUser(tenantA, {
     email: 'Foo@Example.COM ',
     name: 'Foo User',
-    role: 'reviewer',
+    role: 'admin',
   });
   expect(user.email).toBe('foo@example.com');
 });
@@ -229,10 +229,10 @@ it('normalizes email at write (trims + lowercases)', async () => {
 
 describe('email uniqueness', () => {
   it('rejects duplicate email in same tenant (case-insensitive)', async () => {
-    await createUser(tenantA, { email: 'same@x.com', name: 'User One', role: 'reviewer' });
+    await createUser(tenantA, { email: 'same@x.com', name: 'User One', role: 'admin' });
 
     await expect(
-      createUser(tenantA, { email: 'Same@X.COM', name: 'User Two', role: 'reviewer' }),
+      createUser(tenantA, { email: 'Same@X.COM', name: 'User Two', role: 'admin' }),
     ).rejects.toSatisfy((e: unknown) => {
       return (
         e instanceof ConflictError &&
@@ -244,7 +244,7 @@ describe('email uniqueness', () => {
   it('allows the same email in a different tenant', async () => {
     // same@x.com already exists in tenantA from the test above;
     // it must succeed in tenantB.
-    const user = await createUser(tenantB, { email: 'same@x.com', name: 'Tenant B User', role: 'reviewer' });
+    const user = await createUser(tenantB, { email: 'same@x.com', name: 'Tenant B User', role: 'admin' });
     expect(user.email).toBe('same@x.com');
     expect(user.tenant_id).toBe(tenantB);
   });
@@ -262,11 +262,11 @@ describe('listUsers', () => {
     });
 
     // Seed: 5 users — 2 with name starting 'J', 1 with email starting 'j', 2 others
-    await createUser(tid, { email: 'bob@z.com', name: 'Bob', role: 'reviewer' });
-    await createUser(tid, { email: 'carol@z.com', name: 'Carol', role: 'reviewer' });
-    await createUser(tid, { email: 'jane@z.com', name: 'Jane', role: 'reviewer' });
-    await createUser(tid, { email: 'jack@z.com', name: 'Jack', role: 'reviewer' });
-    await createUser(tid, { email: 'jfoo@z.com', name: 'Zara', role: 'reviewer' }); // email starts with j
+    await createUser(tid, { email: 'bob@z.com', name: 'Bob', role: 'admin' });
+    await createUser(tid, { email: 'carol@z.com', name: 'Carol', role: 'admin' });
+    await createUser(tid, { email: 'jane@z.com', name: 'Jane', role: 'admin' });
+    await createUser(tid, { email: 'jack@z.com', name: 'Jack', role: 'admin' });
+    await createUser(tid, { email: 'jfoo@z.com', name: 'Zara', role: 'admin' }); // email starts with j
 
     const { items } = await listUsers(tid, { search: 'j' });
     const names = items.map((u) => u.name);
@@ -371,7 +371,7 @@ describe('last-admin invariant — role change', () => {
     const admin = await createUser(tid, { email: 'solo@rc.com', name: 'Solo', role: 'admin' });
     await updateUser(tid, admin.id, { status: 'active' });
 
-    await expect(updateUser(tid, admin.id, { role: 'reviewer' })).rejects.toSatisfy(
+    await expect(updateUser(tid, admin.id, { role: 'candidate' })).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ConflictError &&
         (e.details as Record<string, unknown> | undefined)?.['code'] === 'LAST_ADMIN',
@@ -389,8 +389,8 @@ describe('last-admin invariant — role change', () => {
     await updateUser(tid, admin1.id, { status: 'active' });
     await updateUser(tid, admin2.id, { status: 'active' });
 
-    const updated = await updateUser(tid, admin1.id, { role: 'reviewer' });
-    expect(updated.role).toBe('reviewer');
+    const updated = await updateUser(tid, admin1.id, { role: 'candidate' });
+    expect(updated.role).toBe('candidate');
   });
 });
 
@@ -399,11 +399,14 @@ describe('last-admin invariant — role change', () => {
 // ---------------------------------------------------------------------------
 
 describe('status transition matrix', () => {
-  async function makeTenantWithUser(suffix: string, role: 'admin' | 'reviewer', initialStatus: 'pending' | 'active' | 'disabled') {
+  async function makeTenantWithUser(suffix: string, role: 'admin', initialStatus: 'pending' | 'active' | 'disabled') {
     const tid = randomUUID();
     await withSuperClient(async (client) => {
       await insertTenant(client, tid, `tenant-stm-${suffix}`, `STM ${suffix}`);
     });
+    // Anchor admin keeps the last-admin guard out of the way of the status matrix.
+    const anchor = await createUser(tid, { email: `anchor${suffix}@x.com`, name: 'Anchor', role: 'admin' });
+    await updateUser(tid, anchor.id, { status: 'active' });
     const user = await createUser(tid, { email: `stm${suffix}@x.com`, name: `STM ${suffix}`, role });
     if (initialStatus !== 'pending') {
       // pending → active first, then potentially → disabled
@@ -416,31 +419,31 @@ describe('status transition matrix', () => {
   }
 
   it('allows pending → active', async () => {
-    const { tid, userId } = await makeTenantWithUser('pa', 'reviewer', 'pending');
+    const { tid, userId } = await makeTenantWithUser('pa', 'admin', 'pending');
     const u = await updateUser(tid, userId, { status: 'active' });
     expect(u.status).toBe('active');
   });
 
   it('allows pending → disabled', async () => {
-    const { tid, userId } = await makeTenantWithUser('pd', 'reviewer', 'pending');
+    const { tid, userId } = await makeTenantWithUser('pd', 'admin', 'pending');
     const u = await updateUser(tid, userId, { status: 'disabled' });
     expect(u.status).toBe('disabled');
   });
 
   it('allows active → disabled (with second admin present)', async () => {
-    const { tid, userId } = await makeTenantWithUser('ad', 'reviewer', 'active');
+    const { tid, userId } = await makeTenantWithUser('ad', 'admin', 'active');
     const u = await updateUser(tid, userId, { status: 'disabled' });
     expect(u.status).toBe('disabled');
   });
 
   it('allows disabled → active', async () => {
-    const { tid, userId } = await makeTenantWithUser('da', 'reviewer', 'disabled');
+    const { tid, userId } = await makeTenantWithUser('da', 'admin', 'disabled');
     const u = await updateUser(tid, userId, { status: 'active' });
     expect(u.status).toBe('active');
   });
 
   it('rejects disabled → pending', async () => {
-    const { tid, userId } = await makeTenantWithUser('dp', 'reviewer', 'disabled');
+    const { tid, userId } = await makeTenantWithUser('dp', 'admin', 'disabled');
     await expect(updateUser(tid, userId, { status: 'pending' })).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ValidationError &&
@@ -449,7 +452,7 @@ describe('status transition matrix', () => {
   });
 
   it('rejects active → pending', async () => {
-    const { tid, userId } = await makeTenantWithUser('ap', 'reviewer', 'active');
+    const { tid, userId } = await makeTenantWithUser('ap', 'admin', 'active');
     await expect(updateUser(tid, userId, { status: 'pending' })).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ValidationError &&
@@ -474,7 +477,7 @@ describe('inviteUser', () => {
 
     const result = await inviteUser(tid, {
       email: 'newbie@inv.com',
-      role: 'reviewer',
+      role: 'admin',
       invited_by: inviter.id,
     });
 
@@ -499,14 +502,14 @@ describe('inviteUser', () => {
     const inviter = await createUser(tid, { email: 'boss@reinv.com', name: 'Boss', role: 'admin' });
 
     // First invite
-    const first = await inviteUser(tid, { email: 'pending@reinv.com', role: 'reviewer', invited_by: inviter.id });
+    const first = await inviteUser(tid, { email: 'pending@reinv.com', role: 'admin', invited_by: inviter.id });
     const firstInvId = first.invitation?.id;
     expect(firstInvId).toBeDefined();
 
     capturedEmails.length = 0;
 
     // Second invite — same email, same tenant
-    const second = await inviteUser(tid, { email: 'pending@reinv.com', role: 'reviewer', invited_by: inviter.id });
+    const second = await inviteUser(tid, { email: 'pending@reinv.com', role: 'admin', invited_by: inviter.id });
     expect(second.invitation?.id).not.toBe(firstInvId); // new row
     expect(capturedEmails).toHaveLength(1); // new email sent
   });
@@ -549,7 +552,7 @@ describe('createUser role-derived status', () => {
     expect(admin.role).toBe('admin');
   });
 
-  it('creates a reviewer with status pending (must accept invitation)', async () => {
+  it('creates an admin with status pending (must accept invitation)', async () => {
     const tid = randomUUID();
     await withSuperClient(async (client) => {
       await insertTenant(client, tid, `tenant-rev-pending-${tid.slice(0, 8)}`, 'RevPending');
@@ -558,11 +561,26 @@ describe('createUser role-derived status', () => {
     const reviewer = await createUser(tid, {
       email: `reviewer-${tid.slice(0, 8)}@x.com`,
       name: 'Test Reviewer',
-      role: 'reviewer',
+      role: 'admin',
     });
 
     expect(reviewer.status).toBe('pending');
-    expect(reviewer.role).toBe('reviewer');
+    expect(reviewer.role).toBe('admin');
+  });
+
+  it('rejects the removed reviewer role on create, invite and role change', async () => {
+    const tid = randomUUID();
+    await withSuperClient(async (client) => {
+      await insertTenant(client, tid, `tenant-norev-${tid.slice(0, 8)}`, 'NoReviewer');
+    });
+    const admin = await createUser(tid, { email: 'boss@norev.com', name: 'Boss', role: 'admin' });
+    const bad = (e: unknown) => e instanceof ValidationError;
+    // 'reviewer' stays in the TS union (legacy rows), so no cast is needed.
+    await expect(createUser(tid, { email: 'r1@norev.com', name: 'R', role: 'reviewer' })).rejects.toSatisfy(bad);
+    await expect(
+      inviteUser(tid, { email: 'r2@norev.com', role: 'reviewer', invited_by: admin.id }),
+    ).rejects.toSatisfy(bad);
+    await expect(updateUser(tid, admin.id, { role: 'reviewer' })).rejects.toSatisfy(bad);
   });
 });
 
@@ -598,7 +616,7 @@ describe('acceptInvitation', () => {
     const inviter = await createUser(tid, { email: 'boss@accept.com', name: 'Boss', role: 'admin' });
 
     capturedEmails.length = 0;
-    await inviteUser(tid, { email: 'newrev@accept.com', role: 'reviewer', invited_by: inviter.id });
+    await inviteUser(tid, { email: 'newrev@accept.com', role: 'admin', invited_by: inviter.id });
 
     // Extract plaintext token from captured email link
     const link = capturedEmails[0]?.invitationLink ?? '';
@@ -628,7 +646,7 @@ describe('acceptInvitation', () => {
     const inviter = await createUser(tid, { email: 'boss@exp.com', name: 'Boss', role: 'admin' });
 
     capturedEmails.length = 0;
-    await inviteUser(tid, { email: 'expired@exp.com', role: 'reviewer', invited_by: inviter.id });
+    await inviteUser(tid, { email: 'expired@exp.com', role: 'admin', invited_by: inviter.id });
     const link = capturedEmails[0]?.invitationLink ?? '';
     const token = /token=([^&]+)/.exec(link)?.[1] ?? '';
 
@@ -661,7 +679,7 @@ describe('acceptInvitation', () => {
     const inviter = await createUser(tid, { email: 'boss@used.com', name: 'Boss', role: 'admin' });
 
     capturedEmails.length = 0;
-    await inviteUser(tid, { email: 'onceonly@used.com', role: 'reviewer', invited_by: inviter.id });
+    await inviteUser(tid, { email: 'onceonly@used.com', role: 'admin', invited_by: inviter.id });
     const token = /token=([^&]+)/.exec(capturedEmails[0]?.invitationLink ?? '')?.[1] ?? '';
 
     // First acceptance should succeed
@@ -718,8 +736,8 @@ describe('cross-tenant isolation', () => {
   it('listUsers under tenantA returns only tenantA users', async () => {
     // Use tenantA and tenantB seeded in beforeAll. Each has users from other tests.
     // Seed a fresh user in each so we can assert isolation.
-    const ua = await createUser(tenantA, { email: `iso-a-${randomUUID().slice(0, 8)}@x.com`, name: 'IsoA', role: 'reviewer' });
-    const ub = await createUser(tenantB, { email: `iso-b-${randomUUID().slice(0, 8)}@x.com`, name: 'IsoB', role: 'reviewer' });
+    const ua = await createUser(tenantA, { email: `iso-a-${randomUUID().slice(0, 8)}@x.com`, name: 'IsoA', role: 'admin' });
+    const ub = await createUser(tenantB, { email: `iso-b-${randomUUID().slice(0, 8)}@x.com`, name: 'IsoB', role: 'admin' });
 
     const { items: aItems } = await listUsers(tenantA, { includeDeleted: true });
     const aIds = aItems.map((u) => u.id);
@@ -731,7 +749,7 @@ describe('cross-tenant isolation', () => {
     const ub = await createUser(tenantB, {
       email: `cross-${randomUUID().slice(0, 8)}@b.com`,
       name: 'CrossB',
-      role: 'reviewer',
+      role: 'admin',
     });
 
     await expect(getUser(tenantA, ub.id)).rejects.toBeInstanceOf(NotFoundError);
@@ -758,7 +776,7 @@ it('softDelete cascades: pending invitations for the user are deleted', async ()
   capturedEmails.length = 0;
   const invResult = await inviteUser(tid, {
     email: 'toberemoved@casc.com',
-    role: 'reviewer',
+    role: 'admin',
     invited_by: admin1.id,
   });
   const pendingUserId = invResult.user.id;
@@ -823,7 +841,7 @@ describe('withSystemClient role elevation — regression 2026-05-03', () => {
     const inviter = await createUser(tid, { email: 'boss@regr.com', name: 'Boss', role: 'admin' });
 
     capturedEmails.length = 0;
-    await inviteUser(tid, { email: 'invitee@regr.com', role: 'reviewer', invited_by: inviter.id });
+    await inviteUser(tid, { email: 'invitee@regr.com', role: 'admin', invited_by: inviter.id });
     const token = /token=([^&]+)/.exec(capturedEmails[0]?.invitationLink ?? '')?.[1] ?? '';
     expect(token.length).toBeGreaterThan(0);
 

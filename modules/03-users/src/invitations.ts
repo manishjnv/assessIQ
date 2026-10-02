@@ -29,7 +29,7 @@ function hashToken(token: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Issue an invitation for a new admin or reviewer user.
+ * Issue an invitation for a new admin user.
  *
  * Per addendum § 13:
  *   - role='candidate' → ValidationError code='CANDIDATE_INVITATION_PHASE_1' (HTTP 501 equivalent)
@@ -57,6 +57,13 @@ export async function inviteUser(
       'Inviting candidate users is not supported in Phase 0. Use createUser to create a pending candidate record, then use the Phase 1 assessment invitation flow.',
       { details: { code: 'CANDIDATE_INVITATION_PHASE_1', httpStatus: 501 } },
     );
+  }
+
+  // Guard: the reviewer role was removed 2026-10-02; only admins can be invited.
+  if (input.role !== 'admin') {
+    throw new ValidationError(`Invalid role: '${input.role}'`, {
+      details: { code: 'INVALID_ROLE', role: input.role },
+    });
   }
 
   // Guard: assessmentIds non-empty is Phase 1 only (addendum § 13).
