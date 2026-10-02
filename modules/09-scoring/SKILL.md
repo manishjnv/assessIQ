@@ -144,3 +144,7 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 ## Per-section scores (N1a, 2026-10-02)
 
 `getSectionScoresForAttempt(client, attemptId)` in `repository.ts` (exported from `index.ts`): `[{index, name, earned, max}]` per `attempt_questions.section_index`, same effective-grading rule as the total (latest `graded_at`, an admin_override wins ties); `[]` without sections; name falls back to "Section N". CALLERS decide visibility: never call it for an unreleased score. Used by 07 admin attempt detail (`section_scores`) and the 15 results CSV (which computes its own grouping). Test: `section-scores.test.ts`.
+
+## Question type `structured_case` (SP7, 2026-10-03)
+
+`structuredCaseFraction(content, answer)` in `src/mcq.ts`, wired into `deterministicFraction`; `DETERMINISTIC_TYPES` and both `q.type IN (...)` SQL lists (`scoreMcqForAttempt`, `scoreMcqAndFinalizeIfComplete`) include `structured_case`. Answer `{ steps: { [stepId]: number[] } }`. Per step: `one` gives 1 only when the single pick equals `correct[0]`; `many` uses `multiSelectFraction`. Question: `all_or_nothing` gives 1 only if all steps are 1; `partial` (default) gives the mean. Malformed content, answer or an unknown step id gives 0. Same `gradings` row shape as mcq (`grader='deterministic'`). Test: `structured-case-fraction.test.ts`. No change to `finalize.ts` or band scoring.

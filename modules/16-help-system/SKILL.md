@@ -128,3 +128,7 @@ Two new admin help ids, `admin.question.content.numeric` and `admin.question.con
 ## Page help key form (N16, 2026-10-03)
 
 A page-level help entry has the key `<page>.page`. `AdminShell helpPage` mounts `HelpProvider page=...`; the API returns the keys `LIKE '<page>.%'`; the header (?) button opens the drawer at `<page>.page`. A page id must use only `[a-z0-9_]` in each segment (the seed generator and `HelpEntrySchema` reject a hyphen). `admin.tenant-settings` and `admin.generate-wizard` were renamed to `admin.tenant_settings` and `admin.generate_wizard` (help ids only; routes unchanged). Eight page entries were added in migration `0148_seed_page_help.sql` (seed 0011: 196 rows; production: 203 global rows). **Open (task N20):** some `data-help-id` values are outside the prefix of their page (`admin.settings.company_name`, `admin.settings.result_release_mode`, `admin.question.content.*`, `admin.question.ordering.*`), so their text cannot load.
+
+## Structured case help keys (SP7, 2026-10-03)
+
+Migration `0153_seed_structured_case_help.sql` (idempotent, `ON CONFLICT DO NOTHING`) adds four keys, mirrored in `content/en/admin.yml` and `candidate.yml`: `admin.question.editor.content.structured_case`, `admin.question.editor.structured_case.steps`, `admin.question.editor.structured_case.scoring`, `candidate.attempt.structured_case`. All sit under their page prefix (see N20 and the guard test `help-id-page-prefix.test.ts`). Seed `0011` is regenerated: the row count assertion in `help-system.test.ts` went from 196 to 200.

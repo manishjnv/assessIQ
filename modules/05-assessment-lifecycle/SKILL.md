@@ -222,3 +222,7 @@ Tests:
 
 - `PATCH /api/admin/assessments/:id/grading` (`updateAssessmentGrading`): body `{high_stakes: boolean}` strict, any status, merges only `settings.high_stakes` via `jsonb_set`, audited `assessment.updated`. 07 reads the flag live. Why separate: same pattern as `/integrity` and `/reminders`.
 - `SECTIONS_LOCKED` (409, `AL_ERROR_CODES`): `updateAssessment` refuses a `settings.sections` change once any attempt exists (canonical JSON compare, key order ignored). Draws and deadlines are frozen per attempt, so edits cannot be made consistent. Not included: a section edit UI (PENDING N6), a DB-level guard.
+
+## Preview reads the frozen pool (RV63, 2026-10-03)
+
+`previewAssessment` (`src/service.ts`) checks `assessment_frozen_pool` first. When the assessment is not `draft` and frozen rows exist, the count and the sample come from the frozen rows (blueprint criteria filter by `domain_id`, `category_id`, `type` on the frozen table; legacy preview lists all frozen rows). The result has `frozen: true`. Draft and pre-0096 assessments keep the live path. Read helpers: `countFrozenPoolRows`, `countFrozenForCriterion`, `listFrozenForCriterionPreview`, `listFrozenForPreview` in `src/repository.ts`. Why: after a pack revision or a clone re-sync the admin saw a different pool than candidates got. Not included: content from the frozen version (the sample shows the live question text), no UI badge yet. Rejected: a cross-module import of the module 06 frozen-pool readers.
