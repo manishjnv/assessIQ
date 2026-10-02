@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // AssessIQ — modules/18-certification/src/__tests__/admin-revoke.test.ts
 //
 // Phase 5 Session 5 — unit tests for revoke (POST /api/admin/certificates/:credentialId/revoke).
@@ -6,6 +5,7 @@
 // Happy path, 404 not-found, 409 already-revoked, and audit atomicity.
 
 import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
+import type { PoolClient } from 'pg';
 import { CERT_SIGNING_SECRET_ENV } from '../crypto.js';
 
 // ---------------------------------------------------------------------------
@@ -28,11 +28,14 @@ vi.mock('../repository.js', async () => {
   };
 });
 
-import { auditInTx } from '@assessiq/audit-log';
+import { auditInTx, type AuditRow } from '@assessiq/audit-log';
 import { withTenant } from '@assessiq/tenancy';
 import * as repo from '../repository.js';
 import { revoke } from '../service.js';
 import { CertificateAlreadyRevokedError, CertificateNotFoundError } from '../types.js';
+
+// Partial mock client — tests only stub query(); cast to the real client type.
+const asClient = (c: unknown): PoolClient => c as PoolClient;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -90,9 +93,9 @@ describe('revoke', () => {
     const revokedCert = { ...cert, revoked_at: '2026-05-12T00:00:00Z', revoke_reason: 'Compromised' };
     vi.mocked(repo.findByCredentialId).mockResolvedValue(cert);
     vi.mocked(repo.revokeCertificate).mockResolvedValue(revokedCert);
-    vi.mocked(auditInTx as any).mockResolvedValue(undefined);
+    vi.mocked(auditInTx).mockResolvedValue(undefined as unknown as AuditRow); // audit result is unused
     const mockClient = { query: vi.fn() };
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(mockClient as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient(mockClient)));
 
     const result = await revoke(TENANT, CRED_ID, 'Compromised', ACTOR);
 
@@ -124,7 +127,7 @@ describe('revoke', () => {
 
   it('throws CertificateNotFoundError when credential_id not found', async () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(null);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(revoke(TENANT, 'AIQ-2026-05-XXXXXX', 'reason', ACTOR))
       .rejects.toBeInstanceOf(CertificateNotFoundError);
@@ -136,7 +139,7 @@ describe('revoke', () => {
   it('throws CertificateAlreadyRevokedError when revoked_at is already set', async () => {
     const cert = fakeCert({ revoked_at: '2026-05-11T00:00:00Z', revoke_reason: 'Old reason' });
     vi.mocked(repo.findByCredentialId).mockResolvedValue(cert);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(revoke(TENANT, CRED_ID, 'New reason', ACTOR))
       .rejects.toBeInstanceOf(CertificateAlreadyRevokedError);
@@ -148,7 +151,7 @@ describe('revoke', () => {
 
   it('normalises credential_id to uppercase before repo lookup', async () => {
     vi.mocked(repo.findByCredentialId).mockResolvedValue(null);
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await revoke(TENANT, 'aiq-2026-05-abcdef', 'reason', ACTOR).catch(() => {});
 
@@ -164,8 +167,8 @@ describe('revoke', () => {
     const revokedCert = { ...cert, revoked_at: '2026-05-12T00:00:00Z', revoke_reason: 'Test' };
     vi.mocked(repo.findByCredentialId).mockResolvedValue(cert);
     vi.mocked(repo.revokeCertificate).mockResolvedValue(revokedCert);
-    vi.mocked(auditInTx as any).mockRejectedValue(new Error('audit_log INSERT failed'));
-    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn({} as any));
+    vi.mocked(auditInTx).mockRejectedValue(new Error('audit_log INSERT failed'));
+    vi.mocked(withTenant).mockImplementation(async (_t, fn) => fn(asClient({})));
 
     await expect(revoke(TENANT, CRED_ID, 'Test', ACTOR))
       .rejects.toThrow(/audit_log INSERT failed/);

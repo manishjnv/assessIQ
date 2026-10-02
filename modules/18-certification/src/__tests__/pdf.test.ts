@@ -157,10 +157,8 @@ async function buildTestApp(session: SessionInfo = DEFAULT_SESSION): Promise<Fas
   };
 
   await registerCertificationRoutes(app, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    candidateAuth: [injectSession as any],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    adminAuth: [injectSession as any],
+    candidateAuth: [injectSession],
+    adminAuth: [injectSession],
   });
 
   await app.ready();
