@@ -4,12 +4,14 @@
 // NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
 // Fairness rule: iMocha's genuine strengths acknowledged; no disparagement (SEO §6.3)
 // Research basis: imocha.io, G2 2026 reviews, Everest Group PEAK Matrix 2026, SAP India partner page — verified May 2026
+import { getPageDates } from '../../lib/page-dates';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/alternatives/imocha');
 const slug = '/alternatives/imocha';
-const datePublished = '2026-05-23';
-const dateModified  = '2026-05-23';
+const datePublished = dates.published;
+const dateModified  = dates.modified;
 
 const articleSchema = {
   "@context": "https://schema.org",
@@ -126,6 +128,7 @@ const criteria = [
 ---
 
 <BaseLayout
+  hasDatedNode
   title="Best iMocha Alternatives in 2026"
   description="Looking for an iMocha alternative? See how AssessIQ compares for India-first hiring & assessment — structured scoring and a focused hiring-stage workflow."
   canonicalPath="/alternatives/imocha"

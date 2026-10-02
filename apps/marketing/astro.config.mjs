@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import { writeFile, mkdir } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,63 +12,71 @@ import { fileURLToPath } from 'node:url';
 // in some Astro 4.16 builds, crashing with "Cannot read properties of undefined").
 function inlineSitemap() {
   const SITE = 'https://assessiq.in';
-  const today = new Date().toISOString().slice(0, 10);
-  const pages = [
-    { loc: `${SITE}/`,                                      lastmod: today },
-    { loc: `${SITE}/about`,                                 lastmod: today },
-    { loc: `${SITE}/contact`,                               lastmod: today },
-    { loc: `${SITE}/pricing`,                               lastmod: today },
-    { loc: `${SITE}/security`,                              lastmod: today },
-    { loc: `${SITE}/privacy`,                               lastmod: today },
-    { loc: `${SITE}/terms`,                                 lastmod: today },
-    { loc: `${SITE}/solutions/it-hiring`,                   lastmod: today },
-    { loc: `${SITE}/solutions/campus-recruitment`,          lastmod: today },
-    { loc: `${SITE}/solutions/educational-institutions`,    lastmod: today },
-    { loc: `${SITE}/solutions/team-skill-gap`,              lastmod: today },
-    { loc: `${SITE}/solutions`,                             lastmod: today },
-    { loc: `${SITE}/alternatives`,                          lastmod: today },
-    { loc: `${SITE}/alternatives/mettl`,                    lastmod: today },
-    { loc: `${SITE}/alternatives/hackerearth`,              lastmod: today },
-    { loc: `${SITE}/alternatives/imocha`,                   lastmod: today },
-    { loc: `${SITE}/alternatives/hackerrank`,               lastmod: today },
-    { loc: `${SITE}/alternatives/amcat`,                    lastmod: today },
-    { loc: `${SITE}/compare`,                               lastmod: today },
-    { loc: `${SITE}/compare/assessiq-vs-mettl`,             lastmod: today },
-    { loc: `${SITE}/compare/assessiq-vs-hackerearth`,       lastmod: today },
-    { loc: `${SITE}/compare/assessiq-vs-imocha`,            lastmod: today },
-    { loc: `${SITE}/glossary`,                             lastmod: today },
-    { loc: `${SITE}/glossary/adverse-impact`,              lastmod: today },
-    { loc: `${SITE}/glossary/criterion-validity`,          lastmod: today },
-    { loc: `${SITE}/glossary/construct-validity`,          lastmod: today },
-    { loc: `${SITE}/glossary/reliability-coefficient`,     lastmod: today },
-    { loc: `${SITE}/glossary/item-response-theory`,        lastmod: today },
-    { loc: `${SITE}/glossary/computer-adaptive-testing`,   lastmod: today },
-    { loc: `${SITE}/glossary/percentile-rank`,             lastmod: today },
-    { loc: `${SITE}/glossary/norm-referenced-scoring`,     lastmod: today },
-    { loc: `${SITE}/glossary/cut-score`,                   lastmod: today },
-    { loc: `${SITE}/glossary/proctoring`,                  lastmod: today },
-    { loc: `${SITE}/tests`,                                lastmod: today },
-    { loc: `${SITE}/tests/python`,                         lastmod: today },
-    { loc: `${SITE}/tests/java`,                           lastmod: today },
-    { loc: `${SITE}/tests/sql`,                            lastmod: today },
-    { loc: `${SITE}/tests/javascript`,                     lastmod: today },
-    { loc: `${SITE}/tests/react`,                          lastmod: today },
-    { loc: `${SITE}/tests/aptitude`,                       lastmod: today },
-    { loc: `${SITE}/tests/logical-reasoning`,              lastmod: today },
-    { loc: `${SITE}/tests/english`,                        lastmod: today },
-    { loc: `${SITE}/methodology`,                          lastmod: today },
-    { loc: `${SITE}/resources`,                            lastmod: today },
-    { loc: `${SITE}/resources/technical-hiring-india-guide`,       lastmod: today },
-    { loc: `${SITE}/resources/reducing-bias-technical-hiring`,     lastmod: today },
-    { loc: `${SITE}/resources/remote-proctoring-integrity`,        lastmod: today },
-    { loc: `${SITE}/tests/role/frontend-developer`,               lastmod: today },
-    { loc: `${SITE}/tests/role/backend-developer`,                lastmod: today },
-    { loc: `${SITE}/tests/role/full-stack-developer`,             lastmod: today },
-    { loc: `${SITE}/tests/role/data-analyst`,                     lastmod: today },
-    { loc: `${SITE}/tests/role/software-engineer`,                lastmod: today },
-    { loc: `${SITE}/tools`,                                       lastmod: today },
-    { loc: `${SITE}/tools/cost-of-a-bad-hire`,                   lastmod: today },
+  // lastmod comes from src/data/page-dates.json (git-derived; see scripts/page-dates.mjs)
+  const pageDates = JSON.parse(readFileSync(new URL('./src/data/page-dates.json', import.meta.url), 'utf8'));
+  const paths = [
+    '/',
+    '/about',
+    '/contact',
+    '/pricing',
+    '/security',
+    '/privacy',
+    '/terms',
+    '/solutions/it-hiring',
+    '/solutions/campus-recruitment',
+    '/solutions/educational-institutions',
+    '/solutions/team-skill-gap',
+    '/solutions',
+    '/alternatives',
+    '/alternatives/mettl',
+    '/alternatives/hackerearth',
+    '/alternatives/imocha',
+    '/alternatives/hackerrank',
+    '/alternatives/amcat',
+    '/compare',
+    '/compare/assessiq-vs-mettl',
+    '/compare/assessiq-vs-hackerearth',
+    '/compare/assessiq-vs-imocha',
+    '/glossary',
+    '/glossary/adverse-impact',
+    '/glossary/criterion-validity',
+    '/glossary/construct-validity',
+    '/glossary/reliability-coefficient',
+    '/glossary/item-response-theory',
+    '/glossary/computer-adaptive-testing',
+    '/glossary/percentile-rank',
+    '/glossary/norm-referenced-scoring',
+    '/glossary/cut-score',
+    '/glossary/proctoring',
+    '/tests',
+    '/tests/python',
+    '/tests/java',
+    '/tests/sql',
+    '/tests/javascript',
+    '/tests/react',
+    '/tests/aptitude',
+    '/tests/logical-reasoning',
+    '/tests/english',
+    '/methodology',
+    '/resources',
+    '/resources/technical-hiring-india-guide',
+    '/resources/reducing-bias-technical-hiring',
+    '/resources/remote-proctoring-integrity',
+    '/tests/role/frontend-developer',
+    '/tests/role/backend-developer',
+    '/tests/role/full-stack-developer',
+    '/tests/role/data-analyst',
+    '/tests/role/software-engineer',
+    '/tools',
+    '/tools/cost-of-a-bad-hire',
   ];
+
+  const pages = paths.map((p) => {
+    const d = pageDates[p];
+    if (!d) throw new Error(`sitemap: no page-dates.json entry for ${p} - run scripts/page-dates.mjs`);
+    return { loc: `${SITE}${p}`, lastmod: d.modified.slice(0, 10) };
+  });
+  const latest = pages.reduce((m, p) => (p.lastmod > m ? p.lastmod : m), '');
 
   function urlsetXml(urls) {
     const entries = urls.map(
@@ -99,7 +108,7 @@ function inlineSitemap() {
         // sitemap-index.xml (required by robots.txt Sitemap: directive)
         await writeFile(
           join(outDir, 'sitemap-index.xml'),
-          indexXml([{ loc: child, lastmod: today }]),
+          indexXml([{ loc: child, lastmod: latest }]),
           'utf8'
         );
 

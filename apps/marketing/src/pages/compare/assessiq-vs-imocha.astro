@@ -4,17 +4,19 @@
 // NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
 // NO specific price claims for either platform (anti-fabrication rule)
 // Competitor facts sourced from publicly verifiable information (2025-2026)
+import { getPageDates, formatDate } from '../../lib/page-dates';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/compare/assessiq-vs-imocha');
 
 // Article JSON-LD (§15 template — comparison pages use Article)
 const articleSchema = {
   "@context": "https://schema.org",
   "@type": "Article",
   "headline": "AssessIQ vs iMocha: Complete 2026 Comparison",
-  "datePublished": "2026-05-23",
-  "dateModified": "2026-05-23",
+  "datePublished": dates.published,
+  "dateModified": dates.modified,
   "author": {
     "@type": "Organization",
     "name": "AssessIQ",
@@ -197,6 +199,7 @@ const faqs = [
 ---
 
 <BaseLayout
+  hasDatedNode
   title="AssessIQ vs iMocha: 2026 Comparison"
   description="AssessIQ vs iMocha: 2026 comparison — India focus, skills intelligence, coding assessments, proctoring, workforce analytics, and which platform fits your needs."
   canonicalPath="/compare/assessiq-vs-imocha"
@@ -239,7 +242,7 @@ const faqs = [
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
 
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
-        Compare &middot; Updated May 2026
+        Compare &middot; Updated {formatDate(dates.modified)}
       </p>
 
       <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
