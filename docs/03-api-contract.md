@@ -2864,3 +2864,9 @@ All three use the same guard as the other generate routes. `id` must be a uuid (
 ### `GET /api/admin/assessments/:id/results.csv`: section columns
 - **What.** After the existing columns, one column per section named `Section: <name> (%)` (names from `settings.sections`). Blank when the row's score is not visible. Sort and other params unchanged.
 - **Not included.** No per-section rank or earned/max columns.
+
+### Candidate attempt payload: ordering
+
+- Content sent to the candidate is `{ question, items }` only (sanitiser allowlist; `correct_order`, `scoring`, `explanation` are never sent). `items` are in the attempt's own shuffled order, which is never the correct order and does not change between reloads.
+- Answer saved (`PUT` answer route): `{ "order": [int] }` of DISPLAYED item positions in the sequence the candidate chose. The server translates it to original item indexes before storing (all-or-nothing: one bad element leaves the answer untouched and it scores 0). The candidate's own reads translate it back to displayed positions. No new route; `answer` is untyped JSON as for the other types.
+- Scoring and result shapes: see 02 and 05. Admin attempt detail shows the candidate order next to the correct order (admin only).

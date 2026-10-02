@@ -1395,3 +1395,9 @@ Trigger or accept AI grading, re-run, enter a manual first score or retry a grad
 
 ### Eval golden set (batch 7, 2026-10-02)
 The golden set lives on the VPS only, in `modules/07-ai-grading/eval/cases-private` (bind-mounted into `assessiq-api`; gitignored and dockerignored). It is never committed because the repo is public (owner decision). It holds 150 AI-seeded cases: 50 each for subjective, scenario and log_analysis; per type 9 cases at each of bands 0-4 plus 5 adversarial (injection, empty, off-topic, keyword stuffing, pasted question or logs). Questions come from the already-public `golden-questions/`. `eval/runs` is mounted rw too, so runs survive recreates. Flow: eval run, compare, bless inside the api container (expect `case_count` 151), then `AI_EVAL_GATE=enforce`. Claim "AI-assisted, consistency-tested", not expert-verified. Detail: `docs/06-deployment.md` § Batch 7 deploy.
+
+### `ordering` is deterministic and never AI-graded (2026-10-02)
+- **What.** The `ordering` question type ("put these steps in the right order") is scored by `orderingFraction` in `09-scoring/src/mcq.ts` with `grader='deterministic'`, exactly like mcq / numeric / multi_select. It is in `DETERMINISTIC_TYPES` and both deterministic SQL type lists in `scoreMcqForAttempt`. It is NOT in any `AI_GRADEABLE_TYPES` set (`admin-grade.ts`, `admin-rerun.ts`, `AttemptGradingPanel.tsx`) and a blank answer scores 0 without entering the queue.
+- **Predicates.** The "needs evaluation" predicate is now `q.type NOT IN ('mcq','numeric','multi_select','ordering')` in `07 repository.ts`, `07 handlers/super-evaluations.ts`, `06 result.ts` and `apps/api/src/jobs/evaluation-queue-alert.ts`. A new deterministic type must widen all four.
+- **"Pick the log line"** needs no new type: author it as a `multi_select` (or `mcq`) whose options are the log lines.
+- **Not included.** AI generation of ordering questions; no prompt, band scoring (0/25/50/75/100) or skill change.
