@@ -102,10 +102,20 @@ export const AssessmentIntegritySettingsSchema = z
   .strict();
 export type AssessmentIntegritySettings = z.infer<typeof AssessmentIntegritySettingsSchema>;
 
+// Invitation reminders (2026-10-02). Absent = OFF. `hours_before` defaults to 24 when omitted.
+export const AssessmentRemindersSettingsSchema = z
+  .object({
+    enabled: z.boolean(),
+    hours_before: z.number().int().min(1).max(168).optional(),
+  })
+  .strict();
+export type AssessmentRemindersSettings = z.infer<typeof AssessmentRemindersSettingsSchema>;
+
 export const AssessmentSettingsSchema = z
   .object({
     blueprint: AssessmentBlueprintSchema.optional(),
     integrity: AssessmentIntegritySettingsSchema.optional(),
+    reminders: AssessmentRemindersSettingsSchema.optional(),
   })
   .passthrough();
 export type AssessmentSettings = z.infer<typeof AssessmentSettingsSchema>;
@@ -167,6 +177,8 @@ export interface AssessmentInvitation {
   status: InvitationStatus;
   invited_by: string;
   created_at: Date;
+  /** When the automatic reminder was sent (null = none yet). Populated by listInvitationRows only. */
+  reminded_at?: Date | null;
   /** Optional — populated by listInvitationRows (list view only, not single-row reads). */
   user_name?: string | null;
   user_email?: string | null;

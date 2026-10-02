@@ -86,7 +86,7 @@ describe('email classes', () => {
     expect(Object.keys(EMAIL_CLASS).sort()).toEqual([...names].sort());
     const auth = names.filter((n) => EMAIL_CLASS[n] === 'auth').sort();
     expect(auth).toEqual(['admin_email_otp', 'candidate_login_link', 'invitation_admin']);
-    for (const bulk of ['invitation_candidate', 'result_released', 'evaluation_queue_alert'] as const) {
+    for (const bulk of ['invitation_candidate', 'invitation_reminder', 'result_released', 'evaluation_queue_alert'] as const) {
       expect(EMAIL_CLASS[bulk]).toBe('bulk');
     }
   });
@@ -103,7 +103,7 @@ describe('enqueue options', () => {
   });
 
   it('bulk: low priority (> 0), 11 attempts, custom email-bulk backoff', () => {
-    for (const t of ['invitation_candidate', 'result_released', 'evaluation_queue_alert'] as const) {
+    for (const t of ['invitation_candidate', 'invitation_reminder', 'result_released', 'evaluation_queue_alert'] as const) {
       const o = emailJobOptions(t);
       expect(o.priority).toBe(BULK_EMAIL_PRIORITY);
       expect(o.priority).toBeGreaterThan(0);

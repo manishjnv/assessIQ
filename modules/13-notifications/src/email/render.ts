@@ -34,6 +34,7 @@ import { buildVars } from './i18n.js';
 import {
   InvitationAdminVarsSchema,
   InvitationCandidateVarsSchema,
+  InvitationReminderVarsSchema,
   CandidateLoginLinkVarsSchema,
   TotpEnrolledVarsSchema,
   AttemptSubmittedCandidateVarsSchema,
@@ -60,6 +61,7 @@ const PARTIALS_DIR = join(__dirname, 'partials');
 const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   invitation_admin: InvitationAdminVarsSchema,
   invitation_candidate: InvitationCandidateVarsSchema,
+  invitation_reminder: InvitationReminderVarsSchema,
   candidate_login_link: CandidateLoginLinkVarsSchema,
   totp_enrolled: TotpEnrolledVarsSchema,
   attempt_submitted_candidate: AttemptSubmittedCandidateVarsSchema,
@@ -172,6 +174,7 @@ type MetaRow = { k: string; v: string };
 function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
   switch (name) {
     case 'invitation_candidate':
+    case 'invitation_reminder':
       return [
         { k: 'Assessment', v: `<strong>${escapeHtml(p.assessmentName)}</strong>` },
         { k: 'Company', v: escapeHtml(p.tenantName) },

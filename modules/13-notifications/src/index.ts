@@ -31,6 +31,7 @@ export { sendResultReleasedEmail } from './email/result-released.js';
 
 // Phase II SP11: platform-owner alert when evaluations wait > 24 h (worker job
 // evaluation.queue_alert; best-effort per recipient, never throws).
+export { sendInvitationReminderEmail } from './email/invitation-reminder.js';
 export { sendEvaluationQueueAlertEmail } from './email/evaluation-queue-alert.js';
 
 // ---------------------------------------------------------------------------

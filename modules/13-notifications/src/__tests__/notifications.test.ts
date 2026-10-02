@@ -396,6 +396,10 @@ describe('email template rendering', () => {
         portalLink: 'https://x.com/candidate/login?tenant=x',
       }},
       // Phase II SP11 (2026-10-01): evaluation_queue_alert joins the closed template list.
+      { name: 'invitation_reminder' as const, vars: {
+        candidateName: 'John Doe', assessmentName: 'SOC L1 Skills',
+        invitationLink: 'https://x.com/take/tok', expiresAt: 'Thu, 08 Oct 2026 18:30:00 GMT', tenantName: 'Wipro',
+      }},
       { name: 'evaluation_queue_alert' as const, vars: {
         count: 3, oldestAgeHours: 37.5,
         queueLink: 'https://x.com/admin/platform/evaluations',
@@ -502,6 +506,33 @@ describe('email template rendering', () => {
       expect(() => renderTemplate('result_released', { ...base, resultText: 'Maybe' })).toThrow();
       expect(() => renderTemplate('result_released', { ...base, portalLink: 'not-a-url' })).toThrow();
       expect(() => renderTemplate('result_released', { ...base, scoreText: '' })).toThrow();
+    });
+  });
+
+  describe('invitation_reminder', () => {
+    const base = {
+      candidateName: 'Asha',
+      assessmentName: 'Aptitude Round 1',
+      invitationLink: 'https://assessiq.test/take/tok123',
+      expiresAt: 'Thu, 08 Oct 2026 18:30:00 GMT',
+      tenantName: 'Rajneesh University',
+    };
+
+    it('renders the closes-soon subject, deadline and link in both variants', () => {
+      const r = renderTemplate('invitation_reminder', base);
+      expect(r.subject).toBe('Reminder: your Aptitude Round 1 closes soon');
+      for (const body of [r.html, r.text]) {
+        expect(body).toContain('Asha');
+        expect(body).toContain('https://assessiq.test/take/tok123');
+        expect(body).toContain('08 Oct 2026 18:30:00 GMT');
+      }
+      expect(r.html).not.toContain('{{');
+      expect(r.text).not.toContain('{{');
+    });
+
+    it('rejects a bad link or empty names', () => {
+      expect(() => renderTemplate('invitation_reminder', { ...base, invitationLink: 'nope' })).toThrow();
+      expect(() => renderTemplate('invitation_reminder', { ...base, tenantName: '' })).toThrow();
     });
   });
 
@@ -1097,6 +1128,10 @@ describe('brand color compliance (post-rebrand guard)', () => {
         scoreText: '42 / 60 (70%)', resultText: 'Passed',
         portalLink: 'https://x.com/candidate/login?tenant=x',
         certificateLink: 'https://x.com/verify/AIQ-1',
+      }},
+      { name: 'invitation_reminder' as const, vars: {
+        candidateName: 'John Doe', assessmentName: 'SOC L1 Skills',
+        invitationLink: 'https://x.com/take/tok', expiresAt: 'Thu, 08 Oct 2026 18:30:00 GMT', tenantName: 'Wipro',
       }},
       { name: 'evaluation_queue_alert' as const, vars: {
         count: 3, oldestAgeHours: 37.5,

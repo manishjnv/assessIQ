@@ -1,0 +1,15 @@
+Subject: Reminder: your {{assessmentName}} closes soon
+
+Hi {{candidateName}},
+
+You have not started {{assessmentName}} on {{tenantName}} yet, and it closes soon.
+
+Start your assessment:
+{{invitationLink}}
+
+Deadline: {{expiresAt}}.
+This link replaces the one in your earlier invitation email.
+If you did not expect this email, you can ignore it.
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

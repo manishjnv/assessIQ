@@ -59,6 +59,11 @@ import {
   EVAL_QUEUE_ALERT_INTERVAL_MS,
   processEvaluationQueueAlertTick,
 } from "./jobs/evaluation-queue-alert.js";
+import {
+  INVITATION_REMINDERS_JOB_NAME,
+  INVITATION_REMINDERS_INTERVAL_MS,
+  processInvitationRemindersTick,
+} from "./jobs/invitation-reminders.js";
 
 const log = streamLogger("worker");
 
@@ -132,6 +137,9 @@ export const JOB_RETRY_POLICY: Record<
   // same hour would only repeat the count. A tick that sent nothing releases its Redis
   // gate itself (jobs/evaluation-queue-alert.ts), so the next hour retries the alert.
   [EVAL_QUEUE_ALERT_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
+  // invitation.reminders — attempts 1: runs every 30 min anyway; each row is claimed
+  // atomically (reminded_at IS NULL) and a failed email releases its own claim.
+  [INVITATION_REMINDERS_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
 };
 
 // ---------------------------------------------------------------------------
@@ -357,7 +365,8 @@ async function start(): Promise<void> {
       r.name === MV_REFRESH_JOB_NAME ||
       r.name === RETENTION_JOB_NAME ||
       r.name === AUTO_RELEASE_JOB_NAME ||
-      r.name === EVAL_QUEUE_ALERT_JOB_NAME
+      r.name === EVAL_QUEUE_ALERT_JOB_NAME ||
+      r.name === INVITATION_REMINDERS_JOB_NAME
     ) {
       await queue.removeRepeatableByKey(r.key);
     }
@@ -459,6 +468,22 @@ async function start(): Promise<void> {
     },
   );
 
+  // Invitation reminders: every 30 min, one "closes soon" email per un-started invitation
+  // (opt-in per assessment; no AI; see jobs/invitation-reminders.ts).
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const remindersPolicy = JOB_RETRY_POLICY[INVITATION_REMINDERS_JOB_NAME]!;
+  await queue.add(
+    INVITATION_REMINDERS_JOB_NAME,
+    {},
+    {
+      repeat: { every: INVITATION_REMINDERS_INTERVAL_MS },
+      attempts: remindersPolicy.attempts,
+      backoff: remindersPolicy.backoff,
+      removeOnComplete: 24,
+      removeOnFail: 24,
+    },
+  );
+
   // Consumer: processes any job that lands on the queue.
   // Concurrency: cron jobs run at 1 (never two boundary/timer ticks simultaneously
   // — would race on the bulk UPDATE). Email + webhook jobs can run at higher
@@ -490,6 +515,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, () => processAutoReleaseTick());
         case EVAL_QUEUE_ALERT_JOB_NAME:
           return runJobWithLogging(job, () => processEvaluationQueueAlertTick(redis));
+        case INVITATION_REMINDERS_JOB_NAME:
+          return runJobWithLogging(job, () => processInvitationRemindersTick());
         default:
           throw new Error(`Unknown job name: ${job.name}`);
       }

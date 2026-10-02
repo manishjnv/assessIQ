@@ -47,6 +47,14 @@ export type { ResolvedInvitation } from "./service.js";
 // 2. Boundary advancement (cron-callable; BullMQ scheduling deferred)
 // ---------------------------------------------------------------------------
 
+export {
+  sweepInvitationReminders,
+  updateAssessmentReminders,
+  REMINDER_DEFAULT_HOURS,
+  REMINDER_DAILY_CAP,
+} from "./reminders.js";
+export type { ReminderSweepResult } from "./reminders.js";
+
 export { processBoundariesForTenant } from "./boundaries.js";
 export type { BoundaryRunResult } from "./boundaries.js";
 
@@ -72,6 +80,7 @@ export type { BoundaryRow } from "./state-machine.js";
 export {
   AssessmentSettingsSchema,
   AssessmentIntegritySettingsSchema,
+  AssessmentRemindersSettingsSchema,
   AL_ERROR_CODES,
   INVITATION_STATUSES,
 } from "./types.js";

@@ -14,6 +14,8 @@ import { z } from 'zod';
 export const EmailTemplateNameSchema = z.enum([
   'invitation_admin',
   'invitation_candidate',
+  // 2026-10-02: automatic "closes soon" reminder to a candidate who has not started.
+  'invitation_reminder',
   'candidate_login_link',
   'totp_enrolled',
   'attempt_submitted_candidate',
@@ -52,6 +54,9 @@ export const InvitationCandidateVarsSchema = z.object({
   expiresAt: z.string(), // ISO8601 string
   tenantName: z.string().min(1),
 });
+
+// Same shape as the invitation: `expiresAt` is the effective deadline (sooner of link expiry / assessment close).
+export const InvitationReminderVarsSchema = InvitationCandidateVarsSchema;
 
 export const CandidateLoginLinkVarsSchema = z.object({
   display_name: z.string().min(1),
@@ -129,6 +134,7 @@ export const WeeklyDigestAdminVarsSchema = z.object({
 
 export type InvitationAdminVars = z.infer<typeof InvitationAdminVarsSchema>;
 export type InvitationCandidateVars = z.infer<typeof InvitationCandidateVarsSchema>;
+export type InvitationReminderVars = z.infer<typeof InvitationReminderVarsSchema>;
 export type CandidateLoginLinkVars = z.infer<typeof CandidateLoginLinkVarsSchema>;
 export type TotpEnrolledVars = z.infer<typeof TotpEnrolledVarsSchema>;
 export type AttemptSubmittedCandidateVars = z.infer<typeof AttemptSubmittedCandidateVarsSchema>;
@@ -142,6 +148,7 @@ export type EvaluationQueueAlertVars = z.infer<typeof EvaluationQueueAlertVarsSc
 export type TemplateVarsMap = {
   invitation_admin: InvitationAdminVars;
   invitation_candidate: InvitationCandidateVars;
+  invitation_reminder: InvitationReminderVars;
   candidate_login_link: CandidateLoginLinkVars;
   totp_enrolled: TotpEnrolledVars;
   attempt_submitted_candidate: AttemptSubmittedCandidateVars;

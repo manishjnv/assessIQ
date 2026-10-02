@@ -86,6 +86,7 @@ interface InvitationRow {
 
 /** Extended row returned by the list query (includes JOINed user + attempt data). */
 interface InvitationRowWithMeta extends InvitationRow {
+  reminded_at: Date | null;
   user_name: string | null;
   user_email: string | null;
   attempt_id: string | null;
@@ -153,6 +154,7 @@ function mapInvitationRow(row: InvitationRow): AssessmentInvitation {
 function mapInvitationRowWithMeta(row: InvitationRowWithMeta): AssessmentInvitation {
   return {
     ...mapInvitationRow(row),
+    reminded_at: row.reminded_at,
     user_name: row.user_name,
     user_email: row.user_email,
     attempt_id: row.attempt_id,
@@ -492,6 +494,25 @@ export async function setIntegrityRow(
   return mapAssessmentRow(row);
 }
 
+/** Replace ONE top-level settings key (others, e.g. blueprint, are kept) in one UPDATE. */
+export async function setSettingsKeyRow(
+  client: PoolClient,
+  id: string,
+  key: string,
+  value: unknown,
+): Promise<Assessment> {
+  const result = await client.query<AssessmentRow>(
+    `UPDATE assessments
+        SET settings = jsonb_set(coalesce(settings, '{}'::jsonb), ARRAY[$2::text], $3::jsonb),
+            updated_at = now()
+      WHERE id = $1 RETURNING ${ASSESSMENT_COLUMNS}`,
+    [id, key, JSON.stringify(value)],
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`setSettingsKeyRow: no row found for id ${id}`);
+  return mapAssessmentRow(row);
+}
+
 /**
  * Bulk status boundary update — called by the cron boundary job once per
  * tenant (the caller iterates tenants externally and wraps each call in
@@ -656,6 +677,7 @@ export async function listInvitationRows(
        ai.status,
        ai.invited_by,
        ai.created_at,
+       ai.reminded_at,
        u.name               AS user_name,
        u.email              AS user_email,
        a.id                 AS attempt_id,
@@ -766,7 +788,8 @@ export async function reissueInvitation(
 ): Promise<AssessmentInvitation | null> {
   const result = await client.query<InvitationRow>(
     `UPDATE assessment_invitations
-        SET token_hash = $1, expires_at = $2, status = 'pending', last_resent_at = now()
+        SET token_hash = $1, expires_at = $2, status = 'pending', last_resent_at = now(),
+            reminded_at = NULL
       WHERE id = $3 AND status IN ('pending', 'viewed', 'expired')
       RETURNING ${INVITATION_COLUMNS}`,
     [tokenHash, expiresAt, id],

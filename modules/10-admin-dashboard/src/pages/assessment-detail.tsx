@@ -42,6 +42,7 @@ import { AdminShell } from "../components/AdminShell.js";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { CandidateCsvImport } from "../components/CandidateCsvImport.js";
 import { IntegrityCard, type IntegrityValue } from "../components/IntegrityCard.js";
+import { RemindersCard, type RemindersValue } from "../components/RemindersCard.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
 
@@ -61,7 +62,7 @@ interface Assessment {
   created_at: string;
   level_label?: string | null;
   pack_name?: string | null;
-  settings?: { integrity?: IntegrityValue } | null;
+  settings?: { integrity?: IntegrityValue; reminders?: RemindersValue } | null;
 }
 
 interface Invitation {
@@ -72,6 +73,7 @@ interface Invitation {
   status: InvitationStatus;
   created_at: string;
   expires_at: string | null;
+  reminded_at?: string | null;
   attempt_id?: string | null;
   attempt_status?: string | null;
   started_at?: string | null;
@@ -567,6 +569,11 @@ export function AdminAssessmentDetail(): React.ReactElement {
                 }}
               >
                 {expiry.text}
+              </span>
+            )}
+            {row.reminded_at != null && (row.status === "pending" || row.status === "viewed") && (
+              <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                Reminder sent {new Date(row.reminded_at).toLocaleString()}
               </span>
             )}
           </div>
@@ -1102,6 +1109,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
         </Modal>
 
         <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />
+        <RemindersCard key={`rem-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.reminders} />
 
         {/* Invitations section */}
         <div>

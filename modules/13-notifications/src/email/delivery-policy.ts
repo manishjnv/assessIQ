@@ -41,6 +41,7 @@ export const EMAIL_CLASS: Record<EmailTemplateName, EmailClass> = {
   invitation_admin: 'auth',
   // bulk: everything else (totp_enrolled is a receipt, not a code)
   invitation_candidate: 'bulk',
+  invitation_reminder: 'bulk',
   totp_enrolled: 'bulk',
   attempt_submitted_candidate: 'bulk',
   attempt_graded_candidate: 'bulk',

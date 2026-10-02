@@ -128,3 +128,6 @@ The invitations table on `assessment-detail.tsx` shows 100 rows per page (API ca
 - **Readers** (no raw JSON): `QuestionContentView` (numeric shows the correct value, tolerance and unit; multi_select reuses the option list with every correct option highlighted plus the scoring mode), `QuestionPromptView`, `ExpectedAnswerView`, and `AttemptGradingPanel`'s answer view (numeric value with a tick or cross; multi_select lists each picked option with a tick or cross). Option letters extended to J (10 options).
 - Pack-detail type filter chips include the two types.
 - Not included: field-by-field forms for the content (JSON editing only), AI generation wizard support.
+
+## Reminders card (2026-10-02)
+Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send automatic reminders" checkbox + hours select, "Save reminder settings"; help_id `admin.assessment.reminders`) which PATCHes `/admin/assessments/:id/reminders`. Pending/viewed invitation rows show "Reminder sent <time>" when `reminded_at` is set. Default off.

@@ -60,6 +60,7 @@ import {
 } from "./state-machine.js";
 import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "./tokens.js";
 import { sendInvitationEmail } from "./email.js";
+import { assertRemindersSettings } from "./reminders.js";
 import type { SendAssessmentInvitationInput } from "./email.js";
 import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema } from "./types.js";
 import type {
@@ -449,6 +450,7 @@ export async function createAssessment(
   // The input pack_id / level_id / question_count are overridden with the
   // blueprint-resolved values so the no-blueprint INSERT path below is unchanged.
   assertIntegritySettings(input.settings);
+  assertRemindersSettings(input.settings);
   let resolvedInput = input;
   let mergedSettings: AssessmentSettings = input.settings ?? {};
 
@@ -764,6 +766,7 @@ export async function updateAssessment(
   // The category-level FK guard is performed inside the main withTenant below
   // (needs the tenant-scoped client).
   assertIntegritySettings(patch.settings);
+  assertRemindersSettings(patch.settings);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
   let validatedBlueprint: AssessmentBlueprint | null = null;
   const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];
