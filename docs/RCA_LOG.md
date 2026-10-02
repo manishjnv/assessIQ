@@ -2016,3 +2016,22 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Fix:** the same UPDATE now sets `metadata = COALESCE(metadata, '{}'::jsonb) - 'roll_number' - 'branch'`. The expression was checked read-only on prod Postgres: `{"roll_number":…,"branch":…,"keep":1}` → `{"keep": 1}`. Docs: `docs/02-data-model.md` § users.metadata keys.
 
 **Prevention:** manual discipline. Module 20 has no DB test harness (see the 2026-05-29 entry). Rule: any change that writes new personal data, including into JSONB, must update `erasure.ts` in the same commit. Add it to the Phase 3 checklist for 03-users and 20-data-rights.
+
+## 2026-10-02 — "database system is starting up" test flake; e2e job could never pass
+
+**Symptom:**
+- **Flake:** once DB tests ran again in CI, a different test file each run died at connect with `error: the database system is starting up`. This hit `19-billing/entitlements.test.ts`, `assert-publish-entitled`, `entitlements-backfill` and `07 admin-generate-stderr`.
+- **e2e:** separately, the e2e job (it runs only after `quality` passes, which hadn't happened in months) failed `mint-session` with `404 Route GET:/api/dev/mint-session`.
+
+**Cause:**
+- **Flake:** 9 test files started `postgres:16-alpine` with `Wait.forListeningPorts()`. The image opens the port for its temporary init server, then restarts, so tests connected mid-restart. The other 61 files already waited for the second `database system is ready to accept connections` log.
+- **e2e:** repo variable `E2E_BASE_URL` pointed at the old domain `assessiq.automateedge.cloud`. It 301-redirects to `assessiq.in`, and fetch turns the POST into a GET. Even without the redirect, the job targets live production, where the test-only minter is correctly disabled (`POST /api/dev/mint-session` → 404).
+
+**Fix:**
+- **Flake:** the 9 files use `Wait.forLogMessage(/database system is ready to accept connections/, 2)`.
+- **e2e:** paused by deleting both repo variables (owner decision). The job skips itself while they are unset. The minter stays off on prod.
+- **Result:** CI run 36913040310 is fully green.
+
+**Prevention:**
+- New DB tests use the shared `tools/test-support/apply-all-migrations.ts` and the 2× ready-log wait. Moving the container start into the shared helper is the next step if this recurs.
+- Never enable `ENABLE_E2E_TEST_MINTER` on prod to make e2e pass; e2e needs a staging target or an in-CI stack (backlog E5).

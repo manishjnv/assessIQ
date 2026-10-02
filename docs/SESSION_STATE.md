@@ -15,6 +15,10 @@
   - the help seeded count, 157 → 160, for the 0123 rows;
   - `score-attempt-route`: its fixture cited KB id `kb-src-001`, which doesn't exist, so it used a real L2 id. This was pre-existing and hidden because CI never reached the Test step. 4/4 pass now.
 - Left: `admin-generate-stderr` is the container-startup flake; it passes alone (3/3).
+**CI:** ✓ GREEN on GitHub (run 36913040310, 2026-10-02). It is the first fully passing run since at least 2026-05-31; every quality gate passes, Test included.
+- The e2e job is paused: repo variables `E2E_BASE_URL` / `E2E_API_BASE_URL` were deleted (owner decision 2026-10-02). They pointed at the old domain, which 301s to prod, and the test-only minter is correctly off on prod (`POST /api/dev/mint-session` → 404). The job skips itself while the variables are unset.
+- To bring e2e back: re-add the variables pointing at a staging server, or rewrite the job to run the stack inside CI.
+- Follow-ups after the handoff: `0011` help seed regenerated (`chore(16)`), and 9 test files waited on the port instead of Postgres' second ready log, which was the "database system is starting up" flake (fixed).
 **Next (owner):** run `docs/testing/AssessIQ_Pilot_Batch2_Test_Script.docx` (local; 36 steps, 13 ★), then T11 create Rajneesh's company.
 **Open questions:**
 - An edit UI for an existing assessment's integrity switches? (Today they are set on the create form only.)
