@@ -109,7 +109,7 @@ async function loadGradingData(
     `SELECT
        aq.question_id,
        q.type,
-       q.points,
+       aq.points,
        qv.content,
        qv.rubric
      FROM attempt_questions aq

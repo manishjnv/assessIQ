@@ -143,3 +143,11 @@ Owner rules: **P1** a candidate sees only a complete, final score (never partial
 - `GET /api/me/attempts/:id/result` — `released` (and a score row exists) → 200 `{status:'released', total_earned, total_max, percent (1 dp), passed (>= levels.passing_score_pct), assessment_name, released_at (grading.released audit row), certificate|null}`; otherwise 202 `{status:'pending', result_expectation, release_mode, email_masked, turnaround_text, tenant_name}`. Another candidate's attempt → 404.
 - `GET /api/me/results` — released attempts only, newest release first.
 - Migration `0113` adds `attempts.evaluation_released_at/_by/_note/_sent_back_at` (+ partial index for the sweep). A single finalize path sets `evaluation_released_at`; MCQ-only attempts are complete at submit.
+
+## Frozen question points (E12, migration 0128)
+
+`attempt_questions.points` (INT NOT NULL) is `questions.points` AT ATTEMPT START. `repository.insertAttemptQuestions` (the only INSERT site; standard and embed starts both go through `startAttempt`) writes it via `(SELECT points FROM questions WHERE id = …)` in the same statement that freezes `question_version`.
+- **Why:** points live on the `questions` row, not in `question_versions`. Scoring read the live value, so a super admin editing a published question's points (04 `updateQuestion`) changed the score of every candidate not yet graded. Scoring now reads the frozen copy (09 `mcq.ts`; 07 `admin-grade`, `admin-rerun`, `admin-manual-score`, `admin-claim-release`; the candidate-facing `listFrozenQuestionsForAttempt` too, so what is shown matches what is scored).
+- **Backfill / backstop:** migration 0128 backfills existing rows from the current `questions.points` (the old behaviour; there is no earlier value to recover), then sets NOT NULL. A BEFORE INSERT trigger fills a missing value from `questions.points` at insert time, so raw inserters (tests, future paths) never hit the constraint and never leave a lazily-read NULL.
+- **Not included:** no per-version points history; authoring views (04 question editor, 07 `admin-generate`, 05 blueprint pool) keep reading the live `questions.points` on purpose. Apply the migration before deploying the code.
+- **Test:** `src/__tests__/points-freeze.test.ts`.
