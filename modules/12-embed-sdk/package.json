@@ -18,7 +18,7 @@
     "@assessiq/tenancy": "workspace:*",
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/attempt-engine": "workspace:*",
-    "jose": "^5.9.0"
+    "jose": "^6.2.12"
   },
   "devDependencies": {}
 }
