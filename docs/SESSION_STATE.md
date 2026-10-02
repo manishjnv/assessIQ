@@ -1,3 +1,46 @@
+# Session — 2026-10-02 (n) — review fixes RS1, RS2, RS3, RS5 + N10, N11, N12: candidate defects, true admin and help text, docs truth pass, argon2
+
+**Headline:** RS1, RS2, RS3, RS5, N10 (argon2) and N11 are LIVE on https://assessiq.in (HEAD `c788ed7`). N12 is checked in a real browser for the candidate side only.
+**Commits (`274bbc6..c788ed7`, pushed):**
+- `0d02ea9` RS1 candidate defects (numeric answer box, 7-day invite text, 4 help ids, certificate link)
+- `ac531c5` N11 scenario mcq steps keep their options (Sonnet adversarial: accept)
+- `578c0aa` RS2 true text and brand on admin screens · `8113192` RS3 help text + migration 0146 · `8cc46c2` migration 0147
+- `f40400c` RS5 docs truth pass · `48e1cfb` N10 argon2 0.40.3 to 0.45.1 (codex: accept) · `c788ed7` N12 Playwright spec
+**Deploy:** two stages, additive only. Stage 1: pull to `8cc46c2`; 0146 and 0147 by hand and recorded; help rows 185 to 195; api, worker, frontend rebuilt. Stage 2: pull to `c788ed7`; api image rebuilt, api and worker recreated; argon2 0.45.1 in the image, a 0.40 hash verifies there. 24 containers before and after each stage; 0 error lines; `/`, `/pricing`, `/try`, `/admin`, `/api/health`, `/take/x` 200. Marketing not rebuilt (no change).
+**Tests:** typecheck 0; lint 0 errors (20 warnings); web 64; module 10 102; module 16 93; module 17 44; module 06 sanitizer file 12 (the DB-backed module 06 suite was not run); module 01 argon2-compat 3 and totp 16; Playwright mocked runner 3 of 3 in headless Chromium.
+**Not done (by design or blocked):**
+- N10: `astro-og-canvas` 0.13 and `canvaskit-wasm` 0.42 need Astro 5 (marketing is on Astro 4). Storybook 10 waits for feature review FR18.
+- N12: the admin authoring screen, real-backend scoring, publish and admin view of an ordering question are not clicked yet. Behaviour check pending operator.
+- RS2: RV11 (help-content admin page, waits for FR14) and RV16 (small items). RS3: RV23 waits for owner decision RO3; two page prefixes with a hyphen and six page prefixes have no help content. RS5: RV33 (project `CLAUDE.md`) needs owner approval.
+**Next (Claude):** RS4 marketing truth pass 2. Then RS6 feature review, PT1 (plan tiers) first.
+**Next (Owner):** decide RO3 ("Organisation code"); approve the `CLAUDE.md` edit (RV33); click the ordering authoring flow once on the live site; items open from older sessions (eval bless, push-gate hook, MASTER_KEY rotation date).
+**Open questions:** (1) `pnpm audit --audit-level high` reported 42 high and 2 critical in the N10 run; batch 6 recorded 0 high. Check. (2) Upgrade the marketing site to Astro 5?
+**Old task or feature checked (Rule B):** RS1 against RCA 2026-05-24 (help prefix mismatch) and RCA 2026-10-01 (invite TTL); N11 "drop the step type" rejected (Rule A); RV12 `/admin/me` against `whoami`; RV14 radar kept for FR11; N12 against the old skipped take specs.
+**Docs:** deploy record `docs/06-deployment.md` § RS1–RS5 + N10–N12 deploy; RCA 2026-10-02 entries; `docs/03-api-contract.md` (scenario mcq step payload); `docs/07-help-system.md` (correction pass); `docs/08-ui-system.md` (brand consumer copies). Detail and task marks (local only): `docs/plans/REVIEW_FIX_PLAN_2026-10-02.md` § 12, `docs/PENDING_TASKS_2026-10-01.md` § P0-V.
+**Coordination:** another session sent two instruction messages during the work. Two points conflicted with project rules (edit the UI kit files; remove argon2) and were not followed.
+
+---
+
+## Agent utilization
+- Opus: n/a — the main session ran on Fable 5.1: plan, RS1 edits, every diff review, three review corrections (static file routing, recovery-code help text, a stale comment), commits, both deploys, migration 0147, this handoff.
+- Sonnet: 12 runs: N11, RS2 (2), RS3, RS5 (3), N11 adversarial review, N10, N12 spec, session docs, memory notes check.
+- Haiku: 3 runs: context digest, VPS pre-deploy check, post-deploy check grid.
+- codex:rescue: N10 argon2 upgrade: accept (1 LOW lockfile note). N11: Sonnet adversarial review, accept (2 LOW notes).
+- claude-mem: honoured docs-folder-gitignored, vps-shared-host, parallel-session-shared-working-tree, feedback-keep-dormant-features-review, feedback-check-old-task-before-new, push-gate trailer.
+- Routing telemetry:
+  - Sonnet · N11 sanitizer fix · reworked: N
+  - Sonnet · RS2a admin text · reworked: N (one line added by the lead)
+  - Sonnet · RS2b brand and defects · reworked: Y (static files in the public root are not routed; moved under /brand/)
+  - Sonnet · RS3 help text · reworked: Y (one untrue sentence kept; two production rows outside the YAML needed 0147)
+  - Sonnet · RS5 docs x3 · reworked: N
+  - Sonnet · N10 dependencies · reworked: N
+  - Sonnet · N12 Playwright spec · reworked: N
+  - Sonnet · session docs · reworked: N
+  - Haiku · context digest · reworked: Y (took 49 minutes; the lead read the plan directly)
+  - Haiku · post-deploy grid · reworked: Y (missed a lazy chunk; the lead checked one string)
+
+---
+
 # Session — 2026-10-02 (m) — full project review (read-only): fix plan, feature review register, two owner rules
 
 **Headline:** A read-only review of all code, docs and features is complete. No code, schema or server change. The result is a fix plan in 11 sessions, a register of 26 dormant features to review, two standing owner rules and three owner decisions.

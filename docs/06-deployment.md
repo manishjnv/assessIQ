@@ -1762,3 +1762,47 @@ If staging is wanted later, build it off-box (a local compose run using `tools/t
 **Not verified in a browser:** the ordering question flow (author, take, score). Behavioural check pending the operator (N12).
 
 **Rollback:** use the code rollback procedure in § Rollback and staging with the previous SHA (`dcded5e`): rebuild and recreate api, worker, frontend, marketing. Migrations 0144 and 0145 are additive (a new CHECK value and help rows), so an older build ignores them. Ordering questions authored after the deploy would not render on an older build.
+
+## RS1–RS5 + N10–N12 deploy (2026-10-02, HEAD `c788ed7`; commits `274bbc6..c788ed7`)
+
+Work in this deploy: candidate-facing fixes (RS1, `0d02ea9`), scenario mcq options (`ac531c5`), text and brand on admin screens (RS2, `578c0aa`), help text (RS3, `8113192`, `8cc46c2`), docs truth pass (RS5, `f40400c`), argon2 0.45.1 (N10, `48e1cfb`) and the mocked browser spec (N12, `c788ed7`).
+
+**Migrations:** 0146 (`modules/16-help-system/migrations/0146_update_help_text_corrections.sql`) and 0147 (`0147_help_text_corrections_followup.sql`). Both change help text only. Each is applied by hand with `psql -1 -v ON_ERROR_STOP=1` and recorded in `schema_migrations`. 0146 updates the global v1 row of each changed key, adds `INSERT … ON CONFLICT DO NOTHING` for it, and inserts the 10 new keys. It is idempotent. 0147 corrects two rows that exist only in older module migrations (`admin.grading.rerun`, `admin.integrations.embed-origins.add`). Help rows: 185 to 195.
+
+### Stage 1 — help text, candidate fixes and admin text
+
+1. Confirm no `claude` process runs (0).
+2. `git pull` on `/srv/assessiq`: `6336f61` to `8cc46c2`.
+3. Apply 0146 and 0147 by hand.
+4. Check: 195 help rows, 0 duplicate global keys, no tenant override rows, no row with version other than 1.
+5. Run the check query. Expect 0 rows with internal words: `SELECT count(*) FROM help_content WHERE tenant_id IS NULL AND (long_md ~* '(opus|sonnet|wipro|anthropic|claude)' OR short_text ~* '(opus|sonnet|wipro|anthropic|claude)');`
+6. Build `assessiq-api` and `assessiq-frontend`.
+7. Recreate `assessiq-api`, `assessiq-worker` and `assessiq-frontend` with `up -d --no-deps --force-recreate`.
+
+Marketing was not rebuilt: no marketing change.
+
+**Post-deploy checks (all passed):**
+- 24 containers before and after; api and frontend healthy; 0 error lines in the api and worker logs.
+- `/`, `/pricing`, `/try`, `/admin`, `/admin/login`, `/candidate/login`, `/api/health` and `/take/x` return 200.
+- Live `index.html` links `/brand/favicon/app.webmanifest` and `https://assessiq.in/brand/social/app-og.png`.
+- The manifest returns `"name": "AssessIQ"` with `application/manifest+json`. The PNG is 28,044 bytes, `image/png`.
+- The live bundles contain "valid for 7 days", "Single-use link · valid 7 days", the four corrected help ids, "Plan & usage", "Where to find results", "Find your licensed sets" and "up to 1,000 rows".
+- The api image has the new sanitizer lines.
+- `claude` processes: 0.
+
+**Static files of the app:** a new static file of the web app goes under `/brand/` or `/assets/`. The shared Caddy `@app` matcher routes only `/admin*`, `/candidate*`, `/take*`, `/try*`, `/assets/*` and `/brand/*` to the app. A file in the `public/` root goes to the marketing site and returns 404. See `docs/08-ui-system.md`.
+
+**Not verified in a browser on production:** the admin authoring screen for ordering questions, server scoring on a real backend, publish and the admin view. The mocked Playwright spec `apps/web/e2e/take-runner-mocked.spec.ts` covers the candidate runner only (3 tests pass). CI does not run it. Behaviour check pending the operator.
+
+**Rollback:** use the code rollback procedure in § Rollback and staging with the previous SHA (`6336f61`): rebuild and recreate api, worker, frontend. Migrations 0146 and 0147 change help text only and need no rollback, because an older build reads the same rows.
+
+### Stage 2 — API image with argon2 0.45.1
+
+Pull `8cc46c2` to `c788ed7`. `claude` processes: 0. Built `assessiq-api` only; recreated `assessiq-api` and `assessiq-worker` (`up -d --no-deps --force-recreate`). The frontend was not rebuilt (no frontend change in this stage).
+
+**Checks (all passed):**
+- 24 containers before and after; api healthy; 0 error lines in the api and worker logs; `/api/health` 200.
+- `argon2` in the image: `0.40.3` before, `0.45.1` after. The prebuilt glibc binary loads on `node:22-slim`; no Dockerfile change.
+- In the container, a hash made by 0.40.3 verifies with 0.45.1, and a wrong input is rejected (the same fixture as `modules/01-auth/src/__tests__/argon2-compat.test.ts`).
+
+**Rollback:** rebuild the api image at `8cc46c2` and recreate api and worker. Hashes made by 0.45.1 use the same algorithm and cost parameters, but the stored string lists the parameters as `m,p,t` (0.40 wrote `m,t,p`). Before a rollback, check that 0.40.3 verifies a hash made by 0.45.1; this direction was not tested.

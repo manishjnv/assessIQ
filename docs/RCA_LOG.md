@@ -4,6 +4,62 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-02 — Numeric answer box kept the text of the previous question
+
+**Symptom:** when two numeric questions followed each other, the box on the second question showed the answer of the first. The second question stayed unanswered until the candidate typed.
+**Cause:** `apps/web/src/pages/take/Attempt.tsx` rendered `<AnswerArea>` with no `key`. `NumericAnswerArea.tsx` keeps a local text draft in `useState`, so React reused the component and the draft.
+**Fix:** `key={currentQuestion.question_id}` on `<AnswerArea>`. The key resets every answer area, not only the numeric one. Commit `0d02ea9`. An effect inside `NumericAnswerArea` was rejected because it fixes one area only.
+**Prevention:** new case in `apps/web/src/pages/take/AttemptSections.test.tsx` and the Playwright spec `apps/web/e2e/take-runner-mocked.spec.ts` (commit `c788ed7`). Rule: a component with a local draft needs a `key` that follows the item it shows.
+
+## 2026-10-02 — Four help ids never matched their content keys
+
+**Symptom:** four help tooltips never showed text: the UI id found no content row.
+**Cause:** the UI ids used a hyphen where the content key uses an underscore, and one id lacked the `.list` segment. Files: `CandidateSessionBanner.tsx`, `CompletionModal.tsx`, `MyCertificates.tsx` (module 11) and `assessment-detail.tsx` (module 10). Same class as RCA 2026-05-24 "Generation History help provider was inert".
+**Fix:** the UI ids now read `candidate.auth.expiring_soon`, `candidate.cert.completion_modal`, `candidate.cert.share_linkedin` and `admin.assessments.list.content_source`. Commit `0d02ea9`. The content keys keep their names.
+**Prevention:** none yet. A lint that compares every `data-help-id` with the content keys is planned (review fix plan RV71, session RS10).
+
+## 2026-10-02 — Invite text said 72 hours while the server gives 7 days
+
+**Symptom:** the invite dialog and the invite-accept page told users the link is valid for 72 hours. Footers said "Phase 0 · 2026" and "72 h TTL".
+**Cause:** the server TTL moved to 7 days in the fix of RCA 2026-10-01 "Candidate invitation links died after 72 hours" (`modules/03-users/src/invitations.ts`). The static text in `modules/10-admin-dashboard/src/pages/users.tsx` and `apps/web/src/pages/invite-accept.tsx` was not updated.
+**Fix:** both texts say "7 days"; the phase footers are gone (also on `apps/web/src/pages/admin/mfa.tsx`). Commit `0d02ea9`.
+**Prevention:** manual discipline. The text is static; it does not read the expiry from the API response.
+
+## 2026-10-02 — Admin certificate drawer linked the old domain
+
+**Symptom:** the verify link in the certificate drawer pointed to `https://assessiq.automateedge.cloud/verify/<id>`.
+**Cause:** a hard-coded host in `modules/10-admin-dashboard/src/pages/certificates.tsx`.
+**Fix:** the link uses `${window.location.origin}/verify/<id>`. Commit `0d02ea9`.
+**Prevention:** manual discipline. Build links from the page origin, never from a literal host.
+
+## 2026-10-02 — Scenario mcq steps lost their options in the candidate view
+
+**Symptom:** a scenario step of type `mcq` showed no options to the candidate. No production item uses the step type.
+**Cause:** `sanitizeContentForCandidate` in `modules/06-attempt-engine/src/repository.ts`, branch `scenario`, kept only `prompt` for each step.
+**Fix:** a step with `type === "mcq"` and an array `options` also keeps `type`, `id` (string) and `options` (string items only). This is an allowlist. `correct`, `trap` and `expected` never leave the server. A step in the generated shape `{prompt, expected}` keeps `prompt` only. Commit `ac531c5`. Dropping the mcq step type was rejected (owner rule: keep features).
+**Prevention:** two new cases in `modules/06-attempt-engine/src/__tests__/sanitize-content-for-candidate.test.ts`. Sonnet adversarial review: accept.
+
+## 2026-10-02 — Two production help rows were outside the YAML, so the YAML-driven migration missed them
+
+**Symptom:** after migration 0146, the check query still found internal words in two global help rows.
+**Cause:** older module migrations seeded two rows that are not in `modules/16-help-system/content/en/*.yml`: `admin.grading.rerun` (text named a model, a stage and a table) and `admin.integrations.embed-origins.add` (an example with a real company domain, from `modules/12-embed-sdk/migrations/0072_embed_help_seed.sql`). Migration 0146 was built from the YAML, so it did not touch them.
+**Fix:** migration `0147_help_text_corrections_followup.sql` corrects the text of both rows. Commit `8cc46c2`.
+**Prevention:** after every help-text migration, run on production: `SELECT count(*) FROM help_content WHERE tenant_id IS NULL AND (long_md ~* '(opus|sonnet|wipro|anthropic|claude)' OR short_text ~* '(opus|sonnet|wipro|anthropic|claude)');`. Expect 0.
+
+## 2026-10-02 — Near miss: a static file in the `public/` root would have gone to the marketing site
+
+**Symptom:** none in production. Review caught it before deploy.
+**Cause:** the first version of the manifest and link-preview image fix put the files in the `public/` root of `apps/web` (`/site.webmanifest`, `/og-image.png`). The shared Caddy `@app` matcher sends only `/admin*`, `/candidate*`, `/take*`, `/try*`, `/assets/*` and `/brand/*` to the app. Other paths go to the marketing site and would return 404.
+**Fix:** the files live under `apps/web/public/brand/` (`app.webmanifest`, `app-og.png`, `app-og.svg`). Commit `578c0aa`.
+**Prevention:** rule: a new static file of the app goes under `/brand/` or `/assets/`. A lint that checks `public/` names against the Caddy matcher is planned (RV71).
+
+## 2026-10-02 — Cohort radar always showed zero and pack detail sent requests that returned 403
+
+**Symptom:** the radar in the cohort report was always flat. A tenant admin who opened pack detail caused one 403 response for each level.
+**Cause:** `cohort-report.tsx` passed `archetype_distribution` (label to count) to a radar that reads behaviour-signal keys. `pack-detail.tsx` requested `generation-attempts`, a super-admin route, for every role.
+**Fix:** the radar is not rendered in the cohort report; the distribution list stays and `ArchetypeRadar.tsx` is kept. Pack detail requests `generation-attempts` for the super admin only. Commit `578c0aa`.
+**Prevention:** manual discipline. This is the "UI and server contract mismatch" class (RV74).
+
 ## 2026-10-01 — Email and webhook delivery statuses were never saved (missing UPDATE RLS policy)
 
 **Symptom:** every `email_log` row in production stayed `queued` (13 of 13 on 2026-10-01), even for emails that were delivered; webhook delivery statuses could not change either.

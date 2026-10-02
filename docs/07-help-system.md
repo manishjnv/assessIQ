@@ -275,3 +275,19 @@ Integrity audit performed 2026-05-14 against all 94 keys. Fixed in one pass:
 - **`short_text` overflows (5 trimmed):** `admin.webhooks`, `admin.webhooks.events`, `admin.webhooks.deliveries`, `candidate.activity`, `candidate.profile.name_callout` all exceeded 120 chars; trimmed to ≤120.
 - **Broken `related_keys` (1 fixed):** `admin.settings.ai_generate_mode` referenced non-existent `admin.settings.billing`; corrected to `admin.settings.billing.budget`.
 - **Systemic gap closed:** `admin-help-keys.test.ts` — Block A now enforces the key-format regex. New `candidate-help-keys.test.ts` provides parity coverage for candidate.yml. `STAGE_1_5_KEYS` in the admin test updated to use underscore spellings. Total test count: 90 (was 73).
+
+## Help text correction pass (2026-10-02)
+
+**What changed.** `content/en/admin.yml` and `candidate.yml`: 29 entries corrected, 10 new entries, keys 178 to 188. No key was removed or renamed. The seed `0011_seed_help_content.sql` is regenerated (188 rows). Migration `0146_update_help_text_corrections.sql` updates the global v1 row of each changed key, adds `INSERT … ON CONFLICT DO NOTHING` for it, and inserts the 10 new keys. It is idempotent. Migration `0147_help_text_corrections_followup.sql` corrects two rows that are not in the YAML.
+
+**Why.** Help text named internal tools, models and tables, and some entries described behaviour that no longer exists. One MFA entry said recovery codes were unsupported; the code gives 10 one-time recovery codes at enrolment.
+
+**Rule: help rows can exist outside the YAML.** Older module migrations seeded rows such as `admin.grading.rerun` and `admin.integrations.embed-origins.add`. A migration built from the YAML does not touch them. After every help-text migration, run on production and expect 0: `SELECT count(*) FROM help_content WHERE tenant_id IS NULL AND (long_md ~* '(opus|sonnet|wipro|anthropic|claude)' OR short_text ~* '(opus|sonnet|wipro|anthropic|claude)');`
+
+**Generator limit.** The seed generator allows only `[a-z0-9_]` in key segments. The page prefixes `admin.tenant-settings` and `admin.generate-wizard` contain a hyphen, so they have no content. The UI id must change first.
+
+**Page prefixes with no content yet:** `admin.attempts.detail`, `admin.evaluations.detail`, `admin.grading.jobs`, `admin.question.editor`, `admin.reports.individual`, `admin.reports.landing`.
+
+**Not included.** The 44 keys that have no screen stay: they record the first purpose of dormant features. Key names `admin.grading.rerun.opus` and `admin.reports.cost.empty_in_claude_code_vps_mode` keep their names; their text is clean. The candidate login still asks for an "Organisation code"; that text waits for an owner decision.
+
+**Impact.** Four UI help ids were corrected to match their keys (see `docs/RCA_LOG.md`, 2026-10-02). No API or schema change.
