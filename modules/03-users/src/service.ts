@@ -390,12 +390,12 @@ export async function restore(
       entityType: 'user',
       entityId: id,
       before: redactUserForAudit({
-        deleted_at: target.deleted_at,
+        deleted_at: target.deleted_at?.toISOString() ?? null,
         status: target.status,
         role: target.role,
       }),
       after: redactUserForAudit({
-        deleted_at: restored.deleted_at,
+        deleted_at: restored.deleted_at?.toISOString() ?? null,
         status: restored.status,
         role: restored.role,
       }),

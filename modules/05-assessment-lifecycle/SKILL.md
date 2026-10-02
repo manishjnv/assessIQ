@@ -194,3 +194,8 @@ Tests:
 - `src/__tests__/audit-writes.test.ts` — happy-path test per wired function + atomicity proof (`publishAssessment` on non-existent id throws and writes no audit row) + coverage assertion (count of `auditInTx(` call-sites in service.ts equals 10 — the 9 admin-mutating functions plus the shared `reissueInvitationInTx`).
 - `src/__tests__/lifecycle.test.ts` — testcontainer migration set extended to apply `14-audit-log/migrations/0050_audit_log.sql` plus the `assessiq_app` / `assessiq_system` role setup. All call-sites updated to thread `adminA` for the new signatures.
 - `src/__tests__/invite-email.test.ts` — `@assessiq/audit-log` added to the vi.mock list (this is a pure-mock unit test, no testcontainer).
+
+
+## 2026-10-02 - ISO dates in audit payloads
+
+`redactPayload` (14-audit-log) turns a `Date` into `{}`, so `assessment.invite` stored `after.expires_at` as `{}`. Fixed at the callers (audit-log untouched): `inviteUsers` (`expires_at`), `updateAssessment` (`opens_at`/`closes_at`, before+after, null-safe) and `reopenAssessment` (`closes_at`) now pass `.toISOString()`; same for `03-users` `restoreUser` (`deleted_at`). Rule: never put a `Date` in an audit before/after. Test: `audit-writes.test.ts` asserts `after.expires_at` is an ISO string.

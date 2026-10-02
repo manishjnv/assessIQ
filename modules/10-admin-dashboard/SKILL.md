@@ -116,3 +116,8 @@ Page count: 7 shipped G2.C + 5 shipped this session = **12 live pages**. 14 rema
 - Tenant switcher — only shown if user has multi-tenant role; rare for v1 (deferred until needed)
 - Mobile admin UI — desktop-first; mobile only for "monitor queue/approve override" lite view in Phase 3
 - /admin/guide Option B migration (16-help-system YAML content) — Phase 4+ backlog
+
+
+## 2026-10-02 - paged invitations list (assessment-detail)
+
+The invitations table on `assessment-detail.tsx` shows 100 rows per page (API cap) with `Showing x-y of N` + `Previous` / `Next` (only when N > 100; help id `admin.assessments.invitations.paging`). Sorting is per page. The invite picker's "already invited" set and the Delete has-attempts guard are computed from ALL pages (ids/flags only) so they never assume the visible page is everything; "Resend to everyone who hasn't started" is server-side (`resendable`, all pages).

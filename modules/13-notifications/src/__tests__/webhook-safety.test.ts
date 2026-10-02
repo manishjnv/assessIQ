@@ -226,8 +226,9 @@ describe('createWebhookEndpoint — URL policy', () => {
 
 const SECRET = 'whsec-test-secret';
 
-function job(deliveryId: string): never {
-  return { data: { deliveryId, tenantId: 'tenant-1' }, attemptsMade: 0 } as never;
+// Defaults mirror the real queue: 5 attempts, first one running (attemptsMade 0).
+function job(deliveryId: string, attemptsMade = 0, attempts = 5): never {
+  return { data: { deliveryId, tenantId: 'tenant-1' }, attemptsMade, opts: { attempts } } as never;
 }
 
 function stubDelivery(deliveryId: string, url: string, payload: unknown = { hello: 'world', n: 1 }): void {
@@ -427,6 +428,27 @@ describe('delivery guard — HTTP behaviour against a loopback fixture', () => {
     expect(lastError.length).toBeLessThanOrEqual(2048 + 'HTTP 400: '.length);
   });
 
+  it('FINAL attempt (5xx or network error): row is set to failed, then it still throws', async () => {
+    const down = await listen((_req, _body, res) => {
+      res.writeHead(503);
+      res.end('overloaded');
+    });
+    stubDelivery('del-final', `${down}/hook`);
+    await expect(processWebhookDeliverJob(job('del-final', 4), seam)).rejects.toThrow(/Transient HTTP 503/);
+    expect(lastUpdate()).toMatchObject({ status: 'failed', httpStatus: 503, attempts: 5 });
+    expect(String(lastUpdate()['lastError'])).toContain('HTTP 503');
+
+    vi.mocked(repo.updateWebhookDeliveryStatus).mockClear();
+    const hung = await listen(() => {
+      /* never answers */
+    });
+    stubDelivery('del-final-net', `${hung}/hook`);
+    await expect(
+      processWebhookDeliverJob(job('del-final-net', 4), { ...seam, timeoutMs: 200 }),
+    ).rejects.toThrow(/timed out/);
+    expect(lastUpdate()).toMatchObject({ status: 'failed', attempts: 5 });
+  });
+
   it('5xx throws so BullMQ retries; a hung endpoint times out (and throws) instead of blocking the worker', async () => {
     const down = await listen((_req, _body, res) => {
       res.writeHead(503);
@@ -434,6 +456,9 @@ describe('delivery guard — HTTP behaviour against a loopback fixture', () => {
     });
     stubDelivery('del-5xx', `${down}/hook`);
     await expect(processWebhookDeliverJob(job('del-5xx'), seam)).rejects.toThrow(/Transient HTTP 503/);
+
+    // Not the last attempt: nothing is written, the row stays pending for the retry.
+    expect(vi.mocked(repo.updateWebhookDeliveryStatus)).not.toHaveBeenCalled();
 
     const hung = await listen(() => {
       /* never answers */

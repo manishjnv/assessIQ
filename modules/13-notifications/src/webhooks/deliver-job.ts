@@ -15,6 +15,8 @@
  *     last_error='blocked_address' | 'blocked_url', no retry.
  *   - 408/425/429 + 5xx + network errors (DNS, connect, TLS, 10 s timeout) →
  *     throw (triggers BullMQ retry per the WEBHOOK_RETRY_DELAYS_MS schedule).
+ *     On the job's FINAL attempt the row is set to status='failed' first, so an
+ *     exhausted delivery does not stay 'pending'.
  *
  * Every delivery carries two signatures: X-AssessIQ-Signature (V1, body only,
  * unchanged) and X-AssessIQ-Signature-V2 over "<X-AssessIQ-Timestamp>.<body>".
@@ -52,6 +54,11 @@ function failureText(httpStatus: number, bodySnippet: string): string {
     .trim()
     .slice(0, WEBHOOK_MAX_RESPONSE_BYTES);
   return snippet === '' ? `HTTP ${httpStatus}` : `HTTP ${httpStatus}: ${snippet}`;
+}
+
+/** True when the attempt now running is the job's last (BullMQ will not retry it). */
+function isFinalAttempt(job: Job<WebhookDeliverJobData>): boolean {
+  return job.attemptsMade + 1 >= (job.opts?.attempts ?? 1);
 }
 
 /**
@@ -172,6 +179,18 @@ export async function processWebhookDeliverJob(
       },
       'webhook.delivery.network_error',
     );
+    if (isFinalAttempt(job)) {
+      await withTenant(tenantId, (client) =>
+        repo.updateWebhookDeliveryStatus(client, deliveryId, {
+          status: 'failed',
+          lastError: `Retries exhausted: ${err instanceof Error ? err.message : String(err)}`.slice(
+            0,
+            WEBHOOK_MAX_RESPONSE_BYTES,
+          ),
+          attempts: job.attemptsMade + 1,
+        }),
+      );
+    }
     // Re-throw to let BullMQ handle retry scheduling.
     throw err;
   }
@@ -234,5 +253,15 @@ export async function processWebhookDeliverJob(
     { deliveryId, endpointId: endpoint.id, event: delivery.event, httpStatus, latencyMs, attemptsMade: job.attemptsMade },
     'webhook.delivery.retry',
   );
+  if (isFinalAttempt(job)) {
+    await withTenant(tenantId, (client) =>
+      repo.updateWebhookDeliveryStatus(client, deliveryId, {
+        status: 'failed',
+        httpStatus,
+        lastError: failureText(httpStatus, response.bodySnippet),
+        attempts: job.attemptsMade + 1,
+      }),
+    );
+  }
   throw new Error(`Transient HTTP ${httpStatus} from webhook endpoint`);
 }

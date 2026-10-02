@@ -82,6 +82,9 @@ interface Invitation {
   can_resend?: boolean;
 }
 
+/** API cap for /admin/assessments/:id/invitations (routes.ts parsePagination). */
+const INV_PAGE_SIZE = 100;
+
 interface InvitationsResponse {
   items: Invitation[];
   total: number;
@@ -224,6 +227,17 @@ export function AdminAssessmentDetail(): React.ReactElement {
   // started (POST /invitations/resend, confirm dialog first). Both end in the
   // same chip feedback; `resendable` is the server's count across ALL pages.
   const [resendable, setResendable] = useState(0);
+  // Invitations paging: the API caps pageSize at 100, so the table shows one
+  // page at a time. `invMeta` is derived from ALL pages (ids only) so the invite
+  // picker and the has-attempts guard do not assume "everything is on this page".
+  const [invPage, setInvPage] = useState(1);
+  const [invTotal, setInvTotal] = useState(0);
+  const [invPaging, setInvPaging] = useState(false);
+  const [invMeta, setInvMeta] = useState<{ userIds: Set<string>; hasAttempts: boolean }>({
+    userIds: new Set(),
+    hasAttempts: false,
+  });
+  const invPageRef = React.useRef(1);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [showResendAll, setShowResendAll] = useState(false);
   const [resendingAll, setResendingAll] = useState(false);
@@ -266,14 +280,44 @@ export function AdminAssessmentDetail(): React.ReactElement {
       const [assessmentData, inviteData, usersData, entitlementsResult] = await Promise.all([
         adminApi<Assessment>(`/admin/assessments/${id}`),
         adminApi<InvitationsResponse>(
-          `/admin/assessments/${id}/invitations?pageSize=100`,
+          `/admin/assessments/${id}/invitations?page=${invPageRef.current}&pageSize=${INV_PAGE_SIZE}`,
         ),
         adminApi<UsersResponse>(`/admin/users?pageSize=100`),
         getCompanyEntitlements().catch(() => null),
       ]);
       setAssessment(assessmentData);
-      setInvitations(inviteData.items);
+      // Deleted/revoked rows can shrink the list: clamp to the last real page.
+      const lastPage = Math.max(1, Math.ceil(inviteData.total / INV_PAGE_SIZE));
+      const fetchedPage = invPageRef.current;
+      if (fetchedPage > lastPage) {
+        invPageRef.current = lastPage;
+        setInvPage(lastPage);
+        const again = await adminApi<InvitationsResponse>(
+          `/admin/assessments/${id}/invitations?page=${lastPage}&pageSize=${INV_PAGE_SIZE}`,
+        );
+        setInvitations(again.items);
+      } else {
+        setInvitations(inviteData.items);
+      }
+      setInvTotal(inviteData.total);
       setResendable(inviteData.resendable ?? 0);
+      // Ids + attempt flags across ALL pages (page 1 is already in hand when it
+      // is the displayed one; any further page is one extra small request).
+      const userIds = new Set<string>();
+      let anyAttempts = false;
+      for (let p = 1; p <= lastPage; p++) {
+        const res =
+          p === fetchedPage
+            ? inviteData
+            : await adminApi<InvitationsResponse>(
+                `/admin/assessments/${id}/invitations?page=${p}&pageSize=${INV_PAGE_SIZE}`,
+              );
+        for (const inv of res.items) {
+          userIds.add(inv.user_id);
+          if (inv.attempt_id != null || inv.started_at != null) anyAttempts = true;
+        }
+      }
+      setInvMeta({ userIds, hasAttempts: anyAttempts });
       setUsers(usersData.items);
       setEntitlements(entitlementsResult?.entitlements ?? null);
     } catch (err) {
@@ -346,6 +390,24 @@ export function AdminAssessmentDetail(): React.ReactElement {
         err instanceof AdminApiError ? err.apiError.message : "Action failed. Please try again.",
       );
       setActionBusy(false);
+    }
+  }
+
+  async function goToInvPage(next: number) {
+    if (!id || invPaging) return;
+    setInvPaging(true);
+    try {
+      const res = await adminApi<InvitationsResponse>(
+        `/admin/assessments/${id}/invitations?page=${next}&pageSize=${INV_PAGE_SIZE}`,
+      );
+      invPageRef.current = next;
+      setInvPage(next);
+      setInvitations(res.items);
+      setInvTotal(res.total);
+    } catch (err) {
+      setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load invitations.");
+    } finally {
+      setInvPaging(false);
     }
   }
 
@@ -433,16 +495,14 @@ export function AdminAssessmentDetail(): React.ReactElement {
     });
   }
 
-  const invitedUserIds = new Set(invitations.map((inv) => inv.user_id));
+  const invitedUserIds = invMeta.userIds;
   const uninvitedUsers = users.filter((u) => u.role === "candidate" && u.status === "active" && !invitedUserIds.has(u.id));
 
   // An assessment "has attempts" if any invitation has progressed to an attempt
   // (attempt row created or started). Hard-delete is blocked server-side when
   // attempts exist; we mirror that here to disable the Delete button + steer to
   // Cancel. The server stays authoritative (returns 422 ASSESSMENT_HAS_ATTEMPTS).
-  const hasAttempts = invitations.some(
-    (inv) => inv.attempt_id != null || inv.started_at != null,
-  );
+  const hasAttempts = invMeta.hasAttempts;
 
   // One clock reading per render so every row's "Expires … / Expired" agrees.
   const nowMs = Date.now();
@@ -720,7 +780,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
         {/* Header */}
         <div>
           <div style={{ marginBottom: 12 }}>
-            <Chip leftIcon="grid">{invitations.length} invitation{invitations.length !== 1 ? "s" : ""}</Chip>
+            <Chip leftIcon="grid">{invTotal} invitation{invTotal !== 1 ? "s" : ""}</Chip>
           </div>
           <div
           style={{
@@ -1325,6 +1385,46 @@ export function AdminAssessmentDetail(): React.ReactElement {
             </div>
           ) : (
             <Table columns={invitationColumns} data={sortedInvitations} {...(sortBy ? { sortBy } : {})} sortDir={sortDir} onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }} />
+          )}
+
+          {invTotal > INV_PAGE_SIZE && (
+            <div
+              data-help-id="admin.assessments.invitations.paging"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "var(--aiq-space-sm)",
+                flexWrap: "wrap",
+                marginTop: "var(--aiq-space-md)",
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-sm)",
+                color: "var(--aiq-color-fg-muted)",
+              }}
+            >
+              <span>
+                Showing {(invPage - 1) * INV_PAGE_SIZE + 1}&ndash;
+                {Math.min(invPage * INV_PAGE_SIZE, invTotal)} of {invTotal}
+              </span>
+              <span style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                  disabled={invPage <= 1 || invPaging}
+                  onClick={() => void goToInvPage(invPage - 1)}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                  disabled={invPage * INV_PAGE_SIZE >= invTotal || invPaging}
+                  onClick={() => void goToInvPage(invPage + 1)}
+                >
+                  Next
+                </button>
+              </span>
+            </div>
           )}
         </div>
       </div>

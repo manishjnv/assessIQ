@@ -819,15 +819,15 @@ export async function updateAssessment(
         name: current.name,
         question_count: current.question_count,
         randomize: current.randomize,
-        opens_at: current.opens_at,
-        closes_at: current.closes_at,
+        opens_at: current.opens_at?.toISOString() ?? null,
+        closes_at: current.closes_at?.toISOString() ?? null,
       },
       after: {
         name: updated.name,
         question_count: updated.question_count,
         randomize: updated.randomize,
-        opens_at: updated.opens_at,
-        closes_at: updated.closes_at,
+        opens_at: updated.opens_at?.toISOString() ?? null,
+        closes_at: updated.closes_at?.toISOString() ?? null,
         changed_fields: Object.keys(repoPatch),
         has_blueprint: rawPatchBlueprint !== undefined,
       },
@@ -1248,7 +1248,7 @@ export async function reopenAssessment(
       after: {
         kind: "reopen",
         status: updated.status,
-        closes_at: updated.closes_at,
+        closes_at: updated.closes_at?.toISOString() ?? null,
         frozen_pool_size: frozenPoolSize,
       },
     });
@@ -1968,7 +1968,7 @@ export async function inviteUsers(
         after: {
           assessment_id: assessmentId,
           user_id: userId,
-          expires_at: invitation.expires_at,
+          expires_at: invitation.expires_at.toISOString(),
           status: invitation.status,
         },
       });
