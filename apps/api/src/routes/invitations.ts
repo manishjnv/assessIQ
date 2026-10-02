@@ -62,7 +62,7 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
 
   // POST /api/invitations/accept — pre-auth; accepts an invitation token and mints a session.
   //
-  // Per-IP brake on FAILED redemptions only (D5a/b, replaces the old FIXME).
+  // Per-IP brake on FAILED redemptions only (D5a/b, replaces the old open marker).
   // Tokens are 256-bit so guessing is infeasible; the brake bounds DB lookups and
   // log noise from a scanner. Successful accepts are never counted, so a campus
   // of 300 students behind one NAT IP is unaffected; an IP is blocked only after
