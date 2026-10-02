@@ -357,3 +357,32 @@ describe("handleAdminGenerate — per-tenant ai_generate_mode precedence (Stage 
     },
   );
 });
+
+describe("handleAdminGenerate — shared generation plan (RV64)", () => {
+  // RV64: the single-call omnibus path used to skip topic de-duplication.
+  it.skipIf(!dockerAvailable)(
+    "single-call omnibus path drops a topic that already exists (case/space-insensitive)",
+    async () => {
+      const { packId, levelId } = await withSuperClient((c) =>
+        seedPack(c, TENANT_ID, ADMIN_ID),
+      );
+      await setTenantGenerateMode(TENANT_ID, "omnibus");
+      mockGenerateQuestions.mockReset();
+      mockGenerateQuestionsByType.mockReset();
+
+      const dup = makeSuccessOutput("mcq");
+      dup.questions[0]!.topic = "  Existing Topic ";
+      mockGenerateQuestions.mockResolvedValueOnce(dup);
+
+      try {
+        const result = await handleAdminGenerate({
+          ...makeInput(packId, levelId),
+          existingTopics: ["existing topic"],
+        });
+        expect(result.generated).toBe(0);
+      } finally {
+        await setTenantGenerateMode(TENANT_ID, null);
+      }
+    },
+  );
+});
