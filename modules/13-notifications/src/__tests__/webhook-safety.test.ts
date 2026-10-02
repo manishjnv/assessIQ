@@ -53,9 +53,9 @@ vi.mock('@assessiq/tenancy', () => ({
 }));
 
 vi.mock('bullmq', () => ({
-  Queue: vi.fn().mockImplementation(() => ({ add: vi.fn().mockResolvedValue({}) })),
+  Queue: vi.fn().mockImplementation(function () { return ({ add: vi.fn().mockResolvedValue({}) }); }),
 }));
-vi.mock('ioredis', () => ({ Redis: vi.fn().mockImplementation(() => ({})) }));
+vi.mock('ioredis', () => ({ Redis: vi.fn().mockImplementation(function () { return {}; }) }));
 
 vi.mock('../repository.js', () => ({
   insertWebhookEndpoint: vi.fn().mockImplementation((_c: unknown, input: { id: string; url: string }) => ({
