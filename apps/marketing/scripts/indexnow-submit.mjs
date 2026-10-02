@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- CLI script: console output is the interface */
 // Post-deploy: submit every sitemap URL to IndexNow. Usage: node scripts/indexnow-submit.mjs [--dry-run]
 const KEY = '51c5d2964f070d2482eecaaa2ef236e7';
 const HOST = 'assessiq.in';
