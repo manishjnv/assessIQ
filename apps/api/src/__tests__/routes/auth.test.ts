@@ -89,6 +89,7 @@ vi.mock('@assessiq/auth', () => {
       verify: vi.fn(),
       consumeRecovery: vi.fn(),
       regenerateRecoveryCodes: vi.fn(),
+      getEnrollmentStatus: vi.fn().mockResolvedValue({ enrolled: true }), // whoami reads it
     },
     apiKeys: {
       create: vi.fn(),
@@ -157,6 +158,21 @@ vi.mock('@assessiq/tenancy', () => ({
   suspendTenant: vi.fn(),
 }));
 
+// /embed now runs the full JIT flow (CSP origins, JIT user, embed session,
+// startAttempt) — stub those DB-backed steps; partial mocks keep the rest of
+// buildServer's imports intact.
+vi.mock('@assessiq/embed-sdk', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getEmbedOrigins: vi.fn().mockResolvedValue([]),
+  buildEmbedCsp: vi.fn().mockReturnValue("frame-ancestors 'self'"),
+  resolveJitUser: vi.fn().mockResolvedValue({ userId: 'u-jit' }),
+  mintEmbedSession: vi.fn().mockResolvedValue({ token: 'embed-cookie-token', maxAge: 600 }),
+}));
+vi.mock('@assessiq/attempt-engine', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  startAttempt: vi.fn().mockResolvedValue({ id: 'att-1' }),
+}));
+
 import { buildServer } from '../../server.js';
 import * as auth from '@assessiq/auth';
 
@@ -220,21 +236,19 @@ describe('AssessIQ auth routes â€” security-critical', () => {
       expect(res.headers['cache-control']).toBe('no-store');
     });
 
-    it('returns 400 INVALID_TENANT_PARAM on missing tenant', async () => {
-      const res = await app.inject({ method: 'GET', url: '/api/auth/google/start' });
-      expect(res.statusCode).toBe(400);
-      const body = res.json() as { error: { details?: { code?: string } } };
-      expect(body.error.details?.code).toBe('INVALID_TENANT_PARAM');
-    });
-
-    it('returns 401 on unknown tenant slug', async () => {
-      const res = await app.inject({ method: 'GET', url: '/api/auth/google/start?tenant=unknown' });
-      expect(res.statusCode).toBe(401);
-    });
-
-    it('returns 400 on malformed tenant slug', async () => {
-      const res = await app.inject({ method: 'GET', url: '/api/auth/google/start?tenant=BAD!SLUG' });
-      expect(res.statusCode).toBe(400);
+    // P1 (tenant-less login): ?tenant= was removed and identity resolution is
+    // cross-tenant, so the old INVALID_TENANT_PARAM / unknown-slug 400/401 checks
+    // no longer apply — a bare start (or a stray ?tenant=) must just redirect.
+    it('does not require or validate a tenant param (tenant-less P1 flow)', async () => {
+      vi.mocked(auth.startGoogleSso).mockResolvedValue({
+        redirectUrl: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x',
+        stateCookie: { name: 'aiq_oauth_state', value: 's', opts: { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 600 } },
+        nonceCookie: { name: 'aiq_oauth_nonce', value: 'n', opts: { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 600 } },
+      });
+      for (const url of ['/api/auth/google/start', '/api/auth/google/start?tenant=BAD!SLUG']) {
+        const res = await app.inject({ method: 'GET', url });
+        expect(res.statusCode).toBe(302);
+      }
     });
   });
 
@@ -353,11 +367,11 @@ describe('AssessIQ auth routes â€” security-critical', () => {
         );
 
       const r1 = await app.inject({ method: 'GET', url: '/embed?token=valid' });
-      expect(r1.statusCode).toBe(200);
-      const b1 = r1.json() as { accepted: boolean; tenantId: string; assessmentId: string };
-      expect(b1.accepted).toBe(true);
-      expect(b1.tenantId).toBe('t-1');
-      expect(b1.assessmentId).toBe('a-1');
+      // Route now redirects into the take UI (embed D1) and sets the embed cookie.
+      expect(r1.statusCode).toBe(302);
+      expect(r1.headers['location']).toBe('/take/a/att-1?embed=true');
+      const sc = r1.headers['set-cookie'];
+      expect((Array.isArray(sc) ? sc : [sc as string]).some((c) => c.startsWith('aiq_embed_sess='))).toBe(true);
 
       const r2 = await app.inject({ method: 'GET', url: '/embed?token=valid' });
       expect(r2.statusCode).toBe(401);

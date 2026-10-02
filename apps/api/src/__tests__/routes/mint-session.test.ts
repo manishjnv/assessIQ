@@ -160,6 +160,7 @@ vi.mock('@assessiq/assessment-lifecycle', () => ({
 vi.mock('@assessiq/attempt-engine', () => ({
   registerAttemptCandidateRoutes: vi.fn().mockResolvedValue(undefined),
   registerAttemptTakeRoutes: vi.fn().mockResolvedValue(undefined),
+  registerAttemptAdminRoutes: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@assessiq/ai-grading', () => ({
   registerGradingRoutes: vi.fn().mockResolvedValue(undefined),
@@ -230,6 +231,7 @@ describe('POST /api/dev/mint-session', () => {
         const sessionLoaderMiddleware = (_opts?: unknown) => async () => undefined;
         const requireAuth = () => async () => undefined;
         return {
+          CANDIDATE_LOGIN_TOKEN_TTL_SEC: 900, // candidate.ts route reads it at import
           rateLimitMiddleware: () => passthrough(),
           sessionLoaderMiddleware,
           apiKeyAuthMiddleware: () => async () => undefined,
