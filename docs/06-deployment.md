@@ -1737,3 +1737,24 @@ If staging is wanted later, build it off-box (a local compose run using `tools/t
 **IndexNow ping (after every marketing deploy).** Key file: `https://assessiq.in/51c5d2964f070d2482eecaaa2ef236e7.txt` (public by design). Run `node apps/marketing/scripts/indexnow-submit.mjs` from the laptop. It reads the live `sitemap-0.xml`, posts all URLs to `api.indexnow.org`, prints the HTTP status, and exits non-zero on a non-2xx response. `--dry-run` prints the payload only.
 
 **Rejected:** computing dates at build time (no `.git` in the image); adding `.git` to the build context (large, and leaks history into the build); a new sitemap package (the inline integration exists because `@astrojs/sitemap` 3.x crashes with `trailingSlash: 'never'`).
+
+## Batch 8 deploy (2026-10-02, HEAD `6336f61`; commits `dcded5e..6336f61`) — DONE
+
+**Migrations:** 0144 (`questions_type_check` adds `ordering`) and 0145 (help rows), applied by hand and recorded in `schema_migrations`. Help rows 182 to 185.
+
+**Two stages (additive only):**
+1. Marketing first, at `d0977eb`: `git pull`, build and recreate `marketing` only. 24 containers before and after, healthy. Then `node apps/marketing/scripts/indexnow-submit.mjs`: HTTP 202, 54 URLs. Live sitemap has per-page `lastmod` (7 pages 2026-05-23, 1 page 05-24, 45 pages 10-01, 1 page 10-02; the 45 share one site-wide edit date in git).
+2. Pull to `6336f61`. Confirm no `claude` process in flight (0). Apply 0144 and 0145 by hand. Build api, worker, frontend. `up -d --no-deps --force-recreate` each.
+
+**Post-deploy checks (all passed):**
+- 24 containers before and after; 0 error lines in the api logs.
+- `/`, `/pricing`, `/try`, `/admin`, `/api/health`, `/take/x` return 200.
+- `questions_type_check` includes `ordering`; help rows 185.
+- Admin bundle contains "Move item"; the api image scorer has ordering.
+- `claude` processes: 0.
+
+**New in this batch (other sections of this file):** § Rollback and staging, § MASTER_KEY rotation (live key NOT rotated), § Marketing site: page dates and IndexNow. `infra/caddy/assessiq.caddy` is a reference copy only; the live file stays in `/opt/ti-platform/caddy/Caddyfile` (shared container `ti-platform-caddy-1`).
+
+**Not verified in a browser:** the ordering question flow (author, take, score). Behavioural check pending the operator (N12).
+
+**Rollback:** use the code rollback procedure in § Rollback and staging with the previous SHA (`dcded5e`): rebuild and recreate api, worker, frontend, marketing. Migrations 0144 and 0145 are additive (a new CHECK value and help rows), so an older build ignores them. Ordering questions authored after the deploy would not render on an older build.

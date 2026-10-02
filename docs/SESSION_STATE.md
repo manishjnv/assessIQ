@@ -1,3 +1,43 @@
+# Session — 2026-10-02 (l) — batch 8: SEO dates + IndexNow, ops (Caddy copy, key rotation tool), ordering question type
+
+**Headline:** Batch 8 is LIVE on https://assessiq.in (HEAD `6336f61`): page dates and IndexNow for the marketing site, a non-blocking font stylesheet, a Caddy reference copy and a MASTER_KEY rotation tool (not run on prod), the new deterministic `ordering` question type, and two refactors (platform.tsx split, `as any` removed).
+**Commits (`dcded5e..6336f61`, pushed):**
+- `e004bd9` D4 onboarding runbook · `317cabf` E10 stale docs · `041c974` X4 KQL design note (not built)
+- `ba51e8b` F1/F4/F5 IndexNow, JSON-LD dates, sitemap lastmod · `6435da9` F3 font preload · `d0977eb` docs(06) page dates (carries the `Adversarial-Review: codex revise-addressed` trailer for `ea869ca`)
+- `ea869ca` E8 Caddy copy, `ASSESSIQ_MASTER_KEY_PREVIOUS`, `tools/rotate-master-key.ts`, rollback/staging docs
+- `af33319` E9 platform.tsx 2,978 to ~571 lines · `7d6f7b6` E9 36 `as any` to 0 · `44be09e` lint no-console + E1 test timeout
+- `1c5ad6f` SP7 ordering type · `b3dbd7e` docs(02,03,05) ordering · `6336f61` fix(06) answer translation key from question type (codex HIGH)
+**Deploy:** marketing rebuilt at `d0977eb`, IndexNow HTTP 202 (54 URLs); then pull to `6336f61`; migrations 0144 + 0145 by hand and recorded; help rows 182 to 185; 24 containers before/after; 0 error lines; claude procs 0; `/`, `/pricing`, `/try`, `/admin`, `/api/health`, `/take/x` 200; admin bundle has "Move item".
+**Tests:** typecheck 0, lint 0 errors; 06 282, 09 108, 04 239 (+4 skipped), 16 93, 07 392 (+7 skipped; `admin-generate-citation` failed under load, 2/2 alone), 10 102, web 63, apps/api 131 (+7 todo), 18 136, 01 rotation 6/6, 13 webhook 3/3, 00 133.
+**Next (Claude):** N10 deps (argon2, Storybook 10), N11 scenario mcq-step sanitizer gap, E9 leftovers (`04 service.ts`, `admin-super.ts`).
+**Next (Owner):** eval run, compare, bless, then `AI_EVAL_GATE=enforce`; decide the MASTER_KEY rotation date; decide X4 VPS capacity (Kusto emulator); browser-check the ordering question (N12).
+**Open questions:** (1) Rotation date for the live MASTER_KEY (nothing rotated yet). (2) Is there VPS room for a Kusto emulator container (X4)? (3) Ordering flow not clicked in a browser.
+**Feature doc:** `docs/plans/PILOT_BATCH_8.md`. Deploy: `docs/06-deployment.md` § Batch 8 deploy. RCA: 4 entries 2026-10-02. Observability: § 36 Marketing Core Web Vitals.
+**Coordination:** this was the plan `docs/plans/BATCH_7_PROMPT.md` minus N7/N9 (done in batch 7). F3 Lighthouse: font render-blocking removed on all pages (for example `/` mobile 1149 to 0 ms); score and LCP changes are within noise.
+
+---
+
+## Agent utilization
+- Opus: plan, all diff reviews, E8 path fix, F3 font fix, SP7 codex fix, lint and flaky-test fix, cherry-picks, deploys, post-deploy checks.
+- Sonnet: marketing F1/F4/F5, E10 docs, D4 runbook, E8, SP7 scoping, X4 note, SP7 builder, E9, 1 docs writer (this entry).
+- Haiku: 3 runs: PageSpeed attempt (failed, API quota), Lighthouse before, Lighthouse after.
+- codex:rescue: E8 revise (addressed in procedure step 7); SP7 revise (HIGH fixed in `6336f61`), re-check accept.
+- claude-mem: honoured docs-folder-gitignored, vps-shared-host, parallel-session-shared-working-tree, push-gate trailer.
+- Routing telemetry:
+  - Sonnet · marketing F1/F4/F5 · reworked: Y (lint errors, Opus fix)
+  - Sonnet · E10 docs · reworked: Y (worker mount claim, Opus fix)
+  - Sonnet · D4 runbook · reworked: N
+  - Sonnet · E8 ops · reworked: Y (tools path + codex step-7, Opus fix)
+  - Sonnet · SP7 scoping · reworked: N
+  - Sonnet · X4 design note · reworked: N
+  - Sonnet · SP7 builder · reworked: Y (codex HIGH, Opus fix)
+  - Sonnet · E9 refactors · reworked: N
+  - Sonnet · batch 8 docs · reworked: N
+  - Haiku · PageSpeed attempt · reworked: Y (API quota, redone as local Lighthouse)
+  - Haiku · Lighthouse before/after · reworked: N
+
+---
+
 # Session — 2026-10-02 (k) — batch 7: eval golden set on the VPS, NODE_ENV required, Dependabot majors (React 19, Vite 8, jose 6)
 
 **Headline:** Batch 7 is LIVE on https://assessiq.in (HEAD `05beab3`): 150-case eval golden set on the VPS only (never in git), `NODE_ENV` required at boot, Edit sections hidden after publish/start, and the Dependabot majors taken (actions, minor group, jose 6, React 19.3, Vite 8).

@@ -1532,3 +1532,38 @@ Not covered: there is no queue-age metric beyond the platform queue page and the
   - the webhook backoff is off by one (the first retry waits 5 m, not 1 m);
   - webhook deliveries that exhaust retries stay `pending`;
   - `in_app_notifications` mark-read has no UPDATE policy.
+
+
+---
+
+## 36. Marketing Core Web Vitals (F3, 2026-10-02)
+
+**Change:** the Google Fonts stylesheet on the marketing site loads with `preload` + `onload` swap + `<noscript>` (`6435da9`). It was render-blocking.
+
+**Method:** local Lighthouse 12, single runs, before and after the change. The PageSpeed API quota was exhausted, so the API was not used. Noise is about 5-10% between runs. There is no field data (CrUX).
+
+**Render-blocking time from the font stylesheet (ms), before to after**
+
+| Page | Mobile | Desktop |
+|---|---|---|
+| `/` | 1149 to 0 | 518 to 0 |
+| `/pricing` | 1012 to 0 | 382 to 0 |
+| guide page | 988 to 0 | 382 to 0 |
+
+**Score and LCP, before to after**
+
+| Page | Form factor | Score | LCP (ms) |
+|---|---|---|---|
+| `/` | mobile | 94 to 89 (TBT 220 to 360) | 2030 to 2084 |
+| `/` | desktop | 98 to 99 | 897 to 738 |
+| `/pricing` | mobile | 91 to 92 | 1884 to 1925 |
+| `/pricing` | desktop | 96 to 94 | 1159 to 1265 |
+| `/try` | mobile | 81 to 85 | 3559 to 3151 |
+| `/try` | desktop | 97 to 96 | 1018 to 1041 ms |
+
+- Guide page after-run: n/a (timeout). CLS is about 0 everywhere.
+- `/try` is the SPA and was not changed. Its top Lighthouse opportunity is unused JavaScript, about 520 ms.
+
+**Conclusion:** the render-blocking request is gone. Score and LCP changes are within noise. Do not read the `/` mobile score drop as a regression without a repeat run.
+
+**Next step:** when the PageSpeed quota resets, read CrUX field data for the marketing origin. Look at `/try` unused JavaScript (code splitting).

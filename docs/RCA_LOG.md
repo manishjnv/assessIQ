@@ -2171,3 +2171,31 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** Vite 7+ raised the default build target above what older lab-PC browsers run, so the bundle could fail to parse there.
 **Fix:** `05beab3`: `apps/web` `build.target` pinned to Vite 5's floor (es2020, edge88, firefox78, chrome87, safari14). Verified: served chunks have no ES2021+ syntax.
 **Prevention:** Check the served bundle's syntax level after any build-tool major bump; still open: a real older-Chrome check of candidate pages under React 19.
+
+## 2026-10-02 — Answer translation key chosen from the answer's shape (score manipulation, caught before push)
+
+**Symptom:** None live; codex:rescue found it in the SP7 ordering review before push (HIGH).
+**Cause:** `remapSelected` (module 06, display-to-original translation for shuffled MCQ and ordering) picked the translated key from the shape of the submitted answer. A crafted MCQ answer `{selected, order:[..]}` skipped the translation on a shuffled MCQ. An ordering answer `{order, selected}` stored the order untranslated, so an identity `correct_order` would score full marks.
+**Fix:** `6336f61`: the key now comes from the question type (`listOrderingQuestionIds`), not the answer. Also: an ordering question with no usable order serves no items (fail closed); the `MAX_SHUFFLE_OPTIONS` cap in `buildOrderingOrder` is removed. codex re-check: accept.
+**Prevention:** never use client-supplied shape for a trust decision; derive it from the stored question. Adversarial review stays required for scoring paths (06/09).
+
+## 2026-10-02 — Marketing CLI scripts broke root lint (6 no-console errors)
+
+**Symptom:** None live; root `pnpm lint` showed 6 errors, so CI would have gone red. Caught in the E9 review.
+**Cause:** the new F1/F4/F5 scripts (`apps/marketing/scripts/indexnow-submit.mjs`, `page-dates.mjs`) use `console.log`. The builder did not run the root lint.
+**Fix:** `44be09e`: `no-console` disable comment in the two CLI scripts.
+**Prevention:** Opus runs the root `pnpm lint` on merged main before push (same lesson as the typecheck entries above). CLI scripts get a file-level `no-console` disable when written.
+
+## 2026-10-02 — E1 evaluation-detail test flaky under parallel load
+
+**Symptom:** the `evaluation-detail` E1 test timed out when the whole suite ran in parallel (1.7 s alone, over 5 s under load). Same pattern: the 07 `admin-generate-citation` file failed under load and passed 2/2 alone.
+**Cause:** the default 5 s vitest timeout is too tight for a DB-backed test when many workers compete.
+**Fix:** `44be09e`: 15 s timeout on the E1 test.
+**Prevention:** when a test passes alone and fails in the full run, check load first. Give DB-backed tests an explicit timeout. `admin-generate-citation` still has the default; raise it if it recurs.
+
+## 2026-10-02 — MASTER_KEY rotation could strand rows written behind the cursor
+
+**Symptom:** None live (rotation was never run on prod); codex:rescue verdict revise on `ea869ca`.
+**Cause:** `tools/rotate-master-key.ts` sweeps with a cursor. A row inserted under the old key behind the pass-2 cursor is never visited, so removing `ASSESSIQ_MASTER_KEY_PREVIOUS` would leave it undecryptable. The first draft procedure removed the old key after one apply.
+**Fix:** `docs/06-deployment.md` § MASTER_KEY rotation, step 7: repeat the dry-run and `--apply` until `would_rotate=0` on every line before step 8. Also fixed the script path (`/app/tools/...`) and the column list (two non-existent columns removed).
+**Prevention:** the step 7 gate; the old key stays offline 30 days. New encrypted columns must be added to `TARGETS` in the tool.
