@@ -44,6 +44,8 @@ import type { AcceptEdits } from "./handlers/admin-accept.js";
 import { handleAdminRerun } from "./handlers/admin-rerun.js";
 import { handleAdminManualScore } from "./handlers/admin-manual-score.js";
 import { handleAdminOverride } from "./handlers/admin-override.js";
+import { getEvalGateStatus } from "./eval-gate.js";
+import { handleSuperGradingQuality } from "./handlers/super-grading-quality.js";
 import {
   assertInEvaluationQueue,
   handleSuperGetEvaluation,
@@ -63,6 +65,10 @@ export interface RegisterSuperEvaluationRoutesOptions {
 // Unknown query params (e.g. a stale `scope=`) are ignored, not rejected.
 const LIST_QUERY_SCHEMA = z.object({
   tenant_id: z.string().uuid().optional(),
+});
+
+const QUALITY_QUERY_SCHEMA = z.object({
+  days: z.coerce.number().int().min(1).max(730).default(90),
 });
 
 const BULK_RELEASE_BODY_SCHEMA = z
@@ -96,6 +102,18 @@ export async function registerSuperEvaluationRoutes(
 ): Promise<void> {
   const superAdminOnly = toArray(opts.superAdminOnly);
   const superAdminFreshMfa = toArray(opts.superAdminFreshMfa);
+
+  // GET /api/admin/super/eval-gate  → { mode, approved, current, baseline_date } (read-only)
+  app.get("/api/admin/super/eval-gate", { preHandler: superAdminOnly }, async () => getEvalGateStatus());
+
+  // GET /api/admin/super/grading-quality?days=90 → { days, items: per prompt sha } (read-only, cross-tenant)
+  app.get("/api/admin/super/grading-quality", { preHandler: superAdminOnly }, async (req) => {
+    const parsed = QUALITY_QUERY_SCHEMA.safeParse(req.query);
+    if (!parsed.success) {
+      throw invalid("Invalid query parameters", { issues: parsed.error.issues });
+    }
+    return handleSuperGradingQuality({ days: parsed.data.days });
+  });
 
   // -------------------------------------------------------------------------
   // GET /api/admin/super/evaluations?tenant_id=<uuid optional>

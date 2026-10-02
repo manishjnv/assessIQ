@@ -3083,3 +3083,39 @@ admin.attempts.section_scores:
       still with AssessIQ.
     - The results CSV has the same numbers as one **Section: name (%)** column
       per section.
+
+admin.evaluations.eval_gate:
+  audience: admin
+  short_text: "Warns when the AI grading prompts have changed since the last eval you approved."
+  long_md: |
+    ## Eval gate
+
+    The grading prompts are files on the server. After any edit, run the eval on the
+    server and **bless** it; that records the prompts as approved.
+
+    - **Blocked** — the gate is set to enforce and the prompts are not approved, so AI
+      grading refuses to run until the eval is blessed.
+    - **Not approved yet** — the gate only warns. Grading still works, but the current
+      prompts have not been through a passing eval.
+
+    The steps are in `modules/07-ai-grading/eval/README.md`: run, compare, bless, then
+    switch the gate to enforce.
+
+admin.evaluations.grading_quality:
+  audience: admin
+  short_text: "How often admins changed the AI's grade, for each version of the grading prompts."
+  long_md: |
+    ## AI grading quality
+
+    One row per version of the grading prompts (the short code is the prompt version),
+    over the last 90 days.
+
+    - **AI grades** — grades the AI gave.
+    - **Overrides** — grades an admin changed afterwards.
+    - **Override rate** — overrides divided by AI grades. Lower is better.
+    - **Band change** — on average, how many bands (0 to 4) the admin moved the grade.
+    - **Score change** — on average, how much the score moved, as a percent of the
+      question's points.
+
+    A version with few grades is not reliable yet. Use this to compare a new prompt
+    version with the one before it.

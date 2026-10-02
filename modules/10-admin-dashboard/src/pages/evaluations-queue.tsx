@@ -65,6 +65,20 @@ interface ReleaseResult {
   skipped: Array<{ id: string; code: string }>;
 }
 
+interface EvalGateStatus {
+  mode: "off" | "warn" | "enforce";
+  approved: boolean;
+}
+
+interface GradingQualityRow {
+  prompt_version_sha: string;
+  ai_grades: number;
+  overrides: number;
+  override_rate: number | null;
+  mean_abs_band_delta: number | null;
+  mean_abs_score_delta_pct: number | null;
+}
+
 const DETAIL_PATH = "/admin/platform/evaluations";
 
 const MONO_LABEL: React.CSSProperties = {
@@ -141,6 +155,73 @@ function StatusCell({ row }: { row: EvaluationRow }): React.ReactElement {
   );
 }
 
+/** Extra read-only info (eval gate banner + prompt quality); failures here never block the queue. */
+function useQuietFetch<T>(path: string): T | null {
+  const [data, setData] = useState<T | null>(null);
+  useEffect(() => {
+    let live = true;
+    adminApi<T>(path)
+      .then((d) => live && setData(d))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  return data;
+}
+
+function EvalGateBanner({ gate }: { gate: EvalGateStatus | null }): React.ReactElement | null {
+  if (!gate || gate.approved || gate.mode === "off") return null;
+  return (
+    <div
+      role="alert"
+      data-help-id="admin.evaluations.eval_gate"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+        border: "1px solid var(--aiq-color-warning, #b08000)",
+        borderRadius: "var(--aiq-radius-md)",
+        background: "var(--aiq-color-warning-soft, #fff8e0)",
+        fontSize: "var(--aiq-text-sm)",
+      }}
+    >
+      <Icon name="flag" size={14} aria-hidden />
+      {gate.mode === "enforce"
+        ? "AI grading is blocked: prompts changed since the last passing eval."
+        : "Prompts are not eval-approved yet."}
+    </div>
+  );
+}
+
+function GradingQualityCard({ rows }: { rows: GradingQualityRow[] | null }): React.ReactElement | null {
+  if (!rows) return null;
+  const pct = (v: number | null): string => (v === null ? "–" : `${Math.round(v * 1000) / 10}%`);
+  const num = (v: number | null, suffix = ""): string => (v === null ? "–" : `${v}${suffix}`);
+  const columns: ColumnDef<GradingQualityRow>[] = [
+    {
+      key: "prompt_version_sha",
+      label: "Prompt version",
+      width: "minmax(220px, 2fr)",
+      render: (r) => <span style={{ ...ELLIPSIS, fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)" }}>{r.prompt_version_sha}</span>,
+    },
+    { key: "ai_grades", label: "AI grades", width: 96 },
+    { key: "overrides", label: "Overrides", width: 96 },
+    { key: "override_rate", label: "Override rate", width: 120, render: (r) => pct(r.override_rate) },
+    { key: "mean_abs_band_delta", label: "Band change", width: 110, render: (r) => num(r.mean_abs_band_delta) },
+    { key: "mean_abs_score_delta_pct", label: "Score change", width: 120, render: (r) => num(r.mean_abs_score_delta_pct, "%") },
+  ];
+  return (
+    <div className="aiq-card" data-density="compact" data-help-id="admin.evaluations.grading_quality" style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", ...MONO_LABEL }}>AI grading quality · last 90 days</div>
+      <div className="aiq-admin-table-scroll">
+        <Table<GradingQualityRow> data={rows} columns={columns} emptyMessage="No AI grades in this period." />
+      </div>
+    </div>
+  );
+}
+
 export function AdminEvaluationsQueue(): React.ReactElement {
   const navigate = useNavigate();
   const [items, setItems] = useState<EvaluationRow[]>([]);
@@ -151,6 +232,8 @@ export function AdminEvaluationsQueue(): React.ReactElement {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [releasing, setReleasing] = useState(false);
   const [releaseResult, setReleaseResult] = useState<ReleaseResult | null>(null);
+  const evalGate = useQuietFetch<EvalGateStatus>("/admin/super/eval-gate");
+  const quality = useQuietFetch<{ items: GradingQualityRow[] }>("/admin/super/grading-quality?days=90");
   const { guard, stepUp } = useMfaGuard(
     "Releasing evaluations needs a fresh authenticator check. Enter your 6-digit code to continue.",
   );
@@ -317,6 +400,8 @@ export function AdminEvaluationsQueue(): React.ReactElement {
           </p>
         </div>
 
+        <EvalGateBanner gate={evalGate} />
+
         {/* Counts */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "var(--aiq-space-md)", maxWidth: 560 }}>
           <StatCard label="In queue" value={pendingCount} />
@@ -400,6 +485,8 @@ export function AdminEvaluationsQueue(): React.ReactElement {
             )}
           </div>
         </div>
+
+        <GradingQualityCard rows={quality?.items ?? null} />
       </div>
 
       {stepUp}

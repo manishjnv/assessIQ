@@ -114,3 +114,6 @@ lh-*.json
 # Load-test run output (gitkeep tracks the dir, not the results)
 tests/load/results/*
 !tests/load/results/.gitkeep
+
+# E2: harvested override eval cases (contain student answers — never tracked)
+modules/07-ai-grading/eval/cases-private/

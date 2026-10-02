@@ -35,6 +35,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { gradeSubjective } from "../runtime-selector.js";
+import { assertEvalGate } from "../eval-gate.js";
 import { singleFlight } from "../single-flight.js";
 import { resolveGradingRubric } from "./admin-grade.js";
 import type { GradingProposal } from "../types.js";
@@ -159,6 +160,9 @@ export async function handleAdminRerun(
       503,
     );
   }
+
+  // E2 — eval gate: prompts must match a blessed eval baseline (AI_EVAL_GATE), before any spawn
+  await assertEvalGate();
 
   // D7 — heartbeat: admin must have been active within the last 300s (5 min)
   if (
