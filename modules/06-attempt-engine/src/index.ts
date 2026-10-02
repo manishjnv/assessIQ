@@ -22,6 +22,7 @@ export {
   getAttemptForCandidate,
   saveAnswer,
   toggleFlag,
+  finishSection,
   recordEvent,
   getAttemptIntegritySummary,
   submitAttempt,

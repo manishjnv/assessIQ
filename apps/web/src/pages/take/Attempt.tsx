@@ -31,6 +31,7 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { Button, Card, Chip, Drawer, Icon, Logo, Modal, Spinner } from '@assessiq/ui-system';
 import {
   AttemptTimer,
+  Calculator,
   AutosaveIndicator,
   IntegrityBanner,
   FullscreenGate,
@@ -40,6 +41,7 @@ import {
   useMultiTabWarning,
   getAttempt,
   submitAttempt,
+  finishSection,
   toggleFlag,
   clearBackup,
   readBackup,
@@ -743,6 +745,11 @@ export function AttemptPage(): JSX.Element {
   // Desktop never opens it (the aside is always visible); mobile toggles via
   // the .aiq-attempt-nav-toggle header button. Closes on item-select.
   const [navOpen, setNavOpen] = useState(false);
+  // Test sections: "Finish section" confirm dialog.
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const sectionQidsRef = useRef<string[]>([]);
 
   // Stable ref so callbacks can read the latest currentQuestionId without
   // re-creating and breaking memo/effect deps.
@@ -851,6 +858,73 @@ export function AttemptPage(): JSX.Element {
         navigate(`/take/attempt/${attemptId}/submitted`, { replace: true });
       });
   }, [attemptId, navigate]);
+
+  // ── Test sections: follow the server to the next section ──────────────────
+  // The view only ever contains the running section. After a section's timer ends
+  // (or "Finish section"), fetch the view again and swap to the new section.
+  const applyView = useCallback((view: CandidateAttemptViewWire) => {
+    setAnswers((prev) => {
+      const next = new Map(prev);
+      for (const a of view.answers) if (!next.has(a.question_id)) next.set(a.question_id, a.answer);
+      return next;
+    });
+    setFlags((prev) => {
+      const next = new Map(prev);
+      for (const a of view.answers) if (!next.has(a.question_id)) next.set(a.question_id, a.flagged);
+      return next;
+    });
+    const first = [...view.questions].sort((a, b) => a.position - b.position)[0];
+    setCurrentQuestionId(first?.question_id ?? null);
+    setPageState({ tag: 'ready', view });
+  }, []);
+
+  const refreshAfterSectionChange = useCallback(
+    async (fromSection: number, retriesLeft: number): Promise<void> => {
+      const retry = (): void => {
+        if (retriesLeft > 0) {
+          setTimeout(() => void refreshAfterSectionChange(fromSection, retriesLeft - 1), 1000);
+        }
+      };
+      try {
+        const view = await getAttempt(attemptId);
+        if (view.attempt.status !== 'in_progress') {
+          setLocked(true); // the locked effect redirects to the submitted page
+          return;
+        }
+        // Local clock a hair ahead of the server: still the same section — look again.
+        if (view.sections !== undefined && view.sections.current === fromSection) {
+          retry();
+          return;
+        }
+        applyView(view);
+      } catch {
+        retry();
+      }
+    },
+    [attemptId, applyView],
+  );
+
+  const handleFinishSection = useCallback(
+    async (fromSection: number): Promise<void> => {
+      setFinishing(true);
+      setFinishError(null);
+      try {
+        await Promise.all(sectionQidsRef.current.map((id) => autosave.flushSave(id)));
+        await finishSection(attemptId);
+        setFinishOpen(false);
+        await refreshAfterSectionChange(fromSection, 0);
+      } catch (err) {
+        setFinishError(
+          err instanceof CandidateApiError
+            ? err.apiError?.message ?? `HTTP ${err.status}`
+            : 'Could not finish the section. Please try again.',
+        );
+      } finally {
+        setFinishing(false);
+      }
+    },
+    [attemptId, autosave, refreshAfterSectionChange],
+  );
 
   // ── Submit handler ────────────────────────────────────────────────────────
 
@@ -963,6 +1037,11 @@ export function AttemptPage(): JSX.Element {
   // Derive topic from the first question for the header chip.
   const topicLabel = sorted[0]?.topic ?? '';
 
+  // Test sections (absent for ordinary tests: everything below then behaves as before).
+  const sec = view.sections;
+  const isLastSection = sec === undefined || sec.current >= sec.total - 1;
+  sectionQidsRef.current = sorted.map((q) => q.question_id);
+
   // ── Answer change handler ─────────────────────────────────────────────────
   function handleAnswerChange(value: unknown): void {
     if (!currentQuestion || locked) return;
@@ -1022,7 +1101,12 @@ export function AttemptPage(): JSX.Element {
       status = 'unanswered';
     }
 
-    return { questionId: qid, position: q.position, status };
+    return {
+      questionId: qid,
+      // Sectioned tests number from 1 inside each section.
+      position: sec !== undefined ? sorted.indexOf(q) + 1 : q.position,
+      status,
+    };
   });
 
   // ── Submit-confirmation counts ─────────────────────────────────────────────
@@ -1121,22 +1205,41 @@ export function AttemptPage(): JSX.Element {
       <header className="aiq-attempt-top" style={TOP_BAR}>
         <Logo />
 
-        {topicLabel && (
-          <Chip variant="default" style={{ flexShrink: 0 }}>
-            {topicLabel}
+        {sec !== undefined ? (
+          <Chip variant="default" style={{ flexShrink: 0 }} data-help-id="candidate.attempt.section">
+            Section {sec.current + 1} of {sec.total} · {sec.name}
           </Chip>
+        ) : (
+          topicLabel && (
+            <Chip variant="default" style={{ flexShrink: 0 }}>
+              {topicLabel}
+            </Chip>
+          )
         )}
 
         <span style={{ ...COUNTER_LABEL, flex: 1 }}>
           Question {safeIdx + 1} of {sorted.length}
         </span>
 
-        {attempt.ends_at !== null && (
+        {sec?.calculator === true && <Calculator data-help-id="candidate.attempt.calculator" />}
+
+        {sec !== undefined ? (
+          // Section timer: re-keyed per section so it restarts on the next deadline.
+          // The last section's end is the end of the test (existing expiry path).
           <AttemptTimer
-            endsAt={attempt.ends_at}
-            onExpire={handleExpire}
+            key={sec.current}
+            endsAt={sec.ends_at}
+            onExpire={isLastSection ? handleExpire : () => void refreshAfterSectionChange(sec.current, 5)}
             data-help-id="candidate.attempt.timer"
           />
+        ) : (
+          attempt.ends_at !== null && (
+            <AttemptTimer
+              endsAt={attempt.ends_at}
+              onExpire={handleExpire}
+              data-help-id="candidate.attempt.timer"
+            />
+          )
         )}
 
         <AutosaveIndicator
@@ -1377,8 +1480,26 @@ export function AttemptPage(): JSX.Element {
           </Button>
         )}
 
+        {/* Test sections: before the last section the primary action is "Finish section"
+            (no way back); the last section keeps the normal Submit. */}
+        {!isLastSection && (
+          <Button
+            variant="primary"
+            size="sm"
+            className="aiq-attempt-submit-btn"
+            disabled={locked || finishing}
+            onClick={() => {
+              setFinishError(null);
+              setFinishOpen(true);
+            }}
+          >
+            Finish section
+          </Button>
+        )}
+
         {/* Submit — always visible; enabled even if not all questions answered.
             Opens the confirmation modal (counts of answered / unanswered / flagged). */}
+        {isLastSection && (
         <Button
           variant="primary"
           size="sm"
@@ -1392,7 +1513,43 @@ export function AttemptPage(): JSX.Element {
         >
           {submitting ? 'Submitting…' : 'Submit'}
         </Button>
+        )}
       </footer>
+
+      {/* ── FINISH SECTION CONFIRMATION (test sections) ─────────────────── */}
+      <Modal
+        open={finishOpen}
+        onClose={() => {
+          if (!finishing) setFinishOpen(false);
+        }}
+        title="Finish this section?"
+      >
+        <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
+          <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
+            You can't come back to this section.
+          </p>
+          <p style={{ margin: 0 }}>
+            You answered {answeredCount} of {totalCount} questions here. Unanswered questions will score 0.
+          </p>
+          {finishError !== null && (
+            <p role="alert" style={{ margin: '12px 0 0', color: 'var(--aiq-color-fg-primary)' }}>
+              {finishError}
+            </p>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--aiq-space-sm)' }}>
+          <Button variant="outline" disabled={finishing} onClick={() => setFinishOpen(false)}>
+            Go back
+          </Button>
+          <Button
+            variant="primary"
+            disabled={finishing}
+            onClick={() => void handleFinishSection(sec?.current ?? 0)}
+          >
+            {finishing ? 'Finishing…' : 'Finish section'}
+          </Button>
+        </div>
+      </Modal>
 
       {/* ── SUBMIT CONFIRMATION ──────────────────────────────────────────
           Kit Modal: Esc / backdrop = Go back, focus moves in and Tab is trapped. */}

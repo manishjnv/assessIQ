@@ -65,6 +65,19 @@ export interface CandidateAttemptViewWire {
   remaining_seconds: number;
   /** Integrity v1 runner switches (assessment settings.integrity; default off). */
   integrity?: { fullscreen: boolean; block_copy_paste: boolean };
+  /** Test sections: present only for sectioned tests; questions/answers are already this section's. */
+  sections?: SectionsViewWire;
+}
+
+export interface SectionsViewWire {
+  /** 0-based running section. */
+  current: number;
+  total: number;
+  name: string;
+  calculator: boolean;
+  /** ISO deadline of the running section. */
+  ends_at: string;
+  remaining_seconds: number;
 }
 
 export interface InvitedAssessmentWire {

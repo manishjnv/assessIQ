@@ -206,3 +206,10 @@ Tests:
 ## 2026-10-02 - ISO dates in audit payloads
 
 `redactPayload` (14-audit-log) turns a `Date` into `{}`, so `assessment.invite` stored `after.expires_at` as `{}`. Fixed at the callers (audit-log untouched): `inviteUsers` (`expires_at`), `updateAssessment` (`opens_at`/`closes_at`, before+after, null-safe) and `reopenAssessment` (`closes_at`) now pass `.toISOString()`; same for `03-users` `restoreUser` (`deleted_at`). Rule: never put a `Date` in an audit before/after. Test: `audit-writes.test.ts` asserts `after.expires_at` is an ISO string.
+
+## settings.sections — timed test sections (2026-10-02)
+
+`settings.sections?: Array<{ name; category_ids?; question_count?; minutes; calculator? }>` (1-10 entries, strict zod `AssessmentSectionsSchema`, minutes 1-300, each needs `question_count` and/or `category_ids`). Validated by `assertSectionsSettings` in `createAssessment` and `updateAssessment`; it cannot be combined with `settings.blueprint`.
+- **Why a parallel structure and not the blueprint**: blueprint is single-domain `(category, type, count)` criteria with no time or ordering dimension and is super-admin-only; sections need a name, a deadline and a calculator flag per group and must work for the licensed-set (from-set) path that company admins use. Reusing blueprint would have forced a time model into it and coupled the two features.
+- **`minutes` is required** (the contract listed it optional): a section without its own deadline would need a second timing mode.
+- **Not validated**: `category_ids` are not checked for tenant ownership (they only filter the tenant's RLS-scoped pool; a foreign id matches nothing and fails the start with `POOL_TOO_SMALL`). Runtime behaviour lives in 06.

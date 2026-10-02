@@ -3019,3 +3019,21 @@ admin.question.content.multi_select:
 
     Options are shuffled per candidate like normal MCQs. Avoid options that point at
     each other, such as "All of the above"; those questions keep their written order.
+
+admin.assessment.sections:
+  audience: admin
+  short_text: "Split the test into timed sections, such as Quantitative, Logical and Verbal."
+  long_md: |
+    ## Test sections
+
+    Add a section for each part of the test. For each one set a **name**, the
+    **number of questions**, the **minutes** and whether a **calculator** is allowed.
+    You can also tick **categories** so the section only draws from them.
+
+    - **Each section has its own timer.** When it runs out, that section's answers
+      are locked and the student moves on to the next section.
+    - **The student cannot go back** to a finished section.
+    - **The whole test ends** when the last section ends. The total time is the
+      sum of the section minutes (the level's duration is not used).
+    - **No sections?** Leave this empty and the test works as before, with one timer.
+    - You cannot combine sections with a blueprint.

@@ -248,3 +248,9 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 
 ## Public demo mode (2026-10-02)
 `apps/web/src/pages/try/` (`/try`, `/try/certificate`) reuses `AttemptTimer`, `AutosaveIndicator` and `QuestionNavigator` from this package, plus the take/* MCQ, multi-select and numeric answer areas, as pure-props components with static content. No components in this package changed. Invariant: the demo makes zero network requests (asserted in `Try.test.tsx`), so never wire api.ts calls into those components' demo usage.
+## Sections + calculator (2026-10-02)
+
+- `finishSection(attemptId)` (POST `/me/attempts/:id/finish-section`) and `SectionsViewWire` on `CandidateAttemptViewWire.sections` (present only for sectioned tests; the questions/answers in the view are already the running section's). The runner (`apps/web/.../Attempt.tsx`) shows "Section N of M · name", a section timer keyed per section, "Finish section" with a confirm ("You can't come back to this section."), and a navigator numbered inside the section; the last section keeps Submit.
+- `Calculator` (+ `calculator-eval.ts`): four-function calculator, no `eval()`/`Function` (tokenizer + two-pass precedence evaluator), 12-significant-digit formatting, keyboard only while focus is inside the panel (digits . + - * / x, Enter/=, Backspace, Esc/c). Plain buttons with no clipboard use, so integrity `block_copy_paste` (which cancels copy/cut/paste/contextmenu) does not affect it. Shown only when the running section has `calculator: true`.
+- Not included: parentheses, memory, percent, a calculator history; no persistence of the calculator state across sections.
+- Tests: `calculator.test.tsx`; runner behaviour in `apps/web/src/pages/take/AttemptSections.test.tsx`.

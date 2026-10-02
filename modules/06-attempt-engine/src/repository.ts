@@ -33,7 +33,7 @@ import { answerGuidanceFor } from "./answer-guidance.js";
 
 const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin`;
 
-const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version, option_order`;
+const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version, option_order, section_index`;
 
 const ATTEMPT_ANSWER_COLUMNS = `attempt_id, question_id, answer, flagged, time_spent_seconds, edits_count, client_revision, saved_at`;
 
@@ -62,6 +62,7 @@ interface AttemptQuestionRow {
   question_version: number;
   // SMALLINT[] — node-pg parses int2[] to number[]. NULL = original option order.
   option_order: number[] | null;
+  section_index: number | null;
 }
 
 interface AttemptAnswerRow {
@@ -91,6 +92,7 @@ interface FrozenQuestionRow {
   type: string;
   topic: string;
   points: number;
+  section_index: number | null;
   content: unknown;
   // Live-read from the `questions` row (NOT the frozen snapshot), like topic/
   // points. NULL → resolved to a per-type default by answerGuidanceFor().
@@ -124,6 +126,7 @@ function mapAttemptQuestionRow(row: AttemptQuestionRow): AttemptQuestion {
     position: row.position,
     question_version: row.question_version,
     option_order: row.option_order,
+    section_index: row.section_index,
   };
 }
 
@@ -356,6 +359,8 @@ export async function insertAttemptQuestions(
     questionVersion: number;
     /** Per-attempt MCQ option permutation (display position -> original index); null/omitted = original order. */
     optionOrder?: ReadonlyArray<number> | null;
+    /** Test sections: index into settings.sections; null/omitted = assessment has no sections. */
+    sectionIndex?: number | null;
   }>,
 ): Promise<void> {
   if (rows.length === 0) return;
@@ -367,13 +372,13 @@ export async function insertAttemptQuestions(
   for (const r of rows) {
     // points = the question's points AT START (E12): scoring reads this frozen copy, never live questions.points.
     placeholders.push(
-      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], (SELECT points FROM questions WHERE id = $${i - 4}::uuid))`,
+      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], (SELECT points FROM questions WHERE id = $${i - 4}::uuid), $${i++}::smallint)`,
     );
-    values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null);
+    values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null, r.sectionIndex ?? null);
   }
 
   await client.query(
-    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order, points)
+    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order, points, section_index)
      VALUES ${placeholders.join(", ")}`,
     values,
   );
@@ -524,6 +529,7 @@ export async function listFrozenQuestionsForAttempt(
        q.type,
        q.topic,
        aq.points,
+       aq.section_index,
        q.answer_guidance,
        qv.content
      FROM attempt_questions aq
@@ -542,6 +548,7 @@ export async function listFrozenQuestionsForAttempt(
     type: r.type,
     topic: r.topic,
     points: r.points,
+    section_index: r.section_index,
     // Instructional, candidate-safe hint — resolved to a per-type default when
     // the question carries no authored guidance.
     answer_guidance: answerGuidanceFor(r.type, r.answer_guidance),
@@ -957,6 +964,60 @@ export async function listFrozenPoolForCriterion(
     [assessmentId, domainId, categoryId, type],
   );
   return result.rows;
+}
+
+/**
+ * Test sections: the whole pool WITH each question's category, so startAttempt can
+ * partition it per section. Frozen snapshot when `useFrozen`, else the live pool —
+ * same two sources and same MAX(version) rule as the pick queries above.
+ */
+export async function listPoolWithCategory(
+  client: PoolClient,
+  input: { assessmentId: string; packId: string; levelId: string; useFrozen: boolean },
+): Promise<Array<{ id: string; version: number; category_id: string | null }>> {
+  if (input.useFrozen) {
+    const r = await client.query<{ id: string; version: number; category_id: string | null }>(
+      `SELECT question_id AS id, question_version AS version, category_id
+         FROM assessment_frozen_pool WHERE assessment_id = $1 ORDER BY question_id ASC`,
+      [input.assessmentId],
+    );
+    return r.rows;
+  }
+  const r = await client.query<{ id: string; version: number; category_id: string | null }>(
+    `SELECT q.id, MAX(qv.version)::int AS version, q.category_id
+       FROM questions q
+       JOIN question_versions qv ON qv.question_id = q.id
+      WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'
+      GROUP BY q.id
+      ORDER BY q.id ASC`,
+    [input.packId, input.levelId],
+  );
+  return r.rows;
+}
+
+/** attempts.section_progress (migration 0132); null = still in section 0. */
+export async function getSectionProgress(
+  client: PoolClient,
+  attemptId: string,
+): Promise<{ current: number; started_at: string } | null> {
+  const r = await client.query<{ section_progress: { current: number; started_at: string } | null }>(
+    `SELECT section_progress FROM attempts WHERE id = $1`,
+    [attemptId],
+  );
+  return r.rows[0]?.section_progress ?? null;
+}
+
+/** Persist the section position; `endsAt` (optional) re-pins attempts.ends_at (Finish section). */
+export async function setSectionProgress(
+  client: PoolClient,
+  attemptId: string,
+  progress: { current: number; started_at: string },
+  endsAt?: Date,
+): Promise<void> {
+  await client.query(
+    `UPDATE attempts SET section_progress = $2::jsonb, ends_at = COALESCE($3, ends_at) WHERE id = $1`,
+    [attemptId, JSON.stringify(progress), endsAt ?? null],
+  );
 }
 
 export async function findInvitationForCandidate(

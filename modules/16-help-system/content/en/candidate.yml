@@ -511,3 +511,31 @@ candidate.activity:
     who have submitted that pack.
 
     Ranks are computed live and update as other candidates submit new attempts.
+
+candidate.attempt.section:
+  audience: candidate
+  short_text: "This test has timed sections. You cannot return to a section once it is finished."
+  long_md: |
+    ## Test sections
+
+    The test is split into sections. The timer at the top is for the **current
+    section** only.
+
+    - When the section timer reaches zero, your answers in that section are saved
+      and locked, and the next section opens.
+    - Press **Finish section** to move on early. You will be asked to confirm,
+      because **you cannot come back** to that section.
+    - The test ends when the last section ends, or when you submit in the last section.
+
+candidate.attempt.calculator:
+  audience: candidate
+  short_text: "A basic calculator for this section: add, subtract, multiply, divide."
+  long_md: |
+    ## Calculator
+
+    Use the on-screen buttons or your keyboard: digits and **.** to type, **+ - * /**
+    for the operations, **Enter** or **=** for the result, **Backspace** to delete
+    and **Esc** to clear.
+
+    It is a basic calculator with no memory. Your answer still has to be typed into
+    the question yourself.

@@ -30,6 +30,7 @@ import {
   getAttemptForCandidate,
   saveAnswer,
   toggleFlag,
+  finishSection,
   recordEvent,
   submitAttempt,
 } from "./service.js";
@@ -276,6 +277,19 @@ export async function registerAttemptCandidateRoutes(
         return reply.code(204).send();
       }
       return reply.code(201).send(event);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /api/me/attempts/:id/finish-section — test sections: move on early
+  // -------------------------------------------------------------------------
+
+  app.post(
+    "/api/me/attempts/:id/finish-section",
+    { preHandler: candidateOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      return finishSection(req.session!.tenantId, req.session!.userId, id);
     },
   );
 

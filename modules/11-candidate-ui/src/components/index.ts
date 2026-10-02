@@ -33,3 +33,6 @@ export { CandidateSessionBanner } from './CandidateSessionBanner.js';
 export type { CandidateSessionBannerProps } from './CandidateSessionBanner.js';
 
 export { CandidateActivity } from './CandidateActivity.js';
+
+export { Calculator } from "./Calculator";
+export type { CalculatorProps } from "./Calculator";

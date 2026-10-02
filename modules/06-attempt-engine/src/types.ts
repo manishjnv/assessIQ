@@ -78,6 +78,8 @@ export interface AttemptQuestion {
    * See option-shuffle.ts.
    */
   option_order: number[] | null;
+  /** Test sections: index into assessments.settings.sections (migration 0132); null = no sections. */
+  section_index: number | null;
 }
 
 export interface AttemptAnswer {
@@ -115,6 +117,8 @@ export interface FrozenQuestion {
   type: string;
   topic: string;
   points: number;
+  /** Test sections: which section the question sits in; null = assessment has no sections. */
+  section_index?: number | null;
   // Candidate-facing answer-format hint ("HOW to answer", e.g. "Select the one
   // best option."). Always resolved server-side (authored value or a per-type
   // default) so it is never null. Instructional only — never a rubric / answer
@@ -132,6 +136,22 @@ export interface CandidateAttemptView {
   remaining_seconds: number;
   /** Integrity v1: runner switches from assessments.settings.integrity (default off). */
   integrity: { fullscreen: boolean; block_copy_paste: boolean };
+  /**
+   * Test sections: present only for sectioned assessments while in progress.
+   * `questions`/`answers` are already limited to the current section.
+   */
+  sections?: CandidateSectionsView;
+}
+
+export interface CandidateSectionsView {
+  /** 0-based index of the running section. */
+  current: number;
+  total: number;
+  name: string;
+  calculator: boolean;
+  /** ISO deadline of the running section (server-authoritative). */
+  ends_at: string;
+  remaining_seconds: number;
 }
 
 /** Admin integrity card: counts of recorded attempt_events. Not scores. */
@@ -334,6 +354,10 @@ export const AE_ERROR_CODES = {
   EVENTS_CAPPED: "AE_EVENTS_CAPPED",
   INVALID_PARAM: "AE_INVALID_PARAM",
   CONSENT_REQUIRED: "CONSENT_REQUIRED",
+  /** Test sections: the question's section is finished (or not open yet). */
+  SECTION_LOCKED: "AE_SECTION_LOCKED",
+  /** Finish-section on an assessment without sections, or on the last section. */
+  SECTION_NOT_FINISHABLE: "AE_SECTION_NOT_FINISHABLE",
 } as const;
 
 export type AeErrorCode = (typeof AE_ERROR_CODES)[keyof typeof AE_ERROR_CODES];

@@ -39,6 +39,7 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import type { PoolClient } from "pg";
 import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
 import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
@@ -63,6 +64,13 @@ import type {
   ToggleFlagInput,
 } from "./types.js";
 import { RATE_CAP_CONSTANTS, tryAdmitEvent } from "./rate-cap.js";
+import {
+  readSections,
+  resolveSection,
+  sectionDeadline,
+  totalSectionSeconds,
+} from "./sections.js";
+import type { AssessmentSection, SectionPosition } from "./sections.js";
 import {
   answerToOriginal,
   MAX_SHUFFLE_OPTIONS,
@@ -116,6 +124,47 @@ function computeRemainingSeconds(attempt: Attempt, now: Date): number {
   const remainingMs = attempt.ends_at.getTime() - now.getTime();
   if (remainingMs <= 0) return 0;
   return Math.floor(remainingMs / 1000);
+}
+
+/**
+ * Test sections: where a sectioned attempt is at `now`. Returns null when the
+ * assessment has no sections (callers then behave exactly as before). Advances the
+ * stored position when a deadline has passed (lazy, see sections.ts); `pos` null =
+ * every section has ended.
+ */
+async function sectionStateFor(
+  client: PoolClient,
+  attempt: Attempt,
+  now: Date,
+): Promise<{ sections: AssessmentSection[]; pos: SectionPosition | null } | null> {
+  const assessment = await alRepo.findAssessmentById(client, attempt.assessment_id);
+  const sections = readSections(assessment?.settings);
+  if (sections === null) return null;
+  const stored = await repo.getSectionProgress(client, attempt.id);
+  const pos = resolveSection(sections, stored, attempt.started_at ?? now, now);
+  if (pos !== null && pos.current !== (stored?.current ?? 0)) {
+    await repo.setSectionProgress(client, attempt.id, {
+      current: pos.current,
+      started_at: pos.startedAt.toISOString(),
+    });
+  }
+  return { sections, pos };
+}
+
+/** Reject a write to a question whose section is finished (or not open yet). */
+async function assertSectionOpen(
+  client: PoolClient,
+  attempt: Attempt,
+  sectionIndex: number | null,
+  now: Date,
+): Promise<void> {
+  if (sectionIndex === null) return; // no sections: nothing to check, no extra query
+  const st = await sectionStateFor(client, attempt, now);
+  if (st !== null && (st.pos === null || st.pos.current !== sectionIndex)) {
+    throw new ConflictError("This section is closed", {
+      details: { code: AE_ERROR_CODES.SECTION_LOCKED, section_index: sectionIndex },
+    });
+  }
 }
 
 // ===========================================================================
@@ -253,7 +302,48 @@ export async function startAttempt(
     // so the shuffle/size-check/snapshot logic below is byte-for-byte the same.
     const useFrozen = (await repo.countFrozenPool(client, input.assessmentId)) > 0;
 
-    if (blueprint !== undefined) {
+    // Test sections (migration 0132): the pool is partitioned per section, in section
+    // order, and the resulting order is frozen. sectionOf[i] = section of chosen[i].
+    const sections = readSections(assessment.settings);
+    let sectionOf: number[] | null = null;
+
+    if (sections !== null) {
+      const pool = await repo.listPoolWithCategory(client, {
+        assessmentId: input.assessmentId,
+        packId: assessment.pack_id,
+        levelId: assessment.level_id,
+        useFrozen,
+      });
+      const used = new Set<string>();
+      chosen = [];
+      sectionOf = [];
+      for (const [si, s] of sections.entries()) {
+        const cats = s.category_ids !== undefined ? new Set(s.category_ids) : null;
+        const cand = pool.filter(
+          (q) => !used.has(q.id) && (cats === null || (q.category_id !== null && cats.has(q.category_id))),
+        );
+        if (assessment.randomize) shuffleInPlace(cand);
+        const n = s.question_count ?? cand.length;
+        if (cand.length < n) {
+          throw new ValidationError(
+            `Question pool too small for section "${s.name}": ${cand.length} < ${n}`,
+            {
+              details: {
+                code: AE_ERROR_CODES.POOL_TOO_SMALL,
+                section: s.name,
+                available: cand.length,
+                required: n,
+              },
+            },
+          );
+        }
+        for (const q of cand.slice(0, n)) {
+          used.add(q.id);
+          chosen.push({ id: q.id, version: q.version });
+          sectionOf.push(si);
+        }
+      }
+    } else if (blueprint !== undefined) {
       // ── Blueprint draw (C3) ─────────────────────────────────────────────────
       const allPicks: Array<{ id: string; version: number }> = [];
 
@@ -333,7 +423,10 @@ export async function startAttempt(
 
     // g. Compute timer.
     const startedAt = new Date();
-    const durationSeconds = level.duration_minutes * 60;
+    // Sectioned: the whole test is the sum of the section minutes (the level's
+    // duration is not used); each section's own deadline is derived from it later.
+    const durationSeconds =
+      sections !== null ? totalSectionSeconds(sections) : level.duration_minutes * 60;
     const endsAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
     // h. Insert attempt row.
@@ -380,6 +473,7 @@ export async function startAttempt(
       position: i + 1,
       questionVersion: q.version,
       optionOrder: buildOptionOrder(mcqOptions.get(q.id), Math.random, MAX_SHUFFLE_OPTIONS),
+      sectionIndex: sectionOf !== null ? (sectionOf[i] as number) : null,
     }));
     await repo.insertAttemptQuestions(client, attempt.id, aqRows);
     await repo.insertEmptyAttemptAnswers(client, attempt.id, chosen.map((q) => q.id));
@@ -445,9 +539,12 @@ export async function getTakePreview(
     const criteria = (assessment.settings as any)?.blueprint?.criteria as
       | Array<{ count: number }>
       | undefined;
+    const secs = readSections(assessment.settings);
     const questionCount = Array.isArray(criteria)
       ? criteria.reduce((n, c) => n + c.count, 0)
-      : assessment.question_count;
+      : secs !== null && secs.every((s) => s.question_count !== undefined)
+        ? secs.reduce((n, s) => n + (s.question_count as number), 0)
+        : assessment.question_count;
     const tenant = await tenancyRepo.findTenantById(client, tenantId);
     return { existing, questionCount, companyName: tenant?.name?.trim() ?? "" };
   });
@@ -547,15 +644,44 @@ export async function getAttemptForCandidate(
     const integ = (assessment?.settings as { integrity?: { fullscreen?: unknown; block_copy_paste?: unknown } } | undefined)
       ?.integrity;
 
+    // Test sections: while running, show ONLY the current section's questions and
+    // answers (later sections stay hidden; finished ones are closed for good).
+    let visibleQuestions = questions;
+    let visibleAnswers = answers;
+    let sectionsView: CandidateAttemptView["sections"];
+    if (
+      effectiveAttempt.status === "in_progress" &&
+      questions.some((q) => (q.section_index ?? null) !== null)
+    ) {
+      const st = await sectionStateFor(client, effectiveAttempt, now);
+      if (st !== null && st.pos !== null) {
+        const cur = st.pos.current;
+        const s = st.sections[cur] as AssessmentSection;
+        const deadline = sectionDeadline(st.sections, st.pos);
+        visibleQuestions = questions.filter((q) => q.section_index === cur);
+        const ids = new Set(visibleQuestions.map((q) => q.question_id));
+        visibleAnswers = answers.filter((a) => ids.has(a.question_id));
+        sectionsView = {
+          current: cur,
+          total: st.sections.length,
+          name: s.name,
+          calculator: s.calculator === true,
+          ends_at: deadline.toISOString(),
+          remaining_seconds: Math.max(0, Math.floor((deadline.getTime() - now.getTime()) / 1000)),
+        };
+      }
+    }
+
     return {
       attempt: effectiveAttempt,
-      questions: displayQuestions(questions, orders),
-      answers: displayAnswers(answers, orders),
+      questions: displayQuestions(visibleQuestions, orders),
+      answers: displayAnswers(visibleAnswers, orders),
       remaining_seconds: computeRemainingSeconds(effectiveAttempt, now),
       integrity: {
         fullscreen: integ?.fullscreen === true,
         block_copy_paste: integ?.block_copy_paste === true,
       },
+      ...(sectionsView !== undefined ? { sections: sectionsView } : {}),
     };
   });
 }
@@ -627,6 +753,9 @@ export async function saveAnswer(
         { details: { code: AE_ERROR_CODES.UNKNOWN_QUESTION } },
       );
     }
+
+    // Test sections: a finished (or not-yet-open) section is read-only.
+    await assertSectionOpen(client, attempt, aq.section_index, now);
 
     const incomingRevision = input.client_revision ?? 0;
 
@@ -715,6 +844,8 @@ export async function toggleFlag(
       );
     }
 
+    await assertSectionOpen(client, attempt, aq.section_index, new Date());
+
     const result = await repo.setAnswerFlag(
       client,
       input.attemptId,
@@ -730,6 +861,57 @@ export async function toggleFlag(
     });
 
     return result;
+  });
+}
+
+// ===========================================================================
+// finishSection — candidate ends the running section early (no way back)
+// ===========================================================================
+
+/**
+ * Opens the next section NOW. The whole test's end moves earlier accordingly
+ * (attempts.ends_at = now + the minutes of the sections still to come), so the
+ * sweep and the expiry checks stay correct. Finishing the LAST section is a
+ * normal submit, not this call.
+ */
+export async function finishSection(
+  tenantId: string,
+  userId: string,
+  attemptId: string,
+): Promise<{ section_index: number }> {
+  return withTenant(tenantId, async (client) => {
+    const attempt = await repo.findAttemptByIdForUpdate(client, attemptId);
+    if (attempt === null) {
+      throw new NotFoundError(`Attempt not found: ${attemptId}`, {
+        details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
+      });
+    }
+    assertAttemptOwnedBy(attempt, userId);
+    if (attempt.status !== "in_progress") {
+      throw new ConflictError(`Attempt ${attempt.id} is not writable (status: ${attempt.status})`, {
+        details: { code: AE_ERROR_CODES.WRITES_LOCKED, status: attempt.status },
+      });
+    }
+    const now = new Date();
+    if (attempt.ends_at !== null && attempt.ends_at.getTime() <= now.getTime()) {
+      throw new ConflictError("Timer has expired", {
+        details: { code: AE_ERROR_CODES.TIMER_EXPIRED },
+      });
+    }
+    const st = await sectionStateFor(client, attempt, now);
+    if (st === null || st.pos === null || st.pos.current >= st.sections.length - 1) {
+      throw new ConflictError("There is no later section to move to", {
+        details: { code: AE_ERROR_CODES.SECTION_NOT_FINISHABLE },
+      });
+    }
+    const next = st.pos.current + 1;
+    await repo.setSectionProgress(
+      client,
+      attempt.id,
+      { current: next, started_at: now.toISOString() },
+      new Date(now.getTime() + totalSectionSeconds(st.sections, next) * 1000),
+    );
+    return { section_index: next };
   });
 }
 
