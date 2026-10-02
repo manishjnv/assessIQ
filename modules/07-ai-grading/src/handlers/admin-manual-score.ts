@@ -14,7 +14,7 @@
  *        escalation_chosen_stage 'manual' — same precedent as the deterministic
  *        MCQ rows (09 MCQ_SENTINEL_SHA).
  *
- * score_max is questions.points: the same source the deterministic MCQ rows and
+ * score_max is attempt_questions.points (frozen at attempt start): the same source the deterministic MCQ rows and
  * the AI-failure placeholder rows use, and the only source KQL has (no rubric).
  *
  * Auth: fresh-MFA gating is the route layer's responsibility, same as override.
@@ -111,7 +111,7 @@ export async function handleAdminManualScore(
     // The question must be part of THIS attempt's frozen set (RLS does not
     // catch a same-tenant cross-attempt question id).
     const qRes = await client.query<{ points: number }>(
-      `SELECT q.points
+      `SELECT aq.points
          FROM attempt_questions aq
          JOIN questions q ON q.id = aq.question_id
         WHERE aq.attempt_id = $1 AND aq.question_id = $2`,

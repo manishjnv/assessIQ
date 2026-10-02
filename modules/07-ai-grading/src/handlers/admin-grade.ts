@@ -299,7 +299,7 @@ async function loadGradingData(
        aq.question_version,
        q.type,
        q.topic,
-       q.points,
+       aq.points,
        qv.content,
        qv.rubric
      FROM attempt_questions aq

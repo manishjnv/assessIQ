@@ -126,3 +126,7 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 6. 09 never imports 07, and nothing in the module calls AI, a model or the network.
 
 **Superseded.** The "Integration: 07-ai-grading → 09-scoring" paragraph above (a post-commit `computeAttemptScore`, log key `grading.scoring.error_after_accept`) no longer exists in code: accept rolls up inside its own locked tx.
+
+## Score max is frozen per attempt (E12, migration 0128)
+
+`score_max` for a question is `attempt_questions.points`, copied from `questions.points` when the attempt started (06). `scoreMcqForAttempt` (`mcq.ts`) reads `aq.points`, not `questions.points`, so editing a question's points after start cannot change the score of an attempt that is not yet graded. The same frozen source feeds 07 AI grading rows, manual-score and admin rerun, so MCQ and AI rows of one attempt always agree. Totals (`service.ts`) and 15 analytics/exports sum `gradings.score_max`, which is already per-row frozen, so they needed no change. Grading algorithm, band scoring and which grader runs are untouched.

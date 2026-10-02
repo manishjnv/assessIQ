@@ -365,12 +365,15 @@ export async function insertAttemptQuestions(
   const values: unknown[] = [];
   let i = 1;
   for (const r of rows) {
-    placeholders.push(`($${i++}, $${i++}, $${i++}, $${i++}, $${i++}::smallint[])`);
+    // points = the question's points AT START (E12): scoring reads this frozen copy, never live questions.points.
+    placeholders.push(
+      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], (SELECT points FROM questions WHERE id = $${i - 4}::uuid))`,
+    );
     values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null);
   }
 
   await client.query(
-    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order)
+    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order, points)
      VALUES ${placeholders.join(", ")}`,
     values,
   );
@@ -513,7 +516,7 @@ export async function listFrozenQuestionsForAttempt(
        aq.question_version,
        q.type,
        q.topic,
-       q.points,
+       aq.points,
        q.answer_guidance,
        qv.content
      FROM attempt_questions aq

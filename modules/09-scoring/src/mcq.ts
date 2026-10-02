@@ -70,7 +70,7 @@ export async function scoreMcqForAttempt(
   attemptId: string,
 ): Promise<number> {
   const res = await client.query<McqRow>(
-    `SELECT aq.question_id, q.points, qv.content, aa.answer
+    `SELECT aq.question_id, aq.points, qv.content, aa.answer
        FROM attempt_questions aq
        JOIN questions q ON q.id = aq.question_id
        JOIN question_versions qv
