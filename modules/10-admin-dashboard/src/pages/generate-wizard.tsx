@@ -40,6 +40,9 @@ import {
   listGenerationAttempts,
   generateRubricApi,
   saveRubricApi,
+  putGenerationBatchApi,
+  getActiveGenerationBatchApi,
+  setGenerationBatchStatusApi,
 } from "../api.js";
 import type { DomainItem, CategoryItem, QuestionListItem, GenerationAttemptSummary } from "../api.js";
 
@@ -91,11 +94,19 @@ function loadGenBatchPlan(): GenBatchPlan | null {
   }
 }
 
-function saveGenBatchPlan(p: GenBatchPlan | null): void {
-  try {
-    if (p) localStorage.setItem(GEN_BATCH_KEY, JSON.stringify(p));
-    else localStorage.removeItem(GEN_BATCH_KEY);
-  } catch { /* ignore quota/availability errors */ }
+function clearLegacyGenBatchPlan(): void {
+  try { localStorage.removeItem(GEN_BATCH_KEY); } catch { /* ignore */ }
+}
+
+// E6: the plan now lives server-side; every call is best-effort so the wizard
+// still works (just without resume) when the API is unreachable.
+async function putPlan(p: GenBatchPlan): Promise<void> {
+  if (!p.batchId) return;
+  await putGenerationBatchApi(p.batchId, p).catch(() => { /* non-critical */ });
+}
+function setBatchStatus(batchId: string | undefined, status: "done" | "dismissed"): void {
+  if (!batchId) return;
+  void setGenerationBatchStatusApi(batchId, status).catch(() => { /* non-critical */ });
 }
 
 // ---------------------------------------------------------------------------
@@ -476,12 +487,30 @@ export function AdminGenerateWizard(): React.ReactElement {
     return () => { cancelled = true; };
   }, []);
 
-  // On mount: restore any partial batch plan from a prior interrupted session.
+  // On mount: restore the server-side active batch plan (any device/browser).
+  // One-time migration: an old localStorage plan is uploaded when the server has
+  // none, then the key is removed. API failure leaves localStorage untouched.
   useEffect(() => {
-    const p = loadGenBatchPlan();
-    if (p && p.completedCategoryIds.length < p.categories.length) {
-      setResumePlan(p);
-    }
+    let cancelled = false;
+    void (async () => {
+      let p: GenBatchPlan | null = null;
+      try {
+        const b = await getActiveGenerationBatchApi();
+        if (b) {
+          p = { domainId: b.domainId, level: b.level as SelectedLevel, categories: b.categories, completedCategoryIds: b.completedCategoryIds, batchId: b.id };
+        } else {
+          const legacy = loadGenBatchPlan();
+          if (legacy) {
+            const withId = { ...legacy, batchId: legacy.batchId ?? crypto.randomUUID() };
+            await putGenerationBatchApi(withId.batchId, withId);
+            clearLegacyGenBatchPlan();
+            p = withId;
+          }
+        }
+      } catch { return; /* non-critical — no resume */ }
+      if (!cancelled && p && p.completedCategoryIds.length < p.categories.length) setResumePlan(p);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // beforeunload guard: warn the admin before leaving while generation is active.
@@ -655,6 +684,10 @@ export function AdminGenerateWizard(): React.ReactElement {
 
     const results = [...allResults];
 
+    // Persist the plan server-side before the first category (best-effort);
+    // the server records each finished category itself.
+    await putPlan(livePlan);
+
     for (let pi = 0; pi < pending.length; pi++) {
       const cat = pending[pi]!;
       // Find the index of this category in the full results array.
@@ -682,9 +715,8 @@ export function AdminGenerateWizard(): React.ReactElement {
           batch_id: batchId,
         });
         results[ri] = { ...results[ri]!, status: "done", questionCount: res.generated };
-        // Persist progress so a subsequent page reload can resume from here.
+        // Server already recorded this category (admin-generate.ts); keep local copy in sync.
         livePlan.completedCategoryIds.push(cat.categoryId);
-        saveGenBatchPlan(livePlan);
       } catch (err) {
         const msg = err instanceof AdminApiError ? err.apiError.message : String(err);
         // D4: per-category failure — mark failed but continue remaining
@@ -737,7 +769,7 @@ export function AdminGenerateWizard(): React.ReactElement {
     }
 
     // All categories done — clear the persisted plan so there is no stale resume state.
-    saveGenBatchPlan(null);
+    setBatchStatus(batchId, "done");
 
     // Load all drafts for the review screen after generation
     await loadDrafts();
@@ -765,7 +797,6 @@ export function AdminGenerateWizard(): React.ReactElement {
       completedCategoryIds: [],
       batchId: crypto.randomUUID(),
     };
-    saveGenBatchPlan(plan);
     await runBatch(plan);
   }, [categoryConfigs, selectedDomainId, selectedLevel, runBatch]);
 
@@ -854,7 +885,7 @@ export function AdminGenerateWizard(): React.ReactElement {
               <button
                 type="button"
                 className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-                onClick={() => { saveGenBatchPlan(null); setResumePlan(null); }}
+                onClick={() => { setBatchStatus(planSnapshot.batchId, "dismissed"); setResumePlan(null); }}
               >
                 Discard
               </button>

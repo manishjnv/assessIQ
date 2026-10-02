@@ -1095,6 +1095,26 @@ export async function handleAdminGenerate(
     }
   }
 
+  // E6: record this category on the server-side batch plan (best-effort — must
+  // never fail or mask the generation response, same as the attempts row).
+  if (capturedErr === undefined && input.batchId && input.categoryId) {
+    try {
+      await withTenant(input.tenantId, async (client) => {
+        await client.query(
+          `UPDATE generation_batches
+              SET completed_category_ids = (
+                    SELECT COALESCE(jsonb_agg(DISTINCT v), '[]'::jsonb)
+                      FROM jsonb_array_elements_text(completed_category_ids || to_jsonb($3::text)) v),
+                  updated_at = now()
+            WHERE id = $1::uuid AND tenant_id = $2`,
+          [input.batchId, input.tenantId, input.categoryId],
+        );
+      });
+    } catch (batchErr) {
+      log.warn({ attemptId, err: (batchErr as Error).message }, "generation.batch.progress.failed");
+    }
+  }
+
   if (capturedErr !== undefined) throw capturedErr as Error;
   // Strip internal _model field before returning to callers.
   const { _model: _unused, ...output } = capturedOutput as HandleAdminGenerateOutput & { _model?: string };

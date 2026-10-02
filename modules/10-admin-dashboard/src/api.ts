@@ -230,6 +230,30 @@ export interface GenerationAttemptsListResponse {
   offset: number;
 }
 
+// E6: server-side generate-wizard batch plan (replaces the localStorage plan).
+export interface GenerationBatchPlanDto {
+  domainId: string;
+  level: string;
+  categories: { categoryId: string; categoryName: string; count: number; selectedTypes: string[] }[];
+  completedCategoryIds: string[];
+}
+export interface GenerationBatchDto extends GenerationBatchPlanDto {
+  id: string;
+}
+
+export async function putGenerationBatchApi(id: string, plan: GenerationBatchPlanDto): Promise<void> {
+  await adminApi(`/admin/generation-batches/${id}`, { method: "PUT", body: JSON.stringify(plan) });
+}
+
+export async function getActiveGenerationBatchApi(): Promise<GenerationBatchDto | null> {
+  const r = await adminApi<{ batch: GenerationBatchDto | null }>("/admin/generation-batches/active");
+  return r.batch;
+}
+
+export async function setGenerationBatchStatusApi(id: string, status: "done" | "dismissed"): Promise<void> {
+  await adminApi(`/admin/generation-batches/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+}
+
 /**
  * List recent generation attempts (super_admin-only endpoint, same one the
  * Generation History page reads). Pass `status: "running"` to find an in-flight
