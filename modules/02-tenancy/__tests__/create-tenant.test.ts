@@ -31,6 +31,8 @@ import { createTenant, activateTenant } from "../src/service.js";
 
 let pgContainer: StartedTestContainer;
 let pgUrl: string;
+// createTenant audits with actor_user_id (FK users) — the actor must exist.
+const SA_ID = randomUUID();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,6 +78,12 @@ beforeAll(async () => {
 
   await withSuperClient(async (client) => {
     await applyAllMigrations(client);
+    const t = randomUUID();
+    await client.query(`INSERT INTO tenants (id, slug, name) VALUES ($1, $2, 'Platform')`, [t, `platform-${t.slice(0, 8)}`]);
+    await client.query(
+      `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1, $2, 'sa@example.com', 'SA', 'admin', 'active')`,
+      [SA_ID, t],
+    );
   });
 
   await setPoolForTesting(pgUrl);
@@ -95,7 +103,7 @@ describe("createTenant", () => {
     const slug = `test-slug-${randomUUID().slice(0, 8)}`;
     const result = await createTenant(
       { name: "Test Corp", slug },
-      randomUUID(), // superAdminUserId
+      SA_ID, // superAdminUserId
     );
 
     expect(result.tenantId).toBeTruthy();
@@ -108,7 +116,7 @@ describe("createTenant", () => {
     const slug = `test-slug-settings-${randomUUID().slice(0, 8)}`;
     const { tenantId } = await createTenant(
       { name: "Settings Corp", slug },
-      randomUUID(),
+      SA_ID,
     );
 
     const settings = await withSuperClient((client) =>
@@ -124,10 +132,10 @@ describe("createTenant", () => {
     const slug = `slug-collision-${randomUUID().slice(0, 8)}`;
 
     // First insert succeeds.
-    await createTenant({ name: "First Corp", slug }, randomUUID());
+    await createTenant({ name: "First Corp", slug }, SA_ID);
 
     // Second insert with same slug must throw ConflictError.
-    const err = await createTenant({ name: "Duplicate Corp", slug }, randomUUID()).catch(e => e);
+    const err = await createTenant({ name: "Duplicate Corp", slug }, SA_ID).catch(e => e);
     expect(err).toBeDefined();
     expect(err.name).toBe("ConflictError");
     expect(err.details?.code).toBe("TENANT_SLUG_CONFLICT");
@@ -135,10 +143,10 @@ describe("createTenant", () => {
 
   it("slug collision leaves no orphan tenant at provisioning that belongs to failed attempt", async () => {
     const slug = `slug-safe-${randomUUID().slice(0, 8)}`;
-    await createTenant({ name: "Original", slug }, randomUUID());
+    await createTenant({ name: "Original", slug }, SA_ID);
 
     try {
-      await createTenant({ name: "Duplicate", slug }, randomUUID());
+      await createTenant({ name: "Duplicate", slug }, SA_ID);
     } catch {
       // expected
     }
@@ -155,7 +163,7 @@ describe("createTenant", () => {
 
   it("system-role txn is minimal: no user rows written by createTenant", async () => {
     const slug = `no-user-${randomUUID().slice(0, 8)}`;
-    const { tenantId } = await createTenant({ name: "Minimal Corp", slug }, randomUUID());
+    const { tenantId } = await createTenant({ name: "Minimal Corp", slug }, SA_ID);
 
     // The new tenant must have NO users (createTenant does not insert any).
     const userCount = await withSuperClient((client) =>
@@ -178,7 +186,7 @@ describe("activateTenant", () => {
     const slug = `activate-${randomUUID().slice(0, 8)}`;
     const { tenantId } = await createTenant(
       { name: "To Activate", slug },
-      randomUUID(),
+      SA_ID,
     );
 
     expect(await getTenantStatus(tenantId)).toBe("provisioning");
@@ -190,7 +198,7 @@ describe("activateTenant", () => {
 
   it("failed mid-step: tenant that stays provisioning is never active (orphan safety)", async () => {
     const slug = `orphan-${randomUUID().slice(0, 8)}`;
-    const { tenantId } = await createTenant({ name: "Orphan Corp", slug }, randomUUID());
+    const { tenantId } = await createTenant({ name: "Orphan Corp", slug }, SA_ID);
 
     // Simulate: caller never calls activateTenant (step fails mid-way).
     // Tenant must remain 'provisioning'.

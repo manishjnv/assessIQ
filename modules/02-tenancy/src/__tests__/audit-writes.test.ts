@@ -72,7 +72,7 @@ vi.mock("@assessiq/audit-log", async () => {
 
 import { ACTION_CATALOG } from "@assessiq/audit-log";
 import { setPoolForTesting, closePool } from "../pool.js";
-import { updateTenantSettings, suspendTenant } from "../service.js";
+import { updateTenantSettings, suspendTenant, createTenant } from "../service.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVICE_FILE = join(HERE, "..", "service.ts");
@@ -433,5 +433,52 @@ describe("02-tenancy G3.D audit writes — live integration (suspendTenant)", ()
         c.query(`ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS _test_atomicity_suspend`),
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RV59 — createTenant writes exactly one tenant.provisioned audit row
+// ---------------------------------------------------------------------------
+
+describe("02-tenancy RV59 audit writes — live integration (createTenant)", () => {
+  const ACTOR_USER_ID = "00000000-0000-0000-0000-000000000002";
+
+  beforeAll(async () => {
+    // audit_log.actor_user_id FK → users(id): the super-admin must exist.
+    await withSuperClient((c) =>
+      c.query(
+        `INSERT INTO users (id, tenant_id, email, name, role, status)
+         VALUES ($1, $2, 'sa@example.com', 'SA', 'admin', 'active') ON CONFLICT DO NOTHING`,
+        [ACTOR_USER_ID, TENANT_ID],
+      ),
+    );
+  });
+
+  it("writes one tenant.provisioned row (actor = caller) in the new tenant's log", async () => {
+    const slug = `rv59-${randomUUID().slice(0, 8)}`;
+    const { tenantId } = await createTenant({ slug, name: "RV59 Co" }, ACTOR_USER_ID);
+
+    const rows = await queryAudit(tenantId);
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    expect(row.action).toBe("tenant.provisioned");
+    expect(row.actor_kind).toBe("user");
+    expect(row.actor_user_id).toBe(ACTOR_USER_ID);
+    expect(row.entity_type).toBe("tenant");
+    expect(row.entity_id).toBe(tenantId);
+    // audit sanitizer redacts `name` keys (PII scrub); slug is kept.
+    expect(row.after).toEqual({ slug, name: "[REDACTED]" });
+  });
+
+  it("slug conflict writes zero audit rows", async () => {
+    const slug = `rv59-${randomUUID().slice(0, 8)}`;
+    const { tenantId } = await createTenant({ slug, name: "First" }, ACTOR_USER_ID);
+    await expect(createTenant({ slug, name: "Second" }, ACTOR_USER_ID)).rejects.toThrow();
+    // Only the first call's row exists; the failed call's tx rolled back.
+    const total = await withSuperClient(async (c) =>
+      Number((await c.query(`SELECT count(*)::int AS n FROM audit_log WHERE action = 'tenant.provisioned' AND after->>'slug' = $1`, [slug])).rows[0].n),
+    );
+    expect(total).toBe(1);
+    expect(await queryAudit(tenantId)).toHaveLength(1);
   });
 });
