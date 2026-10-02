@@ -62,19 +62,17 @@ admin.auth.mfa.enroll_vs_verify:
 
 admin.users.role:
   audience: admin
-  short_text: "admin = full access · reviewer = grade and override only · candidate = take assessments only."
+  short_text: "admin = full access · candidate = take assessments only."
   long_md: |
     ## User roles
 
     | Role | Can do |
     |---|---|
     | **admin** | Everything: tenant settings, packs, assessments, grading, exports, billing |
-    | **reviewer** | Grade and override AI verdicts; view assessment results; cannot edit packs or invite users |
     | **candidate** | Take assigned assessments; view their own past scores |
 
-    Role changes take effect on the next sign-in for that user. Demoting an
-    admin to reviewer revokes their fresh-MFA gates immediately. There is no
-    "owner" or "billing" role.
+    Role changes take effect on the next sign-in for that user. There is no
+    "owner", "billing" or "reviewer" role: admins review and publish results.
 
 admin.users.candidate.fields:
   audience: admin
@@ -853,7 +851,7 @@ admin.platform:
 
     ## Good to know
 
-    - **Only you see this.** Company administrators and reviewers never see
+    - **Only you see this.** Company administrators never see
       the Platform page or this company list. Each company only ever sees
       its own data, never another company's.
     - **Extra sign-in check.** When you create a company, AssessIQ may ask
@@ -908,7 +906,7 @@ admin.platform.admin_email:
     immediately after the tenant is provisioned. The link is valid for 7 days.
 
     The invited user signs in via the link and is granted `role = admin` for
-    the new tenant. They can then invite additional admins and reviewers from
+    the new tenant. They can then invite additional admins from
     the Users page.
 
     If the invitation expires before the admin accepts it, a platform operator
@@ -959,16 +957,12 @@ admin.platform.edit_company_name:
 
 admin.platform.edit_admin:
   audience: admin
-  short_text: "Update the company's primary admin — name, role (admin/reviewer), or email. Requires fresh MFA."
+  short_text: "Update the company's primary admin — name or email. Requires fresh MFA."
   long_md: |
     ## Edit admin
 
     Update the company's primary-contact admin without re-provisioning the
-    tenant. You can change their display name, switch their role between
-    `admin` and `reviewer`, and correct or change their email.
-
-    **Role.** Demoting the company's only active admin to reviewer is blocked —
-    add another admin first, or use the Manage-users page.
+    tenant. You can change their display name and correct or change their email.
 
     **Email is the login identity** — see the email field's own help for the
     consequences of changing it.
@@ -1397,7 +1391,7 @@ admin.scoring.leaderboard.privacy:
   long_md: |
     ## Leaderboard privacy
 
-    The cohort leaderboard is visible to admins and reviewers only — candidates
+    The cohort leaderboard is visible to admins only — candidates
     never see their rank or peers' scores.
 
     Use the **Anonymize** toggle to hide email addresses when screensharing
@@ -2531,7 +2525,7 @@ admin.assessments.invite.import_result:
     - **Skipped** — rows that were not imported or not invited. Each shows the
       row number (the header is row 1), the email and the reason, for example
       an invalid email, a missing name, a repeated email in the file, an email
-      that belongs to a non-candidate (admin or reviewer), or a candidate who
+      that belongs to a non-candidate (an admin), or a candidate who
       already has an invitation for this assessment.
 
     Use **Download skipped rows** to get a CSV you can correct and upload again.
@@ -3285,7 +3279,7 @@ admin.activity.feed:
 
     The feed lists recent actions across your workspace, newest first.
 
-    - Use the role buttons (**All**, **Admin**, **Reviewer**, **Candidate**) to
+    - Use the role buttons (**All**, **Admin**, **Candidate**) to
       show one group of people.
     - The feed shows 20 items at a time. Choose **Load more** to see older
       items.

@@ -384,7 +384,7 @@ describe("Block 1 — RLS visibility", () => {
     expect(result).not.toBeNull();
     // Tenant B must see the global seed content, not A's override.
     expect(result?.shortText).toBe(
-      "admin = full access · reviewer = grade and override only · candidate = take assessments only.",
+      "admin = full access · candidate = take assessments only.",
     );
   });
 
@@ -393,7 +393,7 @@ describe("Block 1 — RLS visibility", () => {
     const result = await getHelpKey(null, "admin.users.role", "en");
     expect(result).not.toBeNull();
     expect(result?.shortText).toBe(
-      "admin = full access · reviewer = grade and override only · candidate = take assessments only.",
+      "admin = full access · candidate = take assessments only.",
     );
   });
 
@@ -410,7 +410,7 @@ describe("Block 1 — RLS visibility", () => {
     expect(result).not.toBeNull();
     // Anonymous read uses withGlobalsOnly → no tenant GUC → only tenant_id IS NULL visible.
     expect(result?.shortText).toBe(
-      "admin = full access · reviewer = grade and override only · candidate = take assessments only.",
+      "admin = full access · candidate = take assessments only.",
     );
   });
 });
