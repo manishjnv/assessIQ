@@ -12,9 +12,6 @@ import { auditInTx } from "@assessiq/audit-log";
 import { deriveQuestionTextForGuidance } from "../answer-guidance-derive.js";
 import { QB_ERROR_CODES } from "../types.js";
 import * as repo from "../repository.js";
-import type {
-  Level,
-} from "../types.js";
 import {
   log,
   isUniqueViolation,

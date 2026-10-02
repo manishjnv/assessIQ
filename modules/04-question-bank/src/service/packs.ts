@@ -19,7 +19,6 @@ import type {
   Level,
   ListPacksInput,
   PaginatedPacks,
-  Question,
   QuestionPack,
   UpdateLevelPatch,
 } from "../types.js";
