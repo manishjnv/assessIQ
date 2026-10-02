@@ -2,6 +2,7 @@
 // resources.astro — Editorial hub for /resources
 // JSON-LD: THREE separate blocks — Blog (ItemList), BreadcrumbList (per SEO §3.6 / §15)
 // NO fabricated stats, no invented persons, no AggregateRating
+import { getPageDates } from '../lib/page-dates';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
@@ -26,21 +27,21 @@ const blogSchema = {
       "@type": "BlogPosting",
       "headline": "How to Screen Developers in India: A Structured Hiring Guide (2026)",
       "url": `${site}/resources/technical-hiring-india-guide`,
-      "datePublished": "2026-05-23",
+      "datePublished": getPageDates('/resources/technical-hiring-india-guide').published,
       "author": { "@type": "Organization", "name": "AssessIQ" }
     },
     {
       "@type": "BlogPosting",
       "headline": "Reducing Bias in Technical Hiring: Validity, Fairness & Adverse Impact",
       "url": `${site}/resources/reducing-bias-technical-hiring`,
-      "datePublished": "2026-05-23",
+      "datePublished": getPageDates('/resources/reducing-bias-technical-hiring').published,
       "author": { "@type": "Organization", "name": "AssessIQ" }
     },
     {
       "@type": "BlogPosting",
       "headline": "Remote Proctoring Integrity: What Actually Works (and What Doesn't)",
       "url": `${site}/resources/remote-proctoring-integrity`,
-      "datePublished": "2026-05-23",
+      "datePublished": getPageDates('/resources/remote-proctoring-integrity').published,
       "author": { "@type": "Organization", "name": "AssessIQ" }
     }
   ]

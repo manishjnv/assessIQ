@@ -4,12 +4,14 @@
 // NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
 // Fairness rule: HackerEarth's genuine strengths acknowledged; no disparagement (SEO §6.3)
 // Research basis: hackerearth.com, BusinessWireIndia, LinkedIn (India, Bengaluru HQ) — verified May 2026
+import { getPageDates } from '../../lib/page-dates';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/alternatives/hackerearth');
 const slug = '/alternatives/hackerearth';
-const datePublished = '2026-05-23';
-const dateModified  = '2026-05-23';
+const datePublished = dates.published;
+const dateModified  = dates.modified;
 
 const articleSchema = {
   "@context": "https://schema.org",
@@ -126,6 +128,7 @@ const criteria = [
 ---
 
 <BaseLayout
+  hasDatedNode
   title="Best HackerEarth Alternatives in 2026"
   description="Looking for a HackerEarth alternative? See how AssessIQ compares for India-first hiring & assessment — structured scoring, private B2B with no public leaderboards."
   canonicalPath="/alternatives/hackerearth"

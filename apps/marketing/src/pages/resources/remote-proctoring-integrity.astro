@@ -3,9 +3,11 @@
 // JSON-LD: THREE separate blocks — BlogPosting, FAQPage, BreadcrumbList (per SEO §3.6 / §15)
 // Author = Organization (no fabricated person/credentials per hard rule)
 // No fabricated statistics or invented study results
+import { getPageDates, formatDate } from '../../lib/page-dates';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/resources/remote-proctoring-integrity');
 const slug = 'remote-proctoring-integrity';
 const canonicalPath = `/resources/${slug}`;
 
@@ -14,8 +16,8 @@ const blogPostingSchema = {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Remote Proctoring Integrity: What Actually Works (and What Doesn't)",
-  "datePublished": "2026-05-23",
-  "dateModified": "2026-05-23",
+  "datePublished": dates.published,
+  "dateModified": dates.modified,
   "author": {
     "@type": "Organization",
     "name": "AssessIQ"
@@ -117,6 +119,7 @@ const breadcrumbSchema = {
 ---
 
 <BaseLayout
+  hasDatedNode
   title="Remote Proctoring Integrity: What Works (and What Doesn't)"
   description="What actually deters cheating in online assessments, what counts as security theatre, and the legal and ethical tradeoffs of remote proctoring — a practical guide for HR teams and assessment administrators."
   canonicalPath={canonicalPath}
@@ -168,7 +171,7 @@ const breadcrumbSchema = {
       </p>
 
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
-        Published 23 May 2026 &middot; AssessIQ Editorial
+        Published {formatDate(dates.published, true)} &middot; AssessIQ Editorial
       </p>
     </div>
   </header>

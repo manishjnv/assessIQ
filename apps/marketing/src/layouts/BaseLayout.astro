@@ -4,6 +4,7 @@
 // Fonts: Newsreader (serif) + Geist (sans) + JetBrains Mono (mono) — the AssessIQ editorial trio.
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import { getPageDates } from '../lib/page-dates';
 
 interface Props {
   /** Page title — will get " — AssessIQ" suffix appended. Keep the prefix ≤ 45 chars so total ≤ 60. */
@@ -16,6 +17,8 @@ interface Props {
   ogType?: 'website' | 'article';
   /** Set true for gated/thin pages. Default: false (index, follow). */
   noindex?: boolean;
+  /** Set true when the page emits its own Article/BlogPosting node carrying the dates (skips the layout WebPage node). */
+  hasDatedNode?: boolean;
 }
 
 const {
@@ -24,11 +27,27 @@ const {
   canonicalPath,
   ogType = 'website',
   noindex = false,
+  hasDatedNode = false,
 } = Astro.props;
 
 const site = 'https://assessiq.in';
 const canonicalUrl = `${site}${canonicalPath}`;
 const fullTitle = `${title} — AssessIQ`;
+
+// One WebPage node per page with git-derived dates (src/data/page-dates.json), unless the page
+// already carries an Article/BlogPosting node with the same dates.
+const webPageSchema = hasDatedNode || noindex ? null : (() => {
+  const d = getPageDates(canonicalPath);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: fullTitle,
+    url: canonicalUrl,
+    description,
+    datePublished: d.published,
+    dateModified: d.modified,
+  };
+})();
 
 // ASMT-08: Compute OG slug from canonicalPath (same scheme as the pages map in og/[...route].png.ts)
 // "/" → "index", "/solutions/it-hiring" → "solutions-it-hiring"
@@ -97,7 +116,7 @@ const ogImage = ogPagesWithDynamicImage.has(ogSlug)
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png" />
 
-    <!-- Fonts — preconnect before @import to reduce connection latency (§4 CWV) -->
+    <!-- Fonts — preconnect ahead of the font stylesheet <link> (no CSS @import) to cut connection latency (§4 CWV) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!--
@@ -113,6 +132,8 @@ const ogImage = ogPagesWithDynamicImage.has(ogSlug)
       Geist isn't on Google Fonts — fall through to system sans stack:
       -apple-system, Helvetica Neue, Arial (defined in tailwind.config.mjs font-sans)
     -->
+
+    {webPageSchema && <script type="application/ld+json" set:html={JSON.stringify(webPageSchema)} />}
 
     <!-- Microsoft Clarity — product analytics (heatmaps + masked session replay).
          MARKETING SITE ONLY: this BaseLayout is never used by the SPA (apps/web),

@@ -2,17 +2,19 @@
 // tests/role/data-analyst.astro — Data Analyst Assessment (/tests/role/data-analyst)
 // JSON-LD: Article + ItemList + FAQPage + BreadcrumbList (per SEO §5.2 / §15)
 // NO aggregateRating, NO fabricated stats (SEO §13 hard rule)
+import { getPageDates } from '../../../lib/page-dates';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/tests/role/data-analyst');
 const canonicalPath = '/tests/role/data-analyst';
 
 const articleSchema = {
   "@context": "https://schema.org",
   "@type": "Article",
   "headline": "Data Analyst Assessment Test: Skills, Battery & Scorecard",
-  "datePublished": "2026-05-24",
-  "dateModified": "2026-05-24",
+  "datePublished": dates.published,
+  "dateModified": dates.modified,
   "author": {
     "@type": "Organization",
     "name": "AssessIQ"
@@ -194,6 +196,7 @@ const batteryTests = [
 ---
 
 <BaseLayout
+  hasDatedNode
   title="Data Analyst Assessment Test (Coming soon)"
   description="Coming soon: AssessIQ role assessment for hiring data analysts in India. Competency matrix, benchmark guidance and scorecard outline. Contact us about this test."
   canonicalPath={canonicalPath}

@@ -4,12 +4,14 @@
 // NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
 // Fairness rule: Mettl's genuine strengths acknowledged; no disparagement (SEO §6.3)
 // Research basis: Mercer/Mettl public positioning (mettl.com, G2, Capterra, Tracxn) — verified May 2026
+import { getPageDates } from '../../lib/page-dates';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/alternatives/mettl');
 const slug = '/alternatives/mettl';
-const datePublished = '2026-05-23';
-const dateModified  = '2026-05-23';
+const datePublished = dates.published;
+const dateModified  = dates.modified;
 
 // Article JSON-LD (SEO §5.3 — Article + FAQPage + BreadcrumbList)
 const articleSchema = {
@@ -131,6 +133,7 @@ const criteria = [
 ---
 
 <BaseLayout
+  hasDatedNode
   title="Best Mercer Mettl Alternatives in 2026"
   description="Looking for a Mercer Mettl alternative? See how AssessIQ compares for India-first hiring & assessment — structured scoring and auditable decisions."
   canonicalPath="/alternatives/mettl"

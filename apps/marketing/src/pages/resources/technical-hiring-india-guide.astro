@@ -3,9 +3,11 @@
 // JSON-LD: THREE separate blocks — BlogPosting, FAQPage, BreadcrumbList (per SEO §3.6 / §15)
 // Author = Organization (no fabricated person/credentials per hard rule)
 // No fabricated statistics or invented study results
+import { getPageDates, formatDate } from '../../lib/page-dates';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/resources/technical-hiring-india-guide');
 const slug = 'technical-hiring-india-guide';
 const canonicalPath = `/resources/${slug}`;
 
@@ -14,8 +16,8 @@ const blogPostingSchema = {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "How to Screen Developers in India: A Structured Hiring Guide (2026)",
-  "datePublished": "2026-05-23",
-  "dateModified": "2026-05-23",
+  "datePublished": dates.published,
+  "dateModified": dates.modified,
   "author": {
     "@type": "Organization",
     "name": "AssessIQ"
@@ -117,6 +119,7 @@ const breadcrumbSchema = {
 ---
 
 <BaseLayout
+  hasDatedNode
   title="How to Screen Developers in India (2026 Guide)"
   description="A practical guide to screening software developers in India — structured interviews, work-sample tests, reducing time-to-hire, and the India-specific context for campus and lateral hiring in 2026."
   canonicalPath={canonicalPath}
@@ -168,7 +171,7 @@ const breadcrumbSchema = {
       </p>
 
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
-        Published 23 May 2026 &middot; AssessIQ Editorial
+        Published {formatDate(dates.published, true)} &middot; AssessIQ Editorial
       </p>
     </div>
   </header>

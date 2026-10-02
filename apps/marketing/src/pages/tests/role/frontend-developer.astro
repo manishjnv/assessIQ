@@ -2,17 +2,19 @@
 // tests/role/frontend-developer.astro — Frontend Developer Assessment (/tests/role/frontend-developer)
 // JSON-LD: Article + ItemList + FAQPage + BreadcrumbList (per SEO §5.2 / §15)
 // NO aggregateRating, NO fabricated stats (SEO §13 hard rule)
+import { getPageDates } from '../../../lib/page-dates';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/tests/role/frontend-developer');
 const canonicalPath = '/tests/role/frontend-developer';
 
 const articleSchema = {
   "@context": "https://schema.org",
   "@type": "Article",
   "headline": "Frontend Developer Assessment Test: Skills, Battery & Scorecard",
-  "datePublished": "2026-05-24",
-  "dateModified": "2026-05-24",
+  "datePublished": dates.published,
+  "dateModified": dates.modified,
   "author": {
     "@type": "Organization",
     "name": "AssessIQ"
@@ -183,6 +185,7 @@ const batteryTests = [
 ---
 
 <BaseLayout
+  hasDatedNode
   title="Frontend Developer Assessment Test (Coming soon)"
   description="Coming soon: AssessIQ role assessment for hiring frontend developers in India. Competency matrix, benchmark guidance and scorecard outline. Contact us about this test."
   canonicalPath={canonicalPath}

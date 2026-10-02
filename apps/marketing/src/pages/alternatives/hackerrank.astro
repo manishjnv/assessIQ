@@ -5,12 +5,14 @@
 // Fairness rule: HackerRank's genuine strengths acknowledged; no disparagement (SEO §6.3)
 // Research basis: hackerrank.com, Capterra 2026, G2 2026, HackerRank About Us — verified May 2026
 // HackerRank: Santa Clara CA HQ, 26M+ dev community, 2,500+ customers, developer-skills category leader
+import { getPageDates } from '../../lib/page-dates';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
+const dates = getPageDates('/alternatives/hackerrank');
 const slug = '/alternatives/hackerrank';
-const datePublished = '2026-05-23';
-const dateModified  = '2026-05-23';
+const datePublished = dates.published;
+const dateModified  = dates.modified;
 
 const articleSchema = {
   "@context": "https://schema.org",
@@ -127,6 +129,7 @@ const criteria = [
 ---
 
 <BaseLayout
+  hasDatedNode
   title="Best HackerRank Alternatives in 2026"
   description="Looking for a HackerRank alternative? See how AssessIQ compares for India-first technical hiring — and structured rubric scoring."
   canonicalPath="/alternatives/hackerrank"
