@@ -13,9 +13,9 @@ function is32ByteBase64(value: string): boolean {
 
 const ConfigSchema = z
   .object({
-    NODE_ENV: z
-      .enum(["development", "test", "production"])
-      .default("development"),
+    // Required, no default: an unset NODE_ENV used to mean "development", which silently
+    // switched off every production refine below (test minters, ORIGIN_TRUST_MODE). N8.
+    NODE_ENV: z.enum(["development", "test", "production"]),
     LOG_LEVEL: z
       .enum(["trace", "debug", "info", "warn", "error", "fatal"])
       .default("info"),

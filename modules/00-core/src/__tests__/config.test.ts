@@ -82,11 +82,10 @@ describe("loadConfig", () => {
     expect(cfg.AI_PIPELINE_MODE).toBe("anthropic-api");
   });
 
-  it("defaults NODE_ENV to development when not provided", () => {
-    const env = { ...VALID_BASE_ENV };
+  it("requires NODE_ENV (no silent development default)", () => {
+    const env: Record<string, string | undefined> = { ...VALID_BASE_ENV };
     delete env.NODE_ENV;
-    const cfg = loadConfig(env);
-    expect(cfg.NODE_ENV).toBe("development");
+    expect(() => loadConfig(env)).toThrow();
   });
 
   it("defaults LOG_LEVEL to info when not provided", () => {
@@ -284,10 +283,9 @@ describe("test-only session minters are never on in production", () => {
     expect(cfg.ENABLE_EMBED_TEST_MINTER).toBe(true);
   });
 
-  it("NODE_ENV unset defaults to development, so the prod refine does NOT fire", () => {
-    // Documents the residual gap: prod must set NODE_ENV=production (the api Dockerfile does).
+  it("NODE_ENV unset fails boot, so a minter cannot ride on a missing NODE_ENV", () => {
     const env: Record<string, string | undefined> = { ...VALID_BASE_ENV, ENABLE_E2E_TEST_MINTER: "true" };
     delete env.NODE_ENV;
-    expect(loadConfig(env).NODE_ENV).toBe("development");
+    expect(() => loadConfig(env)).toThrow();
   });
 });
