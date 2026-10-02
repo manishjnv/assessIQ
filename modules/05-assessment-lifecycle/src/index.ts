@@ -27,6 +27,7 @@ export {
   createAssessmentFromSet,
   updateAssessment,
   updateAssessmentIntegrity,
+  updateAssessmentGrading,
   publishAssessment,
   closeAssessment,
   cancelAssessment,

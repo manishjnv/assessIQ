@@ -45,6 +45,7 @@ import {
   getAssessmentDetail,
   updateAssessment,
   updateAssessmentIntegrity,
+  updateAssessmentGrading,
   publishAssessment,
   closeAssessment,
   cancelAssessment,
@@ -396,6 +397,25 @@ export async function registerAssessmentLifecycleRoutes(
         );
       }
       return updateAssessmentIntegrity(req.session!.tenantId, id, parsed.data, req.session!.userId);
+    },
+  );
+
+  // PATCH /api/admin/assessments/:id/grading - change only settings.high_stakes
+  // (two-model grading vote; any status).
+  const GradingBodySchema = z.object({ high_stakes: z.boolean() }).strict();
+  app.patch(
+    "/api/admin/assessments/:id/grading",
+    { preHandler: adminOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const parsed = GradingBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Invalid grading body: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+          { details: { code: "INVALID_PARAM", param: "body" } },
+        );
+      }
+      return updateAssessmentGrading(req.session!.tenantId, id, parsed.data, req.session!.userId);
     },
   );
 

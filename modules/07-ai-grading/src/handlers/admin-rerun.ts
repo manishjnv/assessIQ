@@ -91,9 +91,13 @@ async function loadGradingData(
   status: string;
   questions: FrozenQuestionWithRubric[];
   answers: Map<string, unknown>;
+  highStakes: boolean;
 }> {
-  const attemptResult = await client.query<{ status: string }>(
-    `SELECT status FROM attempts WHERE id = $1 LIMIT 1`,
+  const attemptResult = await client.query<{ status: string; high_stakes: boolean }>(
+    `SELECT a.status, COALESCE(s.settings->>'high_stakes' = 'true', false) AS high_stakes
+       FROM attempts a
+       LEFT JOIN assessments s ON s.id = a.assessment_id
+      WHERE a.id = $1 LIMIT 1`,
     [attemptId],
   );
   const attemptRow = attemptResult.rows[0];
@@ -134,6 +138,7 @@ async function loadGradingData(
     status: attemptRow.status,
     questions: qResult.rows,
     answers,
+    highStakes: attemptRow.high_stakes,
   };
 }
 
@@ -184,7 +189,7 @@ export async function handleAdminRerun(
   let markerHeld = false;
 
   try {
-    const { status, questions, answers } = await withTenant(
+    const { status, questions, answers, highStakes } = await withTenant(
       tenantId,
       (client) => loadGradingData(client, attemptId),
     );
@@ -239,6 +244,7 @@ export async function handleAdminRerun(
           rubric: resolveGradingRubric(q.type, q.content, q.rubric),
           answer,
           ...(input.forceEscalate === true ? { force_escalate: true } : {}),
+          ...(highStakes ? { high_stakes: true } : {}),
         };
         const proposal = await gradeSubjective(gradingInput);
         proposals.push(proposal);

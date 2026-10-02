@@ -769,6 +769,43 @@ export async function updateAssessmentIntegrity(
 }
 
 // ---------------------------------------------------------------------------
+// updateAssessmentGrading
+// ---------------------------------------------------------------------------
+
+/**
+ * Change only settings.high_stakes (two-model grading vote). Any status; affects
+ * AI grading runs started afterwards (module 07 reads it live).
+ */
+export async function updateAssessmentGrading(
+  tenantId: string,
+  id: string,
+  grading: { high_stakes: boolean },
+  updatedByUserId: string,
+): Promise<Assessment> {
+  return withTenant(tenantId, async (client) => {
+    const current = await repo.findAssessmentById(client, id);
+    if (current === null) {
+      throw new NotFoundError(`Assessment not found: ${id}`, {
+        details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+      });
+    }
+    const updated = await repo.setHighStakesRow(client, id, grading.high_stakes);
+    const prev = (current.settings as Record<string, unknown> | undefined)?.["high_stakes"] ?? null;
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: updatedByUserId,
+      action: "assessment.updated",
+      entityType: "assessment",
+      entityId: id,
+      before: { high_stakes: prev },
+      after: { high_stakes: grading.high_stakes },
+    });
+    return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // updateAssessment
 // ---------------------------------------------------------------------------
 

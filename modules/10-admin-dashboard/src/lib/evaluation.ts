@@ -70,6 +70,8 @@ export interface AttemptDetailResponse extends EvaluationMeta {
     isErased?: boolean;
     assessment_name: string;
     level_label: string;
+    /** Super-admin payload only: the assessment runs the two-model vote. */
+    high_stakes?: boolean;
   };
   answers: AttemptAnswer[];
   frozen_questions: FrozenQuestion[];

@@ -311,7 +311,9 @@ export async function gradeSubjective(
   // admin's "Re-run with Opus" affordance via handleAdminRerun).
   let escalateSha: { short: string; label: string; model: string } | null = null;
   const shouldEscalate =
-    band.needs_escalation === true || input.force_escalate === true;
+    band.needs_escalation === true ||
+    input.force_escalate === true ||
+    input.high_stakes === true;
   if (shouldEscalate) {
     try {
       const escEvents = await runSkill({
@@ -350,7 +352,8 @@ export async function gradeSubjective(
       const sha = await skillSha(SKILL_ESCALATE);
       escalateSha = { short: sha.short, label: sha.label, model: sha.model };
 
-      if (Math.abs(stage2Band - stage3Band) >= 2) {
+      // High-stakes: the two models must agree exactly; any difference -> manual review.
+      if (Math.abs(stage2Band - stage3Band) >= (input.high_stakes === true ? 1 : 2)) {
         // ≥2-band disagreement: surface to admin, don't auto-pick.
         // The admin sees both verdicts; escalation_chosen_stage='manual'.
         escalationStage = "manual";
@@ -374,7 +377,12 @@ export async function gradeSubjective(
       );
       band = {
         ...band,
-        error_class: band.error_class ?? "escalation_failure",
+        // High-stakes: AIG_-prefixed so deriveStatus -> review_needed and the FE
+        // isAiFailure() filter keeps it out of Accept-all. Otherwise unchanged.
+        error_class:
+          input.high_stakes === true
+            ? AI_GRADING_ERROR_CODES.ESCALATION_FAILURE
+            : (band.error_class ?? "escalation_failure"),
       };
       escalationStage = "2";
     }

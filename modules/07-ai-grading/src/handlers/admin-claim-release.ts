@@ -232,6 +232,7 @@ export interface AttemptReviewRow {
   erased_at: string | null;
   assessment_name: string | null;
   level_label: string | null;
+  high_stakes: boolean;
   started_at: Date | null;
   submitted_at: Date | null;
   tenant_name: string | null;
@@ -287,6 +288,7 @@ export async function loadAttemptReview(
        ${identityCols},
        asm.name      AS assessment_name,
        lvl.label     AS level_label,
+       COALESCE(asm.settings->>'high_stakes' = 'true', false) AS high_stakes,
        a.started_at,
        a.submitted_at,
        t.name        AS tenant_name

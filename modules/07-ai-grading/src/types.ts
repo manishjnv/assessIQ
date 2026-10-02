@@ -120,6 +120,11 @@ export interface GradingInput {
    * `needs_escalation: true`.
    */
   force_escalate?: boolean;
+  /**
+   * High-stakes assessment (settings.high_stakes): Stage 3 always runs and must agree
+   * with Stage 2 exactly; any band difference or Stage-3 failure routes to review.
+   */
+  high_stakes?: boolean;
 }
 
 // ---------------------------------------------------------------------------

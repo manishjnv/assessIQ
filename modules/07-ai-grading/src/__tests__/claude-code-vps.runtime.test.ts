@@ -618,3 +618,63 @@ describe("gradeSubjective — Stage 3 escalation failure is non-fatal", () => {
     expect(proposal.band.error_class).toBe("escalation_failure");
   });
 });
+
+// ---------------------------------------------------------------------------
+// E1 - high_stakes two-model vote
+// ---------------------------------------------------------------------------
+
+function mockStages(stage2: number, stage3: number | "fail"): void {
+  mockSpawn.mockImplementation((_cmd: string, args: readonly string[]) => {
+    const skill = skillFromArgs(args);
+    if (skill === "grade-anchors") {
+      return makeFakeProc([toolUseEvent("submit_anchors", STAGE1_ANCHORS_PAYLOAD)]);
+    }
+    if (skill === "grade-band") {
+      // needs_escalation=false: only high_stakes can trigger Stage 3
+      return makeFakeProc([toolUseEvent("submit_band", bandPayload(stage2, false))]);
+    }
+    if (skill === "grade-escalate") {
+      return stage3 === "fail"
+        ? makeFakeProc([], 1)
+        : makeFakeProc([toolUseEvent("submit_band", bandPayload(stage3, false))]);
+    }
+    throw new Error(`Unexpected skill: ${skill}`);
+  });
+}
+
+describe("gradeSubjective - high_stakes", () => {
+  it("runs Stage 3 and adopts it when both models agree -> stage '3'", async () => {
+    mockStages(2, 2);
+    const p = await gradeSubjective({ ...BASE_INPUT, high_stakes: true });
+    expect(p.escalation_chosen_stage).toBe("3");
+    expect(p.band.reasoning_band).toBe(2);
+  });
+
+  it("1-band difference -> manual, Stage 2 band stays primary", async () => {
+    mockStages(2, 3);
+    const p = await gradeSubjective({ ...BASE_INPUT, high_stakes: true });
+    expect(p.escalation_chosen_stage).toBe("manual");
+    expect(p.band.reasoning_band).toBe(2);
+  });
+
+  it("Stage 3 failure -> AIG_ escalation error_class (routes to review)", async () => {
+    mockStages(2, "fail");
+    const p = await gradeSubjective({ ...BASE_INPUT, high_stakes: true });
+    expect(p.band.error_class).toBe(AI_GRADING_ERROR_CODES.ESCALATION_FAILURE);
+    expect(p.band.error_class?.startsWith("AIG_")).toBe(true);
+    expect(p.escalation_chosen_stage).toBe("2");
+  });
+
+  it("regression: not high_stakes, 1-band difference (forced) -> Stage 3 still wins", async () => {
+    mockStages(2, 3);
+    const p = await gradeSubjective({ ...BASE_INPUT, force_escalate: true });
+    expect(p.escalation_chosen_stage).toBe("3");
+    expect(p.band.reasoning_band).toBe(3);
+  });
+
+  it("regression: not high_stakes, Stage 3 failure keeps the legacy non-AIG error_class", async () => {
+    mockStages(2, "fail");
+    const p = await gradeSubjective({ ...BASE_INPUT, force_escalate: true });
+    expect(p.band.error_class).toBe("escalation_failure");
+  });
+});

@@ -110,6 +110,37 @@ afterAll(async () => {
   if (container !== undefined) await container.stop();
 });
 
+const patchGrading = (id: string, body: unknown, tenant: "A" | "B" = "A") =>
+  app.inject({
+    method: "PATCH",
+    url: `/api/admin/assessments/${id}/grading`,
+    headers: { "x-test-tenant": tenant, "content-type": "application/json" },
+    payload: JSON.stringify(body),
+  });
+
+describe("PATCH /api/admin/assessments/:id/grading", () => {
+  it("sets only high_stakes (other keys kept), works after publish, audited", async () => {
+    const id = await newAssessment({ extra: { keep: 1 }, integrity: { fullscreen: true } }, "published");
+    const res = await patchGrading(id, { high_stakes: true });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().settings.high_stakes).toBe(true);
+    const [row] = await sql(`SELECT settings, status FROM assessments WHERE id = $1`, [id]);
+    expect(row.status).toBe("published");
+    expect(row.settings).toEqual({ extra: { keep: 1 }, integrity: { fullscreen: true }, high_stakes: true });
+    const audit = await sql(`SELECT before, after FROM audit_log WHERE entity_id = $1 AND action = 'assessment.updated'`, [id]);
+    expect(audit).toHaveLength(1);
+    expect(audit[0].before).toEqual({ high_stakes: null });
+    expect(audit[0].after).toEqual({ high_stakes: true });
+  });
+
+  it("rejects a bad body and another tenant's assessment", async () => {
+    const id = await newAssessment({});
+    expect((await patchGrading(id, { high_stakes: "yes" })).statusCode).toBe(400);
+    expect((await patchGrading(id, { high_stakes: true, extra: 1 })).statusCode).toBe(400);
+    expect((await patchGrading(id, { high_stakes: true }, "B")).statusCode).toBe(404);
+  });
+});
+
 describe("PATCH /api/admin/assessments/:id/integrity", () => {
   it("merges only integrity (blueprint + other keys kept), works after publish, writes one audit row", async () => {
     const blueprint = { criteria: [{ domain: "soc", count: 3 }] };

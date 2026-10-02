@@ -91,8 +91,10 @@ async function currentShas(): Promise<{ anchors: string; band: string } | null> 
  */
 export async function reuseProposal(
   client: PoolClient,
-  p: { attemptId: string; questionId: string; questionVersion: number; points: number; answer: unknown },
+  p: { attemptId: string; questionId: string; questionVersion: number; points: number; answer: unknown; highStakes?: boolean },
 ): Promise<GradingProposal | null> {
+  // High-stakes: a reused grade may have come from a single model - always re-vote.
+  if (p.highStakes === true) return null;
   const { rows } = await client.query<Candidate>(
     `SELECT g.id, aa.answer, g.score_earned, g.score_max, g.reasoning_band, g.anchor_hits,
             g.prompt_version_sha, g.prompt_version_label
