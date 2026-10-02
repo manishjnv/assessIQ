@@ -156,11 +156,10 @@ const COVERAGE: Array<{
   {
     file: "admin-generate.ts",
     expectedActions: ["question.ai_generated"],
-    // 3 because admin-generate has 3 success-return branches (sharded, omnibus
-    // single-call, omnibus chunked) — each emits one audit row before its
-    // branch return. Reducing to 1 requires a helper refactor; the inline
-    // repetition is intentional per the implementation change-log.
-    expectedCallCount: 3,
+    // 1 since RV64 (2026-10-03): the three generation branches (sharded,
+    // omnibus single-call, omnibus chunked) share runGenerationPlan, which
+    // emits the one audit row after the insert.
+    expectedCallCount: 1,
   },
 ];
 
