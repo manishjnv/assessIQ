@@ -42,6 +42,7 @@ import { AdminShell } from "../components/AdminShell.js";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { CandidateCsvImport } from "../components/CandidateCsvImport.js";
 import { IntegrityCard, type IntegrityValue } from "../components/IntegrityCard.js";
+import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
 import { RemindersCard, type RemindersValue } from "../components/RemindersCard.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
@@ -63,7 +64,8 @@ interface Assessment {
   created_at: string;
   level_label?: string | null;
   pack_name?: string | null;
-  settings?: { integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean } | null;
+  settings?: { integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean; sections?: unknown } | null;
+  question_count?: number;
 }
 
 interface Invitation {
@@ -1110,6 +1112,20 @@ export function AdminAssessmentDetail(): React.ReactElement {
         </Modal>
 
         <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />
+        <SectionsCard
+          key={`sec-${assessment.id}`}
+          assessmentId={assessment.id}
+          settings={assessment.settings as Record<string, unknown> | null | undefined}
+          hasAttempts={hasAttempts}
+          isDraft={assessment.status === "draft"}
+          onSaved={(settings, qc) =>
+            setAssessment({
+              ...assessment,
+              settings: settings as Assessment["settings"],
+              ...(qc !== null ? { question_count: qc } : {}),
+            })
+          }
+        />
         <HighStakesCard key={`hs-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.high_stakes === true} />
         <RemindersCard key={`rem-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.reminders} />
 
