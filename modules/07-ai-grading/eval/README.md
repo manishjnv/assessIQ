@@ -204,8 +204,12 @@ super-admin evaluations), before any AI spawn. Question generation is not gated.
 the platform evaluations page shows a banner when `approved` is false.
 
 **Bootstrap order** (on the VPS, `/srv/assessiq`): `mkdir -p modules/07-ai-grading/eval/baselines`
-(the api container bind-mounts it read-only) -> `run --mode claude-code-vps` -> `compare --run <ISO>`
--> `bless --run <ISO>` -> only then set `AI_EVAL_GATE=enforce` in `.env` and recreate `assessiq-api`.
+(the api container bind-mounts it read-write), then run the harness **inside the api container**
+so it reads the same skills mount and Claude login as live grading (a host run would hash
+`/root/.claude/skills`, which may differ, and the gate would never match):
+`docker exec -e AIQ_ADMIN_USER_ID=<super-admin-uuid> assessiq-api pnpm tsx modules/07-ai-grading/eval/cli.ts run --mode claude-code-vps`
+-> `... compare --run <ISO>` -> `... bless --run <ISO>` (runs/ is container-local, so do all three
+before recreating the container) -> only then set `AI_EVAL_GATE=enforce` in `.env` and recreate `assessiq-api`.
 Every later skill edit repeats run -> compare -> bless. Setting `enforce` before the first bless
 blocks all AI grading.
 

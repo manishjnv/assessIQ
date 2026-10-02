@@ -105,11 +105,12 @@ services:
       - /root/.claude:/home/node/.claude:rw
       - /root/.claude.json:/home/node/.claude.json:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
-      # E2 eval gate: blessed eval baselines (gitignored, written on the host by
-      # `eval/cli.ts bless`) read-only at the path eval-gate.ts resolves by default
-      # (<module>/eval/baselines under the image's /app). Host dir must exist
-      # (mkdir -p) or Docker creates it root-owned.
-      - ../modules/07-ai-grading/eval/baselines:/app/modules/07-ai-grading/eval/baselines:ro
+      # E2 eval gate: blessed eval baselines (gitignored) at the path eval-gate.ts
+      # resolves by default (<module>/eval/baselines under the image's /app). rw because
+      # the eval must run INSIDE this container (same skills mount + Claude login as the
+      # runtime, so skill shas match) and `bless` writes here; on the host the dir
+      # survives container recreates. Host dir must exist (mkdir -p) before `up`.
+      - ../modules/07-ai-grading/eval/baselines:/app/modules/07-ai-grading/eval/baselines:rw
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
       # assessiq-mcp: stdio MCP server providing submit_anchors / submit_band /
