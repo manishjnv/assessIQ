@@ -266,3 +266,12 @@ Why this matters: Phase 1 grading's compliance frame in [docs/05-ai-pipeline.md 
 ## numeric / multi_select are never sent to AI (2026-10-02)
 
 Only the "non-MCQ" evaluation-queue predicates changed: `q.type <> 'mcq'` became `q.type NOT IN ('mcq','numeric','multi_select')` in `repository.ts` (super-admin queue lateral join) and `handlers/super-evaluations.ts` (`assertInEvaluationQueue`), so an attempt made only of deterministic types never enters the queue. `AI_GRADEABLE_TYPES` (`admin-grade.ts`, `admin-rerun.ts`) is an allowlist (subjective / scenario / log_analysis) and needed no change. The lint guard `ci/lint-no-ambient-claude.ts` is untouched.
+
+## Least-AI tiers 1-2: rule + reuse (SP5, 2026-10-02)
+
+`handleAdminGrade` now resolves each AI-gradeable question through `src/least-ai.ts` BEFORE the runtime. Both tiers return ordinary `GradingProposal`s tagged `source: 'rule' | 'reuse'` (optional field, absent = AI) and are cached in `attempts.ai_proposals` like AI ones. D8 is unchanged: no `insertGrading` here, the evaluator's Accept still writes the row (as `grader='ai'`, `model='rule'|'reuse'`). The runtime is never called for a question a tier resolves; if every question resolves, no AI call happens.
+
+- **Tier 1 rule:** all string leaves of the answer, whitespace stripped, < 3 chars -> band 0, "No answer given", sha `rule:blank-v1`. Never awards marks, no keyword matching. Off-topic detection is out of scope (needs AI).
+- **Tier 2 reuse key:** same tenant (RLS) + `question_id` + `attempt_questions.question_version` + same points + identical normalised answer (trim, collapse whitespace, case-fold, structure kept) + source grading pinned to the CURRENT `grade-band` (and `grade-anchors` when stage 1 ran) skill sha. Source must be `grader='ai'`, `status` correct/incorrect/partial, the newest grading of its question (so an overridden or re-evaluated grade is NOT reused), on a graded/released attempt. Matching sources that disagree on score -> no reuse. Skills unreadable -> no reuse. Proposal sha is `reuse:<source sha>` (distinct from AI so a later Re-run is not idempotent-skipped); reason "Same answer as an earlier accepted grade", `reused_from_grading_id` points at the source.
+- **Why admin overrides are not sources:** an override row is one human's judgment with a reason, and a superseded AI grade is no longer final; only an untouched accepted AI grade is safe to repeat.
+- **Not touched:** `admin-rerun.ts` (explicit Re-run stays AI), prompts/skills, the lint guard. UI: `GradingProposalCard` shows a "Rule" / "Reused" chip.

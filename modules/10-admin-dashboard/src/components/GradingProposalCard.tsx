@@ -56,6 +56,11 @@ export function GradingProposalCard({
               Stage 3
             </span>
           )}
+          {(proposal.source === "rule" || proposal.source === "reuse") && (
+            <span data-test-id="proposal-source-chip" style={{ border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-pill)", fontSize: 10, padding: "1px 6px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
+              {proposal.source === "rule" ? "Rule" : "Reused"}
+            </span>
+          )}
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
             {proposal.prompt_version_label}
           </span>
