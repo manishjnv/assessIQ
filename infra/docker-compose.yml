@@ -111,6 +111,11 @@ services:
       # runtime, so skill shas match) and `bless` writes here; on the host the dir
       # survives container recreates. Host dir must exist (mkdir -p) before `up`.
       - ../modules/07-ai-grading/eval/baselines:/app/modules/07-ai-grading/eval/baselines:rw
+      # N5: the golden set lives ONLY on the VPS (repo is public: cases hold expected grades),
+      # gitignored like baselines; rw so harvest-overrides can add cases. runs/ is mounted so
+      # run -> compare -> bless survives a container recreate. Host dirs must exist (mkdir -p).
+      - ../modules/07-ai-grading/eval/cases-private:/app/modules/07-ai-grading/eval/cases-private:rw
+      - ../modules/07-ai-grading/eval/runs:/app/modules/07-ai-grading/eval/runs:rw
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
       # assessiq-mcp: stdio MCP server providing submit_anchors / submit_band /
