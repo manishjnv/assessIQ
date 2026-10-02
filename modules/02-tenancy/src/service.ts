@@ -146,7 +146,7 @@ export interface CreateTenantResult {
 
 export async function createTenant(
   input: CreateTenantInput,
-  _createdBySuperAdminUserId: string,
+  createdBySuperAdminUserId: string,
 ): Promise<CreateTenantResult> {
   log.info({ slug: input.slug, name: input.name }, "createTenant: provisioning");
 
@@ -184,6 +184,19 @@ export async function createTenant(
       `INSERT INTO tenant_settings (tenant_id) VALUES ($1)`,
       [tenantId],
     );
+
+    // RV59: audit in the SAME tx. Row lives in the NEW tenant's audit log
+    // (same rule as suspendTenant: audit goes to the target tenant). Still
+    // under assessiq_system (BYPASSRLS), so no app.current_tenant is needed.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: createdBySuperAdminUserId,
+      action: "tenant.provisioned",
+      entityType: "tenant",
+      entityId: tenantId,
+      after: { slug: input.slug, name: input.name },
+    });
 
     await client.query("COMMIT");
   } catch (err) {

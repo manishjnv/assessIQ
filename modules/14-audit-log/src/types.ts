@@ -120,6 +120,9 @@ export const ACTION_CATALOG = [
   // tenant.created: fired on full success (provisioning→active flip complete).
   // tenant.create_incomplete: fired when provisioning succeeds but a later step
   // (taxonomy seed or admin invite) fails; tenant stays 'provisioning'.
+  // tenant.provisioned: written inside createTenant's own tx (RV59), before
+  // taxonomy seed / invite / activate.
+  'tenant.provisioned',
   'tenant.created',
   'tenant.create_incomplete',
   // Phase 5 Credentialize — certificate issuance + tier upgrade.
