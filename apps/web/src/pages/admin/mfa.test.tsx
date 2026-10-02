@@ -13,10 +13,10 @@
  *   M5 — "Copy all" calls navigator.clipboard.writeText; button label → 'Copied!'
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, type NavigateFunction } from 'react-router-dom';
 
 import { api } from '../../lib/api';
 import { useSession, fetchWhoami } from '../../lib/session';
@@ -53,7 +53,7 @@ const RECOVERY_CODES = [
   'FFFFFFFF', 'GGGGGGGG', 'HHHHHHHH', 'IIIIIIII', 'JJJJJJJJ',
 ];
 
-let mockNavigate: ReturnType<typeof vi.fn>;
+let mockNavigate: Mock;
 
 // ---------------------------------------------------------------------------
 // Per-test setup / teardown
@@ -61,7 +61,7 @@ let mockNavigate: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   mockNavigate = vi.fn();
-  vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+  vi.mocked(useNavigate).mockReturnValue(mockNavigate as unknown as NavigateFunction); // overloaded type; Mock cannot model it
 
   vi.mocked(useSession).mockReturnValue({
     session: {

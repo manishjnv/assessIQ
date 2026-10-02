@@ -61,3 +61,9 @@ modules/**/SKILL.md
 PROJECT_BRAIN.md
 RCA_LOG.md
 README.md
+
+# Eval golden set + run output live on the VPS only (expected grades, harvested
+# student answers). Runtime gets them via bind mounts; never bake into image layers.
+modules/07-ai-grading/eval/cases-private
+modules/07-ai-grading/eval/runs/*/
+modules/07-ai-grading/eval/baselines/*.json
