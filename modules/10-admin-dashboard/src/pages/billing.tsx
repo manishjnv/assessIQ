@@ -1,22 +1,25 @@
-// AssessIQ — Admin billing settings page.
+// AssessIQ — Admin "Plan & usage" settings page.
 //
-// /admin/settings/billing
+// Routes (apps/web/src/App.tsx, role="admin"; super_admin also passes):
+//   /admin/settings                 — renders this page
+//   /admin/settings/billing         — back-compat redirect to /admin/settings
 //
-// User-facing: plain-language explanation of AI grading costs and monthly limits.
-// Rewritten 2026-05-04: removed internal project jargon (Phase 2/3, Max OAuth,
-// P2.D6, tenant_grading_budgets, "platform admin updates the database directly")
-// and replaced with answers to "what does this mean for me right now?"
+// What the page shows, top to bottom:
+//   1. Super-admin-only "AI Generation Mode" card (omnibus / sharded, per
+//      tenant, audit-logged). Rendered only when session.user.role ===
+//      'super_admin'. Tenant admins see nothing — no greyed-out control, no
+//      tooltip mentioning the option.
+//   2. "Your plan & usage" card (all admins): plan tier, credits used,
+//      included, remaining, overage, and a status chip. Data comes from
+//      getCompanyUsage(); the card stays hidden if that call fails.
+//   3. Static "How evaluation and usage work" and "Questions about your plan"
+//      cards, plus a link to the Help guide.
+//   4. The embedded <TenantSettings embedded /> block (DPDP data retention and
+//      other tenant-level controls). /admin/tenant-settings stays as an alias
+//      for direct URL access.
 //
-// 2026-05-10: Added super-admin-only AI Generation Mode card (Stage 3 rollout).
-// Rendered only when session.user.role === 'super_admin'. Tenant admins see
-// nothing — no greyed-out control, no tooltip mentioning the option.
-//
-// Technical context (for engineers, not users):
-//   - Phase 2 grading uses the admin's Claude Max OAuth session via VPS runtime.
-//   - No per-tenant billing or token metering at this stage.
-//   - Budget guard (P2.D6): tenant_grading_budgets row hard-blocks at 100 runs/month.
-//   - Limit changes require platform admin to update the database directly until
-//     a Phase 3 management UI ships.
+// History: 2026-05-04 rewritten in plain language (no internal project
+// jargon). 2026-05-10 added the super-admin AI Generation Mode card.
 //
 // INVARIANTS:
 //   - No claude/anthropic imports or user-facing references.
