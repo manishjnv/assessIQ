@@ -51,6 +51,20 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # 7-api. apps/api route tests — the root vitest config only covers
+      # modules/** and packages/**, so apps/api needs its own run. Some tests
+      # start Postgres/Redis testcontainers (Docker is available on ubuntu-latest).
+      - name: Test (apps/api)
+        run: pnpm --filter @assessiq/api test
+
+      # 7-audit. Dependency scanning (D6). Critical advisories block; highs are
+      # logged for visibility only.
+      - name: Dependency audit (critical, blocking)
+        run: pnpm audit --prod --audit-level=critical
+
+      - name: Dependency audit (high, informational)
+        run: pnpm audit --prod --audit-level=high || true
+
       # 7a. AI generation eval gate — Stage 1.5+
       # Validates the 75 golden questions (5 types × L1+L2+L3) parse
       # against the structural Zod schemas in eval/runner.ts. Catches:
