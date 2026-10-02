@@ -41,6 +41,7 @@ import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { CandidateCsvImport } from "../components/CandidateCsvImport.js";
+import { IntegrityCard, type IntegrityValue } from "../components/IntegrityCard.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
 
@@ -60,6 +61,7 @@ interface Assessment {
   created_at: string;
   level_label?: string | null;
   pack_name?: string | null;
+  settings?: { integrity?: IntegrityValue } | null;
 }
 
 interface Invitation {
@@ -1098,6 +1100,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
             </button>
           </div>
         </Modal>
+
+        <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />
 
         {/* Invitations section */}
         <div>

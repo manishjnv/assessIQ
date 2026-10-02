@@ -33,6 +33,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { AuthzError, ValidationError } from "@assessiq/core";
+import { z } from "zod";
 import {
   listAssessments,
   createAssessment,
@@ -41,6 +42,7 @@ import {
   resyncLicensedSet,
   getAssessmentDetail,
   updateAssessment,
+  updateAssessmentIntegrity,
   publishAssessment,
   closeAssessment,
   cancelAssessment,
@@ -371,6 +373,27 @@ export async function registerAssessmentLifecycleRoutes(
       }
 
       return updateAssessment(tenantId, id, patch, userId);
+    },
+  );
+
+  // PATCH /api/admin/assessments/:id/integrity — change only the integrity
+  // switches (any status); merged into settings server-side.
+  const IntegrityBodySchema = z
+    .object({ fullscreen: z.boolean(), block_copy_paste: z.boolean() })
+    .strict();
+  app.patch(
+    "/api/admin/assessments/:id/integrity",
+    { preHandler: adminOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const parsed = IntegrityBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Invalid integrity body: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+          { details: { code: "INVALID_PARAM", param: "body" } },
+        );
+      }
+      return updateAssessmentIntegrity(req.session!.tenantId, id, parsed.data, req.session!.userId);
     },
   );
 

@@ -474,6 +474,24 @@ export async function updateAssessmentRow(
   return mapAssessmentRow(row);
 }
 
+/** Replace ONLY settings.integrity (other settings keys, e.g. blueprint, are kept) in one UPDATE. */
+export async function setIntegrityRow(
+  client: PoolClient,
+  id: string,
+  integrity: { fullscreen: boolean; block_copy_paste: boolean },
+): Promise<Assessment> {
+  const result = await client.query<AssessmentRow>(
+    `UPDATE assessments
+        SET settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{integrity}', $2::jsonb),
+            updated_at = now()
+      WHERE id = $1 RETURNING ${ASSESSMENT_COLUMNS}`,
+    [id, JSON.stringify(integrity)],
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`setIntegrityRow: no row found for id ${id}`);
+  return mapAssessmentRow(row);
+}
+
 /**
  * Bulk status boundary update — called by the cron boundary job once per
  * tenant (the caller iterates tenants externally and wraps each call in
