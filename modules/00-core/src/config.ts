@@ -193,8 +193,8 @@ const ConfigSchema = z
     // ── Postgres pool ───────────────────────────────────────────────────────
     // Max clients in the single pg.Pool (modules/02-tenancy/src/pool.ts) of EACH
     // process (api, worker). Postgres max_connections is the default 100 (3
-    // reserved for superuser; compose sets no override). api 30 + worker 30 = 60,
-    // leaving ~37 for migrations / psql / backups. Lower on the worker via env.
+    // reserved for superuser). Compose overrides per service (api 40, worker 15,
+    // + 2x5 system pools = 65; ~32 left for migrations / psql / backups).
     PG_POOL_MAX: z.coerce.number().int().positive().default(30),
 
     // ── Origin-verify anti-IP-spoof ─────────────────────────────────────────

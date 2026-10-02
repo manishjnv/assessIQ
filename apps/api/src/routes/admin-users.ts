@@ -12,7 +12,7 @@ import {
   parseCandidateCsv,
 } from '@assessiq/users';
 import { getAssessment, inviteUsers } from '@assessiq/assessment-lifecycle';
-import { logLifecycleEvent } from '@assessiq/auth';
+import { logLifecycleEvent, sessions } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
 import { eraseCandidatePii, exportCandidateData } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
@@ -457,6 +457,11 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
         reason,
         session.userId,
       );
+
+      // R11: an erased candidate must lose access now — revokes their sessions
+      // and drops the sessionLoader status-cache entry (loader also rejects
+      // erased_at IS NOT NULL on the DB check). Idempotent on re-erase.
+      await sessions.destroyAllForUser(userId, session.tenantId);
 
       return reply.code(200).send(receipt);
     },

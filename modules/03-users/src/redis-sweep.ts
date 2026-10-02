@@ -98,7 +98,9 @@ export async function sweepUserSessions(userId: string): Promise<void> {
     if (sessionKeys.length > 0) {
       await redis.del(...sessionKeys);
     }
-    await redis.del(indexKey);
+    // R11: also drop the 01-auth sessionLoader status-cache entry (30 s TTL)
+    // so a disable / soft-delete locks the user out instantly.
+    await redis.del(indexKey, `aiq:sess-status:u:${userId}`);
     log.info({ userId, swept: sessionKeys.length }, 'redis-sweep: user sessions swept');
   } catch (err) {
     // Log and continue — Postgres sessionLoader is the belt for these suspenders.

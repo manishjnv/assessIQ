@@ -340,3 +340,17 @@ No audit row is emitted when `request-link` receives an email that does not matc
 | Session hijacking | `aiq_sess` cookie is `HttpOnly; Secure; SameSite=Lax`; 30-day fixed window reduces re-auth surface without adding sliding-window extension risk |
 | Cross-tenant token use | `tenant_id` is validated on both the lookup and the RLS policy; a token from Tenant A cannot be consumed against Tenant B's endpoint because the `withTenant(tenantId)` call sets `app.current_tenant` before the UPDATE, and the RLS policy filters by that GUC |
 | Token storage leak | Only `sha256(token).hex` is persisted; plaintext lives only in the email body and the browser address bar during the redirect; it is never logged by AssessIQ |
+
+## sessionLoader status cache (R11, 2026-10-02)
+
+**What.** `middleware/session-loader.ts` caches the per-request "is this user / tenant still active?" verdict in Redis for 30 s (`SESS_STATUS_TTL_SEC`) so a campus drive (hundreds of students, one IP, polling) no longer costs 2 `withTenant` DB round trips per authenticated request. Keys: `aiq:sess-status:u:<userId>` (value = the tenantId it was verified under) and `aiq:sess-status:t:<tenantId>` (value `"1"`). No PII, no role (role/tenant come only from the signed session).
+
+**Invariants (tested in `__tests__/session-status-cache.test.ts`).**
+- Positive-only: only an "active" verdict is cached; negatives never are, so the cache can delay a lockout (<= 30 s) but never extend one.
+- A user hit must equal `session.tenantId`; otherwise it is ignored.
+- Instant lockout in the normal path: `sessions.destroyAllForUser` (DEL user key), `sessions.destroyAllForTenant` (DEL tenant key; called by admin-super suspend/archive), `03-users/redis-sweep.sweepUserSessions` (disable / soft-delete), and the admin erase route (`apps/api/.../admin-users.ts` calls `destroyAllForUser` after `eraseCandidatePii`). Retention-cron erasure relies on the 30 s TTL (those users' sessions are long expired).
+- Redis error on get/set => fall through to the DB check (fail-safe, never fail-open).
+- DB check now also rejects `users.erased_at IS NOT NULL` (previously erased candidates kept sessions).
+- Known bounded race: a DB read that straddles a suspend can re-populate "active" after the DEL; it expires within 30 s.
+
+**Not done.** Middleware order unchanged (no pre-guard before sessionLoader). PG pool budget: compose sets api 40 / worker 15 (`API_PG_POOL_MAX` / `WORKER_PG_POOL_MAX`), see `.env.example`.
