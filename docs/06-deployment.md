@@ -1531,12 +1531,31 @@ See `docs/plans/SCORING_RESULT_RELEASE.md` and `docs/plans/PILOT_READINESS_BATCH
 
 **Why not `/verify/...` for the sample certificate:** `/verify/*` is in the `@api` matcher (to the API). The demo page must be SPA-served, so it lives under `/try/`.
 
-**Required edge change (NOT yet applied; infra is owner-gated).** `/try` is not in the `@app` matcher, so today it falls to the marketing container and 404s. Add it, additively, to the `assessiq.in` block (and mirror in `infra/caddyfile/assessiq.snippet`):
+**Edge change APPLIED 2026-10-02 (owner-approved).** `/try /try/*` was added to the shared Caddy `@app` matcher of the `assessiq.in` block, which now reads:
 ```caddy
 @app  path /admin /admin/* /candidate /candidate/* /take /take/* /try /try/* /assets/* /brand/*
 ```
-Apply with the same inode-safe procedure as the 2026-05-22 flip (backup, validate in container, truncate-write, reload). `pnpm lint:edge-routing` needs no change: it checks Fastify mounts only, and `/try` is not one.
+Procedure: backup `Caddyfile.bak.20261002T034840Z` next to the Caddyfile, validate in the container, inode-safe truncate-write (no `mv`, so the bind mount keeps its inode), reload. Additive only; no other site block touched. Mirror kept in `infra/caddyfile/assessiq.snippet`. `pnpm lint:edge-routing` needs no change (it checks Fastify mounts only). Live check: `/try` 200.
+
+**Bug hit and fixed (RCA 2026-10-02).** The first build put the OG image in `apps/web/public/try/`. A real `try/` folder in the frontend nginx root makes `/try` a directory: 301 then 403, so the SPA never loaded. Fixed in `e426760` by moving the image to `public/brand/social/try-og.png`. Rule: never create a folder under `apps/web/public/` named like an SPA route.
 
 **Known limit:** the SPA serves one static `index.html`, so a shared `/try` link unfurls with the default AssessIQ OG image; link crawlers do not run JS. To unfurl with `/brand/social/try-og.png`, give `/try` its own static HTML (or a Caddy rewrite) later.
 
 **Rollback:** remove `/try /try/*` from `@app`; the page then 404s via marketing and the home CTA should be reverted.
+
+
+## Batch 4 deploy (2026-10-02, HEAD `e752be6`)
+
+**Migrations applied by hand** (same procedure as batch 2/3, before recreating api/worker/frontend):
+- 0132: `attempt_questions.section_index`, `attempts.section_progress` (test sections, 06).
+- 0133: help rows for test sections and calculator (16).
+- 0134: `assessment_invitations.reminded_at` (invitation reminders, 05).
+- 0135: help row `admin.assessment.reminders` (16). Help rows total 175 after this batch.
+
+**Edge:** Caddy `@app` gained `/try /try/*` (see the `/try` section above; backup `Caddyfile.bak.20261002T034840Z`).
+
+**New worker job: `invitation.reminders`.** Registered as a BullMQ repeatable in `apps/api/src/worker.ts` (every 30 min, `attempts: 1`; handler `apps/api/src/jobs/invitation-reminders.ts`, logic in 05 `reminders.ts`). It is NOT an AI job; the worker's stale-repeatable cleanup keeps it by name. Limits: 25 emails per tick, 100 per trailing 24 h across the platform, bulk email lane. Does nothing unless an assessment has `settings.reminders.enabled`. Verify: the repeatable `invitation.reminders` is listed in the worker queue; rollback: untick per assessment, or remove the registration. See `docs/plans/INVITATION_REMINDERS.md`.
+
+**New boot requirement:** production refuses to start unless `ORIGIN_TRUST_MODE=enforce` (04 batch 4 notes). Prod already runs enforce; api and worker were confirmed after the recreate.
+
+**Post-deploy checks (all passed):** `/api/health` 200; `/try` 200; `POST .../finish-section` and `PATCH .../reminders` return 401 logged out; `invitation.reminders` repeatable registered; 175 help rows; api and worker env `ORIGIN_TRUST_MODE=enforce`; 0 api/worker errors in logs.

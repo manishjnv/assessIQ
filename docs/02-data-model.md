@@ -1656,3 +1656,37 @@ Constraint `questions_type_check` is dropped and re-added with `numeric` and `mu
 - **Considered and rejected.** Writing `failed` from a BullMQ `failed` event (needs a second worker hook).
 - **Not included.** `attempts: 5` means 4 retries, so the 12 h step is defined but never reached; raising it changes the published contract and awaits a decision.
 - **Impact.** Dashboards counting `pending` will drop; `failed` rows can be re-sent by the existing resend path.
+
+
+
+## Batch 4 notes (2026-10-02)
+
+### Migration 0132: `attempt_questions.section_index`, `attempts.section_progress`
+
+- **What.** `attempt_questions.section_index SMALLINT NULL` (index into `assessments.settings.sections`, frozen at attempt start in the same INSERT that freezes the question version) and `attempts.section_progress JSONB NULL` (`{"current": int, "started_at": iso}`). `NULL` on both means "no sections" (every pre-existing row) or "still in section 0 since `started_at`". Column adds only; RLS policies and GRANTs already cover both tables. Owned by 06.
+- **Why.** Per-section timers must be server-authoritative. The deadline of each section is derived from `section_progress` plus the section's `minutes`; it advances lazily (the next read/write after a deadline) or on "Finish section". Freezing `section_index` per question keeps the section draw stable even if the pack changes later.
+- **Considered and rejected.** A separate `attempt_sections` table (more joins and a second RLS surface for two small facts); storing deadlines per section (stale the moment an admin edits minutes, and extra writes); client-held timers (not enforceable).
+- **Not included.** No per-section score column or breakdown; no backfill (old attempts stay `NULL`); no guard on editing `settings.sections` after attempts started (it would move their deadlines).
+- **Impact.** 06 `getAttemptForCandidate` returns only the running section's questions for sectioned attempts; saves to a locked section return `AE_SECTION_LOCKED` (see 03). `attempts.duration_seconds` / `ends_at` for a sectioned attempt = sum of section minutes. Apply before deploying the code (done by hand 2026-10-02).
+
+### `assessments.settings.sections` (JSONB, no migration)
+
+- **What.** `sections?: Array<{ name (1-80), category_ids? (uuid[], 1-50), question_count? (1-500), minutes (1-300), calculator? }>`, 1-10 entries, strict zod (`AssessmentSectionsSchema`, module 05). Each section needs `question_count` and/or `category_ids`. Validated in `createAssessment` and `updateAssessment`. Cannot be combined with `settings.blueprint`.
+- **Why a parallel structure and not the blueprint.** The blueprint is single-domain `(category, type, count)` criteria with no time or order dimension and is super-admin-only. Sections need a name, a deadline and a calculator flag per group, and must work for the licensed-set path company admins use.
+- **`minutes` is required** (the first contract said optional): a section without its own deadline would need a second timing mode.
+- **Not included.** `category_ids` are not checked for tenant ownership (a foreign id matches nothing and the start fails with `POOL_TOO_SMALL`). No section edit UI after creation.
+- **Impact.** The create form has a sections editor (10); the candidate UI shows a section header, timer and optional calculator (11).
+
+### Migration 0134: `assessment_invitations.reminded_at`
+
+- **What.** `reminded_at TIMESTAMPTZ NULL`, no default (metadata-only on Postgres 16). RLS unchanged. Owned by 05. Migration 0135 only seeds a help row (`admin.assessment.reminders`).
+- **Why.** The worker job claims a row with `UPDATE ... SET reminded_at = now() WHERE id = $1 AND reminded_at IS NULL RETURNING ...`, so overlapping ticks or two workers can never both send. It also drives the "Reminder sent <time>" label and the 100-per-24 h platform cap (count of rows reminded in the last 24 h). A failed email clears its own claim.
+- **Considered and rejected.** A `reminders` table (one reminder per invitation does not need history); BullMQ delayed jobs per invitation (Redis state, lost on edit; a DB sweep is idempotent and survives deploys).
+- **Not included.** No multi-offset reminders; no per-tenant caps.
+- **Impact.** `reissueInvitation` (resend / re-invite) resets `reminded_at` to NULL: the fresh 7-day link may earn one new reminder. `GET .../invitations` rows now include `reminded_at`.
+
+### `assessments.settings.reminders` (JSONB, no migration)
+
+- **What.** `reminders?: { enabled: boolean, hours_before?: 1..168 }`, strict zod. Absent = OFF. `hours_before` defaults to 24 when enabled. Written only through `PATCH /api/admin/assessments/:id/reminders` (see 03).
+- **Why.** Default OFF: Brevo free is 300 emails/day shared by several products, and a reminder is the lowest-value mail.
+- **Not included.** Revoked or lapsed links are never reminded; no reminder once a candidate has started. Full design: `docs/plans/INVITATION_REMINDERS.md`.

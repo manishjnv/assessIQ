@@ -1,3 +1,38 @@
+# Session — 2026-10-02 (h) — batch 4 live
+
+**Headline:** Batch 4 is live on prod (HEAD `e752be6`, deployed 2026-10-02): public `/try` demo, least-AI grading tiers 1-2, invitation reminders, test sections + calculator, trusted client IP, erased-candidate guards.
+**Commits (`f8715a5..e752be6`):**
+- `4e59b18` + `e426760` feat/fix(web,marketing): `/try` + `/try/certificate`; OG image moved out of `public/try/`
+- `4ff2577` + `dea16b4` feat/fix(07): least-AI tiers (codex revise: case kept, band must match)
+- `4b82e0e` feat(13,05,10): invitation reminders (0134, help 0135)
+- `4ff4112` feat(05,06,10,11): test sections with per-section timers + calculator (0132, help 0133)
+- `f624775` + `e752be6` fix(01,api,05,07): client IP, invitation failure-only brake, `CANDIDATE_ERASED` guards, prod requires enforce
+**Deploy:** migrations 0132-0135 by hand; Caddy `@app` gained `/try /try/*` (owner-approved, backup `Caddyfile.bak.20261002T034840Z`, inode-safe). Checks: health 200, `/try` 200, finish-section + reminders routes 401 logged out, `invitation.reminders` repeatable registered, 175 help rows, api + worker `ORIGIN_TRUST_MODE=enforce`, 0 api/worker errors.
+**Tests:** typecheck 0, lint 0; 05 135, 06 263, 07 383, 09 102, 10 99, 11 114, 13 246, 16 93, 18 136, web 57 passed; `apps/api` 6 pre-existing failures (also on origin/main, not run by CI; RCA 2026-10-02).
+**Adversarial sign-offs:** least-AI codex revise-addressed (trailer on `dea16b4`); client-IP / erased codex revise-addressed (trailer on `e752be6`: prod enforce boot rule, failure-only invite brake).
+**Next:** owner dry-run of the scoring script; then N1 sections follow-ups and N2 (add `apps/api` to CI); E13 e2e stays last.
+**Open questions:**
+- Approve the push-gate hook fix (jq-less sed truncation)? (PENDING N3)
+- Fix or quarantine the 6 failing `apps/api` tests before adding them to CI?
+- Give `/try` its own static HTML so shared links unfurl with the try OG image?
+
+---
+
+## Agent utilization
+- Opus: plan, diff review of 07 and 01/00 changes, Caddy change and deploy, post-deploy checks.
+- Sonnet: five worktree implementations (sections, reminders, least-AI, /try demo, client-IP/erased), tests, this docs pass.
+- Haiku: n/a — no bulk sweep recorded in this entry.
+- codex:rescue: least-AI revise, addressed in `dea16b4`; client-IP / erased revise, addressed in `e752be6`.
+- claude-mem: honoured vps-shared-host (additive Caddy edit with backup), docs-folder-gitignored (`git add -f`), parallel-session-shared-working-tree.
+- Routing telemetry:
+  - Sonnet · test sections implementation · reworked: N
+  - Sonnet · invitation reminders · reworked: N
+  - Sonnet · least-AI tiers · reworked: Y (codex revise: case-fold + band ambiguity)
+  - Sonnet · /try demo · reworked: Y (public/try folder caused 403)
+  - Sonnet · client-IP + erased guards · reworked: Y (codex revise: prod enforce + NAT lockout)
+
+---
+
 # Session — 2026-10-02 (g) — batch 3 live
 
 **Headline:** Batch 3 is live on prod (HEAD `273e2bc`, deployed 2026-10-02): session-status cache, points frozen per attempt, numeric and multi-select question types, editable integrity switches, notification/webhook/audit fixes.

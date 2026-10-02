@@ -2779,3 +2779,38 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 ### Auth note: session-status cache
 
 Every authenticated request now consults a 30 s positive-only Redis cache for the user/tenant active check. Suspend, disable, delete, erase take effect at once on the normal path; worst case 30 s. Details in 04 "Session-status cache". Responses are unchanged.
+
+
+
+## Batch 4 notes (2026-10-02)
+
+### `POST /api/me/attempts/:id/finish-section` (candidate)
+
+- **What.** Candidate-only. No body. Returns `{ section_index }` (the section just opened). Opens the next section now and re-pins `attempts.ends_at = now + the remaining sections' minutes`.
+- **Errors.** 409 `AE_SECTION_NOT_FINISHABLE` on the last section (submit instead) or on an attempt without sections. Standard attempt ownership / state errors otherwise.
+- **Candidate attempt payload `sections`.** `GET` of an in-progress sectioned attempt adds `sections: { current, total, name, calculator, ends_at, remaining_seconds }`. `questions` and `answers` are already limited to the running section; later sections are not sent. Finished attempts return everything as before. Plain tests have no `sections` key.
+- **`AE_SECTION_LOCKED` (409).** `saveAnswer` / `toggleFlag` on a question whose section is not the running one (finished or not yet open).
+- **Why.** Deadlines are server-authoritative; a locked section cannot be edited from a stale tab. Details in 02 (migration 0132) and `modules/06-attempt-engine/SKILL.md`.
+- **Not included.** Per-section score breakdown in any response.
+
+### `PATCH /api/admin/assessments/:id/reminders` (admin)
+
+- **What.** Body `{ enabled: boolean, hours_before?: int 1..168 }`, strict. Allowed in any assessment status. Merged into `settings.reminders` server-side; audited as `assessment.updated`; returns the assessment. 400 `INVALID_PARAM` (param `body`) on a bad body.
+- **Why a dedicated route.** Works on a published assessment without re-sending the whole settings object (same pattern as `/integrity`).
+- `GET /api/admin/assessments/:id/invitations` rows gain `reminded_at` (nullable).
+
+### `POST /api/invitations/accept`: 429 behaviour
+
+- **What.** A per-IP brake that counts FAILED redemptions only (unknown, expired or used token): 30 per 60 s per client IP (`INVITE_FAIL_MAX`). A valid accept is never blocked or counted. Only a failure past the cap returns 429 `scope=ip` with `Retry-After: 60`, instead of the specific error (so it is not an oracle).
+- **Why.** Replaces the old FIXME. Tokens are 256-bit so guessing is infeasible; the brake bounds DB lookups and log noise from scanners. The first version checked the limit before redeeming, which let one scanner lock a whole campus NAT out of valid accepts (codex revise); it now redeems first.
+- **Not included.** No per-token or per-email limit; the route-level limiters are unchanged.
+
+### `CANDIDATE_ERASED` (409)
+
+- **What.** Server-side refusal when the target candidate has `erased_at` set, on: 05 invite and resend; 07 manual-score and override; 18 reissue and issue-on-release (the latter treats an erased candidate as null, no certificate); 20 data-rights export.
+- **Why.** Hiding buttons in the UI is not a block; a stale tab or direct API call could still touch erased data.
+- **Not included.** Release itself already refused erased candidates (older guard).
+
+### `/try` is not an API route
+
+`/try` and `/try/certificate` are static SPA pages (`apps/web/src/pages/try`): fixed content, client-side scoring, no network calls, no session. Nothing was added to this contract. The edge routes them to the SPA through the Caddy `@app` matcher (see 06 deployment).

@@ -1141,3 +1141,14 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 - **Considered and rejected.** Caching negatives (would need invalidation on un-suspend); a longer TTL; a pre-guard before sessionLoader (middleware order unchanged).
 - **Not included.** Any change to session lifetime, JWT or MFA. PG pool budget set alongside: api 40, worker 15 (`API_PG_POOL_MAX` / `WORKER_PG_POOL_MAX`, Postgres `max_connections` 100).
 - **Impact.** Any new "kill sessions" path must DEL these keys, or lockout waits up to 30 s.
+
+
+
+## Batch 4 notes (2026-10-02): client IP trust and production boot rule
+
+- **What.** `extractClientIp` (01-auth) takes `CF-Connecting-IP` only through `validCfIp`: it must be a syntactically valid IP literal (`net.isIP`). Junk, comma lists or oversized strings are ignored. The header is honoured only when the request is origin-verified (`ORIGIN_TRUST_MODE` enforce or log with a matching `x-origin-verify`). The remaining raw `req.ip` / cf-header reads (06 take and consent, 18 `/verify`) now go through `extractClientIp`. `isRateLimited(key, max)` is a read-only peek used by failure-only throttles.
+- **Boot rule.** `modules/00-core/src/config.ts` refuses to start when `NODE_ENV=production` and `ORIGIN_TRUST_MODE !== 'enforce'` (message: requires enforce with `ORIGIN_VERIFY_SECRET`). Prod has run enforce since 2026-05-19; api and worker were checked live after deploy.
+- **Why.** The client IP keys rate limits, session binding and audit. An origin-bypasser in off/log mode could inject any header value and mint unlimited buckets or spoof an IP. Making enforce mandatory removes the foot-gun (codex revise).
+- **Considered and rejected.** Trusting `X-Forwarded-For` (spoofable); validating only in the rate limiter (other callers stay exposed).
+- **Not included.** No Cloudflare IP-range allowlist; origin verification remains the trust anchor.
+- **Impact.** Local dev and CI keep `off`/`log` (non-production). Any new production deployment must set `ORIGIN_TRUST_MODE=enforce` and `ORIGIN_VERIFY_SECRET` or the API and worker will not boot.

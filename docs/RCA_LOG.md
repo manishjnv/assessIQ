@@ -2087,3 +2087,18 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 - Run `git push` as its own command, never chained after a commit.
 - Apply the hook parser fix once approved.
 
+
+
+## 2026-10-02 — `/try` returned 403 because `public/try/` shadowed the SPA route
+
+**Symptom:** After the Caddy `@app` change, `https://assessiq.in/try` answered 301 then 403 instead of the demo page.
+**Cause:** `4e59b18` put the OG image at `apps/web/public/try/og.png`. The frontend nginx serves `public/` as its root, so `try/` became a real directory: `/try` redirected to `/try/` and, with no index file and autoindex off, returned 403. The SPA fallback (`try_files ... /index.html`) never ran because a directory matched first.
+**Fix:** `e426760` moved the files to `apps/web/public/brand/social/try-og.png` and `.svg`; `docs/06-deployment.md` updated. Verified `/try` 200 live.
+**Prevention:** manual discipline: never create a folder under `apps/web/public/` that has the name of an SPA route (`try`, `take`, `admin`, `candidate`). The post-deploy check list now includes `curl -I /try`. A lint comparing `public/` top-level names with `App.tsx` route prefixes is a possible follow-up.
+
+## 2026-10-02 — Six `apps/api` route tests fail on origin/main and CI never ran them
+
+**Symptom:** While verifying batch 4, six tests in `apps/api` failed, also on a clean `origin/main` checkout: auth `google/start`, `whoami`, `embed`; admin-super `ai-generate-mode` and its lifecycle test; `admin-tenant-rename`; tenant-settings `release-mode`. They are not caused by batch 4.
+**Cause:** They were hidden. CI runs `pnpm test`, which is the root `vitest run`; `vitest.config.ts` at the repo root includes only `modules/**/__tests__/**/*.test.ts` and `packages/**/__tests__/**/*.test.ts`. `apps/api` has its own `vitest.config.ts` and `test` script, but the root script does not run it and CI has no `pnpm -r test` or `--filter @assessiq/api test` step. The failures drifted unseen as routes changed (root cause per test not yet investigated).
+**Fix:** none yet (tracked in `docs/PENDING_TASKS_2026-10-01.md`, new row "apps/api tests not in CI").
+**Prevention:** add `apps/api` (and `apps/web` if not already covered) to CI: a `pnpm --filter @assessiq/api test` step after fixing or quarantining the six failures, so CI stays green. Until then, run `pnpm --filter @assessiq/api test` by hand before deploys that touch routes.
