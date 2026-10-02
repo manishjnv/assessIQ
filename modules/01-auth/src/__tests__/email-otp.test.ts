@@ -246,10 +246,10 @@ describe("requestEmailOtp — anti-enumeration", () => {
     expect(exists, "OTP key stored for eligible admin").toBe(true);
   });
 
-  it("stores an OTP key for an eligible reviewer email", async () => {
+  it("does not store an OTP key for a reviewer email (role removed 2026-10-02)", async () => {
     await requestEmailOtp({ email: "reviewer@example.com", ip: "10.1.0.2", ua: "vitest" });
     const exists = await otpKeyExists("reviewer@example.com");
-    expect(exists, "OTP key stored for eligible reviewer").toBe(true);
+    expect(exists, "no OTP key stored for a legacy reviewer row").toBe(false);
   });
 });
 

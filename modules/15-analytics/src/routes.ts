@@ -68,8 +68,6 @@ export interface RegisterAnalyticsRoutesOptions {
    * could be used to mask data-staleness in reports — restrict to platform ops.
    */
   superAdminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
-  /** Admin + reviewer preHandler — authChain({ roles: ['admin','reviewer'] }). Falls back to adminOnly. */
-  adminOrReviewer?: preHandlerHookHandler[] | preHandlerHookHandler;
   /** Candidate-gated preHandler — authChain({ roles: ['candidate'] }) from apps/api. */
   candidateOnly: preHandlerHookHandler[] | preHandlerHookHandler;
 }
@@ -109,9 +107,7 @@ export async function registerAnalyticsRoutes(
   // -------------------------------------------------------------------------
   // GET /api/admin/assessments/:id/results.csv — LIVE placement results export
   // -------------------------------------------------------------------------
-  const resultsPre = opts.adminOrReviewer
-    ? (Array.isArray(opts.adminOrReviewer) ? opts.adminOrReviewer : [opts.adminOrReviewer])
-    : preHandler;
+  const resultsPre = preHandler;
   app.get('/api/admin/assessments/:id/results.csv', { preHandler: resultsPre }, async (req, reply) => {
     const id = z.string().uuid().safeParse((req.params as { id: string }).id);
     if (!id.success) throw new ValidationError('invalid assessment id');

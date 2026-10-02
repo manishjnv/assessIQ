@@ -215,12 +215,11 @@ export async function buildServer() {
   // Notifications + webhooks routes (Phase 3 G3.B):
   //   - /api/admin/webhooks/* (admin-gated)
   //   - /api/admin/webhook-failures/* (admin-gated, convenience alias)
-  //   - /api/admin/notifications (any-role — admin + reviewer)
-  //   - /api/admin/notifications/:id/mark-read (any-role)
+  //   - /api/admin/notifications (admin-gated)
+  //   - /api/admin/notifications/:id/mark-read (admin-gated)
   // All routes are /api/admin/* prefix → covered by @api path /api/* Caddy matcher.
   await registerNotificationsRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
-    anyRoleAuth: authChain({ roles: ['admin', 'reviewer'] }),
   });
 
   // Scoring admin routes — /api/admin/attempts/:id/score, /api/admin/reports/*
@@ -239,7 +238,6 @@ export async function buildServer() {
   // All /api/admin/* → covered by Caddy @api matcher.
   await registerAnalyticsRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
-    adminOrReviewer: authChain({ roles: ['admin', 'reviewer'] }),
     superAdminOnly: authChain({ roles: ['super_admin'] }),
     candidateOnly: authChain({ roles: ['candidate'] }),
   });

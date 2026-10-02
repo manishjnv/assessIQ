@@ -120,7 +120,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
       const body = req.body as {
         email: string;
         name: string;
-        role: 'admin' | 'reviewer' | 'candidate';
+        role: 'admin' | 'candidate';
         metadata?: Record<string, unknown>;
       };
       const user = await createUser(tenantId, body, userId);
@@ -138,7 +138,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
       const { id } = req.params as { id: string };
       const patch = req.body as {
         name?: string;
-        role?: 'admin' | 'reviewer' | 'candidate';
+        role?: 'admin' | 'candidate';
         status?: 'active' | 'disabled' | 'pending';
         metadata?: Record<string, unknown>;
       };

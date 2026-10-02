@@ -150,9 +150,9 @@ describe("resolveIpBucketMax — auth-tier-aware IP bucket selection", () => {
     expect(resolveIpBucketMax(req)).toBe(mockConfig.RATE_LIMIT_IP_ADMIN);
   });
 
-  it("T3b: pre-MFA reviewer (totpVerified=false) → IP_ADMIN — pre-MFA path unchanged", () => {
+  it("T3b: reviewer (removed role) → IP_USER — no admin tier", () => {
     const req = makeReq({ session: makeSession("reviewer", false) });
-    expect(resolveIpBucketMax(req)).toBe(mockConfig.RATE_LIMIT_IP_ADMIN);
+    expect(resolveIpBucketMax(req)).toBe(mockConfig.RATE_LIMIT_IP_USER);
   });
 
   it("T4: valid candidate session → IP_CANDIDATE_SESSION (3000), not IP_USER", () => {

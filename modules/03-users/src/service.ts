@@ -22,7 +22,7 @@ const log = streamLogger('app');
 // Validation helpers
 // ---------------------------------------------------------------------------
 
-const VALID_ROLES: ReadonlySet<string> = new Set(['admin', 'reviewer', 'candidate']);
+const VALID_ROLES: ReadonlySet<string> = new Set(['admin', 'candidate']);
 const VALID_STATUSES: ReadonlySet<string> = new Set(['active', 'disabled', 'pending']);
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 200;

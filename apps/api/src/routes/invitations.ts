@@ -27,7 +27,7 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
           additionalProperties: false,
           properties: {
             email: { type: 'string', minLength: 3, maxLength: 320 },
-            role: { type: 'string', enum: ['admin', 'reviewer', 'candidate'] },
+            role: { type: 'string', enum: ['admin', 'candidate'] },
             assessmentIds: {
               type: 'array',
               items: { type: 'string', format: 'uuid' },
@@ -42,7 +42,7 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
       const invitedBy = req.session!.userId;
       const body = req.body as {
         email: string;
-        role: 'admin' | 'reviewer' | 'candidate';
+        role: 'admin' | 'candidate';
         assessmentIds?: string[];
       };
 

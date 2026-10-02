@@ -250,7 +250,7 @@ describe('G3.D audit writes — 03-users', () => {
     await clearAudit(tenantA);
     const user = await createUser(
       tenantA,
-      { email: `cu-${randomUUID().slice(0, 8)}@e.com`, name: 'CU User', role: 'reviewer' },
+      { email: `cu-${randomUUID().slice(0, 8)}@e.com`, name: 'CU User', role: 'admin' },
       adminA,
     );
 
@@ -262,14 +262,14 @@ describe('G3.D audit writes — 03-users', () => {
     expect(row!.entity_type).toBe('user');
     const after = row!.after as Record<string, unknown>;
     expect(after.email).toBe('[REDACTED]'); // PII redacted by audit() (redact.ts)
-    expect(after.role).toBe('reviewer');
+    expect(after.role).toBe('admin');
     expect(after.status).toBe('pending');
   });
 
   it('updateUser (status flip) writes a user.updated audit row marked kind=status_change', async () => {
     const target = await createUser(
       tenantA,
-      { email: `uu-${randomUUID().slice(0, 8)}@e.com`, name: 'UU User', role: 'reviewer' },
+      { email: `uu-${randomUUID().slice(0, 8)}@e.com`, name: 'UU User', role: 'admin' },
       adminA,
     );
 
@@ -304,7 +304,7 @@ describe('G3.D audit writes — 03-users', () => {
     await updateUser(tenantA, a2.id, { status: 'active' }, adminA);
 
     await clearAudit(tenantA);
-    await updateUser(tenantA, a1.id, { role: 'reviewer' }, adminA);
+    await updateUser(tenantA, a1.id, { role: 'candidate' }, adminA);
 
     const rows = await queryAudit(tenantA, 'user.updated');
     const row = rows.find((r) => r.entity_id === a1.id);
@@ -312,14 +312,14 @@ describe('G3.D audit writes — 03-users', () => {
     const before = row!.before as Record<string, unknown>;
     const after = row!.after as Record<string, unknown>;
     expect(before.role).toBe('admin');
-    expect(after.role).toBe('reviewer');
+    expect(after.role).toBe('candidate');
     expect(after.kind).toBe('role_change');
   });
 
   it('softDelete writes a user.deleted audit row in the same tx', async () => {
     const target = await createUser(
       tenantA,
-      { email: `sd-${randomUUID().slice(0, 8)}@e.com`, name: 'SD User', role: 'reviewer' },
+      { email: `sd-${randomUUID().slice(0, 8)}@e.com`, name: 'SD User', role: 'admin' },
       adminA,
     );
 
@@ -340,7 +340,7 @@ describe('G3.D audit writes — 03-users', () => {
   it('restore writes a user.restored audit row in the same tx', async () => {
     const target = await createUser(
       tenantA,
-      { email: `re-${randomUUID().slice(0, 8)}@e.com`, name: 'RE User', role: 'reviewer' },
+      { email: `re-${randomUUID().slice(0, 8)}@e.com`, name: 'RE User', role: 'admin' },
       adminA,
     );
     await softDelete(tenantA, target.id, adminA);
@@ -364,7 +364,7 @@ describe('G3.D audit writes — 03-users', () => {
     await clearAudit(tenantA);
     const result = await inviteUser(tenantA, {
       email: `inv-new-${randomUUID().slice(0, 8)}@e.com`,
-      role: 'reviewer',
+      role: 'admin',
       invited_by: adminA,
     });
     expect(result.invitation).not.toBeNull();
@@ -377,21 +377,21 @@ describe('G3.D audit writes — 03-users', () => {
     const after = row!.after as Record<string, unknown>;
     expect(after.kind).toBe('new');
     expect(after.invitation_id).toBe(result.invitation!.id);
-    expect(after.role).toBe('reviewer');
+    expect(after.role).toBe('admin');
   });
 
   it('inviteUser (re-invite of pending user) writes a user.invited audit row marked kind=reinvite', async () => {
     const email = `inv-re-${randomUUID().slice(0, 8)}@e.com`;
     const first = await inviteUser(tenantA, {
       email,
-      role: 'reviewer',
+      role: 'admin',
       invited_by: adminA,
     });
 
     await clearAudit(tenantA);
     const second = await inviteUser(tenantA, {
       email,
-      role: 'reviewer',
+      role: 'admin',
       invited_by: adminA,
     });
     expect(second.invitation?.id).not.toBe(first.invitation?.id);
@@ -408,7 +408,7 @@ describe('G3.D audit writes — 03-users', () => {
     const email = `inv-active-${randomUUID().slice(0, 8)}@e.com`;
     const first = await inviteUser(tenantA, {
       email,
-      role: 'reviewer',
+      role: 'admin',
       invited_by: adminA,
     });
     // Flip to active (simulating the user accepted the invite)
@@ -417,7 +417,7 @@ describe('G3.D audit writes — 03-users', () => {
     await clearAudit(tenantA);
     const second = await inviteUser(tenantA, {
       email,
-      role: 'reviewer',
+      role: 'admin',
       invited_by: adminA,
     });
     expect(second.invitation).toBeNull();
@@ -433,7 +433,7 @@ describe('G3.D audit writes — 03-users', () => {
   it('atomicity: when auditInTx throws inside updateUser, the user row is NOT updated', async () => {
     const target = await createUser(
       tenantA,
-      { email: `atom-${randomUUID().slice(0, 8)}@e.com`, name: 'Atom User', role: 'reviewer' },
+      { email: `atom-${randomUUID().slice(0, 8)}@e.com`, name: 'Atom User', role: 'admin' },
       adminA,
     );
 
@@ -455,7 +455,7 @@ describe('G3.D audit writes — 03-users', () => {
   it('atomicity: when auditInTx throws inside softDelete, the user row is NOT soft-deleted', async () => {
     const target = await createUser(
       tenantA,
-      { email: `atom2-${randomUUID().slice(0, 8)}@e.com`, name: 'Atom2', role: 'reviewer' },
+      { email: `atom2-${randomUUID().slice(0, 8)}@e.com`, name: 'Atom2', role: 'admin' },
       adminA,
     );
 
@@ -475,7 +475,7 @@ describe('G3.D audit writes — 03-users', () => {
     injectAuditFailure = new Error('invite audit failure');
 
     await expect(
-      inviteUser(tenantA, { email, role: 'reviewer', invited_by: adminA }),
+      inviteUser(tenantA, { email, role: 'admin', invited_by: adminA }),
     ).rejects.toThrow(/invite audit failure/);
 
     // Neither the user nor the invitation should exist because withTenant
@@ -536,11 +536,18 @@ describe('G3.D audit writes — 03-users', () => {
 
     const u1 = await createUser(
       tid,
-      { email: `rs-${randomUUID().slice(0, 8)}@e.com`, name: 'Redact 1', role: 'reviewer' },
+      { email: `rs-${randomUUID().slice(0, 8)}@e.com`, name: 'Redact 1', role: 'admin' },
       adminA,
     );
     await updateUser(tid, u1.id, { status: 'active' }, adminA);
     await updateUser(tid, u1.id, { name: 'Redact 1 Updated' }, adminA);
+    // A second active admin keeps the last-admin guard out of the way of softDelete.
+    const keeper = await createUser(
+      tid,
+      { email: `rs-keep-${randomUUID().slice(0, 8)}@e.com`, name: 'Keeper', role: 'admin' },
+      adminA,
+    );
+    await updateUser(tid, keeper.id, { status: 'active' }, adminA);
     await softDelete(tid, u1.id, adminA);
     await restore(tid, u1.id, adminA);
 

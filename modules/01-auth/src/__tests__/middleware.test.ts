@@ -17,7 +17,7 @@
  * avoids the singleton-capture problem documented in the task spec.
  *
  * Rate-limit tiers (role-aware, all routes):
- *   admin/reviewer  100/min  (config.RATE_LIMIT_IP_ADMIN)
+ *   admin           100/min  (config.RATE_LIMIT_IP_ADMIN)
  *   candidate        30/min  (config.RATE_LIMIT_IP_USER)
  *   anon             30/min  (config.RATE_LIMIT_IP_ANON)
  *   api-key         600/min  (config.RATE_LIMIT_IP_APIKEY)
@@ -352,7 +352,7 @@ describe("rate-limit (Redis testcontainer)", () => {
       expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_VERIFIED_ADMIN);
     });
 
-    it("T2: reviewer session → IP limit = RATE_LIMIT_IP_VERIFIED_ADMIN (admin+reviewer share)", () => {
+    it("T2: reviewer session (removed role) → falls back to RATE_LIMIT_IP_USER, no admin lift", () => {
       // Same reasoning as T1 — resolveIpBucketMax is the correct assertion surface.
       const session: NonNullable<AuthRequest["session"]> = {
         id: "sess-t2",
@@ -369,7 +369,7 @@ describe("rate-limit (Redis testcontainer)", () => {
         headers: { "cf-connecting-ip": "40.1.1.2" },
         session,
       });
-      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_VERIFIED_ADMIN);
+      expect(resolveIpBucketMax(req)).toBe(config.RATE_LIMIT_IP_USER);
     });
 
     it("T3: candidate session → IP limit = RATE_LIMIT_IP_CANDIDATE_SESSION (3000/min, campus lab)", async () => {

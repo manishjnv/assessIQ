@@ -50,7 +50,7 @@ async function promoteSessionToVerified(
 
 export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/auth/totp/enroll/start
-  // Pre-MFA session expected — admin/reviewer who has Google-SSO'd but not yet
+  // Pre-MFA session expected — admin who has Google-SSO'd but not yet
   // enrolled TOTP. Returns the otpauth URI + secretBase32 for client-side QR render.
   app.post(
     '/api/auth/totp/enroll/start',
@@ -63,7 +63,7 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
         // session through; the always-MFA invariant on cross-tenant ACTION
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
-        roles: ['admin', 'reviewer', 'super_admin'],
+        roles: ['admin', 'super_admin'],
         requireTotpVerified: false,
         // Credential endpoint (adversarial finding 1, 2026-05-20): enroll/start
         // generates a fresh TOTP secret on every call. Per-route per-IP cap
@@ -96,7 +96,7 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
         // session through; the always-MFA invariant on cross-tenant ACTION
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
-        roles: ['admin', 'reviewer', 'super_admin'],
+        roles: ['admin', 'super_admin'],
         requireTotpVerified: false,
         // Credential endpoint: per-route per-IP cap (20/min) applied regardless
         // of session tier. Maintains TOTP brute-force protection even after the
@@ -136,7 +136,7 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
         // session through; the always-MFA invariant on cross-tenant ACTION
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
-        roles: ['admin', 'reviewer', 'super_admin'],
+        roles: ['admin', 'super_admin'],
         requireTotpVerified: false,
         // Credential endpoint: per-route per-IP cap (20/min) applied regardless
         // of session tier. Maintains TOTP brute-force protection even after the
@@ -175,7 +175,7 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         // explicitly. requireTotpVerified:false (below) lets the pre-TOTP
         // session through; the always-MFA invariant on cross-tenant ACTION
         // routes is enforced separately in admin-super.ts. (RCA 2026-05-17.)
-        roles: ['admin', 'reviewer', 'super_admin'],
+        roles: ['admin', 'super_admin'],
         requireTotpVerified: false,
         // Credential endpoint: per-route per-IP cap (20/min) applied regardless
         // of session tier. Maintains TOTP brute-force protection even after the

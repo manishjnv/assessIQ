@@ -1,6 +1,6 @@
 // modules/01-auth/src/email-otp.ts
 //
-// P2 — Email-OTP login for admin and reviewer roles ONLY.
+// P2 — Email-OTP login for the admin role ONLY (reviewer role removed 2026-10-02).
 //
 // Flow:
 //   1. POST /api/auth/login/email/request { email }
@@ -12,9 +12,9 @@
 //
 // Security invariants honored:
 //   - super_admin: NEVER reachable via email-OTP. Triple-blocked:
-//       (a) requestEmailOtp eligible filter: role admin|reviewer AND !isPlatform AND role !== 'super_admin'
+//       (a) requestEmailOtp eligible filter: role admin AND !isPlatform AND role !== 'super_admin'
 //       (b) verifyEmailOtp re-filter: same predicate on fresh resolveLoginIdentities result
-//       (c) selectLoginIdentity candidates assertion: only admin/reviewer userIds stored,
+//       (c) selectLoginIdentity candidates assertion: only admin userIds stored,
 //           so even if super_admin appeared in re-resolve, userId ∈ candidates blocks it
 //   - candidate: NEVER via email-OTP (unchanged candidate-login.ts)
 //   - Anti-enumeration: identical 200 response + constant-time floor on /request
@@ -204,9 +204,9 @@ async function checkOtpEmailRateLimit(email: string): Promise<boolean> {
 // ---------------------------------------------------------------------------
 // Eligible identity filter
 //
-// Eligible for email-OTP: admin and reviewer in a NON-platform tenant ONLY.
+// Eligible for email-OTP: admin in a NON-platform tenant ONLY.
 // Triple-explicit guard:
-//   (a) role must be 'admin' or 'reviewer'
+//   (a) role must be 'admin'
 //   (b) isPlatform must be false (rules out platform tenant rows)
 //   (c) role must NOT be 'super_admin' (redundant given (a), but belt-and-suspenders)
 //
@@ -216,17 +216,17 @@ async function checkOtpEmailRateLimit(email: string): Promise<boolean> {
 
 function filterEligible(identities: Awaited<ReturnType<typeof resolveLoginIdentities>>) {
   // Triple-explicit super_admin guard:
-  //   (a) role must be 'admin' or 'reviewer' — this alone excludes super_admin and candidate
+  //   (a) role must be 'admin' — this alone excludes super_admin and candidate
   //   (b) isPlatform must be false — rules out platform tenant rows (defence-in-depth)
   //
   // Note: `i.role !== 'super_admin'` is structurally redundant given the role
-  // union check above (role can only be 'admin'|'reviewer' after the first guard),
+  // union check above (role can only be 'admin' after the first guard),
   // but is documented for belt-and-suspenders clarity in the spec. It's omitted
-  // here to satisfy the TypeScript compiler (comparing 'admin'|'reviewer' to
+  // here to satisfy the TypeScript compiler (comparing 'admin' to
   // 'super_admin' is always false and the compiler correctly warns).
   return identities.filter(
     (i) =>
-      (i.role === "admin" || i.role === "reviewer") &&
+      i.role === "admin" &&
       !i.isPlatform,
   );
 }
@@ -285,7 +285,7 @@ async function _requestWork(input: {
     return;
   }
 
-  // Step 4: filter identities to eligible: admin|reviewer, non-platform, not super_admin.
+  // Step 4: filter identities to eligible: admin, non-platform, not super_admin.
   // super_admin-only emails → eligible.length === 0 → no code sent.
   // candidate-only emails → eligible.length === 0 → no code sent.
   const eligible = filterEligible(identities);
@@ -460,7 +460,7 @@ async function _verifyWork(input: {
 
   // ≥2 eligible identities → issue continuation token.
   //
-  // SECURITY NOTE: payload.candidates contains ONLY admin/reviewer userIds (filtered above).
+  // SECURITY NOTE: payload.candidates contains ONLY admin userIds (filtered above).
   // Even though resolveLoginIdentities (called inside selectLoginIdentity's re-resolve)
   // returns all roles including super_admin, the selectLoginIdentity function's
   // `userId ∈ payload.candidates` assertion ensures a super_admin userId can NEVER
