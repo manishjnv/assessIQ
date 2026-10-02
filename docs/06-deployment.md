@@ -1836,3 +1836,64 @@ Work in this deploy: dashboard counts from the server (`511e1af`), scenario answ
 - No click test in a browser with an admin sign-in. `GET /api/help` and the dashboard queue need a session. Behaviour check pending operator: dashboard cards, the "no access" notice, the (?) help drawer on the eight pages.
 
 **Rollback:** `git revert` the commit of the item, then rebuild and recreate the service. Module 06 or 07: api and worker. Admin pages: frontend. Marketing: revert `38c76e3`, rebuild and recreate `assessiq-marketing`. Migration 0148 needs no rollback: an older build does not read the eight rows. To remove them: delete the eight `<page>.page` keys (`tenant_id IS NULL`) and the `schema_migrations` row `0148_seed_page_help.sql`. A frontend older than `511e1af` works with the new API (it ignores `counts`); the new frontend works with an older API (it falls back to the list length).
+
+## Review-fix deploy wave A: N20, N22, E10, RS9 (RV62, RV63, RV64), RS8 (RV58, RV59), SP7 structured_case, E9 splits, FR17 gate (2026-10-03, HEAD `5f073f0`; commits `3911f8b..5f073f0`)
+
+Work in this deploy, in commit order:
+- `fe06cd3` N22 index and migration 0150.
+- `b02bbf3` N20 help ids, migration 0149 and a guard test.
+- `c06516a` E10 docs.
+- `afc5069` RV63: the assessment preview reads the frozen pool.
+- `59a4816` FR17: the worker routes accept the super admin only.
+- `5e5aaa3` RV59: the `tenant.provisioned` audit row is written in the same transaction.
+- `487707d` RV58: the attempts tab "Awaiting evaluation" and a comma-separated status filter.
+- `8723dc4` RV64: one shared `runGenerationPlan`.
+- `b0c09fd` RV62: the topic focus reaches the runtime input.
+- `a7ea234` review fixes: null-safe chunk errors, `topic_focus` of 200 characters or less with no control characters, sha de-duplication.
+- `885403b`, `328dfc8`, `860bfc3` SP7: the `structured_case` question type (migrations 0152 and 0153).
+- `e7d7d04` SP7 review fix: a select-one step takes one pick.
+- `f5d2aa4` docs.
+- `4d19c3b` E9: `04-question-bank` `service.ts` is split into `service/{_shared,packs,questions,generation}.ts`.
+- `0c21079` E9: `admin-super.ts` is split into `routes/admin-super/{_shared,tenants,billing-entitlements,domains,users,entitlement-revoke}.ts`.
+- `5f073f0` the audit call-site guard now expects 1.
+
+**Migrations (four, applied by hand in this order):**
+- 0149 (`modules/16-help-system/migrations/0149_rename_help_ids_page_prefix.sql`)
+- 0150 (`modules/06-attempt-engine/migrations/0150_attempts_dashboard_count_idx.sql`)
+- 0152 (`modules/04-question-bank/migrations/0152_question_type_structured_case.sql`)
+- 0153 (`modules/16-help-system/migrations/0153_seed_structured_case_help.sql`)
+
+Each file ran with `docker exec -i assessiq-postgres psql -U assessiq -d assessiq -1 -v ON_ERROR_STOP=1 -q < file`. Each was then recorded with `INSERT INTO schema_migrations(version, applied_at, checksum) VALUES (<basename>, now(), <sha256sum of the file>) ON CONFLICT DO NOTHING`.
+
+**Pre-deploy check (read-only):** the clone is on `main` and clean at `3911f8b`. 24 containers run (6 `assessiq-*`, 18 others). Migrations are applied up to 0148 (79 rows). Global help rows: 203. Disk 54 % used. Load 0.3. Health returns 200.
+
+**Procedure (one stage, additive only):**
+
+1. Run `git push` for `main` as its own command.
+2. Run `ssh assessiq-vps 'cd /srv/assessiq && git pull --ff-only'`: `3911f8b` to `5f073f0`.
+3. Confirm that no `claude` process runs (0).
+4. Apply 0149, 0150, 0152 and 0153 by hand in that order, and record each one. Global help rows: 203 to 207.
+5. Check the database. 13 rows are under `admin.tenant_settings.%` and `admin.question.editor.%`. The index `attempts_dashboard_count_idx` exists. `questions_type_check` includes `structured_case`.
+6. Run `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-frontend`. The build exits with 0. Use the service names with the `assessiq-` prefix. A first try with `api` and `frontend` did nothing. Marketing is not rebuilt because it did not change.
+7. Run `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`.
+
+**Post-deploy checks (all passed):**
+- 24 containers before and after. api, worker and frontend are healthy.
+- These return 200: `/`, `/pricing`, `/try`, `/admin`, `/admin/login`, `/candidate/login`, `/take/x`, `/take/expired`, `/api/health`.
+- `/verify/XXXX-0000-00-000000` returns 404.
+- `/api/admin/worker/stats` and `/api/admin/attempts?status=submitted,auto_submitted` return 401 without a session.
+- `/api/dev/mint-session` returns 404. The help API returns 401 without a session.
+- 0 error lines (level 50 or 60) in the api and worker logs for 10 minutes.
+- `help_content` has 207 rows. The 4 new keys are present. The old keys number 0.
+- The served lazy chunk `src-94kvjwDT.js` contains "Awaiting evaluation", "Structured case", `admin.tenant_settings.company_name` and `admin.question.editor.content.`. The main bundle contains `structured_case`.
+
+**Not done:**
+- No IndexNow ping. Marketing did not change.
+- No click test in a browser. Behaviour check pending operator:
+  1. Open Settings and the question editor. Confirm that the (?) help text loads.
+  2. Create one `structured_case` question.
+  3. Open the attempts page, tab "Awaiting evaluation".
+  4. Preview a published assessment. Confirm that the count matches the frozen pool.
+- Not in this wave: N19 (dev tools only, no production effect), RV60 (reviewer role removal, still in work) and RS11 (e2e, local and CI only).
+
+**Rollback:** `git revert <sha>` for the item. Then rebuild and recreate the service. Modules 04, 05, 06, 07, 09, 02, 14 and the api routes: `assessiq-api` and `assessiq-worker`. Module 10 and the web app: `assessiq-frontend`. Migration 0150: `DROP INDEX IF EXISTS attempts_dashboard_count_idx` (harmless). Migration 0152: do not revert the CHECK while a `structured_case` row exists. Migration 0149: run the reverse UPDATE of the eight keys. Migration 0153: delete the four keys. Delete the `schema_migrations` rows that you reverse.
