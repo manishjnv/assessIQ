@@ -31,7 +31,7 @@ export function RequireSession({
   children: ReactNode;
   role?: 'admin' | 'reviewer' | 'super_admin';
   unauthRedirect?: string;
-}): JSX.Element {
+}): React.JSX.Element {
   const { session, loading } = useSession();
   const loc = useLocation();
 

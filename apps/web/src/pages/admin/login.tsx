@@ -48,7 +48,7 @@ const SERIF_H1: CSSProperties = {
   letterSpacing: '-0.025em',
 };
 
-export function AdminLogin(): JSX.Element {
+export function AdminLogin(): React.JSX.Element {
   const navigate = useNavigate();
   const [banner, setBanner] = useState<AuthScopeBannerCopy | null>(null);
 

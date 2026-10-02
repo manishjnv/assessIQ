@@ -102,7 +102,7 @@ export function SuccessContent({
   onBegin: () => void;
   beginning: boolean;
   beginError: string | null;
-}): JSX.Element {
+}): React.JSX.Element {
   const totalMinutes = Math.round(durationSeconds / 60);
   const [consent, setConsent] = useState(false);
   const { rows, blocked, recheck } = useSystemCheck();
@@ -203,7 +203,7 @@ export function SuccessContent({
   );
 }
 
-function Error404Content(): JSX.Element {
+function Error404Content(): React.JSX.Element {
   return (
     <>
       <span style={{ display: 'inline-block', marginBottom: 24 }}>
@@ -234,7 +234,7 @@ function Error404Content(): JSX.Element {
   );
 }
 
-function InvalidContent(): JSX.Element {
+function InvalidContent(): React.JSX.Element {
   return (
     <>
       <span style={{ display: 'inline-block', marginBottom: 24 }}>
@@ -270,7 +270,7 @@ function ErrorContent({
 }: {
   message: string;
   onRetry: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <>
       <span style={{ display: 'inline-block', marginBottom: 24 }}>
@@ -294,7 +294,7 @@ function ErrorContent({
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-export function TokenLanding(): JSX.Element {
+export function TokenLanding(): React.JSX.Element {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [state, setState] = useState<PageState>({ tag: 'loading' });
@@ -375,7 +375,7 @@ export function TokenLanding(): JSX.Element {
     }
   };
 
-  let leftContent: JSX.Element;
+  let leftContent: React.JSX.Element;
   if (state.tag === 'success') {
     leftContent = (
       <SuccessContent

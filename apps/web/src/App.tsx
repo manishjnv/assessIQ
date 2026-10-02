@@ -56,7 +56,7 @@ const TryCertificatePage = lazy(() => import('./pages/try/TryCertificate').then(
 
 const tenant = TENANT_FIXTURES['wipro-soc'];
 
-export function App(): JSX.Element {
+export function App(): React.JSX.Element {
   return (
     <BrowserRouter>
       {/* theme="light" pinned per docs/10-branding-guideline.md § 0 + § 1 —
@@ -197,7 +197,7 @@ export function App(): JSX.Element {
   );
 }
 
-function NotFound(): JSX.Element {
+function NotFound(): React.JSX.Element {
   return (
     <div
       className="aiq-screen"

@@ -122,7 +122,7 @@ const SUB_TEXT: CSSProperties = {
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export function Submitted(): JSX.Element {
+export function Submitted(): React.JSX.Element {
   const { id: attemptId } = useParams<{ id: string }>();
   const location = useLocation();
 

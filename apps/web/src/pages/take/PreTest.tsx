@@ -141,7 +141,7 @@ export function SystemCheck({
 }: {
   rows: CheckRow[];
   onRecheck: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const problems = rows.filter((r) => (r.status === 'fail' || r.status === 'warn') && r.hint);
   const hasFail = rows.some((r) => r.status === 'fail' || r.status === 'warn');
   return (
@@ -195,7 +195,7 @@ const PRACTICE = {
   },
 };
 
-export function PracticeQuestion(): JSX.Element {
+export function PracticeQuestion(): React.JSX.Element {
   const [answer, setAnswer] = useState<unknown>(null);
   return (
     <section data-help-id="candidate.intro.practice" aria-label="Practice question" style={SECTION}>
@@ -236,7 +236,7 @@ export function ConsentBlock({
   company: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const link: CSSProperties = { color: 'inherit', textDecoration: 'underline' };
   return (
     <section data-help-id="candidate.intro.consent" style={{ marginBottom: 16 }}>

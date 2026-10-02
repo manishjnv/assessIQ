@@ -31,7 +31,7 @@ import { HelpProvider } from '@assessiq/help-system/components';
 import { useEmbedMode } from '../../lib/useEmbedMode';
 import { EmbedLayout } from '../../lib/EmbedLayout';
 
-export function TakeRoot(): JSX.Element {
+export function TakeRoot(): React.JSX.Element {
   const isEmbed = useEmbedMode();
 
   const inner = (

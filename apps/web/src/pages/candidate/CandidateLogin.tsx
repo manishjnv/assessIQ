@@ -54,7 +54,7 @@ const _META_LABEL: CSSProperties = {
 
 // ─── right pane ──────────────────────────────────────────────────────────────
 
-function RightPane(): JSX.Element {
+function RightPane(): React.JSX.Element {
   return (
     <aside
       style={{
@@ -120,7 +120,7 @@ function RightPane(): JSX.Element {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-export function CandidateLogin(): JSX.Element {
+export function CandidateLogin(): React.JSX.Element {
   const [params] = useSearchParams();
   const linkError = params.get('error') === 'invalid_link';
 

@@ -40,7 +40,7 @@ const BODY_P: CSSProperties = {
   lineHeight: 1.5,
 };
 
-export function ErrorPage(): JSX.Element {
+export function ErrorPage(): React.JSX.Element {
   return (
     <div
       className="aiq-screen aiq-take-twopane"

@@ -51,7 +51,7 @@ const PAGE: CSSProperties = {
 
 const WRAP: CSSProperties = { maxWidth: 760, margin: '0 auto', padding: '16px' };
 
-export function TryPage(): JSX.Element {
+export function TryPage(): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('intro');
   const [answers, setAnswers] = useState<DemoAnswers>({});
   const [endsAt, setEndsAt] = useState<string>('');
@@ -93,7 +93,7 @@ export function TryPage(): JSX.Element {
 
 // ── intro ────────────────────────────────────────────────────────────────────
 
-function Intro({ onBegin }: { onBegin: () => void }): JSX.Element {
+function Intro({ onBegin }: { onBegin: () => void }): React.JSX.Element {
   return (
     <main style={{ ...WRAP, paddingTop: 48 }}>
       <Logo size={28} showWordmark />
@@ -146,7 +146,7 @@ function Runner({
   answers: DemoAnswers;
   setAnswers: (fn: (prev: DemoAnswers) => DemoAnswers) => void;
   onFinish: (byTimer: boolean) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const [idx, setIdx] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [save, setSave] = useState<{ status: AutosaveStatus; at: string | null }>({ status: 'idle', at: null });
@@ -154,7 +154,7 @@ function Runner({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
   useEffect(() => {
@@ -298,7 +298,7 @@ function AnswerArea({
   q: DemoQuestion;
   answer: DemoAnswer;
   onChange: (v: DemoAnswer) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const question = { question_id: q.id, content: { options: q.options, unit: q.unit } };
   if (q.type === 'mcq' || q.type === 'log') {
     return (
@@ -356,7 +356,7 @@ function Result({
   answers: DemoAnswers;
   timedOut: boolean;
   onRetry: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const result = useMemo(() => scoreDemo(answers), [answers]);
   const links = shareLinks(result.percent);
   const [copied, setCopied] = useState(false);

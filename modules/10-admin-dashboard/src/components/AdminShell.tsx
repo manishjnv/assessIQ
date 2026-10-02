@@ -395,7 +395,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             const visible = (e: NavEntry): boolean =>
               (!e.adminOnly || isAdmin) &&
               (!e.superAdminOnly || session?.user.role === "super_admin");
-            const renderEntry = (e: NavEntry): JSX.Element => (
+            const renderEntry = (e: NavEntry): React.JSX.Element => (
               <NavItem
                 key={e.href}
                 label={e.label}
@@ -413,7 +413,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             // Render a section header only if at least one of its entries is
             // visible to the current role — avoids an empty "Admin" label for
             // a reviewer who has no admin entries.
-            const renderSection = (label: string, entries: NavEntry[]): JSX.Element | null => {
+            const renderSection = (label: string, entries: NavEntry[]): React.JSX.Element | null => {
               const shown = entries.filter(visible);
               if (shown.length === 0) return null;
               return (

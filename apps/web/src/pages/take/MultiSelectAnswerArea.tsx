@@ -12,7 +12,7 @@ export function MultiSelectAnswerArea({
   answer: unknown;
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const raw = (question.content as { options?: unknown } | null)?.options;
   const options: string[] = Array.isArray(raw) ? (raw as string[]) : [];
   const sel = (answer as { selected?: unknown } | null)?.selected;

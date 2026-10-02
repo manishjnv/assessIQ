@@ -40,7 +40,7 @@ const BODY_P: CSSProperties = {
   lineHeight: 1.5,
 };
 
-export function Expired(): JSX.Element {
+export function Expired(): React.JSX.Element {
   return (
     <div
       className="aiq-screen aiq-take-twopane"

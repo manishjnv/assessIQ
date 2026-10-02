@@ -31,7 +31,7 @@ const SERIF_H1: CSSProperties = {
   letterSpacing: '-0.025em',
 };
 
-export function AdminSelectIdentity(): JSX.Element {
+export function AdminSelectIdentity(): React.JSX.Element {
   const navigate = useNavigate();
   const [identities, setIdentities] = useState<IdentityOption[]>([]);
   const [loading, setLoading] = useState(true);
