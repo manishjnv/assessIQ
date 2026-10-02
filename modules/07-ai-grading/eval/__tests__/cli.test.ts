@@ -171,10 +171,17 @@ function buildLoaderShim(
 // ESM loader hooks injected by cli.test.ts
 const RUNTIME_DATA_URL = ${JSON.stringify(runtimeDataUri)};
 const EVAL_DIR_OVERRIDE = ${evalDirJson};
+// E2: cli run reads the three skill shas directly; no skill files exist in the test env.
+const SKILL_DATA_URL = "data:text/javascript," + encodeURIComponent(
+  'export async function skillSha() { return { short: "aaaaaaaa", sha256: "", label: "t", model: "t" }; }'
+);
 
 export async function resolve(specifier, context, nextResolve) {
   if (specifier.includes("runtime-selector")) {
     return { shortCircuit: true, url: RUNTIME_DATA_URL };
+  }
+  if (specifier.includes("skill-sha")) {
+    return { shortCircuit: true, url: SKILL_DATA_URL };
   }
   return nextResolve(specifier, context);
 }
@@ -363,6 +370,7 @@ function seedRunDir(
     passed: actuals.length - errorCount,
     failed: errorCount,
     prompt_version_shas: { anchors: "aabbccdd", band: "11223344", escalate: "-" },
+    skill_shas: { anchors: "aabbccdd", band: "11223344", escalate: "55667788" },
     models: { anchors: "haiku-4.5", band: "sonnet-4.6" },
     ...manifestOverrides,
   };
@@ -518,6 +526,12 @@ describe("cmdRun", () => {
     // Both record fields must be objects, not empty
     expect(Object.keys(manifest.prompt_version_shas).length).toBeGreaterThan(0);
     expect(Object.keys(manifest.models).length).toBeGreaterThan(0);
+    // E2: skill shas of all three grading skills recorded directly (eval gate input)
+    expect((manifest as unknown as { skill_shas: unknown }).skill_shas).toEqual({
+      anchors: "aaaaaaaa",
+      band: "aaaaaaaa",
+      escalate: "aaaaaaaa",
+    });
   });
 
   it("case 2: gradeSubjective throws — actual.json carries { error: { code, message } }, manifest failed=1", () => {

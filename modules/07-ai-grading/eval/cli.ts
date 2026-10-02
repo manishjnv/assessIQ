@@ -63,6 +63,9 @@ interface CaseInput {
   question: { title: string; text: string };
   rubric: CaseRubric;
   candidate_answer: string;
+  /** Harvested override cases (E2): the exact payloads the runtime was given. */
+  question_content?: unknown;
+  answer?: unknown;
 }
 
 interface ExpectedAnchor {
@@ -108,6 +111,8 @@ interface RunManifest {
   passed: number;
   failed: number;
   prompt_version_shas: Record<string, string>;
+  /** E2: short sha of each grading skill file at run start (what the eval gate compares). */
+  skill_shas: Record<"anchors" | "band" | "escalate", string>;
   models: Record<string, string>;
 }
 
@@ -120,6 +125,7 @@ interface BaselineFile {
   passed: number;
   failed: number;
   prompt_version_shas: Record<string, string>;
+  skill_shas: Record<"anchors" | "band" | "escalate", string>;
   models: Record<string, string>;
   // Aggregated metrics from compare step
   agreement_pct: number;
@@ -155,6 +161,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const EVAL_DIR = __dirname;
 const CASES_DIR = join(EVAL_DIR, "cases");
+// E2: harvested override cases — contain student answers, gitignored, never tracked.
+const PRIVATE_CASES_DIR = join(EVAL_DIR, "cases-private");
 const RUNS_DIR = join(EVAL_DIR, "runs");
 const BASELINES_DIR = join(EVAL_DIR, "baselines");
 
@@ -168,24 +176,26 @@ function isoRunId(): string {
 }
 
 function loadCaseInputs(): Array<{ input: CaseInput; expected: CaseExpected }> {
-  if (!existsSync(CASES_DIR)) return [];
-
-  const files = readdirSync(CASES_DIR).filter((f) => f.endsWith(".input.json"));
   const cases: Array<{ input: CaseInput; expected: CaseExpected }> = [];
 
-  for (const file of files) {
-    const id = file.replace(/\.input\.json$/, "");
-    const inputPath = join(CASES_DIR, file);
-    const expectedPath = join(CASES_DIR, `${id}.expected.json`);
+  for (const dir of [CASES_DIR, PRIVATE_CASES_DIR]) {
+    if (!existsSync(dir)) continue;
+    const files = readdirSync(dir).filter((f) => f.endsWith(".input.json"));
 
-    if (!existsSync(expectedPath)) {
-      console.warn(`[warn] Missing expected file for ${id} — skipping`);
-      continue;
+    for (const file of files) {
+      const id = file.replace(/\.input\.json$/, "");
+      const inputPath = join(dir, file);
+      const expectedPath = join(dir, `${id}.expected.json`);
+
+      if (!existsSync(expectedPath)) {
+        console.warn(`[warn] Missing expected file for ${id} — skipping`);
+        continue;
+      }
+
+      const input = JSON.parse(readFileSync(inputPath, "utf8")) as CaseInput;
+      const expected = JSON.parse(readFileSync(expectedPath, "utf8")) as CaseExpected;
+      cases.push({ input, expected });
     }
-
-    const input = JSON.parse(readFileSync(inputPath, "utf8")) as CaseInput;
-    const expected = JSON.parse(readFileSync(expectedPath, "utf8")) as CaseExpected;
-    cases.push({ input, expected });
   }
 
   return cases;
@@ -308,6 +318,14 @@ function computeErrorClassF1(
 
 async function cmdRun(mode: string): Promise<void> {
   const { gradeSubjective } = await import("../src/runtime-selector.js");
+  // E2: sha of all three grading skills at run start (Stage 3 rarely runs, so the
+  // per-result prompt_version_sha often has escalate "-"). Throws if a skill is missing.
+  const { skillSha } = await import("../src/skill-sha.js");
+  const skillShas = {
+    anchors: (await skillSha("grade-anchors")).short,
+    band: (await skillSha("grade-band")).short,
+    escalate: (await skillSha("grade-escalate")).short,
+  };
 
   const cases = loadCaseInputs();
   if (cases.length === 0) {
@@ -334,10 +352,10 @@ async function cmdRun(mode: string): Promise<void> {
       // eval uses synthetic UUIDs — real DB IDs not needed for harness runs
       attempt_id: "00000000-0000-0000-0000-000000000001",
       question_id: "00000000-0000-0000-0000-000000000002",
-      question_content: { title: input.question.title, text: input.question.text },
+      question_content: input.question_content ?? { title: input.question.title, text: input.question.text },
       rubric: input.rubric,
       // D5 rule: do NOT write candidate_answer to run.json — it's passed as input only
-      answer: input.candidate_answer,
+      answer: input.answer ?? input.candidate_answer,
     };
 
     let actual: ActualResult;
@@ -409,6 +427,7 @@ async function cmdRun(mode: string): Promise<void> {
     passed,
     failed,
     prompt_version_shas: promptVersionShas,
+    skill_shas: skillShas,
     models,
   };
 
@@ -606,12 +625,18 @@ async function cmdBless(runId: string): Promise<void> {
 
   const manifest = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8")) as RunManifest;
 
+  if (manifest.skill_shas === undefined) {
+    console.error("[error] run.json has no skill_shas (run predates the eval gate). Re-run the eval first.");
+    process.exit(1);
+  }
+
   const adminId = process.env["AIQ_ADMIN_USER_ID"] ?? "unknown";
   const signedAt = new Date().toISOString();
 
   // Build baseline object (without signature field first for canonical hash)
   const baselineUnsigned = {
     ...manifest,
+    skill_shas: manifest.skill_shas, // E2: what the eval gate matches at runtime
     agreement_pct: compare.agreement_pct,
     anchor_f1: compare.anchor_f1,
     adversarial_band4_count: compare.adversarial_band4_count,
@@ -641,6 +666,94 @@ async function cmdBless(runId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Sub-command: harvest-overrides (E2)
+// ---------------------------------------------------------------------------
+//
+// One eval case per admin override since <date>: question content + rubric from the
+// frozen question version, the candidate answer, expected band = the override band.
+// Written to eval/cases-private/ (gitignored): these files hold STUDENT ANSWERS and
+// must never be committed. Cross-tenant read via the assessiq_system role (same
+// pattern as loadAttemptDiagnostic) — needs DATABASE_URL, run on the server.
+
+async function cmdHarvestOverrides(since: string): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) {
+    console.error("[error] --since must be YYYY-MM-DD");
+    process.exit(1);
+  }
+  const { getPool } = await import("@assessiq/tenancy");
+  const { resolveGradingRubric } = await import("../src/handlers/admin-grade.js");
+
+  interface Row {
+    override_grading_id: string;
+    override_reasoning_band: number | null;
+    original_reasoning_band: number | null;
+    type: "subjective" | "scenario" | "log_analysis";
+    topic: string;
+    content: unknown;
+    rubric: unknown;
+    answer: unknown;
+  }
+
+  const client = await getPool().connect();
+  let rows: Row[];
+  try {
+    await client.query("BEGIN READ ONLY");
+    await client.query("SET LOCAL ROLE assessiq_system");
+    const res = await client.query<Row>(
+      `SELECT v.override_grading_id, v.override_reasoning_band, v.original_reasoning_band,
+              q.type, q.topic, qv.content, qv.rubric, aa.answer
+         FROM grading_override_quality v
+         JOIN attempt_questions aq ON aq.attempt_id = v.attempt_id AND aq.question_id = v.question_id
+         JOIN questions q ON q.id = v.question_id
+         JOIN question_versions qv ON qv.question_id = aq.question_id AND qv.version = aq.question_version
+         JOIN attempt_answers aa ON aa.attempt_id = v.attempt_id AND aa.question_id = v.question_id
+        WHERE v.override_created_at >= $1::date
+          AND q.type IN ('subjective', 'scenario', 'log_analysis')
+        ORDER BY v.override_created_at`,
+      [since],
+    );
+    await client.query("COMMIT");
+    rows = res.rows;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  ensureDir(PRIVATE_CASES_DIR);
+  let written = 0;
+  for (const r of rows) {
+    if (r.override_reasoning_band === null) continue; // no band to use as the expected value
+    const id = `override-${r.override_grading_id}`;
+    const content = r.content as { question?: unknown; title?: unknown; intro?: unknown } | null;
+    const text = [content?.question, content?.intro].find((x): x is string => typeof x === "string") ?? "";
+    const input: CaseInput = {
+      id,
+      type: r.type,
+      question: { title: r.topic, text },
+      rubric: resolveGradingRubric(r.type, r.content, r.rubric) as CaseRubric,
+      candidate_answer: typeof r.answer === "string" ? r.answer : JSON.stringify(r.answer),
+      question_content: r.content,
+      answer: r.answer,
+    };
+    const expected: CaseExpected = {
+      id,
+      anchors: [], // overrides carry a band verdict only
+      band: r.override_reasoning_band,
+      error_class: null,
+      adversarial: false,
+    };
+    writeFileSync(join(PRIVATE_CASES_DIR, `${id}.input.json`), JSON.stringify(input, null, 2));
+    writeFileSync(join(PRIVATE_CASES_DIR, `${id}.expected.json`), JSON.stringify(expected, null, 2));
+    written++;
+  }
+  console.log(`[harvest] ${written} case(s) written to ${PRIVATE_CASES_DIR} (gitignored — contains student answers)`);
+  const { closePool } = await import("@assessiq/tenancy");
+  await closePool();
+}
+
+// ---------------------------------------------------------------------------
 // Main — minimal arg parsing (no new deps; node:util.parseArgs)
 // ---------------------------------------------------------------------------
 
@@ -652,7 +765,8 @@ if (!subcommand || subcommand === "--help" || subcommand === "-h") {
     `Usage:
   pnpm tsx modules/07-ai-grading/eval/cli.ts run     --mode <claude-code-vps|anthropic-api>
   pnpm tsx modules/07-ai-grading/eval/cli.ts compare --run <ISO> [--baseline <YYYY-MM-DD>]
-  pnpm tsx modules/07-ai-grading/eval/cli.ts bless   --run <ISO>`,
+  pnpm tsx modules/07-ai-grading/eval/cli.ts bless   --run <ISO>
+  pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since <YYYY-MM-DD>   (needs DATABASE_URL)`,
   );
   process.exit(0);
 }
@@ -708,8 +822,22 @@ switch (subcommand) {
     break;
   }
 
+  case "harvest-overrides": {
+    const { values } = parseArgs({
+      args: rawArgs.slice(1),
+      options: { since: { type: "string" } },
+      strict: true,
+    });
+    if (!values.since) {
+      console.error("[error] --since <YYYY-MM-DD> required");
+      process.exit(1);
+    }
+    await cmdHarvestOverrides(values.since);
+    break;
+  }
+
   default:
     console.error(`[error] Unknown subcommand: ${subcommand}`);
-    console.error("Valid subcommands: run, compare, bless");
+    console.error("Valid subcommands: run, compare, bless, harvest-overrides");
     process.exit(1);
 }

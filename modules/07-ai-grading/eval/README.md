@@ -179,6 +179,55 @@ Each `run.json` records the `prompt_version_shas` extracted from the first succe
 
 When blessed, `baselines/<YYYY-MM-DD>.json` carries the same `prompt_version_shas`, so a future run can detect if the baseline was produced under different prompts.
 
+## Eval gate (E2) — prompts must match a blessed baseline
+
+`run` records `skill_shas: { anchors, band, escalate }` — the short (8-hex) sha of
+`grade-anchors`, `grade-band` and `grade-escalate` read directly from the skill files
+at run start (the per-result `prompt_version_shas` often has `escalate: -` because Stage 3
+rarely runs). `bless` copies `skill_shas` into `baselines/<date>.json`; a baseline without
+`skill_shas` (pre-gate) never approves anything.
+
+At runtime `src/eval-gate.ts` compares the skills on disk with every baseline. A prompt
+set is **approved** iff some baseline has exactly the same three shas. The check runs at
+the start of grade-all and re-run (the only AI grading entry points, including the
+super-admin evaluations), before any AI spawn. Question generation is not gated.
+
+| Env | Meaning |
+|---|---|
+| `AI_EVAL_GATE=off` | no check |
+| `AI_EVAL_GATE=warn` (default) | log `grading.eval_gate.unapproved`, grading continues |
+| `AI_EVAL_GATE=enforce` | unapproved prompts -> `409 AIG_EVAL_GATE`, no AI call |
+| anything else | treated as `enforce` (fail-closed) and logged |
+| `AIQ_EVAL_BASELINES_DIR` | baselines dir override (default `eval/baselines` next to `src/`) |
+
+`GET /api/admin/super/eval-gate` (super admin) returns `{ mode, approved, current, baseline_date }`;
+the platform evaluations page shows a banner when `approved` is false.
+
+**Bootstrap order** (on the VPS, `/srv/assessiq`): `mkdir -p modules/07-ai-grading/eval/baselines`
+(the api container bind-mounts it read-only) -> `run --mode claude-code-vps` -> `compare --run <ISO>`
+-> `bless --run <ISO>` -> only then set `AI_EVAL_GATE=enforce` in `.env` and recreate `assessiq-api`.
+Every later skill edit repeats run -> compare -> bless. Setting `enforce` before the first bless
+blocks all AI grading.
+
+## Override capture (E2) — real disagreements as eval cases
+
+Overrides already INSERT a `gradings` row (`grader='admin_override'`, `override_of`, `override_reason`);
+the AI row is kept. Migration 0140 adds the view `grading_override_quality` (security_invoker, so
+tenant RLS applies) pairing each override with the AI row it replaced.
+`GET /api/admin/super/grading-quality?days=90` (super admin) aggregates it per original
+`prompt_version_sha`: `ai_grades`, `overrides`, `override_rate`, `mean_abs_band_delta`,
+`mean_abs_score_delta_pct`.
+
+```bash
+# needs DATABASE_URL (server); one case pair per override since the date
+pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since 2026-10-01
+```
+
+Writes `cases-private/override-<gradingId>.{input,expected}.json` (question content + rubric from
+the frozen question version, the candidate answer, expected band = the override band, no anchors).
+`run` and `compare` also load `cases-private/`. **These files contain student answers: the
+directory is gitignored and must never be committed or copied off the server.**
+
 ## Adding a question type
 
 When a new question type lands (e.g. `kql`, `scenario`), add 50+ cases under `cases/` using the same naming convention. The `run` subcommand picks up all `*.input.json` files automatically. Update this README's case-count table accordingly.

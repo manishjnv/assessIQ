@@ -79,6 +79,8 @@ services:
     # = 65, ~32 left for migrations / psql / backups. Overrides PG_POOL_MAX from .env.
     environment:
       PG_POOL_MAX: ${API_PG_POOL_MAX:-40}
+      # E2 eval gate: off | warn | enforce (see modules/07-ai-grading/eval/README.md)
+      AI_EVAL_GATE: ${AI_EVAL_GATE:-warn}
     # Operational logs: bind /var/log/assessiq from host so logrotate (system
     # daemon, on host) and pino (in container) share the file inodes. Path
     # MUST match the LOG_DIR env var. See docs/11-observability.md § 7.
@@ -103,6 +105,11 @@ services:
       - /root/.claude:/home/node/.claude:rw
       - /root/.claude.json:/home/node/.claude.json:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
+      # E2 eval gate: blessed eval baselines (gitignored, written on the host by
+      # `eval/cli.ts bless`) read-only at the path eval-gate.ts resolves by default
+      # (<module>/eval/baselines under the image's /app). Host dir must exist
+      # (mkdir -p) or Docker creates it root-owned.
+      - ../modules/07-ai-grading/eval/baselines:/app/modules/07-ai-grading/eval/baselines:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
       # assessiq-mcp: stdio MCP server providing submit_anchors / submit_band /

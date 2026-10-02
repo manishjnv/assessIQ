@@ -389,6 +389,8 @@ export const AI_GRADING_ERROR_CODES = {
   HEARTBEAT_STALE: "AIG_HEARTBEAT_STALE",
   /** Skill file missing or unreadable on the VPS */
   SKILL_NOT_FOUND: "AIG_SKILL_NOT_FOUND",
+  /** Eval gate (E2): grading prompts changed since the last blessed eval; AI_EVAL_GATE=enforce blocks grading */
+  EVAL_GATE: "AIG_EVAL_GATE",
   /** Schema-violation in `claude` stream-json output */
   SCHEMA_VIOLATION: "AIG_SCHEMA_VIOLATION",
   /**

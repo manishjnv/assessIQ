@@ -55,7 +55,7 @@ const log = streamLogger("grading");
  * mistake. Used only for the cross-tenant queue read and the attempt -> tenant
  * lookup, where there is no tenant context yet.
  */
-async function withSystemReadOnly<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withSystemReadOnly<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await getPool().connect();
   try {
     await client.query("BEGIN READ ONLY");

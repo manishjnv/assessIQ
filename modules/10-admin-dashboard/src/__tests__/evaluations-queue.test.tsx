@@ -98,6 +98,16 @@ function mockApi(): void {
     if (path === "/admin/super/evaluations") {
       return { items: ROWS, counts: { pending: 3, older_than_24h: 2 } };
     }
+    if (path === "/admin/super/eval-gate") {
+      return { mode: "enforce", approved: false };
+    }
+    if (path.startsWith("/admin/super/grading-quality")) {
+      return {
+        items: [
+          { prompt_version_sha: "anchors:aaaa1111;band:bbbb2222;escalate:-", ai_grades: 10, overrides: 2, override_rate: 0.2, mean_abs_band_delta: 1, mean_abs_score_delta_pct: 25 },
+        ],
+      };
+    }
     if (path === "/admin/super/evaluations/release-to-tenant") {
       return { released: [READY], skipped: [] };
     }
@@ -180,5 +190,12 @@ describe("AdminEvaluationsQueue", () => {
     fireEvent.click(screen.getByRole("button", { name: "Evaluate next" }));
     const landing = await screen.findByTestId("landing");
     expect(landing.textContent).toBe(OLD);
+  });
+
+  it("Q4 shows the eval-gate banner when prompts are not approved, and the quality table", async () => {
+    await renderQueue();
+    expect(await screen.findByText("AI grading is blocked: prompts changed since the last passing eval.")).toBeTruthy();
+    expect(await screen.findByText("anchors:aaaa1111;band:bbbb2222;escalate:-")).toBeTruthy();
+    expect(screen.getByText("20%")).toBeTruthy();
   });
 });
