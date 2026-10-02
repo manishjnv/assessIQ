@@ -85,7 +85,7 @@ export async function countOverdueEvaluations(): Promise<{ count: number; oldest
           AND EXISTS (SELECT 1
                         FROM attempt_questions aq
                         JOIN questions q ON q.id = aq.question_id
-                       WHERE aq.attempt_id = a.id AND q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering'))`,
+                       WHERE aq.attempt_id = a.id AND q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))`,
     );
     await client.query('COMMIT');
     const row = res.rows[0];
