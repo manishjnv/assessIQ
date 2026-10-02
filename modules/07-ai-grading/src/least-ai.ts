@@ -26,11 +26,11 @@ export function isBlankAnswer(answer: unknown): boolean {
   return leaves(answer).join("").replace(/\s+/g, "").length < MIN_CHARS;
 }
 
-/** trim + collapse whitespace + case-fold, structure kept (keys sorted). */
+/** trim + collapse whitespace, case KEPT, structure kept (keys sorted). */
 export function normaliseAnswer(v: unknown): string {
   const norm = (x: unknown): unknown =>
     typeof x === "string"
-      ? x.trim().replace(/\s+/g, " ").toLowerCase()
+      ? x.trim().replace(/\s+/g, " ") // case kept: KQL/code identifiers are case-sensitive (codex 2026-10-02)
       : Array.isArray(x)
         ? x.map(norm)
         : x !== null && typeof x === "object"
@@ -126,7 +126,17 @@ export async function reuseProposal(
     return seg("band") === shas.band && (a === "-" || a === shas.anchors);
   });
   const src = ok[0];
-  if (src === undefined || ok.some((r) => Number(r.score_earned) !== Number(src.score_earned))) return null;
+  // Ambiguous unless every match agrees on BOTH score and band (codex 2026-10-02).
+  // Rubric is bound by construction: grading reads qv.rubric of the frozen
+  // question_version (admin-grade.ts frozen-question SELECT), and reuse requires the
+  // same question_version, so the same rubric snapshot.
+  if (
+    src === undefined ||
+    ok.some(
+      (r) => Number(r.score_earned) !== Number(src.score_earned) || r.reasoning_band !== src.reasoning_band,
+    )
+  )
+    return null;
   return {
     attempt_id: p.attemptId,
     question_id: p.questionId,
