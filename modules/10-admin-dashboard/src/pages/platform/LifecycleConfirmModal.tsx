@@ -15,7 +15,7 @@ export const LIFECYCLE_COPY: Record<
   suspend: {
     title: (name) => `Suspend ${name}?`,
     body: (name) =>
-      `Suspending ${name} will immediately sign out all active users — admins, reviewers, and candidates — and prevent future logins. All data, billing, and entitlements are preserved. You can resume any time.`,
+      `Suspending ${name} will immediately sign out all active users — admins and candidates — and prevent future logins. All data, billing, and entitlements are preserved. You can resume any time.`,
     verb: "Suspend",
   },
   resume: {
@@ -53,7 +53,7 @@ export function LifecycleConfirmModal({
   const [loading, setLoading] = useState(false);
   const [modalState, setModalState] = useState<"confirm" | "mfa">("confirm");
   const copy = LIFECYCLE_COPY[action];
-  const userCount = (tenant.admin_count ?? 0) + (tenant.reviewer_count ?? 0);
+  const userCount = tenant.admin_count ?? 0;
 
   const handleConfirm = async (): Promise<void> => {
     setLoading(true);

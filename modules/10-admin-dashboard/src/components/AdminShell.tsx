@@ -224,7 +224,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
   const path = location.pathname;
 
-  // Nav config — role-aware: reviewers see grading + reports only.
+  // Nav config — role-aware (admin vs super_admin entries).
   // super_admin satisfies the admin gate (super_admin > admin).
   const isAdmin = session?.user.role === "admin" || session?.user.role === "super_admin";
 
@@ -302,7 +302,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       ? "Super admin"
       : session?.user.role === "admin"
         ? "Admin"
-        : "Reviewer";
+        : "User";
 
   const sidebarFooter = (
     <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
@@ -412,7 +412,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             );
             // Render a section header only if at least one of its entries is
             // visible to the current role — avoids an empty "Admin" label for
-            // a reviewer who has no admin entries.
+            // a non-admin session with no admin entries.
             const renderSection = (label: string, entries: NavEntry[]): React.JSX.Element | null => {
               const shown = entries.filter(visible);
               if (shown.length === 0) return null;
@@ -544,7 +544,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
           </div>
         </div>
 
-        {/* MFA enrollment nudge — shown once per session for unenrolled admins/reviewers */}
+        {/* MFA enrollment nudge — shown once per session for unenrolled admins */}
         {session?.totpEnrolled === false && !nudgeDismissed && (
           <div className="aiq-admin-mfa-nudge">
             <MfaNudgeBanner onDismiss={dismissNudge} onSetup={() => navigate("/admin/mfa")} />

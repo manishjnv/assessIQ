@@ -209,6 +209,5 @@ export function AdminSelectIdentity(): React.JSX.Element {
 const roleLabelMap: Record<string, string> = {
   super_admin: 'Super Admin',
   admin: 'Admin',
-  reviewer: 'Reviewer',
   candidate: 'Candidate',
 };

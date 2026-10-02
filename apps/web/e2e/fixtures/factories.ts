@@ -120,7 +120,7 @@ async function apiFetchJson<T>(
  */
 async function mintSession(
   email: string,
-  role: 'admin' | 'reviewer' | 'candidate',
+  role: 'admin' | 'candidate',
   tenantSlug: string,
 ): Promise<MintedSession> {
   const res = await apiFetch('/api/dev/mint-session', {

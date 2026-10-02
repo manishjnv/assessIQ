@@ -497,11 +497,11 @@ export function AdminPlatform(): React.ReactElement {
                             </span>
                           )}
                         </div>
-                        {/* Phase B: admin/reviewer count badge */}
-                        {((t.admin_count ?? 0) > 0 || (t.reviewer_count ?? 0) > 0) && (
+                        {/* Phase B: admin count badge */}
+                        {(t.admin_count ?? 0) > 0 && (
                           <div style={{ marginTop: 4 }}>
                             <span style={{ ...META_LABEL, fontSize: 10 }}>
-                              {t.admin_count ?? 0} admin{(t.admin_count ?? 0) !== 1 ? "s" : ""} · {t.reviewer_count ?? 0} reviewer{(t.reviewer_count ?? 0) !== 1 ? "s" : ""}
+                              {t.admin_count ?? 0} admin{(t.admin_count ?? 0) !== 1 ? "s" : ""}
                             </span>
                           </div>
                         )}

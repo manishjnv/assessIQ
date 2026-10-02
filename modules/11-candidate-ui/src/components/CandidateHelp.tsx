@@ -132,7 +132,7 @@ function FaqContent(): React.ReactElement {
           </li>
           <li style={LI}>
             Multiple choice and code questions get scored automatically. Long
-            answer questions are reviewed by an AI grader plus a human reviewer.
+            answer questions are reviewed by an AI grader and then by the company admin.
           </li>
         </ul>
       </section>
@@ -215,7 +215,7 @@ function FaqContent(): React.ReactElement {
           </li>
           <li style={LI}>
             If a question seems unclear, answer to the best of your understanding.
-            Reviewers see what you wrote; they understand candidates may interpret
+            Admins see what you wrote; they understand candidates may interpret
             ambiguity differently.
           </li>
         </ul>

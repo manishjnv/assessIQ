@@ -190,7 +190,6 @@ const ROLE_LABEL: Record<FeedRole, string> = {
 const FEED_ROLE_FILTERS: { value: FeedRoleFilter; label: string }[] = [
   { value: "all",       label: "All" },
   { value: "admin",     label: "Admin" },
-  { value: "reviewer",  label: "Reviewer" },
   { value: "candidate", label: "Candidate" },
 ];
 
@@ -283,7 +282,7 @@ function ActivityFeedSection(): React.ReactElement {
               color: "var(--aiq-color-fg-muted)",
             }}
           >
-            Everything happening across your workspace — admins, reviewers, and candidates.
+            Everything happening across your workspace — admins and candidates.
           </p>
         </div>
 

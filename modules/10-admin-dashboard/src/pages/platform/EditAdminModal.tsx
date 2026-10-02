@@ -34,12 +34,10 @@ export function EditAdminModal({
   const origOrgName = tenant.name ?? "";
   const origName = tenant.admin_name ?? "";
   const origEmail = normEmail(tenant.admin_email ?? "");
-  const origRole: "admin" | "reviewer" = tenant.admin_role === "reviewer" ? "reviewer" : "admin";
 
   const [orgName, setOrgName] = useState(origOrgName);
   const [name, setName] = useState(origName);
   const [email, setEmail] = useState(tenant.admin_email ?? "");
-  const [role, setRole] = useState<"admin" | "reviewer">(origRole);
   const [confirmIdentity, setConfirmIdentity] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -51,8 +49,7 @@ export function EditAdminModal({
   const orgNameChanged = orgName.trim() !== origOrgName.trim();
   const emailChanged = normEmail(email) !== origEmail;
   const nameChanged = name.trim() !== origName;
-  const roleChanged = role !== origRole;
-  const adminChanged = emailChanged || nameChanged || roleChanged;
+  const adminChanged = emailChanged || nameChanged;
   const hasChanges = orgNameChanged || adminChanged;
 
   // Identity-transfer gate: changing the email of an existing account (active or
@@ -63,7 +60,6 @@ export function EditAdminModal({
   const buildPayload = (): SuperUpdateAdminRequest => {
     const body: SuperUpdateAdminRequest = {};
     if (nameChanged) body.name = name.trim();
-    if (roleChanged) body.role = role;
     if (emailChanged) {
       body.email = email.trim();
       if (hasAccount) body.confirmEmailIdentityChange = true;
@@ -285,25 +281,6 @@ export function EditAdminModal({
                     A fresh invite goes to the new address; the old link stops working.
                   </span>
                 )}
-              </div>
-
-              {/* Role */}
-              <div>
-                <label
-                  htmlFor={`edit-admin-role-${adminUserId}`}
-                  style={{ display: "block", fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500, marginBottom: 6 }}
-                >
-                  Role
-                </label>
-                <select
-                  id={`edit-admin-role-${adminUserId}`}
-                  value={role}
-                  onChange={(e) => { setRole(e.target.value as "admin" | "reviewer"); setGlobalError(null); }}
-                  style={selectStyle}
-                >
-                  <option value="admin">admin</option>
-                  <option value="reviewer">reviewer</option>
-                </select>
               </div>
 
               {/* Reason (optional, audit-logged) */}

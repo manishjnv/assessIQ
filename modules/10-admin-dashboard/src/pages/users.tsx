@@ -173,7 +173,7 @@ const INV_GRID = "120px 2fr 1fr 110px 110px 120px";
 // The file-level `type UserRole = "admin" | "reviewer"` is used elsewhere (e.g.
 // filter chips, manage menus) and must not change. The form uses InviteRole so
 // "candidate" is only in scope here.
-type InviteRole = "admin" | "reviewer" | "candidate";
+type InviteRole = "admin" | "candidate";
 
 function InviteForm({
   onSuccess,
@@ -183,7 +183,7 @@ function InviteForm({
   onCancel: () => void;
 }): React.ReactElement {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<InviteRole>("reviewer");
+  const [role, setRole] = useState<InviteRole>("admin");
   const [name, setName] = useState("");
   const [designation, setDesignation] = useState("");
   const [loading, setLoading] = useState(false);
@@ -300,7 +300,7 @@ function InviteForm({
           <div data-help-id="admin.users.role">
             <span style={{ ...META_LABEL, display: "block", marginBottom: 6 }}>Role</span>
             <div style={{ display: "flex", gap: 8 }}>
-              {(["admin", "reviewer", "candidate"] as InviteRole[]).map((r) => (
+              {(["admin", "candidate"] as InviteRole[]).map((r) => (
                 <Button
                   key={r}
                   size="sm"
@@ -1291,7 +1291,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                 lineHeight: 1.5,
               }}
             >
-              Admins manage the tenant. Reviewers grade submissions. Candidates take assessments.
+              Admins manage the tenant and review results. Candidates take assessments.
             </p>
           </div>
           <span style={{ flex: 1 }} />
@@ -1325,7 +1325,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
             </div>
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {!isSuperContext && (["admin", "reviewer"] as const).map((r) => (
+            {!isSuperContext && (["admin"] as const).map((r) => (
               <FilterChip
                 key={r}
                 active={roleFilter === r}
