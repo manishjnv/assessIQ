@@ -16,19 +16,19 @@ jobs:
     steps:
       # 1. Checkout
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 2. pnpm setup
       # Version comes from root package.json's "packageManager" field
-      # (pnpm@9.15.0). pnpm/action-setup@v4 rejects duplicate version specs;
+      # (pnpm@9.15.0). pnpm/action-setup@v6 rejects duplicate version specs;
       # keep the version in ONE place (packageManager) — see CI failure
       # 5f0752e2 "ERR_PNPM_BAD_PM_VERSION" 2026-05-20.
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       # 3. Node setup with pnpm cache
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: pnpm
@@ -365,15 +365,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         # Version comes from root package.json's "packageManager" field
         # (same reason as the quality job — see comment there).
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: pnpm
@@ -392,7 +392,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ github.run_id }}
           path: apps/web/playwright-report/
@@ -400,7 +400,7 @@ jobs:
 
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-traces-${{ github.run_id }}
           path: apps/web/test-results/
