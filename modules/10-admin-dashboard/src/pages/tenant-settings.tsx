@@ -1277,7 +1277,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
     return inner;
   }
   return (
-    <AdminShell breadcrumbs={["Settings"]} helpPage="admin.tenant-settings">
+    <AdminShell breadcrumbs={["Settings"]} helpPage="admin.tenant_settings">
       {inner}
     </AdminShell>
   );
