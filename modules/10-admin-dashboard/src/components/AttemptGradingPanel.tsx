@@ -234,6 +234,44 @@ function AttemptAnswerView({ type, content, answer }: { type: string; content: u
       );
     }
 
+    case "ordering": {
+      const ord = Array.isArray(a?.order) ? (a!.order as unknown[]).filter((x): x is number => typeof x === "number") : null;
+      if (ord === null) break;
+      if (ord.length === 0) return <NoAnswer label="No order submitted." />;
+      const c = asAnswerObj(content);
+      const items = Array.isArray(c?.items) ? (c!.items as unknown[]) : [];
+      const key = Array.isArray(c?.correct_order) ? (c!.correct_order as unknown[]) : [];
+      const text = (i: unknown): string => (typeof i === "number" && typeof items[i] === "string" ? (items[i] as string) : "");
+      const col: React.CSSProperties = { flex: 1, minWidth: 200 };
+      return (
+        <div style={{ display: "flex", gap: "var(--aiq-space-lg)", flexWrap: "wrap" }}>
+          <div style={col}>
+            <div style={ANSWER_SUBLABEL_STYLE}>Candidate order</div>
+            <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-2xs)" }}>
+              {ord.map((i, pos) => {
+                const ok = key.length === 0 ? null : key[pos] === i;
+                return (
+                  <li key={pos} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: ok === true ? "var(--aiq-color-success, #065f46)" : ok === false ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-secondary)" }}>
+                    {text(i)}{ok === true ? " ✓" : ok === false ? " ✗" : ""}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          {key.length > 0 && (
+            <div style={col}>
+              <div style={ANSWER_SUBLABEL_STYLE}>Correct order</div>
+              <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-2xs)" }}>
+                {key.map((i, pos) => (
+                  <li key={pos} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>{text(i)}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     case "numeric": {
       const v = typeof answer === "number" ? answer : typeof a?.value === "number" ? a.value : null;
       if (v === null) break;

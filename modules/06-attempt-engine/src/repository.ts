@@ -410,6 +410,29 @@ export async function listMcqOptionsForPicks(
 }
 
 /**
+ * The frozen `items` + `correct_order` of each picked ordering question, keyed by question id —
+ * what startAttempt needs to draw a per-attempt display order that is never the correct order.
+ * Same frozen (question_id, version) rows the candidate is served from. Server-internal.
+ */
+export async function listOrderingKeysForPicks(
+  client: PoolClient,
+  picks: ReadonlyArray<{ id: string; version: number }>,
+): Promise<Map<string, { items: unknown; correct_order: unknown }>> {
+  const out = new Map<string, { items: unknown; correct_order: unknown }>();
+  if (picks.length === 0) return out;
+  const result = await client.query<{ question_id: string; items: unknown; correct_order: unknown }>(
+    `SELECT p.question_id::text AS question_id, qv.content -> 'items' AS items, qv.content -> 'correct_order' AS correct_order
+       FROM unnest($1::uuid[], $2::int[]) AS p(question_id, version)
+       JOIN questions q ON q.id = p.question_id AND q.type = 'ordering'
+       JOIN question_versions qv
+         ON qv.question_id = p.question_id AND qv.version = p.version`,
+    [picks.map((p) => p.id), picks.map((p) => p.version)],
+  );
+  for (const r of result.rows) out.set(r.question_id, { items: r.items, correct_order: r.correct_order });
+  return out;
+}
+
+/**
  * Stored option permutations of an attempt, keyed by question id (only questions
  * that were shuffled). SERVER-INTERNAL: used to translate the candidate's view;
  * the values are never returned to a caller outside this module.
@@ -434,6 +457,7 @@ export async function listOptionOrders(
  *
  * Allowlist per type (fail-closed: unknown types keep `question` only):
  *   mcq          → question, options
+ *   ordering     → question, items
  *   log_analysis → question, log_format, log_excerpt, hint
  *   kql          → question, tables
  *   scenario     → title, intro, step_dependency, steps
@@ -470,6 +494,11 @@ export function sanitizeContentForCandidate(type: string, content: unknown): unk
 
     case "numeric":
       return pick(["question", "unit"]);
+
+    // ordering: `correct_order`, `scoring` and `explanation` never leave the server. The items are
+    // re-arranged into the attempt's (never-correct) display order by displayQuestions().
+    case "ordering":
+      return pick(["question", "items"]);
 
     case "log_analysis":
       return pick(["question", "log_format", "log_excerpt", "hint"]);

@@ -60,6 +60,7 @@ export {
   isMcqAnswerCorrect,
   isNumericAnswerCorrect,
   multiSelectFraction,
+  orderingFraction,
   deterministicFraction,
   DETERMINISTIC_TYPES,
   MCQ_SENTINEL_SHA,

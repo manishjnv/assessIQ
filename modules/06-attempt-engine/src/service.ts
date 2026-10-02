@@ -76,6 +76,7 @@ import {
   answerToOriginal,
   MAX_SHUFFLE_OPTIONS,
   buildOptionOrder,
+  buildOrderingOrder,
   displayAnswers,
   displayQuestions,
   usableOrder,
@@ -469,11 +470,16 @@ export async function startAttempt(
     const mcqOptions = assessment.randomize
       ? await repo.listMcqOptionsForPicks(client, chosen)
       : new Map<string, unknown>();
+    // Ordering questions are ALWAYS shuffled (independent of `randomize`): the authored item
+    // order is the answer key, so the candidate must never be shown it.
+    const orderingKeys = await repo.listOrderingKeysForPicks(client, chosen);
     const aqRows = chosen.map((q, i) => ({
       questionId: q.id,
       position: i + 1,
       questionVersion: q.version,
-      optionOrder: buildOptionOrder(mcqOptions.get(q.id), Math.random, MAX_SHUFFLE_OPTIONS),
+      optionOrder: orderingKeys.has(q.id)
+        ? buildOrderingOrder(orderingKeys.get(q.id)?.items, orderingKeys.get(q.id)?.correct_order)
+        : buildOptionOrder(mcqOptions.get(q.id), Math.random, MAX_SHUFFLE_OPTIONS),
       sectionIndex: sectionOf !== null ? (sectionOf[i] as number) : null,
     }));
     await repo.insertAttemptQuestions(client, attempt.id, aqRows);

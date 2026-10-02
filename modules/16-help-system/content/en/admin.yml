@@ -3052,6 +3052,44 @@ admin.question.content.multi_select:
     Options are shuffled per candidate like normal MCQs. Avoid options that point at
     each other, such as "All of the above"; those questions keep their written order.
 
+admin.question.content.ordering:
+  audience: admin
+  short_text: "Ordering question: the candidate puts the items in the right order. Scored automatically."
+  long_md: |
+    ## Ordering question
+
+    The candidate sees the items in a shuffled order and moves them with Up and Down
+    buttons. Scored automatically, no AI.
+
+    - Write a **question** and **2 to 10 items**, in the CORRECT order.
+    - The order you type is the answer key. Each candidate sees the items shuffled,
+      and never in the correct order.
+    - A blank answer scores 0. The answer key is never sent to the candidate.
+    - To ask "pick the log line", use a multi-select question whose options are the log lines.
+
+admin.question.ordering.items:
+  audience: admin
+  short_text: "Type the items in the correct order. Candidates see them shuffled."
+  long_md: |
+    ## Items
+
+    Type each item on its own row, in the order that is **correct**. Use Up and Down
+    to move a row and Remove to delete it. You need at least 2 and at most 10 items.
+
+    Do not write the order in the item text, for example "Step 1". The candidate sees
+    the items in a shuffled order.
+
+admin.question.ordering.scoring:
+  audience: admin
+  short_text: "All or nothing, or partial credit for items in the right place."
+  long_md: |
+    ## Scoring
+
+    - **All or nothing** (default): full points only when every item is in the right place.
+    - **Partial credit**: points x (items in the right place) / (number of items).
+
+    A missing or invalid answer scores 0.
+
 admin.assessment.sections:
   audience: admin
   short_text: "Split the test into timed sections, such as Quantitative, Logical and Verbal."

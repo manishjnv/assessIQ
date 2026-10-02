@@ -179,6 +179,21 @@ export function QuestionPromptView({ type, content }: QuestionPromptViewProps): 
     case "mcq":
     case "multi_select":
       return <McqPrompt c={c} />;
+    case "ordering":
+      // Items in AUTHORED order only as a plain list; the answer key lives in ExpectedAnswerView.
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+          <PromptText value={c.question} />
+          <ul style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", fontSize: "var(--aiq-text-sm)" }}>
+            {(safeArr<unknown>(c.items) ?? []).map((it, i) => (
+              <li key={i}>{typeof it === "string" ? cleanText(it) : ""}</li>
+            ))}
+          </ul>
+          <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+            Candidates arrange these items in order. They see them shuffled.
+          </span>
+        </div>
+      );
     case "numeric":
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>

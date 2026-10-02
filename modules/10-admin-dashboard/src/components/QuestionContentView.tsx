@@ -540,6 +540,45 @@ function NumericView({ c }: { c: Record<string, unknown> }): React.ReactElement 
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+// ── Ordering ─────────────────────────────────────────────────────────────────
+
+/** Items listed in the CORRECT order (admin only: this is the answer key). */
+function OrderingView({ c }: { c: Record<string, unknown> }): React.ReactElement {
+  const question = safeStr(c.question);
+  const items = safeArr<unknown>(c.items) ?? [];
+  const key = Array.isArray(c.correct_order) ? c.correct_order.filter((x): x is number => typeof x === "number") : [];
+  const explanation = safeStr(c.explanation);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+      <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+        Put in the correct order · scoring: {c.scoring === "partial" ? "partial credit" : "all or nothing"}
+      </span>
+      {question != null ? (
+        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {cleanText(question)}
+        </p>
+      ) : (
+        <JsonFallback value={c.question} />
+      )}
+      <ol style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+        {key.map((itemIdx, pos) => (
+          <li key={pos} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+            {typeof items[itemIdx] === "string" ? cleanText(items[itemIdx] as string) : ""}
+          </li>
+        ))}
+      </ol>
+      <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+        Items are listed in the correct order. Candidates see them shuffled.
+      </span>
+      {explanation != null && (
+        <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)", whiteSpace: "pre-wrap" }}>
+          {cleanText(explanation)}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function QuestionContentView({ type, content }: QuestionContentViewProps): React.ReactElement {
   // If content is a raw string, render as-is.
   if (typeof content === "string") {
@@ -561,6 +600,8 @@ export function QuestionContentView({ type, content }: QuestionContentViewProps)
     case "mcq":
     case "multi_select":
       return <McqView c={c} />;
+    case "ordering":
+      return <OrderingView c={c} />;
     case "numeric":
       return <NumericView c={c} />;
     case "subjective":

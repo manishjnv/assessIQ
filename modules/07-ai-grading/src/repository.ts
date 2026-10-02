@@ -711,7 +711,7 @@ export async function listSuperEvaluationQueue(
        JOIN LATERAL (
          SELECT COUNT(*) FILTER (WHERE q.type IN ('subjective', 'scenario', 'log_analysis'))::int AS written_count,
                 COUNT(*) FILTER (WHERE q.type = 'kql')::int                                       AS kql_count,
-                COUNT(*) FILTER (WHERE q.type NOT IN ('mcq', 'numeric', 'multi_select'))::int                                      AS non_mcq
+                COUNT(*) FILTER (WHERE q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering'))::int                                      AS non_mcq
            FROM attempt_questions aq
            JOIN questions q ON q.id = aq.question_id
           WHERE aq.attempt_id = a.id

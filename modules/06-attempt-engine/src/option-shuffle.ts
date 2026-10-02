@@ -138,6 +138,30 @@ export function buildOptionOrder(options: unknown, rng: () => number = Math.rand
 }
 
 /**
+ * ordering questions: the per-attempt display order for the frozen `items`, ALWAYS shuffled
+ * (ignores assessments.randomize and the cross-reference detector: authors usually write the
+ * items already in the right order, so an unshuffled list would hand out the key). The order is
+ * never equal to `correctOrder`; if the draw lands on it, rotate by one. Returns null only for
+ * malformed content (then nothing is served shuffled and the answer scores 0 anyway).
+ * order[displayPosition] = original item index, same model as the MCQ option order.
+ */
+export function buildOrderingOrder(items: unknown, correctOrder: unknown, rng: () => number = Math.random): number[] | null {
+  if (!Array.isArray(items) || items.length < MIN_OPTIONS || items.length > MAX_SHUFFLE_OPTIONS) return null;
+  const n = items.length;
+  const key = usableOrder(correctOrder);
+  if (key === null || key.length !== n) return null;
+  let order = items.map((_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = order[i] as number;
+    order[i] = order[j] as number;
+    order[j] = tmp;
+  }
+  if (order.every((v, i) => v === key[i])) order = order.map((_, i) => order[(i + 1) % n] as number);
+  return order;
+}
+
+/**
  * The stored order if it is a valid permutation of 0..n-1 (n >= 2), else null.
  * Both seams go through this, so a corrupt value degrades to "original order"
  * identically on save and on read.
@@ -164,7 +188,10 @@ export function usableOrder(raw: unknown): number[] | null {
  */
 function remapSelected(answer: unknown, order: readonly number[], toDisplay: boolean): unknown {
   const isObject = answer !== null && typeof answer === "object" && !Array.isArray(answer);
-  const raw = isObject ? (answer as { selected?: unknown }).selected : answer;
+  // ordering answers are `{ order: number[] }` (the candidate's arrangement, as displayed positions);
+  // the same array translation applies, just under the `order` key.
+  const key = isObject && Array.isArray((answer as { order?: unknown }).order) ? "order" : "selected";
+  const raw = isObject ? (answer as Record<string, unknown>)[key] : answer;
   const mapOne = (v: unknown): number | undefined => {
     if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v >= order.length) return undefined;
     const m = toDisplay ? order.indexOf(v) : order[v];
@@ -175,7 +202,7 @@ function remapSelected(answer: unknown, order: readonly number[], toDisplay: boo
   if (Array.isArray(raw)) {
     const mapped = raw.map(mapOne);
     if (mapped.some((m) => m === undefined)) return answer;
-    return isObject ? { ...(answer as object), selected: mapped } : { selected: mapped };
+    return isObject ? { ...(answer as object), [key]: mapped } : { selected: mapped };
   }
   const mapped = mapOne(raw);
   if (mapped === undefined) return answer;
@@ -204,15 +231,17 @@ export function displayQuestions(
   return questions.map((q) => {
     const order = usableOrder(orders.get(q.question_id));
     if (order === null) return q;
-    const content = q.content as { options?: unknown } | null;
-    const options = content !== null && typeof content === "object" ? content.options : undefined;
+    const content = q.content as { options?: unknown; items?: unknown } | null;
+    // MCQ / multi_select shuffle `options`; ordering shuffles `items` (same permutation model).
+    const field = q.type === "ordering" ? "items" : "options";
+    const options = content !== null && typeof content === "object" ? content[field] : undefined;
     // question_versions is insert-only and attempt_questions pins the version, so an
     // order always matches its frozen options. If it ever does not, fail loudly: serving
     // the authored order while saves still translate would silently mis-score.
     if (!Array.isArray(options) || options.length !== order.length) {
       throw new Error(`option_order does not match the frozen options of question ${q.question_id}`);
     }
-    return { ...q, content: { ...content, options: order.map((i) => options[i]) } };
+    return { ...q, content: { ...content, [field]: order.map((i) => options[i]) } };
   });
 }
 

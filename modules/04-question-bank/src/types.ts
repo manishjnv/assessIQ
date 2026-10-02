@@ -73,6 +73,25 @@ export const MultiSelectContentSchema = z.object({
 
 export type MultiSelectContent = z.infer<typeof MultiSelectContentSchema>;
 
+// Ordering - "put these steps in the right order". Deterministic. `correct_order` = item indexes
+// (into `items`) in the right order; a permutation of 0..items.length-1. Never sent to candidates.
+export const OrderingContentSchema = z.object({
+  question: z.string().min(1),
+  items: z.array(z.string().min(1)).min(2).max(10),
+  correct_order: z.array(z.number().int().min(0)),
+  scoring: z.enum(["all_or_nothing", "partial"]).optional(),
+  explanation: z.string().min(1).optional(),
+}).strict()
+  .superRefine((val, ctx) => {
+    const n = val.items.length;
+    const co = val.correct_order;
+    if (co.length !== n || new Set(co).size !== n || co.some((i) => i >= n)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["correct_order"], message: "correct_order must be a permutation of 0..items.length-1" });
+    }
+  });
+
+export type OrderingContent = z.infer<typeof OrderingContentSchema>;
+
 // Subjective (data-model lines 284-288)
 // rubric lives in the separate column — not embedded in content.
 export const SubjectiveContentSchema = z.object({
@@ -152,6 +171,7 @@ export const QUESTION_TYPES = [
   "log_analysis",
   "numeric",
   "multi_select",
+  "ordering",
 ] as const;
 
 export type QuestionType = typeof QUESTION_TYPES[number];
@@ -164,17 +184,18 @@ const CONTENT_SCHEMA_MAP = {
   log_analysis: LogAnalysisContentSchema,
   numeric: NumericContentSchema,
   multi_select: MultiSelectContentSchema,
+  ordering: OrderingContentSchema,
 } as const satisfies Record<QuestionType, z.ZodTypeAny>;
 
 export function validateQuestionContent(
   type: QuestionType,
   content: unknown,
 ):
-  | { ok: true; data: McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent }
+  | { ok: true; data: McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent }
   | { ok: false; errors: z.ZodIssue[] } {
   const result = CONTENT_SCHEMA_MAP[type].safeParse(content);
   if (result.success) {
-    return { ok: true, data: result.data as McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent };
+    return { ok: true, data: result.data as McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent };
   }
   return { ok: false, errors: result.error.issues };
 }
