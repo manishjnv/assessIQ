@@ -1,7 +1,7 @@
 // AssessIQ — Admin guide page.
 //
 // /admin/guide — end-to-end assessment workflow guide for tenant admins (L1→L3).
-// Audience: tenant admins + reviewers learning the full workflow.
+// Audience: tenant admins learning the full workflow.
 //
 // Option A (v1): static JSX content baked in.  Fast to ship; full styling
 // control via @assessiq/ui-system primitives.  No runtime fetch.

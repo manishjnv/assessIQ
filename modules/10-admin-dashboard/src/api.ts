@@ -525,7 +525,7 @@ export interface TenantListItem {
   usage: TenantUsage | null;
   /** Phase B: active admin count (excluding super_admin and disabled users). */
   admin_count: number;
-  /** Phase B: active reviewer count. */
+  /** Active reviewer count; kept for API compatibility, not shown in the UI. */
   reviewer_count: number;
 }
 
@@ -641,7 +641,7 @@ export interface ResendInvitationResponse {
   invitation: {
     id: string;
     email: string;
-    role: 'admin' | 'reviewer';
+    role: 'admin';
     expires_at: string;
   };
 }
@@ -657,7 +657,7 @@ export async function resendInvitationApi(
 
 export interface SuperUpdateAdminRequest {
   name?: string;
-  role?: 'admin' | 'reviewer';
+  role?: 'admin';
   email?: string;
   /** Required when changing an ACTIVE (accepted) admin's email — confirms the
    *  operator understands this transfers the account's login identity. */
@@ -669,7 +669,7 @@ export interface SuperUpdateAdminResponse {
   userId: string;
   email: string;
   name: string;
-  role: 'admin' | 'reviewer';
+  role: 'admin';
   previousEmail: string;
   emailChanged: boolean;
   status: string;

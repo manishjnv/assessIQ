@@ -37,7 +37,7 @@ interface AcceptResponse {
   user: {
     id: string;
     email: string;
-    role: 'admin' | 'reviewer';
+    role: 'admin';
   };
   expiresAt: string;
 }
