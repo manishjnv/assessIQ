@@ -208,7 +208,9 @@ export async function buildServer() {
   // Auth + admin routes use DI authChain — the help-system package stays
   // framework-agnostic (no fastify dep) so apps/api passes its own factory.
   // Worker observability routes — queue stats + failed-job inspection + retry.
-  await registerAdminWorkerRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+  // The queue is shared by every tenant, so only the platform super admin may
+  // read it or retry a job (RS6 FR17, 2026-10-03; was tenant admin).
+  await registerAdminWorkerRoutes(app, { adminOnly: authChain({ roles: ['super_admin'] }) });
 
   // Notifications + webhooks routes (Phase 3 G3.B):
   //   - /api/admin/webhooks/* (admin-gated)
