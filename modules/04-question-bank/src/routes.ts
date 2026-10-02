@@ -704,7 +704,7 @@ export async function registerQuestionBankRoutes(
           properties: {
             pack_id: { type: "string", format: "uuid" },
             level_id: { type: "string", format: "uuid" },
-            type: { type: "string", enum: ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select", "ordering"] },
+            type: { type: "string", enum: ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select", "ordering", "structured_case"] },
             topic: { type: "string", minLength: 1, maxLength: 200 },
             points: { type: "integer", minimum: 1 },
             content: {},

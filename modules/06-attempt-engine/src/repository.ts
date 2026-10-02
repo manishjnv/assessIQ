@@ -466,6 +466,19 @@ export async function listOrderingQuestionIds(client: PoolClient, attemptId: str
  * The type is read live from `questions`: question_versions does not store it, and
  * listFrozenQuestionsForAttempt (candidate view) and scoring read it the same way.
  */
+/** Frozen question_versions.content of an attempt question (SERVER-INTERNAL: contains the answer key). */
+export async function findFrozenContent(
+  client: PoolClient,
+  questionId: string,
+  version: number,
+): Promise<unknown> {
+  const result = await client.query<{ content: unknown }>(
+    `SELECT content FROM question_versions WHERE question_id = $1 AND version = $2`,
+    [questionId, version],
+  );
+  return result.rows[0]?.content ?? null;
+}
+
 export async function findQuestionType(client: PoolClient, questionId: string): Promise<string | null> {
   const result = await client.query<{ type: string }>(
     `SELECT type FROM questions WHERE id = $1`,
@@ -525,6 +538,20 @@ export function sanitizeContentForCandidate(type: string, content: unknown): unk
     // re-arranged into the attempt's (never-correct) display order by displayQuestions().
     case "ordering":
       return pick(["question", "items"]);
+
+    // structured_case: per-step allowlist id/prompt/select/options; `correct`, `scoring` and
+    // `explanation` never leave the server. Not shuffled (ponytail: shuffle per step is the upgrade).
+    case "structured_case": {
+      const base = pick(["title", "context", "log_excerpt"]);
+      const rawSteps = c["steps"];
+      base["steps"] = Array.isArray(rawSteps)
+        ? rawSteps.map((st) => {
+            const s = st !== null && typeof st === "object" ? (st as Record<string, unknown>) : {};
+            return { id: s["id"], prompt: s["prompt"], select: s["select"], options: s["options"] };
+          })
+        : [];
+      return base;
+    }
 
     case "log_analysis":
       return pick(["question", "log_format", "log_excerpt", "hint"]);

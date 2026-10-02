@@ -775,12 +775,16 @@ export async function saveAnswer(
     const incomingRevision = input.client_revision ?? 0;
 
     // Scenario answers must be {steps:[{stepIndex, response}]} (see checkAnswerForSave).
+    const savedType = input.answer === null ? null : await repo.findQuestionType(client, input.questionId);
     const checked = checkAnswerForSave(
-      input.answer === null ? null : await repo.findQuestionType(client, input.questionId),
+      savedType,
       input.answer,
+      savedType === "structured_case"
+        ? await repo.findFrozenContent(client, input.questionId, aq.question_version)
+        : undefined,
     );
     if (!checked.ok) {
-      throw new ValidationError("answer does not have the shape of a scenario answer", {
+      throw new ValidationError(`answer does not have the shape of a ${savedType ?? "scenario"} answer`, {
         details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "answer" },
       });
     }

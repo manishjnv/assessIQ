@@ -93,8 +93,8 @@ export interface DifficultyTarget {
 // DIFFICULTY_SPEC — the full (QuestionType × DifficultyLevel) matrix
 // ---------------------------------------------------------------------------
 
-/** AI-generated types only: numeric / multi_select / ordering are authored by hand (no generation, no difficulty spec). */
-type GeneratedQuestionType = Exclude<QuestionType, "numeric" | "multi_select" | "ordering">;
+/** AI-generated types only: numeric / multi_select / ordering / structured_case are authored by hand (no generation, no difficulty spec). */
+type GeneratedQuestionType = Exclude<QuestionType, "numeric" | "multi_select" | "ordering" | "structured_case">;
 
 export const DIFFICULTY_SPEC: Record<GeneratedQuestionType, Record<DifficultyLevel, DifficultyTarget>> = {
   mcq: {

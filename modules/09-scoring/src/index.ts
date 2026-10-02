@@ -61,6 +61,7 @@ export {
   isNumericAnswerCorrect,
   multiSelectFraction,
   orderingFraction,
+  structuredCaseFraction,
   deterministicFraction,
   DETERMINISTIC_TYPES,
   MCQ_SENTINEL_SHA,

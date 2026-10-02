@@ -55,7 +55,7 @@ export function isMcqAnswerCorrect(content: unknown, answer: unknown): boolean {
 }
 
 /** Types scored here with NO AI. Keep in sync with the `q.type IN (...)` SQL below. */
-export const DETERMINISTIC_TYPES = ["mcq", "numeric", "multi_select", "ordering"] as const;
+export const DETERMINISTIC_TYPES = ["mcq", "numeric", "multi_select", "ordering", "structured_case"] as const;
 
 /** Extract the numeric value of a stored numeric answer: number, {value}, or numeric string ("1,250"). */
 export function parseNumericAnswer(answer: unknown): number | null {
@@ -126,11 +126,48 @@ export function orderingFraction(content: unknown, answer: unknown): number {
   return hits === key.length ? 1 : 0;
 }
 
+/**
+ * structured_case: fraction of the points earned, 0..1. Answer `{ steps: { [stepId]: number[] } }`
+ * (ORIGINAL option indexes; no shuffle for this type). Per step: select 'one' -> 1 iff the single
+ * selected index equals correct[0]; select 'many' -> multiSelectFraction on that step (partial only
+ * when the question's scoring is 'partial'). Question: all_or_nothing -> 1 iff every step is 1;
+ * partial (default) -> mean of the step fractions. Malformed content/answer -> 0.
+ */
+export function structuredCaseFraction(content: unknown, answer: unknown): number {
+  if (content === null || typeof content !== "object") return 0;
+  const c = content as { steps?: unknown; scoring?: unknown };
+  if (!Array.isArray(c.steps) || c.steps.length === 0) return 0;
+  const given = answer !== null && typeof answer === "object" && !Array.isArray(answer)
+    ? (answer as { steps?: unknown }).steps
+    : undefined;
+  if (given === null || typeof given !== "object" || Array.isArray(given)) return 0;
+  const picks = given as Record<string, unknown>;
+  const stepIds = new Set(c.steps.map((s) => (s !== null && typeof s === "object" ? (s as { id?: unknown }).id : undefined)));
+  if (Object.keys(picks).some((k) => !stepIds.has(k))) return 0; // unknown step id -> malformed
+  const fractions = c.steps.map((s): number => {
+    if (s === null || typeof s !== "object") return 0;
+    const st = s as { id?: unknown; select?: unknown; options?: unknown; correct?: unknown };
+    if (typeof st.id !== "string" || !Object.prototype.hasOwnProperty.call(picks, st.id)) return 0;
+    const sel = picks[st.id];
+    if (st.select === "one") {
+      const key = Array.isArray(st.correct) && st.correct.length === 1 ? st.correct[0] : undefined;
+      return Array.isArray(sel) && sel.length === 1 && typeof key === "number" && sel[0] === key ? 1 : 0;
+    }
+    return multiSelectFraction(
+      { options: st.options, correct: st.correct, scoring: c.scoring === "all_or_nothing" ? "all_or_nothing" : "partial" },
+      { selected: sel },
+    );
+  });
+  if (c.scoring === "all_or_nothing") return fractions.every((f) => f === 1) ? 1 : 0;
+  return fractions.reduce((a, b) => a + b, 0) / fractions.length;
+}
+
 /** Fraction (0..1) of the question's points earned, for any deterministic type. */
 export function deterministicFraction(type: string, content: unknown, answer: unknown): number {
   if (type === "numeric") return isNumericAnswerCorrect(content, answer) ? 1 : 0;
   if (type === "multi_select") return multiSelectFraction(content, answer);
   if (type === "ordering") return orderingFraction(content, answer);
+  if (type === "structured_case") return structuredCaseFraction(content, answer);
   return isMcqAnswerCorrect(content, answer) ? 1 : 0;
 }
 
@@ -161,7 +198,7 @@ export async function scoreMcqForAttempt(
          ON aa.attempt_id = aq.attempt_id
         AND aa.question_id = aq.question_id
       WHERE aq.attempt_id = $1
-        AND q.type IN ('mcq', 'numeric', 'multi_select', 'ordering')`,
+        AND q.type IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case')`,
     [attemptId],
   );
 
@@ -233,7 +270,7 @@ export async function scoreMcqAndFinalizeIfComplete(
          FROM attempt_questions aq
          JOIN questions q ON q.id = aq.question_id
         WHERE aq.attempt_id = $1
-          AND q.type IN ('mcq', 'numeric', 'multi_select', 'ordering')
+          AND q.type IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case')
           AND NOT EXISTS (
             SELECT 1 FROM gradings g
              WHERE g.attempt_id = aq.attempt_id
