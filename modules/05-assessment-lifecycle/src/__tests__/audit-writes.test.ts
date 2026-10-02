@@ -434,6 +434,9 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
       const after = r.after as Record<string, unknown>;
       expect(after.assessment_id).toBe(assessment.id);
       expect(after.status).toBe("pending");
+      // Date values must be ISO strings — redactPayload flattens a Date to {}.
+      expect(typeof after.expires_at).toBe("string");
+      expect(Number.isNaN(Date.parse(after.expires_at as string))).toBe(false);
     }
   });
 

@@ -88,8 +88,7 @@ export const BULK_EMAIL_RETRY_DELAYS_MS: ReadonlyArray<number> = [
 /**
  * Delay before the next attempt. BullMQ passes the 1-based number of attempts
  * already made (1 after the first failure — verified on 5.76.5), so the first
- * retry uses index 0. (webhookBackoffStrategy indexes with the raw value; that
- * off-by-one is pre-existing and left alone.)
+ * retry uses index 0 (webhookBackoffStrategy does the same).
  */
 export function bulkEmailBackoffStrategy(attemptsMade: number): number {
   const i = Math.min(Math.max(attemptsMade, 1), BULK_EMAIL_RETRY_DELAYS_MS.length) - 1;

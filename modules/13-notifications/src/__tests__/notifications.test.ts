@@ -286,9 +286,11 @@ describe('webhook retry schedule (P3.D12)', () => {
   });
 
   it('webhookBackoffStrategy returns correct delays', () => {
-    expect(webhookBackoffStrategy(0)).toBe(60_000);
-    expect(webhookBackoffStrategy(1)).toBe(300_000);
-    expect(webhookBackoffStrategy(4)).toBe(43_200_000);
+    // BullMQ passes 1-based attemptsMade: first retry => 1 => schedule[0].
+    expect(webhookBackoffStrategy(1)).toBe(60_000);
+    expect(webhookBackoffStrategy(2)).toBe(300_000);
+    expect(webhookBackoffStrategy(5)).toBe(43_200_000);
+    expect(webhookBackoffStrategy(99)).toBe(43_200_000);
   });
 
   it('schedule is NOT exponential — literal values only', () => {

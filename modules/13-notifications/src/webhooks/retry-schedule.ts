@@ -33,11 +33,10 @@ export function delayFor(attemptsMade: number): number | undefined {
 /**
  * BullMQ custom backoff strategy function.
  * Registered as the 'webhook-literal' strategy in the Worker settings.
- * BullMQ calls this with (attemptsMade, error) and expects a delay in ms.
+ * BullMQ passes the 1-BASED count of attempts already made (1 after the first
+ * failure), so retry N uses schedule[N-1]. Clamped to the last delay.
  */
 export function webhookBackoffStrategy(attemptsMade: number): number {
-  const delay = delayFor(attemptsMade);
-  // If we somehow get called past the retry cap, use the last delay as fallback.
-  // In practice BullMQ won't call this beyond `attempts` - 1.
-  return delay ?? WEBHOOK_RETRY_DELAYS_MS[WEBHOOK_RETRY_DELAYS_MS.length - 1]!;
+  const last = WEBHOOK_RETRY_DELAYS_MS.length - 1;
+  return WEBHOOK_RETRY_DELAYS_MS[Math.min(Math.max(attemptsMade - 1, 0), last)]!;
 }

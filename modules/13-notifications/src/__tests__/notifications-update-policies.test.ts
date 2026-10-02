@@ -27,6 +27,8 @@ const emailA = randomUUID();
 const endpointA = randomUUID();
 const endpointB = randomUUID();
 const deliveryA = randomUUID();
+const userA = randomUUID();
+const notifA = randomUUID();
 
 async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   const c = new Client({ connectionString: url });
@@ -62,6 +64,14 @@ beforeAll(async () => {
       `INSERT INTO webhook_endpoints (id, tenant_id, name, url, secret_enc, events)
        VALUES ($1,$2,'a','https://example.com/a','\\x00','{x}'),($3,$4,'b','https://example.com/b','\\x00','{x}')`,
       [endpointA, tenantA, endpointB, tenantB],
+    );
+    await c.query(`INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1,$2,'u@a.test','U','admin')`, [
+      userA,
+      tenantA,
+    ]);
+    await c.query(
+      `INSERT INTO in_app_notifications (id, tenant_id, audience, user_id, kind, message) VALUES ($1,$2,'user',$3,'k','m')`,
+      [notifA, tenantA, userA],
     );
     await c.query(`INSERT INTO webhook_deliveries (id, endpoint_id, event, payload) VALUES ($1,$2,'e','{}')`, [
       deliveryA,
@@ -120,5 +130,23 @@ describe('0121 UPDATE policies', () => {
     ]);
     expect(email).toEqual({ status: 'failed', last_error: 'SMTP 550 5.1.1', attempts: 1 });
     expect(delivery).toEqual({ status: 'failed', last_error: 'blocked_address', attempts: 1 });
+  });
+});
+
+describe('0126 in_app_notifications UPDATE policy', () => {
+  it("another tenant cannot mark read; the owner's mark-read persists", async () => {
+    await withTenant(tenantB, (c) => repo.markInAppNotificationRead(c, notifA, userA));
+    const before = await sup(async (c) => (await c.query('SELECT read_at FROM in_app_notifications WHERE id=$1', [notifA])).rows[0]);
+    expect(before.read_at).toBeNull();
+
+    await withTenant(tenantA, (c) => repo.markInAppNotificationRead(c, notifA, userA));
+    const after = await sup(async (c) => (await c.query('SELECT read_at FROM in_app_notifications WHERE id=$1', [notifA])).rows[0]);
+    expect(after.read_at).not.toBeNull();
+  });
+
+  it('a notification cannot be moved to another tenant (WITH CHECK)', async () => {
+    await expect(
+      withTenant(tenantA, (c) => c.query('UPDATE in_app_notifications SET tenant_id=$1 WHERE id=$2', [tenantB, notifA])),
+    ).rejects.toThrow(/row-level security/);
   });
 });

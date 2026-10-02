@@ -2872,6 +2872,19 @@ admin.assessments.invitations.resend_result:
     - **Still to send** — more candidates are waiting than one click can send
       (200). Press **Resend to everyone who hasn't started** again to continue.
 
+admin.assessments.invitations.paging:
+  audience: admin
+  short_text: "Invitations are shown 100 at a time. Use Previous and Next to move between pages."
+  long_md: |
+    ## Invitation pages
+
+    The list shows up to 100 invitations at a time. The line on the left says
+    which rows you are looking at, for example **Showing 101-200 of 340**.
+
+    - **Previous / Next** move one page. Sorting applies to the page on screen.
+    - **Resend to everyone who hasn't started** always covers every page, not
+      only the one you are looking at.
+
 admin.assessment.integrity.fullscreen:
   audience: admin
   short_text: "Candidates are asked to take the test in full screen. Leaving it is recorded, not prevented."
