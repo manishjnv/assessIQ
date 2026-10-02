@@ -128,7 +128,7 @@ function mockGoogleFlow(claims: {
       ...claims,
     },
     protectedHeader: { alg: "RS256" },
-    key: {} as jose.KeyLike,
+    key: {} as import("node:crypto").webcrypto.CryptoKey,
   } as Awaited<ReturnType<typeof jose.jwtVerify>>);
 }
 
