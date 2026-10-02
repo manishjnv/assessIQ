@@ -1,6 +1,6 @@
 // EditAdminModal — split from platform.tsx (E9, no behaviour change).
 
-import React, { useState, type CSSProperties } from "react";
+import React, { useState } from "react";
 import { Button, Card, Chip, Field } from "@assessiq/ui-system";
 import { MfaStepUp } from "../../components/mfa-step-up.js";
 import { AdminApiError, superUpdateAdminApi, superUpdateTenantApi, type SuperUpdateAdminRequest, type TenantListItem } from "../../api.js";
@@ -139,17 +139,6 @@ export function EditAdminModal({
   const handleMfaVerified = (): void => {
     setModalState("form");
     void doSubmit();
-  };
-
-  const selectStyle: CSSProperties = {
-    fontFamily: "var(--aiq-font-sans)",
-    fontSize: 13,
-    padding: "8px 10px",
-    borderRadius: "var(--aiq-radius-md)",
-    border: "1px solid var(--aiq-color-border)",
-    background: "var(--aiq-color-bg-raised)",
-    color: "var(--aiq-color-fg-primary)",
-    width: "100%",
   };
 
   return (
