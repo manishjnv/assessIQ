@@ -15,7 +15,8 @@
 //  - Kit is candidate-facing; admin replaces "continue/performance/recommended"
 //    panels with the grading queue — the primary admin work surface.
 //  - Sparkline dropped: queue endpoint provides no time-series data.
-//  - 3 stat cards (vs kit's 4): counts derived from queue status.
+//  - 3 stat cards (vs kit's 4): tenant-wide totals from the server (`counts`),
+//    not the length of the capped queue list.
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,8 +34,16 @@ import { evaluationStatusDisplay } from "../lib/status.js";
 /** Queue row + the result state the company sees (spec 2026-10-01 §5b). */
 type QueueRow = BaseQueueRow & { evaluation_status?: EvaluationStatus };
 
+interface QueueCounts {
+  in_queue: number;
+  awaiting_evaluation: number;
+  ready_to_publish: number;
+}
+
 interface QueueResponse {
   items: QueueRow[];
+  /** Tenant-wide totals from the server; `items` is capped by `limit`. */
+  counts: QueueCounts;
 }
 
 type SortDir = "asc" | "desc";
@@ -79,6 +88,7 @@ export function AdminDashboard(): React.ReactElement {
   const navigate = useNavigate();
   const { session } = useAdminSession();
   const [queueItems, setQueueItems] = useState<QueueRow[]>([]);
+  const [counts, setCounts] = useState<QueueCounts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>("");
@@ -90,6 +100,7 @@ export function AdminDashboard(): React.ReactElement {
     try {
       const data = await adminApi<QueueResponse>("/admin/dashboard/queue?limit=50");
       setQueueItems(data.items);
+      setCounts(data.counts ?? null);
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load queue.");
     } finally {
@@ -105,9 +116,11 @@ export function AdminDashboard(): React.ReactElement {
   }, [fetchQueue]);
 
   const evalOf = (r: QueueRow): EvaluationStatus => evaluationStatusOf(r.status, r.evaluation_status);
-  const awaitingCount = queueItems.filter((r) => evalOf(r) === "awaiting_evaluation").length;
-  const readyCount = queueItems.filter((r) => evalOf(r) === "ready_to_publish").length;
-  const totalCount = queueItems.length;
+  // Server totals, not the length of the capped list. Fallback to the list only
+  // while an older API (no `counts`) is still running during a deploy.
+  const totalCount = counts?.in_queue ?? queueItems.length;
+  const awaitingCount = counts?.awaiting_evaluation ?? queueItems.filter((r) => evalOf(r) === "awaiting_evaluation").length;
+  const readyCount = counts?.ready_to_publish ?? queueItems.filter((r) => evalOf(r) === "ready_to_publish").length;
 
   const displayName =
     (session?.user.email?.split("@")[0] ?? "").replace(/^./, (c) => c.toUpperCase()) || "Admin";
@@ -266,6 +279,17 @@ export function AdminDashboard(): React.ReactElement {
             >
               Results queue.
             </h2>
+            {totalCount > queueItems.length && queueItems.length > 0 && (
+              <span
+                style={{
+                  fontFamily: "var(--aiq-font-mono)",
+                  fontSize: "var(--aiq-text-xs)",
+                  color: "var(--aiq-color-fg-muted)",
+                }}
+              >
+                Showing the oldest {queueItems.length} of {totalCount}
+              </span>
+            )}
           </div>
 
           {error && (

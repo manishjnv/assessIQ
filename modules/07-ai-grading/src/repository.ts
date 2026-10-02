@@ -559,7 +559,7 @@ export async function listGradingQueue(
      JOIN users u ON u.id = a.user_id
      JOIN assessments asmnt ON asmnt.id = a.assessment_id
      LEFT JOIN levels al ON al.id = asmnt.level_id
-     WHERE a.status IN ('submitted', 'pending_admin_grading')
+     WHERE a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
      ORDER BY a.submitted_at ASC NULLS LAST, a.id ASC
      LIMIT $1`,
     [limit],
@@ -574,6 +574,36 @@ export async function listGradingQueue(
     evaluation_status: deriveEvaluationStatus(r.status, r.evaluation_released),
     prompt_version_sha_drift: false,
   }));
+}
+
+/** Dashboard KPI counts for the current tenant. Not limited by the queue page size. */
+export interface QueueCounts {
+  /** Same predicate as listGradingQueue: not evaluated yet. */
+  in_queue: number;
+  /** in_queue + evaluated but not yet released to the tenant (see deriveEvaluationStatus). */
+  awaiting_evaluation: number;
+  /** status 'graded' AND evaluation released: the tenant can publish. */
+  ready_to_publish: number;
+}
+
+/**
+ * Count attempts for the dashboard KPI cards. RLS-scoped like listGradingQueue
+ * (no tenant predicate; the caller runs inside withTenant). KEEP IN SYNC with the
+ * listGradingQueue status filter and with deriveEvaluationStatus.
+ * ponytail: no dedicated index. The scan is bounded by the tenant's own attempts
+ * (same cost class as listGradingQueue, polled every 30 s). Add a partial index on
+ * attempts (tenant_id, status) if one tenant passes about 100k attempts.
+ */
+export async function countGradingQueue(client: PoolClient): Promise<QueueCounts> {
+  const result = await client.query<QueueCounts>(
+    `SELECT
+       COUNT(*) FILTER (WHERE a.status <> 'graded')::int                                        AS in_queue,
+       COUNT(*) FILTER (WHERE a.status <> 'graded' OR a.evaluation_released_at IS NULL)::int     AS awaiting_evaluation,
+       COUNT(*) FILTER (WHERE a.status = 'graded' AND a.evaluation_released_at IS NOT NULL)::int AS ready_to_publish
+     FROM attempts a
+     WHERE a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading', 'graded')`,
+  );
+  return result.rows[0] ?? { in_queue: 0, awaiting_evaluation: 0, ready_to_publish: 0 };
 }
 
 // ---------------------------------------------------------------------------
