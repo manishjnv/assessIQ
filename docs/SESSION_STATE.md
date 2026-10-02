@@ -1,3 +1,47 @@
+# Session — 2026-10-01 → 02 (wrap) — pilot batches 2–4 shipped; CI green; session handoff
+
+**Headline:** 15 features are LIVE on https://assessiq.in across three batches, and GitHub CI is green for the first time since May (the e2e job is paused by owner decision).
+**Commits:** `20b9779..ab5c884` on `main`, all pushed. Per-batch detail is in the (f), (g) and (h) entries below.
+- Batch 2 (`76c3014..e030245`, docs `408c3c3`): reports hide unreleased scores, roll number / branch + ranked CSV, integrity v1, marketing truth pass, CI lint/test gates.
+- Batch 3 (`d9a0813..273e2bc`, docs `f8715a5`): numeric + multi-select types, points frozen per attempt, session-status cache, integrity edit, fix batch.
+- Batch 4 (`4e59b18..e752be6`, docs `ab5c884`): sections + calculator, reminders, least-AI tiers, `/try` demo, client IP + erased guards.
+- Feature doc for batches 3–4: `docs/plans/PILOT_BATCHES_3_4.md`. Batch 2 is in this file's (f) entry and `docs/testing/AssessIQ_Pilot_Batch2_Test_Script.docx` (local).
+**Deploy:** prod at `e752be6` (docs-only commits after it). Migrations 0122–0135 applied by hand and recorded. Shared Caddy `@app` gained `/try /try/*` (owner-approved, backup `Caddyfile.bak.20261002T034840Z`). The marketing container was rebuilt for the truth pass and the `/try` CTA.
+**Tests:** last full runs per module are green (05 135, 06 263, 07 383, 09 102, 10 99, 11 114, 13 246, 16 93, 18 136, web 57). Typecheck 0, lint 0, GitHub CI ✓ (run 36913040310). Known: 6 pre-existing `apps/api` route-test failures (CI doesn't run that suite, PENDING N2) and the `01-auth` totp constant-time flake under load.
+**Next (Claude):** batch 5 = N1 sections follow-ups, E1 two-model vote, E2 eval gate + override capture, E6 generation batch durability, N2 apps/api in CI + D6 dependency scan + E7 data-rights tests. E13 e2e stays LAST.
+**Blocked on owner:** approve the push-gate hook fix (N3).
+**Open questions:** (1) fix or quarantine the 6 `apps/api` tests before adding them to CI? (2) give `/try` its own static HTML so shared links unfurl with its OG image?
+
+**Process notes for the next session (do not repeat these mistakes):**
+- Write temp files to the session scratchpad, never `/tmp`, when mixing bash and Python: on Windows they are different folders.
+- Run `git push` as its own Bash call. The push-gate hook has no `jq` here, and its sed fallback cuts the command at the first `"` (RCA 2026-10-02).
+- `git add -f docs/...` in its own command (docs/ is gitignored).
+- Merge builder worktrees with `git cherry-pick`. Expect conflicts on the help seed `0011` (run `pnpm help:seed:regen`), the help-count test and module SKILL.md files.
+- Run container-backed test suites one module at a time; parallel runs time out at container start.
+
+---
+
+## Agent utilization (session wrap)
+- **Opus:**
+  - planning and contracts for 15 builders;
+  - line-by-line review of every diff, including the load-bearing 01, 07 and 00 changes;
+  - the fixes found in review: erasure gap, uuid check, `/try` 403, reuse case-fold / band, prod enforce rule, NAT lockout, mcq.ts merge;
+  - all merges, deploys and the shared Caddy edit;
+  - CI root-cause fixes: postgres wait, help seed, TODO tags, e2e analysis;
+  - the batch 2 Word test script, this handoff and memory.
+- **Sonnet:** 15 worktree builders in batches 2–4, plus 3 docs agents.
+- **Haiku:** n/a (live checks were small inline curl / psql commands).
+- **codex:rescue:**
+  - session-status cache: accept;
+  - points freeze: revise, addressed;
+  - least-AI: revise, addressed;
+  - client IP / erased: revise, addressed;
+  - numeric/multi-select 07 predicates: Opus-reviewed per the playbook's scale rule;
+  - batch 3's push is missing its trailer; the sign-offs are recorded in (g).
+- **claude-mem:** honoured vps-shared-host, docs-folder-gitignored, parallel-session-shared-working-tree, prompts-out-of-git, and the new feedback rule that status reports cover Claude-doable tasks only.
+
+---
+
 # Session — 2026-10-02 (h) — batch 4 live
 
 **Headline:** Batch 4 is live on prod (HEAD `e752be6`, deployed 2026-10-02): public `/try` demo, least-AI grading tiers 1-2, invitation reminders, test sections + calculator, trusted client IP, erased-candidate guards.
