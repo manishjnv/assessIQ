@@ -347,6 +347,8 @@ export interface PreviewQuestionSet {
   questions: unknown[];    // sample preview (limited to question_count entries)
   /** Present only when assessment has settings.blueprint */
   blueprint_criteria?: PreviewCriterionResult[];
+  /** true when counts/sample come from assessment_frozen_pool (published/closed/reopened); false = live pool. */
+  frozen?: boolean;
 }
 
 // ---------------------------------------------------------------------------

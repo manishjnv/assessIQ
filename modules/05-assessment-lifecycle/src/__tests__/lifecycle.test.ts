@@ -1196,5 +1196,52 @@ describe("previewAssessment smoke test", () => {
     expect(preview.questions).toHaveLength(5);
     expect(preview.assessment_id).toBe(assessment.id);
     expect(preview.pack_id).toBe(packId);
+    expect(preview.frozen).toBeFalsy();
+  });
+
+  async function addActiveQuestion(packId: string, levelId: string): Promise<void> {
+    const q = await createQuestion(
+      tenantA,
+      {
+        pack_id: packId,
+        level_id: levelId,
+        type: "mcq",
+        topic: "late-added",
+        points: 5,
+        content: { question: "Late?", options: ["A", "B", "C", "D"], correct: 0, rationale: "A." },
+      },
+      adminA,
+    );
+    await withSuperClient(async (client) => {
+      await client.query(`UPDATE questions SET status = 'active' WHERE id = $1`, [q.id]);
+    });
+  }
+
+  it("draft preview reflects the live pool (frozen not set)", async () => {
+    const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 5);
+    const assessment = await createAssessment(
+      tenantA,
+      { pack_id: packId, level_id: levelId, name: "Preview Draft Live", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
+      adminA,
+    );
+    await addActiveQuestion(packId, levelId);
+    const preview = await previewAssessment(tenantA, assessment.id);
+    expect(preview.pool_size).toBe(6);
+    expect(preview.frozen).toBeFalsy();
+  });
+
+  it("published preview reads the frozen pool: later pack additions do not change pool_size (frozen=true)", async () => {
+    const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 5);
+    const assessment = await createAssessment(
+      tenantA,
+      { pack_id: packId, level_id: levelId, name: "Preview Frozen", question_count: 5, opens_at: new Date(Date.now() + 60_000) },
+      adminA,
+    );
+    await publishAssessment(tenantA, assessment.id, adminA);
+    await addActiveQuestion(packId, levelId);
+    const preview = await previewAssessment(tenantA, assessment.id);
+    expect(preview.pool_size).toBe(5);
+    expect(preview.questions).toHaveLength(5);
+    expect(preview.frozen).toBe(true);
   });
 });
