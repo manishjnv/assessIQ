@@ -297,7 +297,7 @@ jobs:
         run: |
           set +e
           files=$(git ls-files '.env*' '*.env' '*.env.*' 'infra/docker-compose*.yml' 'infra/**/Dockerfile*' 'Dockerfile*' 'docker-compose*.yml')
-          matches=$(echo "$files" | xargs -r grep -nE "ENABLE_(E2E|EMBED)_TEST_MINTER[\"']?[[:space:]]*[:=][[:space:]]*[\"']?(true|1)([^A-Za-z0-9]|$)")
+          matches=$(echo "$files" | xargs -r grep -nE "ENABLE_(E2E|EMBED)_TEST_MINTER[\"']?[[:space:]]*[:=]-?[[:space:]]*[\"']?(true|1)([^A-Za-z0-9]|$)")
           if [ -n "$matches" ]; then
             echo "::error::Test-only minter flag enabled in a prod template:"
             echo "$matches"

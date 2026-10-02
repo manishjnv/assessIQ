@@ -1121,7 +1121,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           onSaved={(settings, qc) =>
             setAssessment({
               ...assessment,
-              settings: settings as Assessment["settings"],
+              settings: settings as NonNullable<Assessment["settings"]>,
               ...(qc !== null ? { question_count: qc } : {}),
             })
           }
